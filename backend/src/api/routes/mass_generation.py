@@ -30,19 +30,19 @@ async def start_mass_generation(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Start mass clip generation task (300-500 clips from long video).
+    Start mass clip generation with 5-model AI council.
+
+    NEW ARCHITECTURE:
+    - Adaptive clip targeting (50/250/500 based on video duration)
+    - 5-model council deliberation (Sonnet, Opus, GPT-4, Gemini, DeepSeek)
+    - Simple cuts only (no crop, no captions, no effects)
+    - User instruction notes guide the AI
 
     Request body:
     {
-        "uploaded_file_path": "/app/uploads/video.mp4" or "youtube_url",
-        "target_clips": 300,
-        "enable_vvsa": true,
+        "uploaded_file_path": "/app/uploads/video.mp4",
         "source_type": "upload" or "youtube",
-        "font_options": {
-            "font_family": "TikTokSans-Regular",
-            "font_size": 24,
-            "font_color": "#FFFFFF"
-        }
+        "user_notes": "Look for emotional moments, action sequences, and quotable lines"
     }
 
     Returns:
@@ -64,17 +64,11 @@ async def start_mass_generation(
         if not video_path:
             raise HTTPException(status_code=400, detail="uploaded_file_path is required")
 
-        target_clips = data.get("target_clips", 100)
-        enable_vvsa = data.get("enable_vvsa", True)
         source_type = data.get("source_type", "upload")
+        user_notes = data.get("user_notes", "")
 
-        # Font options
-        font_options = data.get("font_options", {})
-        font_family = font_options.get("font_family", "TikTokSans-Regular")
-        font_size = font_options.get("font_size", 24)
-        font_color = font_options.get("font_color", "#FFFFFF")
-
-        logger.info(f"🚀 Mass generation request: {video_path}, target={target_clips}, user={user_id}")
+        logger.info(f"🚀 Mass generation request: {video_path}, user={user_id}")
+        logger.info(f"📝 User notes: {user_notes or 'None'}")
 
         # Verify user exists
         user_result = await db.execute(
@@ -96,10 +90,7 @@ async def start_mass_generation(
         task = Task(
             user_id=user_id,
             source_id=source.id,
-            status="queued",
-            font_family=font_family,
-            font_size=font_size,
-            font_color=font_color
+            status="queued"
         )
 
         db.add(task)
@@ -121,12 +112,8 @@ async def start_mass_generation(
             'generate_mass_clips_task',
             task_id=task.id,
             video_path=video_path,
-            target_clips=target_clips,
             user_id=user_id,
-            enable_vvsa=enable_vvsa,
-            font_family=font_family,
-            font_size=font_size,
-            font_color=font_color
+            user_notes=user_notes
         )
 
         await redis.close()
@@ -136,8 +123,8 @@ async def start_mass_generation(
         return {
             "task_id": task.id,
             "job_id": str(job.job_id),
-            "message": "Mass generation started",
-            "target_clips": target_clips
+            "message": "Mass generation started with 5-model AI council",
+            "info": "Clip count will be adaptive: 50 (short), 250 (medium), or 500 (long) based on video duration"
         }
 
     except HTTPException:

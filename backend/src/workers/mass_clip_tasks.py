@@ -1,10 +1,11 @@
 """
-Mass clip generation worker tasks - handles large-scale clip generation.
+Mass clip generation worker tasks - 5-model council system with simple cuts.
 """
 import logging
 from typing import Dict, Any, List
 from pathlib import Path
 import json
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -13,41 +14,41 @@ async def generate_mass_clips_task(
     ctx: Dict[str, Any],
     task_id: str,
     video_path: str,
-    target_clips: int,
     user_id: str,
-    enable_vvsa: bool = True,
-    font_family: str = "TikTokSans-Regular",
-    font_size: int = 24,
-    font_color: str = "#FFFFFF"
+    user_notes: str = ""
 ) -> Dict[str, Any]:
     """
-    Background worker task for mass clip generation (300-500 clips).
+    Background worker task for mass clip generation with 5-model council.
+
+    NEW ARCHITECTURE:
+    - 5-model council deliberation (OpenRouter)
+    - Adaptive clip targeting (50/250/500 based on duration)
+    - Simple cuts only (no crop, no captions, no effects)
+    - User instruction notes guide the AI
 
     Args:
         ctx: arq context (provides Redis connection)
         task_id: Task ID to update
         video_path: Path to video file
-        target_clips: Target number of clips (e.g., 300-500)
         user_id: User ID who created the task
-        enable_vvsa: Enable Viral Video Start Algorithm scoring
-        font_family: Font family for subtitles
-        font_size: Font size for subtitles
-        font_color: Font color for subtitles
+        user_notes: User instructions for what to look for in clips
 
     Returns:
         Dict with processing results
     """
     from ..database import AsyncSessionLocal
     from ..workers.progress import ProgressTracker
-    from ..video_utils import VideoProcessor
-    from ..ai import get_most_relevant_parts_by_transcript
     from ..models import GeneratedClip, Task
-    from sqlalchemy import text, select
+    from sqlalchemy import text, insert
     from ..config import Config
+    from ..utils.transcription_utils import get_transcript_with_fallback, format_transcript_for_ai, cache_transcript_data
+    from ..utils.simple_video import get_video_duration, batch_cut_clips
+    from ..council.deliberation import run_council_analysis, calculate_target_clips
 
     config = Config()
     logger.info(f"🚀 Starting mass clip generation for task {task_id}")
-    logger.info(f"🎯 Target clips: {target_clips}, Video: {video_path}")
+    logger.info(f"📹 Video: {video_path}")
+    logger.info(f"📝 User notes: {user_notes or 'None'}")
 
     # Create progress tracker
     progress = ProgressTracker(ctx['redis'], task_id)
@@ -61,167 +62,164 @@ async def generate_mass_clips_task(
             )
             await db.commit()
 
-        await progress.update(5, "Starting transcription...", "processing")
+        await progress.update(5, "Getting video duration...", "processing")
 
-        # STEP 1: Transcribe video (this is the longest step - 15-20 minutes for 3-hour video)
-        logger.info(f"📝 Task {task_id}: Starting transcription")
-        await progress.update(10, "Transcribing video with MLX Whisper... This may take 15-20 minutes for long videos", "processing")
+        # STEP 1: Get video duration for adaptive targeting
+        logger.info(f"📏 Step 1: Analyzing video duration")
+        video_duration = await get_video_duration(video_path)
 
-        # Use new transcription utility with MLX primary, AssemblyAI fallback
-        from ..utils.transcription_utils import get_transcript_with_fallback, format_transcript_for_ai, cache_transcript_data
+        if video_duration == 0:
+            raise Exception("Could not determine video duration")
 
-        # Get raw transcript data
+        target_clips = calculate_target_clips(video_duration)
+        logger.info(f"🎯 Video: {video_duration/60:.1f} min → Target: {target_clips} clips")
+
+        await progress.update(
+            10,
+            f"Video duration: {video_duration/60:.1f} min. Targeting {target_clips} clips. Starting transcription...",
+            "processing"
+        )
+
+        # STEP 2: Transcribe video (MLX primary, AssemblyAI fallback)
+        logger.info(f"📝 Step 2: Transcribing video (15-20 min for long videos)")
+        await progress.update(15, "Transcribing with MLX Whisper... This may take 15-20 minutes", "processing")
+
         transcript_data = await get_transcript_with_fallback(video_path, prefer_mlx=True)
-
-        # Cache for future use
         cache_transcript_data(video_path, transcript_data)
 
-        # Format for AI analysis
+        # Format for AI
         transcript = format_transcript_for_ai(transcript_data)
 
-        logger.info(f"✅ Task {task_id}: Transcription complete ({len(transcript)} chars)")
+        logger.info(f"✅ Transcription complete ({len(transcript)} chars)")
         logger.info(f"Source: {transcript_data.get('source', 'mlx')}")
-        await progress.update(40, "Transcription complete! Analyzing content with AI...", "processing")
 
-        # STEP 2: AI Analysis for clip selection
-        # For mass generation, we need to use a different strategy
-        # Break transcript into overlapping segments and analyze each
-        logger.info(f"🤖 Task {task_id}: Starting AI analysis for {target_clips} clips")
-        await progress.update(45, f"AI analyzing content to find {target_clips} viral moments...", "processing")
+        await progress.update(40, "Transcription complete! Starting AI council deliberation...", "processing")
 
-        # Split transcript into chunks for analysis
-        all_segments = []
-        transcript_lines = transcript.split('\n')
-        chunk_size = max(50, len(transcript_lines) // 10)  # Analyze in 10 chunks minimum
+        # STEP 3: Run 5-model council deliberation
+        logger.info(f"🤖 Step 3: Running 5-model council deliberation")
+        await progress.update(45, "AI Council Phase 1: Independent analysis by 5 models...", "processing")
 
-        for i in range(0, len(transcript_lines), chunk_size // 2):  # 50% overlap
-            chunk = '\n'.join(transcript_lines[i:i + chunk_size])
-            if not chunk.strip():
-                continue
+        deliberation = await run_council_analysis(
+            transcript=transcript,
+            video_duration=video_duration,
+            user_notes=user_notes
+        )
 
-            logger.info(f"Analyzing chunk {i // (chunk_size // 2) + 1}")
-            analysis = await get_most_relevant_parts_by_transcript(chunk)
-            all_segments.extend(analysis.most_relevant_segments)
+        logger.info(f"✅ Council deliberation complete")
+        logger.info(f"Final candidates: {len(deliberation.final_candidates)}")
+        logger.info(f"Consensus level: {deliberation.consensus_level:.2f}")
 
-            # Update progress
-            progress_percent = 45 + int((i / len(transcript_lines)) * 20)
-            await progress.update(
-                progress_percent,
-                f"Analyzing content... Found {len(all_segments)} potential clips so far",
-                "processing"
-            )
+        await progress.update(
+            65,
+            f"Council selected {len(deliberation.final_candidates)} clips (consensus: {deliberation.consensus_level:.0%}). Generating videos...",
+            "processing"
+        )
 
-        logger.info(f"✅ Task {task_id}: AI analysis complete - found {len(all_segments)} segments")
+        # STEP 4: Generate clips (simple cuts, no effects)
+        logger.info(f"🎬 Step 4: Generating {len(deliberation.final_candidates)} clips")
 
-        # Sort by relevance score and take top N
-        all_segments.sort(key=lambda x: x.relevance_score, reverse=True)
-        selected_segments = all_segments[:target_clips]
+        output_dir = os.path.join(config.temp_dir, "clips", task_id)
+        os.makedirs(output_dir, exist_ok=True)
 
-        logger.info(f"📊 Task {task_id}: Selected top {len(selected_segments)} segments")
-        await progress.update(65, f"Selected {len(selected_segments)} segments. Generating video clips...", "processing")
-
-        # STEP 3: Generate video clips
-        clips_output_dir = Path(config.temp_dir) / "clips"
-        clips_output_dir.mkdir(parents=True, exist_ok=True)
-
-        logger.info(f"🎬 Task {task_id}: Starting clip generation")
-
-        # Convert segments to format expected by clip generation
-        segments_json = [
+        # Prepare clip data
+        clips_to_cut = [
             {
-                "start_time": seg.start_time,
-                "end_time": seg.end_time,
-                "text": seg.text,
-                "relevance_score": seg.relevance_score,
-                "reasoning": seg.reasoning
+                "start_time": candidate.start_time,
+                "end_time": candidate.end_time,
+                "title": candidate.title,
+                "reasoning": candidate.reasoning,
+                "engagement_score": candidate.engagement_score,
+                "category": candidate.category
             }
-            for seg in selected_segments
+            for candidate in deliberation.final_candidates
         ]
 
-        # Generate clips with progress updates
-        from ..video_utils import create_clips_with_transitions
-
-        clips_info = []
-        batch_size = 10  # Process 10 clips at a time for progress updates
-
-        for batch_idx in range(0, len(segments_json), batch_size):
-            batch = segments_json[batch_idx:batch_idx + batch_size]
-
-            logger.info(f"🎬 Generating clips {batch_idx + 1}-{min(batch_idx + batch_size, len(segments_json))}")
-
-            # Generate this batch of clips
-            batch_clips = await loop.run_in_executor(
-                None,
-                partial(
-                    create_clips_with_transitions,
-                    video_path,
-                    batch,
-                    clips_output_dir,
-                    font_family,
-                    font_size,
-                    font_color
-                )
-            )
-
-            clips_info.extend(batch_clips)
-
-            # Update progress
-            progress_percent = 65 + int(((batch_idx + batch_size) / len(segments_json)) * 25)
+        # Progress callback
+        async def clip_progress(current, total):
+            percent = 65 + int((current / total) * 25)
             await progress.update(
-                progress_percent,
-                f"Generated {len(clips_info)} / {len(segments_json)} clips...",
+                percent,
+                f"Generating clips: {current}/{total}...",
                 "processing"
             )
 
-        logger.info(f"✅ Task {task_id}: Generated {len(clips_info)} clips")
-        await progress.update(90, f"Clips generated! Saving {len(clips_info)} clips to database...", "processing")
+        # Batch cut clips
+        generated_paths = await batch_cut_clips(
+            input_path=video_path,
+            output_dir=output_dir,
+            clips=clips_to_cut,
+            progress_callback=clip_progress
+        )
 
-        # STEP 4: Save clips to database using BULK INSERT
-        logger.info(f"💾 Task {task_id}: Saving clips to database with bulk insert")
+        logger.info(f"✅ Generated {len(generated_paths)} clips")
+
+        await progress.update(90, "Clips generated! Saving to database...", "processing")
+
+        # STEP 5: Save clips to database (bulk insert)
+        logger.info(f"💾 Step 5: Saving {len(generated_paths)} clips to database")
 
         async with AsyncSessionLocal() as db:
             # Prepare bulk insert data
             clip_dicts = []
-            for i, clip_info in enumerate(clips_info):
+            for i, (clip_data, clip_path) in enumerate(zip(clips_to_cut, generated_paths)):
+                # Parse timestamps to get duration
+                start_parts = clip_data["start_time"].split(':')
+                end_parts = clip_data["end_time"].split(':')
+
+                start_seconds = int(start_parts[0]) * 60 + int(start_parts[1])
+                end_seconds = int(end_parts[0]) * 60 + int(end_parts[1])
+                duration = end_seconds - start_seconds
+
                 clip_dicts.append({
                     "task_id": task_id,
-                    "filename": clip_info["filename"],
-                    "file_path": clip_info["path"],
-                    "start_time": clip_info["start_time"],
-                    "end_time": clip_info["end_time"],
-                    "duration": clip_info["duration"],
-                    "text": clip_info.get("text", ""),
-                    "relevance_score": clip_info.get("relevance_score", 0.0),
-                    "reasoning": clip_info.get("reasoning", ""),
+                    "filename": os.path.basename(clip_path),
+                    "file_path": clip_path,
+                    "start_time": clip_data["start_time"],
+                    "end_time": clip_data["end_time"],
+                    "duration": duration,
+                    "text": clip_data.get("title", ""),
+                    "relevance_score": clip_data.get("engagement_score", 0.0),
+                    "reasoning": clip_data.get("reasoning", ""),
                     "clip_order": i + 1
                 })
 
-            # Bulk insert - single transaction for all clips
-            from sqlalchemy import insert
+            # Bulk insert - single transaction
             if clip_dicts:
                 await db.execute(insert(GeneratedClip), clip_dicts)
 
-                # Update task with clip count
+                # Update task
                 await db.execute(
-                    text("UPDATE tasks SET status = :status, generated_clips_ids = :clip_ids WHERE id = :task_id"),
+                    text("""
+                        UPDATE tasks
+                        SET status = :status,
+                            generated_clips_ids = :clip_ids
+                        WHERE id = :task_id
+                    """),
                     {
                         "status": "completed",
-                        "clip_ids": [str(i) for i in range(len(clip_dicts))],  # Placeholder IDs
+                        "clip_ids": [str(i) for i in range(len(clip_dicts))],
                         "task_id": task_id
                     }
                 )
                 await db.commit()
 
-        logger.info(f"✅ Task {task_id}: Saved {len(clips_info)} clips to database")
-        await progress.update(100, f"Complete! Generated {len(clips_info)} clips successfully", "completed")
+        logger.info(f"✅ Saved {len(clip_dicts)} clips to database")
+
+        await progress.update(
+            100,
+            f"Complete! Generated {len(generated_paths)} clips with {deliberation.consensus_level:.0%} council consensus",
+            "completed"
+        )
 
         logger.info(f"🎉 Task {task_id} completed successfully!")
 
         return {
             "success": True,
             "task_id": task_id,
-            "clips_generated": len(clips_info),
-            "target_clips": target_clips
+            "clips_generated": len(generated_paths),
+            "target_clips": target_clips,
+            "consensus_level": deliberation.consensus_level,
+            "video_duration": video_duration
         }
 
     except Exception as e:
@@ -237,31 +235,3 @@ async def generate_mass_clips_task(
             await db.commit()
 
         raise
-
-
-# Worker configuration - add mass generation to worker functions
-class MassClipWorkerSettings:
-    """Configuration for mass clip generation worker."""
-
-    from ..config import Config
-    from arq.connections import RedisSettings
-
-    config = Config()
-
-    # Functions to run
-    functions = [generate_mass_clips_task]
-    queue_name = "supoclip_mass_tasks"
-
-    # Redis settings
-    redis_settings = RedisSettings(
-        host=config.redis_host,
-        port=config.redis_port,
-        database=0
-    )
-
-    # Retry settings
-    max_tries = 2  # Only retry once for mass generation
-    job_timeout = 7200  # 2 hour timeout for mass generation
-
-    # Worker pool settings
-    max_jobs = 2  # Only process 2 mass generation jobs simultaneously

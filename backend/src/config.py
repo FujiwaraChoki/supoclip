@@ -12,6 +12,10 @@ class Config:
         self.google_api_key = os.getenv("GOOGLE_API_KEY")
         self.assembly_ai_api_key = os.getenv("ASSEMBLY_AI_API_KEY")
 
+        # OpenRouter for multi-LLM council
+        self.openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+        self.openrouter_referer = os.getenv("OPENROUTER_REFERER", "http://localhost:3000")
+
         self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "3600"))
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 
