@@ -181,10 +181,26 @@ def round_to_even(value: int) -> int:
     """Round integer to nearest even number for H.264 compatibility."""
     return value - (value % 2)
 
-def detect_optimal_crop_region(video_clip: VideoFileClip, start_time: float, end_time: float, target_ratio: float = 9/16) -> Tuple[int, int, int, int]:
-    """Detect optimal crop region using improved face detection."""
+def detect_optimal_crop_region(video_clip: VideoFileClip, start_time: float, end_time: float, target_ratio: Optional[float] = None) -> Tuple[int, int, int, int]:
+    """
+    Detect optimal crop region using improved face detection.
+
+    Args:
+        video_clip: Video clip object
+        start_time: Start time in seconds
+        end_time: End time in seconds
+        target_ratio: Target aspect ratio (e.g., 9/16 for vertical). If None, preserves original aspect ratio (NO CROP)
+
+    Returns:
+        Tuple of (x_offset, y_offset, width, height)
+    """
     try:
         original_width, original_height = video_clip.size
+
+        # If no target ratio specified, return original dimensions (NO CROP)
+        if target_ratio is None:
+            logger.info("No crop - preserving original aspect ratio")
+            return (0, 0, round_to_even(original_width), round_to_even(original_height))
 
         # Calculate target dimensions and ensure they're even
         if original_width / original_height > target_ratio:
@@ -563,7 +579,7 @@ def create_assemblyai_subtitles(video_path: Path, clip_start: float, clip_end: f
     return subtitle_clips
 
 def create_optimized_clip(video_path: Path, start_time: float, end_time: float, output_path: Path, add_subtitles: bool = True, font_family: str = "THEBOLDFONT-FREEVERSION", font_size: int = 24, font_color: str = "#FFFFFF") -> bool:
-    """Create optimized 9:16 clip with AssemblyAI subtitles."""
+    """Create optimized clip with AssemblyAI subtitles. Preserves original aspect ratio (NO CROP)."""
     try:
         duration = end_time - start_time
         if duration <= 0:
@@ -583,9 +599,9 @@ def create_optimized_clip(video_path: Path, start_time: float, end_time: float, 
         end_time = min(end_time, video.duration)
         clip = video.subclipped(start_time, end_time)
 
-        # Get optimal crop
+        # NO CROP - preserve original aspect ratio
         x_offset, y_offset, new_width, new_height = detect_optimal_crop_region(
-            video, start_time, end_time, target_ratio=9/16
+            video, start_time, end_time, target_ratio=None
         )
 
         cropped_clip = clip.cropped(
