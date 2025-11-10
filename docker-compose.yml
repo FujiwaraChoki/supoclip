@@ -61,6 +61,9 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-medium}
+      - MLX_TRANSCRIPTION_URL=http://host.docker.internal:5001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     depends_on:
       postgres:
@@ -103,6 +106,9 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-medium}
+      - MLX_TRANSCRIPTION_URL=http://host.docker.internal:5001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     depends_on:
       postgres:

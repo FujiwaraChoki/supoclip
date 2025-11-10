@@ -87,6 +87,10 @@ app.include_router(tasks.router)
 from .api.routes.media import router as media_router
 app.include_router(media_router)
 
+# Add mass clip generation endpoints
+from .api.routes.mass_generation import router as mass_router
+app.include_router(mass_router)
+
 
 @app.get("/")
 def read_root():

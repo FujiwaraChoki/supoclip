@@ -72,6 +72,10 @@ async def process_video_task(
             raise
 
 
+# Import mass clip generation task
+from .mass_clip_tasks import generate_mass_clips_task
+
+
 # Worker configuration for arq
 class WorkerSettings:
     """Configuration for arq worker."""
@@ -81,8 +85,8 @@ class WorkerSettings:
 
     config = Config()
 
-    # Functions to run
-    functions = [process_video_task]
+    # Functions to run - include both regular and mass generation tasks
+    functions = [process_video_task, generate_mass_clips_task]
     queue_name = "supoclip_tasks"
 
     # Redis settings from environment
@@ -94,7 +98,7 @@ class WorkerSettings:
 
     # Retry settings
     max_tries = 3  # Retry failed jobs up to 3 times
-    job_timeout = 3600  # 1 hour timeout for video processing
+    job_timeout = 7200  # 2 hour timeout for mass generation (was 1 hour)
 
     # Worker pool settings
     max_jobs = 4  # Process up to 4 jobs simultaneously

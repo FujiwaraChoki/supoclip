@@ -28,6 +28,7 @@ dependencies = [
     "sse-starlette>=1.6.5",
     "arq>=0.26.0",
     "redis>=5.0.0",
+    "aiohttp>=3.9.0",
 ]
 
 [tool.uv]
