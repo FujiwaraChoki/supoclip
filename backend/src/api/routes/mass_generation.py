@@ -281,6 +281,126 @@ async def stream_mass_generation_progress(task_id: str):
     )
 
 
+@router.post("/generate-matrix")
+async def start_matrix_generation(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Start FULL matrix generation (council + all variations).
+
+    Complete pipeline:
+    1. AI council deliberation (base clips)
+    2. Matrix processing (9 variations per clip: 3 temporal × 3 canvas)
+    3. Watermarks, title cards, music, captions
+
+    Request body:
+    {
+        "uploaded_file_path": "/app/uploads/video.mp4",
+        "source_type": "upload" or "youtube",
+        "user_notes": "Look for emotional moments and action sequences",
+        "matrix_options": {
+            "enable_watermark": true,
+            "enable_title_card": true,
+            "enable_music": true,
+            "enable_captions": true,
+            "title_style": "tt3" or "adlab_standard",
+            "canvas_styles": ["original", "flipped", "blurry_bg"]
+        }
+    }
+
+    Returns:
+    {
+        "task_id": "uuid",
+        "message": "Full matrix generation started"
+    }
+    """
+    try:
+        data = await request.json()
+        headers = request.headers
+        user_id = headers.get("user_id")
+
+        # Validate inputs
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User authentication required")
+
+        video_path = data.get("uploaded_file_path")
+        if not video_path:
+            raise HTTPException(status_code=400, detail="uploaded_file_path is required")
+
+        source_type = data.get("source_type", "upload")
+        user_notes = data.get("user_notes", "")
+        matrix_options = data.get("matrix_options", {})
+
+        logger.info(f"🎬 Full matrix generation request: {video_path}, user={user_id}")
+        logger.info(f"📝 User notes: {user_notes or 'None'}")
+        logger.info(f"⚙️  Matrix options: {matrix_options}")
+
+        # Verify user exists
+        user_result = await db.execute(
+            text("SELECT 1 FROM users WHERE id = :user_id"),
+            {"user_id": user_id}
+        )
+        if not user_result.fetchone():
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Create source record
+        source = Source()
+        source.type = source_type
+        source.title = data.get("title", "Full Matrix Generation")
+
+        db.add(source)
+        await db.flush()
+
+        # Create task record
+        task = Task(
+            user_id=user_id,
+            source_id=source.id,
+            status="queued"
+        )
+
+        db.add(task)
+        await db.commit()
+        await db.refresh(task)
+
+        logger.info(f"✅ Created task {task.id} for full matrix generation")
+
+        # Enqueue the task in ARQ worker
+        redis = await create_pool(
+            RedisSettings(
+                host=config.redis_host,
+                port=config.redis_port,
+                database=0
+            )
+        )
+
+        job = await redis.enqueue_job(
+            'generate_full_matrix_task',
+            task_id=task.id,
+            video_path=video_path,
+            user_id=user_id,
+            user_notes=user_notes,
+            matrix_options=matrix_options
+        )
+
+        await redis.close()
+
+        logger.info(f"✅ Enqueued job {job.job_id} for task {task.id}")
+
+        return {
+            "task_id": task.id,
+            "job_id": str(job.job_id),
+            "message": "Full matrix generation started",
+            "info": "This will generate base clips via council, then create 9 variations per clip with all effects"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error starting matrix generation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error starting matrix generation: {str(e)}")
+
+
 @router.get("/list")
 async def list_mass_generation_tasks(
     request: Request,
