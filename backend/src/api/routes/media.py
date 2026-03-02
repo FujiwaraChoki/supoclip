@@ -12,7 +12,7 @@ import aiofiles
 
 from ...config import Config
 from ...database import get_db
-from ...auth_headers import get_signed_user_id
+from ...auth_headers import get_signed_user_id, USER_ID_HEADER
 from ...services.billing_service import BillingService
 from ...font_registry import (
     FONTS_DIR,
@@ -35,7 +35,8 @@ def _get_authenticated_user_id(request: Request) -> str:
     if config.monetization_enabled:
         return get_signed_user_id(request, config)
 
-    user_id = request.headers.get("user_id")
+    # Self-hosted: accept user_id or x-supoclip-user-id (frontend uses buildBackendAuthHeaders)
+    user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
     if not user_id:
         raise HTTPException(status_code=401, detail="User authentication required")
     return user_id
@@ -88,7 +89,7 @@ async def get_font_file(font_name: str, request: Request):
 @router.post("/fonts/upload")
 async def upload_font(
     request: Request,
-    uploaded_file: UploadFile = File(...),
+    uploaded_file: UploadFile = File(..., alias="file"),
     db: AsyncSession = Depends(get_db),
 ):
     """Upload a custom .ttf/.otf font so it appears in the font picker."""
