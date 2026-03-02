@@ -38,6 +38,7 @@ model User {
   // Monetization and billing
   plan                 String    @default("free") @db.VarChar(20)
   subscription_status  String    @default("inactive") @db.VarChar(20)
+  is_admin             Boolean   @default(false)
   stripe_customer_id   String?   @unique @db.VarChar(255)
   stripe_subscription_id String? @unique @db.VarChar(255)
   billing_period_start DateTime? @db.Timestamptz
