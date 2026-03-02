@@ -15,14 +15,26 @@ export async function POST(request: Request) {
     process.env.BACKEND_INTERNAL_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
     "http://localhost:8000";
+  const normalizedApiUrl = apiUrl.replace(/\/$/, "");
+  const backendAuthHeaders = buildBackendAuthHeaders(session.user.id);
 
-  const upstream = await fetch(`${apiUrl}/fonts/upload`, {
+  let upstream = await fetch(`${normalizedApiUrl}/fonts/upload`, {
     method: "POST",
     headers: {
-      ...buildBackendAuthHeaders(session.user.id),
+      ...backendAuthHeaders,
     },
     body: formData,
   });
+
+  if (upstream.status === 404) {
+    upstream = await fetch(`${normalizedApiUrl}/api/fonts/upload`, {
+      method: "POST",
+      headers: {
+        ...backendAuthHeaders,
+      },
+      body: formData,
+    });
+  }
 
   const responseText = await upstream.text();
   return new NextResponse(responseText, {

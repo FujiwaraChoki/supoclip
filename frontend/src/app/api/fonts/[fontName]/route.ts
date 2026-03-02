@@ -19,13 +19,25 @@ export async function GET(_: Request, { params }: Params) {
     process.env.BACKEND_INTERNAL_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
     "http://localhost:8000";
+  const normalizedApiUrl = apiUrl.replace(/\/$/, "");
+  const encodedFontName = encodeURIComponent(fontName);
+  const backendAuthHeaders = buildBackendAuthHeaders(session.user.id);
 
-  const upstream = await fetch(`${apiUrl}/fonts/${encodeURIComponent(fontName)}`, {
+  let upstream = await fetch(`${normalizedApiUrl}/fonts/${encodedFontName}`, {
     headers: {
-      ...buildBackendAuthHeaders(session.user.id),
+      ...backendAuthHeaders,
     },
     cache: "force-cache",
   });
+
+  if (upstream.status === 404) {
+    upstream = await fetch(`${normalizedApiUrl}/api/fonts/${encodedFontName}`, {
+      headers: {
+        ...backendAuthHeaders,
+      },
+      cache: "force-cache",
+    });
+  }
 
   const arrayBuffer = await upstream.arrayBuffer();
   return new NextResponse(arrayBuffer, {
