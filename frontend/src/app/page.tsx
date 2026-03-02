@@ -19,6 +19,7 @@ import Image from "next/image";
 import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Clock, Film, Sparkles } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import LandingPage from "@/components/landing-page";
+import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
 
 interface LatestTask {
   id: string;
@@ -446,7 +447,7 @@ export default function Home() {
     );
   }
 
-  if (!session?.user) {
+  if (isLandingOnlyModeEnabled || !session?.user) {
     return <LandingPage />;
   }
 

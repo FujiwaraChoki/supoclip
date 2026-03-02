@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ExternalLink,
 } from "lucide-react";
+import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
 
 function ScrollReveal({
   children,
@@ -133,6 +134,7 @@ const STEPS = [
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
+  const authEnabled = !isLandingOnlyModeEnabled;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -192,14 +194,20 @@ export default function LandingPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link href="/sign-in">
-              <Button variant="ghost" size="sm">
-                Sign In
-              </Button>
-            </Link>
-            <Link href="/sign-up">
-              <Button size="sm">Get Started</Button>
-            </Link>
+            {authEnabled ? (
+              <>
+                <Link href="/sign-in">
+                  <Button variant="ghost" size="sm">
+                    Sign In
+                  </Button>
+                </Link>
+                <Link href="/sign-up">
+                  <Button size="sm">Get Started</Button>
+                </Link>
+              </>
+            ) : (
+              <Badge variant="secondary">Temporarily unavailable</Badge>
+            )}
           </div>
         </div>
       </nav>
@@ -259,12 +267,18 @@ export default function LandingPage() {
                   animation: "landing-fade-in-up 0.6s ease-out 0.3s both",
                 }}
               >
-                <Link href="/sign-up">
-                  <Button size="lg" className="px-8 h-12 text-sm">
-                    Start Clipping
-                    <ArrowRight className="w-4 h-4" />
+                {authEnabled ? (
+                  <Link href="/sign-up">
+                    <Button size="lg" className="px-8 h-12 text-sm">
+                      Start Clipping
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button size="lg" className="px-8 h-12 text-sm" disabled>
+                    Start Clipping (Paused)
                   </Button>
-                </Link>
+                )}
                 <a
                   href="https://github.com/FujiwaraChoki/supoclip"
                   target="_blank"
@@ -465,12 +479,18 @@ export default function LandingPage() {
                       <ExternalLink className="w-3.5 h-3.5 opacity-50" />
                     </Button>
                   </a>
-                  <Link href="/sign-up">
-                    <Button variant="outline">
-                      Try the hosted version
-                      <ArrowRight className="w-4 h-4" />
+                  {authEnabled ? (
+                    <Link href="/sign-up">
+                      <Button variant="outline">
+                        Try the hosted version
+                        <ArrowRight className="w-4 h-4" />
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Button variant="outline" disabled>
+                      Hosted version unavailable
                     </Button>
-                  </Link>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -493,12 +513,18 @@ export default function LandingPage() {
             Turn your next video into scroll-stopping shorts. Free, open source,
             no credit card required.
           </p>
-          <Link href="/sign-up">
-            <Button size="lg" className="px-10 h-12 text-sm">
-              Get Started Free
-              <ArrowRight className="w-4 h-4" />
+          {authEnabled ? (
+            <Link href="/sign-up">
+              <Button size="lg" className="px-10 h-12 text-sm">
+                Get Started Free
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Link>
+          ) : (
+            <Button size="lg" className="px-10 h-12 text-sm" disabled>
+              Sign ups are paused
             </Button>
-          </Link>
+          )}
         </ScrollReveal>
       </section>
 
