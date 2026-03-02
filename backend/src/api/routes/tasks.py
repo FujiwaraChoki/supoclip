@@ -16,7 +16,7 @@ from ...database import get_db
 from ...database import AsyncSessionLocal
 from ...services.task_service import TaskService
 from ...services.billing_service import BillingService, BillingLimitExceeded
-from ...auth_headers import get_signed_user_id
+from ...auth_headers import get_signed_user_id, USER_ID_HEADER
 from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import Config
@@ -49,16 +49,21 @@ def _normalize_font_family(value: Any, default: str = "TikTokSans-Regular") -> s
     return default
 
 
+def _get_authenticated_user_id(request: Request) -> str:
+    """Get user ID from signed auth (monetized) or user_id/x-supoclip-user-id (self-hosted)."""
+    if config.monetization_enabled:
+        return get_signed_user_id(request, config)
+    user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User authentication required")
+    return user_id
+
+
 async def _require_task_owner(
     request: Request, task_service: TaskService, db: AsyncSession, task_id: str
 ):
     """Ensure authenticated user owns the task."""
-    user_id = request.headers.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User authentication required")
-
-    if not is_font_accessible(font_family, user_id):
-        raise HTTPException(status_code=400, detail="Selected font is not available")
+    user_id = _get_authenticated_user_id(request)
 
     task = await task_service.task_repo.get_task_by_id(db, task_id)
     if not task:
@@ -77,11 +82,7 @@ async def list_tasks(
     """
     Get all tasks for the authenticated user.
     """
-    headers = request.headers
-    user_id = headers.get("user_id")
-
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User authentication required")
+    user_id = _get_authenticated_user_id(request)
 
     try:
         task_service = TaskService(db)
@@ -101,13 +102,9 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     Returns task_id immediately.
     """
     data = await request.json()
-    headers = request.headers
 
     raw_source = data.get("source")
-    if config.monetization_enabled:
-        user_id = get_signed_user_id(request, config)
-    else:
-        user_id = headers.get("user_id")
+    user_id = _get_authenticated_user_id(request)
 
     # Get font options
     font_options = data.get("font_options", {})
@@ -124,9 +121,6 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
 
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
-
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User authentication required")
 
     try:
         billing_service = BillingService(db)
@@ -207,12 +201,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/billing/summary")
 async def get_billing_summary(request: Request, db: AsyncSession = Depends(get_db)):
     """Get monetization status and current usage for authenticated user."""
-    if config.monetization_enabled:
-        user_id = get_signed_user_id(request, config)
-    else:
-        user_id = request.headers.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User authentication required")
+    user_id = _get_authenticated_user_id(request)
 
     try:
         billing_service = BillingService(db)
@@ -369,12 +358,7 @@ async def delete_task(
 ):
     """Delete a task and all its associated clips."""
     try:
-        headers = request.headers
-        user_id = headers.get("user_id")
-
-        if not user_id:
-            raise HTTPException(status_code=401, detail="User authentication required")
-
+        user_id = _get_authenticated_user_id(request)
         task_service = TaskService(db)
 
         # Get task to verify ownership
@@ -405,12 +389,7 @@ async def delete_clip(
 ):
     """Delete a specific clip."""
     try:
-        headers = request.headers
-        user_id = headers.get("user_id")
-
-        if not user_id:
-            raise HTTPException(status_code=401, detail="User authentication required")
-
+        user_id = _get_authenticated_user_id(request)
         task_service = TaskService(db)
 
         # Verify task ownership
