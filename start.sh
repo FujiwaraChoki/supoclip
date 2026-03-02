@@ -26,6 +26,7 @@ if [ ! -f .env ]; then
     echo "  3. Edit .env and add your API keys:"
     echo "     - ASSEMBLY_AI_API_KEY (required)"
     echo "     - OPENAI_API_KEY or GOOGLE_API_KEY or ANTHROPIC_API_KEY"
+    echo "     - OR set LLM=ollama:<model> (optional: OLLAMA_BASE_URL, OLLAMA_API_KEY)"
     echo ""
     exit 1
 fi
@@ -40,9 +41,13 @@ if [ -z "$ASSEMBLY_AI_API_KEY" ]; then
 fi
 
 if [ -z "$OPENAI_API_KEY" ] && [ -z "$GOOGLE_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+    if [[ "${LLM:-}" == ollama:* ]]; then
+        :
+    else
     echo -e "${YELLOW}Warning: No AI provider API key is set in .env${NC}"
-    echo "You need at least one of: OPENAI_API_KEY, GOOGLE_API_KEY, or ANTHROPIC_API_KEY"
+    echo "You need at least one of: OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY, or LLM=ollama:<model>"
     echo ""
+    fi
 fi
 
 # Check if Docker is running

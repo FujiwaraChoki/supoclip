@@ -163,10 +163,10 @@ def _get_missing_llm_key_error(model_name: str) -> Optional[str]:
     """Return a clear configuration error when the selected LLM key is missing."""
     provider = model_name.split(":", 1)[0].strip().lower()
 
-    if provider == "google" and not config.google_api_key:
+    if provider in {"google", "google-gla"} and not config.google_api_key:
         return (
             "Selected LLM provider is Google, but GOOGLE_API_KEY is not set. "
-            "Set GOOGLE_API_KEY or set LLM to openai:* / anthropic:* with the matching API key."
+            "Set GOOGLE_API_KEY or set LLM to openai:* / anthropic:* / ollama:* with the matching API key."
         )
 
     if provider == "openai" and not config.openai_api_key:
@@ -180,6 +180,11 @@ def _get_missing_llm_key_error(model_name: str) -> Optional[str]:
             "Selected LLM provider is Anthropic, but ANTHROPIC_API_KEY is not set. "
             "Set ANTHROPIC_API_KEY or choose another provider with a matching API key."
         )
+
+    if provider == "ollama":
+        # Ollama can run locally without an API key. OLLAMA_BASE_URL/OLLAMA_API_KEY
+        # are optional and passed through as environment variables.
+        return None
 
     return None
 

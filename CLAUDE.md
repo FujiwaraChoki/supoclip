@@ -172,7 +172,9 @@ Required in `.env` (root) or `backend/.env`:
 ```bash
 ASSEMBLY_AI_API_KEY=...              # Required: video transcription
 LLM=google-gla:gemini-3-flash-preview # Format: provider:model-name
-GOOGLE_API_KEY=...                   # Or OPENAI_API_KEY or ANTHROPIC_API_KEY
+GOOGLE_API_KEY=...                   # Or OPENAI_API_KEY / ANTHROPIC_API_KEY
+OLLAMA_BASE_URL=http://localhost:11434/v1  # Optional for ollama:* models
+OLLAMA_API_KEY=...                   # Optional; required for Ollama Cloud
 
 # Optional
 PEXELS_API_KEY=...                   # B-roll stock footage

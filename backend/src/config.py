@@ -9,6 +9,8 @@ class Config:
         self.openai_api_key = self._get_optional_env("OPENAI_API_KEY")
         self.anthropic_api_key = self._get_optional_env("ANTHROPIC_API_KEY")
         self.google_api_key = self._get_optional_env("GOOGLE_API_KEY")
+        self.ollama_base_url = self._get_optional_env("OLLAMA_BASE_URL")
+        self.ollama_api_key = self._get_optional_env("OLLAMA_API_KEY")
 
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
         self.llm = self._get_optional_env("LLM") or self._infer_default_llm()

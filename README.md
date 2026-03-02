@@ -48,7 +48,7 @@ SupoClip provides the same core functionality without the financial burden:
 
 - Docker and Docker Compose
 - An AssemblyAI API key (for transcription) - [Get one here](https://www.assemblyai.com/)
-- An LLM API key (for AI analysis) - OpenAI, Google, or Anthropic
+- An LLM provider for AI analysis - OpenAI, Google, Anthropic, or Ollama
 
 ### 1. Clone and Configure
 
@@ -75,6 +75,11 @@ GOOGLE_API_KEY=your_google_api_key
 # Option C: Anthropic Claude
 # LLM=anthropic:claude-4-sonnet
 # ANTHROPIC_API_KEY=your_anthropic_api_key
+
+# Option D: Ollama (local/self-hosted)
+# LLM=ollama:gpt-oss:20b
+# OLLAMA_BASE_URL=http://localhost:11434/v1
+# OLLAMA_API_KEY=your_ollama_api_key  # Optional (Ollama Cloud)
 
 # Optional: Auth secret (change in production)
 BETTER_AUTH_SECRET=change_this_in_production
@@ -112,6 +117,7 @@ Open http://localhost:3000 in your browser, create an account, and start clippin
 - Make sure you've set the correct LLM provider AND its corresponding API key in `.env`
 - Default is `google-gla:gemini-3-flash-preview` which requires `GOOGLE_API_KEY`
 - If using `openai:gpt-5.2`, you MUST set `OPENAI_API_KEY`
+- If using `ollama:*`, run Ollama and (optionally) set `OLLAMA_BASE_URL`
 - Rebuild after changing `.env`: `docker-compose up -d --build`
 
 **Videos stay queued / never process:**
