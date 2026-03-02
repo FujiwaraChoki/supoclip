@@ -19,10 +19,28 @@ function isProSubscription(subscription: Stripe.Subscription, expectedPriceId: s
   return hasExpectedPrice && (subscription.status === "active" || subscription.status === "trialing");
 }
 
+function getSubscriptionPeriod(subscription: Stripe.Subscription): {
+  currentPeriodStart: number | null;
+  currentPeriodEnd: number | null;
+} {
+  const starts = subscription.items.data
+    .map((item) => item.current_period_start)
+    .filter((value): value is number => typeof value === "number");
+  const ends = subscription.items.data
+    .map((item) => item.current_period_end)
+    .filter((value): value is number => typeof value === "number");
+
+  return {
+    currentPeriodStart: starts.length > 0 ? Math.min(...starts) : null,
+    currentPeriodEnd: ends.length > 0 ? Math.max(...ends) : null,
+  };
+}
+
 async function upsertSubscriptionState(subscription: Stripe.Subscription, expectedPriceId: string) {
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
   const subscriptionId = subscription.id;
   const status = subscription.status;
+  const { currentPeriodStart, currentPeriodEnd } = getSubscriptionPeriod(subscription);
 
   const plan = isProSubscription(subscription, expectedPriceId) ? "pro" : "free";
 
@@ -32,8 +50,8 @@ async function upsertSubscriptionState(subscription: Stripe.Subscription, expect
       plan,
       subscription_status: status,
       stripe_subscription_id: subscriptionId,
-      billing_period_start: toDate(subscription.current_period_start),
-      billing_period_end: toDate(subscription.current_period_end),
+      billing_period_start: toDate(currentPeriodStart),
+      billing_period_end: toDate(currentPeriodEnd),
       trial_ends_at: toDate(subscription.trial_end),
     },
   });

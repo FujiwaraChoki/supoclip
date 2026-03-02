@@ -276,8 +276,9 @@ export default function TaskPage() {
 
     eventSource.addEventListener("error", (e) => {
       console.error("❌ SSE error:", e);
-      if (e.data) {
-        const data = JSON.parse(e.data);
+      const maybeMessageEvent = e as MessageEvent<string>;
+      if (typeof maybeMessageEvent.data === "string" && maybeMessageEvent.data.length > 0) {
+        const data = JSON.parse(maybeMessageEvent.data);
         setError(data.error || "Connection error");
       }
       eventSource.close();

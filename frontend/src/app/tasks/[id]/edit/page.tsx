@@ -375,7 +375,8 @@ export default function TaskEditPage() {
         },
         video: {
           forceTranscode: true,
-          process: (sample: BrowserVideoSample) => {
+          process: (sample) => {
+            const browserSample = sample as unknown as BrowserVideoSample;
             if (!canvas || !ctx) {
               if (typeof OffscreenCanvas !== "undefined") {
                 canvas = new OffscreenCanvas(outputSize.width, outputSize.height);
@@ -393,9 +394,9 @@ export default function TaskEditPage() {
               return sample;
             }
 
-            const scale = Math.min(outputSize.width / sample.displayWidth, outputSize.height / sample.displayHeight);
-            const drawWidth = sample.displayWidth * scale;
-            const drawHeight = sample.displayHeight * scale;
+            const scale = Math.min(outputSize.width / browserSample.displayWidth, outputSize.height / browserSample.displayHeight);
+            const drawWidth = browserSample.displayWidth * scale;
+            const drawHeight = browserSample.displayHeight * scale;
             const drawX = (outputSize.width - drawWidth) / 2;
             const drawY = (outputSize.height - drawHeight) / 2;
 
@@ -412,10 +413,10 @@ export default function TaskEditPage() {
             ctx.scale(videoFx.zoom, videoFx.zoom);
             ctx.translate(-centerX, -centerY);
 
-            sample.draw(ctx, drawX, drawY);
+            browserSample.draw(ctx, drawX, drawY);
             ctx.restore();
 
-            const subtitleAtTime = getSubtitleWordsAtTime(sample.timestamp, targetDuration);
+            const subtitleAtTime = getSubtitleWordsAtTime(browserSample.timestamp, targetDuration);
             if (subtitleAtTime.length > 0) {
               const fontSize = Math.max(24, Math.round(subtitleSize));
               ctx.font = `700 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
@@ -452,12 +453,13 @@ export default function TaskEditPage() {
         },
         audio: {
           forceTranscode: true,
-          process: (sample: BrowserAudioSample) => {
+          process: (sample) => {
+            const browserSample = sample as unknown as BrowserAudioSample;
             if (isMuted || volume !== 100) {
               const gain = isMuted ? 0 : volume / 100;
-              const bytes = sample.allocationSize({ planeIndex: 0, format: "f32" });
+              const bytes = browserSample.allocationSize({ planeIndex: 0, format: "f32" });
               const data = new Float32Array(bytes / 4);
-              sample.copyTo(data, { planeIndex: 0, format: "f32" });
+              browserSample.copyTo(data, { planeIndex: 0, format: "f32" });
 
               for (let i = 0; i < data.length; i += 1) {
                 data[i] *= gain;
@@ -466,9 +468,9 @@ export default function TaskEditPage() {
               return new AudioSample({
                 data,
                 format: "f32",
-                numberOfChannels: sample.numberOfChannels,
-                sampleRate: sample.sampleRate,
-                timestamp: sample.timestamp,
+                numberOfChannels: browserSample.numberOfChannels,
+                sampleRate: browserSample.sampleRate,
+                timestamp: browserSample.timestamp,
               });
             }
 

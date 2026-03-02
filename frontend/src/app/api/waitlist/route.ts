@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(request: NextRequest) {
@@ -17,6 +15,13 @@ export async function POST(request: NextRequest) {
     if (!EMAIL_REGEX.test(normalizedEmail)) {
       return NextResponse.json({ error: "Invalid email format" }, { status: 400 });
     }
+
+    const resendApiKey = process.env.RESEND_API_KEY;
+    if (!resendApiKey) {
+      return NextResponse.json({ error: "Email service is not configured" }, { status: 503 });
+    }
+
+    const resend = new Resend(resendApiKey);
 
     const { error } = await resend.emails.send({
       from: "SupoClip <noreply@shiori.ai>",

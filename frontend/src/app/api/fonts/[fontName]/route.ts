@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 
 interface Params {
-  params: { fontName: string };
+  params: Promise<{ fontName: string }>;
 }
 
 export async function GET(_: Request, { params }: Params) {
@@ -14,7 +14,7 @@ export async function GET(_: Request, { params }: Params) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { fontName } = params;
+  const { fontName } = await params;
   const apiUrl =
     process.env.BACKEND_INTERNAL_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
