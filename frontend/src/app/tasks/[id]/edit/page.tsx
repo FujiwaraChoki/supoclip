@@ -55,6 +55,21 @@ interface VideoFx {
   zoom: number;
 }
 
+interface BrowserVideoSample {
+  displayWidth: number;
+  displayHeight: number;
+  timestamp: number;
+  draw: (ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, x: number, y: number) => void;
+}
+
+interface BrowserAudioSample {
+  timestamp: number;
+  numberOfChannels: number;
+  sampleRate: number;
+  allocationSize: (options: { planeIndex: number; format: "f32" }) => number;
+  copyTo: (target: Float32Array, options: { planeIndex: number; format: "f32" }) => void;
+}
+
 const MIN_GAP_SECONDS = 0.25;
 
 const DEFAULT_VIDEO_FX: VideoFx = {
@@ -65,6 +80,12 @@ const DEFAULT_VIDEO_FX: VideoFx = {
   hue: 0,
   zoom: 1,
 };
+
+const EXPORT_DIMENSIONS = {
+  tiktok: { width: 1080, height: 1920 },
+  reels: { width: 1080, height: 1920 },
+  shorts: { width: 1080, height: 1920 },
+} as const;
 
 export default function TaskEditPage() {
   const params = useParams();
@@ -95,6 +116,7 @@ export default function TaskEditPage() {
   const [isPlaying, setIsPlaying] = useState(false);
 
   const [exportPreset, setExportPreset] = useState("tiktok");
+  const [exportProgress, setExportProgress] = useState<number | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -121,6 +143,18 @@ export default function TaskEditPage() {
     const start = Math.max(0, Math.floor((currentTime / Math.max(selectedClip?.duration || 1, 1)) * subtitleWords.length));
     return subtitleWords.slice(start, start + 6);
   }, [currentTime, selectedClip?.duration, subtitleWords]);
+
+  const getSubtitleWordsAtTime = useCallback(
+    (timeSeconds: number, durationSeconds: number) => {
+      if (subtitleWords.length === 0) return [] as string[];
+      const safeDuration = Math.max(durationSeconds, 0.01);
+      const progress = clamp(timeSeconds / safeDuration, 0, 0.9999);
+      const wordIndex = Math.floor(progress * subtitleWords.length);
+      const startIndex = Math.max(0, wordIndex - 1);
+      return subtitleWords.slice(startIndex, startIndex + 6);
+    },
+    [subtitleWords]
+  );
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -292,23 +326,177 @@ export default function TaskEditPage() {
   const handleExport = async () => {
     if (!selectedClip || !session?.user?.id || !task?.id) return;
     setIsSaving(true);
-    try {
-      const response = await fetch(`${apiUrl}/tasks/${task.id}/clips/${selectedClip.id}/export?preset=${exportPreset}`, {
-        headers: { user_id: session.user.id },
-      });
-      if (!response.ok) throw new Error(await buildSupportError(response, "Failed to export clip"));
+    setExportProgress(0);
 
-      const blob = await response.blob();
+    try {
+      const sourceResponse = await fetch(`${apiUrl}${selectedClip.video_url}`);
+      if (!sourceResponse.ok) {
+        throw new Error(`Failed to fetch source clip: ${sourceResponse.status}`);
+      }
+
+      const sourceBlob = await sourceResponse.blob();
+
+      const {
+        Input,
+        Output,
+        Conversion,
+        ALL_FORMATS,
+        BlobSource,
+        BufferTarget,
+        Mp4OutputFormat,
+        AudioSample,
+      } = await import("mediabunny");
+
+      const outputSize = EXPORT_DIMENSIONS[exportPreset as keyof typeof EXPORT_DIMENSIONS] || EXPORT_DIMENSIONS.tiktok;
+      const trimStart = trimRange[0];
+      const trimEnd = trimRange[1];
+      const targetDuration = Math.max(trimEnd - trimStart, 0.1);
+      const highlightSet = new Set(highlightWords);
+
+      const input = new Input({
+        source: new BlobSource(sourceBlob),
+        formats: ALL_FORMATS,
+      });
+
+      const output = new Output({
+        format: new Mp4OutputFormat(),
+        target: new BufferTarget(),
+      });
+
+      let canvas: OffscreenCanvas | HTMLCanvasElement | null = null;
+      let ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null = null;
+
+      const conversion = await Conversion.init({
+        input,
+        output,
+        trim: {
+          start: trimStart,
+          end: trimEnd,
+        },
+        video: {
+          forceTranscode: true,
+          process: (sample: BrowserVideoSample) => {
+            if (!canvas || !ctx) {
+              if (typeof OffscreenCanvas !== "undefined") {
+                canvas = new OffscreenCanvas(outputSize.width, outputSize.height);
+                ctx = canvas.getContext("2d");
+              } else {
+                const fallbackCanvas = document.createElement("canvas");
+                fallbackCanvas.width = outputSize.width;
+                fallbackCanvas.height = outputSize.height;
+                canvas = fallbackCanvas;
+                ctx = fallbackCanvas.getContext("2d");
+              }
+            }
+
+            if (!ctx || !canvas) {
+              return sample;
+            }
+
+            const scale = Math.min(outputSize.width / sample.displayWidth, outputSize.height / sample.displayHeight);
+            const drawWidth = sample.displayWidth * scale;
+            const drawHeight = sample.displayHeight * scale;
+            const drawX = (outputSize.width - drawWidth) / 2;
+            const drawY = (outputSize.height - drawHeight) / 2;
+
+            ctx.clearRect(0, 0, outputSize.width, outputSize.height);
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, outputSize.width, outputSize.height);
+
+            ctx.save();
+            ctx.filter = `brightness(${videoFx.brightness}%) contrast(${videoFx.contrast}%) saturate(${videoFx.saturation}%) blur(${videoFx.blur}px) hue-rotate(${videoFx.hue}deg)`;
+
+            const centerX = drawX + drawWidth / 2;
+            const centerY = drawY + drawHeight / 2;
+            ctx.translate(centerX, centerY);
+            ctx.scale(videoFx.zoom, videoFx.zoom);
+            ctx.translate(-centerX, -centerY);
+
+            sample.draw(ctx, drawX, drawY);
+            ctx.restore();
+
+            const subtitleAtTime = getSubtitleWordsAtTime(sample.timestamp, targetDuration);
+            if (subtitleAtTime.length > 0) {
+              const fontSize = Math.max(24, Math.round(subtitleSize));
+              ctx.font = `700 ${fontSize}px ui-sans-serif, system-ui, sans-serif`;
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+
+              const text = subtitleAtTime.join(" ");
+              const metrics = ctx.measureText(text);
+              const textWidth = Math.max(metrics.width, 32);
+              const y = (subtitleY / 100) * outputSize.height;
+              const boxPaddingX = 22;
+              const boxPaddingY = 14;
+
+              ctx.fillStyle = "rgba(0,0,0,0.7)";
+              const left = outputSize.width / 2 - textWidth / 2 - boxPaddingX;
+              const top = y - fontSize / 2 - boxPaddingY;
+              const width = textWidth + boxPaddingX * 2;
+              const height = fontSize + boxPaddingY * 2;
+              ctx.beginPath();
+              ctx.roundRect(left, top, width, height, 16);
+              ctx.fill();
+
+              let cursorX = outputSize.width / 2 - textWidth / 2;
+              for (const word of subtitleAtTime) {
+                const cleanedWord = word.toLowerCase().replace(/[^a-z0-9']/g, "");
+                ctx.fillStyle = highlightSet.has(cleanedWord) ? "#fde047" : "#ffffff";
+                ctx.fillText(word, cursorX + ctx.measureText(word).width / 2, y);
+                cursorX += ctx.measureText(`${word} `).width;
+              }
+            }
+
+            return canvas;
+          },
+        },
+        audio: {
+          forceTranscode: true,
+          process: (sample: BrowserAudioSample) => {
+            if (isMuted || volume !== 100) {
+              const gain = isMuted ? 0 : volume / 100;
+              const bytes = sample.allocationSize({ planeIndex: 0, format: "f32" });
+              const data = new Float32Array(bytes / 4);
+              sample.copyTo(data, { planeIndex: 0, format: "f32" });
+
+              for (let i = 0; i < data.length; i += 1) {
+                data[i] *= gain;
+              }
+
+              return new AudioSample({
+                data,
+                format: "f32",
+                numberOfChannels: sample.numberOfChannels,
+                sampleRate: sample.sampleRate,
+                timestamp: sample.timestamp,
+              });
+            }
+
+            return sample;
+          },
+        },
+      });
+
+      conversion.onProgress = (progress: number) => {
+        setExportProgress(Math.round(progress * 100));
+      };
+
+      await conversion.execute();
+
+      const targetBuffer = output.target.buffer as ArrayBuffer;
+      const blob = new Blob([targetBuffer], { type: "video/mp4" });
       const blobUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = blobUrl;
-      link.download = `${selectedClip.filename.replace(/\.mp4$/i, "")}_${exportPreset}.mp4`;
+      link.download = `${selectedClip.filename.replace(/\.mp4$/i, "")}_${exportPreset}_browser.mp4`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       URL.revokeObjectURL(blobUrl);
+      setExportProgress(100);
     } finally {
       setIsSaving(false);
+      setTimeout(() => setExportProgress(null), 800);
     }
   };
 
@@ -408,7 +596,7 @@ export default function TaskEditPage() {
           </div>
           <Button onClick={handleExport} disabled={!selectedClip || isSaving}>
             <Download className="w-4 h-4" />
-            Export Selected
+            {exportProgress !== null ? `Exporting ${exportProgress}%` : "Export Selected"}
           </Button>
         </div>
       </div>
