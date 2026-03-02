@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   title: "SupoClip",
   description: "Turn long videos into viral-ready shorts.",
   icons: {
-    icon: "/icon.png",
+    icon: "/icon.svg",
   },
 };
 

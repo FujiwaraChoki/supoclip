@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { useSession } from "@/lib/auth-client";
+import { signOut, useSession } from "@/lib/auth-client";
 import Link from "next/link";
 import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft } from "lucide-react";
 
@@ -41,6 +41,7 @@ export default function SettingsPage() {
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
   const [isBillingActionLoading, setIsBillingActionLoading] = useState(false);
   const { data: session, isPending } = useSession();
+  const isAdmin = Boolean((session?.user as { is_admin?: boolean } | undefined)?.is_admin);
 
   const proPriceMonthly = process.env.NEXT_PUBLIC_PRO_PRICE_MONTHLY || "9.99";
 
@@ -188,6 +189,11 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSignOut = async () => {
+    await signOut();
+    window.location.href = "/sign-in";
+  };
+
   if (isPending || isFetching) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
@@ -234,6 +240,16 @@ export default function SettingsPage() {
             </Link>
 
             <div className="flex items-center gap-3">
+              {isAdmin && (
+                <Link href="/admin">
+                  <Button variant="outline" size="sm">
+                    Admin
+                  </Button>
+                </Link>
+              )}
+              <Button variant="outline" size="sm" onClick={handleSignOut}>
+                Sign Out
+              </Button>
               <Avatar className="w-8 h-8">
                 <AvatarImage src={session.user.image || ""} />
                 <AvatarFallback className="bg-gray-100 text-black text-sm">
