@@ -42,6 +42,101 @@ SupoClip provides the same core functionality without the financial burden:
 
 → ✅ **Customizable** - Modify and extend the codebase to fit your needs
 
+## Quick Start
+
+### Prerequisites
+
+- Docker and Docker Compose
+- An AssemblyAI API key (for transcription) - [Get one here](https://www.assemblyai.com/)
+- An LLM API key (for AI analysis) - OpenAI, Google, or Anthropic
+
+### 1. Clone and Configure
+
+```bash
+git clone https://github.com/your-username/supoclip.git
+cd supoclip
+```
+
+Create a `.env` file in the root directory:
+
+```env
+# Required: Video transcription
+ASSEMBLY_AI_API_KEY=your_assemblyai_api_key
+
+# Required: Choose ONE LLM provider and set its API key
+# Option A: Google Gemini (recommended - fast & cost-effective)
+LLM=google-gla:gemini-3-flash-preview
+GOOGLE_API_KEY=your_google_api_key
+
+# Option B: OpenAI GPT-5.2 (best reasoning)
+# LLM=openai:gpt-5.2
+# OPENAI_API_KEY=your_openai_api_key
+
+# Option C: Anthropic Claude
+# LLM=anthropic:claude-4-sonnet
+# ANTHROPIC_API_KEY=your_anthropic_api_key
+
+# Optional: Auth secret (change in production)
+BETTER_AUTH_SECRET=change_this_in_production
+```
+
+### 2. Start the Services
+
+```bash
+docker-compose up -d
+```
+
+This starts:
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000 (docs at /docs)
+- **PostgreSQL**: localhost:5432
+- **Redis**: localhost:6379
+
+### 3. Wait for Initialization
+
+First-time startup takes a few minutes. Check progress with:
+
+```bash
+docker-compose logs -f
+```
+
+Wait until you see health checks passing for all services.
+
+### 4. Access the App
+
+Open http://localhost:3000 in your browser, create an account, and start clipping!
+
+### Troubleshooting
+
+**Backend fails to start with API key error:**
+- Make sure you've set the correct LLM provider AND its corresponding API key in `.env`
+- Default is `google-gla:gemini-3-flash-preview` which requires `GOOGLE_API_KEY`
+- If using `openai:gpt-5.2`, you MUST set `OPENAI_API_KEY`
+- Rebuild after changing `.env`: `docker-compose up -d --build`
+
+**Videos stay queued / never process:**
+- Check worker logs: `docker-compose logs -f worker`
+- Ensure Redis is healthy: `docker-compose logs redis`
+- Verify API keys are correct
+
+**Performance tuning (default is fast mode):**
+- `DEFAULT_PROCESSING_MODE=fast|balanced|quality`
+- `FAST_MODE_MAX_CLIPS=4` to cap clip count in fast mode
+- `FAST_MODE_TRANSCRIPT_MODEL=nano` for fastest transcript model
+- View aggregate metrics: `GET /tasks/metrics/performance`
+
+**Prisma errors on Windows:**
+- Run `docker-compose down -v` to clear volumes
+- Run `docker-compose up -d --build` to rebuild
+
+**Frontend shows database errors:**
+- Wait for PostgreSQL to fully initialize (check logs)
+- The database is automatically created on first run
+
+### Local Development (Without Docker)
+
+See [CLAUDE.md](CLAUDE.md) for detailed development instructions.
+
 ## License
 
 SupoClip is released under the AGPL-3.0 License. See [LICENSE](LICENSE) for details.

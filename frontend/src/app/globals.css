@@ -118,5 +118,36 @@
   }
   body {
     @apply bg-background text-foreground font-sans;
+    -webkit-user-select: none;
+    user-select: none;
   }
+}
+
+/* Landing page animations */
+@keyframes landing-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes landing-scan-line {
+  0% { left: 5%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: 90%; opacity: 0; }
+}
+
+@keyframes landing-clip-pulse {
+  0%, 100% { border-color: oklch(0.216 0.006 56.043 / 0.15); }
+  50% { border-color: oklch(0.216 0.006 56.043 / 0.45); }
 }

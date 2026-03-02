@@ -1,14 +1,29 @@
 """
 Task service - orchestrates task creation and processing workflow.
 """
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional, Callable
 import logging
+from datetime import datetime
+from pathlib import Path
+import json
+import hashlib
+from time import perf_counter
 
 from ..repositories.task_repository import TaskRepository
 from ..repositories.source_repository import SourceRepository
 from ..repositories.clip_repository import ClipRepository
+from ..repositories.cache_repository import CacheRepository
 from .video_service import VideoService
+from ..config import Config
+from ..clip_editor import (
+    trim_clip_file,
+    split_clip_file,
+    merge_clip_files,
+    overlay_custom_captions,
+)
+from ..video_utils import parse_timestamp_to_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +36,33 @@ class TaskService:
         self.task_repo = TaskRepository()
         self.source_repo = SourceRepository()
         self.clip_repo = ClipRepository()
+        self.cache_repo = CacheRepository()
         self.video_service = VideoService()
+        self.config = Config()
+
+    @staticmethod
+    def _build_cache_key(url: str, source_type: str, processing_mode: str) -> str:
+        payload = f"{source_type}|{processing_mode}|{url.strip()}"
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def _is_stale_queued_task(self, task: Dict[str, Any]) -> bool:
+        """Detect queued tasks that have likely stalled due to worker issues."""
+        if task.get("status") != "queued":
+            return False
+
+        created_at = task.get("created_at")
+        updated_at = task.get("updated_at") or created_at
+
+        if not created_at or not updated_at:
+            return False
+
+        now = (
+            datetime.now(updated_at.tzinfo)
+            if getattr(updated_at, "tzinfo", None)
+            else datetime.utcnow()
+        )
+        age_seconds = (now - updated_at).total_seconds()
+        return age_seconds >= self.config.queued_task_timeout_seconds
 
     async def create_task_with_source(
         self,
@@ -30,7 +71,10 @@ class TaskService:
         title: Optional[str] = None,
         font_family: str = "TikTokSans-Regular",
         font_size: int = 24,
-        font_color: str = "#FFFFFF"
+        font_color: str = "#FFFFFF",
+        caption_template: str = "default",
+        include_broll: bool = False,
+        processing_mode: str = "fast",
     ) -> str:
         """
         Create a new task with associated source.
@@ -52,10 +96,7 @@ class TaskService:
 
         # Create source
         source_id = await self.source_repo.create_source(
-            self.db,
-            source_type=source_type,
-            title=title,
-            url=url
+            self.db, source_type=source_type, title=title, url=url
         )
 
         # Create task
@@ -66,7 +107,10 @@ class TaskService:
             status="queued",  # Changed from "processing" to "queued"
             font_family=font_family,
             font_size=font_size,
-            font_color=font_color
+            font_color=font_color,
+            caption_template=caption_template,
+            include_broll=include_broll,
+            processing_mode=processing_mode,
         )
 
         logger.info(f"Created task {task_id} for user {user_id}")
@@ -80,7 +124,10 @@ class TaskService:
         font_family: str = "TikTokSans-Regular",
         font_size: int = 24,
         font_color: str = "#FFFFFF",
-        progress_callback: Optional[Callable] = None
+        caption_template: str = "default",
+        processing_mode: str = "fast",
+        progress_callback: Optional[Callable] = None,
+        should_cancel: Optional[Callable] = None,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -88,36 +135,88 @@ class TaskService:
         """
         try:
             logger.info(f"Starting processing for task {task_id}")
+            started_at = datetime.utcnow()
+            stage_timings: Dict[str, float] = {}
+            cache_key = self._build_cache_key(url, source_type, processing_mode)
+
+            cache_entry = await self.cache_repo.get_cache(self.db, cache_key)
+            cached_transcript = (
+                cache_entry.get("transcript_text") if cache_entry else None
+            )
+            cached_analysis_json = (
+                cache_entry.get("analysis_json") if cache_entry else None
+            )
+            cache_hit = bool(cached_transcript and cached_analysis_json)
+
+            await self.task_repo.update_task_runtime_metadata(
+                self.db,
+                task_id,
+                started_at=started_at,
+                cache_hit=cache_hit,
+            )
 
             # Update status to processing
             await self.task_repo.update_task_status(
-                self.db, task_id, "processing", progress=0, progress_message="Starting..."
+                self.db,
+                task_id,
+                "processing",
+                progress=0,
+                progress_message="Starting...",
             )
 
             # Progress callback wrapper
-            async def update_progress(progress: int, message: str):
+            async def update_progress(
+                progress: int, message: str, status: str = "processing"
+            ):
                 await self.task_repo.update_task_status(
-                    self.db, task_id, "processing", progress=progress, progress_message=message
+                    self.db,
+                    task_id,
+                    status,
+                    progress=progress,
+                    progress_message=message,
                 )
                 if progress_callback:
-                    await progress_callback(progress, message)
+                    await progress_callback(progress, message, status)
 
             # Process video with progress updates
+            pipeline_start = perf_counter()
             result = await self.video_service.process_video_complete(
                 url=url,
                 source_type=source_type,
                 font_family=font_family,
                 font_size=font_size,
                 font_color=font_color,
-                progress_callback=update_progress
+                caption_template=caption_template,
+                processing_mode=processing_mode,
+                cached_transcript=cached_transcript,
+                cached_analysis_json=cached_analysis_json,
+                progress_callback=update_progress,
+                should_cancel=should_cancel,
+            )
+            stage_timings["pipeline_seconds"] = round(
+                perf_counter() - pipeline_start, 3
+            )
+
+            await self.cache_repo.upsert_cache(
+                self.db,
+                cache_key=cache_key,
+                source_url=url,
+                source_type=source_type,
+                transcript_text=result.get("transcript"),
+                analysis_json=result.get("analysis_json"),
             )
 
             # Save clips to database
             await self.task_repo.update_task_status(
-                self.db, task_id, "processing", progress=95, progress_message="Saving clips..."
+                self.db,
+                task_id,
+                "processing",
+                progress=95,
+                progress_message="Saving clips...",
             )
 
             clip_ids = []
+            save_start = perf_counter()
             for i, clip_info in enumerate(result["clips"]):
                 clip_id = await self.clip_repo.create_clip(
                     self.db,
@@ -130,32 +229,83 @@ class TaskService:
                     text=clip_info["text"],
                     relevance_score=clip_info["relevance_score"],
                     reasoning=clip_info["reasoning"],
-                    clip_order=i + 1
+                    clip_order=i + 1,
+                    virality_score=clip_info.get("virality_score", 0),
+                    hook_score=clip_info.get("hook_score", 0),
+                    engagement_score=clip_info.get("engagement_score", 0),
+                    value_score=clip_info.get("value_score", 0),
+                    shareability_score=clip_info.get("shareability_score", 0),
+                    hook_type=clip_info.get("hook_type"),
                 )
                 clip_ids.append(clip_id)
+
+            stage_timings["save_seconds"] = round(perf_counter() - save_start, 3)
 
             # Update task with clip IDs
             await self.task_repo.update_task_clips(self.db, task_id, clip_ids)
 
             # Mark as completed
             await self.task_repo.update_task_status(
-                self.db, task_id, "completed", progress=100, progress_message="Complete!"
+                self.db,
+                task_id,
+                "completed",
+                progress=100,
+                progress_message="Complete!",
             )
 
-            logger.info(f"Task {task_id} completed successfully with {len(clip_ids)} clips")
+            if progress_callback:
+                await progress_callback(100, "Complete!", "completed")
+
+            await self.task_repo.update_task_runtime_metadata(
+                self.db,
+                task_id,
+                completed_at=datetime.utcnow(),
+                stage_timings_json=json.dumps(stage_timings),
+                error_code="",
+            )
+
+            logger.info(
+                f"Task {task_id} completed successfully with {len(clip_ids)} clips"
+            )
 
             return {
                 "task_id": task_id,
                 "clips_count": len(clip_ids),
                 "segments": result["segments"],
                 "summary": result.get("summary"),
-                "key_topics": result.get("key_topics")
+                "key_topics": result.get("key_topics"),
             }
 
         except Exception as e:
             logger.error(f"Error processing task {task_id}: {e}")
+            if str(e) == "Task cancelled":
+                await self.task_repo.update_task_status(
+                    self.db,
+                    task_id,
+                    "cancelled",
+                    progress=0,
+                    progress_message="Cancelled by user",
+                )
+                raise
             await self.task_repo.update_task_status(
                 self.db, task_id, "error", progress_message=str(e)
+            )
+            error_code = "task_error"
+            message = str(e).lower()
+            if "download" in message:
+                error_code = "download_error"
+            elif "transcript" in message:
+                error_code = "transcription_error"
+            elif "analysis" in message:
+                error_code = "analysis_error"
+            elif "cancelled" in message:
+                error_code = "cancelled"
+
+            await self.task_repo.update_task_runtime_metadata(
+                self.db,
+                task_id,
+                completed_at=datetime.utcnow(),
+                error_code=error_code,
             )
             raise
 
@@ -166,6 +316,25 @@ class TaskService:
         if not task:
             return None
 
+        if self._is_stale_queued_task(task):
+            timeout_seconds = self.config.queued_task_timeout_seconds
+            logger.warning(
+                f"Task {task_id} stuck in queued status for over {timeout_seconds}s; marking as error"
+            )
+            await self.task_repo.update_task_status(
+                self.db,
+                task_id,
+                "error",
+                progress=0,
+                progress_message=(
+                    "Task timed out while waiting in queue. "
+                    "Ensure the worker service is running and healthy (docker-compose logs -f worker)."
+                ),
+            )
+            task = await self.task_repo.get_task_by_id(self.db, task_id)
+            if not task:
+                return None
+
         # Get clips
         clips = await self.clip_repo.get_clips_by_task(self.db, task_id)
         task["clips"] = clips
@@ -173,7 +342,9 @@ class TaskService:
 
         return task
 
-    async def get_user_tasks(self, user_id: str, limit: int = 50) -> list[Dict[str, Any]]:
+    async def get_user_tasks(
+        self, user_id: str, limit: int = 50
+    ) -> list[Dict[str, Any]]:
         """Get all tasks for a user."""
         return await self.task_repo.get_user_tasks(self.db, user_id, limit)
 
@@ -186,3 +357,302 @@ class TaskService:
         await self.task_repo.delete_task(self.db, task_id)
 
         logger.info(f"Deleted task {task_id} and all associated clips")
+
+    async def update_task_settings(
+        self,
+        task_id: str,
+        font_family: str,
+        font_size: int,
+        font_color: str,
+        caption_template: str,
+        include_broll: bool,
+        apply_to_existing: bool,
+    ) -> Dict[str, Any]:
+        """Update task-level settings and optionally regenerate all clips."""
+        await self.task_repo.update_task_settings(
+            self.db,
+            task_id,
+            font_family,
+            font_size,
+            font_color,
+            caption_template,
+            include_broll,
+        )
+
+        if apply_to_existing:
+            await self.regenerate_all_clips_for_task(
+                task_id,
+                font_family,
+                font_size,
+                font_color,
+                caption_template,
+            )
+
+        return await self.get_task_with_clips(task_id) or {}
+
+    async def regenerate_all_clips_for_task(
+        self,
+        task_id: str,
+        font_family: str,
+        font_size: int,
+        font_color: str,
+        caption_template: str,
+    ) -> None:
+        """Regenerate all clips in a task using existing segment boundaries."""
+        task = await self.task_repo.get_task_by_id(self.db, task_id)
+        if not task:
+            raise ValueError("Task not found")
+
+        source_url = task.get("source_url")
+        source_type = task.get("source_type")
+        if not source_url or not source_type:
+            raise ValueError("Task source URL is missing; cannot regenerate clips")
+
+        clips = await self.clip_repo.get_clips_by_task(self.db, task_id)
+        if not clips:
+            return
+
+        video_path: Path
+        if source_type == "youtube":
+            downloaded = await self.video_service.download_video(source_url)
+            if not downloaded:
+                raise ValueError("Failed to download source video for regeneration")
+            video_path = Path(downloaded)
+        else:
+            video_path = Path(source_url)
+            if not video_path.exists():
+                raise ValueError("Source video file no longer exists")
+
+        segments = [
+            {
+                "start_time": clip["start_time"],
+                "end_time": clip["end_time"],
+                "text": clip.get("text") or "",
+                "relevance_score": clip.get("relevance_score", 0.5),
+                "reasoning": clip.get("reasoning")
+                or "Regenerated with updated settings",
+                "virality_score": clip.get("virality_score", 0),
+                "hook_score": clip.get("hook_score", 0),
+                "engagement_score": clip.get("engagement_score", 0),
+                "value_score": clip.get("value_score", 0),
+                "shareability_score": clip.get("shareability_score", 0),
+                "hook_type": clip.get("hook_type"),
+            }
+            for clip in clips
+        ]
+
+        clips_info = await self.video_service.create_video_clips(
+            video_path,
+            segments,
+            font_family,
+            font_size,
+            font_color,
+            caption_template,
+        )
+
+        await self.clip_repo.delete_clips_by_task(self.db, task_id)
+
+        clip_ids = []
+        for i, clip_info in enumerate(clips_info):
+            clip_id = await self.clip_repo.create_clip(
+                self.db,
+                task_id=task_id,
+                filename=clip_info["filename"],
+                file_path=clip_info["path"],
+                start_time=clip_info["start_time"],
+                end_time=clip_info["end_time"],
+                duration=clip_info["duration"],
+                text=clip_info.get("text") or "",
+                relevance_score=clip_info.get("relevance_score", 0.5),
+                reasoning=clip_info.get("reasoning")
+                or "Regenerated with updated settings",
+                clip_order=i + 1,
+                virality_score=clip_info.get("virality_score", 0),
+                hook_score=clip_info.get("hook_score", 0),
+                engagement_score=clip_info.get("engagement_score", 0),
+                value_score=clip_info.get("value_score", 0),
+                shareability_score=clip_info.get("shareability_score", 0),
+                hook_type=clip_info.get("hook_type"),
+            )
+            clip_ids.append(clip_id)
+
+        await self.task_repo.update_task_clips(self.db, task_id, clip_ids)
+
+    async def trim_clip(
+        self,
+        task_id: str,
+        clip_id: str,
+        start_offset: float,
+        end_offset: float,
+    ) -> Dict[str, Any]:
+        clip = await self.clip_repo.get_clip_by_id(self.db, clip_id)
+        if not clip or clip["task_id"] != task_id:
+            raise ValueError("Clip not found")
+
+        input_path = Path(clip["file_path"])
+        if not input_path.exists():
+            raise ValueError("Clip file not found")
+
+        output_path = trim_clip_file(
+            input_path, Path(self.config.temp_dir) / "clips", start_offset, end_offset
+        )
+        clip_duration = max(0.1, clip["duration"] - start_offset - end_offset)
+
+        start_seconds = parse_timestamp_to_seconds(clip["start_time"]) + start_offset
+        end_seconds = start_seconds + clip_duration
+
+        new_start = self._seconds_to_mmss(start_seconds)
+        new_end = self._seconds_to_mmss(end_seconds)
+
+        await self.clip_repo.update_clip(
+            self.db,
+            clip_id,
+            output_path.name,
+            str(output_path),
+            new_start,
+            new_end,
+            clip_duration,
+            clip.get("text") or "",
+        )
+        return (await self.clip_repo.get_clip_by_id(self.db, clip_id)) or {}
+
+    async def split_clip(
+        self, task_id: str, clip_id: str, split_time: float
+    ) -> Dict[str, Any]:
+        clip = await self.clip_repo.get_clip_by_id(self.db, clip_id)
+        if not clip or clip["task_id"] != task_id:
+            raise ValueError("Clip not found")
+
+        input_path = Path(clip["file_path"])
+        if not input_path.exists():
+            raise ValueError("Clip file not found")
+
+        first_path, second_path = split_clip_file(
+            input_path, Path(self.config.temp_dir) / "clips", split_time
+        )
+
+        start_seconds = parse_timestamp_to_seconds(clip["start_time"])
+        clamped_split = max(0.2, min(split_time, float(clip["duration"]) - 0.2))
+        split_abs = start_seconds + clamped_split
+        end_seconds = parse_timestamp_to_seconds(clip["end_time"])
+
+        await self.clip_repo.update_clip(
+            self.db,
+            clip_id,
+            first_path.name,
+            str(first_path),
+            clip["start_time"],
+            self._seconds_to_mmss(split_abs),
+            clamped_split,
+            clip.get("text") or "",
+        )
+
+        await self.clip_repo.create_clip(
+            self.db,
+            task_id=task_id,
+            filename=second_path.name,
+            file_path=str(second_path),
+            start_time=self._seconds_to_mmss(split_abs),
+            end_time=self._seconds_to_mmss(end_seconds),
+            duration=max(0.1, end_seconds - split_abs),
+            text=clip.get("text") or "",
+            relevance_score=clip.get("relevance_score", 0.5),
+            reasoning=clip.get("reasoning") or "Split from original clip",
+            clip_order=clip.get("clip_order", 1) + 1,
+            virality_score=clip.get("virality_score", 0),
+            hook_score=clip.get("hook_score", 0),
+            engagement_score=clip.get("engagement_score", 0),
+            value_score=clip.get("value_score", 0),
+            shareability_score=clip.get("shareability_score", 0),
+            hook_type=clip.get("hook_type"),
+        )
+
+        await self.clip_repo.reorder_task_clips(self.db, task_id)
+        return {"message": "Clip split successfully"}
+
+    async def merge_clips(self, task_id: str, clip_ids: list[str]) -> Dict[str, Any]:
+        if len(clip_ids) < 2:
+            raise ValueError("At least two clips are required to merge")
+
+        clips = []
+        for clip_id in clip_ids:
+            clip = await self.clip_repo.get_clip_by_id(self.db, clip_id)
+            if not clip or clip["task_id"] != task_id:
+                raise ValueError("One or more clips not found")
+            clips.append(clip)
+
+        ordered = sorted(clips, key=lambda c: c.get("clip_order", 0))
+        merged_path = merge_clip_files(
+            [Path(c["file_path"]) for c in ordered],
+            Path(self.config.temp_dir) / "clips",
+        )
+
+        start_time = ordered[0]["start_time"]
+        end_time = ordered[-1]["end_time"]
+        duration = sum(float(c.get("duration", 0.0)) for c in ordered)
+        text = " ".join((c.get("text") or "").strip() for c in ordered if c.get("text"))
+
+        first = ordered[0]
+        await self.clip_repo.update_clip(
+            self.db,
+            first["id"],
+            merged_path.name,
+            str(merged_path),
+            start_time,
+            end_time,
+            duration,
+            text,
+        )
+
+        for clip in ordered[1:]:
+            await self.clip_repo.delete_clip(self.db, clip["id"])
+
+        await self.clip_repo.reorder_task_clips(self.db, task_id)
+        return {"message": "Clips merged successfully", "clip_id": first["id"]}
+
+    async def update_clip_captions(
+        self,
+        task_id: str,
+        clip_id: str,
+        caption_text: str,
+        position: str,
+        highlight_words: list[str],
+    ) -> Dict[str, Any]:
+        clip = await self.clip_repo.get_clip_by_id(self.db, clip_id)
+        if not clip or clip["task_id"] != task_id:
+            raise ValueError("Clip not found")
+
+        input_path = Path(clip["file_path"])
+        if not input_path.exists():
+            raise ValueError("Clip file not found")
+
+        output_path = overlay_custom_captions(
+            input_path,
+            Path(self.config.temp_dir) / "clips",
+            caption_text,
+            position,
+            highlight_words,
+        )
+
+        await self.clip_repo.update_clip(
+            self.db,
+            clip_id,
+            output_path.name,
+            str(output_path),
+            clip["start_time"],
+            clip["end_time"],
+            clip["duration"],
+            caption_text,
+        )
+        return (await self.clip_repo.get_clip_by_id(self.db, clip_id)) or {}
+
+    async def get_performance_metrics(self) -> Dict[str, Any]:
+        """Return aggregate processing performance metrics."""
+        return await self.task_repo.get_performance_metrics(self.db)
+
+    @staticmethod
+    def _seconds_to_mmss(seconds: float) -> str:
+        total = max(0, int(round(seconds)))
+        minutes = total // 60
+        secs = total % 60
+        return f"{minutes:02d}:{secs:02d}"

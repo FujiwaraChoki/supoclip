@@ -7,7 +7,7 @@
 generator client {
   provider      = "prisma-client-js"
   output        = "../src/generated/prisma"
-  binaryTargets = ["native", "linux-arm64-openssl-3.0.x"]
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -34,6 +34,15 @@ model User {
   default_font_family String?   @default("TikTokSans-Regular") @db.VarChar(100)
   default_font_size   Int?      @default(24)
   default_font_color  String?   @default("#FFFFFF") @db.VarChar(7)
+
+  // Monetization and billing
+  plan                 String    @default("free") @db.VarChar(20)
+  subscription_status  String    @default("inactive") @db.VarChar(20)
+  stripe_customer_id   String?   @unique @db.VarChar(255)
+  stripe_subscription_id String? @unique @db.VarChar(255)
+  billing_period_start DateTime? @db.Timestamptz
+  billing_period_end   DateTime? @db.Timestamptz
+  trial_ends_at        DateTime? @db.Timestamptz
 
   // Relationships
   tasks         Task[]
@@ -126,4 +135,12 @@ model Verification {
   updatedAt  DateTime?
 
   @@map("verification")
+}
+
+model StripeWebhookEvent {
+  id         String   @id
+  type       String
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  @@map("stripe_webhook_events")
 }

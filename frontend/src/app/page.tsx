@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -13,14 +13,12 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { useSession } from "@/lib/auth-client";
+import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import Link from "next/link";
-import { PlayCircle, ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Clock } from "lucide-react";
-
-interface ProcessingStatus {
-  step: string;
-  message: string;
-  progress: number;
-}
+import Image from "next/image";
+import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Clock, Film, Sparkles } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import LandingPage from "@/components/landing-page";
 
 interface LatestTask {
   id: string;
@@ -29,6 +27,24 @@ interface LatestTask {
   status: string;
   clips_count: number;
   created_at: string;
+}
+
+interface BillingSummary {
+  monetization_enabled: boolean;
+  plan: string;
+  subscription_status: string;
+  usage_count: number;
+  usage_limit: number | null;
+  remaining: number | null;
+  can_create_task: boolean;
+  upgrade_required: boolean;
+  reason: string | null;
+}
+
+interface FontOption {
+  name: string;
+  display_name: string;
+  format?: string;
 }
 
 export default function Home() {
@@ -40,7 +56,6 @@ export default function Home() {
   const [sourceType, setSourceType] = useState<"youtube" | "upload">("youtube");
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [taskId, setTaskId] = useState<string | null>(null);
   const [sourceTitle, setSourceTitle] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { data: session, isPending } = useSession();
@@ -49,55 +64,99 @@ export default function Home() {
   const [fontFamily, setFontFamily] = useState("TikTokSans-Regular");
   const [fontSize, setFontSize] = useState(24);
   const [fontColor, setFontColor] = useState("#FFFFFF");
-  const [availableFonts, setAvailableFonts] = useState<Array<{ name: string, display_name: string }>>([]);
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(true);
+  const [fontSearch, setFontSearch] = useState("");
+  const [fontLoadError, setFontLoadError] = useState<string | null>(null);
+  const [isUploadingFont, setIsUploadingFont] = useState(false);
+  const fontUploadInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Caption template and B-roll states
+  const [captionTemplate, setCaptionTemplate] = useState("default");
+  const [availableTemplates, setAvailableTemplates] = useState<Array<{ id: string, name: string, description: string, animation: string, font_family?: string, font_size?: number, font_color?: string }>>([]);
+  const [includeBroll, setIncludeBroll] = useState(false);
+  const [brollAvailable, setBrollAvailable] = useState(false);
 
   // Latest task state
   const [latestTask, setLatestTask] = useState<LatestTask | null>(null);
   const [isLoadingLatest, setIsLoadingLatest] = useState(false);
-
+  const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-  // Load available fonts and inject them into the page
+  const refreshFonts = useCallback(async () => {
+    try {
+      setFontLoadError(null);
+      const response = await fetch("/api/fonts", {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to load fonts (${response.status})`);
+      }
+
+      const data = await response.json();
+      const fonts: FontOption[] = data.fonts || [];
+      setAvailableFonts(fonts);
+
+      const fontFaceStyles = fonts.map((font) => {
+        const format = font.format === "otf" ? "opentype" : "truetype";
+        return `
+          @font-face {
+            font-family: '${font.name}';
+            src: url('/api/fonts/${font.name}') format('${format}');
+            font-weight: normal;
+            font-style: normal;
+          }
+        `;
+      }).join("\n");
+
+      const styleElement = document.createElement("style");
+      styleElement.id = "custom-fonts";
+      styleElement.innerHTML = fontFaceStyles;
+
+      const existingStyle = document.getElementById("custom-fonts");
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+
+      document.head.appendChild(styleElement);
+    } catch (error) {
+      console.error("Failed to load fonts:", error);
+      setFontLoadError("Could not load fonts right now.");
+    }
+  }, []);
+
   useEffect(() => {
-    const loadFonts = async () => {
+    void refreshFonts();
+  }, [refreshFonts]);
+
+  // Load caption templates and check B-roll availability
+  useEffect(() => {
+    const loadTemplates = async () => {
       try {
-        const response = await fetch(`${apiUrl}/fonts`);
+        const response = await fetch(`${apiUrl}/caption-templates`);
         if (response.ok) {
           const data = await response.json();
-          setAvailableFonts(data.fonts || []);
-
-          // Dynamically load fonts using @font-face
-          const fontFaceStyles = data.fonts.map((font: { name: string }) => {
-            return `
-              @font-face {
-                font-family: '${font.name}';
-                src: url('${apiUrl}/fonts/${font.name}') format('truetype');
-                font-weight: normal;
-                font-style: normal;
-              }
-            `;
-          }).join('\n');
-
-          // Inject font styles into the page
-          const styleElement = document.createElement('style');
-          styleElement.id = 'custom-fonts';
-          styleElement.innerHTML = fontFaceStyles;
-
-          // Remove existing custom fonts style if present
-          const existingStyle = document.getElementById('custom-fonts');
-          if (existingStyle) {
-            existingStyle.remove();
-          }
-
-          document.head.appendChild(styleElement);
+          setAvailableTemplates(data.templates || []);
         }
       } catch (error) {
-        console.error('Failed to load fonts:', error);
+        console.error('Failed to load caption templates:', error);
       }
     };
 
-    loadFonts();
+    const checkBrollStatus = async () => {
+      try {
+        const response = await fetch(`${apiUrl}/broll/status`);
+        if (response.ok) {
+          const data = await response.json();
+          setBrollAvailable(data.configured || false);
+        }
+      } catch (error) {
+        console.error('Failed to check B-roll status:', error);
+      }
+    };
+
+    loadTemplates();
+    checkBrollStatus();
   }, [apiUrl]);
 
   // Load user preferences as defaults
@@ -150,6 +209,29 @@ export default function Home() {
     fetchLatestTask();
   }, [session?.user?.id, apiUrl]);
 
+  useEffect(() => {
+    const fetchBillingSummary = async () => {
+      if (!session?.user?.id) return;
+
+      try {
+        const response = await fetch("/api/tasks/billing-summary", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data: BillingSummary = await response.json();
+        setBillingSummary(data);
+      } catch (error) {
+        console.error("Failed to load billing summary:", error);
+      }
+    };
+
+    fetchBillingSummary();
+  }, [session?.user?.id, apiUrl]);
+
   // Always treat file input as uncontrolled, and store file in a ref
   const fileRef = useRef<File | null>(null);
 
@@ -158,6 +240,81 @@ export default function Home() {
     fileRef.current = file;
     setFileName(file ? file.name : null);
   };
+
+  const handleTemplateChange = (templateId: string) => {
+    setCaptionTemplate(templateId);
+
+    const selectedTemplate = availableTemplates.find((template) => template.id === templateId);
+    if (!selectedTemplate) {
+      return;
+    }
+
+    if (selectedTemplate.font_family) {
+      setFontFamily(selectedTemplate.font_family);
+    }
+    if (typeof selectedTemplate.font_size === "number") {
+      setFontSize(selectedTemplate.font_size);
+    }
+    if (selectedTemplate.font_color) {
+      setFontColor(selectedTemplate.font_color);
+    }
+  };
+
+  const handleFontUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) {
+      return;
+    }
+
+    const isSupported = file.name.toLowerCase().endsWith(".ttf") || file.name.toLowerCase().endsWith(".otf");
+    if (!isSupported) {
+      setError("Only .ttf and .otf files are supported for custom fonts.");
+      return;
+    }
+
+    try {
+      setIsUploadingFont(true);
+      setError(null);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/fonts/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const parsed = await parseApiError(response, "Failed to upload font");
+        setError(formatSupportMessage(parsed));
+        return;
+      }
+
+      const data = await response.json();
+      if (data?.font?.name) {
+        setFontFamily(data.font.name);
+      }
+      await refreshFonts();
+    } catch (uploadError) {
+      console.error("Failed to upload font:", uploadError);
+      setError("Failed to upload font. Please try again.");
+    } finally {
+      setIsUploadingFont(false);
+    }
+  };
+
+  const filteredFonts = availableFonts.filter((font) => {
+    const keyword = fontSearch.toLowerCase().trim();
+    if (!keyword) {
+      return true;
+    }
+
+    return font.display_name.toLowerCase().includes(keyword) || font.name.toLowerCase().includes(keyword);
+  });
+
+  const canUploadCustomFonts =
+    !billingSummary?.monetization_enabled ||
+    (billingSummary.plan === "pro" && ["active", "trialing"].includes(billingSummary.subscription_status));
 
   const getStepIcon = (step: string) => {
     const iconMap: Record<string, React.ReactElement> = {
@@ -182,14 +339,21 @@ export default function Home() {
     if (sourceType === "upload" && !fileRef.current) return;
     if (sourceType === "youtube" && !url.trim()) return;
     if (!session?.user?.id) return;
+    if (billingSummary?.monetization_enabled && !billingSummary.can_create_task) {
+      setError(billingSummary.reason || "Active subscription required to continue processing.");
+      return;
+    }
 
     setIsLoading(true);
     setProgress(0);
     setError(null);
     setStatusMessage("");
     setCurrentStep("");
-    setTaskId(null);
     setSourceTitle(null);
+
+    const normalizedColor = /^#[0-9A-Fa-f]{6}$/.test(fontColor)
+      ? fontColor
+      : "#FFFFFF";
 
     try {
       let videoUrl = url;
@@ -207,7 +371,11 @@ export default function Home() {
         });
 
         if (!uploadResponse.ok) {
-          throw new Error(`Upload error: ${uploadResponse.status}`);
+          const uploadError = await parseApiError(
+            uploadResponse,
+            `Upload error: ${uploadResponse.status}`
+          );
+          throw new Error(formatSupportMessage(uploadError));
         }
 
         const uploadResult = await uploadResponse.json();
@@ -215,11 +383,10 @@ export default function Home() {
       }
 
       // Step 1: Start the task (using new refactored endpoint)
-      const startResponse = await fetch(`${apiUrl}/tasks/`, {
+      const startResponse = await fetch("/api/tasks/create", {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'user_id': session.user.id,
         },
         body: JSON.stringify({
           source: {
@@ -229,19 +396,24 @@ export default function Home() {
           font_options: {
             font_family: fontFamily,
             font_size: fontSize,
-            font_color: fontColor
-          }
+            font_color: normalizedColor
+          },
+          caption_template: captionTemplate,
+          include_broll: includeBroll,
+          processing_mode: "fast"
         }),
       });
 
       if (!startResponse.ok) {
-        throw new Error(`API error: ${startResponse.status}`);
+        const startError = await parseApiError(
+          startResponse,
+          `API error: ${startResponse.status}`
+        );
+        throw new Error(formatSupportMessage(startError));
       }
 
       const startResult = await startResponse.json();
       const taskIdFromStart = startResult.task_id;
-      setTaskId(taskIdFromStart);
-
       // Redirect immediately to the task page
       window.location.href = `/tasks/${taskIdFromStart}`;
 
@@ -256,7 +428,6 @@ export default function Home() {
       setFileName(null);
       fileRef.current = null;
       setUrl("");
-      setError(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -276,56 +447,7 @@ export default function Home() {
   }
 
   if (!session?.user) {
-    return (
-      <div className="min-h-screen bg-white">
-        <div className="max-w-4xl mx-auto px-4 py-24">
-          <div className="text-center mb-16">
-            <h1 className="text-5xl font-bold text-black mb-4">
-              SupoClip
-            </h1>
-            <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-              Professional video clipping platform powered by AI
-            </p>
-
-            <div className="flex gap-4 justify-center mb-16">
-              <Link href="/sign-up">
-                <Button size="lg" className="px-8 py-3">
-                  Get Started
-                </Button>
-              </Link>
-              <Link href="/sign-in">
-                <Button variant="outline" size="lg" className="px-8 py-3">
-                  Sign In
-                </Button>
-              </Link>
-            </div>
-          </div>
-
-          <Separator className="my-16" />
-
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-black mb-2">AI Analysis</h3>
-              <p className="text-gray-600">
-                Advanced content analysis for optimal clip extraction
-              </p>
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-black mb-2">Fast Processing</h3>
-              <p className="text-gray-600">
-                Enterprise-grade infrastructure for rapid video processing
-              </p>
-            </div>
-            <div className="text-center">
-              <h3 className="text-lg font-semibold text-black mb-2">Secure Platform</h3>
-              <p className="text-gray-600">
-                Enterprise security standards with private processing
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <LandingPage />;
   }
 
   return (
@@ -335,13 +457,52 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-black flex items-center justify-center">
-                <PlayCircle className="w-5 h-5 text-white" />
-              </div>
+              <Image
+                src="/logo.png"
+                alt="SupoClip"
+                width={24}
+                height={24}
+                className="rounded-lg"
+              />
               <h1 className="text-xl font-bold text-black">SupoClip</h1>
             </div>
 
             <div className="flex items-center gap-2">
+              {billingSummary?.monetization_enabled && (
+                <div className="flex items-center gap-2 mr-1">
+                  <Badge
+                    className={`text-[10px] px-1.5 py-0 h-5 ${
+                      billingSummary.plan === "pro"
+                        ? "bg-stone-900 text-white"
+                        : "bg-stone-100 text-stone-600 border border-stone-200"
+                    }`}
+                  >
+                    {billingSummary.plan === "pro" ? "Pro" : "Free"}
+                  </Badge>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-16 h-1.5 bg-stone-200 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          billingSummary.usage_limit &&
+                          billingSummary.usage_count / billingSummary.usage_limit > 0.8
+                            ? "bg-red-500"
+                            : "bg-stone-900"
+                        }`}
+                        style={{
+                          width: billingSummary.usage_limit
+                            ? `${Math.min((billingSummary.usage_count / billingSummary.usage_limit) * 100, 100)}%`
+                            : "0%",
+                        }}
+                      />
+                    </div>
+                    <span className="text-[11px] text-stone-500 tabular-nums whitespace-nowrap">
+                      {billingSummary.usage_limit
+                        ? `${billingSummary.usage_count}/${billingSummary.usage_limit}`
+                        : `${billingSummary.usage_count}`}
+                    </span>
+                  </div>
+                </div>
+              )}
               <Link href="/list">
                 <Button variant="outline" size="sm">
                   All Generations
@@ -522,6 +683,51 @@ export default function Home() {
               </div>
             )}
 
+            {/* Caption Template Selector */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-black flex items-center gap-2">
+                <Sparkles className="w-4 h-4" />
+                Caption Style
+              </label>
+              <Select value={captionTemplate} onValueChange={handleTemplateChange} disabled={isLoading}>
+                <SelectTrigger className="w-full h-11">
+                  <SelectValue>
+                    {availableTemplates.find(t => t.id === captionTemplate)?.name || "Select style"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTemplates.length > 0 ? (
+                    availableTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id} className="py-3">
+                        <span className="font-medium">{template.name}</span>
+                        <span className="text-xs text-gray-500 ml-2">{template.description}</span>
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="default">Default</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* B-Roll Toggle */}
+            {brollAvailable && (
+              <div className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
+                <div className="flex items-center gap-3">
+                  <Film className="w-5 h-5 text-purple-500" />
+                  <div>
+                    <h3 className="text-sm font-medium text-black">AI B-Roll</h3>
+                    <p className="text-xs text-gray-500">Automatically add stock footage from Pexels</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={includeBroll}
+                  onCheckedChange={setIncludeBroll}
+                  disabled={isLoading}
+                />
+              </div>
+            )}
+
             {/* Font Customization Section */}
             <div className="space-y-4 border rounded-lg p-4 bg-gray-50">
               <div
@@ -530,7 +736,7 @@ export default function Home() {
               >
                 <div className="flex items-center gap-2">
                   <Paintbrush className="w-4 h-4" />
-                  <h3 className="text-sm font-medium text-black">Font & Style Options</h3>
+                  <h3 className="text-sm font-medium text-black">Advanced Font Options</h3>
                 </div>
                 <button type="button" className="text-xs text-gray-500">
                   {showAdvancedOptions ? "Hide" : "Show"}
@@ -545,21 +751,60 @@ export default function Home() {
                       <Type className="w-4 h-4" />
                       Font Family
                     </label>
+                    <div className="flex items-center justify-between gap-3 text-xs text-gray-600">
+                      <span>{availableFonts.length} font{availableFonts.length === 1 ? "" : "s"} available</span>
+                      <input
+                        ref={fontUploadInputRef}
+                        type="file"
+                        accept=".ttf,.otf"
+                        onChange={handleFontUpload}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isLoading || isUploadingFont || !canUploadCustomFonts}
+                        onClick={() => fontUploadInputRef.current?.click()}
+                      >
+                        {isUploadingFont ? "Uploading..." : "Upload Font"}
+                      </Button>
+                    </div>
+                    {!canUploadCustomFonts && (
+                      <p className="text-xs text-amber-700">Custom font upload is available on Pro plans.</p>
+                    )}
+                    <Input
+                      type="text"
+                      value={fontSearch}
+                      onChange={(e) => setFontSearch(e.target.value)}
+                      placeholder="Search fonts"
+                      disabled={isLoading}
+                    />
                     <Select value={fontFamily} onValueChange={setFontFamily} disabled={isLoading}>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select font" />
                       </SelectTrigger>
                       <SelectContent>
-                        {availableFonts.map((font) => (
+                        {filteredFonts.map((font) => (
                           <SelectItem key={font.name} value={font.name}>
-                            {font.display_name}
+                            <span style={{ fontFamily: `'${font.name}', system-ui, sans-serif` }}>
+                              {font.display_name}
+                            </span>
                           </SelectItem>
                         ))}
                         {availableFonts.length === 0 && (
                           <SelectItem value="TikTokSans-Regular">TikTok Sans Regular</SelectItem>
                         )}
+                        {availableFonts.length > 0 && filteredFonts.length === 0 && (
+                          <SelectItem value="__no_match__" disabled>
+                            No fonts match your search
+                          </SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
+                    {fontLoadError && (
+                      <p className="text-xs text-amber-700">{fontLoadError}</p>
+                    )}
                   </div>
 
                   {/* Font Size Slider */}
@@ -712,6 +957,7 @@ export default function Home() {
               disabled={
                 (sourceType === "youtube" && !url.trim()) ||
                 (sourceType === "upload" && !fileRef.current) ||
+                (billingSummary?.monetization_enabled && !billingSummary.can_create_task) ||
                 isLoading
               }
             >

@@ -3,14 +3,17 @@ import os
 
 load_dotenv()
 
+
 class Config:
     def __init__(self):
+        self.openai_api_key = self._get_optional_env("OPENAI_API_KEY")
+        self.anthropic_api_key = self._get_optional_env("ANTHROPIC_API_KEY")
+        self.google_api_key = self._get_optional_env("GOOGLE_API_KEY")
+
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
-        self.llm = os.getenv("LLM_MODEL", "google-gla:gemini-2.5-flash-lite")
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
-        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-        self.google_api_key = os.getenv("GOOGLE_API_KEY")
+        self.llm = self._get_optional_env("LLM") or self._infer_default_llm()
         self.assembly_ai_api_key = os.getenv("ASSEMBLY_AI_API_KEY")
+        self.pexels_api_key = os.getenv("PEXELS_API_KEY")
 
         self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "3600"))
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
@@ -23,3 +26,70 @@ class Config:
         # Redis configuration
         self.redis_host = os.getenv("REDIS_HOST", "localhost")
         self.redis_port = int(os.getenv("REDIS_PORT", "6379"))
+
+        # Fail-safe: queued tasks should not stay queued forever
+        self.queued_task_timeout_seconds = int(
+            os.getenv("QUEUED_TASK_TIMEOUT_SECONDS", "180")
+        )
+
+        self.self_host = self._get_bool_env("SELF_HOST", True)
+        self.monetization_enabled = not self.self_host
+        self.backend_auth_secret = self._get_optional_env("BACKEND_AUTH_SECRET")
+        self.auth_signature_ttl_seconds = int(
+            os.getenv("AUTH_SIGNATURE_TTL_SECONDS", "300")
+        )
+        self.free_plan_task_limit = int(os.getenv("FREE_PLAN_TASK_LIMIT", "10"))
+        self.pro_plan_task_limit = int(os.getenv("PRO_PLAN_TASK_LIMIT", "0"))
+        self.cors_origins = self._get_csv_env(
+            "CORS_ORIGINS",
+            [
+                "http://localhost:3000",
+                "http://sp.localhost:3000",
+            ],
+        )
+        self.default_processing_mode = os.getenv("DEFAULT_PROCESSING_MODE", "fast")
+        self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "4"))
+        self.fast_mode_transcript_model = os.getenv(
+            "FAST_MODE_TRANSCRIPT_MODEL", "nano"
+        )
+
+    @staticmethod
+    def _get_optional_env(name: str):
+        value = os.getenv(name)
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        return normalized or None
+
+    @staticmethod
+    def _get_bool_env(name: str, default: bool) -> bool:
+        value = os.getenv(name)
+        if value is None:
+            return default
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+        return default
+
+    @staticmethod
+    def _get_csv_env(name: str, default: list[str]) -> list[str]:
+        value = os.getenv(name)
+        if not value:
+            return default
+        return [item.strip() for item in value.split(",") if item.strip()]
+
+    def _infer_default_llm(self) -> str:
+        """
+        Infer a usable default model based on whichever API key is present.
+        Falls back to Google for backward compatibility.
+        """
+        if self.google_api_key:
+            return "google-gla:gemini-3-flash-preview"
+        if self.openai_api_key:
+            return "openai:gpt-5.2"
+        if self.anthropic_api_key:
+            return "anthropic:claude-4-sonnet"
+        return "google-gla:gemini-3-flash-preview"

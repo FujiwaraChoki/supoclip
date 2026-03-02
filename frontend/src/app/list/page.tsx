@@ -191,7 +191,6 @@ export default function ListPage() {
               </p>
               <Link href="/">
                 <Button>
-                  <PlayCircle className="w-4 h-4 mr-2" />
                   Create New Generation
                 </Button>
               </Link>

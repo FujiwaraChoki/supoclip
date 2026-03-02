@@ -12,12 +12,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { useSession } from "@/lib/auth-client";
 import Link from "next/link";
-import { PlayCircle, Type, Palette, CheckCircle, AlertCircle, Settings } from "lucide-react";
+import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft } from "lucide-react";
 
 interface UserPreferences {
   fontFamily: string;
   fontSize: number;
   fontColor: string;
+}
+
+interface BillingSummary {
+  monetization_enabled: boolean;
+  plan: string;
+  subscription_status: string;
+  usage_count: number;
+  usage_limit: number | null;
+  remaining: number | null;
 }
 
 export default function SettingsPage() {
@@ -29,15 +38,17 @@ export default function SettingsPage() {
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
+  const [isBillingActionLoading, setIsBillingActionLoading] = useState(false);
   const { data: session, isPending } = useSession();
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const proPriceMonthly = process.env.NEXT_PUBLIC_PRO_PRICE_MONTHLY || "9.99";
 
   // Load available fonts from backend and inject them into the page
   useEffect(() => {
     const loadFonts = async () => {
       try {
-        const response = await fetch(`${apiUrl}/fonts`);
+        const response = await fetch('/api/fonts', { cache: 'no-store' });
         if (response.ok) {
           const data = await response.json();
           setAvailableFonts(data.fonts || []);
@@ -47,7 +58,7 @@ export default function SettingsPage() {
             return `
               @font-face {
                 font-family: '${font.name}';
-                src: url('${apiUrl}/fonts/${font.name}') format('truetype');
+                src: url('/api/fonts/${font.name}') format('truetype');
                 font-weight: normal;
                 font-style: normal;
               }
@@ -73,7 +84,7 @@ export default function SettingsPage() {
     };
 
     loadFonts();
-  }, [apiUrl]);
+  }, []);
 
   // Load user preferences
   useEffect(() => {
@@ -98,6 +109,51 @@ export default function SettingsPage() {
 
     loadPreferences();
   }, [session?.user?.id]);
+
+  useEffect(() => {
+    const fetchBillingSummary = async () => {
+      if (!session?.user?.id) return;
+
+      try {
+        const response = await fetch("/api/tasks/billing-summary", {
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data: BillingSummary = await response.json();
+        setBillingSummary(data);
+      } catch (fetchError) {
+        console.error("Failed to fetch billing summary:", fetchError);
+      }
+    };
+
+    fetchBillingSummary();
+  }, [session?.user?.id]);
+
+  const handleBillingAction = async () => {
+    if (!billingSummary?.monetization_enabled) return;
+
+    const route = billingSummary.plan === "pro" ? "/api/billing/portal" : "/api/billing/checkout";
+
+    try {
+      setIsBillingActionLoading(true);
+      const response = await fetch(route, { method: "POST" });
+      const data = await response.json();
+
+      if (!response.ok || !data.url) {
+        throw new Error(data.error || "Unable to open billing");
+      }
+
+      window.location.href = data.url;
+    } catch (billingError) {
+      setError(billingError instanceof Error ? billingError.message : "Billing action failed");
+    } finally {
+      setIsBillingActionLoading(false);
+    }
+  };
 
   const handleSavePreferences = async () => {
     setIsLoading(true);
@@ -170,11 +226,11 @@ export default function SettingsPage() {
       <div className="border-b bg-white">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
-              <div className="w-8 h-8 bg-black flex items-center justify-center">
-                <PlayCircle className="w-5 h-5 text-white" />
-              </div>
-              <h1 className="text-xl font-bold text-black">SupoClip</h1>
+            <Link href="/">
+              <Button variant="ghost" size="sm">
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </Button>
             </Link>
 
             <div className="flex items-center gap-3">
@@ -346,6 +402,39 @@ export default function SettingsPage() {
             )}
 
             {/* Save Button */}
+            {billingSummary?.monetization_enabled && (
+              <div className="border rounded-lg p-4 bg-gray-50 space-y-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-black">Billing</h3>
+                  {billingSummary.plan !== "pro" && (
+                    <p className="text-sm text-gray-600">Pro plan: ${proPriceMonthly}/month</p>
+                  )}
+                  <p className="text-sm text-gray-600">
+                    {billingSummary.usage_limit === null
+                      ? `${billingSummary.usage_count} generations in this billing period`
+                      : `${billingSummary.usage_count}/${billingSummary.usage_limit} generations used this period`}
+                  </p>
+                  <p className="text-sm text-gray-500 capitalize">
+                    Plan: {billingSummary.plan} ({billingSummary.subscription_status})
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  variant={billingSummary.plan === "pro" ? "outline" : "default"}
+                  onClick={handleBillingAction}
+                  disabled={isBillingActionLoading}
+                  className="w-full"
+                >
+                  {isBillingActionLoading
+                    ? "Loading..."
+                    : billingSummary.plan === "pro"
+                      ? "Manage Billing"
+                      : `Upgrade to Pro ($${proPriceMonthly}/mo)`}
+                </Button>
+              </div>
+            )}
+
             <Button
               onClick={handleSavePreferences}
               disabled={isLoading}

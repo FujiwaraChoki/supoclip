@@ -1,8 +1,10 @@
 """
 Source repository - handles all database operations for video sources.
 """
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, Dict, Any
+from sqlalchemy import text
+from typing import Optional, Dict, Any  # Dict/Any kept for return type hints
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,36 +15,56 @@ class SourceRepository:
 
     @staticmethod
     async def create_source(
-        db: AsyncSession,
-        source_type: str,
-        title: str,
-        url: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        db: AsyncSession, source_type: str, title: str, url: Optional[str] = None
     ) -> str:
         """Create a new source record and return its ID."""
-        from ..models import Source
+        source_id: Optional[str] = None
+        try:
+            result = await db.execute(
+                text(
+                    """
+                    INSERT INTO sources (type, title, url, created_at, updated_at)
+                    VALUES (:source_type, :title, :url, NOW(), NOW())
+                    RETURNING id
+                    """
+                ),
+                {
+                    "source_type": source_type,
+                    "title": title,
+                    "url": url,
+                },
+            )
+            source_id = result.scalar()
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            result = await db.execute(
+                text(
+                    """
+                    INSERT INTO sources (type, title, created_at, updated_at)
+                    VALUES (:source_type, :title, NOW(), NOW())
+                    RETURNING id
+                    """
+                ),
+                {
+                    "source_type": source_type,
+                    "title": title,
+                },
+            )
+            source_id = result.scalar()
+            await db.commit()
 
-        source = Source()
-        source.type = source_type
-        source.title = title
-        source.url = url
-        source.metadata = metadata
-
-        db.add(source)
-        await db.flush()
-
-        source_id = source.id
         logger.info(f"Created source {source_id}: {title} ({source_type})")
         return source_id
 
     @staticmethod
-    async def get_source_by_id(db: AsyncSession, source_id: str) -> Optional[Dict[str, Any]]:
+    async def get_source_by_id(
+        db: AsyncSession, source_id: str
+    ) -> Optional[Dict[str, Any]]:
         """Get source by ID."""
-        from sqlalchemy import text
-
         result = await db.execute(
             text("SELECT * FROM sources WHERE id = :source_id"),
-            {"source_id": source_id}
+            {"source_id": source_id},
         )
         row = result.fetchone()
 
@@ -53,19 +75,16 @@ class SourceRepository:
             "id": row.id,
             "type": row.type,
             "title": row.title,
-            "url": getattr(row, 'url', None),
-            "metadata": getattr(row, 'metadata', None),
-            "created_at": row.created_at
+            "url": getattr(row, "url", None),
+            "created_at": row.created_at,
         }
 
     @staticmethod
     async def update_source_title(db: AsyncSession, source_id: str, title: str) -> None:
         """Update the title of a source."""
-        from sqlalchemy import text
-
         await db.execute(
             text("UPDATE sources SET title = :title WHERE id = :source_id"),
-            {"title": title, "source_id": source_id}
+            {"title": title, "source_id": source_id},
         )
         await db.commit()
         logger.info(f"Updated source {source_id} title to: {title}")

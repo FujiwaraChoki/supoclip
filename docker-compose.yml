@@ -15,9 +15,19 @@ services:
       - NODE_ENV=development
       - NEXT_TELEMETRY_DISABLED=1
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - BACKEND_INTERNAL_URL=http://backend:8000
+      - NEXT_PUBLIC_SELF_HOST=${SELF_HOST:-true}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
       - DATABASE_URL=postgresql://supoclip:supoclip_password@postgres:5432/supoclip
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-supoclip_dev_secret_change_in_production}
       - BETTER_AUTH_URL=http://localhost:3000
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - STRIPE_PRICE_ID=${STRIPE_PRICE_ID}
+      - NEXT_PUBLIC_PRO_PRICE_MONTHLY=${NEXT_PUBLIC_PRO_PRICE_MONTHLY:-9.99}
+      - STRIPE_CHECKOUT_URL=${STRIPE_CHECKOUT_URL}
+      - STRIPE_CUSTOMER_PORTAL_URL=${STRIPE_CUSTOMER_PORTAL_URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,11 +66,21 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
-      - LLM=${LLM:-openai:gpt-4}
+      - LLM=${LLM:-google-gla:gemini-3-flash-preview}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-medium}
+      - QUEUED_TASK_TIMEOUT_SECONDS=${QUEUED_TASK_TIMEOUT_SECONDS:-180}
+      - DEFAULT_PROCESSING_MODE=${DEFAULT_PROCESSING_MODE:-fast}
+      - FAST_MODE_MAX_CLIPS=${FAST_MODE_MAX_CLIPS:-4}
+      - FAST_MODE_TRANSCRIPT_MODEL=${FAST_MODE_TRANSCRIPT_MODEL:-nano}
+      - SELF_HOST=${SELF_HOST:-true}
+      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
+      - AUTH_SIGNATURE_TTL_SECONDS=${AUTH_SIGNATURE_TTL_SECONDS:-300}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://sp.localhost:3000}
+      - FREE_PLAN_TASK_LIMIT=${FREE_PLAN_TASK_LIMIT:-10}
+      - PRO_PLAN_TASK_LIMIT=${PRO_PLAN_TASK_LIMIT:-0}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -98,11 +118,21 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
-      - LLM=${LLM:-openai:gpt-4}
+      - LLM=${LLM:-google-gla:gemini-3-flash-preview}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-medium}
+      - QUEUED_TASK_TIMEOUT_SECONDS=${QUEUED_TASK_TIMEOUT_SECONDS:-180}
+      - DEFAULT_PROCESSING_MODE=${DEFAULT_PROCESSING_MODE:-fast}
+      - FAST_MODE_MAX_CLIPS=${FAST_MODE_MAX_CLIPS:-4}
+      - FAST_MODE_TRANSCRIPT_MODEL=${FAST_MODE_TRANSCRIPT_MODEL:-nano}
+      - SELF_HOST=${SELF_HOST:-true}
+      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
+      - AUTH_SIGNATURE_TTL_SECONDS=${AUTH_SIGNATURE_TTL_SECONDS:-300}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://sp.localhost:3000}
+      - FREE_PLAN_TASK_LIMIT=${FREE_PLAN_TASK_LIMIT:-10}
+      - PRO_PLAN_TASK_LIMIT=${PRO_PLAN_TASK_LIMIT:-0}
     restart: unless-stopped
     depends_on:
       postgres:

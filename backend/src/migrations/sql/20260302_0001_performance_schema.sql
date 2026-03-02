@@ -1,0 +1,30 @@
+ALTER TABLE tasks
+ADD COLUMN IF NOT EXISTS processing_mode VARCHAR(20) NOT NULL DEFAULT 'fast';
+
+ALTER TABLE tasks
+ADD COLUMN IF NOT EXISTS started_at TIMESTAMP WITH TIME ZONE;
+
+ALTER TABLE tasks
+ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE;
+
+ALTER TABLE tasks
+ADD COLUMN IF NOT EXISTS cache_hit BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE tasks
+ADD COLUMN IF NOT EXISTS error_code VARCHAR(80);
+
+ALTER TABLE tasks
+ADD COLUMN IF NOT EXISTS stage_timings_json TEXT;
+
+CREATE TABLE IF NOT EXISTS processing_cache (
+    cache_key VARCHAR(255) PRIMARY KEY,
+    source_url TEXT NOT NULL,
+    source_type VARCHAR(20) NOT NULL,
+    video_path TEXT,
+    transcript_text TEXT,
+    analysis_json TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_processing_cache_source_url ON processing_cache(source_url);

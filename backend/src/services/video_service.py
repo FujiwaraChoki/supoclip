@@ -1,20 +1,19 @@
 """
 Video service - handles video processing business logic.
 """
+
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable, Awaitable
 import logging
+import json
 
 from ..utils.async_helpers import run_in_thread
 from ..youtube_utils import (
     download_youtube_video,
     get_youtube_video_title,
-    get_youtube_video_id
+    get_youtube_video_id,
 )
-from ..video_utils import (
-    get_video_transcript,
-    create_clips_with_transitions
-)
+from ..video_utils import get_video_transcript, create_clips_with_transitions
 from ..ai import get_most_relevant_parts_by_transcript
 from ..config import Config
 
@@ -55,13 +54,19 @@ class VideoService:
             return "YouTube Video"
 
     @staticmethod
-    async def generate_transcript(video_path: Path) -> str:
+    async def generate_transcript(
+        video_path: Path, processing_mode: str = "balanced"
+    ) -> str:
         """
         Generate transcript from video using AssemblyAI.
         Runs in thread pool to avoid blocking.
         """
         logger.info(f"Generating transcript for: {video_path}")
-        transcript = await run_in_thread(get_video_transcript, str(video_path))
+        speech_model = "best"
+        if processing_mode == "fast":
+            speech_model = config.fast_mode_transcript_model
+
+        transcript = await run_in_thread(get_video_transcript, video_path, speech_model)
         logger.info(f"Transcript generated: {len(transcript)} characters")
         return transcript
 
@@ -73,7 +78,9 @@ class VideoService:
         """
         logger.info("Starting AI analysis of transcript")
         relevant_parts = await get_most_relevant_parts_by_transcript(transcript)
-        logger.info(f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found")
+        logger.info(
+            f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"
+        )
         return relevant_parts
 
     @staticmethod
@@ -82,7 +89,8 @@ class VideoService:
         segments: List[Dict[str, Any]],
         font_family: str = "TikTokSans-Regular",
         font_size: int = 24,
-        font_color: str = "#FFFFFF"
+        font_color: str = "#FFFFFF",
+        caption_template: str = "default",
     ) -> List[Dict[str, Any]]:
         """
         Create video clips from segments with transitions and subtitles.
@@ -94,12 +102,13 @@ class VideoService:
 
         clips_info = await run_in_thread(
             create_clips_with_transitions,
-            str(video_path),
+            video_path,
             segments,
             clips_output_dir,
             font_family,
             font_size,
-            font_color
+            font_color,
+            caption_template,
         )
 
         logger.info(f"Successfully created {len(clips_info)} clips")
@@ -109,7 +118,7 @@ class VideoService:
     def determine_source_type(url: str) -> str:
         """Determine if source is YouTube or uploaded file."""
         video_id = get_youtube_video_id(url)
-        return "youtube" if video_id else "upload"
+        return "youtube" if video_id else "video_url"
 
     @staticmethod
     async def process_video_complete(
@@ -118,19 +127,27 @@ class VideoService:
         font_family: str = "TikTokSans-Regular",
         font_size: int = 24,
         font_color: str = "#FFFFFF",
-        progress_callback: Optional[callable] = None
+        caption_template: str = "default",
+        processing_mode: str = "fast",
+        cached_transcript: Optional[str] = None,
+        cached_analysis_json: Optional[str] = None,
+        progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]] = None,
+        should_cancel: Optional[Callable[[], Awaitable[bool]]] = None,
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.
         Returns dict with segments and clips info.
 
         progress_callback: Optional function to call with progress updates
-                          Signature: async def callback(progress: int, message: str)
+                          Signature: async def callback(progress: int, message: str, status: str)
         """
         try:
             # Step 1: Get video path (download or use existing)
+            if should_cancel and await should_cancel():
+                raise Exception("Task cancelled")
+
             if progress_callback:
-                await progress_callback(10, "Downloading video...")
+                await progress_callback(10, "Downloading video...", "processing")
 
             if source_type == "youtube":
                 video_path = await VideoService.download_video(url)
@@ -142,48 +159,115 @@ class VideoService:
                     raise Exception("Video file not found")
 
             # Step 2: Generate transcript
-            if progress_callback:
-                await progress_callback(30, "Generating transcript...")
+            if should_cancel and await should_cancel():
+                raise Exception("Task cancelled")
 
-            transcript = await VideoService.generate_transcript(video_path)
+            if progress_callback:
+                await progress_callback(30, "Generating transcript...", "processing")
+
+            transcript = cached_transcript
+            if not transcript:
+                transcript = await VideoService.generate_transcript(
+                    video_path, processing_mode=processing_mode
+                )
 
             # Step 3: AI analysis
-            if progress_callback:
-                await progress_callback(50, "Analyzing content with AI...")
+            if should_cancel and await should_cancel():
+                raise Exception("Task cancelled")
 
-            relevant_parts = await VideoService.analyze_transcript(transcript)
+            if progress_callback:
+                await progress_callback(
+                    50, "Analyzing content with AI...", "processing"
+                )
+
+            relevant_parts = None
+            if cached_analysis_json:
+                try:
+                    cached_analysis = json.loads(cached_analysis_json)
+                    segments = cached_analysis.get("most_relevant_segments", [])
+
+                    class _SimpleResult:
+                        def __init__(self, payload: Dict[str, Any]):
+                            self.summary = payload.get("summary")
+                            self.key_topics = payload.get("key_topics")
+                            self.most_relevant_segments = payload.get(
+                                "most_relevant_segments", []
+                            )
+
+                    relevant_parts = _SimpleResult(
+                        {
+                            "summary": cached_analysis.get("summary"),
+                            "key_topics": cached_analysis.get("key_topics", []),
+                            "most_relevant_segments": segments,
+                        }
+                    )
+                except Exception:
+                    relevant_parts = None
+
+            if relevant_parts is None:
+                relevant_parts = await VideoService.analyze_transcript(transcript)
 
             # Step 4: Create clips
-            if progress_callback:
-                await progress_callback(70, "Creating video clips...")
+            if should_cancel and await should_cancel():
+                raise Exception("Task cancelled")
 
-            segments_json = [
-                {
-                    "start_time": segment.start_time,
-                    "end_time": segment.end_time,
-                    "text": segment.text,
-                    "relevance_score": segment.relevance_score,
-                    "reasoning": segment.reasoning
-                }
-                for segment in relevant_parts.most_relevant_segments
-            ]
+            if progress_callback:
+                await progress_callback(70, "Creating video clips...", "processing")
+
+            raw_segments = relevant_parts.most_relevant_segments
+            segments_json: List[Dict[str, Any]] = []
+            for segment in raw_segments:
+                if isinstance(segment, dict):
+                    segments_json.append(
+                        {
+                            "start_time": segment.get("start_time"),
+                            "end_time": segment.get("end_time"),
+                            "text": segment.get("text", ""),
+                            "relevance_score": segment.get("relevance_score", 0.0),
+                            "reasoning": segment.get("reasoning", ""),
+                        }
+                    )
+                else:
+                    segments_json.append(
+                        {
+                            "start_time": segment.start_time,
+                            "end_time": segment.end_time,
+                            "text": segment.text,
+                            "relevance_score": segment.relevance_score,
+                            "reasoning": segment.reasoning,
+                        }
+                    )
+
+            if processing_mode == "fast":
+                segments_json = segments_json[: config.fast_mode_max_clips]
 
             clips_info = await VideoService.create_video_clips(
                 video_path,
                 segments_json,
                 font_family,
                 font_size,
-                font_color
+                font_color,
+                caption_template,
             )
 
             if progress_callback:
-                await progress_callback(100, "Processing complete!")
+                await progress_callback(90, "Finalizing clips...", "processing")
 
             return {
                 "segments": segments_json,
                 "clips": clips_info,
                 "summary": relevant_parts.summary if relevant_parts else None,
-                "key_topics": relevant_parts.key_topics if relevant_parts else None
+                "key_topics": relevant_parts.key_topics if relevant_parts else None,
+                "transcript": transcript,
+                "analysis_json": json.dumps(
+                    {
+                        "summary": relevant_parts.summary if relevant_parts else None,
+                        "key_topics": relevant_parts.key_topics
+                        if relevant_parts
+                        else [],
+                        "most_relevant_segments": segments_json,
+                    }
+                ),
             }
 
         except Exception as e:

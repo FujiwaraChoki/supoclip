@@ -19,7 +19,15 @@ CREATE TABLE users (
     -- Default font preferences
     default_font_family VARCHAR(100) DEFAULT 'TikTokSans-Regular',
     default_font_size INTEGER DEFAULT 24,
-    default_font_color VARCHAR(7) DEFAULT '#FFFFFF'
+    default_font_color VARCHAR(7) DEFAULT '#FFFFFF',
+    -- Monetization and billing fields
+    plan VARCHAR(20) NOT NULL DEFAULT 'free',
+    subscription_status VARCHAR(20) NOT NULL DEFAULT 'inactive',
+    stripe_customer_id VARCHAR(255) UNIQUE,
+    stripe_subscription_id VARCHAR(255) UNIQUE,
+    billing_period_start TIMESTAMP WITH TIME ZONE,
+    billing_period_end TIMESTAMP WITH TIME ZONE,
+    trial_ends_at TIMESTAMP WITH TIME ZONE
 );
 
 -- Source table (created before tasks since tasks reference sources)
@@ -27,6 +35,7 @@ CREATE TABLE sources (
     id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
     type VARCHAR(20) CHECK (type IN ('youtube', 'video_url')) NOT NULL,
     title VARCHAR(500) NOT NULL,
+    url VARCHAR(1000),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -48,6 +57,16 @@ CREATE TABLE tasks (
     font_size INTEGER DEFAULT 24,
     font_color VARCHAR(7) DEFAULT '#FFFFFF', -- Hex color code
 
+    -- Caption template and B-roll options
+    caption_template VARCHAR(50) DEFAULT 'default',
+    include_broll BOOLEAN DEFAULT false,
+    processing_mode VARCHAR(20) NOT NULL DEFAULT 'fast',
+    started_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    cache_hit BOOLEAN NOT NULL DEFAULT false,
+    error_code VARCHAR(80),
+    stage_timings_json TEXT,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -65,6 +84,26 @@ CREATE TABLE generated_clips (
     relevance_score FLOAT NOT NULL,
     reasoning TEXT,                  -- AI reasoning for selection
     clip_order INTEGER NOT NULL,     -- Order within the task
+
+    -- Virality score breakdown
+    virality_score INTEGER DEFAULT 0,
+    hook_score INTEGER DEFAULT 0,
+    engagement_score INTEGER DEFAULT 0,
+    value_score INTEGER DEFAULT 0,
+    shareability_score INTEGER DEFAULT 0,
+    hook_type VARCHAR(50),
+
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE processing_cache (
+    cache_key VARCHAR(255) PRIMARY KEY,
+    source_url TEXT NOT NULL,
+    source_type VARCHAR(20) NOT NULL,
+    video_path TEXT,
+    transcript_text TEXT,
+    analysis_json TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -106,13 +145,23 @@ CREATE TABLE verification (
     "updatedAt" TIMESTAMP WITH TIME ZONE
 );
 
+-- Stripe webhook idempotency table
+CREATE TABLE stripe_webhook_events (
+    id VARCHAR(255) PRIMARY KEY,
+    type VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for better performance
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_tasks_user_id ON tasks(user_id);
 CREATE INDEX idx_tasks_source_id ON tasks(source_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_created_at ON tasks(created_at);
+CREATE INDEX idx_tasks_processing_mode ON tasks(processing_mode);
+CREATE INDEX idx_tasks_completed_at ON tasks(completed_at);
 CREATE INDEX idx_sources_created_at ON sources(created_at);
+CREATE INDEX idx_processing_cache_source_url ON processing_cache(source_url);
 CREATE INDEX idx_generated_clips_task_id ON generated_clips(task_id);
 CREATE INDEX idx_generated_clips_clip_order ON generated_clips(clip_order);
 CREATE INDEX idx_generated_clips_created_at ON generated_clips(created_at);

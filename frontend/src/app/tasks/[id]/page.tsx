@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +20,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useSession } from "@/lib/auth-client";
-import { ArrowLeft, Download, Clock, Star, AlertCircle, Trash2, Edit2, X, Check } from "lucide-react";
+import { formatSupportMessage, parseApiError } from "@/lib/api-error";
+import { ArrowLeft, Download, Star, AlertCircle, Trash2, Edit2, X, Check, Zap, MessageSquare, TrendingUp, Share2, Clock, Scissors, SplitSquareVertical, GitMerge, RefreshCw, Subtitles, Settings2, Type, Clapperboard } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import DynamicVideoPlayer from "@/components/dynamic-video-player";
 
@@ -36,6 +39,13 @@ interface Clip {
   clip_order: number;
   created_at: string;
   video_url: string;
+  // Virality scores
+  virality_score: number;
+  hook_score: number;
+  engagement_score: number;
+  value_score: number;
+  shareability_score: number;
+  hook_type: string | null;
 }
 
 interface TaskDetails {
@@ -53,6 +63,13 @@ interface TaskDetails {
   font_family?: string;
   font_size?: number;
   font_color?: string;
+  caption_template?: string;
+  include_broll?: boolean;
+}
+
+interface FontOption {
+  name: string;
+  display_name: string;
 }
 
 export default function TaskPage() {
@@ -70,13 +87,47 @@ export default function TaskPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedClipIds, setSelectedClipIds] = useState<string[]>([]);
+  const [editingClipId, setEditingClipId] = useState<string | null>(null);
+  const [startOffset, setStartOffset] = useState("0");
+  const [endOffset, setEndOffset] = useState("0");
+  const [splitTime, setSplitTime] = useState("5");
+  const [captionText, setCaptionText] = useState("");
+  const [captionPosition, setCaptionPosition] = useState("bottom");
+  const [highlightWords, setHighlightWords] = useState("");
+  const [exportPreset, setExportPreset] = useState("tiktok");
 
-  const fetchTaskStatus = async (retryCount = 0, maxRetries = 5) => {
+  const [projectFontFamily, setProjectFontFamily] = useState("TikTokSans-Regular");
+  const [projectFontSize, setProjectFontSize] = useState("24");
+  const [projectFontColor, setProjectFontColor] = useState("#FFFFFF");
+  const [projectCaptionTemplate, setProjectCaptionTemplate] = useState("default");
+  const [projectIncludeBroll, setProjectIncludeBroll] = useState(false);
+  const [isApplyingSettings, setIsApplyingSettings] = useState(false);
+  const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
+  const hasTriggeredAutoRefresh = useRef(false);
+
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  const buildSupportError = useCallback(
+    async (response: Response, fallbackMessage: string) => {
+      const parsed = await parseApiError(response, fallbackMessage);
+      return formatSupportMessage(parsed);
+    },
+    []
+  );
+
+  const triggerAutoRefresh = useCallback(() => {
+    if (hasTriggeredAutoRefresh.current) return;
+    hasTriggeredAutoRefresh.current = true;
+    setTimeout(() => {
+      window.location.reload();
+    }, 700);
+  }, []);
+
+  const fetchTaskStatus = useCallback(async (retryCount = 0, maxRetries = 5) => {
     if (!params.id) return false;
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
       // Fetch task details (including status)
       // Don't wait for session - fetch immediately with user_id if available
       const headers: HeadersInit = {};
@@ -96,11 +147,18 @@ export default function TaskPage() {
       }
 
       if (!taskResponse.ok) {
-        throw new Error(`Failed to fetch task: ${taskResponse.status}`);
+        throw new Error(
+          await buildSupportError(taskResponse, `Failed to fetch task: ${taskResponse.status}`)
+        );
       }
 
       const taskData = await taskResponse.json();
       setTask(taskData);
+      setProjectFontFamily(taskData.font_family || "TikTokSans-Regular");
+      setProjectFontSize(String(taskData.font_size || 24));
+      setProjectFontColor(taskData.font_color || "#FFFFFF");
+      setProjectCaptionTemplate(taskData.caption_template || "default");
+      setProjectIncludeBroll(Boolean(taskData.include_broll));
 
       // Only fetch clips if task is completed
       if (taskData.status === "completed") {
@@ -114,7 +172,9 @@ export default function TaskPage() {
         });
 
         if (!clipsResponse.ok) {
-          throw new Error(`Failed to fetch clips: ${clipsResponse.status}`);
+          throw new Error(
+            await buildSupportError(clipsResponse, `Failed to fetch clips: ${clipsResponse.status}`)
+          );
         }
 
         const clipsData = await clipsResponse.json();
@@ -127,7 +187,7 @@ export default function TaskPage() {
       setError(err instanceof Error ? err.message : "Failed to load task");
       return false;
     }
-  };
+  }, [apiUrl, buildSupportError, params.id, session?.user?.id]);
 
   // Initial fetch - runs immediately, doesn't wait for session
   useEffect(() => {
@@ -143,14 +203,32 @@ export default function TaskPage() {
     };
 
     fetchTaskData();
-  }, [params.id]); // Only run once when params change
+  }, [params.id, fetchTaskStatus]);
+
+  useEffect(() => {
+    const loadFonts = async () => {
+      try {
+        const response = await fetch("/api/fonts", { cache: "no-store" });
+        if (!response.ok) {
+          return;
+        }
+        const data = await response.json();
+        setAvailableFonts(data.fonts || []);
+      } catch (loadError) {
+        console.error("Failed to load fonts:", loadError);
+      }
+    };
+
+    void loadFonts();
+  }, []);
 
   // SSE effect - real-time progress updates
   useEffect(() => {
-    if (!params.id || !task) return;
+    const taskStatus = task?.status;
+    if (!params.id || !taskStatus) return;
 
     // Only connect to SSE if task is queued or processing
-    if (task.status !== "queued" && task.status !== "processing") return;
+    if (taskStatus !== "queued" && taskStatus !== "processing") return;
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
     const eventSource = new EventSource(`${apiUrl}/tasks/${params.id}/progress`);
@@ -162,6 +240,10 @@ export default function TaskPage() {
       console.log("📊 Status:", data);
       setProgress(data.progress || 0);
       setProgressMessage(data.message || "");
+
+      if (data.status === "completed") {
+        void fetchTaskStatus().then(() => triggerAutoRefresh());
+      }
     });
 
     eventSource.addEventListener("progress", (e) => {
@@ -171,8 +253,14 @@ export default function TaskPage() {
       setProgressMessage(data.message || "");
 
       // Update task status if provided
-      if (data.status && task) {
-        setTask({ ...task, status: data.status });
+      if (data.status) {
+        setTask((currentTask) =>
+          currentTask ? { ...currentTask, status: data.status } : currentTask
+        );
+
+        if (data.status === "completed") {
+          void fetchTaskStatus().then(() => triggerAutoRefresh());
+        }
       }
     });
 
@@ -183,6 +271,7 @@ export default function TaskPage() {
 
       // Refresh task and clips
       await fetchTaskStatus();
+      triggerAutoRefresh();
     });
 
     eventSource.addEventListener("error", (e) => {
@@ -198,7 +287,7 @@ export default function TaskPage() {
       console.log("🔌 Disconnecting SSE");
       eventSource.close();
     };
-  }, [params.id, task?.status]); // Re-run when task status changes
+  }, [params.id, task?.status, fetchTaskStatus]); // Re-run when task status changes
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -212,11 +301,36 @@ export default function TaskPage() {
     return "bg-red-100 text-red-800";
   };
 
+  const getViralityColor = (score: number) => {
+    if (score >= 80) return "text-green-600";
+    if (score >= 60) return "text-yellow-600";
+    if (score >= 40) return "text-orange-600";
+    return "text-red-600";
+  };
+
+  const getViralityBgColor = (score: number) => {
+    if (score >= 80) return "bg-green-500";
+    if (score >= 60) return "bg-yellow-500";
+    if (score >= 40) return "bg-orange-500";
+    return "bg-red-500";
+  };
+
+  const getHookTypeLabel = (hookType: string | null) => {
+    const labels: Record<string, string> = {
+      question: "Question Hook",
+      statement: "Bold Statement",
+      statistic: "Data/Stats",
+      story: "Story Hook",
+      contrast: "Contrast Hook",
+      none: "No Hook"
+    };
+    return labels[hookType || "none"] || hookType || "None";
+  };
+
   const handleEditTitle = async () => {
     if (!editedTitle.trim() || !session?.user?.id || !params.id) return;
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(`${apiUrl}/tasks/${params.id}`, {
         method: "PATCH",
         headers: {
@@ -230,11 +344,11 @@ export default function TaskPage() {
         setTask(task ? { ...task, source_title: editedTitle } : null);
         setIsEditing(false);
       } else {
-        alert("Failed to update title");
+        alert(await buildSupportError(response, "Failed to update title"));
       }
     } catch (err) {
       console.error("Error updating title:", err);
-      alert("Failed to update title");
+      alert(err instanceof Error ? err.message : "Failed to update title");
     }
   };
 
@@ -243,7 +357,6 @@ export default function TaskPage() {
 
     setIsDeleting(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(`${apiUrl}/tasks/${params.id}`, {
         method: "DELETE",
         headers: {
@@ -254,11 +367,11 @@ export default function TaskPage() {
       if (response.ok) {
         router.push("/list");
       } else {
-        alert("Failed to delete task");
+        alert(await buildSupportError(response, "Failed to delete task"));
       }
     } catch (err) {
       console.error("Error deleting task:", err);
-      alert("Failed to delete task");
+      alert(err instanceof Error ? err.message : "Failed to delete task");
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
@@ -269,7 +382,6 @@ export default function TaskPage() {
     if (!session?.user?.id || !params.id) return;
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const response = await fetch(`${apiUrl}/tasks/${params.id}/clips/${clipId}`, {
         method: "DELETE",
         headers: {
@@ -281,12 +393,162 @@ export default function TaskPage() {
         setClips(clips.filter((clip) => clip.id !== clipId));
         setDeletingClipId(null);
       } else {
-        alert("Failed to delete clip");
+        alert(await buildSupportError(response, "Failed to delete clip"));
       }
     } catch (err) {
       console.error("Error deleting clip:", err);
-      alert("Failed to delete clip");
+      alert(err instanceof Error ? err.message : "Failed to delete clip");
     }
+  };
+
+  const handleToggleClipSelection = (clipId: string) => {
+    setSelectedClipIds((prev) => {
+      if (prev.includes(clipId)) {
+        return prev.filter((id) => id !== clipId);
+      }
+      return [...prev, clipId];
+    });
+  };
+
+  const handleTrimClip = async (clipId: string) => {
+    if (!session?.user?.id || !params.id) return;
+    const response = await fetch(`${apiUrl}/tasks/${params.id}/clips/${clipId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        user_id: session.user.id,
+      },
+      body: JSON.stringify({
+        start_offset: Number(startOffset || "0"),
+        end_offset: Number(endOffset || "0"),
+      }),
+    });
+    if (!response.ok) {
+      alert(await buildSupportError(response, "Failed to trim clip"));
+      return;
+    }
+    await fetchTaskStatus();
+  };
+
+  const handleSplitClip = async (clipId: string) => {
+    if (!session?.user?.id || !params.id) return;
+    const response = await fetch(`${apiUrl}/tasks/${params.id}/clips/${clipId}/split`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        user_id: session.user.id,
+      },
+      body: JSON.stringify({ split_time: Number(splitTime || "5") }),
+    });
+    if (!response.ok) {
+      alert(await buildSupportError(response, "Failed to split clip"));
+      return;
+    }
+    await fetchTaskStatus();
+  };
+
+  const handleMergeClips = async () => {
+    if (!session?.user?.id || !params.id || selectedClipIds.length < 2) return;
+    const response = await fetch(`${apiUrl}/tasks/${params.id}/clips/merge`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        user_id: session.user.id,
+      },
+      body: JSON.stringify({ clip_ids: selectedClipIds }),
+    });
+    if (!response.ok) {
+      alert(await buildSupportError(response, "Failed to merge clips"));
+      return;
+    }
+    setSelectedClipIds([]);
+    await fetchTaskStatus();
+  };
+
+  const handleUpdateCaptions = async (clipId: string) => {
+    if (!session?.user?.id || !params.id) return;
+    const response = await fetch(`${apiUrl}/tasks/${params.id}/clips/${clipId}/captions`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        user_id: session.user.id,
+      },
+      body: JSON.stringify({
+        caption_text: captionText,
+        position: captionPosition,
+        highlight_words: highlightWords
+          .split(",")
+          .map((w) => w.trim())
+          .filter(Boolean),
+      }),
+    });
+    if (!response.ok) {
+      alert(await buildSupportError(response, "Failed to update captions"));
+      return;
+    }
+    await fetchTaskStatus();
+  };
+
+  const handleApplyProjectSettings = async () => {
+    if (!session?.user?.id || !params.id) return;
+    const parsedSize = Number(projectFontSize || "24");
+    const safeFontSize = Number.isFinite(parsedSize)
+      ? Math.max(12, Math.min(72, Math.round(parsedSize)))
+      : 24;
+    const normalizedColor = /^#[0-9A-Fa-f]{6}$/.test(projectFontColor)
+      ? projectFontColor
+      : "#FFFFFF";
+
+    setIsApplyingSettings(true);
+    try {
+      const response = await fetch(`${apiUrl}/tasks/${params.id}/settings`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          user_id: session.user.id,
+        },
+        body: JSON.stringify({
+          font_family: projectFontFamily,
+          font_size: safeFontSize,
+          font_color: normalizedColor,
+          caption_template: projectCaptionTemplate,
+          include_broll: projectIncludeBroll,
+          apply_to_existing: true,
+        }),
+      });
+      if (!response.ok) {
+        alert(await buildSupportError(response, "Failed to apply settings"));
+        return;
+      }
+      await fetchTaskStatus();
+    } finally {
+      setIsApplyingSettings(false);
+    }
+  };
+
+  const handleExportClip = async (clipId: string, fallbackFilename: string) => {
+    if (!session?.user?.id || !task?.id) return;
+
+    const response = await fetch(`${apiUrl}/tasks/${task.id}/clips/${clipId}/export?preset=${exportPreset}`, {
+      headers: {
+        user_id: session.user.id,
+      },
+    });
+
+    if (!response.ok) {
+      alert(await buildSupportError(response, "Failed to export clip"));
+      return;
+    }
+
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = `${fallbackFilename.replace(/\.mp4$/i, "")}_${exportPreset}.mp4`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(blobUrl);
   };
 
   if (isLoading) {
@@ -415,6 +677,48 @@ export default function TaskPage() {
                     {task.status}
                   </Badge>
                 )}
+                {task.status === "completed" && clips.length > 0 && (
+                  <Link href={`/tasks/${task.id}/edit`}>
+                    <Button size="sm" variant="outline">
+                      <Clapperboard className="w-4 h-4" />
+                      Open Editor
+                    </Button>
+                  </Link>
+                )}
+                {(task.status === "queued" || task.status === "processing") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      await fetch(`${apiUrl}/tasks/${task.id}/cancel`, {
+                        method: "POST",
+                        headers: {
+                          user_id: session?.user?.id || "",
+                        },
+                      });
+                      await fetchTaskStatus();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                )}
+                {(task.status === "cancelled" || task.status === "error") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      await fetch(`${apiUrl}/tasks/${task.id}/resume`, {
+                        method: "POST",
+                        headers: {
+                          user_id: session?.user?.id || "",
+                        },
+                      });
+                      await fetchTaskStatus();
+                    }}
+                  >
+                    Resume
+                  </Button>
+                )}
               </div>
             </div>
           )}
@@ -423,93 +727,40 @@ export default function TaskPage() {
 
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-4 py-8">
-        {task?.status === "processing" || task?.status === "queued" || !task ? (
-          <div className="space-y-6">
-            <div className="text-center mb-8">
-              <h2 className="text-xl font-semibold text-black mb-2">
-                {!task ? "Initializing..." : task.status === "queued" ? "Queued for Processing" : "Processing Video"}
-              </h2>
-              <p className="text-gray-600">
-                {!task
-                  ? "Setting up your task. This should only take a moment..."
-                  : task.status === "queued"
-                    ? "Your task is in the queue and will start processing shortly."
-                    : "Generating clips from your video. This usually takes 2-3 minutes."}
-              </p>
+        {task?.status === "processing" || task?.status === "queued" ? (
+          <div className="flex flex-col items-center justify-center min-h-[50vh] py-16">
+            {/* Minimal animated dots */}
+            <div className="flex items-center gap-1.5 mb-8">
+              <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_infinite]" />
+              <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+              <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
             </div>
 
-            {/* Processing Status Display with Progress */}
-            <Card className="mb-6">
-              <CardContent className="p-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-center gap-3">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                    <p className="text-sm font-medium text-black">
-                      {progressMessage ||
-                        (!task ? "Initializing your task..." : "Processing video and generating clips...")}
-                    </p>
-                  </div>
+            {/* Status message */}
+            <p className="text-neutral-600 text-sm tracking-wide mb-8">
+              {progressMessage || (task.status === "queued" ? "Waiting in queue" : "Processing")}
+            </p>
 
-                  {/* Progress Bar */}
-                  {progress > 0 && (
-                    <div className="w-full">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs text-gray-500">Progress</span>
-                        <span className="text-xs font-medium text-blue-600">{progress}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  <p className="text-xs text-gray-500 text-center">
-                    This page will automatically update when your clips are ready
-                  </p>
+            {/* Minimal progress bar */}
+            {progress > 0 && (
+              <div className="w-48">
+                <div className="h-px bg-neutral-200 w-full relative overflow-hidden">
+                  <div
+                    className="absolute inset-y-0 left-0 bg-neutral-800 transition-all duration-700 ease-out"
+                    style={{ width: `${progress}%` }}
+                  />
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Skeleton for clips being generated */}
-            {[1, 2].map((i) => (
-              <Card key={i} className="overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="flex flex-col lg:flex-row">
-                    {/* Video Player Skeleton */}
-                    <div className="bg-gray-200 relative flex-shrink-0 flex items-center justify-center w-full lg:w-96 h-48 lg:h-64">
-                      <Skeleton className="w-full h-full" />
-                    </div>
-
-                    {/* Clip Details Skeleton */}
-                    <div className="p-6 flex-1">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <Skeleton className="h-6 w-24 mb-2" />
-                          <Skeleton className="h-4 w-32" />
-                        </div>
-                        <Skeleton className="h-6 w-12" />
-                      </div>
-
-                      <div className="mb-4">
-                        <Skeleton className="h-4 w-16 mb-2" />
-                        <Skeleton className="h-20 w-full" />
-                      </div>
-
-                      <div className="mb-4">
-                        <Skeleton className="h-4 w-20 mb-2" />
-                        <Skeleton className="h-4 w-full mb-1" />
-                        <Skeleton className="h-4 w-3/4" />
-                      </div>
-
-                      <Skeleton className="h-8 w-24" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                <p className="text-[11px] text-neutral-400 text-center mt-3 tabular-nums">{progress}%</p>
+              </div>
+            )}
+          </div>
+        ) : !task ? (
+          <div className="flex flex-col items-center justify-center min-h-[50vh] py-16">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 bg-neutral-300 rounded-full animate-[pulse_1.4s_ease-in-out_infinite]" />
+              <span className="w-2 h-2 bg-neutral-300 rounded-full animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+              <span className="w-2 h-2 bg-neutral-300 rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+            </div>
           </div>
         ) : task?.status === "error" ? (
           <Card>
@@ -542,7 +793,7 @@ export default function TaskPage() {
                   </p>
                   <Link href="/">
                     <Button>
-                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      <ArrowLeft className="w-4 h-4" />
                       Try Another Video
                     </Button>
                   </Link>
@@ -554,7 +805,7 @@ export default function TaskPage() {
                   </div>
                   <h2 className="text-xl font-semibold text-black mb-2">Still Generating...</h2>
                   <p className="text-gray-600">
-                    Your clips are being generated. This page will refresh automatically when they're ready.
+                    Your clips are being generated. This page will refresh automatically when they&apos;re ready.
                   </p>
                 </>
               )}
@@ -562,6 +813,72 @@ export default function TaskPage() {
           </Card>
         ) : (
           <div className="grid gap-6">
+            <Card>
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium text-black flex items-center gap-2"><Settings2 className="w-4 h-4" />Project Settings</h3>
+                  <Button size="sm" onClick={handleApplyProjectSettings} disabled={isApplyingSettings}>
+                    {isApplyingSettings ? "Applying..." : "Apply to All Clips"}
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+                  <Select value={projectFontFamily} onValueChange={setProjectFontFamily}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Font family" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableFonts.map((font) => (
+                        <SelectItem key={font.name} value={font.name}>
+                          <span className="flex items-center gap-2">
+                            <Type className="w-3 h-3" />
+                            {font.display_name}
+                          </span>
+                        </SelectItem>
+                      ))}
+                      {availableFonts.length === 0 && (
+                        <SelectItem value="TikTokSans-Regular">TikTok Sans Regular</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    min={12}
+                    max={72}
+                    value={projectFontSize}
+                    onChange={(e) => setProjectFontSize(e.target.value)}
+                    placeholder="Font size"
+                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={projectFontColor}
+                      onChange={(e) => setProjectFontColor(e.target.value)}
+                      className="h-10 w-10 rounded border border-gray-300"
+                    />
+                    <Input
+                      value={projectFontColor}
+                      onChange={(e) => setProjectFontColor(e.target.value)}
+                      placeholder="#FFFFFF"
+                    />
+                  </div>
+                  <Input value={projectCaptionTemplate} onChange={(e) => setProjectCaptionTemplate(e.target.value)} placeholder="Caption template" />
+                  <label className="flex items-center gap-2 text-sm text-gray-700 px-2">
+                    <input type="checkbox" checked={projectIncludeBroll} onChange={(e) => setProjectIncludeBroll(e.target.checked)} />
+                    Include B-roll
+                  </label>
+                </div>
+              </CardContent>
+            </Card>
+
+            {selectedClipIds.length >= 2 && (
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={handleMergeClips}>
+                  <GitMerge className="w-4 h-4" />
+                  Merge Selected ({selectedClipIds.length})
+                </Button>
+              </div>
+            )}
+
             {/* Font Settings Display */}
             {task && (
               <div className="bg-gray-50 rounded-lg p-4">
@@ -598,15 +915,23 @@ export default function TaskPage() {
                     {/* Video Player */}
                     <div className="bg-black relative flex-shrink-0 flex items-center justify-center">
                       <DynamicVideoPlayer
-                        src={`http://localhost:8000${clip.video_url}`}
+                        src={`${apiUrl}${clip.video_url}`}
                         poster="/placeholder-video.jpg"
                       />
                     </div>
 
                     {/* Clip Details */}
-                    <div className="p-6">
+                    <div className="p-6 flex-1">
                       <div className="flex items-start justify-between mb-4">
                         <div>
+                          <label className="flex items-center gap-2 text-xs text-gray-600 mb-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedClipIds.includes(clip.id)}
+                              onChange={() => handleToggleClipSelection(clip.id)}
+                            />
+                            Select for merge
+                          </label>
                           <h3 className="font-semibold text-lg text-black mb-1">Clip {clip.clip_order}</h3>
                           <div className="flex items-center gap-2 text-sm text-gray-600">
                             <span>
@@ -617,12 +942,92 @@ export default function TaskPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          {/* Virality Score Badge */}
+                          {clip.virality_score > 0 && (
+                            <Badge className={`${getViralityBgColor(clip.virality_score)} text-white`}>
+                              <Zap className="w-3 h-3 mr-1" />
+                              {clip.virality_score}
+                            </Badge>
+                          )}
                           <Badge className={getScoreColor(clip.relevance_score)}>
                             <Star className="w-3 h-3 mr-1" />
                             {(clip.relevance_score * 100).toFixed(0)}%
                           </Badge>
                         </div>
                       </div>
+
+                      {/* Virality Score Breakdown */}
+                      {clip.virality_score > 0 && (
+                        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-medium text-black text-sm flex items-center gap-2">
+                              <Zap className="w-4 h-4" />
+                              Virality Score
+                            </h4>
+                            <span className={`text-lg font-bold ${getViralityColor(clip.virality_score)}`}>
+                              {clip.virality_score}/100
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 text-xs">
+                            {/* Hook Score */}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="flex items-center gap-1 text-gray-600">
+                                  <MessageSquare className="w-3 h-3" />
+                                  Hook
+                                </span>
+                                <span className="font-medium">{clip.hook_score}/25</span>
+                              </div>
+                              <Progress value={(clip.hook_score / 25) * 100} className="h-1.5" />
+                            </div>
+
+                            {/* Engagement Score */}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="flex items-center gap-1 text-gray-600">
+                                  <TrendingUp className="w-3 h-3" />
+                                  Engagement
+                                </span>
+                                <span className="font-medium">{clip.engagement_score}/25</span>
+                              </div>
+                              <Progress value={(clip.engagement_score / 25) * 100} className="h-1.5" />
+                            </div>
+
+                            {/* Value Score */}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="flex items-center gap-1 text-gray-600">
+                                  <Star className="w-3 h-3" />
+                                  Value
+                                </span>
+                                <span className="font-medium">{clip.value_score}/25</span>
+                              </div>
+                              <Progress value={(clip.value_score / 25) * 100} className="h-1.5" />
+                            </div>
+
+                            {/* Shareability Score */}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="flex items-center gap-1 text-gray-600">
+                                  <Share2 className="w-3 h-3" />
+                                  Shareability
+                                </span>
+                                <span className="font-medium">{clip.shareability_score}/25</span>
+                              </div>
+                              <Progress value={(clip.shareability_score / 25) * 100} className="h-1.5" />
+                            </div>
+                          </div>
+
+                          {clip.hook_type && clip.hook_type !== "none" && (
+                            <div className="mt-3 pt-2 border-t">
+                              <Badge variant="outline" className="text-xs">
+                                {getHookTypeLabel(clip.hook_type)}
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {clip.text && (
                         <div className="mb-4">
@@ -640,21 +1045,84 @@ export default function TaskPage() {
 
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" asChild>
-                          <a href={`http://localhost:8000${clip.video_url}`} download={clip.filename}>
-                            <Download className="w-4 h-4 mr-2" />
+                          <a href={`${apiUrl}${clip.video_url}`} download={clip.filename}>
+                            <Download className="w-4 h-4" />
                             Download
                           </a>
                         </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleExportClip(clip.id, clip.filename)}>
+                          <Download className="w-4 h-4" />
+                          Export
+                        </Button>
+                        <Select value={exportPreset} onValueChange={setExportPreset}>
+                          <SelectTrigger className="h-8 w-28">
+                            <SelectValue placeholder="Preset" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="tiktok">TikTok</SelectItem>
+                            <SelectItem value="reels">Reels</SelectItem>
+                            <SelectItem value="shorts">Shorts</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <Button
                           size="sm"
                           variant="outline"
                           className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                           onClick={() => setDeletingClipId(clip.id)}
                         >
-                          <Trash2 className="w-4 h-4 mr-2" />
+                          <Trash2 className="w-4 h-4" />
                           Delete
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setEditingClipId(editingClipId === clip.id ? null : clip.id);
+                            setCaptionText(clip.text || "");
+                          }}
+                        >
+                          <Scissors className="w-4 h-4" />
+                          Edit
+                        </Button>
                       </div>
+
+                      {editingClipId === clip.id && (
+                        <div className="mt-4 p-3 border rounded-lg space-y-3 bg-gray-50">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <Input value={startOffset} onChange={(e) => setStartOffset(e.target.value)} placeholder="Start trim (sec)" />
+                            <Input value={endOffset} onChange={(e) => setEndOffset(e.target.value)} placeholder="End trim (sec)" />
+                            <Button size="sm" onClick={() => handleTrimClip(clip.id)}>
+                              <Scissors className="w-4 h-4" />Trim
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <Input value={splitTime} onChange={(e) => setSplitTime(e.target.value)} placeholder="Split at (sec)" />
+                            <Button size="sm" variant="outline" onClick={() => handleSplitClip(clip.id)}>
+                              <SplitSquareVertical className="w-4 h-4" />Split
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => handleTrimClip(clip.id)}>
+                              <RefreshCw className="w-4 h-4" />Regenerate
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                            <Input value={captionText} onChange={(e) => setCaptionText(e.target.value)} placeholder="Caption text" />
+                            <Select value={captionPosition} onValueChange={setCaptionPosition}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Caption position" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="top">Top</SelectItem>
+                                <SelectItem value="middle">Middle</SelectItem>
+                                <SelectItem value="bottom">Bottom</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input value={highlightWords} onChange={(e) => setHighlightWords(e.target.value)} placeholder="Highlights: word1, word2" />
+                          </div>
+                          <Button size="sm" variant="outline" onClick={() => handleUpdateCaptions(clip.id)}>
+                            <Subtitles className="w-4 h-4" />Update Captions
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>

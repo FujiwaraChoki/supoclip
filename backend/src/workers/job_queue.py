@@ -1,6 +1,7 @@
 """
 Job queue setup using arq (async Redis queue).
 """
+
 import logging
 from typing import Optional
 from arq import create_pool
@@ -10,11 +11,13 @@ from ..config import Config
 logger = logging.getLogger(__name__)
 config = Config()
 
+# Queue names
+DEFAULT_QUEUE_NAME = "supoclip_tasks"
+FAST_QUEUE_NAME = "supoclip_fast"
+
 # Redis settings for arq
 ARQ_REDIS_SETTINGS = RedisSettings(
-    host=config.redis_host,
-    port=config.redis_port,
-    database=0
+    host=config.redis_host, port=config.redis_port, database=0
 )
 
 
@@ -28,7 +31,9 @@ class JobQueue:
         """Get or create the Redis connection pool."""
         if cls._pool is None:
             cls._pool = await create_pool(ARQ_REDIS_SETTINGS)
-            logger.info(f"Created arq Redis pool: {config.redis_host}:{config.redis_port}")
+            logger.info(
+                f"Created arq Redis pool: {config.redis_host}:{config.redis_port}"
+            )
         return cls._pool
 
     @classmethod
@@ -53,9 +58,29 @@ class JobQueue:
             job_id: Unique ID for the enqueued job
         """
         pool = await cls.get_pool()
-        job = await pool.enqueue_job(function_name, *args, **kwargs)
-        logger.info(f"Enqueued job {job.job_id}: {function_name}")
-        return job.job_id
+        queue_name = kwargs.pop("_queue_name", DEFAULT_QUEUE_NAME)
+        job = await pool.enqueue_job(
+            function_name, *args, _queue_name=queue_name, **kwargs
+        )
+        if not job:
+            raise RuntimeError("Failed to enqueue job")
+        job_id = getattr(job, "job_id", None)
+        if not job_id:
+            raise RuntimeError("Failed to enqueue job: missing job ID")
+
+        logger.info(f"Enqueued job {job_id}: {function_name} on queue {queue_name}")
+        return str(job_id)
+
+    @classmethod
+    async def enqueue_processing_job(
+        cls, function_name: str, processing_mode: str, *args, **kwargs
+    ) -> str:
+        # Keep a single queue for now; processing_mode remains available for future
+        # dedicated queue routing once multiple worker pools are configured.
+        queue_name = DEFAULT_QUEUE_NAME
+        return await cls.enqueue_job(
+            function_name, *args, _queue_name=queue_name, **kwargs
+        )
 
     @classmethod
     async def get_job_result(cls, job_id: str):

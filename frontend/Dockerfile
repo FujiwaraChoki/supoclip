@@ -5,8 +5,12 @@ FROM oven/bun:1.2-debian AS base
 FROM base AS deps
 WORKDIR /app
 
-# Copy package.json and lockfile
+# Install OpenSSL for Prisma postinstall
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency manifests and Prisma schema needed by postinstall
 COPY package.json bun.lock ./
+COPY prisma ./prisma
 RUN bun install
 
 # Development stage
@@ -33,7 +37,8 @@ ENV HOSTNAME="0.0.0.0"
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Start development server with hot-reload
-CMD ["bun", "run", "dev"]
+# Run prisma generate first to handle volume mount scenarios where node_modules is overwritten
+CMD ["sh", "-c", "bunx prisma generate && bun run dev"]
 
 # Builder stage (for production)
 FROM base AS builder

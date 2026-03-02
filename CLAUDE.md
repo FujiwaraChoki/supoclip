@@ -4,278 +4,198 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SupoClip is an open-source alternative to OpusClip - an AI-powered video clipping tool that transforms long-form content into viral short clips. The project consists of three main applications:
-
-1. **Backend** (Python/FastAPI) - Video processing, AI analysis, and API
-2. **Frontend** (Next.js 15) - Main application interface
-3. **Waitlist** (Next.js 15) - Landing page for hosted version signups
-
-## Architecture
-
-### Monorepo Structure
-
-```
-supoclip/
-├── backend/       # Python FastAPI backend
-├── frontend/      # Next.js 15 main app
-├── waitlist/      # Next.js 15 landing page
-├── docker-compose.yml
-└── init.sql       # PostgreSQL schema
-```
-
-### Technology Stack
-
-**Backend:**
-- FastAPI with async/await patterns
-- AssemblyAI for video transcription (word-level timing)
-- Pydantic AI for transcript analysis and clip selection
-- MoviePy v2 for video processing
-- OpenCV + MediaPipe for face detection and smart cropping
-- PostgreSQL (via asyncpg/SQLAlchemy) for persistence
-- Redis for caching/job queues
-- yt-dlp for YouTube video downloads
-
-**Frontend:**
-- Next.js 15 with App Router and Turbopack
-- Better Auth with Prisma adapter for authentication
-- ShadCN UI components + TailwindCSS v4
-- Server-side rendering patterns
-
-**Database:**
-- PostgreSQL 15 with tables: users, tasks, sources, generated_clips, session, account, verification
-- Uses both snake_case (tasks) and camelCase (Better Auth tables) conventions
+SupoClip is an open-source alternative to OpusClip — an AI-powered video clipping tool that transforms long-form content into viral short clips. AGPL-3.0 licensed.
 
 ## Development Commands
 
-### Backend Development
+### Docker (recommended)
 
-The backend uses `uv` package manager (not pip or poetry).
+```bash
+docker-compose up -d              # Start all 5 services
+docker-compose up -d --build      # Rebuild after changes
+docker-compose logs -f backend    # Debug backend
+docker-compose logs -f worker     # Debug video processing
+docker-compose down               # Stop all services
+```
+
+Services: Frontend (:3000), Backend API (:8000, docs at /docs), Worker (ARQ), PostgreSQL (:5432), Redis (:6379)
+
+### Backend (local)
+
+Uses `uv` (not pip/poetry). Requires Python 3.11+, ffmpeg, running PostgreSQL and Redis.
 
 ```bash
 cd backend
-
-# Create virtual environment
-uv venv .venv
-source .venv/bin/activate  # macOS/Linux
-# .venv\Scripts\activate   # Windows
-
-# Install dependencies
+uv venv .venv && source .venv/bin/activate
 uv sync
 
-# Run development server
-uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+# API server (uses refactored entry point)
+uvicorn src.main_refactored:app --reload --host 0.0.0.0 --port 8000
+
+# Worker process (required for video processing)
+arq src.workers.tasks.WorkerSettings
 ```
 
-**Prerequisites:**
-- Python 3.11+
-- ffmpeg installed (`brew install ffmpeg` on macOS)
-- `uv` package manager
-
-**Environment variables (backend/.env):**
-- `ASSEMBLY_AI_API_KEY` - Required for video transcription
-- `LLM` - AI model identifier (e.g., "openai:gpt-4", "anthropic:claude-3-5-sonnet")
-- `OPENAI_API_KEY`, `GOOGLE_API_KEY`, or `ANTHROPIC_API_KEY` - Depending on LLM choice
-- `DATABASE_URL` - PostgreSQL connection string
-- `TEMP_DIR` - Directory for temporary files (defaults to /tmp)
-
-### Frontend Development
+### Frontend (local)
 
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Run development server with Turbopack
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-
-# Lint
+npm run dev          # Dev server with Turbopack
+npm run build        # Prisma generate + Next.js build
 npm run lint
 ```
 
-### Waitlist Development
-
-Same commands as frontend:
+### Waitlist
 
 ```bash
 cd waitlist
-npm install
-npm run dev
+bun install          # Uses bun, not npm
+bun run dev
 ```
 
-### Docker Development
+### No tests
 
-```bash
-# Start all services
-docker-compose up -d
+The project currently has no test files.
 
-# View logs
-docker-compose logs -f
+## Architecture
 
-# Stop all services
-docker-compose down
+### System Overview
 
-# Rebuild after changes
-docker-compose up -d --build
+```
+User → Frontend (Next.js 15) → Backend API (FastAPI) → Redis Queue → ARQ Worker
+                                      ↓                                  ↓
+                               PostgreSQL ←───────────────────────────────┘
 ```
 
-Services:
-- Frontend: http://localhost:3000
-- Backend: http://localhost:8000 (API docs at /docs)
-- PostgreSQL: localhost:5432
-- Redis: localhost:6379
+Task creation returns immediately (<100ms). Video processing happens asynchronously in the worker. Frontend connects via SSE for real-time progress updates.
 
-## Key Architecture Patterns
+### Backend: Layered Architecture
+
+The backend was refactored from monolithic (`main.py`, legacy) to layered (`main_refactored.py`, active):
+
+```
+api/routes/          → HTTP handlers (tasks.py, media.py)
+services/            → Business logic (task_service.py, video_service.py)
+repositories/        → Raw SQL via asyncpg (task_repository.py, clip_repository.py, source_repository.py)
+workers/             → ARQ job queue (tasks.py, job_queue.py, progress.py)
+utils/               → Thread pool helpers for blocking operations (async_helpers.py)
+```
+
+**Key patterns:**
+- All DB access goes through repository classes using raw SQL (`text()` queries), not SQLAlchemy ORM
+- Blocking operations (video processing, downloads, transcription) wrapped in `run_in_thread()` to avoid blocking the async event loop
+- Progress tracking uses Redis pub/sub → SSE to frontend
+- Task status flow: `queued → processing → completed/error/cancelled`
 
 ### Video Processing Pipeline
 
-1. **Video Input** → YouTube URL (via yt-dlp) or uploaded file
-2. **Transcription** → AssemblyAI generates word-level timestamps
-3. **AI Analysis** → Pydantic AI analyzes transcript for viral segments (10-45s clips)
+1. **Input** → YouTube URL (yt-dlp) or uploaded file
+2. **Transcription** → AssemblyAI word-level timestamps (cached as `.transcript_cache.json`)
+3. **AI Analysis** → Pydantic AI selects 3-7 viral segments (10-45s each) with virality scoring
 4. **Clip Generation** → MoviePy creates 9:16 clips with:
-   - Smart face-centered cropping (MediaPipe + OpenCV fallbacks)
-   - AssemblyAI-powered subtitles (word-level sync)
-   - Custom fonts (TTF files in backend/fonts/)
-   - Optional transition effects (videos in backend/transitions/)
-5. **Storage** → Clips saved to `{TEMP_DIR}/clips/` and metadata in PostgreSQL
+   - Face-centered cropping: MediaPipe → OpenCV DNN → Haar cascade (fallback chain)
+   - Word-synced subtitles from AssemblyAI
+   - Custom fonts (TTF files in `backend/fonts/`)
+   - Optional transition effects (`backend/transitions/`)
+   - Optional B-roll overlays (Pexels API)
+   - Caption templates with animation styles
+5. **Storage** → Clips to `{TEMP_DIR}/clips/`, metadata to PostgreSQL
 
-### Authentication Flow
+### Frontend Architecture
 
-- Better Auth handles authentication with email/password
-- Frontend uses Prisma Client with Better Auth adapter
-- Backend receives `user_id` via request headers
-- Session management via PostgreSQL session table
+- **Next.js 15** with App Router, React 19, TailwindCSS v4
+- **ShadCN UI** (New York style, stone base color, Radix primitives)
+- **Better Auth** with Prisma adapter for email/password auth
+- **No global state library** — React hooks only (`useState`, `useEffect`, `useSession`)
+- All pages use `"use client"` — SSR is minimal
+- Prisma client generated to `frontend/src/generated/prisma/` (custom output path)
+- Build: `prisma generate && next build` (Prisma generate runs on both build and postinstall)
 
-### Database Access Patterns
+**Auth flow:** Frontend calls Better Auth → session cookie → passes `user_id` header to backend API
 
-**Frontend:**
-- Uses Prisma Client (`@prisma/client`)
-- Better Auth manages user/session tables
+### Database
 
-**Backend:**
-- Uses raw SQL via asyncpg for performance
-- SQLAlchemy models defined in `backend/src/models.py`
-- Async sessions via `AsyncSessionLocal` context manager
+PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
+- `tasks`, `sources`, `generated_clips` → snake_case
+- `session`, `account`, `verification`, `users` → camelCase (Better Auth)
+- UUIDs stored as VARCHAR(36)
+- Auto-update triggers on `updated_at`/`updatedAt` columns
 
-### API Endpoints
+## Key Backend Files
 
-Key backend endpoints (see `backend/src/main.py`):
+| File | Purpose |
+|------|---------|
+| `src/main_refactored.py` | Active FastAPI entry point (129 lines) |
+| `src/main.py` | Legacy monolithic entry point (do not use for new work) |
+| `src/api/routes/tasks.py` | Task CRUD, SSE progress, clip editing endpoints (711 lines) |
+| `src/api/routes/media.py` | Fonts, transitions, uploads, templates |
+| `src/services/task_service.py` | Task orchestration, clip editing logic (574 lines) |
+| `src/services/video_service.py` | Video download, transcription, AI analysis, clip generation |
+| `src/workers/tasks.py` | ARQ worker task definitions |
+| `src/workers/job_queue.py` | Job queue management |
+| `src/workers/progress.py` | Real-time progress via Redis |
+| `src/ai.py` | Pydantic AI agents, system prompt, segment validation |
+| `src/video_utils.py` | Video processing, cropping, subtitles (~820 lines) |
+| `src/clip_editor.py` | Clip trim, split, merge, export presets |
+| `src/broll.py` | Pexels API B-roll integration |
+| `src/caption_templates.py` | Caption template system |
+| `src/config.py` | Environment variable configuration |
 
-- `POST /start` - Synchronous video processing (returns results immediately)
-- `POST /start-with-progress` - Async video processing (returns task_id for SSE tracking)
-- `GET /tasks/{task_id}` - Get task status and details
-- `GET /tasks/{task_id}/clips` - Get all clips for a task
-- `GET /fonts` - List available fonts
-- `GET /transitions` - List available transition effects
-- `POST /upload` - Upload video file
-- `GET /clips/{filename}` - Serve generated clips (static files)
+## API Endpoints (routes in `api/routes/`)
 
-### Video Processing Customization
+**Task lifecycle:**
+- `POST /start-with-progress` — Create task, enqueue to worker (returns task_id)
+- `GET /tasks/` — List user tasks
+- `GET /tasks/{id}` — Get task with clips
+- `GET /tasks/{id}/progress` — SSE real-time progress stream
+- `POST /tasks/{id}/cancel` — Cancel processing
+- `POST /tasks/{id}/resume` — Resume cancelled/errored task
+- `DELETE /tasks/{id}` — Delete task
 
-Font customization is passed via `font_options` in request body:
+**Clip editing:**
+- `PATCH /tasks/{id}/clips/{clip_id}` — Trim clip
+- `POST /tasks/{id}/clips/{clip_id}/split` — Split at timestamp
+- `POST /tasks/{id}/clips/merge` — Merge selected clips
+- `PATCH /tasks/{id}/clips/{clip_id}/captions` — Update captions
+- `GET /tasks/{id}/clips/{clip_id}/export?preset=tiktok` — Export with platform preset
 
-```json
-{
-  "source": {"url": "..."},
-  "font_options": {
-    "font_family": "TikTokSans-Regular",
-    "font_size": 24,
-    "font_color": "#FFFFFF"
-  }
-}
+**Media:**
+- `GET /fonts`, `GET /transitions`, `GET /caption-templates`, `GET /broll/status`
+- `POST /upload` — Upload video file
+- `GET /clips/{filename}` — Serve generated clips
+
+## Environment Variables
+
+Required in `.env` (root) or `backend/.env`:
+
+```bash
+ASSEMBLY_AI_API_KEY=...              # Required: video transcription
+LLM=google-gla:gemini-3-flash-preview # Format: provider:model-name
+GOOGLE_API_KEY=...                   # Or OPENAI_API_KEY or ANTHROPIC_API_KEY
+
+# Optional
+PEXELS_API_KEY=...                   # B-roll stock footage
+REDIS_HOST=localhost                 # Default: localhost
+REDIS_PORT=6379                      # Default: 6379
+QUEUED_TASK_TIMEOUT_SECONDS=180      # Fail-safe for stuck tasks
+TEMP_DIR=/tmp                        # Temp file storage
+DATABASE_URL=postgresql+asyncpg://...
+BETTER_AUTH_SECRET=...               # Frontend auth secret
 ```
-
-Backend stores font preferences in tasks table and applies during clip generation.
-
-## Code Organization
-
-### Backend Structure
-
-- `backend/src/main.py` - FastAPI app, endpoints, lifespan management
-- `backend/src/video_utils.py` - Video processing, cropping, subtitle generation (~820 lines)
-- `backend/src/ai.py` - Pydantic AI agents for transcript analysis
-- `backend/src/youtube_utils.py` - YouTube download and metadata
-- `backend/src/models.py` - SQLAlchemy models
-- `backend/src/database.py` - Database connection management
-- `backend/src/config.py` - Environment configuration
-- `backend/fonts/` - Custom TTF font files
-- `backend/transitions/` - Transition effect videos (.mp4)
-
-### Frontend Structure
-
-- `frontend/src/app/` - Next.js App Router pages
-- `frontend/src/app/page.tsx` - Main landing/dashboard
-- `frontend/src/app/tasks/[id]/page.tsx` - Task detail view
-- `frontend/src/app/api/auth/[...all]/route.ts` - Better Auth API route
-- `frontend/src/components/` - React components
-- `frontend/src/lib/auth.ts` - Better Auth server config
-- `frontend/src/lib/auth-client.ts` - Better Auth client
-
-## Important Considerations
-
-### Video Processing
-
-- All clips are converted to 9:16 aspect ratio (vertical format)
-- Face detection uses MediaPipe (primary), OpenCV DNN (fallback), Haar cascade (last resort)
-- Subtitles positioned at 75% down the video (lower-middle, not bottom)
-- H.264 encoding with even dimensions required (uses `round_to_even()`)
-- AssemblyAI transcript data cached as `.transcript_cache.json` alongside video files
-
-### AI Segment Selection
-
-The AI (via Pydantic AI) selects 3-7 segments based on:
-- Strong hooks and attention-grabbing moments
-- Valuable content (tips, insights, stories)
-- Emotional moments (excitement, humor, inspiration)
-- Complete thoughts that work standalone
-- Duration: 10-45 seconds per clip
-- Critical validation: start_time ≠ end_time, minimum 5-10s duration
-
-### Database Conventions
-
-- Tasks/sources/clips use snake_case fields
-- Better Auth tables use camelCase (createdAt, updatedAt, userId, etc.)
-- UUIDs stored as VARCHAR(36), not native UUID type
-- Triggers auto-update `updated_at` and `updatedAt` columns
-
-### File Storage
-
-- Uploaded videos: `{TEMP_DIR}/uploads/`
-- Downloaded videos: `{TEMP_DIR}/` (via yt-dlp)
-- Generated clips: `{TEMP_DIR}/clips/`
-- Clips served via FastAPI static files at `/clips/{filename}`
-
-## Testing and Development Tips
-
-- Backend API docs available at http://localhost:8000/docs (Swagger UI)
-- Check backend logs for detailed processing steps (uses emoji logging 🚀📝✅❌)
-- Frontend uses React 19 and Next.js 15 - be aware of breaking changes
-- Database initialized via `init.sql` on first PostgreSQL container start
-- Use `docker-compose logs -f backend` to debug video processing issues
 
 ## Common Workflows
 
-### Adding a New Font
+### Adding fonts/transitions
 
-1. Add `.ttf` file to `backend/fonts/`
-2. Font becomes available via `GET /fonts` endpoint
-3. Reference by filename (without extension) in `font_family` parameter
+Drop `.ttf` files into `backend/fonts/` or `.mp4` files into `backend/transitions/`. They auto-appear via their respective `GET` endpoints.
 
-### Adding Transition Effects
+### Modifying AI clip selection
 
-1. Add `.mp4` file to `backend/transitions/`
-2. Transition becomes available via `GET /transitions` endpoint
-3. Automatically used by `create_clips_with_transitions()` in round-robin fashion
+Edit `backend/src/ai.py`: `simplified_system_prompt` controls selection criteria, `TranscriptSegment` defines the output model, `get_most_relevant_parts_by_transcript()` runs analysis with validation.
 
-### Modifying AI Clip Selection
+### Video processing constraints
 
-Edit `backend/src/ai.py`:
-- `simplified_system_prompt` - AI instructions for segment selection
-- `TranscriptSegment` - Pydantic model for segment structure
-- `get_most_relevant_parts_by_transcript()` - Main analysis function with validation logic
+- Output: 9:16 vertical format, H.264, even pixel dimensions (`round_to_even()`)
+- Subtitles positioned at 75% down the frame
+- Virality scoring: `hook_score`, `engagement_score`, `value_score`, `shareability_score` (0-25 each, summed to `virality_score` 0-100)

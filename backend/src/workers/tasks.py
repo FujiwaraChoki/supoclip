@@ -1,9 +1,14 @@
 """
 Worker tasks - background jobs processed by arq workers.
 """
+
 import logging
 from typing import Dict, Any
-from pathlib import Path
+import json
+
+from ..observability import configure_logging, set_trace_id
+
+configure_logging()
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +21,9 @@ async def process_video_task(
     user_id: str,
     font_family: str = "TikTokSans-Regular",
     font_size: int = 24,
-    font_color: str = "#FFFFFF"
+    font_color: str = "#FFFFFF",
+    caption_template: str = "default",
+    processing_mode: str = "fast",
 ) -> Dict[str, Any]:
     """
     Background worker task to process a video.
@@ -38,19 +45,26 @@ async def process_video_task(
     from ..services.task_service import TaskService
     from ..workers.progress import ProgressTracker
 
+    set_trace_id(f"task-{task_id}")
     logger.info(f"Worker processing task {task_id}")
 
     # Create progress tracker
-    progress = ProgressTracker(ctx['redis'], task_id)
+    progress = ProgressTracker(ctx["redis"], task_id)
 
     async with AsyncSessionLocal() as db:
         task_service = TaskService(db)
 
         try:
             # Progress callback
-            async def update_progress(percent: int, message: str):
-                await progress.update(percent, message)
+            async def update_progress(
+                percent: int, message: str, status: str = "processing"
+            ):
+                await progress.update(percent, message, status)
                 logger.info(f"Task {task_id}: {percent}% - {message}")
+
+            async def should_cancel() -> bool:
+                cancelled = await ctx["redis"].get(f"task_cancel:{task_id}")
+                return bool(cancelled)
 
             # Process the video
             result = await task_service.process_task(
@@ -60,7 +74,10 @@ async def process_video_task(
                 font_family=font_family,
                 font_size=font_size,
                 font_color=font_color,
-                progress_callback=update_progress
+                caption_template=caption_template,
+                processing_mode=processing_mode,
+                progress_callback=update_progress,
+                should_cancel=should_cancel,
             )
 
             logger.info(f"Task {task_id} completed successfully")
@@ -68,6 +85,22 @@ async def process_video_task(
 
         except Exception as e:
             logger.error(f"Task {task_id} failed: {e}", exc_info=True)
+            try:
+                job_try = int(ctx.get("job_try", 1))
+                max_tries = int(getattr(WorkerSettings, "max_tries", 3))
+                if job_try >= max_tries:
+                    payload = {
+                        "task_id": task_id,
+                        "error": str(e),
+                        "tries": job_try,
+                    }
+                    await ctx["redis"].set(
+                        f"dead_letter:{task_id}", json.dumps(payload)
+                    )
+                    await ctx["redis"].sadd("tasks:dead_letter", task_id)
+                    await progress.error("Task failed permanently after retries")
+            except Exception:
+                logger.exception("Failed to persist dead-letter payload")
             # Error will be caught by arq and task status will be updated
             raise
 
@@ -87,9 +120,7 @@ class WorkerSettings:
 
     # Redis settings from environment
     redis_settings = RedisSettings(
-        host=config.redis_host,
-        port=config.redis_port,
-        database=0
+        host=config.redis_host, port=config.redis_port, database=0
     )
 
     # Retry settings

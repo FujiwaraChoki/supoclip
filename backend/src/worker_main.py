@@ -5,19 +5,14 @@ Run this to start background job workers.
 Usage:
     arq src.workers.tasks.WorkerSettings
 """
+
 import logging
 from arq import run_worker
 from .workers.tasks import WorkerSettings
 from .config import Config
+from .observability import configure_logging
 
-# Configure logging for worker
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-    ]
-)
+configure_logging()
 
 logger = logging.getLogger(__name__)
 
