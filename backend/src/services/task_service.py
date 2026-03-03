@@ -11,6 +11,8 @@ import json
 import hashlib
 from time import perf_counter
 
+import redis.asyncio as redis
+
 from ..repositories.task_repository import TaskRepository
 from ..repositories.source_repository import SourceRepository
 from ..repositories.clip_repository import ClipRepository
@@ -126,6 +128,8 @@ class TaskService:
         font_color: str = "#FFFFFF",
         caption_template: str = "default",
         processing_mode: str = "fast",
+        output_format: str = "vertical",
+        add_subtitles: bool = True,
         progress_callback: Optional[Callable] = None,
         should_cancel: Optional[Callable] = None,
     ) -> Dict[str, Any]:
@@ -188,6 +192,8 @@ class TaskService:
                 font_color=font_color,
                 caption_template=caption_template,
                 processing_mode=processing_mode,
+                output_format=output_format,
+                add_subtitles=add_subtitles,
                 cached_transcript=cached_transcript,
                 cached_analysis_json=cached_analysis_json,
                 progress_callback=update_progress,
@@ -405,6 +411,28 @@ class TaskService:
 
         source_url = task.get("source_url")
         source_type = task.get("source_type")
+        output_format = "vertical"
+        add_subtitles = True
+
+        # Preserve original output_format and add_subtitles from task creation (stored in Redis)
+        redis_client = redis.Redis(
+            host=self.config.redis_host,
+            port=self.config.redis_port,
+            decode_responses=True,
+        )
+        try:
+            source_payload = await redis_client.get(f"task_source:{task_id}")
+            if source_payload:
+                parsed = json.loads(source_payload)
+                of = parsed.get("output_format", output_format)
+                if of in ("vertical", "original"):
+                    output_format = of
+                asub = parsed.get("add_subtitles", add_subtitles)
+                if isinstance(asub, bool):
+                    add_subtitles = asub
+        finally:
+            await redis_client.close()
+
         if not source_url or not source_type:
             raise ValueError("Task source URL is missing; cannot regenerate clips")
 
@@ -448,6 +476,8 @@ class TaskService:
             font_size,
             font_color,
             caption_template,
+            output_format,
+            add_subtitles,
         )
 
         await self.clip_repo.delete_clips_by_task(self.db, task_id)
