@@ -49,8 +49,8 @@ def _normalize_font_family(value: Any, default: str = "TikTokSans-Regular") -> s
     return default
 
 
-def _get_authenticated_user_id(request: Request) -> str:
-    """Get user ID from signed auth (monetized) or user_id/x-supoclip-user-id (self-hosted)."""
+def _get_user_id_from_headers(request: Request) -> str:
+    """Get user ID. Monetization on: signed auth (same as create_task/billing_summary). Off: user_id or x-supoclip-user-id."""
     if config.monetization_enabled:
         return get_signed_user_id(request, config)
     user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
@@ -63,7 +63,7 @@ async def _require_task_owner(
     request: Request, task_service: TaskService, db: AsyncSession, task_id: str
 ):
     """Ensure authenticated user owns the task."""
-    user_id = _get_authenticated_user_id(request)
+    user_id = _get_user_id_from_headers(request)
 
     task = await task_service.task_repo.get_task_by_id(db, task_id)
     if not task:
@@ -82,7 +82,7 @@ async def list_tasks(
     """
     Get all tasks for the authenticated user.
     """
-    user_id = _get_authenticated_user_id(request)
+    user_id = _get_user_id_from_headers(request)
 
     try:
         task_service = TaskService(db)
@@ -104,7 +104,12 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     data = await request.json()
 
     raw_source = data.get("source")
-    user_id = _get_authenticated_user_id(request)
+    if config.monetization_enabled:
+        user_id = get_signed_user_id(request, config)
+    else:
+        user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User authentication required")
 
     # Get font options
     font_options = data.get("font_options", {})
@@ -201,7 +206,12 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/billing/summary")
 async def get_billing_summary(request: Request, db: AsyncSession = Depends(get_db)):
     """Get monetization status and current usage for authenticated user."""
-    user_id = _get_authenticated_user_id(request)
+    if config.monetization_enabled:
+        user_id = get_signed_user_id(request, config)
+    else:
+        user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User authentication required")
 
     try:
         billing_service = BillingService(db)
@@ -358,7 +368,7 @@ async def delete_task(
 ):
     """Delete a task and all its associated clips."""
     try:
-        user_id = _get_authenticated_user_id(request)
+        user_id = _get_user_id_from_headers(request)
         task_service = TaskService(db)
 
         # Get task to verify ownership
@@ -389,7 +399,7 @@ async def delete_clip(
 ):
     """Delete a specific clip."""
     try:
-        user_id = _get_authenticated_user_id(request)
+        user_id = _get_user_id_from_headers(request)
         task_service = TaskService(db)
 
         # Verify task ownership
