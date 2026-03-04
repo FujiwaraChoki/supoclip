@@ -21,7 +21,29 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useSession } from "@/lib/auth-client";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
-import { ArrowLeft, Download, Star, AlertCircle, Trash2, Edit2, X, Check, Zap, MessageSquare, TrendingUp, Share2, Clock, Scissors, SplitSquareVertical, GitMerge, RefreshCw, Subtitles, Settings2, Type, Clapperboard } from "lucide-react";
+import {
+  ArrowLeft,
+  Download,
+  Star,
+  AlertCircle,
+  Trash2,
+  Edit2,
+  X,
+  Check,
+  Zap,
+  MessageSquare,
+  TrendingUp,
+  Share2,
+  Clock,
+  Scissors,
+  SplitSquareVertical,
+  GitMerge,
+  RefreshCw,
+  Subtitles,
+  Settings2,
+  Type,
+  Clapperboard,
+} from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import DynamicVideoPlayer from "@/components/dynamic-video-player";
@@ -104,17 +126,17 @@ export default function TaskPage() {
   const [projectIncludeBroll, setProjectIncludeBroll] = useState(false);
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
+  const [availableTemplates, setAvailableTemplates] = useState<
+    Array<{ id: string; name: string; description: string; animation: string }>
+  >([]);
   const hasTriggeredAutoRefresh = useRef(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-  const buildSupportError = useCallback(
-    async (response: Response, fallbackMessage: string) => {
-      const parsed = await parseApiError(response, fallbackMessage);
-      return formatSupportMessage(parsed);
-    },
-    []
-  );
+  const buildSupportError = useCallback(async (response: Response, fallbackMessage: string) => {
+    const parsed = await parseApiError(response, fallbackMessage);
+    return formatSupportMessage(parsed);
+  }, []);
 
   const triggerAutoRefresh = useCallback(() => {
     if (hasTriggeredAutoRefresh.current) return;
@@ -124,70 +146,71 @@ export default function TaskPage() {
     }, 700);
   }, []);
 
-  const fetchTaskStatus = useCallback(async (retryCount = 0, maxRetries = 5) => {
-    if (!params.id) return false;
+  const fetchTaskStatus = useCallback(
+    async (retryCount = 0, maxRetries = 5) => {
+      if (!params.id) return false;
 
-    try {
-      // Fetch task details (including status)
-      // Don't wait for session - fetch immediately with user_id if available
-      const headers: HeadersInit = {};
-      if (session?.user?.id) {
-        headers["user_id"] = session.user.id;
-      }
-
-      const taskResponse = await fetch(`${apiUrl}/tasks/${params.id}`, {
-        headers,
-      });
-
-      // Handle 404 with retry logic (task might not be persisted yet)
-      if (taskResponse.status === 404 && retryCount < maxRetries) {
-        console.log(`Task not found yet, retrying in ${(retryCount + 1) * 500}ms... (${retryCount + 1}/${maxRetries})`);
-        await new Promise((resolve) => setTimeout(resolve, (retryCount + 1) * 500));
-        return fetchTaskStatus(retryCount + 1, maxRetries);
-      }
-
-      if (!taskResponse.ok) {
-        throw new Error(
-          await buildSupportError(taskResponse, `Failed to fetch task: ${taskResponse.status}`)
-        );
-      }
-
-      const taskData = await taskResponse.json();
-      setTask(taskData);
-      setProjectFontFamily(taskData.font_family || "TikTokSans-Regular");
-      setProjectFontSize(String(taskData.font_size || 24));
-      setProjectFontColor(taskData.font_color || "#FFFFFF");
-      setProjectCaptionTemplate(taskData.caption_template || "default");
-      setProjectIncludeBroll(Boolean(taskData.include_broll));
-
-      // Only fetch clips if task is completed
-      if (taskData.status === "completed") {
-        const clipsHeaders: HeadersInit = {};
+      try {
+        // Fetch task details (including status)
+        // Don't wait for session - fetch immediately with user_id if available
+        const headers: HeadersInit = {};
         if (session?.user?.id) {
-          clipsHeaders["user_id"] = session.user.id;
+          headers["user_id"] = session.user.id;
         }
 
-        const clipsResponse = await fetch(`${apiUrl}/tasks/${params.id}/clips`, {
-          headers: clipsHeaders,
+        const taskResponse = await fetch(`${apiUrl}/tasks/${params.id}`, {
+          headers,
         });
 
-        if (!clipsResponse.ok) {
-          throw new Error(
-            await buildSupportError(clipsResponse, `Failed to fetch clips: ${clipsResponse.status}`)
+        // Handle 404 with retry logic (task might not be persisted yet)
+        if (taskResponse.status === 404 && retryCount < maxRetries) {
+          console.log(
+            `Task not found yet, retrying in ${(retryCount + 1) * 500}ms... (${retryCount + 1}/${maxRetries})`,
           );
+          await new Promise((resolve) => setTimeout(resolve, (retryCount + 1) * 500));
+          return fetchTaskStatus(retryCount + 1, maxRetries);
         }
 
-        const clipsData = await clipsResponse.json();
-        setClips(clipsData.clips || []);
-      }
+        if (!taskResponse.ok) {
+          throw new Error(await buildSupportError(taskResponse, `Failed to fetch task: ${taskResponse.status}`));
+        }
 
-      return true;
-    } catch (err) {
-      console.error("Error fetching task data:", err);
-      setError(err instanceof Error ? err.message : "Failed to load task");
-      return false;
-    }
-  }, [apiUrl, buildSupportError, params.id, session?.user?.id]);
+        const taskData = await taskResponse.json();
+        setTask(taskData);
+        setProjectFontFamily(taskData.font_family || "TikTokSans-Regular");
+        setProjectFontSize(String(taskData.font_size || 24));
+        setProjectFontColor(taskData.font_color || "#FFFFFF");
+        setProjectCaptionTemplate(taskData.caption_template || "default");
+        setProjectIncludeBroll(Boolean(taskData.include_broll));
+
+        // Only fetch clips if task is completed
+        if (taskData.status === "completed") {
+          const clipsHeaders: HeadersInit = {};
+          if (session?.user?.id) {
+            clipsHeaders["user_id"] = session.user.id;
+          }
+
+          const clipsResponse = await fetch(`${apiUrl}/tasks/${params.id}/clips`, {
+            headers: clipsHeaders,
+          });
+
+          if (!clipsResponse.ok) {
+            throw new Error(await buildSupportError(clipsResponse, `Failed to fetch clips: ${clipsResponse.status}`));
+          }
+
+          const clipsData = await clipsResponse.json();
+          setClips(clipsData.clips || []);
+        }
+
+        return true;
+      } catch (err) {
+        console.error("Error fetching task data:", err);
+        setError(err instanceof Error ? err.message : "Failed to load task");
+        return false;
+      }
+    },
+    [apiUrl, buildSupportError, params.id, session?.user?.id],
+  );
 
   // Initial fetch - runs immediately, doesn't wait for session
   useEffect(() => {
@@ -220,7 +243,20 @@ export default function TaskPage() {
     };
 
     void loadFonts();
-  }, []);
+
+    const loadTemplates = async () => {
+      try {
+        const response = await fetch(`${apiUrl}/caption-templates`);
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableTemplates(data.templates || []);
+        }
+      } catch (error) {
+        console.error("Failed to load caption templates:", error);
+      }
+    };
+    void loadTemplates();
+  }, [apiUrl]);
 
   // SSE effect - real-time progress updates
   useEffect(() => {
@@ -254,9 +290,7 @@ export default function TaskPage() {
 
       // Update task status if provided
       if (data.status) {
-        setTask((currentTask) =>
-          currentTask ? { ...currentTask, status: data.status } : currentTask
-        );
+        setTask((currentTask) => (currentTask ? { ...currentTask, status: data.status } : currentTask));
 
         if (data.status === "completed") {
           void fetchTaskStatus().then(() => triggerAutoRefresh());
@@ -323,7 +357,7 @@ export default function TaskPage() {
       statistic: "Data/Stats",
       story: "Story Hook",
       contrast: "Contrast Hook",
-      none: "No Hook"
+      none: "No Hook",
     };
     return labels[hookType || "none"] || hookType || "None";
   };
@@ -493,12 +527,8 @@ export default function TaskPage() {
   const handleApplyProjectSettings = async () => {
     if (!session?.user?.id || !params.id) return;
     const parsedSize = Number(projectFontSize || "24");
-    const safeFontSize = Number.isFinite(parsedSize)
-      ? Math.max(12, Math.min(72, Math.round(parsedSize)))
-      : 24;
-    const normalizedColor = /^#[0-9A-Fa-f]{6}$/.test(projectFontColor)
-      ? projectFontColor
-      : "#FFFFFF";
+    const safeFontSize = Number.isFinite(parsedSize) ? Math.max(12, Math.min(72, Math.round(parsedSize))) : 24;
+    const normalizedColor = /^#[0-9A-Fa-f]{6}$/.test(projectFontColor) ? projectFontColor : "#FFFFFF";
 
     setIsApplyingSettings(true);
     try {
@@ -670,7 +700,12 @@ export default function TaskPage() {
                     {clips.length} {clips.length === 1 ? "clip" : "clips"} generated
                   </span>
                 ) : task.status === "processing" ? (
-                  <Badge className="bg-blue-100 text-blue-800">Processing</Badge>
+                  <div className="relative group">
+                    <Badge className="bg-blue-100 text-blue-800 cursor-default">Processing</Badge>
+                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
+                      🔍&nbsp;&nbsp;We're currently processing your video. Check back in a couple minutes.
+                    </div>
+                  </div>
                 ) : task.status === "queued" ? (
                   <Badge className="bg-yellow-100 text-yellow-800">Queued</Badge>
                 ) : (
@@ -731,10 +766,13 @@ export default function TaskPage() {
         {task?.status === "processing" || task?.status === "queued" ? (
           <div className="flex flex-col items-center justify-center min-h-[50vh] py-16">
             {/* Minimal animated dots */}
-            <div className="flex items-center gap-1.5 mb-8">
+            <div className="relative group flex items-center gap-1.5 mb-8 cursor-default">
               <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_infinite]" />
               <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
               <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+              <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
+                ☕&nbsp;&nbsp;Grab a coffee, and come back to ready-to-post clips.
+              </div>
             </div>
 
             {/* Status message */}
@@ -815,59 +853,96 @@ export default function TaskPage() {
         ) : (
           <div className="grid gap-6">
             <Card>
-              <CardContent className="p-4 space-y-3">
+              <CardContent className="px-5 pb-4 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-medium text-black flex items-center gap-2"><Settings2 className="w-4 h-4" />Project Settings</h3>
+                  <h3 className="font-medium text-black flex items-center gap-2">
+                    <Settings2 className="w-4 h-4" />
+                    Project Settings
+                  </h3>
                   <Button size="sm" onClick={handleApplyProjectSettings} disabled={isApplyingSettings}>
                     {isApplyingSettings ? "Applying..." : "Apply to All Clips"}
                   </Button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-                  <Select value={projectFontFamily} onValueChange={setProjectFontFamily}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Font family" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableFonts.map((font) => (
-                        <SelectItem key={font.name} value={font.name}>
-                          <span className="flex items-center gap-2">
-                            <Type className="w-3 h-3" />
-                            {font.display_name}
-                          </span>
-                        </SelectItem>
-                      ))}
-                      {availableFonts.length === 0 && (
-                        <SelectItem value="TikTokSans-Regular">TikTok Sans Regular</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    min={12}
-                    max={72}
-                    value={projectFontSize}
-                    onChange={(e) => setProjectFontSize(e.target.value)}
-                    placeholder="Font size"
-                  />
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={projectFontColor}
-                      onChange={(e) => setProjectFontColor(e.target.value)}
-                      className="h-10 w-10 rounded border border-gray-300"
-                    />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-gray-500">Font</label>
+                    <Select value={projectFontFamily} onValueChange={setProjectFontFamily}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Font family" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableFonts.map((font) => (
+                          <SelectItem key={font.name} value={font.name}>
+                            <span className="flex items-center gap-2">
+                              <Type className="w-3 h-3" />
+                              {font.display_name}
+                            </span>
+                          </SelectItem>
+                        ))}
+                        {availableFonts.length === 0 && (
+                          <SelectItem value="TikTokSans-Regular">TikTok Sans Regular</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-gray-500">Size</label>
                     <Input
-                      value={projectFontColor}
-                      onChange={(e) => setProjectFontColor(e.target.value)}
-                      placeholder="#FFFFFF"
+                      type="number"
+                      min={12}
+                      max={72}
+                      value={projectFontSize}
+                      onChange={(e) => setProjectFontSize(e.target.value)}
+                      placeholder="Font size"
                     />
                   </div>
-                  <Input value={projectCaptionTemplate} onChange={(e) => setProjectCaptionTemplate(e.target.value)} placeholder="Caption template" />
-                  <label className="flex items-center gap-2 text-sm text-gray-700 px-2">
-                    <input type="checkbox" checked={projectIncludeBroll} onChange={(e) => setProjectIncludeBroll(e.target.checked)} />
-                    Include B-roll
-                  </label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-gray-500">Color</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={projectFontColor}
+                        onChange={(e) => setProjectFontColor(e.target.value)}
+                        className="h-9 w-9 rounded border border-gray-300 cursor-pointer"
+                      />
+                      <Input
+                        value={projectFontColor}
+                        onChange={(e) => setProjectFontColor(e.target.value)}
+                        placeholder="#FFFFFF"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-gray-500">Caption Template</label>
+                    <Select value={projectCaptionTemplate} onValueChange={setProjectCaptionTemplate}>
+                      <SelectTrigger>
+                        <SelectValue>
+                          {availableTemplates.find((t) => t.id === projectCaptionTemplate)?.name || "Select style"}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableTemplates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            <div>
+                              <div className="font-medium">{template.name}</div>
+                              <div className="text-xs text-gray-500">{template.description}</div>
+                            </div>
+                          </SelectItem>
+                        ))}
+                        {availableTemplates.length === 0 && <SelectItem value="default">Default</SelectItem>}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={projectIncludeBroll}
+                    onChange={(e) => setProjectIncludeBroll(e.target.checked)}
+                    className="rounded"
+                  />
+                  Include B-roll
+                </label>
               </CardContent>
             </Card>
 
@@ -914,11 +989,8 @@ export default function TaskPage() {
                 <CardContent className="p-0">
                   <div className="flex flex-col lg:flex-row">
                     {/* Video Player */}
-                    <div className="bg-black relative flex-shrink-0 flex items-center justify-center">
-                      <DynamicVideoPlayer
-                        src={`${apiUrl}${clip.video_url}`}
-                        poster="/placeholder-video.jpg"
-                      />
+                    <div className="relative flex-shrink-0 bg-black rounded-lg overflow-hidden m-3">
+                      <DynamicVideoPlayer src={`${apiUrl}${clip.video_url}`} poster="/placeholder-video.jpg" />
                     </div>
 
                     {/* Clip Details */}
@@ -1090,23 +1162,42 @@ export default function TaskPage() {
                       {editingClipId === clip.id && (
                         <div className="mt-4 p-3 border rounded-lg space-y-3 bg-gray-50">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                            <Input value={startOffset} onChange={(e) => setStartOffset(e.target.value)} placeholder="Start trim (sec)" />
-                            <Input value={endOffset} onChange={(e) => setEndOffset(e.target.value)} placeholder="End trim (sec)" />
+                            <Input
+                              value={startOffset}
+                              onChange={(e) => setStartOffset(e.target.value)}
+                              placeholder="Start trim (sec)"
+                            />
+                            <Input
+                              value={endOffset}
+                              onChange={(e) => setEndOffset(e.target.value)}
+                              placeholder="End trim (sec)"
+                            />
                             <Button size="sm" onClick={() => handleTrimClip(clip.id)}>
-                              <Scissors className="w-4 h-4" />Trim
+                              <Scissors className="w-4 h-4" />
+                              Trim
                             </Button>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                            <Input value={splitTime} onChange={(e) => setSplitTime(e.target.value)} placeholder="Split at (sec)" />
+                            <Input
+                              value={splitTime}
+                              onChange={(e) => setSplitTime(e.target.value)}
+                              placeholder="Split at (sec)"
+                            />
                             <Button size="sm" variant="outline" onClick={() => handleSplitClip(clip.id)}>
-                              <SplitSquareVertical className="w-4 h-4" />Split
+                              <SplitSquareVertical className="w-4 h-4" />
+                              Split
                             </Button>
                             <Button size="sm" variant="outline" onClick={() => handleTrimClip(clip.id)}>
-                              <RefreshCw className="w-4 h-4" />Regenerate
+                              <RefreshCw className="w-4 h-4" />
+                              Regenerate
                             </Button>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                            <Input value={captionText} onChange={(e) => setCaptionText(e.target.value)} placeholder="Caption text" />
+                            <Input
+                              value={captionText}
+                              onChange={(e) => setCaptionText(e.target.value)}
+                              placeholder="Caption text"
+                            />
                             <Select value={captionPosition} onValueChange={setCaptionPosition}>
                               <SelectTrigger>
                                 <SelectValue placeholder="Caption position" />
@@ -1117,10 +1208,15 @@ export default function TaskPage() {
                                 <SelectItem value="bottom">Bottom</SelectItem>
                               </SelectContent>
                             </Select>
-                            <Input value={highlightWords} onChange={(e) => setHighlightWords(e.target.value)} placeholder="Highlights: word1, word2" />
+                            <Input
+                              value={highlightWords}
+                              onChange={(e) => setHighlightWords(e.target.value)}
+                              placeholder="Highlights: word1, word2"
+                            />
                           </div>
                           <Button size="sm" variant="outline" onClick={() => handleUpdateCaptions(clip.id)}>
-                            <Subtitles className="w-4 h-4" />Update Captions
+                            <Subtitles className="w-4 h-4" />
+                            Update Captions
                           </Button>
                         </div>
                       )}

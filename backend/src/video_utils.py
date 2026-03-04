@@ -62,8 +62,6 @@ class VideoProcessor:
                     "yuv420p",
                     "-profile:v",
                     "high",
-                    "-level",
-                    "4.1",
                     "-movflags",
                     "+faststart",
                     "-sws_flags",
@@ -1154,9 +1152,9 @@ def create_optimized_clip(
             x1=x_offset, y1=y_offset, x2=x_offset + new_width, y2=y_offset + new_height
         )
 
-        # Normalize all generated clips to a platform-ready 1080x1920 canvas.
-        target_width, target_height = 1080, 1920
-        processed_clip = cropped_clip.resized((target_width, target_height))
+        # Preserve native crop resolution so 4K sources stay high quality.
+        target_width, target_height = round_to_even(new_width), round_to_even(new_height)
+        processed_clip = cropped_clip
 
         # Add AssemblyAI subtitles with template support
         final_clips = [processed_clip]
@@ -1194,11 +1192,12 @@ def create_optimized_clip(
         )
 
         # Cleanup
-        final_clip.close()
-        clip.close()
-        cropped_clip.close()
-        if processed_clip is not final_clip:
+        if final_clip is not processed_clip:
+            final_clip.close()
+        if processed_clip is not cropped_clip:
             processed_clip.close()
+        cropped_clip.close()
+        clip.close()
         video.close()
 
         logger.info(f"Successfully created clip: {output_path}")

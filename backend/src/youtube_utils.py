@@ -31,8 +31,9 @@ class YouTubeDownloader:
 
         return {
             "outtmpl": str(output_path),
-            # Prefer highest-quality streams first, then gracefully fall back
-            "format": "bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b",
+            # Use best available video/audio to avoid quality caps from container constraints.
+            "format": "bestvideo*+bestaudio/best",
+            "format_sort": ["res", "fps"],
             "merge_output_format": "mp4",
             "writesubtitles": False,
             "writeautomaticsub": False,
@@ -54,12 +55,6 @@ class YouTubeDownloader:
                 "Accept-Language": "en-US,en;q=0.9",
                 "Accept-Encoding": "gzip, deflate",
                 "Connection": "keep-alive",
-            },
-            # Simplified YouTube bypass - use android client for better reliability
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["android", "web"],
-                }
             },
             # Metadata extraction
             "extract_flat": False,
@@ -167,12 +162,6 @@ def get_youtube_video_info(url: str) -> Optional[Dict[str, Any]]:
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
                 "Connection": "keep-alive",
-            },
-            # Simplified extractor args for better compatibility
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["android", "web"],
-                }
             },
             "nocheckcertificate": True,
         }

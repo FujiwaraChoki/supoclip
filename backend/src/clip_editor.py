@@ -42,6 +42,34 @@ def _double_bitrate(value: str) -> str:
     return value
 
 
+def _source_fps(clip: VideoFileClip) -> float:
+    fps = clip.fps if clip.fps and clip.fps > 0 else 30
+    return float(fps)
+
+
+def _high_quality_encode_options(fps: float) -> dict[str, object]:
+    return {
+        "codec": "libx264",
+        "audio_codec": "aac",
+        "audio_bitrate": "256k",
+        "preset": "slow",
+        "logger": None,
+        "fps": fps,
+        "ffmpeg_params": [
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
+            "-profile:v",
+            "high",
+            "-movflags",
+            "+faststart",
+            "-sws_flags",
+            "lanczos",
+        ],
+    }
+
+
 def trim_clip_file(
     input_path: Path, output_dir: Path, start_offset: float, end_offset: float
 ) -> Path:
@@ -52,9 +80,7 @@ def trim_clip_file(
     try:
         end_time = max(start_offset + 0.1, clip.duration - max(end_offset, 0.0))
         trimmed = clip.subclipped(max(0.0, start_offset), min(end_time, clip.duration))
-        trimmed.write_videofile(
-            str(output_path), codec="libx264", audio_codec="aac", logger=None
-        )
+        trimmed.write_videofile(str(output_path), **_high_quality_encode_options(_source_fps(clip)))
         trimmed.close()
     finally:
         clip.close()
@@ -71,15 +97,12 @@ def split_clip_file(
 
     clip = VideoFileClip(str(input_path))
     try:
+        source_fps = _source_fps(clip)
         s = max(0.2, min(split_time, clip.duration - 0.2))
         part_a = clip.subclipped(0, s)
         part_b = clip.subclipped(s, clip.duration)
-        part_a.write_videofile(
-            str(first_path), codec="libx264", audio_codec="aac", logger=None
-        )
-        part_b.write_videofile(
-            str(second_path), codec="libx264", audio_codec="aac", logger=None
-        )
+        part_a.write_videofile(str(first_path), **_high_quality_encode_options(source_fps))
+        part_b.write_videofile(str(second_path), **_high_quality_encode_options(source_fps))
         part_a.close()
         part_b.close()
     finally:
@@ -94,10 +117,9 @@ def merge_clip_files(paths: Iterable[Path], output_dir: Path) -> Path:
 
     clips = [VideoFileClip(str(p)) for p in paths]
     try:
+        source_fps = next((_source_fps(clip) for clip in clips if clip.fps and clip.fps > 0), 30.0)
         merged = concatenate_videoclips(clips, method="compose")
-        merged.write_videofile(
-            str(output_path), codec="libx264", audio_codec="aac", logger=None
-        )
+        merged.write_videofile(str(output_path), **_high_quality_encode_options(source_fps))
         merged.close()
     finally:
         for clip in clips:
@@ -119,10 +141,9 @@ def overlay_custom_captions(
     base_clip = VideoFileClip(str(input_path))
     try:
         words = [w for w in caption_text.split() if w.strip()]
+        source_fps = _source_fps(base_clip)
         if not words:
-            base_clip.write_videofile(
-                str(output_path), codec="libx264", audio_codec="aac", logger=None
-            )
+            base_clip.write_videofile(str(output_path), **_high_quality_encode_options(source_fps))
             return output_path
 
         y_position = {
@@ -155,9 +176,7 @@ def overlay_custom_captions(
             caption_layers.append(text_layer)
 
         composite = CompositeVideoClip([base_clip] + caption_layers)
-        composite.write_videofile(
-            str(output_path), codec="libx264", audio_codec="aac", logger=None
-        )
+        composite.write_videofile(str(output_path), **_high_quality_encode_options(source_fps))
         composite.close()
         for layer in caption_layers:
             layer.close()

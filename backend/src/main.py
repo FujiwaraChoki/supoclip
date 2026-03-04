@@ -29,6 +29,7 @@ from sqlalchemy import text
 from .models import User, Task, Source, GeneratedClip
 from .database import init_db, close_db, get_db, AsyncSessionLocal
 from .api.routes.tasks import router as tasks_router
+from .api.routes.feedback import router as feedback_router
 
 config = Config()
 
@@ -66,6 +67,7 @@ app.add_middleware(
 
 # Include API routers
 app.include_router(tasks_router)
+app.include_router(feedback_router)
 
 # Mount static files for serving clips
 clips_dir = Path(config.temp_dir) / "clips"

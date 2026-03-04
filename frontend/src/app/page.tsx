@@ -48,6 +48,43 @@ interface FontOption {
   format?: string;
 }
 
+const extractYouTubeVideoId = (value: string): string | null => {
+  const input = value.trim();
+  if (!input) return null;
+
+  try {
+    const parsed = new URL(input);
+    const host = parsed.hostname.replace(/^www\./, "");
+
+    if (host === "youtu.be") {
+      const id = parsed.pathname.split("/").filter(Boolean)[0];
+      return id && id.length === 11 ? id : null;
+    }
+
+    if (host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com") {
+      const fromSearch = parsed.searchParams.get("v");
+      if (fromSearch && fromSearch.length === 11) {
+        return fromSearch;
+      }
+
+      const pathParts = parsed.pathname.split("/").filter(Boolean);
+      const embedId = pathParts[0] === "embed" ? pathParts[1] : null;
+      if (embedId && embedId.length === 11) {
+        return embedId;
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
+const getYouTubeThumbnailUrl = (value: string): string | null => {
+  const videoId = extractYouTubeVideoId(value);
+  return videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null;
+};
+
 export default function Home() {
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -84,6 +121,7 @@ export default function Home() {
   const [isLoadingLatest, setIsLoadingLatest] = useState(false);
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const youtubeThumbnailUrl = sourceType === "youtube" ? getYouTubeThumbnailUrl(url) : null;
 
   const refreshFonts = useCallback(async () => {
     try {
@@ -573,7 +611,7 @@ export default function Home() {
                   </Badge>
                 ) : latestTask.status === "processing" ? (
                   <Badge className="bg-blue-100 text-blue-800 text-xs">
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    <Loader2 className="w-3 h-3 animate-spin" />
                     Processing
                   </Badge>
                 ) : (
@@ -1014,8 +1052,16 @@ export default function Home() {
                       </div>
                     </div>
 
-                    {/* Video background — gradient simulating actual video content */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-stone-600 via-stone-500 to-stone-700" />
+                    {/* Video background */}
+                    {youtubeThumbnailUrl ? (
+                      <div
+                        className="absolute inset-0 bg-cover bg-center scale-105 blur-sm"
+                        style={{ backgroundImage: `url(${youtubeThumbnailUrl})` }}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 bg-gradient-to-b from-stone-600 via-stone-500 to-stone-700" />
+                    )}
+                    <div className="absolute inset-0 bg-black/20" />
                     {/* Bottom gradient for readability over lower UI */}
                     <div className="absolute inset-x-0 bottom-0 h-60 bg-gradient-to-t from-black/70 via-black/30 to-transparent z-[1]" />
 
