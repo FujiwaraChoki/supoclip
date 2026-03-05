@@ -139,6 +139,11 @@ Open http://localhost:3000 in your browser, create an account, and start clippin
 - Wait for PostgreSQL to fully initialize (check logs)
 - The database is automatically created on first run
 
+**Font picker is empty / cannot select or upload fonts:**
+- Add fonts to `backend/fonts/` – see [backend/fonts/README.md](backend/fonts/README.md) for TikTok Sans and custom fonts
+- Ensure `BACKEND_AUTH_SECRET` is set in `.env` when using the hosted/monetized setup
+- Font upload is Pro-only when monetization is enabled; self-hosted users can upload freely
+
 ### Local Development (Without Docker)
 
 See [CLAUDE.md](CLAUDE.md) for detailed development instructions.
