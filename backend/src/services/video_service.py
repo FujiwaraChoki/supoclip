@@ -91,12 +91,16 @@ class VideoService:
         font_size: int = 24,
         font_color: str = "#FFFFFF",
         caption_template: str = "default",
+        output_format: str = "vertical",
+        add_subtitles: bool = True,
     ) -> List[Dict[str, Any]]:
         """
-        Create video clips from segments with transitions and subtitles.
+        Create video clips from segments with transitions and optional subtitles.
         Runs in thread pool as video processing is CPU-intensive.
+        output_format: 'vertical' (9:16) or 'original' (keep source size, faster).
+        add_subtitles: False skips subtitles; with original format uses ffmpeg stream copy (no re-encode).
         """
-        logger.info(f"Creating {len(segments)} video clips")
+        logger.info(f"Creating {len(segments)} video clips subtitles={add_subtitles}")
         clips_output_dir = Path(config.temp_dir) / "clips"
         clips_output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -109,6 +113,8 @@ class VideoService:
             font_size,
             font_color,
             caption_template,
+            output_format,
+            add_subtitles,
         )
 
         logger.info(f"Successfully created {len(clips_info)} clips")
@@ -129,6 +135,8 @@ class VideoService:
         font_color: str = "#FFFFFF",
         caption_template: str = "default",
         processing_mode: str = "fast",
+        output_format: str = "vertical",
+        add_subtitles: bool = True,
         cached_transcript: Optional[str] = None,
         cached_analysis_json: Optional[str] = None,
         progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]] = None,
@@ -248,6 +256,8 @@ class VideoService:
                 font_size,
                 font_color,
                 caption_template,
+                output_format,
+                add_subtitles,
             )
 
             if progress_callback:

@@ -1118,17 +1118,44 @@ def create_optimized_clip(
     font_size: int = 24,
     font_color: str = "#FFFFFF",
     caption_template: str = "default",
+    output_format: str = "vertical",
 ) -> bool:
-    """Create optimized 9:16 clip with AssemblyAI subtitles and template support."""
+    """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size)."""
     try:
         duration = end_time - start_time
         if duration <= 0:
             logger.error(f"Invalid clip duration: {duration:.1f}s")
             return False
 
+        keep_original = output_format == "original"
         logger.info(
-            f"Creating clip: {start_time:.1f}s - {end_time:.1f}s ({duration:.1f}s) with template '{caption_template}'"
+            f"Creating clip: {start_time:.1f}s - {end_time:.1f}s ({duration:.1f}s) "
+            f"subtitles={add_subtitles} template '{caption_template}' format={'original' if keep_original else 'vertical'}"
         )
+
+        # Fast path: no subtitles + original = ffmpeg stream copy (no re-encoding)
+        if not add_subtitles and keep_original:
+            import subprocess
+            result = subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-ss", str(start_time),
+                    "-i", str(video_path),
+                    "-t", str(duration),
+                    "-c", "copy",
+                    "-movflags", "+faststart",
+                    str(output_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            if result.returncode != 0:
+                logger.error(f"ffmpeg stream copy failed: {result.stderr}")
+                return False
+            logger.info(f"Successfully created clip (stream copy): {output_path}")
+            return True
 
         # Load and process video
         video = VideoFileClip(str(video_path))
@@ -1143,18 +1170,25 @@ def create_optimized_clip(
         end_time = min(end_time, video.duration)
         clip = video.subclipped(start_time, end_time)
 
-        # Get optimal crop
-        x_offset, y_offset, new_width, new_height = detect_optimal_crop_region(
-            video, start_time, end_time, target_ratio=9 / 16
-        )
-
-        cropped_clip = clip.cropped(
-            x1=x_offset, y1=y_offset, x2=x_offset + new_width, y2=y_offset + new_height
-        )
-
-        # Preserve native crop resolution so 4K sources stay high quality.
-        target_width, target_height = round_to_even(new_width), round_to_even(new_height)
-        processed_clip = cropped_clip
+        if keep_original:
+            # No face detection, no crop, no resize - use trimmed clip as-is
+            processed_clip = clip
+            target_width = round_to_even(processed_clip.w)
+            target_height = round_to_even(processed_clip.h)
+            if (target_width, target_height) != (processed_clip.w, processed_clip.h):
+                processed_clip = processed_clip.resized((target_width, target_height))
+            cropped_clip = None
+        else:
+            # Vertical 9:16: face-centered crop, preserve native resolution
+            x_offset, y_offset, new_width, new_height = detect_optimal_crop_region(
+                video, start_time, end_time, target_ratio=9 / 16
+            )
+            cropped_clip = clip.cropped(
+                x1=x_offset, y1=y_offset, x2=x_offset + new_width, y2=y_offset + new_height
+            )
+            target_width, target_height = round_to_even(new_width), round_to_even(new_height)
+            processed_clip = cropped_clip
+>>>>>>> 70946ce (Subtitle speed up)
 
         # Add AssemblyAI subtitles with template support
         final_clips = [processed_clip]
@@ -1196,7 +1230,8 @@ def create_optimized_clip(
             final_clip.close()
         if processed_clip is not cropped_clip:
             processed_clip.close()
-        cropped_clip.close()
+        if cropped_clip is not None:
+            cropped_clip.close()
         clip.close()
         video.close()
 
@@ -1216,10 +1251,12 @@ def create_clips_from_segments(
     font_size: int = 24,
     font_color: str = "#FFFFFF",
     caption_template: str = "default",
+    output_format: str = "vertical",
+    add_subtitles: bool = True,
 ) -> List[Dict[str, Any]]:
     """Create optimized video clips from segments with template support."""
     logger.info(
-        f"Creating {len(segments)} clips with caption template '{caption_template}'"
+        f"Creating {len(segments)} clips subtitles={add_subtitles} template '{caption_template}'"
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -1254,11 +1291,12 @@ def create_clips_from_segments(
                 start_seconds,
                 end_seconds,
                 clip_path,
-                True,
+                add_subtitles,
                 font_family,
                 font_size,
                 font_color,
                 caption_template,
+                output_format,
             )
 
             if success:
@@ -1375,10 +1413,12 @@ def create_clips_with_transitions(
     font_size: int = 24,
     font_color: str = "#FFFFFF",
     caption_template: str = "default",
+    output_format: str = "vertical",
+    add_subtitles: bool = True,
 ) -> List[Dict[str, Any]]:
     """Create video clips with transition effects between them."""
     logger.info(
-        f"Creating {len(segments)} clips with transitions and caption template '{caption_template}'"
+        f"Creating {len(segments)} clips subtitles={add_subtitles} transitions template '{caption_template}'"
     )
 
     # First create individual clips
@@ -1390,6 +1430,8 @@ def create_clips_with_transitions(
         font_size,
         font_color,
         caption_template,
+        output_format,
+        add_subtitles,
     )
 
     if len(clips_info) < 2:

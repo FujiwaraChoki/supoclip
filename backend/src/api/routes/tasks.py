@@ -123,6 +123,12 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     processing_mode = data.get("processing_mode", config.default_processing_mode)
     if processing_mode not in {"fast", "balanced", "quality"}:
         processing_mode = config.default_processing_mode
+    output_format = data.get("output_format", "vertical")
+    if output_format not in {"vertical", "original"}:
+        output_format = "vertical"
+    add_subtitles = data.get("add_subtitles", True)
+    if not isinstance(add_subtitles, bool):
+        add_subtitles = True
 
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
@@ -164,6 +170,8 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             font_color,
             caption_template,
             processing_mode,
+            output_format,
+            add_subtitles,
         )
 
         # Save source metadata for resume/retries in environments without sources.url column
@@ -173,7 +181,12 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
         try:
             await redis_client.set(
                 f"task_source:{task_id}",
-                json.dumps({"url": raw_source["url"], "source_type": source_type}),
+                json.dumps({
+                    "url": raw_source["url"],
+                    "source_type": source_type,
+                    "output_format": output_format,
+                    "add_subtitles": add_subtitles,
+                }),
                 ex=60 * 60 * 24 * 7,
             )
         finally:
@@ -717,20 +730,28 @@ async def resume_task(
 
         source_url = task.get("source_url")
         source_type = task.get("source_type")
+        output_format = "vertical"
+        add_subtitles = True
 
-        if not source_url or not source_type:
-            redis_client = redis.Redis(
-                host=config.redis_host, port=config.redis_port, decode_responses=True
-            )
-            try:
-                source_payload = await redis_client.get(f"task_source:{task_id}")
-            finally:
-                await redis_client.close()
-
+        redis_client = redis.Redis(
+            host=config.redis_host, port=config.redis_port, decode_responses=True
+        )
+        try:
+            source_payload = await redis_client.get(f"task_source:{task_id}")
             if source_payload:
                 parsed = json.loads(source_payload)
-                source_url = parsed.get("url")
-                source_type = parsed.get("source_type")
+                if not source_url:
+                    source_url = parsed.get("url")
+                if not source_type:
+                    source_type = parsed.get("source_type")
+                of = parsed.get("output_format", output_format)
+                if of in ("vertical", "original"):
+                    output_format = of
+                asub = parsed.get("add_subtitles", add_subtitles)
+                if isinstance(asub, bool):
+                    add_subtitles = asub
+        finally:
+            await redis_client.close()
 
         if not source_url or not source_type:
             raise HTTPException(status_code=400, detail="Task source URL is missing")
@@ -765,6 +786,8 @@ async def resume_task(
             task.get("font_color") or "#FFFFFF",
             task.get("caption_template") or "default",
             processing_mode,
+            output_format,
+            add_subtitles,
         )
 
         return {"message": "Task resumed", "job_id": job_id}
