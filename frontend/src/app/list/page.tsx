@@ -28,18 +28,14 @@ export default function ListPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
   useEffect(() => {
     const fetchTasks = async () => {
       if (!session?.user?.id) return;
 
       try {
         setIsLoading(true);
-        const response = await fetch(`${apiUrl}/tasks/`, {
-          headers: {
-            'user_id': session.user.id,
-          },
+        const response = await fetch("/api/tasks/", {
+          cache: "no-store",
         });
 
         if (!response.ok) {
@@ -57,7 +53,7 @@ export default function ListPage() {
     };
 
     fetchTasks();
-  }, [session?.user?.id, apiUrl]);
+  }, [session?.user?.id]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
