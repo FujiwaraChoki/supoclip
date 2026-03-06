@@ -132,6 +132,7 @@ export default function TaskPage() {
   const hasTriggeredAutoRefresh = useRef(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const taskApiUrl = "/api/tasks";
 
   const buildSupportError = useCallback(async (response: Response, fallbackMessage: string) => {
     const parsed = await parseApiError(response, fallbackMessage);
@@ -151,15 +152,8 @@ export default function TaskPage() {
       if (!params.id) return false;
 
       try {
-        // Fetch task details (including status)
-        // Don't wait for session - fetch immediately with user_id if available
-        const headers: HeadersInit = {};
-        if (session?.user?.id) {
-          headers["user_id"] = session.user.id;
-        }
-
-        const taskResponse = await fetch(`${apiUrl}/tasks/${params.id}`, {
-          headers,
+        const taskResponse = await fetch(`${taskApiUrl}/${params.id}`, {
+          cache: "no-store",
         });
 
         // Handle 404 with retry logic (task might not be persisted yet)
@@ -185,13 +179,8 @@ export default function TaskPage() {
 
         // Only fetch clips if task is completed
         if (taskData.status === "completed") {
-          const clipsHeaders: HeadersInit = {};
-          if (session?.user?.id) {
-            clipsHeaders["user_id"] = session.user.id;
-          }
-
-          const clipsResponse = await fetch(`${apiUrl}/tasks/${params.id}/clips`, {
-            headers: clipsHeaders,
+          const clipsResponse = await fetch(`${taskApiUrl}/${params.id}/clips`, {
+            cache: "no-store",
           });
 
           if (!clipsResponse.ok) {
@@ -209,7 +198,7 @@ export default function TaskPage() {
         return false;
       }
     },
-    [apiUrl, buildSupportError, params.id, session?.user?.id],
+    [buildSupportError, params.id, taskApiUrl],
   );
 
   // Initial fetch - runs immediately, doesn't wait for session
@@ -266,8 +255,7 @@ export default function TaskPage() {
     // Only connect to SSE if task is queued or processing
     if (taskStatus !== "queued" && taskStatus !== "processing") return;
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    const eventSource = new EventSource(`${apiUrl}/tasks/${params.id}/progress`);
+    const eventSource = new EventSource(`${taskApiUrl}/${params.id}/progress`);
 
     console.log("📡 Connected to SSE for real-time progress");
 
@@ -322,7 +310,7 @@ export default function TaskPage() {
       console.log("🔌 Disconnecting SSE");
       eventSource.close();
     };
-  }, [params.id, task?.status, fetchTaskStatus]); // Re-run when task status changes
+  }, [params.id, task?.status, fetchTaskStatus, taskApiUrl, triggerAutoRefresh]); // Re-run when task status changes
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -366,11 +354,10 @@ export default function TaskPage() {
     if (!editedTitle.trim() || !session?.user?.id || !params.id) return;
 
     try {
-      const response = await fetch(`${apiUrl}/tasks/${params.id}`, {
+      const response = await fetch(`${taskApiUrl}/${params.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          user_id: session.user.id,
         },
         body: JSON.stringify({ title: editedTitle }),
       });
@@ -392,11 +379,8 @@ export default function TaskPage() {
 
     setIsDeleting(true);
     try {
-      const response = await fetch(`${apiUrl}/tasks/${params.id}`, {
+      const response = await fetch(`${taskApiUrl}/${params.id}`, {
         method: "DELETE",
-        headers: {
-          user_id: session.user.id,
-        },
       });
 
       if (response.ok) {
@@ -417,11 +401,8 @@ export default function TaskPage() {
     if (!session?.user?.id || !params.id) return;
 
     try {
-      const response = await fetch(`${apiUrl}/tasks/${params.id}/clips/${clipId}`, {
+      const response = await fetch(`${taskApiUrl}/${params.id}/clips/${clipId}`, {
         method: "DELETE",
-        headers: {
-          user_id: session.user.id,
-        },
       });
 
       if (response.ok) {
@@ -447,11 +428,10 @@ export default function TaskPage() {
 
   const handleTrimClip = async (clipId: string) => {
     if (!session?.user?.id || !params.id) return;
-    const response = await fetch(`${apiUrl}/tasks/${params.id}/clips/${clipId}`, {
+    const response = await fetch(`${taskApiUrl}/${params.id}/clips/${clipId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        user_id: session.user.id,
       },
       body: JSON.stringify({
         start_offset: Number(startOffset || "0"),
@@ -467,11 +447,10 @@ export default function TaskPage() {
 
   const handleSplitClip = async (clipId: string) => {
     if (!session?.user?.id || !params.id) return;
-    const response = await fetch(`${apiUrl}/tasks/${params.id}/clips/${clipId}/split`, {
+    const response = await fetch(`${taskApiUrl}/${params.id}/clips/${clipId}/split`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        user_id: session.user.id,
       },
       body: JSON.stringify({ split_time: Number(splitTime || "5") }),
     });
@@ -484,11 +463,10 @@ export default function TaskPage() {
 
   const handleMergeClips = async () => {
     if (!session?.user?.id || !params.id || selectedClipIds.length < 2) return;
-    const response = await fetch(`${apiUrl}/tasks/${params.id}/clips/merge`, {
+    const response = await fetch(`${taskApiUrl}/${params.id}/clips/merge`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        user_id: session.user.id,
       },
       body: JSON.stringify({ clip_ids: selectedClipIds }),
     });
@@ -502,11 +480,10 @@ export default function TaskPage() {
 
   const handleUpdateCaptions = async (clipId: string) => {
     if (!session?.user?.id || !params.id) return;
-    const response = await fetch(`${apiUrl}/tasks/${params.id}/clips/${clipId}/captions`, {
+    const response = await fetch(`${taskApiUrl}/${params.id}/clips/${clipId}/captions`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        user_id: session.user.id,
       },
       body: JSON.stringify({
         caption_text: captionText,
@@ -532,11 +509,10 @@ export default function TaskPage() {
 
     setIsApplyingSettings(true);
     try {
-      const response = await fetch(`${apiUrl}/tasks/${params.id}/settings`, {
+      const response = await fetch(`${taskApiUrl}/${params.id}/settings`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          user_id: session.user.id,
         },
         body: JSON.stringify({
           font_family: projectFontFamily,
@@ -560,10 +536,8 @@ export default function TaskPage() {
   const handleExportClip = async (clipId: string, fallbackFilename: string) => {
     if (!session?.user?.id || !task?.id) return;
 
-    const response = await fetch(`${apiUrl}/tasks/${task.id}/clips/${clipId}/export?preset=${exportPreset}`, {
-      headers: {
-        user_id: session.user.id,
-      },
+    const response = await fetch(`${taskApiUrl}/${task.id}/clips/${clipId}/export?preset=${exportPreset}`, {
+      cache: "no-store",
     });
 
     if (!response.ok) {
@@ -703,7 +677,7 @@ export default function TaskPage() {
                   <div className="relative group">
                     <Badge className="bg-blue-100 text-blue-800 cursor-default">Processing</Badge>
                     <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
-                      🔍&nbsp;&nbsp;We're currently processing your video. Check back in a couple minutes.
+                      🔍&nbsp;&nbsp;We&apos;re currently processing your video. Check back in a couple minutes.
                     </div>
                   </div>
                 ) : task.status === "queued" ? (
@@ -726,11 +700,8 @@ export default function TaskPage() {
                     size="sm"
                     variant="outline"
                     onClick={async () => {
-                      await fetch(`${apiUrl}/tasks/${task.id}/cancel`, {
+                      await fetch(`${taskApiUrl}/${task.id}/cancel`, {
                         method: "POST",
-                        headers: {
-                          user_id: session?.user?.id || "",
-                        },
                       });
                       await fetchTaskStatus();
                     }}
@@ -743,11 +714,8 @@ export default function TaskPage() {
                     size="sm"
                     variant="outline"
                     onClick={async () => {
-                      await fetch(`${apiUrl}/tasks/${task.id}/resume`, {
+                      await fetch(`${taskApiUrl}/${task.id}/resume`, {
                         method: "POST",
-                        headers: {
-                          user_id: session?.user?.id || "",
-                        },
                       });
                       await fetchTaskStatus();
                     }}

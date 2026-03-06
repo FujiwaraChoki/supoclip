@@ -91,6 +91,7 @@ export default function TaskEditPage() {
   const params = useParams();
   const { data: session } = useSession();
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const taskApiUrl = "/api/tasks";
 
   const [task, setTask] = useState<TaskDetails | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
@@ -173,11 +174,8 @@ export default function TaskEditPage() {
     if (!params.id) return;
     setError(null);
 
-    const headers: HeadersInit = {};
-    if (session?.user?.id) headers.user_id = session.user.id;
-
     try {
-      const taskResponse = await fetch(`${apiUrl}/tasks/${params.id}`, { headers });
+      const taskResponse = await fetch(`${taskApiUrl}/${params.id}`, { cache: "no-store" });
       if (!taskResponse.ok) {
         throw new Error(await buildSupportError(taskResponse, `Failed to fetch task: ${taskResponse.status}`));
       }
@@ -190,7 +188,7 @@ export default function TaskEditPage() {
         return;
       }
 
-      const clipsResponse = await fetch(`${apiUrl}/tasks/${params.id}/clips`, { headers });
+      const clipsResponse = await fetch(`${taskApiUrl}/${params.id}/clips`, { cache: "no-store" });
       if (!clipsResponse.ok) {
         throw new Error(await buildSupportError(clipsResponse, `Failed to fetch clips: ${clipsResponse.status}`));
       }
@@ -208,7 +206,7 @@ export default function TaskEditPage() {
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : "Failed to load editor");
     }
-  }, [apiUrl, buildSupportError, params.id, session?.user?.id]);
+  }, [buildSupportError, params.id, taskApiUrl]);
 
   useEffect(() => {
     const run = async () => {
@@ -259,11 +257,10 @@ export default function TaskEditPage() {
     const endOffset = Number((selectedClip.duration - trimRange[1]).toFixed(2));
 
     await withSaving(async () => {
-      const response = await fetch(`${apiUrl}/tasks/${task.id}/clips/${selectedClip.id}`, {
+      const response = await fetch(`${taskApiUrl}/${task.id}/clips/${selectedClip.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          user_id: session.user.id,
         },
         body: JSON.stringify({ start_offset: startOffset, end_offset: endOffset }),
       });
@@ -275,11 +272,10 @@ export default function TaskEditPage() {
     if (!selectedClip || !session?.user?.id || !task?.id) return;
     const value = splitAt ?? splitTime;
     await withSaving(async () => {
-      const response = await fetch(`${apiUrl}/tasks/${task.id}/clips/${selectedClip.id}/split`, {
+      const response = await fetch(`${taskApiUrl}/${task.id}/clips/${selectedClip.id}/split`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          user_id: session.user.id,
         },
         body: JSON.stringify({ split_time: Number(value.toFixed(2)) }),
       });
@@ -291,11 +287,10 @@ export default function TaskEditPage() {
     if (!selectedClip || !session?.user?.id || !task?.id) return;
 
     await withSaving(async () => {
-      const response = await fetch(`${apiUrl}/tasks/${task.id}/clips/${selectedClip.id}/captions`, {
+      const response = await fetch(`${taskApiUrl}/${task.id}/clips/${selectedClip.id}/captions`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          user_id: session.user.id,
         },
         body: JSON.stringify({
           caption_text: captionText,
@@ -310,11 +305,10 @@ export default function TaskEditPage() {
   const handleMerge = async () => {
     if (!session?.user?.id || !task?.id || mergeSelection.length < 2) return;
     await withSaving(async () => {
-      const response = await fetch(`${apiUrl}/tasks/${task.id}/clips/merge`, {
+      const response = await fetch(`${taskApiUrl}/${task.id}/clips/merge`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          user_id: session.user.id,
         },
         body: JSON.stringify({ clip_ids: mergeSelection }),
       });

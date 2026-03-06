@@ -123,6 +123,7 @@ export default function Home() {
   const [isLoadingLatest, setIsLoadingLatest] = useState(false);
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const taskApiUrl = "/api/tasks";
   const youtubeThumbnailUrl = sourceType === "youtube" ? getYouTubeThumbnailUrl(url) : null;
 
   const refreshFonts = useCallback(async () => {
@@ -229,10 +230,8 @@ export default function Home() {
 
       try {
         setIsLoadingLatest(true);
-        const response = await fetch(`${apiUrl}/tasks/`, {
-          headers: {
-            'user_id': session.user.id,
-          },
+        const response = await fetch(`${taskApiUrl}/`, {
+          cache: "no-store",
         });
 
         if (response.ok) {
@@ -249,7 +248,7 @@ export default function Home() {
     };
 
     fetchLatestTask();
-  }, [session?.user?.id, apiUrl]);
+  }, [session?.user?.id, taskApiUrl]);
 
   useEffect(() => {
     const fetchBillingSummary = async () => {
