@@ -130,6 +130,10 @@ class Task(Base):
     )
     error_code: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     stage_timings_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    transcript_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    transcript_updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

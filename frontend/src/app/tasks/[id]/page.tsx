@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
@@ -43,6 +44,7 @@ import {
   Settings2,
   Type,
   Clapperboard,
+  FileText,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
@@ -87,6 +89,8 @@ interface TaskDetails {
   font_color?: string;
   caption_template?: string;
   include_broll?: boolean;
+  transcript_text?: string;
+  transcript_updated_at?: string | null;
 }
 
 interface FontOption {
@@ -125,6 +129,11 @@ export default function TaskPage() {
   const [projectCaptionTemplate, setProjectCaptionTemplate] = useState("default");
   const [projectIncludeBroll, setProjectIncludeBroll] = useState(false);
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
+  const [transcriptDraft, setTranscriptDraft] = useState("");
+  const [savedTranscript, setSavedTranscript] = useState("");
+  const [isSavingTranscript, setIsSavingTranscript] = useState(false);
+  const [transcriptFeedback, setTranscriptFeedback] = useState<string | null>(null);
+  const [transcriptFeedbackIsError, setTranscriptFeedbackIsError] = useState(false);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
   const [availableTemplates, setAvailableTemplates] = useState<
     Array<{ id: string; name: string; description: string; animation: string }>
@@ -182,6 +191,8 @@ export default function TaskPage() {
         setProjectFontColor(taskData.font_color || "#FFFFFF");
         setProjectCaptionTemplate(taskData.caption_template || "default");
         setProjectIncludeBroll(Boolean(taskData.include_broll));
+        setTranscriptDraft(taskData.transcript_text || "");
+        setSavedTranscript(taskData.transcript_text || "");
 
         // Only fetch clips if task is completed
         if (taskData.status === "completed") {
@@ -322,7 +333,7 @@ export default function TaskPage() {
       console.log("🔌 Disconnecting SSE");
       eventSource.close();
     };
-  }, [params.id, task?.status, fetchTaskStatus]); // Re-run when task status changes
+  }, [params.id, task?.status, fetchTaskStatus, triggerAutoRefresh]); // Re-run when task status changes
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -557,6 +568,45 @@ export default function TaskPage() {
     }
   };
 
+  const handleSaveTranscript = async () => {
+    if (!session?.user?.id || !task?.id) return;
+
+    setIsSavingTranscript(true);
+    setTranscriptFeedback(null);
+    setTranscriptFeedbackIsError(false);
+
+    try {
+      const response = await fetch(`${apiUrl}/tasks/${task.id}/transcript`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          user_id: session.user.id,
+        },
+        body: JSON.stringify({
+          transcript_text: transcriptDraft,
+        }),
+      });
+
+      if (!response.ok) {
+        setTranscriptFeedback(await buildSupportError(response, "Failed to save transcript"));
+        setTranscriptFeedbackIsError(true);
+        return;
+      }
+
+      const data = await response.json();
+      const updatedTask = data.task as TaskDetails;
+      setTask(updatedTask);
+      setTranscriptDraft(updatedTask.transcript_text || "");
+      setSavedTranscript(updatedTask.transcript_text || "");
+      setTranscriptFeedback("Transcript saved.");
+    } catch (err) {
+      setTranscriptFeedback(err instanceof Error ? err.message : "Failed to save transcript");
+      setTranscriptFeedbackIsError(true);
+    } finally {
+      setIsSavingTranscript(false);
+    }
+  };
+
   const handleExportClip = async (clipId: string, fallbackFilename: string) => {
     if (!session?.user?.id || !task?.id) return;
 
@@ -580,6 +630,81 @@ export default function TaskPage() {
     link.click();
     link.remove();
     URL.revokeObjectURL(blobUrl);
+  };
+
+  const hasTranscriptChanges = transcriptDraft !== savedTranscript;
+  const transcriptWordCount = transcriptDraft.trim().length > 0 ? transcriptDraft.trim().split(/\s+/).length : 0;
+
+  const renderTranscriptEditor = () => {
+    if (!task || task.status !== "completed") return null;
+
+    return (
+      <Card>
+        <CardContent className="p-5 space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-1">
+              <h3 className="font-medium text-black flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                Transcript
+              </h3>
+              <p className="text-sm text-gray-600">
+                Clean up names, punctuation, or wording before sharing or repurposing the transcript.
+              </p>
+            </div>
+            <div className="text-xs text-gray-500 space-y-1 text-left md:text-right">
+              <div>{transcriptWordCount} words</div>
+              <div>
+                {task.transcript_updated_at
+                  ? `Last saved ${new Date(task.transcript_updated_at).toLocaleString()}`
+                  : "Not saved yet"}
+              </div>
+            </div>
+          </div>
+
+          <Textarea
+            value={transcriptDraft}
+            onChange={(event) => {
+              setTranscriptDraft(event.target.value);
+              if (transcriptFeedback) {
+                setTranscriptFeedback(null);
+                setTranscriptFeedbackIsError(false);
+              }
+            }}
+            placeholder="Your generated transcript will appear here."
+            className="min-h-56 resize-y"
+          />
+
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <p className="text-xs text-gray-500">
+              Saving the transcript does not change clip timings yet. It updates the stored project transcript.
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setTranscriptDraft(savedTranscript);
+                  setTranscriptFeedback(null);
+                  setTranscriptFeedbackIsError(false);
+                }}
+                disabled={!hasTranscriptChanges || isSavingTranscript}
+              >
+                Reset
+              </Button>
+              <Button size="sm" onClick={handleSaveTranscript} disabled={!hasTranscriptChanges || isSavingTranscript}>
+                {isSavingTranscript ? "Saving..." : "Save Transcript"}
+              </Button>
+            </div>
+          </div>
+
+          {transcriptFeedback && (
+            <div className={`text-sm ${transcriptFeedbackIsError ? "text-red-600" : "text-green-600"}`}>
+              {transcriptFeedback}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
   };
 
   if (isLoading) {
@@ -703,7 +828,7 @@ export default function TaskPage() {
                   <div className="relative group">
                     <Badge className="bg-blue-100 text-blue-800 cursor-default">Processing</Badge>
                     <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
-                      🔍&nbsp;&nbsp;We're currently processing your video. Check back in a couple minutes.
+                      🔍&nbsp;&nbsp;We&apos;re currently processing your video. Check back in a couple minutes.
                     </div>
                   </div>
                 ) : task.status === "queued" ? (
@@ -818,40 +943,44 @@ export default function TaskPage() {
             </CardContent>
           </Card>
         ) : clips.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              {task?.status === "completed" ? (
-                <>
-                  <div className="text-yellow-600 mb-4">
-                    <AlertCircle className="w-12 h-12 mx-auto mb-2" />
-                    <h2 className="text-xl font-semibold">No Clips Generated</h2>
-                  </div>
-                  <p className="text-gray-600 mb-4">
-                    The task completed but no clips were generated. The video may not have had suitable content for
-                    clipping.
-                  </p>
-                  <Link href="/">
-                    <Button>
-                      <ArrowLeft className="w-4 h-4" />
-                      Try Another Video
-                    </Button>
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Clock className="w-8 h-8 text-blue-500 animate-pulse" />
-                  </div>
-                  <h2 className="text-xl font-semibold text-black mb-2">Still Generating...</h2>
-                  <p className="text-gray-600">
-                    Your clips are being generated. This page will refresh automatically when they&apos;re ready.
-                  </p>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          <div className="grid gap-6">
+            {renderTranscriptEditor()}
+            <Card>
+              <CardContent className="p-8 text-center">
+                {task?.status === "completed" ? (
+                  <>
+                    <div className="text-yellow-600 mb-4">
+                      <AlertCircle className="w-12 h-12 mx-auto mb-2" />
+                      <h2 className="text-xl font-semibold">No Clips Generated</h2>
+                    </div>
+                    <p className="text-gray-600 mb-4">
+                      The task completed but no clips were generated. The video may not have had suitable content for
+                      clipping.
+                    </p>
+                    <Link href="/">
+                      <Button>
+                        <ArrowLeft className="w-4 h-4" />
+                        Try Another Video
+                      </Button>
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Clock className="w-8 h-8 text-blue-500 animate-pulse" />
+                    </div>
+                    <h2 className="text-xl font-semibold text-black mb-2">Still Generating...</h2>
+                    <p className="text-gray-600">
+                      Your clips are being generated. This page will refresh automatically when they&apos;re ready.
+                    </p>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         ) : (
           <div className="grid gap-6">
+            {renderTranscriptEditor()}
             <Card>
               <CardContent className="px-5 pb-4 space-y-4">
                 <div className="flex items-center justify-between">

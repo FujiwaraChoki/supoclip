@@ -1,0 +1,5 @@
+ALTER TABLE tasks
+ADD COLUMN IF NOT EXISTS transcript_text TEXT;
+
+ALTER TABLE tasks
+ADD COLUMN IF NOT EXISTS transcript_updated_at TIMESTAMP WITH TIME ZONE;

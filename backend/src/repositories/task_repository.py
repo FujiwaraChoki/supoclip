@@ -133,12 +133,37 @@ class TaskRepository:
             "cache_hit": getattr(row, "cache_hit", False),
             "error_code": getattr(row, "error_code", None),
             "stage_timings_json": getattr(row, "stage_timings_json", None),
+            "transcript_text": getattr(row, "transcript_text", None),
+            "transcript_updated_at": getattr(row, "transcript_updated_at", None),
             "started_at": getattr(row, "started_at", None),
             "completed_at": getattr(row, "completed_at", None),
             "source_url": getattr(row, "source_url", None),
             "created_at": row.created_at,
             "updated_at": row.updated_at,
         }
+
+    @staticmethod
+    async def update_task_transcript(
+        db: AsyncSession,
+        task_id: str,
+        transcript_text: str,
+    ) -> None:
+        await db.execute(
+            text(
+                """
+                UPDATE tasks
+                SET transcript_text = :transcript_text,
+                    transcript_updated_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = :task_id
+                """
+            ),
+            {
+                "task_id": task_id,
+                "transcript_text": transcript_text,
+            },
+        )
+        await db.commit()
 
     @staticmethod
     async def update_task_runtime_metadata(

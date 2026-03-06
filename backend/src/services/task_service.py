@@ -211,6 +211,12 @@ class TaskService:
                 transcript_text=result.get("transcript"),
                 analysis_json=result.get("analysis_json"),
             )
+            if result.get("transcript") is not None:
+                await self.task_repo.update_task_transcript(
+                    self.db,
+                    task_id,
+                    result.get("transcript") or "",
+                )
 
             # Save clips to database
             await self.task_repo.update_task_status(
@@ -394,6 +400,22 @@ class TaskService:
                 caption_template,
             )
 
+        return await self.get_task_with_clips(task_id) or {}
+
+    async def update_task_transcript(
+        self,
+        task_id: str,
+        transcript_text: str,
+    ) -> Dict[str, Any]:
+        task = await self.task_repo.get_task_by_id(self.db, task_id)
+        if not task:
+            raise ValueError("Task not found")
+
+        await self.task_repo.update_task_transcript(
+            self.db,
+            task_id,
+            transcript_text,
+        )
         return await self.get_task_with_clips(task_id) or {}
 
     async def regenerate_all_clips_for_task(

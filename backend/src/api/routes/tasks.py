@@ -375,6 +375,30 @@ async def update_task(
         raise HTTPException(status_code=500, detail=f"Error updating task: {str(e)}")
 
 
+@router.patch("/{task_id}/transcript")
+async def update_task_transcript(
+    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Update the task-level transcript text."""
+    try:
+        payload = await request.json()
+        transcript_text = str(payload.get("transcript_text", ""))
+
+        task_service = TaskService(db)
+        await _require_task_owner(request, task_service, db, task_id)
+        task = await task_service.update_task_transcript(task_id, transcript_text)
+        return {"task": task, "message": "Transcript updated successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating transcript: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error updating transcript: {str(e)}"
+        )
+
+
 @router.delete("/{task_id}")
 async def delete_task(
     task_id: str, request: Request, db: AsyncSession = Depends(get_db)
