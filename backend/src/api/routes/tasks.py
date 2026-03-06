@@ -241,10 +241,13 @@ async def get_billing_summary(request: Request, db: AsyncSession = Depends(get_d
 
 
 @router.get("/{task_id}")
-async def get_task(task_id: str, db: AsyncSession = Depends(get_db)):
+async def get_task(
+    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
     """Get task details."""
     try:
         task_service = TaskService(db)
+        await _require_task_owner(request, task_service, db, task_id)
         task = await task_service.get_task_with_clips(task_id)
 
         if not task:
@@ -260,10 +263,13 @@ async def get_task(task_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{task_id}/clips")
-async def get_task_clips(task_id: str, db: AsyncSession = Depends(get_db)):
+async def get_task_clips(
+    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
     """Get all clips for a task."""
     try:
         task_service = TaskService(db)
+        await _require_task_owner(request, task_service, db, task_id)
         task = await task_service.get_task_with_clips(task_id)
 
         if not task:
@@ -283,23 +289,26 @@ async def get_task_clips(task_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{task_id}/progress")
-async def get_task_progress_sse(task_id: str):
+async def get_task_progress_sse(task_id: str, request: Request):
     """
     SSE endpoint for real-time progress updates.
     Streams progress updates as Server-Sent Events.
     """
 
+    user_id = _get_user_id_from_headers(request)
+
+    async with AsyncSessionLocal() as local_db:
+        task_service = TaskService(local_db)
+        task = await task_service.task_repo.get_task_by_id(local_db, task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if task.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized for this task")
+
     async def event_generator():
         """Generate SSE events for task progress."""
-        # First, check if task exists
-        async with AsyncSessionLocal() as local_db:
-            task_service = TaskService(local_db)
-            task = await task_service.task_repo.get_task_by_id(local_db, task_id)
-
-        if not task:
-            yield {"event": "error", "data": json.dumps({"error": "Task not found"})}
-            return
-
         # Send initial task status
         yield {
             "event": "status",
