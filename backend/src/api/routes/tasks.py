@@ -358,10 +358,7 @@ async def update_task(
 
         task_service = TaskService(db)
 
-        # Get task to verify it exists
-        task = await task_service.task_repo.get_task_by_id(db, task_id)
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
+        task = await _require_task_owner(request, task_service, db, task_id)
 
         # Update source title
         await task_service.source_repo.update_source_title(db, task["source_id"], title)
