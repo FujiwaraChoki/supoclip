@@ -28,8 +28,10 @@ from sqlalchemy import text
 
 from .models import User, Task, Source, GeneratedClip
 from .database import init_db, close_db, get_db, AsyncSessionLocal
+from .auth_headers import get_signed_user_id, USER_ID_HEADER
 from .api.routes.tasks import router as tasks_router
 from .api.routes.feedback import router as feedback_router
+from .services.video_service import VideoService, UPLOAD_URL_PREFIX
 
 config = Config()
 
@@ -75,6 +77,20 @@ clips_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/clips", StaticFiles(directory=str(clips_dir)), name="clips")
 
 
+def _get_authenticated_user_id(request: Request) -> str:
+    if config.monetization_enabled:
+        return get_signed_user_id(request, config)
+
+    user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User authentication required")
+    return user_id
+
+
+def _resolve_uploaded_video_path(url: str) -> Path:
+    return VideoService.resolve_local_video_path(url)
+
+
 @app.get("/")
 def read_root():
     return {
@@ -101,10 +117,9 @@ async def start_task(request: Request):
     logger.info("🚀 Starting new task request")
 
     data = await request.json()
-    headers = request.headers
 
     raw_source = data.get("source")
-    user_id = headers.get("user_id")
+    user_id = _get_authenticated_user_id(request)
 
     # Get font customization options from request
     font_options = data.get("font_options", {})
@@ -197,8 +212,7 @@ async def start_task(request: Request):
                     )
                 logger.info(f"✅ Video downloaded to: {video_path}")
             else:
-                # For uploaded videos, the URL is actually the file path
-                video_path = raw_source["url"]
+                video_path = _resolve_uploaded_video_path(raw_source["url"])
                 logger.info(f"📁 Using uploaded video at: {video_path}")
 
                 # Verify the uploaded file exists
@@ -347,9 +361,8 @@ async def start_task_with_progress(request: Request):
         raise HTTPException(status_code=404, detail="Not found")
 
     data = await request.json()
-    headers = request.headers
     raw_source = data.get("source")
-    user_id = headers.get("user_id")
+    user_id = _get_authenticated_user_id(request)
 
     # Get font customization options from request
     font_options = data.get("font_options", {})
@@ -491,7 +504,7 @@ async def process_video_task(
                 raise Exception("Failed to download video")
             logger.info(f"✅ Video downloaded to: {video_path}")
         else:
-            video_path = raw_source["url"]
+            video_path = _resolve_uploaded_video_path(raw_source["url"])
             if not Path(video_path).exists():
                 raise Exception("Uploaded video file not found")
 
@@ -868,8 +881,10 @@ async def broll_status():
 async def upload_video(request: Request):
     """Upload a video to the server"""
     try:
-        from fastapi import UploadFile, File, Form
         import aiofiles
+        import uuid
+
+        _get_authenticated_user_id(request)
 
         # Get the form data
         form_data = await request.form()
@@ -883,8 +898,6 @@ async def upload_video(request: Request):
         uploads_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate unique filename to avoid conflicts
-        import uuid
-
         file_extension = Path(video_file.filename).suffix
         unique_filename = f"{uuid.uuid4()}{file_extension}"
         video_path = uploads_dir / unique_filename
@@ -896,7 +909,12 @@ async def upload_video(request: Request):
 
         logger.info(f"✅ Video uploaded successfully to: {video_path}")
 
-        return {"message": "Video uploaded successfully", "video_path": str(video_path)}
+        return {
+            "message": "Video uploaded successfully",
+            "video_path": f"{UPLOAD_URL_PREFIX}{unique_filename}",
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Error uploading video: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
