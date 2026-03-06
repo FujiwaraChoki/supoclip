@@ -19,10 +19,19 @@ from ..config import Config
 
 logger = logging.getLogger(__name__)
 config = Config()
+UPLOAD_URL_PREFIX = "upload://"
 
 
 class VideoService:
     """Service for video processing operations."""
+
+    @staticmethod
+    def resolve_local_video_path(url: str) -> Path:
+        """Resolve uploaded-video references without exposing server filesystem paths."""
+        if url.startswith(UPLOAD_URL_PREFIX):
+            filename = Path(url.removeprefix(UPLOAD_URL_PREFIX)).name
+            return Path(config.temp_dir) / "uploads" / filename
+        return Path(url)
 
     @staticmethod
     async def download_video(url: str) -> Optional[Path]:
@@ -162,7 +171,7 @@ class VideoService:
                 if not video_path:
                     raise Exception("Failed to download video")
             else:
-                video_path = Path(url)
+                video_path = VideoService.resolve_local_video_path(url)
                 if not video_path.exists():
                     raise Exception("Video file not found")
 

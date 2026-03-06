@@ -447,7 +447,7 @@ class TaskService:
                 raise ValueError("Failed to download source video for regeneration")
             video_path = Path(downloaded)
         else:
-            video_path = Path(source_url)
+            video_path = self.video_service.resolve_local_video_path(source_url)
             if not video_path.exists():
                 raise ValueError("Source video file no longer exists")
 

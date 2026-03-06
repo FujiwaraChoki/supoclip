@@ -411,7 +411,7 @@ export default function Home() {
 
         const formData = new FormData();
         formData.append("video", fileRef.current);
-        const uploadResponse = await fetch(`${apiUrl}/upload`, {
+        const uploadResponse = await fetch("/api/upload", {
           method: "POST",
           body: formData
         });
