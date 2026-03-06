@@ -226,6 +226,8 @@ async def get_broll_status():
 async def upload_video(request: Request):
     """Upload a video to the server."""
     try:
+        _get_authenticated_user_id(request)
+
         # Get the form data
         form_data = await request.form()
         video_file = cast(Any, form_data.get("video"))
@@ -252,7 +254,12 @@ async def upload_video(request: Request):
 
         logger.info(f"✅ Video uploaded successfully to: {video_path}")
 
-        return {"message": "Video uploaded successfully", "video_path": str(video_path)}
+        return {
+            "message": "Video uploaded successfully",
+            "video_path": f"upload://{unique_filename}",
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Error uploading video: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
