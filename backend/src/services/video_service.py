@@ -18,7 +18,7 @@ from ..ai import get_most_relevant_parts_by_transcript
 from ..config import Config
 
 logger = logging.getLogger(__name__)
-config = Config()
+app_config = Config()
 UPLOAD_URL_PREFIX = "upload://"
 
 
@@ -30,7 +30,7 @@ class VideoService:
         """Resolve uploaded-video references without exposing server filesystem paths."""
         if url.startswith(UPLOAD_URL_PREFIX):
             filename = Path(url.removeprefix(UPLOAD_URL_PREFIX)).name
-            return Path(config.temp_dir) / "uploads" / filename
+            return Path(app_config.temp_dir) / "uploads" / filename
         return Path(url)
 
     @staticmethod
@@ -73,7 +73,7 @@ class VideoService:
         logger.info(f"Generating transcript for: {video_path}")
         speech_model = "best"
         if processing_mode == "fast":
-            speech_model = config.fast_mode_transcript_model
+            speech_model = app_config.fast_mode_transcript_model
 
         transcript = await run_in_thread(get_video_transcript, video_path, speech_model)
         logger.info(f"Transcript generated: {len(transcript)} characters")
@@ -110,7 +110,7 @@ class VideoService:
         add_subtitles: False skips subtitles; with original format uses ffmpeg stream copy (no re-encode).
         """
         logger.info(f"Creating {len(segments)} video clips subtitles={add_subtitles}")
-        clips_output_dir = Path(config.temp_dir) / "clips"
+        clips_output_dir = Path(app_config.temp_dir) / "clips"
         clips_output_dir.mkdir(parents=True, exist_ok=True)
 
         clips_info = await run_in_thread(
@@ -181,7 +181,7 @@ class VideoService:
 
             if progress_callback:
                 await progress_callback(30, "Generating transcript...", "processing")
-
+           
             transcript = cached_transcript
             if not transcript:
                 transcript = await VideoService.generate_transcript(
@@ -256,7 +256,7 @@ class VideoService:
                     )
 
             if processing_mode == "fast":
-                segments_json = segments_json[: config.fast_mode_max_clips]
+                segments_json = segments_json[: app_config.fast_mode_max_clips]
 
             clips_info = await VideoService.create_video_clips(
                 video_path,

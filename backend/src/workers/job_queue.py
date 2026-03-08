@@ -9,7 +9,7 @@ from arq.connections import RedisSettings, ArqRedis
 from ..config import Config
 
 logger = logging.getLogger(__name__)
-config = Config()
+app_config = Config()
 
 # Queue names
 DEFAULT_QUEUE_NAME = "supoclip_tasks"
@@ -17,7 +17,7 @@ FAST_QUEUE_NAME = "supoclip_fast"
 
 # Redis settings for arq
 ARQ_REDIS_SETTINGS = RedisSettings(
-    host=config.redis_host, port=config.redis_port, database=0
+    host=app_config.redis_host, port=app_config.redis_port, database=0
 )
 
 
@@ -32,7 +32,7 @@ class JobQueue:
         if cls._pool is None:
             cls._pool = await create_pool(ARQ_REDIS_SETTINGS)
             logger.info(
-                f"Created arq Redis pool: {config.redis_host}:{config.redis_port}"
+                f"Created arq Redis pool: {app_config.redis_host}:{app_config.redis_port}"
             )
         return cls._pool
 

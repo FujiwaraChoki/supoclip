@@ -25,7 +25,7 @@ import redis.asyncio as redis
 from ...clip_editor import export_with_preset, EXPORT_PRESETS
 
 logger = logging.getLogger(__name__)
-config = Config()
+app_config = Config()
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
@@ -51,7 +51,7 @@ def _normalize_font_family(value: Any, default: str = "TikTokSans-Regular") -> s
 
 def _get_user_id_from_headers(request: Request) -> str:
     """Get user ID. Monetization on: signed auth (same as create_task/billing_summary). Off: user_id or x-supoclip-user-id."""
-    if config.monetization_enabled:
+    if app_config.monetization_enabled:
         return get_signed_user_id(request, config)
     user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
     if not user_id:
@@ -104,7 +104,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     data = await request.json()
 
     raw_source = data.get("source")
-    if config.monetization_enabled:
+    if app_config.monetization_enabled:
         user_id = get_signed_user_id(request, config)
     else:
         user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
@@ -120,9 +120,9 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     font_color = _normalize_font_color(font_options.get("font_color", "#FFFFFF"))
     caption_template = data.get("caption_template", "default")
     include_broll = data.get("include_broll", False)
-    processing_mode = data.get("processing_mode", config.default_processing_mode)
+    processing_mode = data.get("processing_mode", app_config.default_processing_mode)
     if processing_mode not in {"fast", "balanced", "quality"}:
-        processing_mode = config.default_processing_mode
+        processing_mode = app_config.default_processing_mode
     output_format = data.get("output_format", "vertical")
     if output_format not in {"vertical", "original"}:
         output_format = "vertical"
@@ -176,7 +176,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
 
         # Save source metadata for resume/retries in environments without sources.url column
         redis_client = redis.Redis(
-            host=config.redis_host, port=config.redis_port, decode_responses=True
+            host=app_config.redis_host, port=app_config.redis_port, decode_responses=True
         )
         try:
             await redis_client.set(
@@ -219,7 +219,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/billing/summary")
 async def get_billing_summary(request: Request, db: AsyncSession = Depends(get_db)):
     """Get monetization status and current usage for authenticated user."""
-    if config.monetization_enabled:
+    if app_config.monetization_enabled:
         user_id = get_signed_user_id(request, config)
     else:
         user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
@@ -329,7 +329,7 @@ async def get_task_progress_sse(task_id: str, request: Request):
 
         # Connect to Redis for real-time updates
         redis_client = redis.Redis(
-            host=config.redis_host, port=config.redis_port, decode_responses=True
+            host=app_config.redis_host, port=app_config.redis_port, decode_responses=True
         )
 
         try:
@@ -657,7 +657,7 @@ async def export_clip(
 
         output_path = export_with_preset(
             Path(clip["file_path"]),
-            Path(config.temp_dir) / "exports",
+            Path(app_config.temp_dir) / "exports",
             preset_name,
         )
 
@@ -685,7 +685,7 @@ async def cancel_task(
             return {"message": f"Task already in terminal state: {task.get('status')}"}
 
         redis_client = redis.Redis(
-            host=config.redis_host, port=config.redis_port, decode_responses=True
+            host=app_config.redis_host, port=app_config.redis_port, decode_responses=True
         )
         try:
             await redis_client.setex(f"task_cancel:{task_id}", 3600, "1")
@@ -740,7 +740,7 @@ async def resume_task(
         add_subtitles = True
 
         redis_client = redis.Redis(
-            host=config.redis_host, port=config.redis_port, decode_responses=True
+            host=app_config.redis_host, port=app_config.redis_port, decode_responses=True
         )
         try:
             source_payload = await redis_client.get(f"task_source:{task_id}")
@@ -763,7 +763,7 @@ async def resume_task(
             raise HTTPException(status_code=400, detail="Task source URL is missing")
 
         redis_client = redis.Redis(
-            host=config.redis_host, port=config.redis_port, decode_responses=True
+            host=app_config.redis_host, port=app_config.redis_port, decode_responses=True
         )
         try:
             await redis_client.delete(f"task_cancel:{task_id}")
@@ -778,7 +778,7 @@ async def resume_task(
             progress_message="Re-queued by user",
         )
 
-        processing_mode = task.get("processing_mode") or config.default_processing_mode
+        processing_mode = task.get("processing_mode") or app_config.default_processing_mode
 
         job_id = await JobQueue.enqueue_processing_job(
             "process_video_task",
@@ -808,7 +808,7 @@ async def resume_task(
 async def list_dead_letter_tasks():
     """List tasks that exhausted retries and landed in dead-letter store."""
     redis_client = redis.Redis(
-        host=config.redis_host, port=config.redis_port, decode_responses=True
+        host=app_config.redis_host, port=app_config.redis_port, decode_responses=True
     )
     try:
         ids_result = redis_client.smembers("tasks:dead_letter")

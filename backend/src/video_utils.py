@@ -23,7 +23,7 @@ from .caption_templates import get_template, CAPTION_TEMPLATES
 from .font_registry import find_font_path
 
 logger = logging.getLogger(__name__)
-config = Config()
+app_config = Config()
 
 
 class VideoProcessor:
@@ -82,11 +82,11 @@ class VideoProcessor:
 
 def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
     """Get transcript using AssemblyAI with word-level timing for precise subtitles."""
+    
     logger.info(f"Getting transcript for: {video_path}")
 
     # Configure AssemblyAI
-    aai.settings.api_key = config.assembly_ai_api_key
-    transcriber = aai.Transcriber()
+    aai.settings.api_key = app_config.assembly_ai_api_key
 
     # Request word-level timestamps for precise subtitle sync
     speech_model_value = aai.SpeechModel.best
@@ -97,14 +97,13 @@ def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
         speaker_labels=False,
         punctuate=True,
         format_text=True,
-        speech_model=speech_model_value,
+        speech_models=["universal-3-pro", "universal-2"]
     )
-
     try:
         logger.info("Starting AssemblyAI transcription")
-        transcript = transcriber.transcribe(str(video_path), config=config_obj)
+        transcript = aai.Transcriber(config=config_obj).transcribe(str(video_path))
 
-        if transcript.status == aai.TranscriptStatus.error:
+        if transcript.status == "error":
             logger.error(f"AssemblyAI transcription failed: {transcript.error}")
             raise Exception(f"Transcription failed: {transcript.error}")
 
@@ -1188,7 +1187,6 @@ def create_optimized_clip(
             )
             target_width, target_height = round_to_even(new_width), round_to_even(new_height)
             processed_clip = cropped_clip
->>>>>>> 70946ce (Subtitle speed up)
 
         # Add AssemblyAI subtitles with template support
         final_clips = [processed_clip]

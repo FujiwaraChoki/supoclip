@@ -116,7 +116,7 @@ class WorkerSettings:
     from ..config import Config
     from arq.connections import RedisSettings
 
-    config = Config()
+    app_config = Config()
 
     # Functions to run
     functions = [process_video_task]
@@ -124,7 +124,7 @@ class WorkerSettings:
 
     # Redis settings from environment
     redis_settings = RedisSettings(
-        host=config.redis_host, port=config.redis_port, database=0
+        host=app_config.redis_host, port=app_config.redis_port, database=0
     )
 
     # Retry settings
