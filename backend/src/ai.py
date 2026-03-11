@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from .config import Config
 
 logger = logging.getLogger(__name__)
-config = Config()
+app_config = Config()
 
 
 class ViralityAnalysis(BaseModel):
@@ -163,19 +163,19 @@ def _get_missing_llm_key_error(model_name: str) -> Optional[str]:
     """Return a clear configuration error when the selected LLM key is missing."""
     provider = model_name.split(":", 1)[0].strip().lower()
 
-    if provider in {"google", "google-gla"} and not config.google_api_key:
+    if provider in {"google", "google-gla"} and not app_config.google_api_key:
         return (
             "Selected LLM provider is Google, but GOOGLE_API_KEY is not set. "
             "Set GOOGLE_API_KEY or set LLM to openai:* / anthropic:* / ollama:* with the matching API key."
         )
 
-    if provider == "openai" and not config.openai_api_key:
+    if provider == "openai" and not app_config.openai_api_key:
         return (
             "Selected LLM provider is OpenAI, but OPENAI_API_KEY is not set. "
             "Set OPENAI_API_KEY or choose another provider with a matching API key."
         )
 
-    if provider == "anthropic" and not config.anthropic_api_key:
+    if provider == "anthropic" and not app_config.anthropic_api_key:
         return (
             "Selected LLM provider is Anthropic, but ANTHROPIC_API_KEY is not set. "
             "Set ANTHROPIC_API_KEY or choose another provider with a matching API key."
@@ -193,13 +193,13 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
     """Get or create the transcript analysis agent (lazy initialization)."""
     global _transcript_agent
     if _transcript_agent is None:
-        config_error = _get_missing_llm_key_error(config.llm)
+        config_error = _get_missing_llm_key_error(app_config.llm)
         if config_error:
             raise RuntimeError(config_error)
 
         _transcript_agent = Agent[None, TranscriptAnalysis](
-            model=config.llm,
-            result_type=TranscriptAnalysis,
+            model=app_config.llm,
+            output_type=TranscriptAnalysis,
             system_prompt=simplified_system_prompt,
         )
     return _transcript_agent
@@ -229,8 +229,12 @@ For each segment, provide a detailed virality score breakdown.{broll_instruction
 Transcript:
 {transcript}"""
         )
+        
+        print(type(result.output))
+        print(result.output)
 
-        analysis = result.data
+
+        analysis = result.output
         logger.info(
             f"AI analysis found {len(analysis.most_relevant_segments)} segments"
         )

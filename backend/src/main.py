@@ -11,6 +11,7 @@ import json
 import asyncio
 from typing import Dict, Any
 
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -33,7 +34,7 @@ from .api.routes.tasks import router as tasks_router
 from .api.routes.feedback import router as feedback_router
 from .services.video_service import VideoService, UPLOAD_URL_PREFIX
 
-config = Config()
+app_config = Config()
 
 
 @asynccontextmanager
@@ -54,7 +55,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=config.cors_origins,
+    allow_origins=app_config.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=[
@@ -72,13 +73,13 @@ app.include_router(tasks_router)
 app.include_router(feedback_router)
 
 # Mount static files for serving clips
-clips_dir = Path(config.temp_dir) / "clips"
+clips_dir = Path(app_config.temp_dir) / "clips"
 clips_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/clips", StaticFiles(directory=str(clips_dir)), name="clips")
 
 
 def _get_authenticated_user_id(request: Request) -> str:
-    if config.monetization_enabled:
+    if app_config.monetization_enabled:
         return get_signed_user_id(request, config)
 
     user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
@@ -111,7 +112,7 @@ async def check_database_health(db: AsyncSession = Depends(get_db)):
 @app.post("/start")
 async def start_task(request: Request):
     """Start a new task for authenticated users"""
-    if config.monetization_enabled:
+    if app_config.monetization_enabled:
         raise HTTPException(status_code=404, detail="Not found")
 
     logger.info("🚀 Starting new task request")
@@ -273,7 +274,7 @@ async def start_task(request: Request):
 
                 # Create clips from relevant segments with transitions and custom fonts
                 logger.info("🎬 Starting video clip generation with transitions")
-                clips_output_dir = Path(config.temp_dir) / "clips"
+                clips_output_dir = Path(app_config.temp_dir) / "clips"
                 logger.info(f"📁 Output directory: {clips_output_dir}")
                 logger.info(
                     f"🎨 Font settings - Family: {font_family}, Size: {font_size}, Color: {font_color}, Template: {caption_template}"
@@ -357,7 +358,7 @@ async def start_task(request: Request):
 @app.post("/start-with-progress")
 async def start_task_with_progress(request: Request):
     """Start a new task and return task ID for SSE tracking"""
-    if config.monetization_enabled:
+    if app_config.monetization_enabled:
         raise HTTPException(status_code=404, detail="Not found")
 
     data = await request.json()
@@ -554,7 +555,7 @@ async def process_video_task(
             logger.info(
                 f"📊 Task {task_id}: Creating {len(relevant_segments_json)} video clips with transitions..."
             )
-            clips_output_dir = Path(config.temp_dir) / "clips"
+            clips_output_dir = Path(app_config.temp_dir) / "clips"
             logger.info(
                 f"🎨 Task {task_id}: Font settings - Family: {font_family}, Size: {font_size}, Color: {font_color}, Template: {caption_template}"
             )
@@ -828,7 +829,7 @@ async def search_broll(query: str, count: int = 5, orientation: str = "portrait"
     try:
         from .broll import search_broll_videos, get_video_download_url
 
-        if not config.pexels_api_key:
+        if not app_config.pexels_api_key:
             raise HTTPException(
                 status_code=503,
                 detail="B-roll service not configured (missing Pexels API key)",
@@ -871,8 +872,8 @@ async def search_broll(query: str, count: int = 5, orientation: str = "portrait"
 async def broll_status():
     """Check if B-roll service is configured"""
     return {
-        "configured": bool(config.pexels_api_key),
-        "provider": "pexels" if config.pexels_api_key else None,
+        "configured": bool(app_config.pexels_api_key),
+        "provider": "pexels" if app_config.pexels_api_key else None,
     }
 
 
@@ -894,7 +895,7 @@ async def upload_video(request: Request):
             raise HTTPException(status_code=400, detail="No video file provided")
 
         # Create uploads directory
-        uploads_dir = Path(config.temp_dir) / "uploads"
+        uploads_dir = Path(app_config.temp_dir) / "uploads"
         uploads_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate unique filename to avoid conflicts

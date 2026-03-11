@@ -27,12 +27,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
 logger = logging.getLogger(__name__)
-config = Config()
+app_config = Config()
 router = APIRouter(tags=["media"])
 
 
 def _get_authenticated_user_id(request: Request) -> str:
-    if config.monetization_enabled:
+    if app_config.monetization_enabled:
         return get_signed_user_id(request, config)
 
     # Self-hosted: accept user_id or x-supoclip-user-id (frontend uses buildBackendAuthHeaders)
@@ -217,8 +217,8 @@ async def get_caption_templates():
 async def get_broll_status():
     """Return whether B-roll integrations are configured."""
     return {
-        "configured": bool(config.pexels_api_key),
-        "provider": "pexels" if config.pexels_api_key else None,
+        "configured": bool(app_config.pexels_api_key),
+        "provider": "pexels" if app_config.pexels_api_key else None,
     }
 
 
@@ -239,7 +239,7 @@ async def upload_video(request: Request):
         upload_filename = upload.filename or "upload.mp4"
 
         # Create uploads directory
-        uploads_dir = Path(config.temp_dir) / "uploads"
+        uploads_dir = Path(app_config.temp_dir) / "uploads"
         uploads_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate unique filename

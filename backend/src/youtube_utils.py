@@ -15,14 +15,14 @@ import subprocess
 from .config import Config
 
 logger = logging.getLogger(__name__)
-config = Config()
+app_config = Config()
 
 
 class YouTubeDownloader:
     """Enhanced YouTube downloader with optimized settings."""
 
     def __init__(self):
-        self.temp_dir = Path(config.temp_dir)
+        self.temp_dir = Path(app_config.temp_dir)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
 
     def get_optimal_download_options(self, video_id: str) -> Dict[str, Any]:
@@ -340,7 +340,7 @@ def is_video_suitable_for_processing(
 
 def cleanup_downloaded_files(video_id: str):
     """Clean up downloaded files for a specific video ID."""
-    temp_dir = Path(config.temp_dir)
+    temp_dir = Path(app_config.temp_dir)
 
     for file_path in temp_dir.glob(f"{video_id}.*"):
         try:

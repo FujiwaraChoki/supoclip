@@ -36,7 +36,7 @@ from .observability import (
 configure_logging()
 
 logger = logging.getLogger(__name__)
-config = Config()
+app_config = Config()
 
 
 @asynccontextmanager
@@ -73,7 +73,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=config.cors_origins,
+    allow_origins=app_config.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=[
@@ -154,7 +154,7 @@ async def unhandled_exception_handler(_: Request, exc: Exception):
 
 
 # Mount static files for serving clips
-clips_dir = Path(config.temp_dir) / "clips"
+clips_dir = Path(app_config.temp_dir) / "clips"
 clips_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/clips", StaticFiles(directory=str(clips_dir)), name="clips")
 

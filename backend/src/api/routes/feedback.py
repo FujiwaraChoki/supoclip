@@ -11,7 +11,7 @@ from ...auth_headers import get_signed_user_id
 from ...config import Config
 
 logger = logging.getLogger(__name__)
-config = Config()
+app_config = Config()
 
 router = APIRouter(tags=["feedback"])
 
@@ -42,7 +42,7 @@ class FeedbackRequest(BaseModel):
 
 @router.post("/feedback")
 async def submit_feedback(body: FeedbackRequest, request: Request):
-    if config.monetization_enabled:
+    if app_config.monetization_enabled:
         user_id = get_signed_user_id(request, config)
     else:
         user_id = request.headers.get("user_id")
@@ -52,7 +52,7 @@ async def submit_feedback(body: FeedbackRequest, request: Request):
 
     is_sales = body.category in SALES_CATEGORIES
     webhook_url = (
-        config.discord_sales_webhook_url if is_sales else config.discord_feedback_webhook_url
+        app_config.discord_sales_webhook_url if is_sales else app_config.discord_feedback_webhook_url
     )
 
     if not webhook_url:
