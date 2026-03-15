@@ -57,6 +57,15 @@ RUN bunx prisma generate
 ENV NEXT_TELEMETRY_DISABLED=1
 # Skip linting during build (generated Prisma code has lint warnings)
 ENV SKIP_LINT=1
+
+# Build-time env vars (NEXT_PUBLIC_* must be present at build time)
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+ARG NEXT_PUBLIC_SELF_HOST=true
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+ENV NEXT_PUBLIC_SELF_HOST=${NEXT_PUBLIC_SELF_HOST}
+
 RUN bun run build
 
 # Runner stage (for production)

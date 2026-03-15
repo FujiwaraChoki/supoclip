@@ -1,11 +1,17 @@
 # Use Python 3.11 slim image
 FROM python:3.11-slim
 
-# Install system dependencies including ffmpeg
+# Install system dependencies including ffmpeg and unzip (for deno)
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
+
+# Install deno (required by yt-dlp for YouTube JS challenge solving)
+RUN curl -fsSL https://deno.land/install.sh | sh
+ENV DENO_DIR=/root/.deno
+ENV PATH="/root/.deno/bin:${PATH}"
 
 # Install uv package manager
 RUN pip install uv
@@ -38,4 +44,4 @@ RUN mkdir -p /app/uploads /app/clips /app/logs /tmp
 EXPOSE 8000
 
 # Activate virtual environment and start the application
-CMD [".venv/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD [".venv/bin/uvicorn", "src.main_refactored:app", "--host", "0.0.0.0", "--port", "8000"]

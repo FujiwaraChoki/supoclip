@@ -3,7 +3,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: development
+      target: ${FRONTEND_BUILD_TARGET:-development}
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        - NEXT_PUBLIC_SELF_HOST=${SELF_HOST:-true}
     container_name: supoclip-frontend
     ports:
       - "3000:3000"
@@ -12,9 +16,9 @@ services:
       - ./frontend/public:/app/public
       - ./frontend/prisma:/app/prisma
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=${NODE_ENV:-development}
       - NEXT_TELEMETRY_DISABLED=1
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
       - BACKEND_INTERNAL_URL=http://backend:8000
       - NEXT_PUBLIC_SELF_HOST=${SELF_HOST:-true}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
@@ -22,7 +26,7 @@ services:
       - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
       - DATABASE_URL=postgresql://supoclip:supoclip_password@postgres:5432/supoclip
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-supoclip_dev_secret_change_in_production}
-      - BETTER_AUTH_URL=http://localhost:3000
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
       - STRIPE_PRICE_ID=${STRIPE_PRICE_ID}
@@ -57,8 +61,10 @@ services:
       - ./backend/src:/app/src
       - uploads:/app/uploads
       - clips:/app/clips
+      - youtube_auth:/app/youtube-auth
       - ./backend/fonts:/app/fonts
       - ./backend/transitions:/app/transitions
+      - ./backend/cookies.txt:/app/legacy-cookies.txt:ro
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -84,6 +90,13 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://sp.localhost:3000}
       - FREE_PLAN_TASK_LIMIT=${FREE_PLAN_TASK_LIMIT:-10}
       - PRO_PLAN_TASK_LIMIT=${PRO_PLAN_TASK_LIMIT:-0}
+      - YOUTUBE_AUTH_ROTATION_ENABLED=${YOUTUBE_AUTH_ROTATION_ENABLED:-true}
+      - YOUTUBE_AUTH_VOLUME_DIR=${YOUTUBE_AUTH_VOLUME_DIR:-/app/youtube-auth}
+      - YOUTUBE_AUTH_VERIFY_URL=${YOUTUBE_AUTH_VERIFY_URL:-https://www.youtube.com/watch?v=jNQXAC9IVRw}
+      - YOUTUBE_AUTH_FAILURE_THRESHOLD=${YOUTUBE_AUTH_FAILURE_THRESHOLD:-2}
+      - YOUTUBE_AUTH_COOLDOWN_MINUTES=${YOUTUBE_AUTH_COOLDOWN_MINUTES:-30}
+      - YOUTUBE_AUTH_REFRESH_SESSION_TTL_MINUTES=${YOUTUBE_AUTH_REFRESH_SESSION_TTL_MINUTES:-30}
+      - YOUTUBE_COOKIES_FILE=/app/legacy-cookies.txt
     restart: unless-stopped
     depends_on:
       postgres:
@@ -111,8 +124,10 @@ services:
       - ./backend/src:/app/src
       - uploads:/app/uploads
       - clips:/app/clips
+      - youtube_auth:/app/youtube-auth
       - ./backend/fonts:/app/fonts
       - ./backend/transitions:/app/transitions
+      - ./backend/cookies.txt:/app/legacy-cookies.txt:ro
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -138,6 +153,13 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://sp.localhost:3000}
       - FREE_PLAN_TASK_LIMIT=${FREE_PLAN_TASK_LIMIT:-10}
       - PRO_PLAN_TASK_LIMIT=${PRO_PLAN_TASK_LIMIT:-0}
+      - YOUTUBE_AUTH_ROTATION_ENABLED=${YOUTUBE_AUTH_ROTATION_ENABLED:-true}
+      - YOUTUBE_AUTH_VOLUME_DIR=${YOUTUBE_AUTH_VOLUME_DIR:-/app/youtube-auth}
+      - YOUTUBE_AUTH_VERIFY_URL=${YOUTUBE_AUTH_VERIFY_URL:-https://www.youtube.com/watch?v=jNQXAC9IVRw}
+      - YOUTUBE_AUTH_FAILURE_THRESHOLD=${YOUTUBE_AUTH_FAILURE_THRESHOLD:-2}
+      - YOUTUBE_AUTH_COOLDOWN_MINUTES=${YOUTUBE_AUTH_COOLDOWN_MINUTES:-30}
+      - YOUTUBE_AUTH_REFRESH_SESSION_TTL_MINUTES=${YOUTUBE_AUTH_REFRESH_SESSION_TTL_MINUTES:-30}
+      - YOUTUBE_COOKIES_FILE=/app/legacy-cookies.txt
     restart: unless-stopped
     depends_on:
       postgres:
@@ -170,8 +192,6 @@ services:
       POSTGRES_DB: supoclip
       POSTGRES_USER: supoclip
       POSTGRES_PASSWORD: supoclip_password
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -186,6 +206,8 @@ volumes:
   uploads:
     driver: local
   clips:
+    driver: local
+  youtube_auth:
     driver: local
   redis_data:
     driver: local
