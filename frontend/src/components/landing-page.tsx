@@ -26,6 +26,7 @@ import {
   ExternalLink,
   CheckCircle,
 } from "lucide-react";
+import { track } from "@/lib/datafast";
 import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
 
 function ScrollReveal({
@@ -165,6 +166,7 @@ export default function LandingPage() {
         throw new Error("Failed to join waitlist");
       }
 
+      track("waitlist_submitted");
       setWaitlistSubmitted(true);
       setEmail("");
     } catch (error) {

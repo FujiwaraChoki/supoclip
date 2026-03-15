@@ -48,6 +48,31 @@ The backend can infer a default LLM from whichever API key is present, but setti
 | `TEMP_DIR` | `/app/uploads` in Docker | Temporary backend working directory for uploads and processing |
 | `CORS_ORIGINS` | `http://localhost:3000,http://sp.localhost:3000` | Allowed browser origins for backend requests |
 
+## Analytics Settings
+
+SupoClip can send pageviews and custom product events to DataFast from the `frontend` app.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_DATAFAST_WEBSITE_ID` | unset | Public DataFast website ID used by the tracking script |
+| `NEXT_PUBLIC_DATAFAST_DOMAIN` | unset | Root domain tracked by DataFast, for example `supoclip.com` |
+| `NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST` | `false` | Enables local tracking on `localhost` when explicitly set to `true` |
+
+### DataFast behavior
+
+- Tracking stays disabled unless both `NEXT_PUBLIC_DATAFAST_WEBSITE_ID` and `NEXT_PUBLIC_DATAFAST_DOMAIN` are set.
+- The frontend proxies DataFast through `/js/script.js` and `/api/events` using Next.js rewrites to reduce ad blocker loss.
+- Localhost is excluded by default to avoid polluting production analytics.
+- The current custom goals are:
+  - `signup_completed`
+  - `signin_completed`
+  - `task_created`
+  - `billing_checkout_started`
+  - `billing_portal_opened`
+  - `preferences_saved`
+  - `feedback_submitted`
+  - `waitlist_submitted`
+
 ## Processing Settings
 
 These settings affect clip generation speed, throughput, and defaults.
@@ -152,6 +177,9 @@ These are especially relevant in Docker and deployments:
 |---|---|
 | `NEXT_PUBLIC_API_URL` | Browser-facing backend base URL |
 | `NEXT_PUBLIC_APP_URL` | Canonical frontend URL |
+| `NEXT_PUBLIC_DATAFAST_WEBSITE_ID` | Public DataFast website ID |
+| `NEXT_PUBLIC_DATAFAST_DOMAIN` | Domain passed to the DataFast script |
+| `NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST` | Enables local DataFast testing |
 | `BACKEND_INTERNAL_URL` | Internal backend URL used by frontend server routes |
 | `BETTER_AUTH_URL` | Auth origin for Better Auth |
 | `NEXT_PUBLIC_SELF_HOST` | Exposes self-host mode to the frontend |
@@ -186,6 +214,14 @@ BETTER_AUTH_SECRET=replace_me
 SELF_HOST=true
 ```
 
+To enable DataFast on a deployed frontend, add:
+
+```env
+NEXT_PUBLIC_DATAFAST_WEBSITE_ID=dfid_xxxxx
+NEXT_PUBLIC_DATAFAST_DOMAIN=your-domain.com
+NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST=false
+```
+
 For hosted monetized use, add at minimum:
 
 ```env
@@ -203,4 +239,3 @@ RESEND_FROM_EMAIL="SupoClip <onboarding@your-domain.com>"
 - [Setup](./setup.md)
 - [Troubleshooting](./troubleshooting.md)
 - [Architecture](./architecture.md)
-

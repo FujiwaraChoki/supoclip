@@ -19,6 +19,7 @@ If you are new to the project, start here:
   - Production-minded setup notes
 - [Configuration](./configuration.md)
   - Required API keys
+  - DataFast analytics settings
   - Processing modes
   - Auth and monetization settings
   - YouTube auth rotation settings
@@ -89,4 +90,3 @@ This new docs tree replaces the need to hunt across several markdown files, but 
 - [`CLAUDE.md`](../CLAUDE.md)
 - [`REFACTORING_COMPLETE.md`](../REFACTORING_COMPLETE.md)
 - [`backend/REFACTORING_GUIDE.md`](../backend/REFACTORING_GUIDE.md)
-

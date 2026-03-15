@@ -21,6 +21,7 @@ This guide covers the recommended Docker setup, local development mode, and the 
 ### Optional credentials
 
 - `PEXELS_API_KEY` for AI B-roll sourcing
+- `NEXT_PUBLIC_DATAFAST_WEBSITE_ID` and `NEXT_PUBLIC_DATAFAST_DOMAIN` for DataFast analytics
 - `RESEND_API_KEY` and `RESEND_FROM_EMAIL` for hosted billing emails
 - Stripe keys if you are running with monetization enabled
 - Discord webhook URLs for feedback forwarding
@@ -50,6 +51,11 @@ LLM=google-gla:gemini-3-flash-preview
 GOOGLE_API_KEY=your_google_key
 BETTER_AUTH_SECRET=replace_this_for_real_use
 BACKEND_AUTH_SECRET=replace_this_if_using_hosted_mode
+
+# Optional: DataFast analytics
+NEXT_PUBLIC_DATAFAST_WEBSITE_ID=dfid_xxxxx
+NEXT_PUBLIC_DATAFAST_DOMAIN=your-domain.com
+NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST=false
 ```
 
 ### 3. Start the stack
@@ -115,6 +121,8 @@ After the stack is up:
 4. Open the task page and confirm progress updates appear.
 5. Wait for clip generation to finish.
 6. Open the clips list and verify playback and download work.
+7. If DataFast is enabled, open browser devtools and confirm `/js/script.js` and `/api/events` load from your own domain.
+8. Trigger one successful action such as sign-up, sign-in, task creation, feedback submission, or waitlist submission and verify the goal arrives in DataFast.
 
 ## Local Development Without Docker
 
@@ -187,10 +195,12 @@ For anything beyond local experimentation:
 - Change `BETTER_AUTH_SECRET`
 - Set a strong `BACKEND_AUTH_SECRET`
 - Put the app behind HTTPS
+- Set `NEXT_PUBLIC_APP_URL` to your deployed frontend origin
 - Use persistent storage and backups for PostgreSQL
 - Keep API keys outside version control
 - Decide whether you want self-host mode or monetized hosted mode before launch
 - Verify all callback URLs and origins match your deployed domain
+- If using DataFast, set `NEXT_PUBLIC_DATAFAST_DOMAIN` to the deployed root domain you want tracked
 
 ## Useful Commands
 
@@ -228,4 +238,3 @@ Warning: `docker-compose down -v` deletes database and Redis data.
 - Review [Configuration](./configuration.md) before changing defaults
 - Review [App Guide](./app-guide.md) to understand the UI and workflows
 - Review [Troubleshooting](./troubleshooting.md) if tasks do not process correctly
-
