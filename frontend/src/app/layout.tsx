@@ -27,6 +27,17 @@ export const metadata: Metadata = {
   icons: {
     icon: "/icon.svg",
   },
+  openGraph: {
+    title: "SupoClip",
+    description: "Turn long videos into viral-ready shorts.",
+    siteName: "SupoClip",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SupoClip",
+    description: "Turn long videos into viral-ready shorts.",
+  },
 };
 
 export default function RootLayout({
