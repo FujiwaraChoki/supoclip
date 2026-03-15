@@ -2,6 +2,8 @@
 Source repository - handles all database operations for video sources.
 """
 
+from uuid import uuid4
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import Optional, Dict, Any  # Dict/Any kept for return type hints
@@ -18,17 +20,18 @@ class SourceRepository:
         db: AsyncSession, source_type: str, title: str, url: Optional[str] = None
     ) -> str:
         """Create a new source record and return its ID."""
-        source_id: Optional[str] = None
+        source_id = str(uuid4())
         try:
             result = await db.execute(
                 text(
                     """
-                    INSERT INTO sources (type, title, url, created_at, updated_at)
-                    VALUES (:source_type, :title, :url, NOW(), NOW())
+                    INSERT INTO sources (id, type, title, url, created_at, updated_at)
+                    VALUES (:source_id, :source_type, :title, :url, NOW(), NOW())
                     RETURNING id
                     """
                 ),
                 {
+                    "source_id": source_id,
                     "source_type": source_type,
                     "title": title,
                     "url": url,
@@ -41,12 +44,13 @@ class SourceRepository:
             result = await db.execute(
                 text(
                     """
-                    INSERT INTO sources (type, title, created_at, updated_at)
-                    VALUES (:source_type, :title, NOW(), NOW())
+                    INSERT INTO sources (id, type, title, created_at, updated_at)
+                    VALUES (:source_id, :source_type, :title, NOW(), NOW())
                     RETURNING id
                     """
                 ),
                 {
+                    "source_id": source_id,
                     "source_type": source_type,
                     "title": title,
                 },

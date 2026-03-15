@@ -28,7 +28,28 @@ dependencies = [
     "sse-starlette>=1.6.5",
     "arq>=0.26.0",
     "redis>=5.0.0",
+    "resend>=2.13.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
 ]
 
 [tool.uv]
 package = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+testpaths = ["tests"]
+addopts = """
+--cov=src.auth_headers
+--cov=src.services.billing_service
+--cov-report=term-missing
+--cov-report=html
+--cov-fail-under=65
+"""

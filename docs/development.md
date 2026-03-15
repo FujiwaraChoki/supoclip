@@ -225,13 +225,57 @@ Primary files:
 
 ## Testing and Verification
 
-There is not yet a mature automated test suite. Current baseline verification is:
+The repository now uses a three-layer automated test setup:
 
-- `npm run lint` in `frontend/`
-- manual smoke testing
-- Docker-based end-to-end validation
+- backend `pytest` for unit and integration coverage
+- frontend `Vitest` plus Testing Library for route handlers and client UI
+- frontend `Playwright` for seeded browser smoke tests against real frontend and backend processes
 
-Recommended smoke test:
+Primary repo-level commands:
+
+```bash
+make test
+make test-backend
+make test-frontend
+make test-e2e
+make test-ci
+```
+
+Direct app-level commands:
+
+```bash
+cd backend && uv sync --all-groups && .venv/bin/pytest
+cd frontend && npm install && npm run test:coverage
+cd frontend && npm run test:e2e
+```
+
+### Local Test Environment
+
+- Start PostgreSQL and Redis locally before running integration or e2e flows.
+- `docker-compose up -d postgres redis` is enough for backend and frontend test runs.
+- `docker-compose up -d` is the simplest full-stack option when you also want manual smoke testing.
+
+Useful backend test env vars:
+
+```bash
+DATABASE_URL=postgresql+asyncpg://localhost:5432/supoclip
+TEST_DATABASE_URL=postgresql+asyncpg://localhost:5432/supoclip
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+BACKEND_AUTH_SECRET=supoclip_test_secret
+BETTER_AUTH_SECRET=supoclip_better_auth_test_secret
+```
+
+### Coverage and CI
+
+- Backend coverage thresholds are enforced during `pytest`.
+- Frontend coverage thresholds are enforced during `npm run test:coverage`.
+- GitHub Actions runs separate `backend`, `frontend`, and `e2e` jobs with Postgres and Redis service containers.
+- Playwright failures retain traces, screenshots, and videos for debugging.
+
+### Recommended Manual Smoke Test
+
+Automated tests cover the main seams, but manual smoke testing is still useful for high-risk media flows:
 
 1. Start the stack.
 2. Sign in.
@@ -279,4 +323,3 @@ docker-compose logs -f redis
 - [Architecture](./architecture.md)
 - [API Reference](./api-reference.md)
 - [Troubleshooting](./troubleshooting.md)
-

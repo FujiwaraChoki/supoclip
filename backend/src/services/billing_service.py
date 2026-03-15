@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import Config
+from ..config import Config, get_config
 
 
 class BillingLimitExceeded(Exception):
@@ -17,9 +17,9 @@ class BillingLimitExceeded(Exception):
 
 
 class BillingService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, config: Config | None = None):
         self.db = db
-        self.config = Config()
+        self.config = config or get_config()
 
     @staticmethod
     def _month_window(now: datetime) -> tuple[datetime, datetime]:

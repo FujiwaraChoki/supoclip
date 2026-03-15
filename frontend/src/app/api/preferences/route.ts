@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import prisma from "@/lib/prisma";
+import { getPrismaClient } from "@/server/prisma";
+import { getServerSession } from "@/server/session";
 
 // GET /api/preferences - Get user preferences
-export async function GET(request: NextRequest) {
+export async function GET(_: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const session = await getServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -17,6 +14,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const prisma = getPrismaClient();
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
@@ -50,9 +48,7 @@ export async function GET(request: NextRequest) {
 // PATCH /api/preferences - Update user preferences
 export async function PATCH(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const session = await getServerSession();
 
     if (!session?.user?.id) {
       return NextResponse.json(
@@ -86,6 +82,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    const prisma = getPrismaClient();
     const updatedUser = await prisma.user.update({
       where: { id: session.user.id },
       data: {

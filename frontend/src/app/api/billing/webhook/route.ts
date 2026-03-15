@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 import { monetizationEnabled } from "@/lib/monetization";
-import { getStripeClient } from "@/lib/stripe";
+import { fetchBackend } from "@/server/backend-api";
+import { getPrismaClient } from "@/server/prisma";
+import { getServerStripeClient } from "@/server/stripe";
 import Stripe from "stripe";
+
+type SubscriptionEmailEvent = "subscribed" | "unsubscribed";
 
 function toDate(unixSeconds: number | null | undefined): Date | null {
   if (!unixSeconds) {
@@ -37,6 +41,7 @@ function getSubscriptionPeriod(subscription: Stripe.Subscription): {
 }
 
 async function upsertSubscriptionState(subscription: Stripe.Subscription, expectedPriceId: string) {
+  const prisma = getPrismaClient();
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
   const subscriptionId = subscription.id;
   const status = subscription.status;
@@ -57,7 +62,43 @@ async function upsertSubscriptionState(subscription: Stripe.Subscription, expect
   });
 }
 
+async function sendBackendSubscriptionEmail(userId: string, event: SubscriptionEmailEvent) {
+  const response = await fetchBackend("/billing/subscription-email", {
+    method: "POST",
+    userId,
+    extraHeaders: {
+      ...buildBackendAuthHeaders(userId),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ event }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Backend subscription email failed with ${response.status}: ${detail || "unknown error"}`
+    );
+  }
+}
+
+async function sendSubscriptionEmailBestEffort(
+  userId: string,
+  event: SubscriptionEmailEvent
+) {
+  try {
+    await sendBackendSubscriptionEmail(userId, event);
+  } catch (error) {
+    console.error("Subscription email side effect failed", {
+      userId,
+      event,
+      error,
+    });
+  }
+}
+
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session, expectedPriceId: string) {
+  const prisma = getPrismaClient();
   if (session.mode !== "subscription") {
     return;
   }
@@ -68,10 +109,23 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, expecte
     return;
   }
 
-  const metadataUserId = session.metadata?.userId;
-  if (metadataUserId) {
+  let userId = session.metadata?.userId ?? null;
+  if (!userId) {
+    const customerEmail = session.customer_details?.email || session.customer_email || undefined;
+    const existingUser = await prisma.user.findFirst({
+      where: customerEmail
+        ? {
+            OR: [{ stripe_customer_id: customerId }, { email: customerEmail }],
+          }
+        : { stripe_customer_id: customerId },
+      select: { id: true },
+    });
+    userId = existingUser?.id ?? null;
+  }
+
+  if (userId) {
     await prisma.user.update({
-      where: { id: metadataUserId },
+      where: { id: userId },
       data: {
         stripe_customer_id: customerId,
         stripe_subscription_id: subscriptionId,
@@ -79,13 +133,22 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, expecte
     });
   }
 
-  const stripe = getStripeClient();
+  const stripe = getServerStripeClient();
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
   await upsertSubscriptionState(subscription, expectedPriceId);
+
+  if (userId && isProSubscription(subscription, expectedPriceId)) {
+    await sendSubscriptionEmailBestEffort(userId, "subscribed");
+  }
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  const prisma = getPrismaClient();
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
+  const user = await prisma.user.findFirst({
+    where: { stripe_customer_id: customerId },
+    select: { id: true },
+  });
 
   await prisma.user.updateMany({
     where: { stripe_customer_id: customerId },
@@ -98,6 +161,10 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
       trial_ends_at: null,
     },
   });
+
+  if (user?.id) {
+    await sendSubscriptionEmailBestEffort(user.id, "unsubscribed");
+  }
 }
 
 export async function POST(request: Request) {
@@ -121,7 +188,7 @@ export async function POST(request: Request) {
   }
 
   const payload = await request.text();
-  const stripe = getStripeClient();
+  const stripe = getServerStripeClient();
 
   let event: Stripe.Event;
   try {
@@ -131,7 +198,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await prisma.stripeWebhookEvent.create({
+    await getPrismaClient().stripeWebhookEvent.create({
       data: {
         id: event.id,
         type: event.type,
@@ -158,7 +225,7 @@ export async function POST(request: Request) {
       await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
     }
   } catch (error) {
-    await prisma.stripeWebhookEvent.delete({ where: { id: event.id } }).catch(() => {});
+    await getPrismaClient().stripeWebhookEvent.delete({ where: { id: event.id } }).catch(() => {});
     throw error;
   }
 

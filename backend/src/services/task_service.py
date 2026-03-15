@@ -18,7 +18,7 @@ from ..repositories.source_repository import SourceRepository
 from ..repositories.clip_repository import ClipRepository
 from ..repositories.cache_repository import CacheRepository
 from .video_service import VideoService
-from ..config import Config
+from ..config import Config, get_config
 from ..clip_editor import (
     trim_clip_file,
     split_clip_file,
@@ -37,14 +37,14 @@ logger = logging.getLogger(__name__)
 class TaskService:
     """Service for task workflow orchestration."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, config: Config | None = None):
         self.db = db
         self.task_repo = TaskRepository()
         self.source_repo = SourceRepository()
         self.clip_repo = ClipRepository()
         self.cache_repo = CacheRepository()
         self.video_service = VideoService()
-        self.config = Config()
+        self.config = config or get_config()
 
     @staticmethod
     def _build_cache_key(url: str, source_type: str, processing_mode: str) -> str:
