@@ -5,6 +5,16 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FeedbackButton } from "@/components/feedback-button";
 
+const defaultMetadataBase = "http://localhost:3000";
+
+function getMetadataBase() {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_APP_URL || defaultMetadataBase);
+  } catch {
+    return new URL(defaultMetadataBase);
+  }
+}
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -24,6 +34,7 @@ const syne = Syne({
 export const metadata: Metadata = {
   title: "SupoClip",
   description: "Turn long videos into viral-ready shorts.",
+  metadataBase: getMetadataBase(),
   icons: {
     icon: "/icon.svg",
   },
