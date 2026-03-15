@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Syne } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { FeedbackButton } from "@/components/feedback-button";
 
 const geistSans = Geist({
@@ -36,9 +37,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} ${syne.variable} antialiased`}>
-        {children}
-        <FeedbackButton />
-        <Toaster />
+        <TooltipProvider>
+          {children}
+          <FeedbackButton />
+          <Toaster />
+        </TooltipProvider>
       </body>
     </html>
   );
