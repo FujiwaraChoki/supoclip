@@ -82,6 +82,21 @@ async function sendBackendSubscriptionEmail(userId: string, event: SubscriptionE
   }
 }
 
+async function sendSubscriptionEmailBestEffort(
+  userId: string,
+  event: SubscriptionEmailEvent
+) {
+  try {
+    await sendBackendSubscriptionEmail(userId, event);
+  } catch (error) {
+    console.error("Subscription email side effect failed", {
+      userId,
+      event,
+      error,
+    });
+  }
+}
+
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session, expectedPriceId: string) {
   const prisma = getPrismaClient();
   if (session.mode !== "subscription") {
@@ -123,7 +138,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, expecte
   await upsertSubscriptionState(subscription, expectedPriceId);
 
   if (userId && isProSubscription(subscription, expectedPriceId)) {
-    await sendBackendSubscriptionEmail(userId, "subscribed");
+    await sendSubscriptionEmailBestEffort(userId, "subscribed");
   }
 }
 
@@ -148,7 +163,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   });
 
   if (user?.id) {
-    await sendBackendSubscriptionEmail(user.id, "unsubscribed");
+    await sendSubscriptionEmailBestEffort(user.id, "unsubscribed");
   }
 }
 

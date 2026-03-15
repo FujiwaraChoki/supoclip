@@ -74,6 +74,7 @@ describe("/api/billing/webhook", () => {
   });
 
   it("notifies the backend when a subscription is deleted", async () => {
+    const deleteEvent = vi.fn().mockResolvedValue({});
     const stripe = {
       webhooks: {
         constructEvent: vi.fn().mockReturnValue({
@@ -92,7 +93,7 @@ describe("/api/billing/webhook", () => {
     vi.mocked(getPrismaClient).mockReturnValue({
       stripeWebhookEvent: {
         create: vi.fn().mockResolvedValue({}),
-        delete: vi.fn().mockResolvedValue({}),
+        delete: deleteEvent,
       },
       user: {
         findFirst: vi.fn().mockResolvedValue({ id: "user-1" }),
@@ -111,5 +112,52 @@ describe("/api/billing/webhook", () => {
 
     expect(fetchBackend).toHaveBeenCalled();
     expect(response.status).toBe(200);
+    expect(deleteEvent).not.toHaveBeenCalled();
+  });
+
+  it("acknowledges subscription deletions even when backend email delivery fails", async () => {
+    const deleteEvent = vi.fn().mockResolvedValue({});
+    const stripe = {
+      webhooks: {
+        constructEvent: vi.fn().mockReturnValue({
+          id: "evt_3",
+          type: "customer.subscription.deleted",
+          data: {
+            object: {
+              customer: "cus_123",
+            },
+          },
+        }),
+      },
+    };
+
+    vi.mocked(getServerStripeClient).mockReturnValue(stripe as never);
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: {
+        create: vi.fn().mockResolvedValue({}),
+        delete: deleteEvent,
+      },
+      user: {
+        findFirst: vi.fn().mockResolvedValue({ id: "user-1" }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    } as never);
+    vi.mocked(fetchBackend).mockResolvedValue(
+      new Response("email service unavailable", { status: 503 }),
+    );
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await POST(
+      new Request("http://localhost/api/billing/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(deleteEvent).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });
