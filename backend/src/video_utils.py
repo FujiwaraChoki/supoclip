@@ -24,6 +24,7 @@ from .font_registry import find_font_path
 
 logger = logging.getLogger(__name__)
 config = Config()
+TRANSCRIPT_CACHE_SCHEMA_VERSION = 2
 
 
 class VideoProcessor:
@@ -94,7 +95,7 @@ def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
         speech_model_value = aai.SpeechModel.nano
 
     config_obj = aai.TranscriptionConfig(
-        speaker_labels=False,
+        speaker_labels=True,
         punctuate=True,
         format_text=True,
         speech_model=speech_model_value,
@@ -108,47 +109,7 @@ def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
             logger.error(f"AssemblyAI transcription failed: {transcript.error}")
             raise Exception(f"Transcription failed: {transcript.error}")
 
-        # Format transcript with timestamps for AI analysis
-        formatted_lines = []
-        if transcript.words:
-            logger.info(f"Processing {len(transcript.words)} words with precise timing")
-
-            # Group words into logical segments for readability
-            current_segment = []
-            current_start = None
-            segment_word_count = 0
-            max_words_per_segment = 8  # ~3-4 seconds of speech
-
-            for word in transcript.words:
-                if current_start is None:
-                    current_start = word.start
-
-                current_segment.append(word.text)
-                segment_word_count += 1
-
-                # End segment at natural breaks or word limit
-                if (
-                    segment_word_count >= max_words_per_segment
-                    or word.text.endswith(".")
-                    or word.text.endswith("!")
-                    or word.text.endswith("?")
-                ):
-                    if current_segment:
-                        start_time = format_ms_to_timestamp(current_start)
-                        end_time = format_ms_to_timestamp(word.end)
-                        text = " ".join(current_segment)
-                        formatted_lines.append(f"[{start_time} - {end_time}] {text}")
-
-                    current_segment = []
-                    current_start = None
-                    segment_word_count = 0
-
-            # Handle any remaining words
-            if current_segment and current_start is not None:
-                start_time = format_ms_to_timestamp(current_start)
-                end_time = format_ms_to_timestamp(transcript.words[-1].end)
-                text = " ".join(current_segment)
-                formatted_lines.append(f"[{start_time} - {end_time}] {text}")
+        formatted_lines = format_transcript_for_analysis(transcript)
 
         # Cache the raw transcript for subtitle generation
         cache_transcript_data(video_path, transcript)
@@ -168,22 +129,32 @@ def cache_transcript_data(video_path: Path, transcript) -> None:
     """Cache AssemblyAI transcript data for subtitle generation."""
     cache_path = video_path.with_suffix(".transcript_cache.json")
 
-    # Store word-level data
     words_data = []
     if transcript.words:
-        for word in transcript.words:
-            words_data.append(
-                {
-                    "text": word.text,
-                    "start": word.start,
-                    "end": word.end,
-                    "confidence": word.confidence
-                    if hasattr(word, "confidence")
-                    else 1.0,
-                }
-            )
+        words_data = [_serialize_transcript_word(word) for word in transcript.words]
 
-    cache_data = {"words": words_data, "text": transcript.text}
+    utterances_data = []
+    if getattr(transcript, "utterances", None):
+        utterances_data = [
+            {
+                "text": utterance.text,
+                "start": utterance.start,
+                "end": utterance.end,
+                "speaker": getattr(utterance, "speaker", None),
+                "words": [
+                    _serialize_transcript_word(word)
+                    for word in getattr(utterance, "words", []) or []
+                ],
+            }
+            for utterance in transcript.utterances
+        ]
+
+    cache_data = {
+        "version": TRANSCRIPT_CACHE_SCHEMA_VERSION,
+        "words": words_data,
+        "utterances": utterances_data,
+        "text": transcript.text,
+    }
 
     with open(cache_path, "w") as f:
         json.dump(cache_data, f)
@@ -200,10 +171,83 @@ def load_cached_transcript_data(video_path: Path) -> Optional[Dict]:
 
     try:
         with open(cache_path, "r") as f:
-            return json.load(f)
+            payload = json.load(f)
+            if "version" not in payload:
+                payload["version"] = TRANSCRIPT_CACHE_SCHEMA_VERSION
+                payload.setdefault("utterances", [])
+            return payload
     except Exception as e:
         logger.warning(f"Failed to load transcript cache: {e}")
         return None
+
+
+def _serialize_transcript_word(word) -> Dict[str, Any]:
+    return {
+        "text": word.text,
+        "start": word.start,
+        "end": word.end,
+        "confidence": word.confidence if hasattr(word, "confidence") else 1.0,
+        "speaker": getattr(word, "speaker", None),
+    }
+
+
+def format_transcript_for_analysis(transcript) -> List[str]:
+    """Format transcripts into readable timestamped segments for AI analysis."""
+    utterances = getattr(transcript, "utterances", None) or []
+    if utterances:
+        formatted_lines = []
+        for utterance in utterances:
+            start_time = format_ms_to_timestamp(utterance.start)
+            end_time = format_ms_to_timestamp(utterance.end)
+            speaker = getattr(utterance, "speaker", None)
+            speaker_prefix = f"Speaker {speaker}: " if speaker else ""
+            formatted_lines.append(
+                f"[{start_time} - {end_time}] {speaker_prefix}{utterance.text}"
+            )
+        return formatted_lines
+
+    formatted_lines = []
+    words = getattr(transcript, "words", None) or []
+    if not words:
+        return formatted_lines
+
+    logger.info(f"Processing {len(words)} words with precise timing")
+
+    current_segment = []
+    current_start = None
+    segment_word_count = 0
+    max_words_per_segment = 8
+
+    for word in words:
+        if current_start is None:
+            current_start = word.start
+
+        current_segment.append(word.text)
+        segment_word_count += 1
+
+        if (
+            segment_word_count >= max_words_per_segment
+            or word.text.endswith(".")
+            or word.text.endswith("!")
+            or word.text.endswith("?")
+        ):
+            if current_segment:
+                start_time = format_ms_to_timestamp(current_start)
+                end_time = format_ms_to_timestamp(word.end)
+                text = " ".join(current_segment)
+                formatted_lines.append(f"[{start_time} - {end_time}] {text}")
+
+            current_segment = []
+            current_start = None
+            segment_word_count = 0
+
+    if current_segment and current_start is not None:
+        start_time = format_ms_to_timestamp(current_start)
+        end_time = format_ms_to_timestamp(words[-1].end)
+        text = " ".join(current_segment)
+        formatted_lines.append(f"[{start_time} - {end_time}] {text}")
+
+    return formatted_lines
 
 
 def format_ms_to_timestamp(ms: int) -> str:
@@ -1188,7 +1232,6 @@ def create_optimized_clip(
             )
             target_width, target_height = round_to_even(new_width), round_to_even(new_height)
             processed_clip = cropped_clip
->>>>>>> 70946ce (Subtitle speed up)
 
         # Add AssemblyAI subtitles with template support
         final_clips = [processed_clip]
