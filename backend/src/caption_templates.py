@@ -11,7 +11,7 @@ CAPTION_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "default": {
         "name": "Default",
         "description": "Clean white text with black outline",
-        "font_family": "THEBOLDFONT-FREEVERSION",
+        "font_family": "THEBOLDFONT",
         "font_size": 28,
         "font_color": "#FFFFFF",
         "highlight_color": "#FFD700",  # Gold for current word in karaoke mode
@@ -26,7 +26,7 @@ CAPTION_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "hormozi": {
         "name": "Hormozi",
         "description": "Bold green highlights like Alex Hormozi's videos",
-        "font_family": "THEBOLDFONT-FREEVERSION",
+        "font_family": "THEBOLDFONT",
         "font_size": 36,
         "font_color": "#FFFFFF",
         "highlight_color": "#00FF00",  # Bright green
@@ -41,7 +41,7 @@ CAPTION_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "mrbeast": {
         "name": "MrBeast",
         "description": "Large yellow text with red highlights",
-        "font_family": "THEBOLDFONT-FREEVERSION",
+        "font_family": "THEBOLDFONT",
         "font_size": 42,
         "font_color": "#FFFF00",  # Yellow
         "highlight_color": "#FF0000",  # Red
@@ -86,7 +86,7 @@ CAPTION_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "neon": {
         "name": "Neon",
         "description": "Glowing neon effect with cyan highlights",
-        "font_family": "THEBOLDFONT-FREEVERSION",
+        "font_family": "THEBOLDFONT",
         "font_size": 34,
         "font_color": "#00FFFF",  # Cyan
         "highlight_color": "#FF00FF",  # Magenta

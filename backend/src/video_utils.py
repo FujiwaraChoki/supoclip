@@ -32,7 +32,7 @@ class VideoProcessor:
 
     def __init__(
         self,
-        font_family: str = "THEBOLDFONT-FREEVERSION",
+        font_family: str = "THEBOLDFONT",
         font_size: int = 24,
         font_color: str = "#FFFFFF",
     ):
@@ -43,7 +43,7 @@ class VideoProcessor:
         if not resolved_font:
             resolved_font = find_font_path("TikTokSans-Regular")
         if not resolved_font:
-            resolved_font = find_font_path("THEBOLDFONT-FREEVERSION")
+            resolved_font = find_font_path("THEBOLDFONT")
         self.font_path = str(resolved_font) if resolved_font else ""
 
     def get_optimal_encoding_settings(
@@ -706,7 +706,7 @@ def create_assemblyai_subtitles(
     clip_end: float,
     video_width: int,
     video_height: int,
-    font_family: str = "THEBOLDFONT-FREEVERSION",
+    font_family: str = "THEBOLDFONT",
     font_size: int = 24,
     font_color: str = "#FFFFFF",
     caption_template: str = "default",
@@ -1158,7 +1158,7 @@ def create_optimized_clip(
     end_time: float,
     output_path: Path,
     add_subtitles: bool = True,
-    font_family: str = "THEBOLDFONT-FREEVERSION",
+    font_family: str = "THEBOLDFONT",
     font_size: int = 24,
     font_color: str = "#FFFFFF",
     caption_template: str = "default",
@@ -1290,7 +1290,7 @@ def create_clips_from_segments(
     video_path: Path,
     segments: List[Dict[str, Any]],
     output_dir: Path,
-    font_family: str = "THEBOLDFONT-FREEVERSION",
+    font_family: str = "THEBOLDFONT",
     font_size: int = 24,
     font_color: str = "#FFFFFF",
     caption_template: str = "default",
@@ -1452,7 +1452,7 @@ def create_clips_with_transitions(
     video_path: Path,
     segments: List[Dict[str, Any]],
     output_dir: Path,
-    font_family: str = "THEBOLDFONT-FREEVERSION",
+    font_family: str = "THEBOLDFONT",
     font_size: int = 24,
     font_color: str = "#FFFFFF",
     caption_template: str = "default",
