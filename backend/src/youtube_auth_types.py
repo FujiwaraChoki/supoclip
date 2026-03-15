@@ -46,7 +46,7 @@ class YouTubeCookieEventDTO(BaseModel):
     message: Optional[str] = None
     metadata_json: Optional[str] = None
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
 
 
 class CreateYouTubeCookieAccountRequest(BaseModel):
