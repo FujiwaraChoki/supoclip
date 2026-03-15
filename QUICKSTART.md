@@ -44,6 +44,11 @@ LLM=openai:gpt-4
 # OR use Ollama locally
 # LLM=ollama:gpt-oss:20b
 # OLLAMA_BASE_URL=http://localhost:11434/v1
+
+# Optional: Resend for waitlist + subscription lifecycle emails
+# Required if you want hosted billing emails when SELF_HOST=false
+# RESEND_API_KEY=your_resend_api_key_here
+# RESEND_FROM_EMAIL="SupoClip <onboarding@your-domain.com>"
 ```
 
 ### 2. Start SupoClip
@@ -95,6 +100,26 @@ docker-compose up -d --build
 | `ANTHROPIC_API_KEY` | - | For Claude models |
 | `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | For local/self-hosted Ollama endpoint |
 | `OLLAMA_API_KEY` | - | Optional, required for Ollama Cloud |
+| `RESEND_API_KEY` | - | Optional in self-host mode, required for hosted billing/waitlist emails |
+| `RESEND_FROM_EMAIL` | `SupoClip <onboarding@resend.dev>` | Verified sender for backend subscription emails |
+
+### Hosted Billing Email Setup
+
+If you enable hosted monetization with `SELF_HOST=false`, set these as well:
+
+| Variable | Description |
+|----------|-------------|
+| `BACKEND_AUTH_SECRET` | Shared secret used by frontend API routes to call the backend |
+| `STRIPE_SECRET_KEY` | Stripe server-side API key |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
+| `STRIPE_PRICE_ID` | Stripe price ID for the Pro subscription |
+| `RESEND_API_KEY` | Resend API key used to send subscription emails |
+| `RESEND_FROM_EMAIL` | Verified sender address used for subscription emails |
+
+The billing flow sends:
+
+- A thank-you email after `checkout.session.completed`
+- A cancellation email after `customer.subscription.deleted`
 
 ## Supported AI Models
 

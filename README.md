@@ -83,6 +83,10 @@ GOOGLE_API_KEY=your_google_api_key
 
 # Optional: Auth secret (change in production)
 BETTER_AUTH_SECRET=change_this_in_production
+
+# Optional: Resend for waitlist + subscription lifecycle emails
+RESEND_API_KEY=your_resend_api_key
+RESEND_FROM_EMAIL="SupoClip <onboarding@your-domain.com>"
 ```
 
 ### 2. Start the Services
@@ -143,6 +147,42 @@ Open http://localhost:3000 in your browser, create an account, and start clippin
 - Add fonts to `backend/fonts/` – see [backend/fonts/README.md](backend/fonts/README.md) for TikTok Sans and custom fonts
 - Ensure `BACKEND_AUTH_SECRET` is set in `.env` when using the hosted/monetized setup
 - Font upload is Pro-only when monetization is enabled; self-hosted users can upload freely
+
+**Subscription emails are not sending:**
+- Set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in `.env`
+- `RESEND_FROM_EMAIL` must be a verified sender/domain in your Resend account
+- The backend sends the “thank you for subscribing” email on `checkout.session.completed`
+- The backend sends the “sorry to see you go” email on `customer.subscription.deleted`
+
+## Documentation
+
+Detailed documentation now lives in [`docs/`](docs/README.md).
+
+Start with:
+
+- [`docs/setup.md`](docs/setup.md)
+- [`docs/configuration.md`](docs/configuration.md)
+- [`docs/app-guide.md`](docs/app-guide.md)
+- [`docs/architecture.md`](docs/architecture.md)
+- [`docs/api-reference.md`](docs/api-reference.md)
+- [`docs/development.md`](docs/development.md)
+- [`docs/troubleshooting.md`](docs/troubleshooting.md)
+
+## Hosted Billing Emails
+
+When you run SupoClip with monetization enabled (`SELF_HOST=false`), subscription lifecycle emails are sent through Resend by the backend:
+
+- `checkout.session.completed` sends the thank-you-for-subscribing email
+- `customer.subscription.deleted` sends the sorry-to-see-you-go email
+
+Required env vars for this flow:
+
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL`
+- `BACKEND_AUTH_SECRET`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PRICE_ID`
 
 ### Local Development (Without Docker)
 
