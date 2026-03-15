@@ -2,6 +2,10 @@
 
 ... because good video clips shouldn't cost a fortune or come with ugly watermarks.
 
+<p align="center">
+  <img src="assets/banner.png" alt="SupoClip Banner" width="50%" />
+</p>
+
 OpusClip charges $15-29/month and slaps watermarks on every free video. SupoClip gives you the same AI-powered video clipping capabilities - completely free, completely open source, and completely watermark-free, while still providing you with a hosted version, that doesn't cost the same amount as your mortgage.
 
 > For the hosted version, sign up for the waitlist here: [SupoClip Hosted](https://www.supoclip.com)
