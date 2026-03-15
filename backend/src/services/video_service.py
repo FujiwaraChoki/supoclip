@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable, Awaitable
 import logging
 import json
+import subprocess
 
 from ..utils.async_helpers import run_in_thread
 from ..youtube_utils import (
@@ -25,6 +26,23 @@ UPLOAD_URL_PREFIX = "upload://"
 
 class VideoService:
     """Service for video processing operations."""
+
+    @staticmethod
+    def _get_file_duration(path: Path) -> Optional[float]:
+        """Return video duration in seconds via ffprobe, or None on failure."""
+        try:
+            result = subprocess.run(
+                [
+                    "ffprobe", "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "csv=p=0",
+                    str(path),
+                ],
+                capture_output=True, text=True, check=True,
+            )
+            return float(result.stdout.strip())
+        except Exception:
+            return None
 
     @staticmethod
     def resolve_local_video_path(url: str) -> Path:
@@ -185,6 +203,15 @@ class VideoService:
                 video_path = VideoService.resolve_local_video_path(url)
                 if not video_path.exists():
                     raise Exception("Video file not found")
+
+            # Post-download duration guard (catches cases where preflight info was unavailable)
+            file_duration = VideoService._get_file_duration(video_path)
+            if file_duration and file_duration > config.max_video_duration:
+                mins = config.max_video_duration // 60
+                raise Exception(
+                    f"Video is too long ({int(file_duration) // 60} min). "
+                    f"Maximum allowed duration is {mins} minutes."
+                )
 
             # Step 2: Generate transcript
             if should_cancel and await should_cancel():
