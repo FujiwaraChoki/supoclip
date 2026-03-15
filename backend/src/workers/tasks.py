@@ -5,12 +5,15 @@ Worker tasks - background jobs processed by arq workers.
 import logging
 from typing import Dict, Any
 import json
+from arq import cron
 
 from ..observability import configure_logging, set_trace_id
+from ..services.youtube_cookie_manager import YouTubeCookieManager
 
 configure_logging()
 
 logger = logging.getLogger(__name__)
+cookie_manager = YouTubeCookieManager()
 
 
 async def process_video_task(
@@ -109,6 +112,28 @@ async def process_video_task(
             raise
 
 
+async def verify_youtube_cookie_accounts(ctx: Dict[str, Any]) -> Dict[str, str]:
+    """Verify managed YouTube cookie accounts using a lightweight yt-dlp info fetch."""
+    set_trace_id("youtube-cookie-verify")
+    logger.info("Running YouTube cookie account verification")
+    results = await cookie_manager.verify_all_accounts()
+    logger.info("Completed YouTube cookie verification: %s", results)
+    return results
+
+
+async def recheck_cooldown_accounts(ctx: Dict[str, Any]) -> Dict[str, int]:
+    """Return expired cooldown accounts to healthy so they can be re-used."""
+    recovered = await cookie_manager.recheck_cooldown_accounts()
+    logger.info("Recovered %s cooldown accounts", recovered)
+    return {"recovered": recovered}
+
+
+async def worker_startup(ctx: Dict[str, Any]) -> None:
+    """Initialize worker-scoped resources."""
+    await cookie_manager.ensure_legacy_cookie_imported()
+    logger.info("YouTube cookie manager initialized for worker")
+
+
 # Worker configuration for arq
 class WorkerSettings:
     """Configuration for arq worker."""
@@ -119,8 +144,13 @@ class WorkerSettings:
     config = Config()
 
     # Functions to run
-    functions = [process_video_task]
+    functions = [
+        process_video_task,
+        verify_youtube_cookie_accounts,
+        recheck_cooldown_accounts,
+    ]
     queue_name = "supoclip_tasks"
+    on_startup = worker_startup
 
     # Redis settings from environment
     redis_settings = RedisSettings(
@@ -133,3 +163,17 @@ class WorkerSettings:
 
     # Worker pool settings
     max_jobs = 4  # Process up to 4 jobs simultaneously
+    cron_jobs = [
+        cron(
+            verify_youtube_cookie_accounts,
+            hour={0, 6, 12, 18},
+            minute=0,
+            run_at_startup=True,
+            job_id="youtube-cookie-verify",
+        ),
+        cron(
+            recheck_cooldown_accounts,
+            minute={0, 30},
+            job_id="youtube-cookie-cooldown-recheck",
+        ),
+    ]

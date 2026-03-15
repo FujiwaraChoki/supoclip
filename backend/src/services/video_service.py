@@ -9,8 +9,8 @@ import json
 
 from ..utils.async_helpers import run_in_thread
 from ..youtube_utils import (
-    download_youtube_video,
-    get_youtube_video_title,
+    async_download_youtube_video,
+    async_get_youtube_video_title,
     get_youtube_video_id,
 )
 from ..video_utils import get_video_transcript, create_clips_with_transitions
@@ -34,13 +34,12 @@ class VideoService:
         return Path(url)
 
     @staticmethod
-    async def download_video(url: str) -> Optional[Path]:
+    async def download_video(url: str, task_id: Optional[str] = None) -> Optional[Path]:
         """
         Download a YouTube video asynchronously.
-        Runs the sync download_youtube_video in a thread pool.
         """
         logger.info(f"Starting video download: {url}")
-        video_path = await run_in_thread(download_youtube_video, url)
+        video_path = await async_download_youtube_video(url, 3, task_id)
 
         if not video_path:
             logger.error(f"Failed to download video: {url}")
@@ -56,7 +55,7 @@ class VideoService:
         Returns a default title if retrieval fails.
         """
         try:
-            title = await run_in_thread(get_youtube_video_title, url)
+            title = await async_get_youtube_video_title(url)
             return title or "YouTube Video"
         except Exception as e:
             logger.warning(f"Failed to get video title: {e}")
@@ -139,6 +138,7 @@ class VideoService:
     async def process_video_complete(
         url: str,
         source_type: str,
+        task_id: Optional[str] = None,
         font_family: str = "TikTokSans-Regular",
         font_size: int = 24,
         font_color: str = "#FFFFFF",
@@ -167,7 +167,7 @@ class VideoService:
                 await progress_callback(10, "Downloading video...", "processing")
 
             if source_type == "youtube":
-                video_path = await VideoService.download_video(url)
+                video_path = await VideoService.download_video(url, task_id=task_id)
                 if not video_path:
                     raise Exception("Failed to download video")
             else:

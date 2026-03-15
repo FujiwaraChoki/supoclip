@@ -24,6 +24,7 @@ from .config import Config
 from .database import init_db, close_db, get_db
 from .workers.job_queue import JobQueue
 from .api.routes import tasks
+from .api.routes.admin import router as admin_router
 from .observability import (
     TRACE_HEADER,
     clear_trace_id,
@@ -51,6 +52,11 @@ async def lifespan(app: FastAPI):
         # Initialize job queue
         await JobQueue.get_pool()
         logger.info("✅ Job queue initialized")
+
+        from .services.youtube_cookie_manager import YouTubeCookieManager
+
+        await YouTubeCookieManager().ensure_legacy_cookie_imported()
+        logger.info("✅ YouTube auth manager initialized")
 
         yield
 
@@ -160,6 +166,7 @@ app.mount("/clips", StaticFiles(directory=str(clips_dir)), name="clips")
 
 # Include routers
 app.include_router(tasks.router)
+app.include_router(admin_router)
 
 # Keep existing utility endpoints
 from .api.routes.media import router as media_router
