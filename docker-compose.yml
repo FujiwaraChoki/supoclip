@@ -96,7 +96,7 @@ services:
       - YOUTUBE_AUTH_FAILURE_THRESHOLD=${YOUTUBE_AUTH_FAILURE_THRESHOLD:-2}
       - YOUTUBE_AUTH_COOLDOWN_MINUTES=${YOUTUBE_AUTH_COOLDOWN_MINUTES:-30}
       - YOUTUBE_AUTH_REFRESH_SESSION_TTL_MINUTES=${YOUTUBE_AUTH_REFRESH_SESSION_TTL_MINUTES:-30}
-      - YOUTUBE_COOKIES_FILE=/app/legacy-cookies.txt
+      - YOUTUBE_COOKIES_FILE=${YOUTUBE_COOKIES_FILE:-/app/youtube-auth/legacy/cookies.txt}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -159,7 +159,7 @@ services:
       - YOUTUBE_AUTH_FAILURE_THRESHOLD=${YOUTUBE_AUTH_FAILURE_THRESHOLD:-2}
       - YOUTUBE_AUTH_COOLDOWN_MINUTES=${YOUTUBE_AUTH_COOLDOWN_MINUTES:-30}
       - YOUTUBE_AUTH_REFRESH_SESSION_TTL_MINUTES=${YOUTUBE_AUTH_REFRESH_SESSION_TTL_MINUTES:-30}
-      - YOUTUBE_COOKIES_FILE=/app/legacy-cookies.txt
+      - YOUTUBE_COOKIES_FILE=${YOUTUBE_COOKIES_FILE:-/app/youtube-auth/legacy/cookies.txt}
     restart: unless-stopped
     depends_on:
       postgres:
