@@ -17,7 +17,7 @@ class Config:
         self.assembly_ai_api_key = os.getenv("ASSEMBLY_AI_API_KEY")
         self.pexels_api_key = os.getenv("PEXELS_API_KEY")
 
-        self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "3600"))
+        self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 
         self.max_clips = int(os.getenv("MAX_CLIPS", "10"))
