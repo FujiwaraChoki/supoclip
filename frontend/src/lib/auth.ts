@@ -8,6 +8,29 @@ const disableSignUp = ["1", "true", "yes"].includes(
   (process.env.DISABLE_SIGN_UP ?? "").toLowerCase()
 );
 
+function toOrigin(value?: string) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+const trustedOrigins = Array.from(
+  new Set(
+    [
+      toOrigin(process.env.NEXT_PUBLIC_APP_URL),
+      toOrigin(process.env.BETTER_AUTH_URL),
+      "http://localhost:3000",
+      "http://sp.localhost:3000",
+    ].filter((origin): origin is string => Boolean(origin))
+  )
+);
+
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
@@ -20,7 +43,7 @@ export const auth = betterAuth({
       },
     },
   },
-  trustedOrigins: ["http://localhost:3000", "http://sp.localhost:3000"],
+  trustedOrigins,
   emailAndPassword: {
     enabled: true,
     disableSignUp,
