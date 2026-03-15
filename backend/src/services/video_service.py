@@ -10,6 +10,7 @@ import json
 from ..utils.async_helpers import run_in_thread
 from ..youtube_utils import (
     async_download_youtube_video,
+    async_get_youtube_video_info,
     async_get_youtube_video_title,
     get_youtube_video_id,
 )
@@ -167,6 +168,16 @@ class VideoService:
                 await progress_callback(10, "Downloading video...", "processing")
 
             if source_type == "youtube":
+                video_info = await async_get_youtube_video_info(url, task_id=task_id)
+                if video_info:
+                    duration = video_info.get("duration", 0)
+                    if duration and duration > config.max_video_duration:
+                        mins = config.max_video_duration // 60
+                        raise Exception(
+                            f"Video is too long ({duration // 60} min). "
+                            f"Maximum allowed duration is {mins} minutes."
+                        )
+
                 video_path = await VideoService.download_video(url, task_id=task_id)
                 if not video_path:
                     raise Exception("Failed to download video")
