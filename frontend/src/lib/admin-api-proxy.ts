@@ -1,11 +1,10 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { auth } from "@/lib/auth";
-import { buildBackendAuthHeaders } from "@/lib/backend-auth";
+import { createProxyResponse, fetchBackend } from "@/server/backend-api";
+import { getServerSession } from "@/server/session";
 
 export async function requireAdminSession() {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session?.user?.id) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
@@ -27,22 +26,17 @@ export async function proxyAdminApiRequest(
     return adminCheck.error;
   }
 
-  const apiUrl =
-    process.env.BACKEND_INTERNAL_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "http://localhost:8000";
-  const normalizedApiUrl = apiUrl.replace(/\/$/, "");
   const incomingUrl = new URL(request.url);
-  const targetUrl = `${normalizedApiUrl}/admin/${pathSegments.join("/")}${incomingUrl.search}`;
+  const targetPath = `/admin/${pathSegments.join("/")}${incomingUrl.search}`;
   const body =
     request.method === "GET" || request.method === "HEAD"
       ? undefined
       : await request.text();
 
-  const upstream = await fetch(targetUrl, {
+  const upstream = await fetchBackend(targetPath, {
     method: request.method,
-    headers: {
-      ...buildBackendAuthHeaders(adminCheck.session.user.id),
+    userId: adminCheck.session.user.id,
+    extraHeaders: {
       ...(body && request.headers.get("content-type")
         ? { "Content-Type": request.headers.get("content-type") as string }
         : {}),
@@ -54,18 +48,5 @@ export async function proxyAdminApiRequest(
     cache: "no-store",
   });
 
-  const responseHeaders = new Headers();
-  const contentType = upstream.headers.get("content-type");
-  if (contentType) {
-    responseHeaders.set("Content-Type", contentType);
-  }
-  const traceId = upstream.headers.get("x-trace-id");
-  if (traceId) {
-    responseHeaders.set("x-trace-id", traceId);
-  }
-
-  return new Response(upstream.body, {
-    status: upstream.status,
-    headers: responseHeaders,
-  });
+  return createProxyResponse(upstream, ["content-type", "x-trace-id"]);
 }

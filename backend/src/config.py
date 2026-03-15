@@ -3,6 +3,8 @@ import os
 
 load_dotenv()
 
+_config_override = None
+
 
 class Config:
     def __init__(self):
@@ -66,6 +68,10 @@ class Config:
                 "http://sp.localhost:3000",
             ],
         )
+        self.resend_api_key = self._get_optional_env("RESEND_API_KEY")
+        self.resend_from_email = os.getenv(
+            "RESEND_FROM_EMAIL", "SupoClip <onboarding@resend.dev>"
+        )
         self.discord_feedback_webhook_url = self._get_optional_env("DISCORD_FEEDBACK_WEBHOOK_URL")
         self.discord_sales_webhook_url = self._get_optional_env("DISCORD_SALES_WEBHOOK_URL")
         self.default_processing_mode = os.getenv("DEFAULT_PROCESSING_MODE", "fast")
@@ -114,3 +120,15 @@ class Config:
         if self.anthropic_api_key:
             return "anthropic:claude-4-sonnet"
         return "google-gla:gemini-3-flash-preview"
+
+
+def get_config() -> Config:
+    override = _config_override
+    if override is not None:
+        return override
+    return Config()
+
+
+def set_config_override(config: Config | None) -> None:
+    global _config_override
+    _config_override = config

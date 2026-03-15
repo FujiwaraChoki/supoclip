@@ -1,0 +1,134 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: supoclip
+          POSTGRES_USER: supoclip
+          POSTGRES_PASSWORD: supoclip_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U supoclip -d supoclip"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://supoclip:supoclip_password@127.0.0.1:5432/supoclip
+      TEST_DATABASE_URL: postgresql+asyncpg://supoclip:supoclip_password@127.0.0.1:5432/supoclip
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      SELF_HOST: "true"
+      BACKEND_AUTH_SECRET: supoclip_test_secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v4
+      - name: Install backend dependencies
+        run: cd backend && uv sync --all-groups
+      - name: Run backend tests
+        run: cd backend && .venv/bin/pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SELF_HOST: "true"
+      BACKEND_AUTH_SECRET: supoclip_test_secret
+      BETTER_AUTH_SECRET: supoclip_better_auth_test_secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: cd frontend && npm install
+      - name: Run frontend unit tests
+        run: cd frontend && npm run test:coverage
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs:
+      - backend
+      - frontend
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: supoclip
+          POSTGRES_USER: supoclip
+          POSTGRES_PASSWORD: supoclip_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U supoclip -d supoclip"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://supoclip:supoclip_password@127.0.0.1:5432/supoclip
+      TEST_DATABASE_URL: postgresql+asyncpg://supoclip:supoclip_password@127.0.0.1:5432/supoclip
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      NEXT_PUBLIC_SELF_HOST: "true"
+      BACKEND_AUTH_SECRET: supoclip_test_secret
+      BETTER_AUTH_SECRET: supoclip_better_auth_test_secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install backend dependencies
+        run: cd backend && uv sync --all-groups
+      - name: Install frontend dependencies
+        run: cd frontend && npm install
+      - name: Install Playwright browsers
+        run: cd frontend && npx playwright install --with-deps
+      - name: Run Playwright smoke tests
+        run: cd frontend && npm run test:e2e
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report
+            frontend/test-results

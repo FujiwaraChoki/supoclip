@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...admin_auth import require_admin_user
-from ...config import Config
+from ...config import get_config
 from ...database import get_db
 from ...services.youtube_cookie_manager import YouTubeCookieManager
 from ...youtube_auth_types import (
@@ -14,7 +14,6 @@ from ...youtube_auth_types import (
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-config = Config()
 cookie_manager = YouTubeCookieManager()
 
 
@@ -22,7 +21,7 @@ cookie_manager = YouTubeCookieManager()
 async def list_youtube_cookie_accounts(
     request: Request, db: AsyncSession = Depends(get_db)
 ):
-    await require_admin_user(request, db, config)
+    await require_admin_user(request, db, get_config())
     accounts = await cookie_manager.list_accounts()
     payload = [{"account": account.model_dump(mode="json")} for account in accounts]
     return {"accounts": payload}
@@ -34,7 +33,7 @@ async def create_youtube_cookie_account(
     body: CreateYouTubeCookieAccountRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    admin_user_id = await require_admin_user(request, db, config)
+    admin_user_id = await require_admin_user(request, db, get_config())
     account = await cookie_manager.create_account(
         label=body.label,
         email_hint=body.email_hint,
@@ -51,7 +50,7 @@ async def update_youtube_cookie_account(
     body: UpdateYouTubeCookieAccountRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    await require_admin_user(request, db, config)
+    await require_admin_user(request, db, get_config())
     account = await cookie_manager.update_account(
         account_id=account_id,
         label=body.label,
@@ -71,7 +70,7 @@ async def verify_youtube_cookie_account(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    await require_admin_user(request, db, config)
+    await require_admin_user(request, db, get_config())
     account = await cookie_manager.get_account(account_id)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
@@ -94,7 +93,7 @@ async def upload_youtube_manual_cookies(
     body: UploadYouTubeCookiesRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    admin_user_id = await require_admin_user(request, db, config)
+    admin_user_id = await require_admin_user(request, db, get_config())
     account = await cookie_manager.upload_manual_cookies(
         account_id=account_id,
         cookies_text=body.cookies_text,
@@ -109,7 +108,7 @@ async def get_youtube_manual_cookies(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    await require_admin_user(request, db, config)
+    await require_admin_user(request, db, get_config())
     cookies_text = await cookie_manager.get_manual_cookies_text(account_id)
     return {"cookies_text": cookies_text}
 
@@ -120,7 +119,7 @@ async def list_youtube_cookie_events(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    await require_admin_user(request, db, config)
+    await require_admin_user(request, db, get_config())
     account = await cookie_manager.get_account(account_id)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")

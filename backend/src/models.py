@@ -51,6 +51,9 @@ class User(Base):
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Billing fields
+    is_admin: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sql_text("'false'")
+    )
     plan: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default=sql_text("'free'")
     )

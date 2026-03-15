@@ -27,11 +27,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 
 logger = logging.getLogger(__name__)
-config = Config()
 router = APIRouter(tags=["media"])
 
 
 def _get_authenticated_user_id(request: Request) -> str:
+    config = Config()
     if config.monetization_enabled:
         return get_signed_user_id(request, config)
 
@@ -216,6 +216,7 @@ async def get_caption_templates():
 @router.get("/broll/status")
 async def get_broll_status():
     """Return whether B-roll integrations are configured."""
+    config = Config()
     return {
         "configured": bool(config.pexels_api_key),
         "provider": "pexels" if config.pexels_api_key else None,

@@ -19,13 +19,12 @@ from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import get_signed_user_id, USER_ID_HEADER
 from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
-from ...config import Config
+from ...config import get_config
 from ...font_registry import is_font_accessible
 import redis.asyncio as redis
 from ...clip_editor import export_with_preset, EXPORT_PRESETS
 
 logger = logging.getLogger(__name__)
-config = Config()
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
@@ -51,6 +50,7 @@ def _normalize_font_family(value: Any, default: str = "TikTokSans-Regular") -> s
 
 def _get_user_id_from_headers(request: Request) -> str:
     """Get user ID. Monetization on: signed auth (same as create_task/billing_summary). Off: user_id or x-supoclip-user-id."""
+    config = get_config()
     if config.monetization_enabled:
         return get_signed_user_id(request, config)
     user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
@@ -104,6 +104,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     data = await request.json()
 
     raw_source = data.get("source")
+    config = get_config()
     if config.monetization_enabled:
         user_id = get_signed_user_id(request, config)
     else:
@@ -158,7 +159,8 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
         )
 
         # Enqueue job for worker
-        job_id = await JobQueue.enqueue_processing_job(
+        queue_adapter = getattr(request.app.state, "queue_adapter", JobQueue)
+        job_id = await queue_adapter.enqueue_processing_job(
             "process_video_task",
             processing_mode,
             task_id,
@@ -219,6 +221,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/billing/summary")
 async def get_billing_summary(request: Request, db: AsyncSession = Depends(get_db)):
     """Get monetization status and current usage for authenticated user."""
+    config = get_config()
     if config.monetization_enabled:
         user_id = get_signed_user_id(request, config)
     else:
@@ -328,8 +331,11 @@ async def get_task_progress_sse(task_id: str, request: Request):
             return
 
         # Connect to Redis for real-time updates
+        runtime_config = get_config()
         redis_client = redis.Redis(
-            host=config.redis_host, port=config.redis_port, decode_responses=True
+            host=runtime_config.redis_host,
+            port=runtime_config.redis_port,
+            decode_responses=True,
         )
 
         try:

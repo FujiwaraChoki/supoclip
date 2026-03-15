@@ -8,10 +8,9 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from ...auth_headers import get_signed_user_id
-from ...config import Config
+from ...config import get_config
 
 logger = logging.getLogger(__name__)
-config = Config()
 
 router = APIRouter(tags=["feedback"])
 
@@ -42,6 +41,7 @@ class FeedbackRequest(BaseModel):
 
 @router.post("/feedback")
 async def submit_feedback(body: FeedbackRequest, request: Request):
+    config = get_config()
     if config.monetization_enabled:
         user_id = get_signed_user_id(request, config)
     else:

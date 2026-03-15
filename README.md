@@ -3,7 +3,9 @@
 ... because good video clips shouldn't cost a fortune or come with ugly watermarks.
 
 <p align="center">
-  <img src="assets/banner.png" alt="SupoClip Banner" width="100%" />
+  <a href="https://www.supoclip.com">
+    <img src="assets/banner.png" alt="SupoClip Banner" width="100%" />
+  </a>
 </p>
 
 OpusClip charges $15-29/month and slaps watermarks on every free video. SupoClip gives you the same AI-powered video clipping capabilities - completely free, completely open source, and completely watermark-free, while still providing you with a hosted version, that doesn't cost the same amount as your mortgage.
@@ -157,6 +159,34 @@ Open http://localhost:3000 in your browser, create an account, and start clippin
 - `RESEND_FROM_EMAIL` must be a verified sender/domain in your Resend account
 - The backend sends the “thank you for subscribing” email on `checkout.session.completed`
 - The backend sends the “sorry to see you go” email on `customer.subscription.deleted`
+
+## Testing
+
+SupoClip now has a layered automated test setup:
+
+- `pytest` for backend unit and integration tests
+- `Vitest` and Testing Library for frontend route and component coverage
+- `Playwright` for a small seeded browser smoke suite
+
+Repo-level entrypoints:
+
+```bash
+make test
+make test-backend
+make test-frontend
+make test-e2e
+make test-ci
+```
+
+App-level entrypoints:
+
+```bash
+cd backend && uv sync --all-groups && .venv/bin/pytest
+cd frontend && npm install && npm run test:coverage
+cd frontend && npm run test:e2e
+```
+
+Local test runs expect PostgreSQL and Redis to be available. The easiest path is to start the stack with `docker-compose up -d`, then run the commands above. CI runs the same layers in GitHub Actions with Postgres and Redis service containers.
 
 ## Documentation
 
