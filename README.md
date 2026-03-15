@@ -88,9 +88,14 @@ GOOGLE_API_KEY=your_google_api_key
 # Optional: Auth secret (change in production)
 BETTER_AUTH_SECRET=change_this_in_production
 
-# Optional: Resend for waitlist + subscription lifecycle emails
-RESEND_API_KEY=your_resend_api_key
-RESEND_FROM_EMAIL="SupoClip <onboarding@your-domain.com>"
+# Optional: DataFast analytics
+# Track your deployed domain in DataFast
+# NEXT_PUBLIC_DATAFAST_WEBSITE_ID=dfid_xxxxx
+# NEXT_PUBLIC_DATAFAST_DOMAIN=your-domain.com
+# NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST=false
+
+# Optional: Resend for waitlist confirmation emails
+# RESEND_API_KEY=your_resend_api_key
 ```
 
 ### 2. Start the Services
@@ -118,6 +123,11 @@ Wait until you see health checks passing for all services.
 ### 4. Access the App
 
 Open http://localhost:3000 in your browser, create an account, and start clipping!
+
+If you enable DataFast, also verify that:
+- `/js/script.js` loads from your own app domain
+- `/api/events` requests are proxied through your app domain
+- custom goals appear after successful sign-up, sign-in, task creation, billing, feedback, or waitlist actions
 
 ### Troubleshooting
 

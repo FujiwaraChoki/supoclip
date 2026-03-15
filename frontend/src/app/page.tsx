@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { signOut, useSession } from "@/lib/auth-client";
+import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import Link from "next/link";
 import Image from "next/image";
@@ -462,6 +463,14 @@ export default function Home() {
 
       const startResult = await startResponse.json();
       const taskIdFromStart = startResult.task_id;
+      track("task_created", {
+        source_type: sourceType,
+        caption_template: captionTemplate,
+        include_broll: includeBroll,
+        output_format: outputFormat,
+        add_subtitles: addSubtitles,
+        processing_mode: "fast",
+      });
       // Redirect immediately to the task page
       window.location.href = `/tasks/${taskIdFromStart}`;
 

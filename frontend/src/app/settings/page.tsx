@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { signOut, useSession } from "@/lib/auth-client";
+import { track } from "@/lib/datafast";
 import Link from "next/link";
 import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft } from "lucide-react";
 
@@ -148,6 +149,9 @@ export default function SettingsPage() {
         throw new Error(data.error || "Unable to open billing");
       }
 
+      track(billingSummary.plan === "pro" ? "billing_portal_opened" : "billing_checkout_started", {
+        plan: billingSummary.plan,
+      });
       window.location.href = data.url;
     } catch (billingError) {
       setError(billingError instanceof Error ? billingError.message : "Billing action failed");
@@ -179,6 +183,7 @@ export default function SettingsPage() {
         throw new Error(errorData.error || 'Failed to save preferences');
       }
 
+      track("preferences_saved");
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
