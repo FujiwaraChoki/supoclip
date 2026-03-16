@@ -1,0 +1,4 @@
+ALTER TABLE "users"
+ADD COLUMN IF NOT EXISTS "default_font_family" VARCHAR(100) DEFAULT 'TikTokSans-Regular',
+ADD COLUMN IF NOT EXISTS "default_font_size" INTEGER DEFAULT 24,
+ADD COLUMN IF NOT EXISTS "default_font_color" VARCHAR(7) DEFAULT '#FFFFFF';

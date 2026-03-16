@@ -6,19 +6,18 @@ import logging
 from typing import Optional
 from arq import create_pool
 from arq.connections import RedisSettings, ArqRedis
-from ..config import Config
+from ..config import get_config
 
 logger = logging.getLogger(__name__)
-config = Config()
 
 # Queue names
 DEFAULT_QUEUE_NAME = "supoclip_tasks"
 FAST_QUEUE_NAME = "supoclip_fast"
 
-# Redis settings for arq
-ARQ_REDIS_SETTINGS = RedisSettings(
-    host=config.redis_host, port=config.redis_port, database=0
-)
+
+def _get_redis_settings() -> RedisSettings:
+    config = get_config()
+    return RedisSettings(host=config.redis_host, port=config.redis_port, database=0)
 
 
 class JobQueue:
@@ -30,7 +29,8 @@ class JobQueue:
     async def get_pool(cls) -> ArqRedis:
         """Get or create the Redis connection pool."""
         if cls._pool is None:
-            cls._pool = await create_pool(ARQ_REDIS_SETTINGS)
+            config = get_config()
+            cls._pool = await create_pool(_get_redis_settings())
             logger.info(
                 f"Created arq Redis pool: {config.redis_host}:{config.redis_port}"
             )

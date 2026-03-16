@@ -2,6 +2,8 @@
 Task repository - handles all database operations for tasks.
 """
 
+from uuid import uuid4
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import Optional, Dict, Any, List
@@ -28,20 +30,22 @@ class TaskRepository:
         processing_mode: str = "fast",
     ) -> str:
         """Create a new task and return its ID."""
+        task_id = str(uuid4())
         try:
             result = await db.execute(
                 text("""
                     INSERT INTO tasks (
-                        user_id, source_id, status, font_family, font_size, font_color,
+                        id, user_id, source_id, status, font_family, font_size, font_color,
                         caption_template, include_broll, processing_mode, created_at, updated_at
                     )
                     VALUES (
-                        :user_id, :source_id, :status, :font_family, :font_size, :font_color,
+                        :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
                         :caption_template, :include_broll, :processing_mode, NOW(), NOW()
                     )
                     RETURNING id
                 """),
                 {
+                    "task_id": task_id,
                     "user_id": user_id,
                     "source_id": source_id,
                     "status": status,
@@ -58,16 +62,17 @@ class TaskRepository:
             result = await db.execute(
                 text("""
                     INSERT INTO tasks (
-                        user_id, source_id, status, font_family, font_size, font_color,
+                        id, user_id, source_id, status, font_family, font_size, font_color,
                         created_at, updated_at
                     )
                     VALUES (
-                        :user_id, :source_id, :status, :font_family, :font_size, :font_color,
+                        :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
                         NOW(), NOW()
                     )
                     RETURNING id
                 """),
                 {
+                    "task_id": task_id,
                     "user_id": user_id,
                     "source_id": source_id,
                     "status": status,
