@@ -10,7 +10,7 @@ services:
         - NEXT_PUBLIC_SELF_HOST=${SELF_HOST:-true}
         - NEXT_PUBLIC_PRO_PRICE_MONTHLY=${NEXT_PUBLIC_PRO_PRICE_MONTHLY:-9.99}
         - NEXT_PUBLIC_FREE_PLAN_TASK_LIMIT=${NEXT_PUBLIC_FREE_PLAN_TASK_LIMIT:-10}
-        - NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT=${NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT:-0}
+        - NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT=${NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT:-200}
     container_name: supoclip-frontend
     ports:
       - "3000:3000"
@@ -35,7 +35,7 @@ services:
       - STRIPE_PRICE_ID=${STRIPE_PRICE_ID}
       - NEXT_PUBLIC_PRO_PRICE_MONTHLY=${NEXT_PUBLIC_PRO_PRICE_MONTHLY:-9.99}
       - NEXT_PUBLIC_FREE_PLAN_TASK_LIMIT=${NEXT_PUBLIC_FREE_PLAN_TASK_LIMIT:-10}
-      - NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT=${NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT:-0}
+      - NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT=${NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT:-200}
       - STRIPE_CHECKOUT_URL=${STRIPE_CHECKOUT_URL}
       - STRIPE_CUSTOMER_PORTAL_URL=${STRIPE_CUSTOMER_PORTAL_URL}
       - RESEND_API_KEY=${RESEND_API_KEY}
@@ -56,8 +56,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      platforms:
-        - linux/amd64  # Force x86_64 for MediaPipe compatibility
     container_name: supoclip-backend
     platform: linux/amd64
     command: [".venv/bin/uvicorn", "src.main_refactored:app", "--host", "0.0.0.0", "--port", "8000"]
@@ -119,8 +117,6 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-      platforms:
-        - linux/amd64
     container_name: supoclip-worker
     platform: linux/amd64
     command: [".venv/bin/arq", "src.workers.tasks.WorkerSettings"]
