@@ -155,19 +155,14 @@ Required when `SELF_HOST=false` and you want subscription management:
 | `DISCORD_FEEDBACK_WEBHOOK_URL` | Receives product feedback messages |
 | `DISCORD_SALES_WEBHOOK_URL` | Receives sales or lead-oriented submissions |
 
-## YouTube Auth Rotation
+## Apify YouTube Downloader
 
-SupoClip includes a managed YouTube cookie rotation system for more resilient video downloading.
+SupoClip uses Apify's `epctex/youtube-video-downloader` actor as the primary YouTube download path. Metadata preflight and fallback downloads rely on the local `yt-dlp` stack over a direct connection.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `YOUTUBE_AUTH_ROTATION_ENABLED` | `true` | Enables the managed rotation flow |
-| `YOUTUBE_AUTH_VOLUME_DIR` | `/app/youtube-auth` | Shared storage for backend, worker, and related auth assets |
-| `YOUTUBE_AUTH_VERIFY_URL` | `https://www.youtube.com/watch?v=jNQXAC9IVRw` | Lightweight verification target used to validate cookies |
-| `YOUTUBE_AUTH_FAILURE_THRESHOLD` | `2` | Consecutive failures before an account needs refresh |
-| `YOUTUBE_AUTH_COOLDOWN_MINUTES` | `30` | Cooldown duration after an auth failure |
-| `YOUTUBE_AUTH_REFRESH_SESSION_TTL_MINUTES` | `30` | Lifetime of refresh sessions |
-| `YOUTUBE_COOKIES_FILE` | `/app/legacy-cookies.txt` or `/app/youtube-auth/legacy/cookies.txt` depending on context | Legacy cookie file fallback |
+| `APIFY_API_TOKEN` | empty | Enables the primary Apify download flow |
+| `APIFY_YOUTUBE_DEFAULT_QUALITY` | `1080` | Requested Apify download resolution (`360`, `480`, `720`, or `1080`) |
 
 ## Frontend Runtime Variables
 

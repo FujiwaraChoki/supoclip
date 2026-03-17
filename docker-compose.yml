@@ -67,10 +67,8 @@ services:
       - ./backend/src:/app/src
       - uploads:/app/uploads
       - clips:/app/clips
-      - youtube_auth:/app/youtube-auth
       - ./backend/fonts:/app/fonts
       - ./backend/transitions:/app/transitions
-      - ./backend/cookies.txt:/app/legacy-cookies.txt:ro
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -79,6 +77,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
+      - APIFY_API_TOKEN=${APIFY_API_TOKEN}
+      - APIFY_YOUTUBE_DEFAULT_QUALITY=${APIFY_YOUTUBE_DEFAULT_QUALITY:-1080}
       - LLM=${LLM:-google-gla:gemini-3-flash-preview}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
@@ -98,13 +98,6 @@ services:
       - PRO_PLAN_TASK_LIMIT=${PRO_PLAN_TASK_LIMIT:-0}
       - RESEND_API_KEY=${RESEND_API_KEY}
       - "RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-SupoClip <onboarding@resend.dev>}"
-      - YOUTUBE_AUTH_ROTATION_ENABLED=${YOUTUBE_AUTH_ROTATION_ENABLED:-true}
-      - YOUTUBE_AUTH_VOLUME_DIR=${YOUTUBE_AUTH_VOLUME_DIR:-/app/youtube-auth}
-      - YOUTUBE_AUTH_VERIFY_URL=${YOUTUBE_AUTH_VERIFY_URL:-https://www.youtube.com/watch?v=jNQXAC9IVRw}
-      - YOUTUBE_AUTH_FAILURE_THRESHOLD=${YOUTUBE_AUTH_FAILURE_THRESHOLD:-2}
-      - YOUTUBE_AUTH_COOLDOWN_MINUTES=${YOUTUBE_AUTH_COOLDOWN_MINUTES:-30}
-      - YOUTUBE_AUTH_REFRESH_SESSION_TTL_MINUTES=${YOUTUBE_AUTH_REFRESH_SESSION_TTL_MINUTES:-30}
-      - YOUTUBE_COOKIES_FILE=${YOUTUBE_COOKIES_FILE:-/app/youtube-auth/legacy/cookies.txt}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -132,10 +125,8 @@ services:
       - ./backend/src:/app/src
       - uploads:/app/uploads
       - clips:/app/clips
-      - youtube_auth:/app/youtube-auth
       - ./backend/fonts:/app/fonts
       - ./backend/transitions:/app/transitions
-      - ./backend/cookies.txt:/app/legacy-cookies.txt:ro
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -144,6 +135,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
+      - APIFY_API_TOKEN=${APIFY_API_TOKEN}
+      - APIFY_YOUTUBE_DEFAULT_QUALITY=${APIFY_YOUTUBE_DEFAULT_QUALITY:-1080}
       - LLM=${LLM:-google-gla:gemini-3-flash-preview}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
@@ -161,13 +154,6 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://sp.localhost:3000}
       - FREE_PLAN_TASK_LIMIT=${FREE_PLAN_TASK_LIMIT:-10}
       - PRO_PLAN_TASK_LIMIT=${PRO_PLAN_TASK_LIMIT:-0}
-      - YOUTUBE_AUTH_ROTATION_ENABLED=${YOUTUBE_AUTH_ROTATION_ENABLED:-true}
-      - YOUTUBE_AUTH_VOLUME_DIR=${YOUTUBE_AUTH_VOLUME_DIR:-/app/youtube-auth}
-      - YOUTUBE_AUTH_VERIFY_URL=${YOUTUBE_AUTH_VERIFY_URL:-https://www.youtube.com/watch?v=jNQXAC9IVRw}
-      - YOUTUBE_AUTH_FAILURE_THRESHOLD=${YOUTUBE_AUTH_FAILURE_THRESHOLD:-2}
-      - YOUTUBE_AUTH_COOLDOWN_MINUTES=${YOUTUBE_AUTH_COOLDOWN_MINUTES:-30}
-      - YOUTUBE_AUTH_REFRESH_SESSION_TTL_MINUTES=${YOUTUBE_AUTH_REFRESH_SESSION_TTL_MINUTES:-30}
-      - YOUTUBE_COOKIES_FILE=${YOUTUBE_COOKIES_FILE:-/app/youtube-auth/legacy/cookies.txt}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -214,8 +200,6 @@ volumes:
   uploads:
     driver: local
   clips:
-    driver: local
-  youtube_auth:
     driver: local
   redis_data:
     driver: local

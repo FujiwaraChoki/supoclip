@@ -18,6 +18,10 @@ class Config:
         self.llm = self._get_optional_env("LLM") or self._infer_default_llm()
         self.assembly_ai_api_key = os.getenv("ASSEMBLY_AI_API_KEY")
         self.pexels_api_key = os.getenv("PEXELS_API_KEY")
+        self.apify_api_token = self._get_optional_env("APIFY_API_TOKEN")
+        self.apify_youtube_default_quality = self._normalize_apify_quality(
+            os.getenv("APIFY_YOUTUBE_DEFAULT_QUALITY", "1080")
+        )
 
         self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
@@ -26,23 +30,6 @@ class Config:
         self.clip_duration = int(os.getenv("CLIP_DURATION", "30"))  # seconds
 
         self.temp_dir = os.getenv("TEMP_DIR", "temp")
-        self.youtube_cookies_file = self._get_optional_env("YOUTUBE_COOKIES_FILE")
-        self.youtube_auth_rotation_enabled = self._get_bool_env(
-            "YOUTUBE_AUTH_ROTATION_ENABLED", True
-        )
-        self.youtube_auth_volume_dir = os.getenv(
-            "YOUTUBE_AUTH_VOLUME_DIR", "/app/youtube-auth"
-        )
-        self.youtube_auth_verify_url = os.getenv(
-            "YOUTUBE_AUTH_VERIFY_URL",
-            "https://www.youtube.com/watch?v=jNQXAC9IVRw",
-        )
-        self.youtube_auth_failure_threshold = int(
-            os.getenv("YOUTUBE_AUTH_FAILURE_THRESHOLD", "2")
-        )
-        self.youtube_auth_cooldown_minutes = int(
-            os.getenv("YOUTUBE_AUTH_COOLDOWN_MINUTES", "30")
-        )
 
         # Redis configuration
         self.redis_host = os.getenv("REDIS_HOST", "localhost")
@@ -107,6 +94,13 @@ class Config:
         if not value:
             return default
         return [item.strip() for item in value.split(",") if item.strip()]
+
+    @staticmethod
+    def _normalize_apify_quality(value: str | None) -> str:
+        normalized = (value or "").strip()
+        if normalized in {"360", "480", "720", "1080"}:
+            return normalized
+        return "1080"
 
     def _infer_default_llm(self) -> str:
         """

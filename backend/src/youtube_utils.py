@@ -1,44 +1,37 @@
 """
 Utility functions for YouTube-related operations.
-Optimized for high-quality downloads and better error handling.
+Optimized for Apify-first downloads with direct yt-dlp fallback.
 """
 
 import asyncio
-import re
-from urllib.parse import urlparse, parse_qs
-import yt_dlp
-from typing import Optional, Dict, Any
-from pathlib import Path
 import logging
-import time
+import re
 import subprocess
+import time
+from pathlib import Path
+from typing import Any, Dict, Optional
+from urllib.parse import parse_qs, urlparse
 
-from .config import Config
-from .services.youtube_cookie_manager import (
-    YouTubeAuthChallengeError,
-    YouTubeAuthUnavailableError,
-    YouTubeCookieManager,
-)
-from .youtube_auth_types import ResolvedYouTubeCookieContext
+import yt_dlp
+
+from .apify_youtube_downloader import ApifyDownloadError, download_video_via_apify
+from .config import get_config
 
 logger = logging.getLogger(__name__)
-config = Config()
-cookie_manager = YouTubeCookieManager()
 
 
 class YouTubeDownloader:
     """Enhanced YouTube downloader with optimized settings."""
 
     def __init__(self):
-        self.temp_dir = Path(config.temp_dir)
+        self.temp_dir = Path(get_config().temp_dir)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
 
     def get_optimal_download_options(
         self,
         video_id: str,
-        cookie_context: Optional[ResolvedYouTubeCookieContext] = None,
     ) -> Dict[str, Any]:
-        """Get optimal yt-dlp options for high-quality downloads with enhanced YouTube bypass."""
+        """Get optimal yt-dlp options for high-quality downloads."""
         output_path = self.temp_dir / f"{video_id}.%(ext)s"
 
         opts = {
@@ -77,19 +70,10 @@ class YouTubeDownloader:
             "age_limit": None,
         }
 
-        cookiefile_path = (
-            cookie_context.cookiefile_path if cookie_context else config.youtube_cookies_file
-        )
-        if cookiefile_path and Path(cookiefile_path).is_file():
-            opts["cookiefile"] = cookiefile_path
-            logger.info("Using YouTube cookies from %s", cookiefile_path)
-
         return opts
 
 
-def _build_info_options(
-    cookie_context: Optional[ResolvedYouTubeCookieContext] = None,
-) -> Dict[str, Any]:
+def _build_info_options() -> Dict[str, Any]:
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
@@ -104,11 +88,6 @@ def _build_info_options(
         },
         "nocheckcertificate": True,
     }
-    cookiefile_path = (
-        cookie_context.cookiefile_path if cookie_context else config.youtube_cookies_file
-    )
-    if cookiefile_path and Path(cookiefile_path).is_file():
-        ydl_opts["cookiefile"] = cookiefile_path
     return ydl_opts
 
 
@@ -135,6 +114,28 @@ def _get_local_video_dimensions(path: Path) -> tuple[int, int]:
         return (int(width_str), int(height_str))
     except Exception:
         return (0, 0)
+
+
+def _remove_cached_downloads(temp_dir: Path, video_id: str) -> None:
+    cached_files = [
+        file_path
+        for file_path in temp_dir.glob(f"{video_id}.*")
+        if file_path.is_file()
+        and file_path.suffix.lower() in [".mp4", ".mkv", ".webm", ".mov", ".m4v"]
+    ]
+    if not cached_files:
+        return
+
+    logger.info(
+        "Refreshing download for %s (found %s cached file(s))",
+        video_id,
+        len(cached_files),
+    )
+    for cached_file in cached_files:
+        try:
+            cached_file.unlink()
+        except Exception as exc:
+            logger.warning("Failed to remove stale cache file %s: %s", cached_file, exc)
 
 
 def get_youtube_video_id(url: str) -> Optional[str]:
@@ -186,9 +187,7 @@ def validate_youtube_url(url: str) -> bool:
     return video_id is not None
 
 
-def fetch_video_info_with_cookie_context(
-    url: str, cookie_context: Optional[ResolvedYouTubeCookieContext]
-) -> Optional[Dict[str, Any]]:
+def fetch_video_info(url: str) -> Optional[Dict[str, Any]]:
     """
     Get comprehensive video information without downloading.
     Returns title, duration, description, and other metadata.
@@ -199,7 +198,7 @@ def fetch_video_info_with_cookie_context(
         return None
 
     try:
-        ydl_opts = _build_info_options(cookie_context)
+        ydl_opts = _build_info_options()
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
 
@@ -220,153 +219,36 @@ def fetch_video_info_with_cookie_context(
             }
 
     except Exception as e:
-        logger.error(f"Error extracting video info: {e}")
         raise
 
 
 async def async_get_youtube_video_info(
     url: str,
     task_id: Optional[str] = None,
-    contexts: Optional[list[ResolvedYouTubeCookieContext]] = None,
 ) -> Optional[Dict[str, Any]]:
-    resolved_contexts = contexts or await cookie_manager.acquire_download_contexts()
-    if not resolved_contexts:
-        raise YouTubeAuthUnavailableError(
-            "No healthy YouTube authentication cookies are available"
-        )
-
-    last_auth_error: Optional[str] = None
-    last_error: Optional[str] = None
-
-    for context in resolved_contexts:
-        try:
-            info = await asyncio.to_thread(
-                fetch_video_info_with_cookie_context,
-                url,
-                context,
-            )
-            if info:
-                await cookie_manager.mark_account_success(
-                    context.account_id,
-                    task_id=task_id,
-                )
-                return info
-
-            failure = cookie_manager.classify_error(
-                "Unable to extract YouTube video info"
-            )
-            if failure.is_auth_failure:
-                last_auth_error = failure.message
-                await cookie_manager.mark_account_auth_failure(
-                    context.account_id,
-                    classification=failure,
-                    task_id=task_id,
-                )
-            else:
-                last_error = failure.message
-                await cookie_manager.mark_account_transient_failure(
-                    context.account_id,
-                    failure.message,
-                    task_id=task_id,
-                )
-        except Exception as exc:
-            failure = cookie_manager.classify_error(str(exc))
-            if failure.is_auth_failure:
-                last_auth_error = failure.message
-                await cookie_manager.mark_account_auth_failure(
-                    context.account_id,
-                    classification=failure,
-                    task_id=task_id,
-                )
-            else:
-                last_error = str(exc)
-                await cookie_manager.mark_account_transient_failure(
-                    context.account_id,
-                    str(exc),
-                    task_id=task_id,
-                )
-
-    if last_auth_error:
-        raise YouTubeAuthChallengeError(last_auth_error)
-    if last_error:
-        logger.error("YouTube video info fetch failed: %s", last_error)
-    return None
+    return await asyncio.to_thread(get_youtube_video_info, url, task_id)
 
 
 def get_youtube_video_info(
     url: str,
     task_id: Optional[str] = None,
-    contexts: Optional[list[ResolvedYouTubeCookieContext]] = None,
-    manage_account_state: bool = True,
 ) -> Optional[Dict[str, Any]]:
-    resolved_contexts = contexts or cookie_manager.get_download_contexts_sync()
-    if not resolved_contexts:
-        raise YouTubeAuthUnavailableError(
-            "No healthy YouTube authentication cookies are available"
-        )
-
-    last_auth_error: Optional[str] = None
-    last_error: Optional[str] = None
-
-    for context in resolved_contexts:
-        try:
-            info = fetch_video_info_with_cookie_context(url, context)
-            if info:
-                if manage_account_state:
-                    cookie_manager.mark_success_sync(
-                        context.account_id, task_id=task_id
-                    )
-                return info
-
-            failure = cookie_manager.classify_error("Unable to extract YouTube video info")
-            if failure.is_auth_failure:
-                last_auth_error = failure.message
-                if manage_account_state:
-                    cookie_manager.mark_auth_failure_sync(
-                        context.account_id, failure, task_id=task_id
-                    )
-            else:
-                last_error = failure.message
-                if manage_account_state:
-                    cookie_manager.mark_transient_failure_sync(
-                        context.account_id, failure.message, task_id=task_id
-                    )
-        except Exception as exc:
-            failure = cookie_manager.classify_error(str(exc))
-            if failure.is_auth_failure:
-                last_auth_error = failure.message
-                if manage_account_state:
-                    cookie_manager.mark_auth_failure_sync(
-                        context.account_id, failure, task_id=task_id
-                    )
-            else:
-                last_error = str(exc)
-                if manage_account_state:
-                    cookie_manager.mark_transient_failure_sync(
-                        context.account_id, str(exc), task_id=task_id
-                    )
-
-    if last_auth_error:
-        raise YouTubeAuthChallengeError(last_auth_error)
-    if last_error:
-        logger.error("YouTube video info fetch failed: %s", last_error)
-    return None
+    try:
+        logger.info("Fetching YouTube video info directly")
+        return fetch_video_info(url)
+    except Exception as exc:
+        logger.warning("YouTube video info fetch failed: %s", exc)
+        return None
 
 
 def get_youtube_video_title(
     url: str,
-    contexts: Optional[list[ResolvedYouTubeCookieContext]] = None,
-    manage_account_state: bool = True,
 ) -> Optional[str]:
     """
     Get the title of a YouTube video from a URL.
     Enhanced with better error handling and validation.
     """
-    video_info = get_youtube_video_info(
-        url,
-        contexts=contexts,
-        manage_account_state=manage_account_state,
-    )
+    video_info = get_youtube_video_info(url)
     return video_info.get("title") if video_info else None
 
 
@@ -375,12 +257,30 @@ async def async_get_youtube_video_title(url: str) -> Optional[str]:
     return video_info.get("title") if video_info else None
 
 
-def download_youtube_video(
+def download_youtube_video_with_apify(
+    url: str,
+    video_id: str,
+) -> Path:
+    config = get_config()
+    downloader = YouTubeDownloader()
+    logger.info(
+        "Attempting Apify YouTube download for %s with quality %s",
+        video_id,
+        config.apify_youtube_default_quality,
+    )
+    return download_video_via_apify(
+        url=url,
+        video_id=video_id,
+        temp_dir=downloader.temp_dir,
+        api_token=config.apify_api_token,
+        quality=config.apify_youtube_default_quality,
+    )
+
+
+def _download_youtube_video_with_ytdlp(
     url: str,
     max_retries: int = 3,
     task_id: Optional[str] = None,
-    contexts: Optional[list[ResolvedYouTubeCookieContext]] = None,
-    manage_account_state: bool = True,
 ) -> Optional[Path]:
     """
     Download YouTube video with optimized settings and retry logic.
@@ -394,35 +294,9 @@ def download_youtube_video(
         return None
 
     downloader = YouTubeDownloader()
-
-    # Avoid stale low-quality cache entries by always refreshing download.
-    cached_files = [
-        file_path
-        for file_path in downloader.temp_dir.glob(f"{video_id}.*")
-        if file_path.is_file() and file_path.suffix.lower() in [".mp4", ".mkv", ".webm"]
-    ]
-    if cached_files:
-        logger.info(
-            f"Refreshing download for {video_id} (found {len(cached_files)} cached file(s))"
-        )
-        for cached_file in cached_files:
-            try:
-                cached_file.unlink()
-            except Exception as e:
-                logger.warning(f"Failed to remove stale cache file {cached_file}: {e}")
-
-    # Get video info first to validate and get metadata
-    resolved_contexts = contexts or cookie_manager.get_download_contexts_sync()
-    if not resolved_contexts:
-        raise YouTubeAuthUnavailableError(
-            "No healthy YouTube authentication cookies are available"
-        )
-
     video_info = get_youtube_video_info(
         url,
         task_id=task_id,
-        contexts=resolved_contexts,
-        manage_account_state=manage_account_state,
     )
     if not video_info:
         logger.error(f"Could not retrieve video information for: {url}")
@@ -434,112 +308,122 @@ def download_youtube_video(
     if duration > 3600:
         logger.warning(f"Video duration ({duration}s) exceeds recommended limit")
 
-    last_auth_error: Optional[str] = None
     last_error: Optional[str] = None
 
-    for context in resolved_contexts:
-        for attempt in range(max_retries):
-            try:
+    for attempt in range(max_retries):
+        try:
+            logger.info("Download attempt %s/%s", attempt + 1, max_retries)
+
+            ydl_opts = downloader.get_optimal_download_options(video_id)
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+
+            logger.info(f"Searching for downloaded file: {video_id}.*")
+            downloaded_files = [
+                file_path
+                for file_path in downloader.temp_dir.glob(f"{video_id}.*")
+                if file_path.is_file()
+                and file_path.suffix.lower() in [".mp4", ".mkv", ".webm"]
+            ]
+            if downloaded_files:
+                ranked_files = []
+                for candidate in downloaded_files:
+                    width, height = _get_local_video_dimensions(candidate)
+                    ranked_files.append(
+                        (
+                            height,
+                            width,
+                            candidate.stat().st_size,
+                            candidate,
+                        )
+                    )
+                ranked_files.sort(reverse=True)
+                best_downloaded_file = ranked_files[0][3]
+                file_size = best_downloaded_file.stat().st_size
+                width, height = _get_local_video_dimensions(best_downloaded_file)
                 logger.info(
-                    "Download attempt %s/%s using account %s",
-                    attempt + 1,
-                    max_retries,
-                    context.account_id or "legacy",
+                    f"Download successful: {best_downloaded_file.name} ({file_size // 1024 // 1024}MB, {width}x{height})"
                 )
+                return best_downloaded_file
 
-                ydl_opts = downloader.get_optimal_download_options(video_id, context)
+            logger.warning("No video file found after download attempt %s", attempt + 1)
 
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([url])
+        except yt_dlp.utils.DownloadError as e:
+            last_error = str(e)
+            logger.warning("Download attempt %s failed: %s", attempt + 1, e)
+            if attempt < max_retries - 1:
+                wait_time = 2**attempt
+                logger.info(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                logger.error("All download attempts failed")
 
-                logger.info(f"Searching for downloaded file: {video_id}.*")
-                downloaded_files = [
-                    file_path
-                    for file_path in downloader.temp_dir.glob(f"{video_id}.*")
-                    if file_path.is_file()
-                    and file_path.suffix.lower() in [".mp4", ".mkv", ".webm"]
-                ]
-                if downloaded_files:
-                    ranked_files = []
-                    for candidate in downloaded_files:
-                        width, height = _get_local_video_dimensions(candidate)
-                        ranked_files.append(
-                            (
-                                height,
-                                width,
-                                candidate.stat().st_size,
-                                candidate,
-                            )
-                        )
-                    ranked_files.sort(reverse=True)
-                    best_downloaded_file = ranked_files[0][3]
-                    file_size = best_downloaded_file.stat().st_size
-                    width, height = _get_local_video_dimensions(best_downloaded_file)
-                    logger.info(
-                        f"Download successful: {best_downloaded_file.name} ({file_size // 1024 // 1024}MB, {width}x{height})"
-                    )
-                    if manage_account_state:
-                        cookie_manager.mark_success_sync(
-                            context.account_id, task_id=task_id
-                        )
-                    return best_downloaded_file
+        except Exception as e:
+            last_error = str(e)
+            logger.error(
+                "Unexpected error during download attempt %s: %s",
+                attempt + 1,
+                e,
+            )
+            if attempt < max_retries - 1:
+                wait_time = 2**attempt
+                logger.info(f"Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+            else:
+                logger.error("All download attempts failed")
 
-                logger.warning(
-                    f"No video file found after download attempt {attempt + 1}"
-                )
-
-            except yt_dlp.utils.DownloadError as e:
-                logger.warning(f"Download attempt {attempt + 1} failed: {e}")
-                failure = cookie_manager.classify_error(str(e))
-                if failure.is_auth_failure:
-                    last_auth_error = failure.message
-                    if manage_account_state:
-                        cookie_manager.mark_auth_failure_sync(
-                            context.account_id, failure, task_id=task_id
-                        )
-                    break
-
-                last_error = str(e)
-                if manage_account_state:
-                    cookie_manager.mark_transient_failure_sync(
-                        context.account_id, str(e), task_id=task_id
-                    )
-                if attempt < max_retries - 1:
-                    wait_time = 2**attempt
-                    logger.info(f"Retrying in {wait_time} seconds...")
-                    time.sleep(wait_time)
-                else:
-                    logger.error(f"All download attempts failed for account {context.account_id}")
-
-            except Exception as e:
-                logger.error(f"Unexpected error during download attempt {attempt + 1}: {e}")
-                failure = cookie_manager.classify_error(str(e))
-                if failure.is_auth_failure:
-                    last_auth_error = failure.message
-                    if manage_account_state:
-                        cookie_manager.mark_auth_failure_sync(
-                            context.account_id, failure, task_id=task_id
-                        )
-                    break
-
-                last_error = str(e)
-                if manage_account_state:
-                    cookie_manager.mark_transient_failure_sync(
-                        context.account_id, str(e), task_id=task_id
-                    )
-                if attempt < max_retries - 1:
-                    wait_time = 2**attempt
-                    logger.info(f"Retrying in {wait_time} seconds...")
-                    time.sleep(wait_time)
-                else:
-                    logger.error(f"All download attempts failed for account {context.account_id}")
-
-    if last_auth_error:
-        raise YouTubeAuthChallengeError(last_auth_error)
     if last_error:
         logger.error("All download attempts failed for %s: %s", url, last_error)
 
     return None
+
+
+def download_youtube_video(
+    url: str,
+    max_retries: int = 3,
+    task_id: Optional[str] = None,
+) -> Optional[Path]:
+    """
+    Download YouTube video with Apify as the primary provider and yt-dlp fallback.
+    Returns the path to the downloaded file, or None if both providers fail.
+    """
+    logger.info("Starting YouTube download: %s", url)
+
+    video_id = get_youtube_video_id(url)
+    if not video_id:
+        logger.error("Could not extract video ID from URL: %s", url)
+        return None
+
+    downloader = YouTubeDownloader()
+    _remove_cached_downloads(downloader.temp_dir, video_id)
+
+    config = get_config()
+    if config.apify_api_token:
+        try:
+            downloaded_path = download_youtube_video_with_apify(url, video_id)
+            file_size = downloaded_path.stat().st_size
+            width, height = _get_local_video_dimensions(downloaded_path)
+            logger.info(
+                "Apify download successful: %s (%sMB, %sx%s)",
+                downloaded_path.name,
+                file_size // 1024 // 1024,
+                width,
+                height,
+            )
+            return downloaded_path
+        except ApifyDownloadError as exc:
+            logger.warning("Apify download failed for %s, falling back to yt-dlp: %s", url, exc)
+        except Exception as exc:
+            logger.error(
+                "Unexpected Apify download error for %s, falling back to yt-dlp: %s",
+                url,
+                exc,
+            )
+    else:
+        logger.info("APIFY_API_TOKEN not set; using yt-dlp fallback for %s", url)
+
+    return _download_youtube_video_with_ytdlp(url, max_retries, task_id)
 
 
 async def async_download_youtube_video(
@@ -548,114 +432,7 @@ async def async_download_youtube_video(
     task_id: Optional[str] = None,
 ) -> Optional[Path]:
     logger.info(f"Starting async YouTube download: {url}")
-
-    contexts = await cookie_manager.acquire_download_contexts()
-    if not contexts:
-        raise YouTubeAuthUnavailableError(
-            "No healthy YouTube authentication cookies are available"
-        )
-
-    video_info = await async_get_youtube_video_info(
-        url,
-        task_id=task_id,
-        contexts=contexts,
-    )
-    if not video_info:
-        logger.error(f"Could not retrieve video information for: {url}")
-        return None
-
-    logger.info(f"Video: '{video_info.get('title')}' ({video_info.get('duration')}s)")
-
-    duration = video_info.get("duration", 0)
-    if duration > 3600:
-        logger.warning(f"Video duration ({duration}s) exceeds recommended limit")
-
-    downloader = YouTubeDownloader()
-    video_id = get_youtube_video_id(url)
-    if not video_id:
-        logger.error(f"Could not extract video ID from URL: {url}")
-        return None
-
-    last_auth_error: Optional[str] = None
-    last_error: Optional[str] = None
-
-    for context in contexts:
-        for attempt in range(max_retries):
-            try:
-                logger.info(
-                    "Download attempt %s/%s using account %s",
-                    attempt + 1,
-                    max_retries,
-                    context.account_id or "legacy",
-                )
-                downloaded_file = await asyncio.to_thread(
-                    download_youtube_video,
-                    url,
-                    1,
-                    task_id,
-                    [context],
-                    False,
-                )
-                if downloaded_file:
-                    await cookie_manager.mark_account_success(
-                        context.account_id,
-                        task_id=task_id,
-                    )
-                    return downloaded_file
-            except yt_dlp.utils.DownloadError as exc:
-                logger.warning(f"Download attempt {attempt + 1} failed: {exc}")
-                failure = cookie_manager.classify_error(str(exc))
-                if failure.is_auth_failure:
-                    last_auth_error = failure.message
-                    await cookie_manager.mark_account_auth_failure(
-                        context.account_id,
-                        classification=failure,
-                        task_id=task_id,
-                    )
-                    break
-
-                last_error = str(exc)
-                await cookie_manager.mark_account_transient_failure(
-                    context.account_id,
-                    str(exc),
-                    task_id=task_id,
-                )
-            except Exception as exc:
-                logger.error(
-                    f"Unexpected error during download attempt {attempt + 1}: {exc}"
-                )
-                failure = cookie_manager.classify_error(str(exc))
-                if failure.is_auth_failure:
-                    last_auth_error = failure.message
-                    await cookie_manager.mark_account_auth_failure(
-                        context.account_id,
-                        classification=failure,
-                        task_id=task_id,
-                    )
-                    break
-
-                last_error = str(exc)
-                await cookie_manager.mark_account_transient_failure(
-                    context.account_id,
-                    str(exc),
-                    task_id=task_id,
-                )
-
-            if attempt < max_retries - 1:
-                wait_time = 2**attempt
-                logger.info(f"Retrying in {wait_time} seconds...")
-                await asyncio.sleep(wait_time)
-            else:
-                logger.error(
-                    "All download attempts failed for account %s",
-                    context.account_id,
-                )
-
-    if last_auth_error:
-        raise YouTubeAuthChallengeError(last_auth_error)
-    if last_error:
-        logger.error("All download attempts failed for %s: %s", url, last_error)
-    return None
+    return await asyncio.to_thread(download_youtube_video, url, max_retries, task_id)
 
 
 def get_video_duration(url: str) -> Optional[int]:
@@ -691,7 +468,7 @@ def is_video_suitable_for_processing(
 
 def cleanup_downloaded_files(video_id: str):
     """Clean up downloaded files for a specific video ID."""
-    temp_dir = Path(config.temp_dir)
+    temp_dir = Path(get_config().temp_dir)
 
     for file_path in temp_dir.glob(f"{video_id}.*"):
         try:

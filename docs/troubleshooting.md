@@ -139,21 +139,19 @@ YouTube tasks error early or cannot fetch source media.
 - Expired or invalid cookies
 - YouTube anti-bot restrictions
 - Network restrictions
-- `yt-dlp` edge-case changes
+- Apify actor failures or missing `APIFY_API_TOKEN`
+- `yt-dlp` fallback edge-case changes
 
 ### Checks
 
 - Review backend and worker logs
-- Review admin YouTube cookie account status if you use the rotation system
-- Confirm `YOUTUBE_AUTH_ROTATION_ENABLED` and related settings are what you expect
-- Confirm the fallback cookie file exists if you rely on it
+- Confirm `APIFY_API_TOKEN` is set if you expect the primary download path to use Apify
+- Confirm `APIFY_YOUTUBE_DEFAULT_QUALITY` is one of `360`, `480`, `720`, or `1080`
 
 ### Fixes
 
-- Refresh managed cookie accounts in the admin UI
-- Re-import manual cookies
-- Update or replace the legacy `backend/cookies.txt` fallback if you still use it
-- Verify the configured `YOUTUBE_AUTH_VERIFY_URL` is reachable
+- Verify the source URL is publicly reachable by either Apify or plain `yt-dlp`
+- Retry with `APIFY_API_TOKEN` configured if the direct `yt-dlp` fallback is being rate-limited
 
 ## Frontend Loads But Shows Errors
 
@@ -381,4 +379,3 @@ docker-compose up -d --build
 - [Setup](./setup.md)
 - [Configuration](./configuration.md)
 - [Architecture](./architecture.md)
-

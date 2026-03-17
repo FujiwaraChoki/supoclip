@@ -38,6 +38,6 @@ test("admin user can access the admin dashboard", async ({ page }) => {
   await page.goto("/admin");
   await expect(page.getByText(/admin dashboard/i)).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: /youtube auth rotation/i }),
+    page.getByRole("heading", { name: /currently processing tasks/i }),
   ).toBeVisible();
 });

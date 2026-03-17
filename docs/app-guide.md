@@ -268,7 +268,6 @@ Can also:
 - Access `/admin`
 - Promote or demote admin status for other users
 - Monitor global task activity
-- Manage YouTube cookie accounts
 
 ## Practical Support Notes
 
@@ -287,4 +286,3 @@ If a user says:
 - [Architecture](./architecture.md)
 - [API Reference](./api-reference.md)
 - [Troubleshooting](./troubleshooting.md)
-

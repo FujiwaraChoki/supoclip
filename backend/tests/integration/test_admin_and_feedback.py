@@ -13,7 +13,7 @@ async def test_admin_route_requires_admin_user(client, db_session):
     )
 
     response = await client.get(
-        "/admin/youtube-cookie-accounts",
+        "/admin/health",
         headers={"x-supoclip-user-id": "user-1"},
     )
 
