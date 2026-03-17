@@ -43,7 +43,7 @@ export const metadata: Metadata = {
   description: "Turn long videos into viral-ready shorts.",
   metadataBase: getMetadataBase(),
   icons: {
-    icon: "/icon.svg",
+    icon: "/icon.png",
   },
   openGraph: {
     title: "SupoClip",
