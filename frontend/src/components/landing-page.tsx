@@ -793,61 +793,6 @@ export default function LandingPage() {
         </ScrollReveal>
       </section>
 
-      {!authEnabled && (
-        <>
-          <Separator />
-          <section id="waitlist" className="py-20 md:py-28 bg-muted/40">
-            <div className="max-w-3xl mx-auto px-6">
-              <ScrollReveal className="text-center mb-10">
-                <Badge variant="secondary" className="mb-6">
-                  Early Access
-                </Badge>
-                <h2
-                  className="text-3xl sm:text-4xl font-bold tracking-tight mb-4"
-                  style={{ fontFamily: "var(--font-syne), system-ui" }}
-                >
-                  Join the SupoClip waitlist
-                </h2>
-                <p className="text-sm text-muted-foreground max-w-lg mx-auto">
-                  Get launch updates and first access once hosted signups are reopened.
-                </p>
-              </ScrollReveal>
-
-              <ScrollReveal delay={0.1}>
-                <Card className="py-0 gap-0">
-                  <CardContent className="p-6 md:p-8">
-                    {waitlistSubmitted ? (
-                      <div className="flex flex-col items-center text-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                          <CheckCircle className="w-6 h-6 text-primary" />
-                        </div>
-                        <h3 className="text-xl font-semibold">You are on the list.</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Thanks for joining. We will email you when SupoClip opens again.
-                        </p>
-                      </div>
-                    ) : (
-                      <form onSubmit={handleWaitlistSubmit} className="space-y-4">
-                        <Input
-                          type="email"
-                          value={email}
-                          onChange={(event) => setEmail(event.target.value)}
-                          placeholder="you@company.com"
-                          className="h-12"
-                          required
-                        />
-                        <Button type="submit" className="w-full h-12" disabled={isSubmittingWaitlist}>
-                          {isSubmittingWaitlist ? "Joining..." : "Join Waitlist"}
-                        </Button>
-                      </form>
-                    )}
-                  </CardContent>
-                </Card>
-              </ScrollReveal>
-            </div>
-          </section>
-        </>
-      )}
 
       {/* ─── FOOTER ─── */}
       <footer className="border-t py-8 px-6">
