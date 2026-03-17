@@ -26,6 +26,8 @@ import {
   Check,
   Infinity,
   Zap,
+  Menu,
+  X,
 } from "lucide-react";
 import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
 
@@ -187,6 +189,7 @@ const STEPS = [
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const authEnabled = !isLandingOnlyModeEnabled;
 
   useEffect(() => {
@@ -252,7 +255,8 @@ export default function LandingPage() {
             </a>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Desktop auth buttons */}
+          <div className="hidden md:flex items-center gap-3">
             {authEnabled ? (
               <>
                 <Link href="/sign-in">
@@ -273,7 +277,76 @@ export default function LandingPage() {
               </a>
             )}
           </div>
+
+          {/* Mobile hamburger */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            className="md:hidden p-2"
+            aria-label="Toggle menu"
+          >
+            {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </Button>
         </div>
+
+        {/* Mobile nav dropdown */}
+        {mobileNavOpen && (
+          <div className="md:hidden border-t bg-background/95 backdrop-blur-xl">
+            <div className="max-w-6xl mx-auto px-6 py-4 space-y-1">
+              <a
+                href="#how-it-works"
+                onClick={() => setMobileNavOpen(false)}
+                className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                How It Works
+              </a>
+              <a
+                href="#features"
+                onClick={() => setMobileNavOpen(false)}
+                className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                Features
+              </a>
+              <a
+                href="#pricing"
+                onClick={() => setMobileNavOpen(false)}
+                className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                Pricing
+              </a>
+              <a
+                href="#open-source"
+                onClick={() => setMobileNavOpen(false)}
+                className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                Open Source
+              </a>
+              <Separator className="my-2" />
+              <div className="flex flex-col gap-2 px-3 pt-1">
+                {authEnabled ? (
+                  <>
+                    <Link href="/sign-in" onClick={() => setMobileNavOpen(false)}>
+                      <Button variant="outline" size="sm" className="w-full">
+                        Sign In
+                      </Button>
+                    </Link>
+                    <Link href="/sign-up" onClick={() => setMobileNavOpen(false)}>
+                      <Button size="sm" className="w-full">Get Started</Button>
+                    </Link>
+                  </>
+                ) : (
+                  <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" className="w-full">
+                      Open Hosted App
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </Button>
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* ─── HERO ─── */}

@@ -17,7 +17,7 @@ import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor } from "lucide-react";
+import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor, Menu, X, LogOut, List, Shield, Settings } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import LandingPage from "@/components/landing-page";
 import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
@@ -123,6 +123,7 @@ export default function Home() {
   const [latestTask, setLatestTask] = useState<LatestTask | null>(null);
   const [isLoadingLatest, setIsLoadingLatest] = useState(false);
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   const taskApiUrl = "/api/tasks";
   const youtubeThumbnailUrl = sourceType === "youtube" ? getYouTubeThumbnailUrl(url) : null;
@@ -510,7 +511,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <div className="border-b bg-white">
+      <div className="border-b bg-white relative">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
@@ -524,7 +525,8 @@ export default function Home() {
               <h1 className="text-xl font-bold text-black">SupoClip</h1>
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* Desktop nav */}
+            <div className="hidden md:flex items-center gap-2">
               {billingSummary?.monetization_enabled && (
                 <div className="flex items-center gap-2 mr-1">
                   <Badge
@@ -588,8 +590,126 @@ export default function Home() {
                 </div>
               </Link>
             </div>
+
+            {/* Mobile hamburger */}
+            <div className="flex items-center gap-2 md:hidden">
+              {billingSummary?.monetization_enabled && (
+                <Badge
+                  className={`text-[10px] px-1.5 py-0 h-5 ${
+                    billingSummary.plan === "pro"
+                      ? "bg-stone-900 text-white"
+                      : "bg-stone-100 text-stone-600 border border-stone-200"
+                  }`}
+                >
+                  {billingSummary.plan === "pro" ? "Pro" : "Free"}
+                </Badge>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-2"
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              </Button>
+            </div>
           </div>
         </div>
+
+        {/* Mobile menu dropdown */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t bg-white absolute left-0 right-0 z-50 shadow-lg">
+            <div className="px-4 py-3 space-y-1">
+              {/* User info */}
+              <Link
+                href="/settings"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-gray-50 transition-colors"
+              >
+                <Avatar className="w-8 h-8">
+                  <AvatarImage src={session.user.image || ""} />
+                  <AvatarFallback className="bg-gray-100 text-black text-sm">
+                    {session.user.name?.charAt(0) || session.user.email?.charAt(0) || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-black truncate">{session.user.name}</p>
+                  <p className="text-xs text-gray-500 truncate">{session.user.email}</p>
+                </div>
+              </Link>
+
+              <Separator />
+
+              {/* Usage bar (mobile) */}
+              {billingSummary?.monetization_enabled && (
+                <div className="flex items-center gap-2 px-3 py-2">
+                  <div className="flex-1 h-1.5 bg-stone-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        billingSummary.usage_limit &&
+                        billingSummary.usage_count / billingSummary.usage_limit > 0.8
+                          ? "bg-red-500"
+                          : "bg-stone-900"
+                      }`}
+                      style={{
+                        width: billingSummary.usage_limit
+                          ? `${Math.min((billingSummary.usage_count / billingSummary.usage_limit) * 100, 100)}%`
+                          : "0%",
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-stone-500 tabular-nums whitespace-nowrap">
+                    {billingSummary.usage_limit
+                      ? `${billingSummary.usage_count}/${billingSummary.usage_limit}`
+                      : `${billingSummary.usage_count}`}
+                  </span>
+                </div>
+              )}
+
+              {/* Nav links */}
+              <Link
+                href="/list"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-stone-700 hover:bg-gray-50 transition-colors"
+              >
+                <List className="w-4 h-4 text-stone-400" />
+                All Generations
+              </Link>
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-stone-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Shield className="w-4 h-4 text-stone-400" />
+                  Admin
+                </Link>
+              )}
+              <Link
+                href="/settings"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-stone-700 hover:bg-gray-50 transition-colors"
+              >
+                <Settings className="w-4 h-4 text-stone-400" />
+                Settings
+              </Link>
+
+              <Separator />
+
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleSignOut();
+                }}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Content */}
