@@ -768,9 +768,9 @@ export default function Home() {
         )}
 
         {/* Two Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-10">
+        <div className="flex flex-col lg:flex-row gap-10 items-start">
           {/* Left Column — Form */}
-          <div className="lg:col-span-3">
+          <div className="flex-1 min-w-0">
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-stone-900 mb-2">
                 Create New Clip
@@ -945,6 +945,13 @@ export default function Home() {
               </Card>
 
               {/* Font Customization Section */}
+              <div
+                className={`transition-all duration-500 ease-in-out overflow-hidden ${
+                  addSubtitles
+                    ? "max-h-[800px] opacity-100"
+                    : "max-h-0 opacity-0 pointer-events-none"
+                }`}
+              >
               <Card className="border-stone-200">
                 <CardContent className="px-4 pt-0 pb-2.5 space-y-2.5">
                   <div
@@ -1091,6 +1098,7 @@ export default function Home() {
                   )}
                 </CardContent>
               </Card>
+              </div>
 
               {isLoading && (
                 <div className="space-y-4">
@@ -1154,6 +1162,13 @@ export default function Home() {
                 </Alert>
               )}
 
+              <p className="text-xs text-stone-500">
+                Completion emails use your user preference in{" "}
+                <Link href="/settings" className="font-medium text-stone-700 underline underline-offset-2">
+                  Settings
+                </Link>.
+              </p>
+
               <Button
                 type="submit"
                 className="w-full h-12 text-base rounded-xl"
@@ -1170,7 +1185,20 @@ export default function Home() {
           </div>
 
           {/* Right Column — Phone Preview */}
-          <div className="lg:col-span-2 hidden lg:block">
+          <div
+            className={`hidden lg:block flex-shrink-0 overflow-hidden transition-all duration-500 ease-in-out ${
+              sourceType === "upload"
+                ? "w-0 opacity-0"
+                : "w-[340px] opacity-100"
+            }`}
+          >
+            <div
+              className={`w-[340px] transition-all duration-500 ease-in-out ${
+                sourceType === "upload"
+                  ? "translate-x-6 scale-[0.97] opacity-0"
+                  : "translate-x-0 scale-100 opacity-100"
+              }`}
+            >
             <div className="lg:sticky lg:top-8">
               <div className="flex items-center justify-center gap-2 mb-5 text-sm text-stone-400">
                 <Monitor className="w-4 h-4" />
@@ -1180,7 +1208,7 @@ export default function Home() {
               {/* Phone Frame — realistic iPhone style */}
               <div className="mx-auto" style={{ maxWidth: "300px" }}>
                 <div
-                  className="relative bg-stone-950 shadow-[0_0_0_2px_rgba(0,0,0,0.1),0_20px_70px_-10px_rgba(0,0,0,0.35)]"
+                  className="relative bg-stone-950"
                   style={{ borderRadius: "3rem", padding: "12px" }}
                 >
                   {/* Screen with inner radius */}
@@ -1370,6 +1398,7 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </div>
