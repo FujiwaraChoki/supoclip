@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
 import {
   Scissors,
   Sparkles,
@@ -24,13 +23,13 @@ import {
   Wand2,
   ChevronDown,
   ExternalLink,
-  CheckCircle,
   Check,
   Infinity,
   Zap,
 } from "lucide-react";
-import { track } from "@/lib/datafast";
 import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
+
+const HOSTED_APP_URL = "https://supoclip.com";
 
 function ScrollReveal({
   children,
@@ -188,9 +187,6 @@ const STEPS = [
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
-  const [email, setEmail] = useState("");
-  const [isSubmittingWaitlist, setIsSubmittingWaitlist] = useState(false);
-  const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
   const authEnabled = !isLandingOnlyModeEnabled;
 
   useEffect(() => {
@@ -198,34 +194,6 @@ export default function LandingPage() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
-
-  const handleWaitlistSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!email.trim()) return;
-
-    try {
-      setIsSubmittingWaitlist(true);
-      const response = await fetch("/api/waitlist", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email: email.trim() }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to join waitlist");
-      }
-
-      track("waitlist_submitted");
-      setWaitlistSubmitted(true);
-      setEmail("");
-    } catch (error) {
-      console.error("Failed to join waitlist:", error);
-    } finally {
-      setIsSubmittingWaitlist(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -297,7 +265,12 @@ export default function LandingPage() {
                 </Link>
               </>
             ) : (
-              <Badge variant="secondary">Temporarily unavailable</Badge>
+              <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
+                <Button size="sm">
+                  Open Hosted App
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </Button>
+              </a>
             )}
           </div>
         </div>
@@ -366,9 +339,10 @@ export default function LandingPage() {
                     </Button>
                   </Link>
                 ) : (
-                  <a href="#waitlist">
+                  <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
                     <Button size="lg" className="px-8 h-12 text-sm">
-                      Join Waitlist
+                      Use Hosted App
+                      <ExternalLink className="w-4 h-4" />
                     </Button>
                   </a>
                 )}
@@ -665,7 +639,11 @@ export default function LandingPage() {
                         </Button>
                       </Link>
                     ) : (
-                      <a href="#waitlist">
+                      <a
+                        href={HOSTED_APP_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
                         <Button
                           className={`w-full h-11 text-sm ${
                             plan.highlighted
@@ -675,7 +653,8 @@ export default function LandingPage() {
                           variant={plan.highlighted ? "secondary" : "default"}
                           size="lg"
                         >
-                          Join Waitlist
+                          Use Hosted App
+                          <ExternalLink className="w-4 h-4" />
                         </Button>
                       </a>
                     )}
@@ -767,8 +746,11 @@ export default function LandingPage() {
                       </Button>
                     </Link>
                   ) : (
-                    <a href="#waitlist">
-                      <Button variant="outline">Join Waitlist</Button>
+                    <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
+                      <Button variant="outline">
+                        Open hosted version
+                        <ExternalLink className="w-4 h-4" />
+                      </Button>
                     </a>
                   )}
                 </div>
@@ -801,9 +783,10 @@ export default function LandingPage() {
               </Button>
             </Link>
           ) : (
-            <a href="#waitlist">
+            <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
               <Button size="lg" className="px-10 h-12 text-sm">
-                Join the Waitlist
+                Open Hosted App
+                <ExternalLink className="w-4 h-4" />
               </Button>
             </a>
           )}
