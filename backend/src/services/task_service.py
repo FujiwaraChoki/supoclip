@@ -26,10 +26,6 @@ from ..clip_editor import (
     overlay_custom_captions,
 )
 from ..video_utils import parse_timestamp_to_seconds
-from .youtube_cookie_manager import (
-    YouTubeAuthChallengeError,
-    YouTubeAuthUnavailableError,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -303,11 +299,7 @@ class TaskService:
             )
             error_code = "task_error"
             message = str(e).lower()
-            if isinstance(e, YouTubeAuthUnavailableError):
-                error_code = "youtube_auth_unavailable"
-            elif isinstance(e, YouTubeAuthChallengeError):
-                error_code = "youtube_auth_challenge"
-            elif "download" in message:
+            if "download" in message or "youtube" in message:
                 error_code = "download_error"
             elif "transcript" in message:
                 error_code = "transcription_error"

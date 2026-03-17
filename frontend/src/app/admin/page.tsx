@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { AdminUserToggle } from "@/components/admin/admin-user-toggle";
-import { YouTubeAuthManager } from "@/components/admin/youtube-auth-manager";
 import { Badge } from "@/components/ui/badge";
 
 const ACTIVE_TASK_STATUSES = ["queued", "processing", "pending"];
@@ -238,9 +237,6 @@ export default async function AdminPage({
           </table>
         </div>
       </section>
-
-      <YouTubeAuthManager />
-
       <section className="mt-8 rounded-lg border border-gray-200 bg-white">
         <div className="border-b border-gray-200 px-4 py-3">
           <h2 className="text-lg font-medium">Recent Generations</h2>

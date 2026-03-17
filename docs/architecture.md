@@ -163,7 +163,6 @@ Important services:
 - `video_service.py`
 - `billing_service.py`
 - `subscription_email_service.py`
-- `youtube_cookie_manager.py`
 
 ### Repositories
 
@@ -183,7 +182,6 @@ Important repositories:
 - `clip_repository.py`
 - `source_repository.py`
 - `cache_repository.py`
-- `youtube_auth_repository.py`
 
 ### Utility and domain modules
 
@@ -294,7 +292,7 @@ If anything fails:
 The rough pipeline is:
 
 1. Input acquisition
-   - YouTube via `yt-dlp`
+   - YouTube via Apify actor, with `yt-dlp` fallback
    - Uploaded file from the frontend
 2. Transcription
    - AssemblyAI for word-level timestamps
@@ -435,4 +433,3 @@ For new work, use the refactored entry point and layered route structure.
 - [API Reference](./api-reference.md)
 - [Development](./development.md)
 - [Troubleshooting](./troubleshooting.md)
-

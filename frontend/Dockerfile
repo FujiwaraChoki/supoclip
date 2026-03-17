@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+
 # Use Bun as the base image
 FROM oven/bun:1.2-debian AS base
 
@@ -8,10 +10,10 @@ WORKDIR /app
 # Install OpenSSL for Prisma postinstall
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency manifests and Prisma schema needed by postinstall
+# Copy dependency manifests only so app/schema changes don't invalidate deps
 COPY package.json bun.lock ./
-COPY prisma ./prisma
-RUN bun install
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile --ignore-scripts
 
 # Development stage
 FROM base AS development

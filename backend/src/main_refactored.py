@@ -62,11 +62,6 @@ def create_app(
             await queue_adapter.get_pool()
             logger.info("✅ Job queue initialized")
 
-            from .services.youtube_cookie_manager import YouTubeCookieManager
-
-            await YouTubeCookieManager().ensure_legacy_cookie_imported()
-            logger.info("✅ YouTube auth manager initialized")
-
             yield
         finally:
             logger.info("🛑 Shutting down SupoClip API...")

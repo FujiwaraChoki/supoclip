@@ -17,7 +17,6 @@ export default defineConfig({
         "src/app/api/preferences/route.ts",
         "src/app/api/tasks/route.ts",
         "src/app/api/billing/webhook/route.ts",
-        "src/lib/admin-api-proxy.ts",
         "src/components/auth/sign-in.tsx",
         "src/components/auth/sign-up.tsx",
       ],

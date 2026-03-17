@@ -170,13 +170,11 @@ With Docker, SupoClip stores persistent data in named volumes:
 - `redis_data`
 - `uploads`
 - `clips`
-- `youtube_auth`
 
 The backend also mounts these local directories:
 
 - `backend/fonts`
 - `backend/transitions`
-- `backend/cookies.txt` as a legacy fallback cookie file
 
 ## Hosted Mode Versus Self-Hosted Mode
 

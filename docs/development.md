@@ -213,15 +213,12 @@ Primary files:
 - `backend/src/services/billing_service.py`
 - `backend/src/services/subscription_email_service.py`
 
-### Modify admin YouTube auth rotation
+### Modify the admin dashboard
 
 Primary files:
 
 - `frontend/src/app/admin/page.tsx`
-- `frontend/src/components/admin/youtube-auth-manager.tsx`
 - `backend/src/api/routes/admin.py`
-- `backend/src/services/youtube_cookie_manager.py`
-- `backend/src/repositories/youtube_auth_repository.py`
 
 ## Testing and Verification
 

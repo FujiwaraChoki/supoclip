@@ -62,10 +62,8 @@ These routes generally attach session context and then proxy or orchestrate back
 
 ### Admin
 
-- `GET/POST /api/admin/youtube-cookie-accounts`
-  - Admin cookie account management
-- `GET/POST/PATCH /api/admin/youtube-cookie-accounts/[...path]`
-  - Additional admin actions for YouTube auth accounts
+- `GET /admin`
+  - Admin dashboard page
 
 ### Waitlist
 
@@ -165,20 +163,8 @@ Source file:
 
 Routes:
 
-- `GET /youtube-cookie-accounts`
-  - List managed YouTube auth accounts
-- `POST /youtube-cookie-accounts`
-  - Create an auth account record
-- `PATCH /youtube-cookie-accounts/{account_id}`
-  - Update an auth account
-- `POST /youtube-cookie-accounts/{account_id}/verify`
-  - Verify account health
-- `POST /youtube-cookie-accounts/{account_id}/manual-cookies`
-  - Upload or set manual cookies
-- `GET /youtube-cookie-accounts/{account_id}/manual-cookies`
-  - Fetch manual cookie metadata or content
-- `GET /youtube-cookie-accounts/{account_id}/events`
-  - View account-specific auth events
+- `GET /health`
+  - Verify admin access and backend reachability
 
 ## Billing Routes
 
@@ -256,4 +242,3 @@ If a route seems broken:
 - [Architecture](./architecture.md)
 - [Development](./development.md)
 - [Troubleshooting](./troubleshooting.md)
-
