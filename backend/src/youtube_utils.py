@@ -4,6 +4,7 @@ Optimized for Apify-first downloads with direct yt-dlp fallback.
 """
 
 import asyncio
+from datetime import datetime
 import logging
 import re
 import subprocess
@@ -12,12 +13,17 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import parse_qs, urlparse
 
+import requests
 import yt_dlp
 
 from .apify_youtube_downloader import ApifyDownloadError, download_video_via_apify
 from .config import get_config
 
 logger = logging.getLogger(__name__)
+
+YOUTUBE_METADATA_PROVIDER_YTDLP = "yt_dlp"
+YOUTUBE_METADATA_PROVIDER_DATA_API = "youtube_data_api"
+YOUTUBE_DATA_API_URL = "https://www.googleapis.com/youtube/v3/videos"
 
 
 class YouTubeDownloader:
@@ -89,6 +95,78 @@ def _build_info_options() -> Dict[str, Any]:
         "nocheckcertificate": True,
     }
     return ydl_opts
+
+
+def _empty_video_info(video_id: Optional[str] = None) -> Dict[str, Any]:
+    return {
+        "id": video_id,
+        "title": None,
+        "description": "",
+        "duration": None,
+        "uploader": None,
+        "upload_date": None,
+        "view_count": None,
+        "like_count": None,
+        "thumbnail": None,
+        "format_id": None,
+        "resolution": None,
+        "fps": None,
+        "filesize": None,
+    }
+
+
+def _parse_iso8601_duration_to_seconds(value: str) -> int:
+    match = re.fullmatch(
+        r"P(?:(?P<days>\d+)D)?(?:T(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?)?",
+        value or "",
+    )
+    if not match:
+        raise ValueError(f"Unsupported ISO 8601 duration: {value}")
+
+    days = int(match.group("days") or 0)
+    hours = int(match.group("hours") or 0)
+    minutes = int(match.group("minutes") or 0)
+    seconds = int(match.group("seconds") or 0)
+    return (((days * 24) + hours) * 60 + minutes) * 60 + seconds
+
+
+def _pick_best_thumbnail(thumbnails: Optional[Dict[str, Any]]) -> Optional[str]:
+    if not thumbnails:
+        return None
+
+    for key in ("maxres", "standard", "high", "medium", "default"):
+        candidate = thumbnails.get(key)
+        if isinstance(candidate, dict) and candidate.get("url"):
+            return candidate["url"]
+
+    for candidate in thumbnails.values():
+        if isinstance(candidate, dict) and candidate.get("url"):
+            return candidate["url"]
+
+    return None
+
+
+def _normalize_upload_date(published_at: Optional[str]) -> Optional[str]:
+    if not published_at:
+        return None
+
+    try:
+        return (
+            datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+            .strftime("%Y%m%d")
+        )
+    except ValueError:
+        logger.warning("Could not parse YouTube publishedAt value: %s", published_at)
+        return None
+
+
+def _parse_optional_int(value: Any) -> Optional[int]:
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _get_local_video_dimensions(path: Path) -> tuple[int, int]:
@@ -187,39 +265,91 @@ def validate_youtube_url(url: str) -> bool:
     return video_id is not None
 
 
-def fetch_video_info(url: str) -> Optional[Dict[str, Any]]:
-    """
-    Get comprehensive video information without downloading.
-    Returns title, duration, description, and other metadata.
-    """
+def _fetch_video_info_with_ytdlp(url: str) -> Dict[str, Any]:
     video_id = get_youtube_video_id(url)
     if not video_id:
-        logger.error(f"Invalid YouTube URL: {url}")
-        return None
+        raise ValueError(f"Invalid YouTube URL: {url}")
 
-    try:
-        ydl_opts = _build_info_options()
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+    ydl_opts = _build_info_options()
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
 
-            return {
-                "id": info.get("id"),
-                "title": info.get("title"),
-                "description": info.get("description", ""),
-                "duration": info.get("duration"),
-                "uploader": info.get("uploader"),
-                "upload_date": info.get("upload_date"),
-                "view_count": info.get("view_count"),
-                "like_count": info.get("like_count"),
-                "thumbnail": info.get("thumbnail"),
-                "format_id": info.get("format_id"),
-                "resolution": info.get("resolution"),
-                "fps": info.get("fps"),
-                "filesize": info.get("filesize"),
-            }
+    return {
+        "id": info.get("id"),
+        "title": info.get("title"),
+        "description": info.get("description", ""),
+        "duration": info.get("duration"),
+        "uploader": info.get("uploader"),
+        "upload_date": info.get("upload_date"),
+        "view_count": info.get("view_count"),
+        "like_count": info.get("like_count"),
+        "thumbnail": info.get("thumbnail"),
+        "format_id": info.get("format_id"),
+        "resolution": info.get("resolution"),
+        "fps": info.get("fps"),
+        "filesize": info.get("filesize"),
+    }
 
-    except Exception as e:
-        raise
+
+def _fetch_video_info_with_youtube_data_api(url: str) -> Dict[str, Any]:
+    video_id = get_youtube_video_id(url)
+    if not video_id:
+        raise ValueError(f"Invalid YouTube URL: {url}")
+
+    config = get_config()
+    api_key = config.resolve_youtube_data_api_key()
+    if not api_key:
+        raise ValueError("Missing YOUTUBE_DATA_API_KEY and GOOGLE_API_KEY")
+
+    response = requests.get(
+        YOUTUBE_DATA_API_URL,
+        params={
+            "part": "snippet,contentDetails,statistics",
+            "id": video_id,
+            "key": api_key,
+            "fields": (
+                "items(id,"
+                "snippet(title,description,channelTitle,publishedAt,"
+                "thumbnails(default(url),medium(url),high(url),standard(url),maxres(url))),"
+                "contentDetails(duration),"
+                "statistics(viewCount,likeCount))"
+            ),
+        },
+        timeout=(10, 30),
+    )
+    response.raise_for_status()
+    payload = response.json()
+    items = payload.get("items") or []
+    if not items:
+        raise ValueError(f"No YouTube Data API results for video {video_id}")
+
+    item = items[0]
+    snippet = item.get("snippet") or {}
+    content_details = item.get("contentDetails") or {}
+    statistics = item.get("statistics") or {}
+    normalized = _empty_video_info(item.get("id") or video_id)
+    normalized.update(
+        {
+            "title": snippet.get("title"),
+            "description": snippet.get("description", ""),
+            "duration": _parse_iso8601_duration_to_seconds(
+                content_details.get("duration", "")
+            ),
+            "uploader": snippet.get("channelTitle"),
+            "upload_date": _normalize_upload_date(snippet.get("publishedAt")),
+            "view_count": _parse_optional_int(statistics.get("viewCount")),
+            "like_count": _parse_optional_int(statistics.get("likeCount")),
+            "thumbnail": _pick_best_thumbnail(snippet.get("thumbnails")),
+        }
+    )
+    return normalized
+
+
+def fetch_video_info(url: str) -> Optional[Dict[str, Any]]:
+    """
+    Backward-compatible metadata lookup entrypoint.
+    """
+    return get_youtube_video_info(url)
 
 
 async def async_get_youtube_video_info(
@@ -233,12 +363,64 @@ def get_youtube_video_info(
     url: str,
     task_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    try:
-        logger.info("Fetching YouTube video info directly")
-        return fetch_video_info(url)
-    except Exception as exc:
-        logger.warning("YouTube video info fetch failed: %s", exc)
+    del task_id  # Reserved for future provider-specific tracing.
+
+    video_id = get_youtube_video_id(url)
+    if not video_id:
+        logger.error("Invalid YouTube URL: %s", url)
         return None
+
+    config = get_config()
+    primary_provider = config.youtube_metadata_provider
+    secondary_provider = (
+        YOUTUBE_METADATA_PROVIDER_DATA_API
+        if primary_provider == YOUTUBE_METADATA_PROVIDER_YTDLP
+        else YOUTUBE_METADATA_PROVIDER_YTDLP
+    )
+    providers = [primary_provider, secondary_provider]
+    last_error: Optional[Exception] = None
+
+    for index, provider in enumerate(providers):
+        try:
+            if provider == YOUTUBE_METADATA_PROVIDER_DATA_API:
+                video_info = _fetch_video_info_with_youtube_data_api(url)
+            else:
+                video_info = _fetch_video_info_with_ytdlp(url)
+
+            if index == 0:
+                logger.info(
+                    "Fetched YouTube metadata for %s using primary provider %s",
+                    video_id,
+                    provider,
+                )
+            else:
+                logger.info(
+                    "Fetched YouTube metadata for %s using fallback provider %s",
+                    video_id,
+                    provider,
+                )
+            return video_info
+        except Exception as exc:
+            last_error = exc
+            if index == 0:
+                logger.warning(
+                    "Primary YouTube metadata provider %s failed for %s: %s. Trying %s.",
+                    provider,
+                    video_id,
+                    exc,
+                    secondary_provider,
+                )
+            else:
+                logger.warning(
+                    "Fallback YouTube metadata provider %s failed for %s: %s",
+                    provider,
+                    video_id,
+                    exc,
+                )
+
+    if last_error:
+        logger.warning("YouTube video info fetch failed for %s: %s", video_id, last_error)
+    return None
 
 
 def get_youtube_video_title(

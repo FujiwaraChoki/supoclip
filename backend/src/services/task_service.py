@@ -18,6 +18,10 @@ from ..repositories.source_repository import SourceRepository
 from ..repositories.clip_repository import ClipRepository
 from ..repositories.cache_repository import CacheRepository
 from .video_service import VideoService
+from .task_completion_email_service import (
+    TaskCompletionEmailService,
+    TaskCompletionRecipient,
+)
 from ..config import Config, get_config
 from ..clip_editor import (
     trim_clip_file,
@@ -132,6 +136,7 @@ class TaskService:
         add_subtitles: bool = True,
         progress_callback: Optional[Callable] = None,
         should_cancel: Optional[Callable] = None,
+        clip_ready_callback: Optional[Callable] = None,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -213,18 +218,55 @@ class TaskService:
                 analysis_json=result.get("analysis_json"),
             )
 
-            # Save clips to database
-            await self.task_repo.update_task_status(
-                self.db,
-                task_id,
-                "processing",
-                progress=95,
-                progress_message="Saving clips...",
-            )
+            # Render clips incrementally: render, save, notify one at a time
+            segments_to_render = result.get("segments_to_render", [])
+            video_path = Path(result["video_path"])
+            total_clips = len(segments_to_render)
+            clips_output_dir = Path(self.config.temp_dir) / "clips"
+            clips_output_dir.mkdir(parents=True, exist_ok=True)
 
             clip_ids = []
-            save_start = perf_counter()
-            for i, clip_info in enumerate(result["clips"]):
+            prev_clip_path: Optional[Path] = None
+            render_start = perf_counter()
+
+            for i, segment in enumerate(segments_to_render):
+                # Check cancellation
+                if should_cancel and await should_cancel():
+                    raise Exception("Task cancelled")
+
+                # Update progress: 70-95% spread across clips
+                clip_progress = 70 + int(
+                    ((i + 1) / total_clips) * 25
+                ) if total_clips > 0 else 95
+                await update_progress(
+                    clip_progress,
+                    f"Creating clip {i + 1}/{total_clips}...",
+                )
+
+                # Render single clip in thread pool
+                clip_info = await self.video_service.create_single_clip(
+                    video_path,
+                    segment,
+                    i,
+                    clips_output_dir,
+                    font_family,
+                    font_size,
+                    font_color,
+                    caption_template,
+                    output_format,
+                    add_subtitles,
+                )
+                if clip_info is None:
+                    continue  # Skip failed clip
+
+                # Apply transition (clip 2+ only)
+                if i > 0 and prev_clip_path is not None:
+                    clip_info = await self.video_service.apply_single_transition(
+                        prev_clip_path, clip_info, i, clips_output_dir,
+                    )
+                prev_clip_path = Path(clip_info["path"])
+
+                # Save to DB immediately
                 clip_id = await self.clip_repo.create_clip(
                     self.db,
                     task_id=task_id,
@@ -233,9 +275,9 @@ class TaskService:
                     start_time=clip_info["start_time"],
                     end_time=clip_info["end_time"],
                     duration=clip_info["duration"],
-                    text=clip_info["text"],
-                    relevance_score=clip_info["relevance_score"],
-                    reasoning=clip_info["reasoning"],
+                    text=clip_info.get("text", ""),
+                    relevance_score=clip_info.get("relevance_score", 0.0),
+                    reasoning=clip_info.get("reasoning", ""),
                     clip_order=i + 1,
                     virality_score=clip_info.get("virality_score", 0),
                     hook_score=clip_info.get("hook_score", 0),
@@ -244,12 +286,23 @@ class TaskService:
                     shareability_score=clip_info.get("shareability_score", 0),
                     hook_type=clip_info.get("hook_type"),
                 )
+                await self.db.commit()
                 clip_ids.append(clip_id)
 
-            stage_timings["save_seconds"] = round(perf_counter() - save_start, 3)
+                # Update task's clip IDs array
+                await self.task_repo.update_task_clips(self.db, task_id, clip_ids)
 
-            # Update task with clip IDs
-            await self.task_repo.update_task_clips(self.db, task_id, clip_ids)
+                # Notify frontend via SSE
+                if clip_ready_callback:
+                    clip_record = await self.clip_repo.get_clip_by_id(
+                        self.db, clip_id
+                    )
+                    if clip_record:
+                        await clip_ready_callback(i, total_clips, clip_record)
+
+            stage_timings["render_seconds"] = round(
+                perf_counter() - render_start, 3
+            )
 
             # Mark as completed
             await self.task_repo.update_task_status(
@@ -269,6 +322,10 @@ class TaskService:
                 completed_at=datetime.utcnow(),
                 stage_timings_json=json.dumps(stage_timings),
                 error_code="",
+            )
+            await self._send_completion_notification_if_needed(
+                task_id=task_id,
+                clips_count=len(clip_ids),
             )
 
             logger.info(
@@ -315,6 +372,64 @@ class TaskService:
                 error_code=error_code,
             )
             raise
+
+    async def _send_completion_notification_if_needed(
+        self, *, task_id: str, clips_count: int
+    ) -> None:
+        context = await self.task_repo.get_task_notification_context(self.db, task_id)
+        if not context:
+            logger.warning("Task %s missing notification context; skipping email", task_id)
+            return
+
+        if not context.get("notify_on_completion"):
+            return
+
+        if context.get("completion_notification_sent_at"):
+            logger.info(
+                "Completion notification already sent for task %s; skipping", task_id
+            )
+            return
+
+        user_email = context.get("user_email")
+        if not user_email:
+            logger.warning(
+                "Task %s has notify_on_completion enabled but user email is missing",
+                task_id,
+            )
+            return
+
+        email_service = TaskCompletionEmailService(self.config)
+        if not email_service.is_configured:
+            logger.warning(
+                "Skipping completion notification for task %s because Resend is not configured",
+                task_id,
+            )
+            return
+
+        try:
+            await email_service.send_task_completed_email(
+                recipient=TaskCompletionRecipient(
+                    email=user_email,
+                    name=context.get("user_name"),
+                    first_name=context.get("user_first_name"),
+                ),
+                task_id=task_id,
+                source_title=context.get("source_title"),
+                clips_count=clips_count,
+            )
+            stamped = await self.task_repo.mark_completion_notification_sent(
+                self.db, task_id
+            )
+            if not stamped:
+                logger.info(
+                    "Completion notification stamp already existed for task %s",
+                    task_id,
+                )
+        except Exception:
+            logger.exception(
+                "Failed to send completion notification for task %s",
+                task_id,
+            )
 
     async def get_task_with_clips(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Get task details with all clips."""

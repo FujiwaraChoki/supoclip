@@ -98,6 +98,7 @@ services:
       - PRO_PLAN_TASK_LIMIT=${PRO_PLAN_TASK_LIMIT:-0}
       - RESEND_API_KEY=${RESEND_API_KEY}
       - "RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-SupoClip <onboarding@resend.dev>}"
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -154,6 +155,9 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://sp.localhost:3000}
       - FREE_PLAN_TASK_LIMIT=${FREE_PLAN_TASK_LIMIT:-10}
       - PRO_PLAN_TASK_LIMIT=${PRO_PLAN_TASK_LIMIT:-0}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - "RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-SupoClip <onboarding@resend.dev>}"
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     restart: unless-stopped
     depends_on:
       postgres:

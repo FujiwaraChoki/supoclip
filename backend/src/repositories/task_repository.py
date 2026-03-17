@@ -36,11 +36,13 @@ class TaskRepository:
                 text("""
                     INSERT INTO tasks (
                         id, user_id, source_id, status, font_family, font_size, font_color,
-                        caption_template, include_broll, processing_mode, created_at, updated_at
+                        caption_template, include_broll, processing_mode,
+                        created_at, updated_at
                     )
                     VALUES (
                         :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
-                        :caption_template, :include_broll, :processing_mode, NOW(), NOW()
+                        :caption_template, :include_broll, :processing_mode,
+                        NOW(), NOW()
                     )
                     RETURNING id
                 """),
@@ -140,6 +142,9 @@ class TaskRepository:
             "stage_timings_json": getattr(row, "stage_timings_json", None),
             "started_at": getattr(row, "started_at", None),
             "completed_at": getattr(row, "completed_at", None),
+            "completion_notification_sent_at": getattr(
+                row, "completion_notification_sent_at", None
+            ),
             "source_url": getattr(row, "source_url", None),
             "created_at": row.created_at,
             "updated_at": row.updated_at,
@@ -359,6 +364,9 @@ class TaskRepository:
                     "source_type": row.source_type,
                     "status": row.status,
                     "processing_mode": getattr(row, "processing_mode", "fast"),
+                    "completion_notification_sent_at": getattr(
+                        row, "completion_notification_sent_at", None
+                    ),
                     "clips_count": row.clips_count,
                     "created_at": row.created_at,
                     "updated_at": row.updated_at,
@@ -383,3 +391,62 @@ class TaskRepository:
         )
         await db.commit()
         logger.info(f"Deleted task {task_id}")
+
+    @staticmethod
+    async def get_task_notification_context(
+        db: AsyncSession, task_id: str
+    ) -> Optional[Dict[str, Any]]:
+        result = await db.execute(
+            text(
+                """
+                SELECT
+                    t.id,
+                    u.notify_on_completion,
+                    t.completion_notification_sent_at,
+                    s.title AS source_title,
+                    u.email AS user_email,
+                    u.name AS user_name,
+                    u.first_name AS user_first_name
+                FROM tasks t
+                JOIN users u ON u.id = t.user_id
+                LEFT JOIN sources s ON s.id = t.source_id
+                WHERE t.id = :task_id
+                """
+            ),
+            {"task_id": task_id},
+        )
+        row = result.fetchone()
+        if not row:
+            return None
+
+        return {
+            "task_id": row.id,
+            "notify_on_completion": getattr(row, "notify_on_completion", False),
+            "completion_notification_sent_at": getattr(
+                row, "completion_notification_sent_at", None
+            ),
+            "source_title": getattr(row, "source_title", None),
+            "user_email": getattr(row, "user_email", None),
+            "user_name": getattr(row, "user_name", None),
+            "user_first_name": getattr(row, "user_first_name", None),
+        }
+
+    @staticmethod
+    async def mark_completion_notification_sent(
+        db: AsyncSession, task_id: str
+    ) -> bool:
+        result = await db.execute(
+            text(
+                """
+                UPDATE tasks
+                SET completion_notification_sent_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = :task_id
+                  AND completion_notification_sent_at IS NULL
+                RETURNING completion_notification_sent_at
+                """
+            ),
+            {"task_id": task_id},
+        )
+        await db.commit()
+        return result.fetchone() is not None

@@ -143,7 +143,7 @@ function getPlans() {
       name: "Pro",
       price: `$${proPriceMonthly}`,
       period: "/month",
-      description: "For power users who clip daily and need zero limits.",
+      description: "For power users who clip daily and need more generations.",
       features: [
         proGenerationsLabel,
         "Everything in Free",

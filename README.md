@@ -98,6 +98,12 @@ BETTER_AUTH_SECRET=change_this_in_production
 
 # Optional: Resend for waitlist confirmation emails
 # RESEND_API_KEY=your_resend_api_key
+
+# Optional: YouTube metadata provider
+# `yt_dlp` preserves the existing metadata behavior
+# `youtube_data_api` uses the official API first, then falls back to yt-dlp
+# YOUTUBE_METADATA_PROVIDER=yt_dlp
+# YOUTUBE_DATA_API_KEY=your_youtube_data_api_key
 ```
 
 ### 2. Start the Services
@@ -144,6 +150,13 @@ If you enable DataFast, also verify that:
 - Check worker logs: `docker-compose logs -f worker`
 - Ensure Redis is healthy: `docker-compose logs redis`
 - Verify API keys are correct
+
+**YouTube titles or duration lookup is failing:**
+- `YOUTUBE_METADATA_PROVIDER=yt_dlp` keeps the old metadata path
+- `YOUTUBE_METADATA_PROVIDER=youtube_data_api` requires YouTube Data API v3 enabled in Google Cloud
+- Prefer `YOUTUBE_DATA_API_KEY`; if it is unset, the backend will try `GOOGLE_API_KEY`
+- The backend will automatically fall back to the other metadata provider if the primary one fails
+- `videos.list` costs 1 quota unit per request
 
 **Performance tuning (default is fast mode):**
 - `DEFAULT_PROCESSING_MODE=fast|balanced|quality`

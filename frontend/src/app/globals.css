@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "tw-shimmer";
+
 
 @custom-variant dark (&:is(.dark *));
 
@@ -122,6 +124,7 @@
     user-select: none;
   }
 }
+
 
 /* Landing page animations */
 @keyframes landing-fade-in-up {

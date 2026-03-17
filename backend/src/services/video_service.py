@@ -15,7 +15,14 @@ from ..youtube_utils import (
     async_get_youtube_video_title,
     get_youtube_video_id,
 )
-from ..video_utils import get_video_transcript, create_clips_with_transitions
+from ..video_utils import (
+    get_video_transcript,
+    create_clips_with_transitions,
+    create_optimized_clip,
+    parse_timestamp_to_seconds,
+    get_available_transitions,
+    apply_transition_effect,
+)
 from ..ai import get_most_relevant_parts_by_transcript
 from ..config import Config
 
@@ -146,6 +153,124 @@ class VideoService:
 
         logger.info(f"Successfully created {len(clips_info)} clips")
         return clips_info
+
+    @staticmethod
+    async def create_single_clip(
+        video_path: Path,
+        segment: Dict[str, Any],
+        clip_index: int,
+        output_dir: Path,
+        font_family: str = "TikTokSans-Regular",
+        font_size: int = 24,
+        font_color: str = "#FFFFFF",
+        caption_template: str = "default",
+        output_format: str = "vertical",
+        add_subtitles: bool = True,
+    ) -> Optional[Dict[str, Any]]:
+        """Render a single clip in the thread pool and return clip_info dict, or None on failure."""
+        try:
+            start_seconds = parse_timestamp_to_seconds(segment["start_time"])
+            end_seconds = parse_timestamp_to_seconds(segment["end_time"])
+            duration = end_seconds - start_seconds
+
+            if duration <= 0:
+                logger.warning(
+                    f"Skipping clip {clip_index + 1}: invalid duration {duration:.1f}s"
+                )
+                return None
+
+            clip_filename = (
+                f"clip_{clip_index + 1}_"
+                f"{segment['start_time'].replace(':', '')}-"
+                f"{segment['end_time'].replace(':', '')}.mp4"
+            )
+            clip_path = output_dir / clip_filename
+
+            success = await run_in_thread(
+                create_optimized_clip,
+                video_path,
+                start_seconds,
+                end_seconds,
+                clip_path,
+                add_subtitles,
+                font_family,
+                font_size,
+                font_color,
+                caption_template,
+                output_format,
+            )
+
+            if not success:
+                logger.error(f"Failed to create clip {clip_index + 1}")
+                return None
+
+            logger.info(f"Created clip {clip_index + 1}: {duration:.1f}s")
+            return {
+                "clip_id": clip_index + 1,
+                "filename": clip_filename,
+                "path": str(clip_path),
+                "start_time": segment["start_time"],
+                "end_time": segment["end_time"],
+                "duration": duration,
+                "text": segment.get("text", ""),
+                "relevance_score": segment.get("relevance_score", 0.0),
+                "reasoning": segment.get("reasoning", ""),
+                "virality_score": segment.get("virality_score", 0),
+                "hook_score": segment.get("hook_score", 0),
+                "engagement_score": segment.get("engagement_score", 0),
+                "value_score": segment.get("value_score", 0),
+                "shareability_score": segment.get("shareability_score", 0),
+                "hook_type": segment.get("hook_type"),
+            }
+        except Exception as e:
+            logger.error(f"Error creating clip {clip_index + 1}: {e}")
+            return None
+
+    @staticmethod
+    async def apply_single_transition(
+        prev_clip_path: Path,
+        current_clip_info: Dict[str, Any],
+        clip_index: int,
+        output_dir: Path,
+    ) -> Dict[str, Any]:
+        """Apply a transition between the previous clip and the current one. Returns updated clip_info."""
+        try:
+            transitions = get_available_transitions()
+            if not transitions:
+                return current_clip_info
+
+            transition_path = Path(transitions[clip_index % len(transitions)])
+            transition_output_dir = output_dir / "with_transitions"
+            transition_output_dir.mkdir(parents=True, exist_ok=True)
+
+            transition_filename = f"transition_{clip_index}_{current_clip_info['filename']}"
+            transition_output_path = transition_output_dir / transition_filename
+
+            current_clip_path = Path(current_clip_info["path"])
+
+            success = await run_in_thread(
+                apply_transition_effect,
+                prev_clip_path,
+                current_clip_path,
+                transition_path,
+                transition_output_path,
+            )
+
+            if success:
+                enhanced = current_clip_info.copy()
+                enhanced["filename"] = transition_filename
+                enhanced["path"] = str(transition_output_path)
+                enhanced["has_transition"] = True
+                logger.info(f"Added transition to clip {clip_index + 1}")
+                return enhanced
+            else:
+                logger.warning(
+                    f"Failed to add transition to clip {clip_index + 1}, using original"
+                )
+                return current_clip_info
+        except Exception as e:
+            logger.error(f"Error applying transition to clip {clip_index + 1}: {e}")
+            return current_clip_info
 
     @staticmethod
     def determine_source_type(url: str) -> str:
@@ -296,23 +421,11 @@ class VideoService:
             if processing_mode == "fast":
                 segments_json = segments_json[: config.fast_mode_max_clips]
 
-            clips_info = await VideoService.create_video_clips(
-                video_path,
-                segments_json,
-                font_family,
-                font_size,
-                font_color,
-                caption_template,
-                output_format,
-                add_subtitles,
-            )
-
-            if progress_callback:
-                await progress_callback(90, "Finalizing clips...", "processing")
-
             return {
                 "segments": segments_json,
-                "clips": clips_info,
+                "segments_to_render": segments_json,
+                "video_path": str(video_path),
+                "clips": [],
                 "summary": relevant_parts.summary if relevant_parts else None,
                 "key_topics": relevant_parts.key_topics if relevant_parts else None,
                 "transcript": transcript,

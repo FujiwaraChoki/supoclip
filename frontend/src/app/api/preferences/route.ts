@@ -21,6 +21,7 @@ export async function GET(_: NextRequest) {
         default_font_family: true,
         default_font_size: true,
         default_font_color: true,
+        notify_on_completion: true,
       },
     });
 
@@ -35,6 +36,7 @@ export async function GET(_: NextRequest) {
       fontFamily: user.default_font_family || "TikTokSans-Regular",
       fontSize: user.default_font_size || 24,
       fontColor: user.default_font_color || "#FFFFFF",
+      notifyOnCompletion: user.notify_on_completion ?? true,
     });
   } catch (error) {
     console.error("Error fetching preferences:", error);
@@ -58,7 +60,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { fontFamily, fontSize, fontColor } = body;
+    const { fontFamily, fontSize, fontColor, notifyOnCompletion } = body;
 
     // Validate inputs
     if (fontFamily && typeof fontFamily !== "string") {
@@ -82,6 +84,16 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    if (
+      notifyOnCompletion !== undefined &&
+      typeof notifyOnCompletion !== "boolean"
+    ) {
+      return NextResponse.json(
+        { error: "Invalid notifyOnCompletion" },
+        { status: 400 }
+      );
+    }
+
     const prisma = getPrismaClient();
     const updatedUser = await prisma.user.update({
       where: { id: session.user.id },
@@ -89,11 +101,15 @@ export async function PATCH(request: NextRequest) {
         ...(fontFamily !== undefined && { default_font_family: fontFamily }),
         ...(fontSize !== undefined && { default_font_size: fontSize }),
         ...(fontColor !== undefined && { default_font_color: fontColor }),
+        ...(notifyOnCompletion !== undefined && {
+          notify_on_completion: notifyOnCompletion,
+        }),
       },
       select: {
         default_font_family: true,
         default_font_size: true,
         default_font_color: true,
+        notify_on_completion: true,
       },
     });
 
@@ -101,6 +117,7 @@ export async function PATCH(request: NextRequest) {
       fontFamily: updatedUser.default_font_family,
       fontSize: updatedUser.default_font_size,
       fontColor: updatedUser.default_font_color,
+      notifyOnCompletion: updatedUser.notify_on_completion,
     });
   } catch (error) {
     console.error("Error updating preferences:", error);

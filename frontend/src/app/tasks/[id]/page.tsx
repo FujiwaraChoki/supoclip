@@ -19,6 +19,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+} from "@/components/ui/sheet";
 import { useSession } from "@/lib/auth-client";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import {
@@ -44,6 +52,7 @@ import {
   Type,
   Clapperboard,
 } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import DynamicVideoPlayer from "@/components/dynamic-video-player";
@@ -125,6 +134,7 @@ export default function TaskPage() {
   const [projectCaptionTemplate, setProjectCaptionTemplate] = useState("default");
   const [projectIncludeBroll, setProjectIncludeBroll] = useState(false);
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
+  const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
   const [availableTemplates, setAvailableTemplates] = useState<
     Array<{ id: string; name: string; description: string; animation: string }>
@@ -177,8 +187,8 @@ export default function TaskPage() {
         setProjectCaptionTemplate(taskData.caption_template || "default");
         setProjectIncludeBroll(Boolean(taskData.include_broll));
 
-        // Only fetch clips if task is completed
-        if (taskData.status === "completed") {
+        // Fetch clips if task is completed or processing (incremental clips)
+        if (taskData.status === "completed" || taskData.status === "processing") {
           const clipsResponse = await fetch(`${taskApiUrl}/${params.id}/clips`, {
             cache: "no-store",
           });
@@ -188,7 +198,23 @@ export default function TaskPage() {
           }
 
           const clipsData = await clipsResponse.json();
-          setClips(clipsData.clips || []);
+          const nextClips = clipsData.clips || [];
+          setClips((prev) => {
+            if (taskData.status === "completed") {
+              return nextClips;
+            }
+
+            const merged = new Map<string, Clip>();
+            for (const clip of prev) {
+              merged.set(clip.id, clip);
+            }
+            for (const clip of nextClips) {
+              merged.set(clip.id, clip);
+            }
+            return Array.from(merged.values()).sort(
+              (a, b) => (a.clip_order ?? 0) - (b.clip_order ?? 0),
+            );
+          });
         }
 
         return true;
@@ -283,6 +309,20 @@ export default function TaskPage() {
         if (data.status === "completed") {
           void fetchTaskStatus().then(() => triggerAutoRefresh());
         }
+      }
+    });
+
+    eventSource.addEventListener("clip_ready", (e) => {
+      const data = JSON.parse(e.data);
+      console.log("🎬 Clip ready:", data.clip_index + 1, "/", data.total_clips);
+      if (data.clip) {
+        setClips((prev) => {
+          const exists = prev.some((c: Clip) => c.id === data.clip.id);
+          if (exists) return prev;
+          return [...prev, data.clip].sort(
+            (a: Clip, b: Clip) => (a.clip_order ?? 0) - (b.clip_order ?? 0),
+          );
+        });
       }
     });
 
@@ -639,25 +679,27 @@ export default function TaskPage() {
                   </div>
                 ) : (
                   <>
-                    <h1 className="text-2xl font-bold text-black">{task.source_title}</h1>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setIsEditing(true);
-                        setEditedTitle(task.source_title);
-                      }}
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      onClick={() => setShowDeleteDialog(true)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <h1 className={`text-2xl font-bold text-black ${task.status === "processing" || task.status === "queued" ? "shimmer" : ""}`}>{task.source_title}</h1>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setIsEditing(true);
+                          setEditedTitle(task.source_title);
+                        }}
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => setShowDeleteDialog(true)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </>
                 )}
               </div>
@@ -665,17 +707,34 @@ export default function TaskPage() {
                 <Badge variant="outline" className="capitalize">
                   {task.source_type}
                 </Badge>
-                <span className="flex items-center gap-1">
-                  <Clock className="w-4 h-4" />
-                  {new Date(task.created_at).toLocaleDateString()}
-                </span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="flex items-center gap-1 cursor-default">
+                        <Clock className="w-4 h-4" />
+                        {new Date(task.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {new Date(task.created_at).toLocaleString(undefined, {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                        timeZoneName: "short",
+                      })}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 {task.status === "completed" ? (
                   <span>
                     {clips.length} {clips.length === 1 ? "clip" : "clips"} generated
                   </span>
                 ) : task.status === "processing" ? (
                   <div className="relative group">
-                    <Badge className="bg-blue-100 text-blue-800 cursor-default">Processing</Badge>
+                    <Badge className="bg-blue-100 text-blue-800 cursor-default shimmer">Processing</Badge>
                     <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
                       🔍&nbsp;&nbsp;We&apos;re currently processing your video. Check back in a couple minutes.
                     </div>
@@ -732,32 +791,97 @@ export default function TaskPage() {
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-4 py-8">
         {task?.status === "processing" || task?.status === "queued" ? (
-          <div className="flex flex-col items-center justify-center min-h-[50vh] py-16">
-            {/* Minimal animated dots */}
-            <div className="relative group flex items-center gap-1.5 mb-8 cursor-default">
-              <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_infinite]" />
-              <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
-              <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
-              <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
-                ☕&nbsp;&nbsp;Grab a coffee, and come back to ready-to-post clips.
+          <div className="space-y-8">
+            {/* Progress indicator */}
+            <div className="flex flex-col items-center py-8">
+              {/* Minimal animated dots */}
+              <div className="relative group flex items-center gap-1.5 mb-8 cursor-default">
+                <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_infinite]" />
+                <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+                <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+                <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
+                  ☕&nbsp;&nbsp;Grab a coffee, and come back to ready-to-post clips.
+                </div>
               </div>
+
+              {/* Status message */}
+              <p className="shimmer text-neutral-600/60 text-sm tracking-wide mb-8">
+                {progressMessage || (task.status === "queued" ? "Waiting in queue" : "Processing")}
+              </p>
+
+              {/* Minimal progress bar */}
+              {progress > 0 && (
+                <div className="w-48">
+                  <div className="h-px bg-neutral-200 w-full relative overflow-hidden">
+                    <div
+                      className="absolute inset-y-0 left-0 bg-neutral-800 transition-all duration-700 ease-out"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-neutral-400 text-center mt-3 tabular-nums">{progress}%</p>
+                </div>
+              )}
             </div>
 
-            {/* Status message */}
-            <p className="text-neutral-600 text-sm tracking-wide mb-8">
-              {progressMessage || (task.status === "queued" ? "Waiting in queue" : "Processing")}
-            </p>
-
-            {/* Minimal progress bar */}
-            {progress > 0 && (
-              <div className="w-48">
-                <div className="h-px bg-neutral-200 w-full relative overflow-hidden">
-                  <div
-                    className="absolute inset-y-0 left-0 bg-neutral-800 transition-all duration-700 ease-out"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <p className="text-[11px] text-neutral-400 text-center mt-3 tabular-nums">{progress}%</p>
+            {/* Live clips grid — shows clips as they render */}
+            {clips.length > 0 && (
+              <div className="grid gap-6">
+                <p className="text-sm text-neutral-500 text-center">
+                  {clips.length} clip{clips.length !== 1 ? "s" : ""} ready
+                </p>
+                {clips.map((clip) => (
+                  <Card key={clip.id} className="overflow-hidden">
+                    <CardContent className="p-0">
+                      <div className="flex flex-col lg:flex-row">
+                        <div className="relative flex-shrink-0 bg-black rounded-lg overflow-hidden m-3">
+                          <DynamicVideoPlayer src={`${apiUrl}${clip.video_url}`} poster="/placeholder-video.jpg" />
+                        </div>
+                        <div className="p-6 flex-1">
+                          <div className="flex items-start justify-between mb-4">
+                            <div>
+                              <h3 className="font-semibold text-lg text-black mb-1">Clip {clip.clip_order}</h3>
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <span>{clip.start_time} - {clip.end_time}</span>
+                                <span>•</span>
+                                <span>{formatDuration(clip.duration)}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {clip.virality_score > 0 && (
+                                <Badge className={`${getViralityBgColor(clip.virality_score)} text-white`}>
+                                  <Zap className="w-3 h-3 mr-1" />
+                                  {clip.virality_score}
+                                </Badge>
+                              )}
+                              <Badge className={getScoreColor(clip.relevance_score)}>
+                                <Star className="w-3 h-3 mr-1" />
+                                {(clip.relevance_score * 100).toFixed(0)}%
+                              </Badge>
+                            </div>
+                          </div>
+                          {clip.text && (
+                            <div className="mb-4">
+                              <h4 className="font-medium text-black mb-2">Transcript</h4>
+                              <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded">{clip.text}</p>
+                            </div>
+                          )}
+                          {clip.reasoning && (
+                            <div className="mb-4">
+                              <h4 className="font-medium text-black mb-2">AI Analysis</h4>
+                              <p className="text-sm text-gray-600">{clip.reasoning}</p>
+                            </div>
+                          )}
+                          <Button size="sm" variant="outline" asChild>
+                            <a href={`${apiUrl}${clip.video_url}`} download={clip.filename}>
+                              <Download className="w-4 h-4" />
+                              Download
+                            </a>
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             )}
           </div>
@@ -820,18 +944,32 @@ export default function TaskPage() {
           </Card>
         ) : (
           <div className="grid gap-6">
-            <Card>
-              <CardContent className="px-5 pb-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-medium text-black flex items-center gap-2">
+            <div className="flex items-center justify-between">
+              <Button variant="outline" size="sm" onClick={() => setSettingsSheetOpen(true)}>
+                <Settings2 className="w-4 h-4" />
+                Project Settings
+              </Button>
+              {selectedClipIds.length >= 2 && (
+                <Button variant="outline" size="sm" onClick={handleMergeClips}>
+                  <GitMerge className="w-4 h-4" />
+                  Merge Selected ({selectedClipIds.length})
+                </Button>
+              )}
+            </div>
+
+            <Sheet open={settingsSheetOpen} onOpenChange={setSettingsSheetOpen}>
+              <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle className="flex items-center gap-2">
                     <Settings2 className="w-4 h-4" />
                     Project Settings
-                  </h3>
-                  <Button size="sm" onClick={handleApplyProjectSettings} disabled={isApplyingSettings}>
-                    {isApplyingSettings ? "Applying..." : "Apply to All Clips"}
-                  </Button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  </SheetTitle>
+                  <SheetDescription>
+                    Configure font, caption, and B-roll settings for this task&apos;s clips.
+                  </SheetDescription>
+                </SheetHeader>
+
+                <div className="space-y-5 px-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-gray-500">Font</label>
                     <Select value={projectFontFamily} onValueChange={setProjectFontFamily}>
@@ -853,6 +991,7 @@ export default function TaskPage() {
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-gray-500">Size</label>
                     <Input
@@ -864,6 +1003,7 @@ export default function TaskPage() {
                       placeholder="Font size"
                     />
                   </div>
+
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-gray-500">Color</label>
                     <div className="flex items-center gap-2">
@@ -880,6 +1020,7 @@ export default function TaskPage() {
                       />
                     </div>
                   </div>
+
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-gray-500">Caption Template</label>
                     <Select value={projectCaptionTemplate} onValueChange={setProjectCaptionTemplate}>
@@ -901,57 +1042,33 @@ export default function TaskPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={projectIncludeBroll}
-                    onChange={(e) => setProjectIncludeBroll(e.target.checked)}
-                    className="rounded"
-                  />
-                  Include B-roll
-                </label>
-              </CardContent>
-            </Card>
 
-            {selectedClipIds.length >= 2 && (
-              <div className="flex justify-end">
-                <Button variant="outline" onClick={handleMergeClips}>
-                  <GitMerge className="w-4 h-4" />
-                  Merge Selected ({selectedClipIds.length})
-                </Button>
-              </div>
-            )}
-
-            {/* Font Settings Display */}
-            {task && (
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-black mb-3 flex items-center gap-2">
-                  <span className="w-4 h-4">🎨</span>
-                  Font Settings
-                </h3>
-                <div className="grid grid-cols-3 gap-4 text-xs">
-                  <div>
-                    <span className="text-gray-500">Font:</span>
-                    <p className="font-medium">{task.font_family || "Default"}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Size:</span>
-                    <p className="font-medium">{task.font_size || 24}px</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Color:</span>
-                    <div className="flex items-center gap-1">
-                      <div
-                        className="w-3 h-3 rounded border"
-                        style={{ backgroundColor: task.font_color || "#FFFFFF" }}
-                      ></div>
-                      <p className="font-medium">{task.font_color || "#FFFFFF"}</p>
-                    </div>
-                  </div>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={projectIncludeBroll}
+                      onChange={(e) => setProjectIncludeBroll(e.target.checked)}
+                      className="rounded"
+                    />
+                    Include B-roll
+                  </label>
                 </div>
-              </div>
-            )}
+
+                <SheetFooter>
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      handleApplyProjectSettings();
+                      setSettingsSheetOpen(false);
+                    }}
+                    disabled={isApplyingSettings}
+                  >
+                    {isApplyingSettings ? "Applying..." : "Apply to All Clips"}
+                  </Button>
+                </SheetFooter>
+              </SheetContent>
+            </Sheet>
+
             {clips.map((clip) => (
               <Card key={clip.id} className="overflow-hidden">
                 <CardContent className="p-0">

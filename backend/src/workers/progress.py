@@ -54,6 +54,20 @@ class ProgressTracker:
             return json.loads(data)
         return None
 
+    async def clip_ready(self, clip_index: int, total_clips: int, clip_data: dict):
+        """Notify that a clip has been saved and is ready to view."""
+        data = {
+            "task_id": self.task_id,
+            "event_type": "clip_ready",
+            "clip_index": clip_index,
+            "total_clips": total_clips,
+            "clip": clip_data,
+        }
+        await self.redis.publish(
+            f"progress:{self.task_id}",
+            json.dumps(data, default=str),
+        )
+
     async def complete(self, message: str = "Complete!"):
         """Mark task as completed."""
         await self.update(100, message, "completed")

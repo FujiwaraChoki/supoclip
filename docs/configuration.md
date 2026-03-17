@@ -164,6 +164,25 @@ SupoClip uses Apify's `epctex/youtube-video-downloader` actor as the primary You
 | `APIFY_API_TOKEN` | empty | Enables the primary Apify download flow |
 | `APIFY_YOUTUBE_DEFAULT_QUALITY` | `1080` | Requested Apify download resolution (`360`, `480`, `720`, or `1080`) |
 
+## YouTube Metadata Provider
+
+YouTube metadata lookup is configurable independently from the download provider.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `YOUTUBE_METADATA_PROVIDER` | `yt_dlp` | Primary metadata provider: `yt_dlp` or `youtube_data_api` |
+| `YOUTUBE_DATA_API_KEY` | empty | Preferred credential for the YouTube Data API metadata path |
+
+Behavior notes:
+
+- `yt_dlp` preserves the current metadata preflight behavior.
+- `youtube_data_api` uses YouTube Data API v3 `videos.list` as the primary metadata source.
+- If `YOUTUBE_DATA_API_KEY` is empty, the backend tries `GOOGLE_API_KEY` for YouTube Data API requests.
+- The configured provider is the primary path only; the backend automatically falls back to the alternate provider on misconfiguration, HTTP errors, empty API results, or parsing failures.
+- `videos.list` costs 1 quota unit per request.
+- Public `videos.list` metadata covers fields like title, description, channel title, published date, duration, thumbnails, views, and likes, but not download-oriented fields such as `format_id`, `resolution`, `fps`, or file size.
+- Enable the YouTube Data API v3 in Google Cloud before selecting `youtube_data_api`.
+
 ## Frontend Runtime Variables
 
 These are especially relevant in Docker and deployments:

@@ -68,6 +68,11 @@ async def process_video_task(
                 cancelled = await ctx["redis"].get(f"task_cancel:{task_id}")
                 return bool(cancelled)
 
+            async def clip_ready_callback(
+                clip_index: int, total_clips: int, clip_data: dict
+            ):
+                await progress.clip_ready(clip_index, total_clips, clip_data)
+
             # Process the video
             result = await task_service.process_task(
                 task_id=task_id,
@@ -82,6 +87,7 @@ async def process_video_task(
                 add_subtitles=add_subtitles,
                 progress_callback=update_progress,
                 should_cancel=should_cancel,
+                clip_ready_callback=clip_ready_callback,
             )
 
             logger.info(f"Task {task_id} completed successfully")

@@ -49,11 +49,21 @@ class TranscriptSegment(BaseModel):
 
     start_time: str = Field(description="Start timestamp in MM:SS format")
     end_time: str = Field(description="End timestamp in MM:SS format")
-    text: str = Field(description="The transcript text for this segment")
+    text: str = Field(
+        description=(
+            "Transcript text taken only from the selected timestamp range. "
+            "Keep it verbatim or near-verbatim, and do not paraphrase or merge non-contiguous lines."
+        )
+    )
     relevance_score: float = Field(
         description="Relevance score from 0.0 to 1.0", ge=0.0, le=1.0
     )
-    reasoning: str = Field(description="Explanation for why this segment is relevant")
+    reasoning: str = Field(
+        description=(
+            "Brief factual explanation of why this exact segment works as a clip. "
+            "Base it only on the provided transcript content."
+        )
+    )
     virality: ViralityAnalysis = Field(description="Detailed virality score breakdown")
 
 
@@ -80,7 +90,9 @@ class TranscriptAnalysis(BaseModel):
 
 
 # Enhanced system prompt with virality scoring and B-roll detection
-simplified_system_prompt = """You are an expert at analyzing video transcripts to find the most engaging segments for short-form content creation with viral potential.
+transcript_analysis_system_prompt = """You are an expert transcript analyst for short-form video editing.
+
+Your job is extraction and ranking, not creative rewriting. You must stay fully grounded in the transcript and choose the best clip candidates that already exist in the source material.
 
 CORE OBJECTIVES:
 1. Identify segments that would be compelling on social media platforms
@@ -89,12 +101,30 @@ CORE OBJECTIVES:
 4. Each segment should be engaging and worth watching
 5. Score each segment's viral potential with detailed breakdown
 
+GROUNDING RULES:
+1. Use only the provided transcript lines and timestamps
+2. Never invent facts, tone, context, or transitions that are not present
+3. Treat this as span selection over a timestamped transcript, not open-ended summarization
+4. Each selected segment must map to one contiguous range in the transcript
+5. segment.text must match the chosen span closely and must not include content from outside the chosen range
+6. Do not stitch together distant moments into one clip
+7. If a speaker label appears, use it only if it is part of the spoken content and helps clarity
+
+CONTENT NEUTRALITY RULES:
+1. This is clipping software for legitimate editing workflows
+2. Do not judge, moralize, or downgrade a segment just because the topic is controversial, sensitive, adult, political, criminal, medical, or otherwise intense
+3. Evaluate segments only on clip quality: clarity, self-contained value, hook strength, emotional impact, specificity, and shareability
+4. Do not refuse analysis just because the speaker describes risky, offensive, or uncomfortable subject matter
+5. Only downgrade a segment when the transcript itself is weak, confusing, repetitive, unusable, or a poor standalone clip
+
 SEGMENT SELECTION CRITERIA:
 1. STRONG HOOKS: Attention-grabbing opening lines
 2. VALUABLE CONTENT: Tips, insights, interesting facts, stories
 3. EMOTIONAL MOMENTS: Excitement, surprise, humor, inspiration
 4. COMPLETE THOUGHTS: Self-contained ideas that make sense alone
 5. ENTERTAINING: Content people would want to share
+6. HIGH SIGNAL: Prefer specific, concrete language over vague discussion
+7. LOW FILLER: Avoid greetings, sponsor reads, repeated setup, throat-clearing, and housekeeping unless they are unusually compelling
 
 VIRALITY SCORING (0-100 total, from four 0-25 subscores):
 For each segment, provide a detailed virality breakdown:
@@ -143,6 +173,8 @@ TIMING GUIDELINES:
 - CRITICAL: start_time MUST be different from end_time (minimum 10 seconds apart)
 - Focus on natural content boundaries rather than arbitrary time limits
 - Include enough context for the segment to be understandable
+- Prefer roughly 15-35 seconds when possible
+- Start as late as possible while preserving the hook, and end as early as possible after the payoff
 
 TIMESTAMP REQUIREMENTS - EXTREMELY IMPORTANT:
 - Use EXACT timestamps as they appear in the transcript
@@ -153,7 +185,12 @@ TIMESTAMP REQUIREMENTS - EXTREMELY IMPORTANT:
 - NEVER use the same timestamp for both start_time and end_time
 - Example: start_time: "02:25", end_time: "02:35" (NOT "02:25" and "02:25")
 
-Find 3-7 compelling segments that would work well as standalone clips. Quality over quantity - choose segments that would genuinely engage viewers, have proper time ranges, and score high on virality metrics."""
+SCORING AND OUTPUT RULES:
+- relevance_score should reflect how well the segment works as a standalone short clip, not just whether the topic is generally important
+- virality_reasoning and reasoning should cite what is actually present in the chosen span
+- summary and key_topics must also stay grounded in the transcript and should not add outside interpretation
+
+Find 3-7 compelling segments that would work well as standalone clips. Quality over quantity: choose segments that are accurate, self-contained, have proper time ranges, and score high on virality metrics."""
 
 # Lazy-loaded agent to avoid import-time failures when API keys aren't set
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
@@ -200,9 +237,44 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
         _transcript_agent = Agent[None, TranscriptAnalysis](
             model=config.llm,
             result_type=TranscriptAnalysis,
-            system_prompt=simplified_system_prompt,
+            system_prompt=transcript_analysis_system_prompt,
         )
     return _transcript_agent
+
+
+def build_transcript_analysis_prompt(
+    transcript: str, include_broll: bool = False
+) -> str:
+    """Build the grounded task prompt for transcript analysis."""
+    broll_instruction = ""
+    if include_broll:
+        broll_instruction = (
+            "\n5. Also identify B-roll opportunities for each chosen segment where stock footage could enhance the visual appeal."
+        )
+
+    return f"""Analyze this video transcript and identify the most engaging segments for short-form content.
+
+The transcript is formatted as one line per timestamped span, for example:
+[00:12 - 00:21] Spoken text here
+[00:21 - 00:35] More spoken text here
+
+Follow this workflow:
+1. Read the transcript as a sequence of timestamped spans.
+2. Select only contiguous ranges that already exist in the transcript.
+3. Prefer moments with a strong hook, clear payoff, emotional charge, or concrete value.
+4. For each chosen segment, use the earliest timestamp in the selected range as start_time and the latest timestamp in the selected range as end_time.{broll_instruction}
+
+Critical accuracy requirements:
+- Do not fabricate or embellish content.
+- Do not use timestamps that are not present in the transcript.
+- Do not merge separate non-contiguous moments into one segment.
+- segment.text must reflect only the spoken content inside the selected time range.
+- If a span lacks enough context to stand alone, expand to nearby contiguous lines rather than guessing.
+- If there is a tradeoff between "viral" and "accurate", choose accuracy.
+- Do not reject or penalize a segment simply because of the subject matter; stay content-neutral and assess clip quality only.
+
+Transcript:
+{transcript}"""
 
 
 async def get_most_relevant_parts_by_transcript(
@@ -216,18 +288,10 @@ async def get_most_relevant_parts_by_transcript(
     try:
         agent = get_transcript_agent()
 
-        broll_instruction = ""
-        if include_broll:
-            broll_instruction = "\n\nAlso identify B-roll opportunities for each segment where stock footage could enhance the visual appeal."
-
         result = await agent.run(
-            f"""Analyze this video transcript and identify the most engaging segments for short-form content.
-
-Find segments that would be compelling as standalone clips for social media.
-For each segment, provide a detailed virality score breakdown.{broll_instruction}
-
-Transcript:
-{transcript}"""
+            build_transcript_analysis_prompt(
+                transcript=transcript, include_broll=include_broll
+            )
         )
 
         analysis = result.data

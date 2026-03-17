@@ -130,7 +130,6 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     add_subtitles = data.get("add_subtitles", True)
     if not isinstance(add_subtitles, bool):
         add_subtitles = True
-
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
@@ -343,7 +342,8 @@ async def get_task_progress_sse(task_id: str, request: Request):
             async for progress_data in ProgressTracker.subscribe_to_progress(
                 redis_client, task_id
             ):
-                yield {"event": "progress", "data": json.dumps(progress_data)}
+                event_type = progress_data.get("event_type", "progress")
+                yield {"event": event_type, "data": json.dumps(progress_data)}
 
                 # Close connection if task is done
                 if progress_data.get("status") in ["completed", "error"]:

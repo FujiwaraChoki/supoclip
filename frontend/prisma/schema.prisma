@@ -34,6 +34,7 @@ model User {
   default_font_family String?   @default("TikTokSans-Regular") @db.VarChar(100)
   default_font_size   Int?      @default(24)
   default_font_color  String?   @default("#FFFFFF") @db.VarChar(7)
+  notify_on_completion Boolean  @default(true)
 
   // Monetization and billing
   plan                 String    @default("free") @db.VarChar(20)
@@ -59,6 +60,7 @@ model Task {
   source_id            String?
   generated_clips_ids  String[]
   status               String    @default("pending") @db.VarChar(20)
+  completion_notification_sent_at DateTime? @db.Timestamptz
 
   // Font customization fields
   font_family          String?   @default("TikTokSans-Regular") @db.VarChar(100)

@@ -20,6 +20,7 @@ CREATE TABLE users (
     default_font_family VARCHAR(100) DEFAULT 'TikTokSans-Regular',
     default_font_size INTEGER DEFAULT 24,
     default_font_color VARCHAR(7) DEFAULT '#FFFFFF',
+    notify_on_completion BOOLEAN NOT NULL DEFAULT true,
     -- Monetization and billing fields
     is_admin BOOLEAN NOT NULL DEFAULT false,
     plan VARCHAR(20) NOT NULL DEFAULT 'free',
@@ -67,6 +68,7 @@ CREATE TABLE tasks (
     cache_hit BOOLEAN NOT NULL DEFAULT false,
     error_code VARCHAR(80),
     stage_timings_json TEXT,
+    completion_notification_sent_at TIMESTAMP WITH TIME ZONE,
 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

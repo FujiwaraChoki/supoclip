@@ -71,3 +71,23 @@ Notes:
 - `RESEND_FROM_EMAIL` must be a verified sender/domain in Resend.
 - The thank-you email is triggered after a successful Stripe checkout.
 - The cancellation email is triggered after Stripe subscription deletion.
+
+## YouTube Metadata Provider
+
+YouTube downloads still use the existing Apify-first flow with `yt-dlp` fallback. Metadata lookup is now configurable separately.
+
+Set these env vars to use the official YouTube Data API v3 for title, duration, channel, thumbnail, and view-count preflight:
+
+```env
+YOUTUBE_METADATA_PROVIDER=youtube_data_api
+YOUTUBE_DATA_API_KEY=your_youtube_data_api_key
+```
+
+Notes:
+
+- `YOUTUBE_METADATA_PROVIDER=yt_dlp` preserves the previous metadata behavior.
+- If `YOUTUBE_DATA_API_KEY` is not set, the backend will try `GOOGLE_API_KEY` for YouTube metadata requests.
+- The selected metadata provider is the primary path only; the backend automatically falls back to the other provider if the first one fails.
+- `videos.list` costs 1 quota unit per request in the YouTube Data API.
+- The public API does not expose some `yt-dlp`-specific metadata fields like `format_id`, `resolution`, `fps`, or file size.
+- Enable the YouTube Data API v3 for your Google Cloud project before using this mode.

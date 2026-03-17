@@ -11,6 +11,7 @@ class Config:
         self.openai_api_key = self._get_optional_env("OPENAI_API_KEY")
         self.anthropic_api_key = self._get_optional_env("ANTHROPIC_API_KEY")
         self.google_api_key = self._get_optional_env("GOOGLE_API_KEY")
+        self.youtube_data_api_key = self._get_optional_env("YOUTUBE_DATA_API_KEY")
         self.ollama_base_url = self._get_optional_env("OLLAMA_BASE_URL")
         self.ollama_api_key = self._get_optional_env("OLLAMA_API_KEY")
 
@@ -19,6 +20,9 @@ class Config:
         self.assembly_ai_api_key = os.getenv("ASSEMBLY_AI_API_KEY")
         self.pexels_api_key = os.getenv("PEXELS_API_KEY")
         self.apify_api_token = self._get_optional_env("APIFY_API_TOKEN")
+        self.youtube_metadata_provider = self._normalize_youtube_metadata_provider(
+            os.getenv("YOUTUBE_METADATA_PROVIDER", "yt_dlp")
+        )
         self.apify_youtube_default_quality = self._normalize_apify_quality(
             os.getenv("APIFY_YOUTUBE_DEFAULT_QUALITY", "1080")
         )
@@ -59,6 +63,9 @@ class Config:
         self.resend_from_email = os.getenv(
             "RESEND_FROM_EMAIL", "SupoClip <onboarding@resend.dev>"
         )
+        self.app_base_url = (
+            self._get_optional_env("NEXT_PUBLIC_APP_URL") or "http://localhost:3000"
+        ).rstrip("/")
         self.discord_feedback_webhook_url = self._get_optional_env("DISCORD_FEEDBACK_WEBHOOK_URL")
         self.discord_sales_webhook_url = self._get_optional_env("DISCORD_SALES_WEBHOOK_URL")
         self.default_processing_mode = os.getenv("DEFAULT_PROCESSING_MODE", "fast")
@@ -101,6 +108,16 @@ class Config:
         if normalized in {"360", "480", "720", "1080"}:
             return normalized
         return "1080"
+
+    @staticmethod
+    def _normalize_youtube_metadata_provider(value: str | None) -> str:
+        normalized = (value or "").strip().lower()
+        if normalized == "youtube_data_api":
+            return "youtube_data_api"
+        return "yt_dlp"
+
+    def resolve_youtube_data_api_key(self) -> str | None:
+        return self.youtube_data_api_key or self.google_api_key
 
     def _infer_default_llm(self) -> str:
         """

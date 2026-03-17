@@ -34,6 +34,7 @@ describe("/api/preferences", () => {
           default_font_family: "Inter",
           default_font_size: 28,
           default_font_color: "#123456",
+          notify_on_completion: false,
         }),
       },
     } as never);
@@ -45,6 +46,7 @@ describe("/api/preferences", () => {
       fontFamily: "Inter",
       fontSize: 28,
       fontColor: "#123456",
+      notifyOnCompletion: false,
     });
   });
 
@@ -67,6 +69,25 @@ describe("/api/preferences", () => {
     });
   });
 
+  it("validates notifyOnCompletion", async () => {
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: "user-1" },
+    } as never);
+
+    const response = await PATCH(
+      new Request("http://localhost/api/preferences", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notifyOnCompletion: "yes" }),
+      }) as never,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Invalid notifyOnCompletion",
+    });
+  });
+
   it("updates stored preferences", async () => {
     vi.mocked(getServerSession).mockResolvedValue({
       user: { id: "user-1" },
@@ -75,6 +96,7 @@ describe("/api/preferences", () => {
       default_font_family: "TikTokSans-Regular",
       default_font_size: 24,
       default_font_color: "#FFFFFF",
+      notify_on_completion: true,
     });
     vi.mocked(getPrismaClient).mockReturnValue({
       user: { update },
@@ -88,11 +110,18 @@ describe("/api/preferences", () => {
           fontFamily: "TikTokSans-Regular",
           fontSize: 24,
           fontColor: "#FFFFFF",
+          notifyOnCompletion: true,
         }),
       }) as never,
     );
 
     expect(update).toHaveBeenCalled();
     expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      fontFamily: "TikTokSans-Regular",
+      fontSize: 24,
+      fontColor: "#FFFFFF",
+      notifyOnCompletion: true,
+    });
   });
 });
