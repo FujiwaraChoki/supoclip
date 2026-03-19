@@ -181,7 +181,7 @@ services:
       [
         "sh",
         "-c",
-        "if [ -n \"$${REDIS_PASSWORD}\" ]; then exec redis-server --requirepass \"$${REDIS_PASSWORD}\"; fi; exec redis-server",
+        "if [ -n \"$${REDIS_PASSWORD}\" ]; then exec docker-entrypoint.sh redis-server --requirepass \"$${REDIS_PASSWORD}\"; fi; exec docker-entrypoint.sh redis-server",
       ]
     volumes:
       - redis_data:/data
