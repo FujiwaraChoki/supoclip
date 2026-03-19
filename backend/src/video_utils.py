@@ -1390,6 +1390,15 @@ def apply_transition_effect(
     clip1_path: Path, clip2_path: Path, transition_path: Path, output_path: Path
 ) -> bool:
     """Apply transition effect between two clips using a transition video."""
+    clip1 = None
+    clip2 = None
+    transition = None
+    clip1_tail = None
+    clip2_intro = None
+    clip2_remainder = None
+    intro_segment = None
+    final_clip = None
+
     try:
         from moviepy import VideoFileClip, CompositeVideoClip, concatenate_videoclips
 
@@ -1398,26 +1407,44 @@ def apply_transition_effect(
         clip2 = VideoFileClip(str(clip2_path))
         transition = VideoFileClip(str(transition_path))
 
-        # Ensure transition duration is reasonable (max 1.5 seconds)
-        transition_duration = min(1.5, transition.duration)
+        # Keep the transition window within both clips so the output still matches
+        # the current clip's duration and metadata.
+        transition_duration = min(1.5, transition.duration, clip1.duration, clip2.duration)
+        if transition_duration <= 0:
+            logger.warning("Transition duration is zero, skipping transition effect")
+            return False
+
         transition = transition.subclipped(0, transition_duration)
 
         # Resize transition to match clip dimensions
-        clip_size = clip1.size
+        clip_size = clip2.size
         transition = transition.resized(clip_size)
 
-        # Create fade effect with transition
-        fade_duration = 0.5  # Half second fade
+        # Build a transition intro from the previous clip tail over the first
+        # part of the current clip so the exported file keeps clip2's duration.
+        clip1_tail_start = max(0, clip1.duration - transition_duration)
+        clip1_tail = clip1.subclipped(clip1_tail_start, clip1.duration).with_effects(
+            [FadeOut(transition_duration)]
+        )
+        clip2_intro = clip2.subclipped(0, transition_duration).with_effects(
+            [FadeIn(transition_duration)]
+        )
 
-        # Fade out clip1
-        clip1_faded = clip1.with_effects([FadeOut(fade_duration)])
+        intro_segment = CompositeVideoClip(
+            [clip1_tail, clip2_intro, transition], size=clip_size
+        ).with_duration(transition_duration)
+        if clip2_intro.audio is not None:
+            intro_segment = intro_segment.with_audio(clip2_intro.audio)
 
-        # Fade in clip2
-        clip2_faded = clip2.with_effects([FadeIn(fade_duration)])
+        final_segments = [intro_segment]
+        if clip2.duration > transition_duration:
+            clip2_remainder = clip2.subclipped(transition_duration, clip2.duration)
+            final_segments.append(clip2_remainder)
 
-        # Combine: clip1 -> transition -> clip2
-        final_clip = concatenate_videoclips(
-            [clip1_faded, transition, clip2_faded], method="compose"
+        final_clip = (
+            concatenate_videoclips(final_segments, method="compose")
+            if len(final_segments) > 1
+            else intro_segment
         )
 
         # Write output
@@ -1432,18 +1459,28 @@ def apply_transition_effect(
             **encoding_settings,
         )
 
-        # Cleanup
-        final_clip.close()
-        clip1.close()
-        clip2.close()
-        transition.close()
-
         logger.info(f"Applied transition effect: {output_path}")
         return True
 
     except Exception as e:
         logger.error(f"Error applying transition effect: {e}")
         return False
+    finally:
+        for clip in (
+            final_clip,
+            intro_segment,
+            clip2_remainder,
+            clip2_intro,
+            clip1_tail,
+            transition,
+            clip2,
+            clip1,
+        ):
+            if clip is not None:
+                try:
+                    clip.close()
+                except Exception:
+                    pass
 
 
 def create_clips_with_transitions(
