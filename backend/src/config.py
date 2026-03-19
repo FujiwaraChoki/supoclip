@@ -38,6 +38,7 @@ class Config:
         # Redis configuration
         self.redis_host = os.getenv("REDIS_HOST", "localhost")
         self.redis_port = int(os.getenv("REDIS_PORT", "6379"))
+        self.redis_password = self._get_optional_env("REDIS_PASSWORD")
 
         # Fail-safe: queued tasks should not stay queued forever
         self.queued_task_timeout_seconds = int(

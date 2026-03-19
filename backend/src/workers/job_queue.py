@@ -17,7 +17,7 @@ FAST_QUEUE_NAME = "supoclip_fast"
 
 def _get_redis_settings() -> RedisSettings:
     config = get_config()
-    return RedisSettings(host=config.redis_host, port=config.redis_port, database=0)
+    return RedisSettings(host=config.redis_host, port=config.redis_port, password=config.redis_password, database=0)
 
 
 class JobQueue:

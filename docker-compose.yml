@@ -74,6 +74,7 @@ services:
       - TEMP_DIR=/app/uploads
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
       - APIFY_API_TOKEN=${APIFY_API_TOKEN}
       - APIFY_YOUTUBE_DEFAULT_QUALITY=${APIFY_YOUTUBE_DEFAULT_QUALITY:-1080}
@@ -133,6 +134,7 @@ services:
       - TEMP_DIR=/app/uploads
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
       - APIFY_API_TOKEN=${APIFY_API_TOKEN}
       - APIFY_YOUTUBE_DEFAULT_QUALITY=${APIFY_YOUTUBE_DEFAULT_QUALITY:-1080}
@@ -173,11 +175,23 @@ services:
     container_name: supoclip-redis
     ports:
       - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    command:
+      [
+        "sh",
+        "-c",
+        "if [ -n \"$${REDIS_PASSWORD}\" ]; then exec redis-server --requirepass \"$${REDIS_PASSWORD}\"; fi; exec redis-server",
+      ]
     volumes:
       - redis_data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test:
+        [
+          "CMD-SHELL",
+          "if [ -n \"$${REDIS_PASSWORD}\" ]; then redis-cli -a \"$${REDIS_PASSWORD}\" ping; else redis-cli ping; fi",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
