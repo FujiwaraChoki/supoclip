@@ -177,7 +177,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
 
         # Save source metadata for resume/retries in environments without sources.url column
         redis_client = redis.Redis(
-            host=config.redis_host, port=config.redis_port, decode_responses=True
+            host=config.redis_host, port=config.redis_port, password=config.redis_password, decode_responses=True
         )
         try:
             await redis_client.set(
@@ -334,6 +334,7 @@ async def get_task_progress_sse(task_id: str, request: Request):
         redis_client = redis.Redis(
             host=runtime_config.redis_host,
             port=runtime_config.redis_port,
+            password=runtime_config.redis_password,
             decode_responses=True,
         )
 
@@ -691,7 +692,7 @@ async def cancel_task(
             return {"message": f"Task already in terminal state: {task.get('status')}"}
 
         redis_client = redis.Redis(
-            host=config.redis_host, port=config.redis_port, decode_responses=True
+            host=config.redis_host, port=config.redis_port, password=config.redis_password, decode_responses=True
         )
         try:
             await redis_client.setex(f"task_cancel:{task_id}", 3600, "1")
@@ -746,7 +747,7 @@ async def resume_task(
         add_subtitles = True
 
         redis_client = redis.Redis(
-            host=config.redis_host, port=config.redis_port, decode_responses=True
+            host=config.redis_host, port=config.redis_port, password=config.redis_password, decode_responses=True
         )
         try:
             source_payload = await redis_client.get(f"task_source:{task_id}")
@@ -769,7 +770,7 @@ async def resume_task(
             raise HTTPException(status_code=400, detail="Task source URL is missing")
 
         redis_client = redis.Redis(
-            host=config.redis_host, port=config.redis_port, decode_responses=True
+            host=config.redis_host, port=config.redis_port, password=config.redis_password, decode_responses=True
         )
         try:
             await redis_client.delete(f"task_cancel:{task_id}")
@@ -814,7 +815,7 @@ async def resume_task(
 async def list_dead_letter_tasks():
     """List tasks that exhausted retries and landed in dead-letter store."""
     redis_client = redis.Redis(
-        host=config.redis_host, port=config.redis_port, decode_responses=True
+        host=config.redis_host, port=config.redis_port, password=config.redis_password, decode_responses=True
     )
     try:
         ids_result = redis_client.smembers("tasks:dead_letter")
