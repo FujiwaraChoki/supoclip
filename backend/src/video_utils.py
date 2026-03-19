@@ -13,6 +13,7 @@ import json
 
 import cv2
 from moviepy import VideoFileClip, CompositeVideoClip, TextClip, ColorClip
+from moviepy.video.fx import CrossFadeIn, CrossFadeOut, FadeIn, FadeOut
 
 import assemblyai as aai
 import srt
@@ -1127,10 +1128,7 @@ def create_fade_subtitles(
                 fade_duration = min(0.2, group_duration / 4)
                 bg_clip = (
                     bg_clip.with_effects(
-                        [
-                            lambda clip: clip.crossfadein(fade_duration),
-                            lambda clip: clip.crossfadeout(fade_duration),
-                        ]
+                        [CrossFadeIn(fade_duration), CrossFadeOut(fade_duration)]
                     )
                     if group_duration > 0.5
                     else bg_clip
@@ -1412,10 +1410,10 @@ def apply_transition_effect(
         fade_duration = 0.5  # Half second fade
 
         # Fade out clip1
-        clip1_faded = clip1.with_effects(["fadeout", fade_duration])
+        clip1_faded = clip1.with_effects([FadeOut(fade_duration)])
 
         # Fade in clip2
-        clip2_faded = clip2.with_effects(["fadein", fade_duration])
+        clip2_faded = clip2.with_effects([FadeIn(fade_duration)])
 
         # Combine: clip1 -> transition -> clip2
         final_clip = concatenate_videoclips(
