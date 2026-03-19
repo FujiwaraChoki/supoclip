@@ -175,6 +175,68 @@ async def test_process_task_skips_completion_email_when_disabled(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_process_task_keeps_generated_clips_standalone():
+    service = build_task_service()
+    service.task_repo.get_task_notification_context = AsyncMock(
+        return_value={
+            "notify_on_completion": False,
+            "completion_notification_sent_at": None,
+            "source_title": "Demo video",
+            "user_email": "user@example.com",
+            "user_name": "Demo User",
+            "user_first_name": "Demo",
+        }
+    )
+    service.video_service.create_single_clip = AsyncMock(
+        side_effect=[
+            {
+                **build_clip_result(),
+                "filename": "clip-1.mp4",
+                "path": "/tmp/clip-1.mp4",
+                "duration": 10.0,
+            },
+            {
+                **build_clip_result(),
+                "filename": "clip-2.mp4",
+                "path": "/tmp/clip-2.mp4",
+                "start_time": "00:10",
+                "end_time": "00:20",
+                "duration": 10.0,
+            },
+        ]
+    )
+    service.video_service.process_video_complete = AsyncMock(
+        return_value={
+            "clips": [build_clip_result(), build_clip_result()],
+            "segments_to_render": [
+                {"start_time": "00:00", "end_time": "00:10"},
+                {"start_time": "00:10", "end_time": "00:20"},
+            ],
+            "video_path": "/tmp/source.mp4",
+            "segments": [],
+            "summary": None,
+            "key_topics": [],
+            "transcript": "Transcript",
+            "analysis_json": "{}",
+        }
+    )
+
+    result = await service.process_task(
+        task_id="task-1",
+        url="https://www.youtube.com/watch?v=demo",
+        source_type="youtube",
+    )
+
+    assert result["clips_count"] == 2
+    service.video_service.apply_single_transition.assert_not_awaited()
+    saved_paths = [
+        call.kwargs["file_path"]
+        for call in service.clip_repo.create_clip.await_args_list
+    ]
+    assert saved_paths == ["/tmp/clip-1.mp4", "/tmp/clip-2.mp4"]
+
+
+@pytest.mark.asyncio
 async def test_process_task_ignores_completion_email_failures(monkeypatch):
     service = build_task_service()
     service.task_repo.get_task_notification_context = AsyncMock(

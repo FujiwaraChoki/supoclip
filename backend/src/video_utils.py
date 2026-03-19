@@ -13,6 +13,7 @@ import json
 
 import cv2
 from moviepy import VideoFileClip, CompositeVideoClip, TextClip, ColorClip
+from moviepy.video.fx import CrossFadeIn, CrossFadeOut, FadeIn, FadeOut
 
 import assemblyai as aai
 import srt
@@ -1127,10 +1128,7 @@ def create_fade_subtitles(
                 fade_duration = min(0.2, group_duration / 4)
                 bg_clip = (
                     bg_clip.with_effects(
-                        [
-                            lambda clip: clip.crossfadein(fade_duration),
-                            lambda clip: clip.crossfadeout(fade_duration),
-                        ]
+                        [CrossFadeIn(fade_duration), CrossFadeOut(fade_duration)]
                     )
                     if group_duration > 0.5
                     else bg_clip
@@ -1392,6 +1390,15 @@ def apply_transition_effect(
     clip1_path: Path, clip2_path: Path, transition_path: Path, output_path: Path
 ) -> bool:
     """Apply transition effect between two clips using a transition video."""
+    clip1 = None
+    clip2 = None
+    transition = None
+    clip1_tail = None
+    clip2_intro = None
+    clip2_remainder = None
+    intro_segment = None
+    final_clip = None
+
     try:
         from moviepy import VideoFileClip, CompositeVideoClip, concatenate_videoclips
 
@@ -1400,26 +1407,44 @@ def apply_transition_effect(
         clip2 = VideoFileClip(str(clip2_path))
         transition = VideoFileClip(str(transition_path))
 
-        # Ensure transition duration is reasonable (max 1.5 seconds)
-        transition_duration = min(1.5, transition.duration)
+        # Keep the transition window within both clips so the output still matches
+        # the current clip's duration and metadata.
+        transition_duration = min(1.5, transition.duration, clip1.duration, clip2.duration)
+        if transition_duration <= 0:
+            logger.warning("Transition duration is zero, skipping transition effect")
+            return False
+
         transition = transition.subclipped(0, transition_duration)
 
         # Resize transition to match clip dimensions
-        clip_size = clip1.size
+        clip_size = clip2.size
         transition = transition.resized(clip_size)
 
-        # Create fade effect with transition
-        fade_duration = 0.5  # Half second fade
+        # Build a transition intro from the previous clip tail over the first
+        # part of the current clip so the exported file keeps clip2's duration.
+        clip1_tail_start = max(0, clip1.duration - transition_duration)
+        clip1_tail = clip1.subclipped(clip1_tail_start, clip1.duration).with_effects(
+            [FadeOut(transition_duration)]
+        )
+        clip2_intro = clip2.subclipped(0, transition_duration).with_effects(
+            [FadeIn(transition_duration)]
+        )
 
-        # Fade out clip1
-        clip1_faded = clip1.with_effects(["fadeout", fade_duration])
+        intro_segment = CompositeVideoClip(
+            [clip1_tail, clip2_intro, transition], size=clip_size
+        ).with_duration(transition_duration)
+        if clip2_intro.audio is not None:
+            intro_segment = intro_segment.with_audio(clip2_intro.audio)
 
-        # Fade in clip2
-        clip2_faded = clip2.with_effects(["fadein", fade_duration])
+        final_segments = [intro_segment]
+        if clip2.duration > transition_duration:
+            clip2_remainder = clip2.subclipped(transition_duration, clip2.duration)
+            final_segments.append(clip2_remainder)
 
-        # Combine: clip1 -> transition -> clip2
-        final_clip = concatenate_videoclips(
-            [clip1_faded, transition, clip2_faded], method="compose"
+        final_clip = (
+            concatenate_videoclips(final_segments, method="compose")
+            if len(final_segments) > 1
+            else intro_segment
         )
 
         # Write output
@@ -1434,18 +1459,28 @@ def apply_transition_effect(
             **encoding_settings,
         )
 
-        # Cleanup
-        final_clip.close()
-        clip1.close()
-        clip2.close()
-        transition.close()
-
         logger.info(f"Applied transition effect: {output_path}")
         return True
 
     except Exception as e:
         logger.error(f"Error applying transition effect: {e}")
         return False
+    finally:
+        for clip in (
+            final_clip,
+            intro_segment,
+            clip2_remainder,
+            clip2_intro,
+            clip1_tail,
+            transition,
+            clip2,
+            clip1,
+        ):
+            if clip is not None:
+                try:
+                    clip.close()
+                except Exception:
+                    pass
 
 
 def create_clips_with_transitions(
@@ -1459,13 +1494,17 @@ def create_clips_with_transitions(
     output_format: str = "vertical",
     add_subtitles: bool = True,
 ) -> List[Dict[str, Any]]:
-    """Create video clips with transition effects between them."""
-    logger.info(
-        f"Creating {len(segments)} clips subtitles={add_subtitles} transitions template '{caption_template}'"
-    )
+    """Create standalone video clips without inter-clip transitions.
 
-    # First create individual clips
-    clips_info = create_clips_from_segments(
+    Kept as a backward-compatible wrapper for older call sites.
+    """
+    logger.info(
+        f"Creating {len(segments)} standalone clips subtitles={add_subtitles} template '{caption_template}'"
+    )
+    logger.info(
+        "Inter-clip transitions are disabled for standalone SupoClip exports"
+    )
+    return create_clips_from_segments(
         video_path,
         segments,
         output_dir,
@@ -1476,63 +1515,6 @@ def create_clips_with_transitions(
         output_format,
         add_subtitles,
     )
-
-    if len(clips_info) < 2:
-        logger.info("Not enough clips to apply transitions")
-        return clips_info
-
-    # Get available transitions
-    transitions = get_available_transitions()
-    if not transitions:
-        logger.warning("No transition files found, returning clips without transitions")
-        return clips_info
-
-    # Create clips with transitions
-    transition_output_dir = output_dir / "with_transitions"
-    transition_output_dir.mkdir(parents=True, exist_ok=True)
-
-    enhanced_clips = []
-
-    for i, clip_info in enumerate(clips_info):
-        if i == 0:
-            # First clip - no transition before
-            enhanced_clips.append(clip_info)
-        else:
-            # Apply transition before this clip
-            prev_clip_path = Path(clips_info[i - 1]["path"])
-            current_clip_path = Path(clip_info["path"])
-
-            # Select transition (cycle through available transitions)
-            transition_path = Path(transitions[i % len(transitions)])
-
-            # Create output path for clip with transition
-            transition_filename = f"transition_{i}_{clip_info['filename']}"
-            transition_output_path = transition_output_dir / transition_filename
-
-            success = apply_transition_effect(
-                prev_clip_path,
-                current_clip_path,
-                transition_path,
-                transition_output_path,
-            )
-
-            if success:
-                # Update clip info with transition version
-                enhanced_clip_info = clip_info.copy()
-                enhanced_clip_info["filename"] = transition_filename
-                enhanced_clip_info["path"] = str(transition_output_path)
-                enhanced_clip_info["has_transition"] = True
-                enhanced_clips.append(enhanced_clip_info)
-                logger.info(f"Added transition to clip {i + 1}")
-            else:
-                # Fallback to original clip if transition fails
-                enhanced_clips.append(clip_info)
-                logger.warning(
-                    f"Failed to add transition to clip {i + 1}, using original"
-                )
-
-    logger.info(f"Successfully created {len(enhanced_clips)} clips with transitions")
-    return enhanced_clips
 
 
 # Backward compatibility functions

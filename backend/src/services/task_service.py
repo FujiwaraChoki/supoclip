@@ -226,7 +226,6 @@ class TaskService:
             clips_output_dir.mkdir(parents=True, exist_ok=True)
 
             clip_ids = []
-            prev_clip_path: Optional[Path] = None
             render_start = perf_counter()
 
             for i, segment in enumerate(segments_to_render):
@@ -258,13 +257,6 @@ class TaskService:
                 )
                 if clip_info is None:
                     continue  # Skip failed clip
-
-                # Apply transition (clip 2+ only)
-                if i > 0 and prev_clip_path is not None:
-                    clip_info = await self.video_service.apply_single_transition(
-                        prev_clip_path, clip_info, i, clips_output_dir,
-                    )
-                prev_clip_path = Path(clip_info["path"])
 
                 # Save to DB immediately
                 clip_id = await self.clip_repo.create_clip(
