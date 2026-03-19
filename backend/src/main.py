@@ -273,8 +273,8 @@ async def start_task(request: Request):
                     relevant_segments_json.append(segment_data)
                 logger.info(f"✅ Created {len(relevant_segments_json)} segment records")
 
-                # Create clips from relevant segments with transitions and custom fonts
-                logger.info("🎬 Starting video clip generation with transitions")
+                # Create standalone clips from relevant segments and custom fonts
+                logger.info("🎬 Starting standalone clip generation")
                 clips_output_dir = Path(config.temp_dir) / "clips"
                 logger.info(f"📁 Output directory: {clips_output_dir}")
                 logger.info(
@@ -290,7 +290,7 @@ async def start_task(request: Request):
                     caption_template,
                 )
                 logger.info(
-                    f"✅ Generated {len(clips_info)} video clips with transitions"
+                    f"✅ Generated {len(clips_info)} standalone video clips"
                 )
 
                 # Save clips to database
@@ -554,7 +554,7 @@ async def process_video_task(
                 relevant_segments_json.append(segment_data)
 
             logger.info(
-                f"📊 Task {task_id}: Creating {len(relevant_segments_json)} video clips with transitions..."
+                f"📊 Task {task_id}: Creating {len(relevant_segments_json)} standalone video clips..."
             )
             clips_output_dir = Path(config.temp_dir) / "clips"
             logger.info(
@@ -569,7 +569,7 @@ async def process_video_task(
                 font_color,
                 caption_template,
             )
-            logger.info(f"✅ Generated {len(clips_info)} video clips with transitions")
+            logger.info(f"✅ Generated {len(clips_info)} standalone video clips")
 
             logger.info(f"📊 Task {task_id}: Saving clips to database...")
             async with AsyncSessionLocal() as db:

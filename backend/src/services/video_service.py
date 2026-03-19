@@ -20,8 +20,6 @@ from ..video_utils import (
     create_clips_with_transitions,
     create_optimized_clip,
     parse_timestamp_to_seconds,
-    get_available_transitions,
-    apply_transition_effect,
 )
 from ..ai import get_most_relevant_parts_by_transcript
 from ..config import Config
@@ -129,7 +127,7 @@ class VideoService:
         add_subtitles: bool = True,
     ) -> List[Dict[str, Any]]:
         """
-        Create video clips from segments with transitions and optional subtitles.
+        Create standalone video clips from segments with optional subtitles.
         Runs in thread pool as video processing is CPU-intensive.
         output_format: 'vertical' (9:16) or 'original' (keep source size, faster).
         add_subtitles: False skips subtitles; with original format uses ffmpeg stream copy (no re-encode).
@@ -233,44 +231,15 @@ class VideoService:
         clip_index: int,
         output_dir: Path,
     ) -> Dict[str, Any]:
-        """Apply a transition between the previous clip and the current one. Returns updated clip_info."""
-        try:
-            transitions = get_available_transitions()
-            if not transitions:
-                return current_clip_info
+        """Return the original clip info.
 
-            transition_path = Path(transitions[clip_index % len(transitions)])
-            transition_output_dir = output_dir / "with_transitions"
-            transition_output_dir.mkdir(parents=True, exist_ok=True)
-
-            transition_filename = f"transition_{clip_index}_{current_clip_info['filename']}"
-            transition_output_path = transition_output_dir / transition_filename
-
-            current_clip_path = Path(current_clip_info["path"])
-
-            success = await run_in_thread(
-                apply_transition_effect,
-                prev_clip_path,
-                current_clip_path,
-                transition_path,
-                transition_output_path,
-            )
-
-            if success:
-                enhanced = current_clip_info.copy()
-                enhanced["filename"] = transition_filename
-                enhanced["path"] = str(transition_output_path)
-                enhanced["has_transition"] = True
-                logger.info(f"Added transition to clip {clip_index + 1}")
-                return enhanced
-            else:
-                logger.warning(
-                    f"Failed to add transition to clip {clip_index + 1}, using original"
-                )
-                return current_clip_info
-        except Exception as e:
-            logger.error(f"Error applying transition to clip {clip_index + 1}: {e}")
-            return current_clip_info
+        Standalone exports intentionally do not depend on adjacent clips.
+        """
+        logger.info(
+            "Skipping inter-clip transition for clip %s to preserve standalone exports",
+            clip_index + 1,
+        )
+        return current_clip_info
 
     @staticmethod
     def determine_source_type(url: str) -> str:

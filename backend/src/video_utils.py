@@ -1494,13 +1494,17 @@ def create_clips_with_transitions(
     output_format: str = "vertical",
     add_subtitles: bool = True,
 ) -> List[Dict[str, Any]]:
-    """Create video clips with transition effects between them."""
-    logger.info(
-        f"Creating {len(segments)} clips subtitles={add_subtitles} transitions template '{caption_template}'"
-    )
+    """Create standalone video clips without inter-clip transitions.
 
-    # First create individual clips
-    clips_info = create_clips_from_segments(
+    Kept as a backward-compatible wrapper for older call sites.
+    """
+    logger.info(
+        f"Creating {len(segments)} standalone clips subtitles={add_subtitles} template '{caption_template}'"
+    )
+    logger.info(
+        "Inter-clip transitions are disabled for standalone SupoClip exports"
+    )
+    return create_clips_from_segments(
         video_path,
         segments,
         output_dir,
@@ -1511,63 +1515,6 @@ def create_clips_with_transitions(
         output_format,
         add_subtitles,
     )
-
-    if len(clips_info) < 2:
-        logger.info("Not enough clips to apply transitions")
-        return clips_info
-
-    # Get available transitions
-    transitions = get_available_transitions()
-    if not transitions:
-        logger.warning("No transition files found, returning clips without transitions")
-        return clips_info
-
-    # Create clips with transitions
-    transition_output_dir = output_dir / "with_transitions"
-    transition_output_dir.mkdir(parents=True, exist_ok=True)
-
-    enhanced_clips = []
-
-    for i, clip_info in enumerate(clips_info):
-        if i == 0:
-            # First clip - no transition before
-            enhanced_clips.append(clip_info)
-        else:
-            # Apply transition before this clip
-            prev_clip_path = Path(clips_info[i - 1]["path"])
-            current_clip_path = Path(clip_info["path"])
-
-            # Select transition (cycle through available transitions)
-            transition_path = Path(transitions[i % len(transitions)])
-
-            # Create output path for clip with transition
-            transition_filename = f"transition_{i}_{clip_info['filename']}"
-            transition_output_path = transition_output_dir / transition_filename
-
-            success = apply_transition_effect(
-                prev_clip_path,
-                current_clip_path,
-                transition_path,
-                transition_output_path,
-            )
-
-            if success:
-                # Update clip info with transition version
-                enhanced_clip_info = clip_info.copy()
-                enhanced_clip_info["filename"] = transition_filename
-                enhanced_clip_info["path"] = str(transition_output_path)
-                enhanced_clip_info["has_transition"] = True
-                enhanced_clips.append(enhanced_clip_info)
-                logger.info(f"Added transition to clip {i + 1}")
-            else:
-                # Fallback to original clip if transition fails
-                enhanced_clips.append(clip_info)
-                logger.warning(
-                    f"Failed to add transition to clip {i + 1}, using original"
-                )
-
-    logger.info(f"Successfully created {len(enhanced_clips)} clips with transitions")
-    return enhanced_clips
 
 
 # Backward compatibility functions

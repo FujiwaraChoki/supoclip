@@ -153,3 +153,31 @@ def test_apply_transition_effect_preserves_current_clip_duration_and_boundary(tm
     assert len(concatenated_segments) == 1
     assert len(concatenated_segments[0][0]) == 2
     assert final_clip.write_calls
+
+
+def test_create_clips_with_transitions_keeps_standalone_clip_exports(tmp_path):
+    clips_info = [{"filename": "clip-1.mp4", "path": str(tmp_path / "clip-1.mp4")}]
+
+    with (
+        patch(
+            "src.video_utils.create_clips_from_segments", return_value=clips_info
+        ) as mock_create,
+        patch(
+            "src.video_utils.get_available_transitions",
+            side_effect=AssertionError("should not load transitions"),
+        ),
+    ):
+        result = video_utils.create_clips_with_transitions(
+            tmp_path / "source.mp4",
+            [{"start_time": "00:00", "end_time": "00:10", "text": "hook"}],
+            tmp_path,
+            font_family="TikTokSans-Regular",
+            font_size=24,
+            font_color="#FFFFFF",
+            caption_template="default",
+            output_format="vertical",
+            add_subtitles=True,
+        )
+
+    assert result == clips_info
+    mock_create.assert_called_once()
