@@ -20,12 +20,14 @@ from ..video_utils import (
     get_video_transcript,
     create_clips_with_transitions,
     create_optimized_clip,
+    load_cached_transcript_data,
     parse_timestamp_to_seconds,
     build_clip_keep_ranges,
     build_keep_ranges_from_source_ranges,
     build_clip_signal_summary,
     extend_keep_ranges_to_sentence_boundary,
     seconds_to_mmss,
+    get_transcript_text_in_range,
 )
 from ..clip_source_map import (
     normalize_source_ranges,
@@ -40,6 +42,31 @@ UPLOAD_URL_PREFIX = "upload://"
 
 class VideoService:
     """Service for video processing operations."""
+
+    @staticmethod
+    def _ground_segment_text(
+        segment_payload: Dict[str, Any],
+        transcript_data: Optional[Dict[str, Any]],
+    ) -> str:
+        if not transcript_data:
+            return str(segment_payload.get("text") or "").strip()
+
+        start_time = str(segment_payload.get("start_time") or "").strip()
+        end_time = str(segment_payload.get("end_time") or "").strip()
+        if not start_time or not end_time:
+            return str(segment_payload.get("text") or "").strip()
+
+        start_seconds = parse_timestamp_to_seconds(start_time)
+        end_seconds = parse_timestamp_to_seconds(end_time)
+        if end_seconds <= start_seconds:
+            return str(segment_payload.get("text") or "").strip()
+
+        grounded_text = get_transcript_text_in_range(
+            transcript_data,
+            start_seconds,
+            end_seconds,
+        ).strip()
+        return grounded_text or str(segment_payload.get("text") or "").strip()
 
     @staticmethod
     def _get_file_duration(path: Path) -> Optional[float]:
@@ -486,45 +513,48 @@ class VideoService:
 
             raw_segments = relevant_parts.most_relevant_segments
             segments_json: List[Dict[str, Any]] = []
+            transcript_data = load_cached_transcript_data(video_path)
             for segment in raw_segments:
                 if isinstance(segment, dict):
                     virality = segment.get("virality") or {}
                     if hasattr(virality, "model_dump"):
                         virality = virality.model_dump()
-                    segments_json.append(
-                        {
-                            "start_time": segment.get("start_time"),
-                            "end_time": segment.get("end_time"),
-                            "text": segment.get("text", ""),
-                            "relevance_score": segment.get("relevance_score", 0.0),
-                            "reasoning": segment.get("reasoning", ""),
-                            "virality_score": virality.get("total_score", 0),
-                            "hook_score": virality.get("hook_score", 0),
-                            "engagement_score": virality.get("engagement_score", 0),
-                            "value_score": virality.get("value_score", 0),
-                            "shareability_score": virality.get("shareability_score", 0),
-                            "hook_type": virality.get("hook_type"),
-                            "hook_title": segment.get("hook_title"),
-                        }
-                    )
+                    segment_payload = {
+                        "start_time": segment.get("start_time"),
+                        "end_time": segment.get("end_time"),
+                        "text": segment.get("text", ""),
+                        "relevance_score": segment.get("relevance_score", 0.0),
+                        "reasoning": segment.get("reasoning", ""),
+                        "virality_score": virality.get("total_score", 0),
+                        "hook_score": virality.get("hook_score", 0),
+                        "engagement_score": virality.get("engagement_score", 0),
+                        "value_score": virality.get("value_score", 0),
+                        "shareability_score": virality.get("shareability_score", 0),
+                        "hook_type": virality.get("hook_type"),
+                        "hook_title": segment.get("hook_title"),
+                    }
                 else:
                     virality = segment.virality.model_dump() if segment.virality else {}
-                    segments_json.append(
-                        {
-                            "start_time": segment.start_time,
-                            "end_time": segment.end_time,
-                            "text": segment.text,
-                            "relevance_score": segment.relevance_score,
-                            "reasoning": segment.reasoning,
-                            "virality_score": virality.get("total_score", 0),
-                            "hook_score": virality.get("hook_score", 0),
-                            "engagement_score": virality.get("engagement_score", 0),
-                            "value_score": virality.get("value_score", 0),
-                            "shareability_score": virality.get("shareability_score", 0),
-                            "hook_type": virality.get("hook_type"),
-                            "hook_title": getattr(segment, "hook_title", None),
-                        }
-                    )
+                    segment_payload = {
+                        "start_time": segment.start_time,
+                        "end_time": segment.end_time,
+                        "text": segment.text,
+                        "relevance_score": segment.relevance_score,
+                        "reasoning": segment.reasoning,
+                        "virality_score": virality.get("total_score", 0),
+                        "hook_score": virality.get("hook_score", 0),
+                        "engagement_score": virality.get("engagement_score", 0),
+                        "value_score": virality.get("value_score", 0),
+                        "shareability_score": virality.get("shareability_score", 0),
+                        "hook_type": virality.get("hook_type"),
+                        "hook_title": getattr(segment, "hook_title", None),
+                    }
+
+                segment_payload["text"] = VideoService._ground_segment_text(
+                    segment_payload,
+                    transcript_data,
+                )
+                segments_json.append(segment_payload)
 
             if processing_mode == "fast":
                 segments_json = segments_json[: runtime_config.fast_mode_max_clips]

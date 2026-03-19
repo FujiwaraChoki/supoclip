@@ -23,13 +23,60 @@ IDEAL_CLIP_MIN_SECONDS = 25
 IDEAL_CLIP_MAX_SECONDS = 50
 MIN_ACCEPTED_CLIP_SECONDS = 15
 MAX_ACCEPTED_CLIP_SECONDS = 60
-TRANSCRIPT_ANALYSIS_CACHE_VERSION = "hook-titles-v4"
+TRANSCRIPT_ANALYSIS_CACHE_VERSION = "hook-titles-v5-grounded"
 HOOK_TITLE_MAX_CHARS = 64
 HOOK_TITLE_MAX_WORDS = 10
 TRANSCRIPT_SPAN_RE = re.compile(
     r"^\[(?P<start>\d{1,2}:\d{2}(?::\d{2})?)\s*-\s*"
     r"(?P<end>\d{1,2}:\d{2}(?::\d{2})?)\]\s*(?P<text>.*)$"
 )
+TRANSCRIPT_LINE_PATTERN = re.compile(r"^\[(\d{2}:\d{2}) - (\d{2}:\d{2})\]\s*(.*)$")
+SPEAKER_PREFIX_PATTERN = re.compile(r"^Speaker [^:]+:\s*")
+
+
+def _normalize_transcript_text(value: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9']+", " ", value.lower())).strip()
+
+
+def _parse_transcript_lines(transcript: str) -> List[Dict[str, str]]:
+    lines: List[Dict[str, str]] = []
+    for raw_line in transcript.splitlines():
+        match = TRANSCRIPT_LINE_PATTERN.match(raw_line.strip())
+        if not match:
+            continue
+        line_text = SPEAKER_PREFIX_PATTERN.sub("", match.group(3).strip())
+        lines.append(
+            {
+                "start_time": match.group(1),
+                "end_time": match.group(2),
+                "text": line_text,
+            }
+        )
+    return lines
+
+
+def _extract_transcript_text_for_segment(
+    transcript_lines: List[Dict[str, str]],
+    start_time: str,
+    end_time: str,
+) -> Optional[str]:
+    for start_index, line in enumerate(transcript_lines):
+        if line["start_time"] != start_time:
+            continue
+
+        collected_parts = [line["text"]] if line["text"] else []
+        if line["end_time"] == end_time:
+            return " ".join(part for part in collected_parts if part).strip()
+
+        for next_line in transcript_lines[start_index + 1 :]:
+            if next_line["text"]:
+                collected_parts.append(next_line["text"])
+            if next_line["end_time"] == end_time:
+                return " ".join(part for part in collected_parts if part).strip()
+
+        return None
+
+    return None
 
 
 class ViralityAnalysis(BaseModel):
@@ -669,6 +716,7 @@ async def get_most_relevant_parts_by_transcript(
 
     try:
         agent = get_transcript_agent()
+        transcript_lines = _parse_transcript_lines(transcript)
 
         result = await agent.run(
             build_transcript_analysis_prompt(
@@ -738,6 +786,28 @@ async def get_most_relevant_parts_by_transcript(
                         f"Skipping segment too long: {duration}s (max {MAX_ACCEPTED_CLIP_SECONDS}s allowed)"
                     )
                     continue
+
+                grounded_text = _extract_transcript_text_for_segment(
+                    transcript_lines,
+                    segment.start_time,
+                    segment.end_time,
+                )
+                if grounded_text is None:
+                    logger.warning(
+                        "Skipping segment with timestamps not aligned to transcript lines: %s-%s",
+                        segment.start_time,
+                        segment.end_time,
+                    )
+                    continue
+                if _normalize_transcript_text(segment.text) != _normalize_transcript_text(
+                    grounded_text
+                ):
+                    logger.warning(
+                        "Adjusting segment text to transcript-backed span for %s-%s",
+                        segment.start_time,
+                        segment.end_time,
+                    )
+                    segment.text = grounded_text
 
                 # Validate virality scores
                 if segment.virality:

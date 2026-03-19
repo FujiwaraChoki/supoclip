@@ -45,6 +45,7 @@ from ..clip_source_map import (
 )
 
 logger = logging.getLogger(__name__)
+PROCESSING_CACHE_VERSION = "20260319_grounded_segments_v1"
 
 
 class TaskService:
@@ -330,6 +331,11 @@ class TaskService:
             total_clips = len(segments_to_render)
             clips_output_dir = Path(self.config.temp_dir) / "clips"
             clips_output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Retries and regenerations should replace earlier clip rows instead of
+            # accumulating duplicates for the same task.
+            await self.clip_repo.delete_clips_by_task(self.db, task_id)
+            await self.task_repo.update_task_clips(self.db, task_id, [])
 
             clip_ids = []
             render_start = perf_counter()
