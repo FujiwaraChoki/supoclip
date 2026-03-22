@@ -91,5 +91,8 @@ class ProgressTracker:
                     data = json.loads(message["data"])
                     yield data
         finally:
-            await pubsub.unsubscribe(f"progress:{task_id}")
-            await pubsub.close()
+            try:
+                await pubsub.unsubscribe(f"progress:{task_id}")
+                await pubsub.close()
+            except Exception:
+                pass  # Client disconnected before cleanup — expected, not an error
