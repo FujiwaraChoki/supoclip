@@ -26,6 +26,7 @@ async def process_video_task(
     processing_mode: str = "fast",
     output_format: str = "vertical",
     add_subtitles: bool = True,
+    cleanup_settings: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """
     Background worker task to process a video.
@@ -88,6 +89,7 @@ async def process_video_task(
                 progress_callback=update_progress,
                 should_cancel=should_cancel,
                 clip_ready_callback=clip_ready_callback,
+                cleanup_settings=cleanup_settings,
             )
 
             logger.info(f"Task {task_id} completed successfully")
@@ -134,7 +136,7 @@ class WorkerSettings:
 
     # Retry settings
     max_tries = 3  # Retry failed jobs up to 3 times
-    job_timeout = 3600  # 1 hour timeout for video processing
+    job_timeout = 10800  # 3 hour timeout for video processing
 
     # Worker pool settings
     max_jobs = 4  # Process up to 4 jobs simultaneously
