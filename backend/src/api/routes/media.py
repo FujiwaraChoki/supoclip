@@ -240,6 +240,7 @@ async def upload_video(request: Request):
         upload_filename = upload.filename or "upload.mp4"
 
         # Create uploads directory
+        config = Config()
         uploads_dir = Path(config.temp_dir) / "uploads"
         uploads_dir.mkdir(parents=True, exist_ok=True)
 
