@@ -26,6 +26,13 @@ from .font_registry import find_font_path
 logger = logging.getLogger(__name__)
 config = Config()
 TRANSCRIPT_CACHE_SCHEMA_VERSION = 2
+ANALYSIS_SEGMENT_MIN_WORDS = 8
+ANALYSIS_SEGMENT_MAX_WORDS = 8
+ANALYSIS_SEGMENT_MAX_DURATION_MS = 12_000
+ANALYSIS_LONG_UTTERANCE_MAX_WORDS = 24
+ANALYSIS_LONG_UTTERANCE_MAX_DURATION_MS = 20_000
+ANALYSIS_UTTERANCE_SPLIT_THRESHOLD_MS = 45_000
+ANALYSIS_UTTERANCE_SPLIT_THRESHOLD_WORDS = 80
 
 
 class VideoProcessor:
@@ -192,12 +199,107 @@ def _serialize_transcript_word(word) -> Dict[str, Any]:
     }
 
 
+def _join_transcript_tokens(tokens: List[str]) -> str:
+    text = " ".join(token.strip() for token in tokens if token and token.strip())
+    for before, after in (
+        (" ,", ","),
+        (" .", "."),
+        (" !", "!"),
+        (" ?", "?"),
+        (" ;", ";"),
+        (" :", ":"),
+        (" n't", "n't"),
+        (" 're", "'re"),
+        (" 've", "'ve"),
+        (" 'll", "'ll"),
+        (" 'd", "'d"),
+        (" 'm", "'m"),
+        (" 's", "'s"),
+    ):
+        text = text.replace(before, after)
+    return text.strip()
+
+
+def _format_words_for_analysis(
+    words: List[Any],
+    speaker: Optional[str] = None,
+    *,
+    min_words_per_segment: int = ANALYSIS_SEGMENT_MIN_WORDS,
+    max_words_per_segment: int = ANALYSIS_SEGMENT_MAX_WORDS,
+    max_duration_ms: int = ANALYSIS_SEGMENT_MAX_DURATION_MS,
+) -> List[str]:
+    if not words:
+        return []
+
+    formatted_lines: List[str] = []
+    current_words: List[Any] = []
+    current_start: Optional[int] = None
+
+    def flush_segment() -> None:
+        nonlocal current_words, current_start
+        if not current_words:
+            return
+        start_time = format_ms_to_timestamp(current_words[0].start)
+        end_time = format_ms_to_timestamp(current_words[-1].end)
+        text = _join_transcript_tokens([word.text for word in current_words])
+        if text:
+            speaker_prefix = f"Speaker {speaker}: " if speaker else ""
+            formatted_lines.append(f"[{start_time} - {end_time}] {speaker_prefix}{text}")
+        current_words = []
+        current_start = None
+
+    for word in words:
+        if current_start is None:
+            current_start = word.start
+
+        current_words.append(word)
+        duration_ms = word.end - current_start
+        segment_word_count = len(current_words)
+        ends_sentence = str(word.text).endswith((".", "!", "?"))
+
+        should_flush = False
+        if segment_word_count >= max_words_per_segment:
+            should_flush = True
+        elif (
+            ends_sentence
+            and segment_word_count >= min_words_per_segment
+        ):
+            should_flush = True
+        elif (
+            duration_ms >= max_duration_ms
+            and segment_word_count >= min_words_per_segment
+        ):
+            should_flush = True
+
+        if should_flush:
+            flush_segment()
+
+    flush_segment()
+    return formatted_lines
+
+
 def format_transcript_for_analysis(transcript) -> List[str]:
     """Format transcripts into readable timestamped segments for AI analysis."""
     utterances = getattr(transcript, "utterances", None) or []
     if utterances:
         formatted_lines = []
         for utterance in utterances:
+            utterance_words = list(getattr(utterance, "words", []) or [])
+            utterance_duration = max(0, int(utterance.end) - int(utterance.start))
+            if utterance_words and (
+                utterance_duration > ANALYSIS_UTTERANCE_SPLIT_THRESHOLD_MS
+                or len(utterance_words) > ANALYSIS_UTTERANCE_SPLIT_THRESHOLD_WORDS
+            ):
+                formatted_lines.extend(
+                    _format_words_for_analysis(
+                        utterance_words,
+                        getattr(utterance, "speaker", None),
+                        max_words_per_segment=ANALYSIS_LONG_UTTERANCE_MAX_WORDS,
+                        max_duration_ms=ANALYSIS_LONG_UTTERANCE_MAX_DURATION_MS,
+                    )
+                )
+                continue
+
             start_time = format_ms_to_timestamp(utterance.start)
             end_time = format_ms_to_timestamp(utterance.end)
             speaker = getattr(utterance, "speaker", None)
@@ -213,42 +315,7 @@ def format_transcript_for_analysis(transcript) -> List[str]:
         return formatted_lines
 
     logger.info(f"Processing {len(words)} words with precise timing")
-
-    current_segment = []
-    current_start = None
-    segment_word_count = 0
-    max_words_per_segment = 8
-
-    for word in words:
-        if current_start is None:
-            current_start = word.start
-
-        current_segment.append(word.text)
-        segment_word_count += 1
-
-        if (
-            segment_word_count >= max_words_per_segment
-            or word.text.endswith(".")
-            or word.text.endswith("!")
-            or word.text.endswith("?")
-        ):
-            if current_segment:
-                start_time = format_ms_to_timestamp(current_start)
-                end_time = format_ms_to_timestamp(word.end)
-                text = " ".join(current_segment)
-                formatted_lines.append(f"[{start_time} - {end_time}] {text}")
-
-            current_segment = []
-            current_start = None
-            segment_word_count = 0
-
-    if current_segment and current_start is not None:
-        start_time = format_ms_to_timestamp(current_start)
-        end_time = format_ms_to_timestamp(words[-1].end)
-        text = " ".join(current_segment)
-        formatted_lines.append(f"[{start_time} - {end_time}] {text}")
-
-    return formatted_lines
+    return _format_words_for_analysis(words)
 
 
 def format_ms_to_timestamp(ms: int) -> str:
@@ -699,6 +766,16 @@ def get_words_in_range(
                 )
 
     return relevant_words
+
+
+def get_transcript_text_in_range(
+    transcript_data: Dict, clip_start: float, clip_end: float
+) -> str:
+    """Return transcript text reconstructed from exact cached word timings."""
+    relevant_words = get_words_in_range(transcript_data, clip_start, clip_end)
+    if not relevant_words:
+        return ""
+    return _join_transcript_tokens([word["text"] for word in relevant_words])
 
 
 def create_assemblyai_subtitles(

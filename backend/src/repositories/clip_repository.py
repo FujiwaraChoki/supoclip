@@ -34,6 +34,18 @@ class ClipRepository:
         hook_type: Optional[str] = None,
     ) -> str:
         """Create a new clip record and return its ID."""
+        base_params = {
+            "task_id": task_id,
+            "filename": filename,
+            "file_path": file_path,
+            "start_time": start_time,
+            "end_time": end_time,
+            "duration": duration,
+            "text": text,
+            "relevance_score": relevance_score,
+            "reasoning": reasoning,
+            "clip_order": clip_order,
+        }
         try:
             result = await db.execute(
                 sa_text("""
@@ -47,19 +59,26 @@ class ClipRepository:
                      :text, :relevance_score, :reasoning, :clip_order,
                      :virality_score, :hook_score, :engagement_score, :value_score, :shareability_score, :hook_type,
                      NOW())
+                    ON CONFLICT (task_id, clip_order) DO UPDATE SET
+                        filename = EXCLUDED.filename,
+                        file_path = EXCLUDED.file_path,
+                        start_time = EXCLUDED.start_time,
+                        end_time = EXCLUDED.end_time,
+                        duration = EXCLUDED.duration,
+                        text = EXCLUDED.text,
+                        relevance_score = EXCLUDED.relevance_score,
+                        reasoning = EXCLUDED.reasoning,
+                        virality_score = EXCLUDED.virality_score,
+                        hook_score = EXCLUDED.hook_score,
+                        engagement_score = EXCLUDED.engagement_score,
+                        value_score = EXCLUDED.value_score,
+                        shareability_score = EXCLUDED.shareability_score,
+                        hook_type = EXCLUDED.hook_type,
+                        updated_at = NOW()
                     RETURNING id
                 """),
                 {
-                    "task_id": task_id,
-                    "filename": filename,
-                    "file_path": file_path,
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "duration": duration,
-                    "text": text,
-                    "relevance_score": relevance_score,
-                    "reasoning": reasoning,
-                    "clip_order": clip_order,
+                    **base_params,
                     "virality_score": virality_score,
                     "hook_score": hook_score,
                     "engagement_score": engagement_score,
@@ -78,20 +97,19 @@ class ClipRepository:
                     VALUES
                     (:task_id, :filename, :file_path, :start_time, :end_time, :duration,
                      :text, :relevance_score, :reasoning, :clip_order, NOW())
+                    ON CONFLICT (task_id, clip_order) DO UPDATE SET
+                        filename = EXCLUDED.filename,
+                        file_path = EXCLUDED.file_path,
+                        start_time = EXCLUDED.start_time,
+                        end_time = EXCLUDED.end_time,
+                        duration = EXCLUDED.duration,
+                        text = EXCLUDED.text,
+                        relevance_score = EXCLUDED.relevance_score,
+                        reasoning = EXCLUDED.reasoning,
+                        updated_at = NOW()
                     RETURNING id
                 """),
-                {
-                    "task_id": task_id,
-                    "filename": filename,
-                    "file_path": file_path,
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    "duration": duration,
-                    "text": text,
-                    "relevance_score": relevance_score,
-                    "reasoning": reasoning,
-                    "clip_order": clip_order,
-                },
+                base_params,
             )
         clip_id = result.scalar()
         if not clip_id:

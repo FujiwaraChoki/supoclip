@@ -65,6 +65,7 @@ def build_task_service() -> TaskService:
     service.task_repo.update_task_runtime_metadata = AsyncMock()
     service.task_repo.update_task_status = AsyncMock()
     service.task_repo.update_task_clips = AsyncMock()
+    service.clip_repo.delete_clips_by_task = AsyncMock(return_value=0)
     service.clip_repo.create_clip = AsyncMock(return_value="clip-1")
     service.video_service.create_single_clip = AsyncMock(return_value=build_clip_result())
     service.video_service.apply_single_transition = AsyncMock(
@@ -234,6 +235,33 @@ async def test_process_task_keeps_generated_clips_standalone():
         for call in service.clip_repo.create_clip.await_args_list
     ]
     assert saved_paths == ["/tmp/clip-1.mp4", "/tmp/clip-2.mp4"]
+
+
+@pytest.mark.asyncio
+async def test_process_task_clears_existing_clips_before_rendering():
+    service = build_task_service()
+    service.task_repo.get_task_notification_context = AsyncMock(
+        return_value={
+            "notify_on_completion": False,
+            "completion_notification_sent_at": None,
+            "source_title": "Demo video",
+            "user_email": "user@example.com",
+            "user_name": "Demo User",
+            "user_first_name": "Demo",
+        }
+    )
+
+    await service.process_task(
+        task_id="task-1",
+        url="https://www.youtube.com/watch?v=demo",
+        source_type="youtube",
+    )
+
+    service.clip_repo.delete_clips_by_task.assert_awaited_once_with(service.db, "task-1")
+    assert any(
+        call.args == (service.db, "task-1", [])
+        for call in service.task_repo.update_task_clips.await_args_list
+    )
 
 
 @pytest.mark.asyncio

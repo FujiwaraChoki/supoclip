@@ -19,7 +19,9 @@ from ..video_utils import (
     get_video_transcript,
     create_clips_with_transitions,
     create_optimized_clip,
+    load_cached_transcript_data,
     parse_timestamp_to_seconds,
+    get_transcript_text_in_range,
 )
 from ..ai import get_most_relevant_parts_by_transcript
 from ..config import Config
@@ -31,6 +33,31 @@ UPLOAD_URL_PREFIX = "upload://"
 
 class VideoService:
     """Service for video processing operations."""
+
+    @staticmethod
+    def _ground_segment_text(
+        segment_payload: Dict[str, Any],
+        transcript_data: Optional[Dict[str, Any]],
+    ) -> str:
+        if not transcript_data:
+            return str(segment_payload.get("text") or "").strip()
+
+        start_time = str(segment_payload.get("start_time") or "").strip()
+        end_time = str(segment_payload.get("end_time") or "").strip()
+        if not start_time or not end_time:
+            return str(segment_payload.get("text") or "").strip()
+
+        start_seconds = parse_timestamp_to_seconds(start_time)
+        end_seconds = parse_timestamp_to_seconds(end_time)
+        if end_seconds <= start_seconds:
+            return str(segment_payload.get("text") or "").strip()
+
+        grounded_text = get_transcript_text_in_range(
+            transcript_data,
+            start_seconds,
+            end_seconds,
+        ).strip()
+        return grounded_text or str(segment_payload.get("text") or "").strip()
 
     @staticmethod
     def _get_file_duration(path: Path) -> Optional[float]:
@@ -365,27 +392,30 @@ class VideoService:
 
             raw_segments = relevant_parts.most_relevant_segments
             segments_json: List[Dict[str, Any]] = []
+            transcript_data = load_cached_transcript_data(video_path)
             for segment in raw_segments:
                 if isinstance(segment, dict):
-                    segments_json.append(
-                        {
-                            "start_time": segment.get("start_time"),
-                            "end_time": segment.get("end_time"),
-                            "text": segment.get("text", ""),
-                            "relevance_score": segment.get("relevance_score", 0.0),
-                            "reasoning": segment.get("reasoning", ""),
-                        }
-                    )
+                    segment_payload = {
+                        "start_time": segment.get("start_time"),
+                        "end_time": segment.get("end_time"),
+                        "text": segment.get("text", ""),
+                        "relevance_score": segment.get("relevance_score", 0.0),
+                        "reasoning": segment.get("reasoning", ""),
+                    }
                 else:
-                    segments_json.append(
-                        {
-                            "start_time": segment.start_time,
-                            "end_time": segment.end_time,
-                            "text": segment.text,
-                            "relevance_score": segment.relevance_score,
-                            "reasoning": segment.reasoning,
-                        }
-                    )
+                    segment_payload = {
+                        "start_time": segment.start_time,
+                        "end_time": segment.end_time,
+                        "text": segment.text,
+                        "relevance_score": segment.relevance_score,
+                        "reasoning": segment.reasoning,
+                    }
+
+                segment_payload["text"] = VideoService._ground_segment_text(
+                    segment_payload,
+                    transcript_data,
+                )
+                segments_json.append(segment_payload)
 
             if processing_mode == "fast":
                 segments_json = segments_json[: config.fast_mode_max_clips]

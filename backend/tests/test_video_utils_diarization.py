@@ -160,6 +160,70 @@ class VideoUtilsDiarizationTests(unittest.TestCase):
         self.assertIsNotNone(payload)
         self.assertEqual(payload["words"][0]["text"], "legacy")
 
+    def test_format_transcript_for_analysis_splits_long_diarized_utterances(self):
+        words = []
+        for index, token in enumerate(
+            [
+                "This",
+                "is",
+                "a",
+                "very",
+                "long",
+                "utterance",
+                "that",
+                "should",
+                "be",
+                "split",
+                "into",
+                "multiple",
+                "segments.",
+            ]
+        ):
+            start = index * 5000
+            words.append(
+                SimpleNamespace(
+                    text=token,
+                    start=start,
+                    end=start + 1500,
+                    confidence=0.99,
+                    speaker="A",
+                )
+            )
+
+        transcript = SimpleNamespace(
+            utterances=[
+                SimpleNamespace(
+                    start=0,
+                    end=65000,
+                    speaker="A",
+                    text=" ".join(word.text for word in words),
+                    words=words,
+                )
+            ],
+            words=words,
+        )
+
+        formatted = video_utils.format_transcript_for_analysis(transcript)
+
+        self.assertGreater(len(formatted), 1)
+        self.assertEqual(
+            formatted[0],
+            "[00:00 - 00:36] Speaker A: This is a very long utterance that should",
+        )
+
+    def test_get_transcript_text_in_range_reconstructs_exact_words(self):
+        transcript_data = {
+            "words": [
+                {"text": "Hello", "start": 0, "end": 400, "confidence": 1.0},
+                {"text": "world.", "start": 401, "end": 900, "confidence": 1.0},
+                {"text": "Again", "start": 901, "end": 1300, "confidence": 1.0},
+            ]
+        }
+
+        text = video_utils.get_transcript_text_in_range(transcript_data, 0.0, 0.95)
+
+        self.assertEqual(text, "Hello world. Again")
+
 
 if __name__ == "__main__":
     unittest.main()
