@@ -1,6 +1,7 @@
 """
 Progress tracking using Redis for real-time updates.
 """
+
 import json
 import logging
 from typing import Optional
@@ -30,20 +31,17 @@ class ProgressTracker:
             "task_id": self.task_id,
             "progress": progress,
             "message": message,
-            "status": status
+            "status": status,
         }
 
         await self.redis.setex(
             self.key,
             3600,  # Expire after 1 hour
-            json.dumps(data)
+            json.dumps(data),
         )
 
         # Publish to pub/sub for real-time updates
-        await self.redis.publish(
-            f"progress:{self.task_id}",
-            json.dumps(data)
-        )
+        await self.redis.publish(f"progress:{self.task_id}", json.dumps(data))
 
         logger.debug(f"Progress update for {self.task_id}: {progress}% - {message}")
 
@@ -91,5 +89,8 @@ class ProgressTracker:
                     data = json.loads(message["data"])
                     yield data
         finally:
-            await pubsub.unsubscribe(f"progress:{task_id}")
-            await pubsub.close()
+            try:
+                await pubsub.unsubscribe(f"progress:{task_id}")
+                await pubsub.close()
+            except Exception:
+                pass  # Client disconnected before cleanup — expected, not an error
