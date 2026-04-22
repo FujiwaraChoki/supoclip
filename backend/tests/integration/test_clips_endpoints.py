@@ -57,7 +57,8 @@ async def test_trim_clip_rejects_negative_offsets(client, db_session):
         headers={"x-supoclip-user-id": user["id"]},
         json={"start_offset": -1, "end_offset": 0},
     )
-    assert response.status_code == 400
+    # Pydantic schema rejects with 422 (FastAPI validation error)
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -74,7 +75,40 @@ async def test_split_clip_rejects_non_positive_time(client, db_session):
         headers={"x-supoclip-user-id": user["id"]},
         json={"split_time": 0},
     )
-    assert response.status_code == 400
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_merge_clips_rejects_too_few_ids(client, db_session):
+    user = await create_user(db_session, user_id="merger", email="mg@example.com")
+    source = await create_source(db_session, title="Merge")
+    task = await create_task(
+        db_session, user_id=user["id"], source_id=source["id"], status="completed"
+    )
+
+    response = await client.post(
+        f"/tasks/{task['id']}/clips/merge",
+        headers={"x-supoclip-user-id": user["id"]},
+        json={"clip_ids": ["one"]},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_captions_rejects_invalid_position(client, db_session):
+    user = await create_user(db_session, user_id="cap-user", email="cp@example.com")
+    source = await create_source(db_session, title="Captions")
+    task = await create_task(
+        db_session, user_id=user["id"], source_id=source["id"], status="completed"
+    )
+    clip = await create_clip(db_session, task_id=task["id"])
+
+    response = await client.patch(
+        f"/tasks/{task['id']}/clips/{clip['id']}/captions",
+        headers={"x-supoclip-user-id": user["id"]},
+        json={"caption_text": "hi", "position": "nowhere"},
+    )
+    assert response.status_code == 422
 
 
 @pytest.mark.asyncio
