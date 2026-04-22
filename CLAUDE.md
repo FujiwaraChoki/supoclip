@@ -54,9 +54,35 @@ bun install          # Uses bun, not npm
 bun run dev
 ```
 
-### No tests
+### Tests
 
-The project currently has no test files.
+Backend tests live in `backend/tests/` (unit + integration). Run with:
+
+```bash
+cd backend
+uv run pytest                       # All tests
+uv run pytest tests/unit/           # Unit only
+uv run pytest -k test_task_service  # Single file by keyword
+```
+
+**Integration tests** require PostgreSQL. The local host port is not exposed by
+`docker-compose.yml`, so run inside the running backend container:
+
+```bash
+docker exec supoclip-backend bash -c "cd /app && \
+  DATABASE_URL='postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip' \
+  .venv/bin/python -m pytest tests/integration/"
+```
+
+Integration scenarios cover the guard-rail layers of `/tasks/*` endpoints
+(auth, 404, 403, Pydantic validation) — not the ffmpeg/MoviePy pipeline.
+
+Current state: 418 passed, 49% line coverage. 100% covered: `_task_helpers`,
+`_video_helpers`, `_youtube_io`, `_youtube_downloader`, `caption_templates`,
+`observability`, `pricing`, `subtitle_exporters`, `usage_context`,
+`utils/async_helpers`.
+
+Frontend has Vitest + Playwright configured in `package.json` but no test files yet.
 
 ## Architecture
 
@@ -72,7 +98,7 @@ Task creation returns immediately (<100ms). Video processing happens asynchronou
 
 ### Backend: Layered Architecture
 
-The backend was refactored from monolithic (`main.py`, legacy) to layered (`main_refactored.py`, active):
+The backend uses a layered architecture (`main_refactored.py` is the entry point; the old monolithic `main.py` was removed):
 
 ```
 api/routes/          → HTTP handlers (tasks.py, media.py)
@@ -126,21 +152,25 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 
 | File | Purpose |
 |------|---------|
-| `src/main_refactored.py` | Active FastAPI entry point (129 lines) |
-| `src/main.py` | Legacy monolithic entry point (do not use for new work) |
-| `src/api/routes/tasks.py` | Task CRUD, SSE progress, clip editing endpoints (711 lines) |
+| `src/main_refactored.py` | Active FastAPI entry point (240 lines) |
+| `src/api/routes/tasks/` | Task route package: lifecycle, clips, export, admin (split from a 936-line module) |
 | `src/api/routes/media.py` | Fonts, transitions, uploads, templates |
-| `src/services/task_service.py` | Task orchestration, clip editing logic (574 lines) |
+| `src/services/task_service.py` | Task orchestration + `process_task` (~482 lines). Clip-editing in `_clip_edit_mixin.py`, completion-email in `_task_notification_mixin.py`, pure helpers (cache-key/mmss/stale-check) in `_task_helpers.py` |
 | `src/services/video_service.py` | Video download, transcription, AI analysis, clip generation |
 | `src/workers/tasks.py` | ARQ worker task definitions |
 | `src/workers/job_queue.py` | Job queue management |
 | `src/workers/progress.py` | Real-time progress via Redis |
 | `src/ai.py` | Pydantic AI agents, system prompt, segment validation |
-| `src/video_utils.py` | Video processing, cropping, subtitles (~820 lines) |
+| `src/video_utils.py` | Thin entry point (~388 lines) + re-exports. Submodules: `_video_encoder.py` (VideoProcessor + font resolver), `_video_helpers.py` (timestamp/sizing/word helpers), `_video_transitions.py` (apply_transition_effect + listing), `_video_face.py` (face detection), `_video_broll.py` (B-roll/9:16), `_video_subtitles.py` (5 subtitle styles), `_video_transcript.py` (AssemblyAI transcription + caching). Subtitle/transcript/transitions submodules use `from . import video_utils as _vu` at call time to preserve `patch("src.video_utils.*")` compat |
+| `src/youtube_utils.py` | YouTube fetch/download entry point (~423 lines). Submodules: `_youtube_parsers.py` (URL/ISO-8601 parsers), `_youtube_io.py` (ffprobe + cache helpers), `_youtube_downloader.py` (yt-dlp option presets) |
+| `src/api/routes/tasks/schemas.py` | Pydantic request schemas for `/tasks/*` endpoints: `CreateTaskRequest`, `TaskSettingsRequest`, `ClipTrimRequest`, `ClipSplitRequest`, `ClipMergeRequest`, `ClipCaptionsRequest`, `ClipRegenerateRequest`. Invalid input returns 422 before reaching the service layer |
 | `src/clip_editor.py` | Clip trim, split, merge, export presets |
 | `src/broll.py` | Pexels API B-roll integration |
 | `src/caption_templates.py` | Caption template system |
 | `src/config.py` | Environment variable configuration |
+| `src/font_registry.py` | Font discovery + variant detection. `find_font_path` rejects path-traversal payloads (`..`, `/`, `\`, `\x00`) and verifies resolved paths stay under the font search directories (`_is_path_inside`) |
+
+> Legacy `src/main.py` was removed; `main_refactored.py` is the sole entry point.
 
 ## API Endpoints (routes in `api/routes/`)
 

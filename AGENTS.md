@@ -18,7 +18,7 @@ Local app commands:
 - `cd frontend && npm run dev` (or `waitlist`): run Next.js in dev mode.
 - `cd frontend && npm run build && npm run start`: production build + serve.
 - `cd frontend && npm run lint` (same in `waitlist`): run ESLint.
-- `cd backend && uv sync && uvicorn src.main:app --reload --host 0.0.0.0 --port 8000`: run API locally.
+- `cd backend && uv sync && uvicorn src.main_refactored:app --reload --host 0.0.0.0 --port 8000`: run API locally.
 - `cd backend && .venv/bin/arq src.workers.tasks.WorkerSettings`: run the worker.
 
 ## Coding Style & Naming Conventions
@@ -28,11 +28,16 @@ Local app commands:
 - Imports: use the `@/*` alias in Next.js apps when possible.
 
 ## Testing Guidelines
-There is no mature automated test suite yet. Treat linting plus manual verification as the current baseline:
-- Run `npm run lint` in both Next.js apps.
-- Smoke test core flows with `docker-compose` (create task, process clips, view task page).
+Backend now has a growing pytest suite (418 passed, ~49% line coverage):
+- `cd backend && uv run pytest` — full local suite (integration tests are
+  skipped without a reachable Postgres)
+- Integration tests (`tests/integration/`) hit real DB. The host port is not
+  exposed; run inside the backend container:
+  `docker exec supoclip-backend bash -c "cd /app && DATABASE_URL='postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip' .venv/bin/python -m pytest tests/integration/"`
+- Frontend: `npm run lint` + manual smoke via `docker-compose`.
 
-When adding tests, place them near code or under `tests/` with clear names (`test_*.py`, `*.test.ts[x]`).
+Place new tests under `backend/tests/{unit,integration}/` with `test_*.py`
+names, or next to frontend code as `*.test.ts[x]`.
 
 ## Commit & Pull Request Guidelines
 Recent history favors short imperative commit subjects (`Add list endpoint`, `Fix typo`, `improve UX`). Prefer:
