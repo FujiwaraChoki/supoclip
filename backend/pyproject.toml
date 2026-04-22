@@ -21,7 +21,7 @@ dependencies = [
     "moviepy>=2.2.1",
     "opencv-python>=4.8.0",
     "srt-equalizer>=0.1.10",
-    "assemblyai>=0.35.0",
+    "assemblyai>=0.62.0",
     "srt>=3.5.3",
     "mediapipe>=0.10.0",
     "numpy>=1.24.0",
@@ -31,6 +31,7 @@ dependencies = [
     "redis>=5.0.0",
     "resend>=2.13.0",
     "requests>=2.32.0",
+    "cryptography>=42.0.0",
 ]
 
 [dependency-groups]
@@ -49,9 +50,26 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]
 addopts = """
---cov=src.auth_headers
---cov=src.services.billing_service
---cov-report=term-missing
+--cov=src
+--cov-report=term-missing:skip-covered
 --cov-report=html
---cov-fail-under=65
+--cov-fail-under=45
 """
+
+[tool.coverage.run]
+branch = false
+source = ["src"]
+omit = [
+    # Entrypoints not exercised by unit tests — the uvicorn/arq processes
+    # drive these, so they only run under full Docker smoke.
+    "src/worker_main.py",
+    "src/workers/tasks.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
