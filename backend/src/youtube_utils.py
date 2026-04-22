@@ -1,268 +1,44 @@
 """
 Utility functions for YouTube-related operations.
-Optimized for Apify-first downloads with direct yt-dlp fallback.
+
+Thin entry point: parsers live in ``_youtube_parsers``, filesystem/subprocess
+helpers in ``_youtube_io``, and the yt-dlp option presets in
+``_youtube_downloader``. This module keeps the public fetch/download entry
+points and re-exports the helpers so existing ``patch("src.youtube_utils.*")``
+tests keep working.
 """
 
 import asyncio
-from datetime import datetime
 import logging
-import re
-import subprocess
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
-from urllib.parse import parse_qs, urlparse
 
 import requests
 import yt_dlp
 
 from .apify_youtube_downloader import ApifyDownloadError, download_video_via_apify
 from .config import get_config
+from ._youtube_downloader import YouTubeDownloader
+from ._youtube_io import (
+    _build_info_options,
+    _empty_video_info,
+    _get_local_video_dimensions,
+    _remove_cached_downloads,
+)
+from ._youtube_parsers import (
+    YOUTUBE_DATA_API_URL,
+    YOUTUBE_METADATA_PROVIDER_DATA_API,
+    YOUTUBE_METADATA_PROVIDER_YTDLP,
+    _normalize_upload_date,
+    _parse_iso8601_duration_to_seconds,
+    _parse_optional_int,
+    _pick_best_thumbnail,
+    get_youtube_video_id,
+    validate_youtube_url,
+)
 
 logger = logging.getLogger(__name__)
-
-YOUTUBE_METADATA_PROVIDER_YTDLP = "yt_dlp"
-YOUTUBE_METADATA_PROVIDER_DATA_API = "youtube_data_api"
-YOUTUBE_DATA_API_URL = "https://www.googleapis.com/youtube/v3/videos"
-
-
-class YouTubeDownloader:
-    """Enhanced YouTube downloader with optimized settings."""
-
-    def __init__(self):
-        self.temp_dir = Path(get_config().temp_dir)
-        self.temp_dir.mkdir(parents=True, exist_ok=True)
-
-    def get_optimal_download_options(
-        self,
-        video_id: str,
-    ) -> Dict[str, Any]:
-        """Get optimal yt-dlp options for high-quality downloads."""
-        output_path = self.temp_dir / f"{video_id}.%(ext)s"
-
-        opts = {
-            "outtmpl": str(output_path),
-            # Use best available video/audio to avoid quality caps from container constraints.
-            "format": "bestvideo*+bestaudio/best",
-            "format_sort": ["res", "fps"],
-            "merge_output_format": "mp4",
-            "writesubtitles": False,
-            "writeautomaticsub": False,
-            "noplaylist": True,
-            "overwrites": True,
-            # Optimized for speed and reliability
-            "socket_timeout": 30,
-            "retries": 5,  # Increased retries
-            "fragment_retries": 5,
-            "http_chunk_size": 10485760,  # 10MB chunks
-            # Quiet operation - only errors/warnings
-            "quiet": True,
-            "no_warnings": False,  # Show warnings but not info
-            "ignoreerrors": False,
-            # Enhanced headers to avoid 403 errors
-            "http_headers": {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Accept-Encoding": "gzip, deflate",
-                "Connection": "keep-alive",
-            },
-            # Metadata extraction
-            "extract_flat": False,
-            "writeinfojson": False,
-            # Additional bypass options
-            "nocheckcertificate": True,
-            "prefer_insecure": False,
-            "age_limit": None,
-        }
-
-        return opts
-
-
-def _build_info_options() -> Dict[str, Any]:
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "extractaudio": False,
-        "skip_download": True,
-        "socket_timeout": 30,
-        "http_headers": {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Connection": "keep-alive",
-        },
-        "nocheckcertificate": True,
-    }
-    return ydl_opts
-
-
-def _empty_video_info(video_id: Optional[str] = None) -> Dict[str, Any]:
-    return {
-        "id": video_id,
-        "title": None,
-        "description": "",
-        "duration": None,
-        "uploader": None,
-        "upload_date": None,
-        "view_count": None,
-        "like_count": None,
-        "thumbnail": None,
-        "format_id": None,
-        "resolution": None,
-        "fps": None,
-        "filesize": None,
-    }
-
-
-def _parse_iso8601_duration_to_seconds(value: str) -> int:
-    match = re.fullmatch(
-        r"P(?:(?P<days>\d+)D)?(?:T(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?)?",
-        value or "",
-    )
-    if not match:
-        raise ValueError(f"Unsupported ISO 8601 duration: {value}")
-
-    days = int(match.group("days") or 0)
-    hours = int(match.group("hours") or 0)
-    minutes = int(match.group("minutes") or 0)
-    seconds = int(match.group("seconds") or 0)
-    return (((days * 24) + hours) * 60 + minutes) * 60 + seconds
-
-
-def _pick_best_thumbnail(thumbnails: Optional[Dict[str, Any]]) -> Optional[str]:
-    if not thumbnails:
-        return None
-
-    for key in ("maxres", "standard", "high", "medium", "default"):
-        candidate = thumbnails.get(key)
-        if isinstance(candidate, dict) and candidate.get("url"):
-            return candidate["url"]
-
-    for candidate in thumbnails.values():
-        if isinstance(candidate, dict) and candidate.get("url"):
-            return candidate["url"]
-
-    return None
-
-
-def _normalize_upload_date(published_at: Optional[str]) -> Optional[str]:
-    if not published_at:
-        return None
-
-    try:
-        return (
-            datetime.fromisoformat(published_at.replace("Z", "+00:00"))
-            .strftime("%Y%m%d")
-        )
-    except ValueError:
-        logger.warning("Could not parse YouTube publishedAt value: %s", published_at)
-        return None
-
-
-def _parse_optional_int(value: Any) -> Optional[int]:
-    if value is None or value == "":
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _get_local_video_dimensions(path: Path) -> tuple[int, int]:
-    """Return local video width/height using ffprobe."""
-    try:
-        command = [
-            "ffprobe",
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-show_entries",
-            "stream=width,height",
-            "-of",
-            "csv=s=x:p=0",
-            str(path),
-        ]
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-        output = result.stdout.strip()
-        if not output or "x" not in output:
-            return (0, 0)
-        width_str, height_str = output.split("x", 1)
-        return (int(width_str), int(height_str))
-    except Exception:
-        return (0, 0)
-
-
-def _remove_cached_downloads(temp_dir: Path, video_id: str) -> None:
-    cached_files = [
-        file_path
-        for file_path in temp_dir.glob(f"{video_id}.*")
-        if file_path.is_file()
-        and file_path.suffix.lower() in [".mp4", ".mkv", ".webm", ".mov", ".m4v"]
-    ]
-    if not cached_files:
-        return
-
-    logger.info(
-        "Refreshing download for %s (found %s cached file(s))",
-        video_id,
-        len(cached_files),
-    )
-    for cached_file in cached_files:
-        try:
-            cached_file.unlink()
-        except Exception as exc:
-            logger.warning("Failed to remove stale cache file %s: %s", cached_file, exc)
-
-
-def get_youtube_video_id(url: str) -> Optional[str]:
-    """
-    Extract YouTube video ID from various URL formats.
-    Supports standard, short, embed, and mobile URLs.
-    """
-    if not isinstance(url, str) or not url.strip():
-        return None
-
-    url = url.strip()
-
-    # Comprehensive regex patterns for different YouTube URL formats
-    patterns = [
-        r"(?:youtube\.com/(?:.*v=|v/|embed/|shorts/)|youtu\.be/)([A-Za-z0-9_-]{11})",
-        r"youtube\.com/watch\?v=([A-Za-z0-9_-]{11})",
-        r"youtube\.com/embed/([A-Za-z0-9_-]{11})",
-        r"youtube\.com/v/([A-Za-z0-9_-]{11})",
-        r"youtu\.be/([A-Za-z0-9_-]{11})",
-        r"youtube\.com/shorts/([A-Za-z0-9_-]{11})",
-        r"m\.youtube\.com/watch\?v=([A-Za-z0-9_-]{11})",
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, url, re.IGNORECASE)
-        if match:
-            video_id = match.group(1)
-            # Validate video ID length (YouTube IDs are always 11 characters)
-            if len(video_id) == 11:
-                return video_id
-
-    # Fallback: parse query parameters
-    try:
-        parsed_url = urlparse(url)
-        if "youtube.com" in parsed_url.netloc.lower():
-            query = parse_qs(parsed_url.query)
-            video_ids = query.get("v")
-            if video_ids and len(video_ids[0]) == 11:
-                return video_ids[0]
-    except Exception as e:
-        logger.warning(f"Error parsing URL query parameters: {e}")
-
-    return None
-
-
-def validate_youtube_url(url: str) -> bool:
-    """Validate if URL is a proper YouTube URL."""
-    video_id = get_youtube_video_id(url)
-    return video_id is not None
 
 
 def _fetch_video_info_with_ytdlp(url: str) -> Dict[str, Any]:
@@ -346,9 +122,7 @@ def _fetch_video_info_with_youtube_data_api(url: str) -> Dict[str, Any]:
 
 
 def fetch_video_info(url: str) -> Optional[Dict[str, Any]]:
-    """
-    Backward-compatible metadata lookup entrypoint.
-    """
+    """Backward-compatible metadata lookup entrypoint."""
     return get_youtube_video_info(url)
 
 
@@ -423,13 +197,8 @@ def get_youtube_video_info(
     return None
 
 
-def get_youtube_video_title(
-    url: str,
-) -> Optional[str]:
-    """
-    Get the title of a YouTube video from a URL.
-    Enhanced with better error handling and validation.
-    """
+def get_youtube_video_title(url: str) -> Optional[str]:
+    """Get the title of a YouTube video from a URL."""
     video_info = get_youtube_video_info(url)
     return video_info.get("title") if video_info else None
 
@@ -464,10 +233,7 @@ def _download_youtube_video_with_ytdlp(
     max_retries: int = 3,
     task_id: Optional[str] = None,
 ) -> Optional[Path]:
-    """
-    Download YouTube video with optimized settings and retry logic.
-    Returns the path to the downloaded file, or None if download fails.
-    """
+    """Download YouTube video with optimized settings and retry logic."""
     logger.info(f"Starting YouTube download: {url}")
 
     video_id = get_youtube_video_id(url)
@@ -566,10 +332,7 @@ def download_youtube_video(
     max_retries: int = 3,
     task_id: Optional[str] = None,
 ) -> Optional[Path]:
-    """
-    Download YouTube video with Apify as the primary provider and yt-dlp fallback.
-    Returns the path to the downloaded file, or None if both providers fail.
-    """
+    """Download YouTube video with Apify primary + yt-dlp fallback."""
     logger.info("Starting YouTube download: %s", url)
 
     video_id = get_youtube_video_id(url)
@@ -626,24 +389,18 @@ def get_video_duration(url: str) -> Optional[int]:
 def is_video_suitable_for_processing(
     url: str, min_duration: int = 60, max_duration: int = 7200
 ) -> bool:
-    """
-    Check if video is suitable for processing based on duration and other factors.
-    Default limits: 1 minute to 2 hours.
-    """
+    """Check if video is suitable for processing based on duration."""
     video_info = get_youtube_video_info(url)
     if not video_info:
         return False
 
     duration = video_info.get("duration", 0)
 
-    # Check duration constraints
     if duration < min_duration or duration > max_duration:
         logger.warning(
             f"Video duration {duration}s outside allowed range ({min_duration}-{max_duration}s)"
         )
         return False
-
-    # Additional checks could go here (e.g., content type, quality, etc.)
 
     return True
 
@@ -661,7 +418,6 @@ def cleanup_downloaded_files(video_id: str):
             logger.warning(f"Failed to cleanup {file_path.name}: {e}")
 
 
-# Backward compatibility functions
 def extract_video_id(url: str) -> Optional[str]:
     """Backward compatibility wrapper."""
     return get_youtube_video_id(url)
