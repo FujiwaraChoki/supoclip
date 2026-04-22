@@ -192,3 +192,77 @@ async def test_list_tasks_empty_for_new_user(client, db_session):
     payload = response.json()
     assert payload["total"] == 0
     assert payload["tasks"] == []
+
+
+@pytest.mark.asyncio
+async def test_create_task_rejects_invalid_font_color(client, db_session):
+    await create_user(db_session, user_id="styler", email="st@example.com")
+
+    response = await client.post(
+        "/tasks/",
+        headers={"x-supoclip-user-id": "styler"},
+        json={
+            "source": {"url": "https://www.youtube.com/watch?v=demo"},
+            "font_options": {"font_color": "not-a-hex"},
+        },
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_task_rejects_oversized_font(client, db_session):
+    await create_user(db_session, user_id="big-font", email="bf@example.com")
+
+    response = await client.post(
+        "/tasks/",
+        headers={"x-supoclip-user-id": "big-font"},
+        json={
+            "source": {"url": "https://www.youtube.com/watch?v=demo"},
+            "font_options": {"font_size": 999},
+        },
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_task_rejects_unknown_processing_mode(client, db_session):
+    await create_user(db_session, user_id="mode-user", email="mm@example.com")
+
+    response = await client.post(
+        "/tasks/",
+        headers={"x-supoclip-user-id": "mode-user"},
+        json={
+            "source": {"url": "https://www.youtube.com/watch?v=demo"},
+            "processing_mode": "ultra-extra-hd",
+        },
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_task_rejects_unknown_output_format(client, db_session):
+    await create_user(db_session, user_id="fmt-user", email="fm@example.com")
+
+    response = await client.post(
+        "/tasks/",
+        headers={"x-supoclip-user-id": "fmt-user"},
+        json={
+            "source": {"url": "https://www.youtube.com/watch?v=demo"},
+            "output_format": "cinematic-4k",
+        },
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_task_settings_rejects_bad_color(client, db_session):
+    user = await create_user(db_session, user_id="set-user", email="sx@example.com")
+    source = await create_source(db_session, title="Settings")
+    task = await create_task(db_session, user_id=user["id"], source_id=source["id"])
+
+    response = await client.post(
+        f"/tasks/{task['id']}/settings",
+        headers={"x-supoclip-user-id": user["id"]},
+        json={"font_color": "rgb(1,2,3)"},
+    )
+    assert response.status_code == 422
