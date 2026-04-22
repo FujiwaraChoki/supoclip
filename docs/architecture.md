@@ -160,6 +160,8 @@ Responsibilities:
 Important services:
 
 - `task_service.py`
+  - Orchestration. Clip editing in `_clip_edit_mixin.py`, completion-email
+    in `_task_notification_mixin.py`, pure helpers in `_task_helpers.py`
 - `video_service.py`
 - `billing_service.py`
 - `subscription_email_service.py`
@@ -190,7 +192,17 @@ Important backend modules:
 - `ai.py`
   - Prompting and structured LLM output
 - `video_utils.py`
-  - Rendering, cropping, and subtitle logic
+  - Thin entry point. Rendering/cropping/subtitle logic lives in split
+    submodules: `_video_encoder.py` (encoder + font resolver),
+    `_video_helpers.py` (timestamp/sizing/word helpers),
+    `_video_transitions.py` (transition effects + listing),
+    `_video_face.py`, `_video_broll.py`, `_video_subtitles.py`,
+    `_video_transcript.py`
+- `youtube_utils.py`
+  - YouTube metadata + download entry point. Split submodules:
+    `_youtube_parsers.py` (URL/ISO-8601 parsers),
+    `_youtube_io.py` (ffprobe + cache helpers),
+    `_youtube_downloader.py` (yt-dlp option presets)
 - `clip_editor.py`
   - Post-generation clip edits and exports
 - `caption_templates.py`
@@ -198,9 +210,14 @@ Important backend modules:
 - `broll.py`
   - Optional Pexels integration
 - `font_registry.py`
-  - Font discovery and registration
+  - Font discovery and registration. `find_font_path` guards against
+    path-traversal payloads via `_is_path_inside`
 - `observability.py`
   - Metrics and timing helpers
+- `api/routes/tasks/schemas.py`
+  - Pydantic request schemas for `/tasks/*` endpoints (create, settings,
+    clip trim/split/merge/captions/regenerate). Invalid input returns 422
+    before reaching the service layer
 
 ## Frontend Architecture
 
