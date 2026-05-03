@@ -98,19 +98,39 @@ def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
 
     # Configure AssemblyAI
     aai.settings.api_key = config.assembly_ai_api_key
-    transcriber = aai.Transcriber()
 
-    # Request word-level timestamps for precise subtitle sync
-    speech_model_value = aai.SpeechModel.best
+    # The SDK (0.42.x) sends speech_model (singular enum) but AssemblyAI's API now
+    # requires speech_models (plural array). We patch api.create_transcript to inject it.
+    import assemblyai.api as _aai_api
+    import httpx as _httpx
+
+    speech_model_value = "universal-3-pro"
     if speech_model == "nano":
-        speech_model_value = aai.SpeechModel.nano
+        speech_model_value = "universal-2"
+
+    _original_create_transcript = _aai_api.create_transcript
+
+    def _patched_create_transcript(client, request):
+        payload = request.dict(exclude_none=True, by_alias=True)
+        payload.pop("speech_model", None)
+        payload["speech_models"] = [speech_model_value]
+        response = client.post(_aai_api.ENDPOINT_TRANSCRIPT, json=payload)
+        if response.status_code != _httpx.codes.OK:
+            raise aai.TranscriptError(
+                f"failed to transcribe url {request.audio_url}: {response.text}",
+                response.status_code,
+            )
+        return aai.types.TranscriptResponse.parse_obj(response.json())
+
+    _aai_api.create_transcript = _patched_create_transcript
 
     config_obj = aai.TranscriptionConfig(
         speaker_labels=True,
         punctuate=True,
         format_text=True,
-        speech_model=speech_model_value,
     )
+
+    transcriber = aai.Transcriber()
 
     try:
         logger.info("Starting AssemblyAI transcription")
@@ -134,6 +154,8 @@ def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
     except Exception as e:
         logger.error(f"Error in transcription: {e}")
         raise
+    finally:
+        _aai_api.create_transcript = _original_create_transcript
 
 
 def cache_transcript_data(video_path: Path, transcript) -> None:
@@ -304,113 +326,625 @@ def detect_optimal_crop_region(
     end_time: float,
     target_ratio: float = 9 / 16,
 ) -> Tuple[int, int, int, int]:
-    """Detect optimal crop region using improved face detection."""
+    """Detect optimal static crop region (fallback — used when tracking fails)."""
+    original_width, original_height = video_clip.size
+    if original_width / original_height > target_ratio:
+        new_width = round_to_even(int(original_height * target_ratio))
+        new_height = round_to_even(original_height)
+    else:
+        new_width = round_to_even(original_width)
+        new_height = round_to_even(int(original_width / target_ratio))
+
+    x_offset = round_to_even((original_width - new_width) // 2 if original_width > new_width else 0)
+    y_offset = round_to_even((original_height - new_height) // 2 if original_height > new_height else 0)
+    return (x_offset, y_offset, new_width, new_height)
+
+
+def _estimate_head_center(
+    lm,
+    PoseLandmark,
+    fw: int,
+    fh: int,
+    face_result: Optional[Tuple[float, float, str]],
+) -> Optional[Tuple[float, float, str]]:
+    """
+    Derive a normalized HEAD-CENTER anchor from MediaPipe Pose landmarks.
+
+    All paths return a point at approximately head-center height so the Kalman
+    filter receives geometrically consistent measurements regardless of pose.
+
+    Priority:
+      1. face_result set + nose fading → sigmoid-blend face↔shoulder head center
+      2. Nose visible (>0.5)           → use nose as head proxy
+      3. Ear midpoint visible (>0.3)   → reliable when back-turned
+      4. Shoulder midpoint + offset    → head_y = sh_cy - (sh_width/2.2)*0.5
+         Ratio 2.2 = shoulder_width / head_height for standing adult
+    """
+    import math
+
+    nose  = lm[PoseLandmark.NOSE]
+    l_ear = lm[PoseLandmark.LEFT_EAR]
+    r_ear = lm[PoseLandmark.RIGHT_EAR]
+    l_sh  = lm[PoseLandmark.LEFT_SHOULDER]
+    r_sh  = lm[PoseLandmark.RIGHT_SHOULDER]
+    l_hip = lm[PoseLandmark.LEFT_HIP]
+    r_hip = lm[PoseLandmark.RIGHT_HIP]
+
+    sh_vis  = (l_sh.visibility + r_sh.visibility) / 2
+    ear_vis = (l_ear.visibility + r_ear.visibility) / 2
+
+    sh_cx = ((l_sh.x + r_sh.x) / 2) * fw
+    sh_cy = ((l_sh.y + r_sh.y) / 2) * fh
+
+    # Anthropometric head height from shoulder width (biomechanics standard ratio)
+    sh_width = abs(l_sh.x - r_sh.x) * fw
+    head_h_est = sh_width / 2.2 if sh_width > 10 else fh * 0.12
+    shoulder_head_cy = sh_cy - head_h_est * 0.5  # head center above shoulder line
+
+    # Case 1: face detected — sigmoid-blend toward shoulder head center when fading
+    if face_result is not None:
+        face_vis = nose.visibility
+        if face_vis < 0.7 and sh_vis > 0.25:
+            alpha = 1.0 - (face_vis / 0.7)
+            # Sigmoid: sharp transition, avoids mushy middle zone
+            w_body = 1.0 / (1.0 + math.exp(-10.0 * (alpha - 0.5)))
+            w_face = 1.0 - w_body
+            bx, by, _ = face_result
+            bx2 = w_face * bx + w_body * sh_cx
+            by2 = w_face * by + w_body * shoulder_head_cy
+            return (bx2, by2, "face+pose")
+        return face_result  # face fully visible — no change needed
+
+    # Case 2: nose visible
+    if nose.visibility > 0.5:
+        return (nose.x * fw, nose.y * fh, "pose-nose")
+
+    # Case 3: ear midpoint — visibility-weighted (works when back-turned)
+    if ear_vis > 0.3:
+        total_ear_vis = l_ear.visibility + r_ear.visibility
+        if total_ear_vis > 0:
+            ear_cx = ((l_ear.x * l_ear.visibility + r_ear.x * r_ear.visibility) / total_ear_vis) * fw
+            ear_cy = ((l_ear.y * l_ear.visibility + r_ear.y * r_ear.visibility) / total_ear_vis) * fh
+        else:
+            ear_cx = ((l_ear.x + r_ear.x) / 2) * fw
+            ear_cy = ((l_ear.y + r_ear.y) / 2) * fh
+        return (ear_cx, ear_cy, "pose-ear")
+
+    # Case 4: torso center (4-point average: both shoulders + both hips).
+    # When fully back-turned, hips are more stable than shoulders alone.
+    # Weight hips more heavily (they're lower-body anchors less affected by arm motion).
+    hip_vis = (l_hip.visibility + r_hip.visibility) / 2
+    if sh_vis > 0.25 and hip_vis > 0.25:
+        hip_cx = ((l_hip.x + r_hip.x) / 2) * fw
+        hip_cy = ((l_hip.y + r_hip.y) / 2) * fh
+        # Weighted torso center: hips 60%, shoulders 40% (hips more stable back-view)
+        torso_cx = 0.4 * sh_cx + 0.6 * hip_cx
+        torso_cy = 0.4 * ((l_sh.y + r_sh.y) / 2 * fh) + 0.6 * hip_cy
+        # Head above torso by one head height (biomechanics: torso center ~ navel, head is ~2.5 heads above navel)
+        head_cy = torso_cy - head_h_est * 2.5
+        return (torso_cx, head_cy, "pose-shoulder")
+
+    if sh_vis > 0.25:
+        return (sh_cx, shoulder_head_cy, "pose-shoulder")
+
+    # Hip-only fallback
+    if hip_vis > 0.25:
+        hip_cx = ((l_hip.x + r_hip.x) / 2) * fw
+        hip_cy = ((l_hip.y + r_hip.y) / 2) * fh
+        return (hip_cx, hip_cy - head_h_est * 2.0, "pose-hip")
+
+    return None
+
+
+def _make_kalman(fps: float) -> "cv2.KalmanFilter":
+    """4-state constant-velocity Kalman filter: [x, y, vx, vy] → measure [x, y]."""
+    dt = 1.0 / fps
+    kf = cv2.KalmanFilter(4, 2)
+    kf.transitionMatrix = np.array(
+        [[1, 0, dt, 0],
+         [0, 1,  0, dt],
+         [0, 0,  1,  0],
+         [0, 0,  0,  1]], dtype=np.float32
+    )
+    kf.measurementMatrix = np.array(
+        [[1, 0, 0, 0],
+         [0, 1, 0, 0]], dtype=np.float32
+    )
+    kf.processNoiseCov   = np.diag([1.0, 1.0, 0.5, 0.5]).astype(np.float32)
+    kf.measurementNoiseCov = np.diag([25.0, 25.0]).astype(np.float32)
+    kf.errorCovPost = np.eye(4, dtype=np.float32)
+    kf.errorCovPost[2, 2] = 1000.0
+    kf.errorCovPost[3, 3] = 1000.0
+    kf.statePre = np.zeros((4, 1), dtype=np.float32)
+    return kf
+
+
+# Measurement noise (R) per detection source — tighter = more trust
+_R_BY_SOURCE = {
+    "face":           np.diag([25.0,   25.0]).astype(np.float32),
+    "face+pose":      np.diag([200.0,  200.0]).astype(np.float32),
+    "pose-nose":      np.diag([150.0,  150.0]).astype(np.float32),
+    "pose-ear":       np.diag([300.0,  300.0]).astype(np.float32),
+    "pose-shoulder":  np.diag([600.0,  600.0]).astype(np.float32),
+    "pose-hip":       np.diag([900.0,  900.0]).astype(np.float32),
+    "yolo-pose":      np.diag([400.0,  400.0]).astype(np.float32),
+    "hog":            np.diag([1200.0, 1200.0]).astype(np.float32),
+    "haar":           np.diag([1200.0, 1200.0]).astype(np.float32),
+}
+_Q_TRACKING = np.diag([1.0, 1.0, 0.3, 0.3]).astype(np.float32)
+_Q_COASTING = np.diag([4.0, 4.0, 2.0, 2.0]).astype(np.float32)
+_MAX_COAST_FRAMES = 20   # ~0.8 s at 25 fps before holding last known position
+
+# --- Optical flow parameters for coast frames ---
+_OF_WIN_SIZE   = (15, 15)
+_OF_MAX_LEVEL  = 2
+_OF_CRITERIA   = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03)
+
+
+def _detect_roi_features(
+    gray: np.ndarray, cx: float, cy: float, roi_w: int = 120, roi_h: int = 180
+) -> Optional[np.ndarray]:
+    """Return Shi-Tomasi corners (shape N×1×2 float32) in ROI around (cx, cy)."""
+    fh, fw = gray.shape[:2]
+    x1 = max(0, int(cx) - roi_w // 2)
+    y1 = max(0, int(cy) - roi_h // 2)
+    x2 = min(fw, int(cx) + roi_w // 2)
+    y2 = min(fh, int(cy) + roi_h // 2)
+    roi = gray[y1:y2, x1:x2]
+    if roi.size == 0:
+        return None
+    corners = cv2.goodFeaturesToTrack(
+        roi, maxCorners=80, qualityLevel=0.01, minDistance=8, blockSize=7
+    )
+    if corners is None:
+        return None
+    corners[:, 0, 0] += x1
+    corners[:, 0, 1] += y1
+    return corners.astype(np.float32)
+
+
+def _optical_flow_coast(
+    old_gray: np.ndarray, new_gray: np.ndarray, p0: Optional[np.ndarray]
+) -> Tuple[Optional[np.ndarray], float, float, bool]:
+    """
+    Estimate (dx, dy) motion via sparse Lucas-Kanade optical flow.
+    Returns (updated_p0, dx, dy, success).
+    """
+    if p0 is None or len(p0) == 0 or old_gray is None:
+        return None, 0.0, 0.0, False
+    p1, st, _err = cv2.calcOpticalFlowPyrLK(
+        old_gray, new_gray, p0, None,
+        winSize=_OF_WIN_SIZE, maxLevel=_OF_MAX_LEVEL, criteria=_OF_CRITERIA
+    )
+    if p1 is None or st is None:
+        return None, 0.0, 0.0, False
+    good_new = p1[st == 1]
+    good_old = p0[st == 1]
+    if len(good_new) < max(3, int(len(p0) * 0.3)):
+        return None, 0.0, 0.0, False
+    disp = good_new[:, 0] - good_old[:, 0]
+    dx_med = float(np.median(disp[:, 0]))
+    dy_med = float(np.median(disp[:, 1]))
+    # Reject gross outliers (> 2σ from median)
+    dstd_x = float(np.std(disp[:, 0])) or 1.0
+    dstd_y = float(np.std(disp[:, 1])) or 1.0
+    valid = (
+        (np.abs(disp[:, 0] - dx_med) < 2.0 * dstd_x) &
+        (np.abs(disp[:, 1] - dy_med) < 2.0 * dstd_y)
+    )
+    if valid.sum() < 3:
+        return None, 0.0, 0.0, False
+    dx = float(np.mean(disp[valid, 0]))
+    dy = float(np.mean(disp[valid, 1]))
+    return good_new.reshape(-1, 1, 2).astype(np.float32), dx, dy, True
+
+
+# --- YOLOv8-pose back-view fallback ---
+_yolo_model = None  # lazy-loaded once on first use
+
+def _get_yolo_model():
+    """Lazy-load yolov8s-pose once per process."""
+    global _yolo_model
+    if _yolo_model is None:
+        from ultralytics import YOLO
+        _yolo_model = YOLO("yolov8s-pose.pt")
+    return _yolo_model
+
+
+def _yolo_head_center(
+    frame_rgb: np.ndarray, fw: int, fh: int
+) -> Optional[Tuple[float, float, str]]:
+    """
+    Run YOLOv8s-pose on frame_rgb and return (cx, cy, 'yolo-pose') for the
+    most-confident person detection. Returns None if no person found.
+
+    Uses COCO keypoint indices:
+      5=left_shoulder, 6=right_shoulder, 11=left_hip, 12=right_hip
+    Head center is estimated as torso center shifted up by 2 head-heights.
+    """
     try:
-        original_width, original_height = video_clip.size
+        model = _get_yolo_model()
+        # verbose=False suppresses per-frame YOLO logs
+        results = model(frame_rgb, verbose=False)
+        if not results or results[0].keypoints is None:
+            return None
+        kps = results[0].keypoints  # shape: (N_persons, 17, 2 or 3)
+        if kps.xy is None or len(kps.xy) == 0:
+            return None
 
-        # Calculate target dimensions and ensure they're even
-        if original_width / original_height > target_ratio:
-            new_width = round_to_even(int(original_height * target_ratio))
-            new_height = round_to_even(original_height)
+        # Pick the person with highest box confidence
+        boxes = results[0].boxes
+        if boxes is not None and len(boxes.conf) > 0:
+            best_idx = int(boxes.conf.argmax())
         else:
-            new_width = round_to_even(original_width)
-            new_height = round_to_even(int(original_width / target_ratio))
+            best_idx = 0
 
-        # Try improved face detection
-        face_centers = detect_faces_in_clip(video_clip, start_time, end_time)
+        kp = kps.xy[best_idx]  # (17, 2) pixel coords
+        # Confidence scores (0-1); available in kps.conf if present
+        conf = kps.conf[best_idx] if kps.conf is not None else None
 
-        # Calculate crop position
-        if face_centers:
-            # Use weighted average of face centers with temporal consistency
-            total_weight = sum(
-                area * confidence for _, _, area, confidence in face_centers
-            )
-            if total_weight > 0:
-                weighted_x = (
-                    sum(
-                        x * area * confidence for x, y, area, confidence in face_centers
+        def vis(idx):
+            return float(conf[idx]) if conf is not None else 1.0
+
+        l_sh, r_sh = kp[5], kp[6]
+        l_hip, r_hip = kp[11], kp[12]
+
+        sh_vis  = (vis(5) + vis(6)) / 2
+        hip_vis = (vis(11) + vis(12)) / 2
+
+        # Need at least one pair visible
+        if sh_vis < 0.2 and hip_vis < 0.2:
+            return None
+
+        if sh_vis >= 0.2 and hip_vis >= 0.2:
+            # Hip-weighted torso center (same logic as MediaPipe Case 4)
+            sh_cx  = float((l_sh[0] + r_sh[0]) / 2)
+            hip_cx = float((l_hip[0] + r_hip[0]) / 2)
+            hip_cy = float((l_hip[1] + r_hip[1]) / 2)
+            torso_cx = 0.4 * sh_cx + 0.6 * hip_cx
+            torso_cy = 0.4 * float((l_sh[1] + r_sh[1]) / 2) + 0.6 * hip_cy
+            sh_width = abs(float(l_sh[0]) - float(r_sh[0]))
+            head_h = sh_width / 2.2 if sh_width > 10 else fh * 0.12
+            return (torso_cx, torso_cy - head_h * 2.5, "yolo-pose")
+
+        if sh_vis >= 0.2:
+            sh_cx = float((l_sh[0] + r_sh[0]) / 2)
+            sh_cy = float((l_sh[1] + r_sh[1]) / 2)
+            sh_width = abs(float(l_sh[0]) - float(r_sh[0]))
+            head_h = sh_width / 2.2 if sh_width > 10 else fh * 0.12
+            return (sh_cx, sh_cy - head_h * 0.5, "yolo-pose")
+
+        # Hip-only
+        hip_cx = float((l_hip[0] + r_hip[0]) / 2)
+        hip_cy = float((l_hip[1] + r_hip[1]) / 2)
+        return (hip_cx, hip_cy - fh * 0.30, "yolo-pose")
+
+    except Exception:
+        return None
+
+
+def build_face_tracking_clip(
+    clip: VideoFileClip,
+    original_width: int,
+    original_height: int,
+    crop_w: int,
+    crop_h: int,
+    start_time: float,
+    end_time: float,
+) -> VideoFileClip:
+    """
+    Hybrid face+body tracking crop for portrait (9:16) video.
+
+    ALL anchors are normalized to HEAD CENTER before entering the Kalman filter,
+    eliminating the Y-jump caused by switching between face-level and body-level
+    anchor types.
+
+    Detection priority (all return head-center coordinates):
+      1. MediaPipe FaceDetection  — face bbox center
+      2. MediaPipe Pose           — nose > ear midpoint > shoulder+anthropometric offset
+                                    sigmoid-blended with face when partially occluded
+      3. OpenCV HOG               — full-body bbox upper quarter
+      4. Haar cascade             — frontal face fallback
+
+    Smoothing: per-frame Kalman filter (constant-velocity, 4-state).
+      - Variable R (measurementNoiseCov) by source confidence
+      - Coasting (predict-only, inflated Q) up to 20 frames on missed detection
+      - After 20 coasted frames: hold last known position
+    """
+    duration = end_time - start_time
+    fps = clip.fps or 25.0
+    # Shift crop down so head sits ~15% from top rather than dead-centre
+    top_offset = crop_h * 0.15
+
+    centre_x = original_width / 2.0
+    centre_y = original_height / 2.0
+
+    # --- Init detectors ---
+    mp_face_det = None
+    mp_pose_det = None
+    PoseLandmark = None
+    try:
+        import mediapipe as mp
+        mp_face_det = mp.solutions.face_detection.FaceDetection(
+            model_selection=1, min_detection_confidence=0.4
+        )
+        mp_pose_det = mp.solutions.pose.Pose(
+            static_image_mode=False,
+            model_complexity=2,
+            smooth_landmarks=True,
+            min_detection_confidence=0.4,
+            min_tracking_confidence=0.4,
+        )
+        PoseLandmark = mp.solutions.pose.PoseLandmark
+    except Exception:
+        pass
+
+    hog = cv2.HOGDescriptor()
+    hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+    haar = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
+
+    # --- Frame index array ---
+    total_frames = int(duration * fps) + 2
+    frame_times = np.linspace(0.0, duration, total_frames)
+
+    # Sample every Nth frame for detection (~15 detections/sec max)
+    sample_interval = max(1, int(fps / 15))
+
+    # detections[fi] = (cx, cy, source) or None
+    detections: List[Optional[Tuple[float, float, str]]] = [None] * total_frames
+
+    n_face = n_pose = n_hog = n_haar = 0
+
+    for fi in range(0, total_frames, sample_interval):
+        t = float(frame_times[fi])
+        try:
+            frame = clip.get_frame(t)
+            fh, fw = frame.shape[:2]
+            rgb = np.ascontiguousarray(frame)
+            result = None
+
+            # 1. MediaPipe face detection
+            if mp_face_det is not None:
+                try:
+                    res = mp_face_det.process(rgb)
+                    if res.detections:
+                        best = max(res.detections, key=lambda d: d.score[0])
+                        bbox = best.location_data.relative_bounding_box
+                        fx = (bbox.xmin + bbox.width / 2) * fw
+                        fy = (bbox.ymin + bbox.height / 2) * fh
+                        if 0 <= fx < fw and 0 <= fy < fh:
+                            result = (fx, fy, "face")
+                            n_face += 1
+                except Exception:
+                    pass
+
+            # 2. MediaPipe Pose — normalize to head center
+            if mp_pose_det is not None and PoseLandmark is not None:
+                try:
+                    pose_res = mp_pose_det.process(rgb)
+                    if pose_res.pose_landmarks:
+                        lm = pose_res.pose_landmarks.landmark
+                        head = _estimate_head_center(lm, PoseLandmark, fw, fh, result)
+                        if head is not None:
+                            prev_source = result[2] if result else None
+                            if head[2] != prev_source:
+                                if result is None:
+                                    n_pose += 1
+                            result = head
+                except Exception:
+                    pass
+
+            # 2b. YOLOv8-pose — back-view fallback when MediaPipe has low confidence
+            # Triggers when no detection yet, or MediaPipe fell back to noisy shoulder/hip estimate
+            _low_conf_sources = {"pose-shoulder", "pose-hip", None}
+            if result is None or result[2] in _low_conf_sources:
+                try:
+                    yolo_head = _yolo_head_center(rgb, fw, fh)
+                    if yolo_head is not None:
+                        if result is None:
+                            n_pose += 1
+                        result = yolo_head
+                except Exception:
+                    pass
+
+            # 3. HOG person detector
+            if result is None:
+                try:
+                    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    scale = min(1.0, 480 / fh)
+                    small = cv2.resize(frame_bgr, (int(fw * scale), int(fh * scale)))
+                    boxes, weights = hog.detectMultiScale(
+                        small, winStride=(8, 8), padding=(4, 4), scale=1.05
                     )
-                    / total_weight
-                )
-                weighted_y = (
-                    sum(
-                        y * area * confidence for x, y, area, confidence in face_centers
+                    if len(boxes) > 0:
+                        best_idx = int(np.argmax(weights))
+                        hx, hy, hw, hh = boxes[best_idx]
+                        px = (hx + hw / 2) / scale
+                        py = (hy + hh * 0.25) / scale
+                        result = (px, py, "hog")
+                        n_hog += 1
+                except Exception:
+                    pass
+
+            # 4. Haar fallback
+            if result is None:
+                try:
+                    frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+                    faces = haar.detectMultiScale(
+                        gray, scaleFactor=1.05, minNeighbors=3, minSize=(30, 30)
                     )
-                    / total_weight
-                )
+                    if len(faces) > 0:
+                        x, y, bw, bh = max(faces, key=lambda f: f[2] * f[3])
+                        result = (float(x + bw // 2), float(y + bh // 2), "haar")
+                        n_haar += 1
+                except Exception:
+                    pass
 
-                # Add slight bias towards upper portion for better face framing
-                weighted_y = max(0, weighted_y - new_height * 0.1)
+            detections[fi] = result
 
-                x_offset = max(
-                    0, min(int(weighted_x - new_width // 2), original_width - new_width)
-                )
-                y_offset = max(
-                    0,
-                    min(
-                        int(weighted_y - new_height // 2), original_height - new_height
-                    ),
-                )
+        except Exception:
+            detections[fi] = None
 
-                logger.info(
-                    f"Face-centered crop: {len(face_centers)} faces detected with improved algorithm"
+    if mp_face_det is not None:
+        mp_face_det.close()
+    if mp_pose_det is not None:
+        mp_pose_det.close()
+
+    n_detected = sum(1 for d in detections if d is not None)
+    logger.info(
+        f"Detection results: face={n_face} pose={n_pose} hog={n_hog} haar={n_haar} "
+        f"total={n_detected}/{total_frames} (sampled every {sample_interval} frames)"
+    )
+
+    # --- Kalman filter pass over all frames ---
+    kf = _make_kalman(fps)
+
+    first_det = next((d for d in detections if d is not None), None)
+    init_x = first_det[0] if first_det else centre_x
+    init_y = first_det[1] if first_det else centre_y
+    kf.statePre  = np.array([[init_x], [init_y], [0.0], [0.0]], dtype=np.float32)
+    kf.statePost = kf.statePre.copy()
+
+    x_offs = np.zeros(total_frames, dtype=np.int32)
+    y_offs = np.zeros(total_frames, dtype=np.int32)
+
+    coast_count = 0
+    last_cx, last_cy = init_x, init_y
+    of_gray_prev: Optional[np.ndarray] = None    # grayscale of prev frame for optical flow
+    of_p0: Optional[np.ndarray] = None           # tracked feature points
+    of_refresh_every = max(1, int(fps // 3))     # refresh features every ~0.33 s
+
+    for fi in range(total_frames):
+        # Fill detection gap: use nearest sampled detection within window
+        det = detections[fi]
+        if det is None:
+            lo = max(0, fi - sample_interval + 1)
+            hi = min(total_frames - 1, fi + sample_interval - 1)
+            for ni in range(lo, hi + 1):
+                if detections[ni] is not None:
+                    det = detections[ni]
+                    break
+
+        kf.processNoiseCov = _Q_TRACKING if det is not None else _Q_COASTING
+        pred = kf.predict()
+        pred_x, pred_y = float(pred[0]), float(pred[1])
+
+        if det is not None:
+            kf.measurementNoiseCov = _R_BY_SOURCE.get(det[2], _R_BY_SOURCE["pose-shoulder"])
+            meas = np.array([[det[0]], [det[1]]], dtype=np.float32)
+            corrected = kf.correct(meas)
+            cx, cy = float(corrected[0]), float(corrected[1])
+            # Clamp per-frame velocity to prevent large jumps on source switch
+            dx, dy = cx - last_cx, cy - last_cy
+            max_jump = 30  # pixels per frame
+            if abs(dx) > max_jump or abs(dy) > max_jump:
+                scale = max_jump / max(abs(dx), abs(dy), 1e-6)
+                cx = last_cx + dx * scale
+                cy = last_cy + dy * scale
+            last_cx, last_cy = cx, cy
+            coast_count = 0
+            # Refresh optical flow features on detection (or every of_refresh_every frames)
+            try:
+                t = float(frame_times[fi])
+                frame = clip.get_frame(t)
+                of_gray_prev = cv2.cvtColor(
+                    np.ascontiguousarray(frame), cv2.COLOR_RGB2GRAY
                 )
+                if of_p0 is None or fi % of_refresh_every == 0:
+                    of_p0 = _detect_roi_features(of_gray_prev, cx, cy)
+            except Exception:
+                of_gray_prev = None
+                of_p0 = None
+        else:
+            coast_count += 1
+            if coast_count <= _MAX_COAST_FRAMES:
+                # Try optical flow to refine predicted position
+                try:
+                    t = float(frame_times[fi])
+                    frame = clip.get_frame(t)
+                    new_gray = cv2.cvtColor(
+                        np.ascontiguousarray(frame), cv2.COLOR_RGB2GRAY
+                    )
+                    updated_p0, fdx, fdy, ok = _optical_flow_coast(
+                        of_gray_prev, new_gray, of_p0
+                    )
+                    if ok:
+                        # Correct Kalman with optical-flow-derived synthetic measurement
+                        kf.measurementNoiseCov = np.diag([400.0, 400.0]).astype(np.float32)
+                        synth = np.array([[pred_x + fdx], [pred_y + fdy]], dtype=np.float32)
+                        corrected = kf.correct(synth)
+                        cx, cy = float(corrected[0]), float(corrected[1])
+                        of_p0 = updated_p0
+                        # Refresh features if running low
+                        if of_p0 is None or len(of_p0) < 10:
+                            of_p0 = _detect_roi_features(new_gray, cx, cy)
+                    else:
+                        # Optical flow failed: use Kalman prediction
+                        cx, cy = pred_x, pred_y
+                        of_p0 = _detect_roi_features(new_gray, last_cx, last_cy)
+                    of_gray_prev = new_gray
+                except Exception:
+                    cx, cy = pred_x, pred_y
+                # Clamp velocity on coast frames too
+                dxc, dyc = cx - last_cx, cy - last_cy
+                max_coast_jump = 20
+                if abs(dxc) > max_coast_jump or abs(dyc) > max_coast_jump:
+                    s = max_coast_jump / max(abs(dxc), abs(dyc), 1e-6)
+                    cx = last_cx + dxc * s
+                    cy = last_cy + dyc * s
             else:
-                # Center crop
-                x_offset = (
-                    (original_width - new_width) // 2
-                    if original_width > new_width
-                    else 0
-                )
-                y_offset = (
-                    (original_height - new_height) // 2
-                    if original_height > new_height
-                    else 0
-                )
+                # Beyond coast limit: hold last known position (no optical flow drift)
+                cx, cy = last_cx, last_cy
+            last_cx, last_cy = cx, cy
+
+        # Shift crop down so head sits near top of frame
+        cy_adj = cy + top_offset
+
+        cx     = float(np.clip(cx,     crop_w / 2, original_width  - crop_w / 2))
+        cy_adj = float(np.clip(cy_adj, crop_h / 2, original_height - crop_h / 2))
+
+        xo = int(np.clip(cx     - crop_w / 2, 0, original_width  - crop_w))
+        yo = int(np.clip(cy_adj - crop_h / 2, 0, original_height - crop_h))
+        x_offs[fi] = (xo // 2) * 2
+        y_offs[fi] = (yo // 2) * 2
+
+    # --- Post-Kalman stabilization pass (dead-zone + velocity clamp + EMA) ---
+    _dead_zone    = 10    # px: ignore movements smaller than this
+    _max_velocity = 8     # px/frame: max horizontal crop shift per frame
+    _ema_alpha    = 0.2   # EMA weight for current frame
+    prev_x   = float(x_offs[0])
+    smooth_x = float(x_offs[0])
+    for fi in range(total_frames):
+        raw_x = float(x_offs[fi])
+        delta = raw_x - prev_x
+        # Dead-zone: only move if beyond threshold
+        if abs(delta) < _dead_zone:
+            clamped_x = prev_x
         else:
-            # Center crop
-            x_offset = (
-                (original_width - new_width) // 2 if original_width > new_width else 0
-            )
-            y_offset = (
-                (original_height - new_height) // 2
-                if original_height > new_height
-                else 0
-            )
-            logger.info("Using center crop (no faces detected)")
+            # Velocity clamp
+            clamped_delta = max(-_max_velocity, min(_max_velocity, delta))
+            clamped_x = prev_x + clamped_delta
+        # EMA smoothing
+        smooth_x = _ema_alpha * clamped_x + (1.0 - _ema_alpha) * smooth_x
+        prev_x = clamped_x
+        final_x = int(np.clip(round(smooth_x), 0, original_width - crop_w))
+        x_offs[fi] = (final_x // 2) * 2
 
-        # Ensure offsets are even too
-        x_offset = round_to_even(x_offset)
-        y_offset = round_to_even(y_offset)
+    def apply_crop(get_frame, t):
+        frame = get_frame(t)
+        fi = min(int(t * fps + 0.5), total_frames - 1)
+        xo, yo = x_offs[fi], y_offs[fi]
+        return frame[yo:yo + crop_h, xo:xo + crop_w]
 
-        logger.info(
-            f"Crop dimensions: {new_width}x{new_height} at offset ({x_offset}, {y_offset})"
-        )
-        return (x_offset, y_offset, new_width, new_height)
-
-    except Exception as e:
-        logger.error(f"Error in crop detection: {e}")
-        # Fallback to center crop
-        original_width, original_height = video_clip.size
-        if original_width / original_height > target_ratio:
-            new_width = round_to_even(int(original_height * target_ratio))
-            new_height = round_to_even(original_height)
-        else:
-            new_width = round_to_even(original_width)
-            new_height = round_to_even(int(original_width / target_ratio))
-
-        x_offset = (
-            round_to_even((original_width - new_width) // 2)
-            if original_width > new_width
-            else 0
-        )
-        y_offset = (
-            round_to_even((original_height - new_height) // 2)
-            if original_height > new_height
-            else 0
-        )
-
-        return (x_offset, y_offset, new_width, new_height)
+    tracked = clip.transform(apply_crop)
+    logger.info(
+        f"Kalman tracking complete: {n_detected}/{total_frames} detections, "
+        f"coast_max={_MAX_COAST_FRAMES} frames"
+    )
+    return tracked
 
 
 def detect_faces_in_clip(
@@ -1495,14 +2029,32 @@ def create_optimized_clip(
                 processed_clip = processed_clip.resized((target_width, target_height))
             cropped_clip = None
         else:
-            # Vertical 9:16: face-centered crop, preserve native resolution
-            x_offset, y_offset, new_width, new_height = detect_optimal_crop_region(
-                video, start_time, end_time, target_ratio=9 / 16
-            )
-            cropped_clip = clip.cropped(
-                x1=x_offset, y1=y_offset, x2=x_offset + new_width, y2=y_offset + new_height
-            )
-            target_width, target_height = round_to_even(new_width), round_to_even(new_height)
+            # Vertical 9:16: dynamic face-tracking crop
+            original_width, original_height = video.size
+            target_ratio = 9 / 16
+            if original_width / original_height > target_ratio:
+                crop_w = round_to_even(int(original_height * target_ratio))
+                crop_h = round_to_even(original_height)
+            else:
+                crop_w = round_to_even(original_width)
+                crop_h = round_to_even(int(original_width / target_ratio))
+
+            try:
+                cropped_clip = build_face_tracking_clip(
+                    clip, original_width, original_height,
+                    crop_w, crop_h, start_time, end_time,
+                )
+            except Exception as e:
+                logger.warning(f"Face tracking failed, falling back to static crop: {e}")
+                x_offset, y_offset, crop_w, crop_h = detect_optimal_crop_region(
+                    video, start_time, end_time, target_ratio=9 / 16
+                )
+                cropped_clip = clip.cropped(
+                    x1=x_offset, y1=y_offset,
+                    x2=x_offset + crop_w, y2=y_offset + crop_h,
+                )
+
+            target_width, target_height = crop_w, crop_h
             processed_clip = cropped_clip
 
         # Add AssemblyAI subtitles with template support
