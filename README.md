@@ -58,7 +58,7 @@ SupoClip provides the same core functionality with more control:
 ### 1. Clone and Configure
 
 ```bash
-git clone https://github.com/your-username/supoclip.git
+git clone https://github.com/FujiwaraChoki/supoclip.git
 cd supoclip
 ```
 
