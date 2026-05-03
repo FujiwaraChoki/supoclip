@@ -34,9 +34,30 @@ fi
 # Check if required API keys are set
 source .env
 
+if [ -n "${LLM:-}" ]; then
+    case "$LLM" in
+        google:*|google-gla:*|openai:*|anthropic:*|ollama:*)
+            ;;
+        *)
+            echo -e "${YELLOW}Warning: Unsupported LLM value '$LLM'${NC}"
+            echo "Use google-gla:*, openai:*, anthropic:*, or ollama:*"
+            echo ""
+            ;;
+    esac
+fi
+
 if [ -z "$ASSEMBLY_AI_API_KEY" ]; then
     echo -e "${YELLOW}Warning: ASSEMBLY_AI_API_KEY is not set in .env${NC}"
     echo "Video transcription will not work without this key."
+    echo ""
+fi
+
+if [ "${LLM:-}" = "ollama:" ]; then
+    echo -e "${YELLOW}Warning: LLM=ollama: is missing a model name${NC}"
+    echo "Use a value like LLM=ollama:gpt-oss:20b"
+    echo ""
+elif [[ "${LLM:-}" == ollama:* ]] && [ -z "${OLLAMA_BASE_URL:-}" ]; then
+    echo "Ollama base URL is not set; SupoClip will use its local/Docker default."
     echo ""
 fi
 

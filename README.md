@@ -1,6 +1,6 @@
 # Fuck OpusClip.
 
-... because good video clips shouldn't cost a fortune or come with ugly watermarks.
+... because good video clips shouldn't come with ugly watermarks or platform lock-in.
 
 <p align="center">
   <a href="https://www.supoclip.com">
@@ -8,7 +8,7 @@
   </a>
 </p>
 
-OpusClip charges $15-29/month and slaps watermarks on every free video. SupoClip gives you the same AI-powered video clipping capabilities - completely free, completely open source, and completely watermark-free, while still providing you with a hosted version, that doesn't cost the same amount as your mortgage.
+SupoClip gives you AI-powered video clipping capabilities in an open-source package you can run yourself, customize, and inspect. Use the hosted version when you want the convenience of managed infrastructure, or self-host when you want full control.
 
 > For the hosted version, sign up for the waitlist here: [SupoClip Hosted](https://www.supoclip.com)
 
@@ -26,23 +26,22 @@ OpusClip is undeniably powerful. It's an AI video clipping tool that can turn lo
 
 **But here's the catch:**
 
-- **Free plan limitations**: Only 60 minutes of processing per month
-- **Watermarks everywhere**: Every free video gets branded with OpusClip's watermark
-- **Expensive pricing**: $15/month for Starter, $29/month for Pro
+- **Usage limits**: Processing minutes are capped by plan
+- **Watermarks**: Some exports can include platform branding
 - **Processing limits**: Even paid plans have strict minute limits
 - **Vendor lock-in**: Your content and workflows are tied to their platform
 
 ### The SupoClip Solution
 
-SupoClip provides the same core functionality without the financial burden:
+SupoClip provides the same core functionality with more control:
 
-→ ✅ **Completely Free** - No monthly fees, no processing limits
+→ ✅ **Self-Hostable** - Run it on your own infrastructure
 
 → ✅ **No Watermarks** - Your content stays yours
 
 → ✅ **Open Source** - Full transparency, community-driven development
 
-→ ✅ **Self-Hosted** - Complete control over your data and processing
+→ ✅ **Hosted Option** - Use SupoClip without managing servers
 
 → ✅ **Unlimited Usage** - Process as many videos as your hardware can handle
 
@@ -84,7 +83,7 @@ GOOGLE_API_KEY=your_google_api_key
 
 # Option D: Ollama (local/self-hosted)
 # LLM=ollama:gpt-oss:20b
-# OLLAMA_BASE_URL=http://localhost:11434/v1
+# OLLAMA_BASE_URL=  # Optional; defaults to localhost locally, host.docker.internal in Docker
 # OLLAMA_API_KEY=your_ollama_api_key  # Optional (Ollama Cloud)
 
 # Optional: Auth secret (change in production)
@@ -143,7 +142,8 @@ If you enable DataFast, also verify that:
 - Make sure you've set the correct LLM provider AND its corresponding API key in `.env`
 - Default is `google-gla:gemini-3-flash-preview` which requires `GOOGLE_API_KEY`
 - If using `openai:gpt-5.2`, you MUST set `OPENAI_API_KEY`
-- If using `ollama:*`, run Ollama and (optionally) set `OLLAMA_BASE_URL`
+- If using `ollama:*`, run Ollama and optionally set `OLLAMA_BASE_URL`
+  (`http://localhost:11434/v1` for local backend runs, `http://host.docker.internal:11434/v1` for Docker)
 - Rebuild after changing `.env`: `docker-compose up -d --build`
 
 **Videos stay queued / never process:**

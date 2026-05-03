@@ -27,6 +27,7 @@ const trustedOrigins = Array.from(
       toOrigin(process.env.BETTER_AUTH_URL),
       "http://localhost:3000",
       "http://sp.localhost:3000",
+      "http://supoclip.localhost:3000",
     ].filter((origin): origin is string => Boolean(origin))
   )
 );
