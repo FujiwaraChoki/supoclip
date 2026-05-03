@@ -3,6 +3,8 @@ import requests
 from src.apify_youtube_downloader import ApifyDownloadError
 from src.config import Config, set_config_override
 from src.youtube_utils import (
+    YOUTUBE_DOWNLOAD_PROVIDER_APIFY,
+    YOUTUBE_DOWNLOAD_PROVIDER_YTDLP,
     YOUTUBE_METADATA_PROVIDER_DATA_API,
     YOUTUBE_METADATA_PROVIDER_YTDLP,
     _fetch_video_info_with_youtube_data_api,
@@ -26,11 +28,38 @@ class FakeResponse:
             raise requests.HTTPError(f"status={self.status_code}")
 
 
-def test_download_youtube_video_prefers_apify(tmp_path, monkeypatch):
+def test_download_youtube_video_prefers_ytdlp_by_default(tmp_path, monkeypatch):
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    config.apify_api_token = "apify-token"
+
+    ytdlp_path = tmp_path / "abcdefghijk.mp4"
+    ytdlp_path.write_bytes(b"video")
+
+    set_config_override(config)
+    try:
+        monkeypatch.setattr(
+            "src.youtube_utils._download_youtube_video_with_ytdlp",
+            lambda *args, **kwargs: ytdlp_path,
+        )
+        monkeypatch.setattr(
+            "src.youtube_utils.download_youtube_video_with_apify",
+            lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("Apify should not be used")),
+        )
+
+        result = download_youtube_video("https://www.youtube.com/watch?v=abcdefghijk")
+
+        assert result == ytdlp_path
+    finally:
+        set_config_override(None)
+
+
+def test_download_youtube_video_uses_apify_when_configured(tmp_path, monkeypatch):
     config = Config()
     config.temp_dir = str(tmp_path)
     config.apify_api_token = "apify-token"
     config.apify_youtube_default_quality = "720"
+    config.youtube_download_provider = YOUTUBE_DOWNLOAD_PROVIDER_APIFY
 
     captured = {}
 
@@ -83,10 +112,41 @@ def test_download_youtube_video_falls_back_when_token_missing(tmp_path, monkeypa
         set_config_override(None)
 
 
+def test_download_youtube_video_falls_back_to_apify_when_ytdlp_fails(tmp_path, monkeypatch):
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    config.apify_api_token = "apify-token"
+    config.youtube_download_provider = YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
+
+    apify_path = tmp_path / "abcdefghijk.mp4"
+
+    def fake_apify(*args, **kwargs):
+        apify_path.write_bytes(b"fallback")
+        return apify_path
+
+    set_config_override(config)
+    try:
+        monkeypatch.setattr(
+            "src.youtube_utils._download_youtube_video_with_ytdlp",
+            lambda *args, **kwargs: None,
+        )
+        monkeypatch.setattr(
+            "src.youtube_utils.download_youtube_video_with_apify",
+            fake_apify,
+        )
+
+        result = download_youtube_video("https://www.youtube.com/watch?v=abcdefghijk")
+
+        assert result == apify_path
+    finally:
+        set_config_override(None)
+
+
 def test_download_youtube_video_falls_back_to_ytdlp_when_apify_fails(tmp_path, monkeypatch):
     config = Config()
     config.temp_dir = str(tmp_path)
     config.apify_api_token = "apify-token"
+    config.youtube_download_provider = YOUTUBE_DOWNLOAD_PROVIDER_APIFY
 
     fallback_path = tmp_path / "abcdefghijk.webm"
     fallback_path.write_bytes(b"fallback")
@@ -114,6 +174,7 @@ def test_download_youtube_video_uses_configured_quality(tmp_path, monkeypatch):
     config.temp_dir = str(tmp_path)
     config.apify_api_token = "apify-token"
     config.apify_youtube_default_quality = "720"
+    config.youtube_download_provider = YOUTUBE_DOWNLOAD_PROVIDER_APIFY
 
     captured = {}
 
@@ -142,6 +203,22 @@ def test_config_invalid_apify_quality_defaults_to_1080(monkeypatch):
     config = Config()
 
     assert config.apify_youtube_default_quality == "1080"
+
+
+def test_config_invalid_youtube_download_provider_defaults_to_ytdlp(monkeypatch):
+    monkeypatch.setenv("YOUTUBE_DOWNLOAD_PROVIDER", "bad-value")
+
+    config = Config()
+
+    assert config.youtube_download_provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
+
+
+def test_config_youtube_download_provider_allows_apify(monkeypatch):
+    monkeypatch.setenv("YOUTUBE_DOWNLOAD_PROVIDER", "apify")
+
+    config = Config()
+
+    assert config.youtube_download_provider == YOUTUBE_DOWNLOAD_PROVIDER_APIFY
 
 
 def test_config_invalid_youtube_metadata_provider_defaults_to_ytdlp(monkeypatch):

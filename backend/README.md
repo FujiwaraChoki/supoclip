@@ -72,9 +72,31 @@ Notes:
 - The thank-you email is triggered after a successful Stripe checkout.
 - The cancellation email is triggered after Stripe subscription deletion.
 
+## YouTube Downloads
+
+YouTube downloads use `yt-dlp` by default so self-hosted and free deployments do not need Apify.
+
+```env
+YOUTUBE_DOWNLOAD_PROVIDER=yt_dlp
+```
+
+Set `YOUTUBE_DOWNLOAD_PROVIDER=apify` only when you want to use the paid Apify actor as the primary downloader:
+
+```env
+YOUTUBE_DOWNLOAD_PROVIDER=apify
+APIFY_API_TOKEN=your_apify_token
+APIFY_YOUTUBE_DEFAULT_QUALITY=1080
+```
+
+Notes:
+
+- `yt_dlp` is the free default and does not require `APIFY_API_TOKEN`.
+- If `yt-dlp` fails and `APIFY_API_TOKEN` is set, the backend can still try Apify as a fallback.
+- If Apify is selected but unavailable or fails, the backend falls back to `yt-dlp`.
+
 ## YouTube Metadata Provider
 
-YouTube downloads still use the existing Apify-first flow with `yt-dlp` fallback. Metadata lookup is now configurable separately.
+Metadata lookup is configurable separately from downloads.
 
 Set these env vars to use the official YouTube Data API v3 for title, duration, channel, thumbnail, and view-count preflight:
 

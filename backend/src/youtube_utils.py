@@ -1,6 +1,6 @@
 """
 Utility functions for YouTube-related operations.
-Optimized for Apify-first downloads with direct yt-dlp fallback.
+Optimized for free yt-dlp downloads with optional Apify fallback.
 """
 
 import asyncio
@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 YOUTUBE_METADATA_PROVIDER_YTDLP = "yt_dlp"
 YOUTUBE_METADATA_PROVIDER_DATA_API = "youtube_data_api"
+YOUTUBE_DOWNLOAD_PROVIDER_YTDLP = "yt_dlp"
+YOUTUBE_DOWNLOAD_PROVIDER_APIFY = "apify"
 YOUTUBE_DATA_API_URL = "https://www.googleapis.com/youtube/v3/videos"
 
 
@@ -567,8 +569,8 @@ def download_youtube_video(
     task_id: Optional[str] = None,
 ) -> Optional[Path]:
     """
-    Download YouTube video with Apify as the primary provider and yt-dlp fallback.
-    Returns the path to the downloaded file, or None if both providers fail.
+    Download YouTube video using the configured provider.
+    Defaults to free yt-dlp downloads and optionally falls back to Apify when configured.
     """
     logger.info("Starting YouTube download: %s", url)
 
@@ -581,7 +583,30 @@ def download_youtube_video(
     _remove_cached_downloads(downloader.temp_dir, video_id)
 
     config = get_config()
-    if config.apify_api_token:
+    primary_provider = config.youtube_download_provider
+    secondary_provider = (
+        YOUTUBE_DOWNLOAD_PROVIDER_APIFY
+        if primary_provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
+        else YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
+    )
+
+    for provider in (primary_provider, secondary_provider):
+        if provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP:
+            downloaded_path = _download_youtube_video_with_ytdlp(
+                url,
+                max_retries,
+                task_id,
+            )
+            if downloaded_path:
+                return downloaded_path
+
+            logger.warning("yt-dlp download failed for %s", url)
+            continue
+
+        if not config.apify_api_token:
+            logger.info("APIFY_API_TOKEN not set; skipping Apify download for %s", url)
+            continue
+
         try:
             downloaded_path = download_youtube_video_with_apify(url, video_id)
             file_size = downloaded_path.stat().st_size
@@ -595,17 +620,12 @@ def download_youtube_video(
             )
             return downloaded_path
         except ApifyDownloadError as exc:
-            logger.warning("Apify download failed for %s, falling back to yt-dlp: %s", url, exc)
+            logger.warning("Apify download failed for %s: %s", url, exc)
         except Exception as exc:
-            logger.error(
-                "Unexpected Apify download error for %s, falling back to yt-dlp: %s",
-                url,
-                exc,
-            )
-    else:
-        logger.info("APIFY_API_TOKEN not set; using yt-dlp fallback for %s", url)
+            logger.error("Unexpected Apify download error for %s: %s", url, exc)
 
-    return _download_youtube_video_with_ytdlp(url, max_retries, task_id)
+    logger.error("All YouTube download providers failed for %s", url)
+    return None
 
 
 async def async_download_youtube_video(
