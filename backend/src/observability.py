@@ -82,3 +82,6 @@ def configure_logging() -> None:
     root_logger.addHandler(stream_handler)
     root_logger.addHandler(app_file_handler)
     root_logger.addHandler(error_file_handler)
+
+    for logger_name in ("httpx", "httpcore"):
+        logging.getLogger(logger_name).setLevel(logging.WARNING)

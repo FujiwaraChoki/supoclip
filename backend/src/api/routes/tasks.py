@@ -531,6 +531,7 @@ async def get_clip_file(
             path=str(clip_path),
             media_type="video/mp4",
             filename=clip["filename"],
+            content_disposition_type="inline",
             headers={"Cache-Control": "private, no-store"},
         )
     except HTTPException:

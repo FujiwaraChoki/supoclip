@@ -881,6 +881,7 @@ class TaskService:
         redis_client = redis.Redis(
             host=self.config.redis_host,
             port=self.config.redis_port,
+            password=self.config.redis_password,
             decode_responses=True,
         )
         try:
