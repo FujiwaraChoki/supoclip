@@ -26,7 +26,7 @@ services:
       - NEXT_PUBLIC_SELF_HOST=${SELF_HOST:-true}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - NEXT_PUBLIC_LANDING_ONLY_MODE=${NEXT_PUBLIC_LANDING_ONLY_MODE:-false}
-      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
+      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET:-supoclip_dev_backend_secret_change_me}
       - DATABASE_URL=postgresql://supoclip:supoclip_password@postgres:5432/supoclip
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-supoclip_dev_secret_change_in_production}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:3000}
@@ -60,7 +60,7 @@ services:
     platform: linux/amd64
     command: [".venv/bin/uvicorn", "src.main_refactored:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./backend/src:/app/src
       - uploads:/app/uploads
@@ -92,7 +92,7 @@ services:
       - FAST_MODE_MAX_CLIPS=${FAST_MODE_MAX_CLIPS:-4}
       - FAST_MODE_TRANSCRIPT_MODEL=${FAST_MODE_TRANSCRIPT_MODEL:-nano}
       - SELF_HOST=${SELF_HOST:-true}
-      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
+      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET:-supoclip_dev_backend_secret_change_me}
       - AUTH_SIGNATURE_TTL_SECONDS=${AUTH_SIGNATURE_TTL_SECONDS:-300}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://sp.localhost:3000}
       - FREE_PLAN_TASK_LIMIT=${FREE_PLAN_TASK_LIMIT:-10}
@@ -152,7 +152,7 @@ services:
       - FAST_MODE_MAX_CLIPS=${FAST_MODE_MAX_CLIPS:-4}
       - FAST_MODE_TRANSCRIPT_MODEL=${FAST_MODE_TRANSCRIPT_MODEL:-nano}
       - SELF_HOST=${SELF_HOST:-true}
-      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
+      - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET:-supoclip_dev_backend_secret_change_me}
       - AUTH_SIGNATURE_TTL_SECONDS=${AUTH_SIGNATURE_TTL_SECONDS:-300}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://sp.localhost:3000}
       - FREE_PLAN_TASK_LIMIT=${FREE_PLAN_TASK_LIMIT:-10}

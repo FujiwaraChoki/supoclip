@@ -142,7 +142,7 @@ class ClipRepository:
                     "reasoning": row.reasoning,
                     "clip_order": row.clip_order,
                     "created_at": row.created_at.isoformat(),
-                    "video_url": f"/clips/{row.filename}",
+                    "video_url": f"/tasks/{task_id}/clips/{row.id}/file",
                     "virality_score": row.virality_score or 0,
                     "hook_score": row.hook_score or 0,
                     "engagement_score": row.engagement_score or 0,
@@ -242,7 +242,7 @@ class ClipRepository:
             "shareability_score": row.shareability_score or 0,
             "hook_type": row.hook_type,
             "created_at": row.created_at.isoformat(),
-            "video_url": f"/clips/{row.filename}",
+            "video_url": f"/tasks/{row.task_id}/clips/{row.id}/file",
         }
 
     @staticmethod

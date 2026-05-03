@@ -10,9 +10,17 @@ import logging
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 import json
+import re
+import uuid
 
 import cv2
-from moviepy import VideoFileClip, CompositeVideoClip, TextClip, ColorClip
+from moviepy import (
+    VideoFileClip,
+    CompositeVideoClip,
+    TextClip,
+    ColorClip,
+    concatenate_videoclips,
+)
 from moviepy.video.fx import CrossFadeIn, CrossFadeOut, FadeIn, FadeOut
 
 import assemblyai as aai
@@ -20,6 +28,8 @@ import srt
 from datetime import timedelta
 
 from .config import Config
+from .clip_cleanup import DEFAULT_FILTERED_WORDS, clip_cleanup_enabled
+from .clip_source_map import normalize_source_ranges, save_clip_source_ranges
 from .caption_templates import get_template, CAPTION_TEMPLATES
 from .font_registry import find_font_path
 
@@ -666,6 +676,14 @@ def parse_timestamp_to_seconds(timestamp_str: str) -> float:
         return 0.0
 
 
+def seconds_to_mmss(seconds: float) -> str:
+    """Format seconds as MM:SS with integer-second precision."""
+    total = max(0, int(round(seconds)))
+    minutes = total // 60
+    secs = total % 60
+    return f"{minutes:02d}:{secs:02d}"
+
+
 def get_words_in_range(
     transcript_data: Dict, clip_start: float, clip_end: float
 ) -> List[Dict]:
@@ -701,6 +719,228 @@ def get_words_in_range(
     return relevant_words
 
 
+def get_absolute_words_in_range(
+    transcript_data: Dict, clip_start: float, clip_end: float
+) -> List[Dict[str, Any]]:
+    """Extract absolute-timing words that overlap a clip timerange."""
+    if not transcript_data or not transcript_data.get("words"):
+        return []
+
+    clip_start_ms = int(clip_start * 1000)
+    clip_end_ms = int(clip_end * 1000)
+
+    relevant_words: List[Dict[str, Any]] = []
+    for word_data in transcript_data["words"]:
+        word_start = int(word_data["start"])
+        word_end = int(word_data["end"])
+        overlap_start = max(word_start, clip_start_ms)
+        overlap_end = min(word_end, clip_end_ms)
+
+        if overlap_end <= overlap_start:
+            continue
+
+        relevant_words.append(
+            {
+                "text": word_data["text"],
+                "start": overlap_start / 1000.0,
+                "end": overlap_end / 1000.0,
+                "confidence": word_data.get("confidence", 1.0),
+            }
+        )
+
+    return relevant_words
+
+
+def _normalize_cleanup_token(value: str) -> str:
+    return re.sub(r"[^a-z0-9']+", "", value.lower())
+
+
+def _build_cleanup_phrases(
+    remove_filler_words: bool, filtered_words: Optional[List[str]]
+) -> List[List[str]]:
+    raw_phrases: List[str] = []
+    if remove_filler_words:
+        raw_phrases.extend(DEFAULT_FILTERED_WORDS)
+    raw_phrases.extend(filtered_words or [])
+
+    normalized_phrases: List[List[str]] = []
+    seen: set[tuple[str, ...]] = set()
+    for phrase in raw_phrases:
+        tokens = [
+            _normalize_cleanup_token(part)
+            for part in phrase.split()
+            if _normalize_cleanup_token(part)
+        ]
+        if not tokens:
+            continue
+        key = tuple(tokens)
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized_phrases.append(tokens)
+
+    normalized_phrases.sort(key=len, reverse=True)
+    return normalized_phrases
+
+
+def _merge_intervals(intervals: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+    if not intervals:
+        return []
+
+    merged: List[Tuple[float, float]] = []
+    for start, end in sorted(intervals):
+        if end <= start:
+            continue
+        if not merged or start > merged[-1][1]:
+            merged.append((start, end))
+            continue
+        merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+    return merged
+
+
+def build_clip_keep_ranges(
+    video_path: Path,
+    clip_start: float,
+    clip_end: float,
+    cleanup_settings: Optional[Dict[str, Any]] = None,
+) -> List[Tuple[float, float]]:
+    """Build source-video keep ranges after removing pauses and filtered words."""
+    if clip_end <= clip_start:
+        return []
+
+    settings = cleanup_settings or {}
+    if not clip_cleanup_enabled(settings):
+        return [(clip_start, clip_end)]
+
+    transcript_data = load_cached_transcript_data(video_path)
+    if not transcript_data or not transcript_data.get("words"):
+        return [(clip_start, clip_end)]
+
+    relevant_words = get_absolute_words_in_range(transcript_data, clip_start, clip_end)
+    if not relevant_words:
+        return [(clip_start, clip_end)]
+
+    removal_intervals: List[Tuple[float, float]] = []
+    pause_threshold_seconds = max(
+        0.25, float(settings.get("pause_threshold_ms", 900)) / 1000.0
+    )
+    cut_long_pauses = bool(settings.get("cut_long_pauses"))
+
+    if cut_long_pauses:
+        leading_gap = relevant_words[0]["start"] - clip_start
+        if leading_gap >= pause_threshold_seconds:
+            removal_intervals.append((clip_start, relevant_words[0]["start"]))
+
+        for current, nxt in zip(relevant_words, relevant_words[1:]):
+            gap = nxt["start"] - current["end"]
+            if gap >= pause_threshold_seconds:
+                removal_intervals.append((current["end"], nxt["start"]))
+
+        trailing_gap = clip_end - relevant_words[-1]["end"]
+        if trailing_gap >= pause_threshold_seconds:
+            removal_intervals.append((relevant_words[-1]["end"], clip_end))
+
+    phrase_tokens = _build_cleanup_phrases(
+        bool(settings.get("remove_filler_words")),
+        settings.get("filtered_words"),
+    )
+    if phrase_tokens:
+        normalized_words = [
+            _normalize_cleanup_token(word["text"]) for word in relevant_words
+        ]
+        idx = 0
+        while idx < len(relevant_words):
+            matched_length = 0
+            for phrase in phrase_tokens:
+                end_idx = idx + len(phrase)
+                if end_idx > len(normalized_words):
+                    continue
+                if normalized_words[idx:end_idx] == phrase:
+                    matched_length = len(phrase)
+                    break
+
+            if matched_length:
+                removal_intervals.append(
+                    (
+                        relevant_words[idx]["start"],
+                        relevant_words[idx + matched_length - 1]["end"],
+                    )
+                )
+                idx += matched_length
+                continue
+
+            idx += 1
+
+    merged_removals = _merge_intervals(removal_intervals)
+    if not merged_removals:
+        return [(clip_start, clip_end)]
+
+    keep_ranges: List[Tuple[float, float]] = []
+    cursor = clip_start
+    for removal_start, removal_end in merged_removals:
+        if removal_start - cursor >= 0.12:
+            keep_ranges.append((cursor, removal_start))
+        cursor = max(cursor, removal_end)
+
+    if clip_end - cursor >= 0.12:
+        keep_ranges.append((cursor, clip_end))
+
+    total_kept = sum(max(0.0, end - start) for start, end in keep_ranges)
+    if not keep_ranges or total_kept < 0.5:
+        return [(clip_start, clip_end)]
+
+    return keep_ranges
+
+
+def build_keep_ranges_from_source_ranges(
+    video_path: Path,
+    source_ranges: List[Tuple[float, float]],
+    cleanup_settings: Optional[Dict[str, Any]] = None,
+) -> List[Tuple[float, float]]:
+    """Apply cleanup to a list of source ranges while preserving their ordering."""
+    normalized_ranges = normalize_source_ranges(source_ranges)
+    if not normalized_ranges:
+        return []
+
+    keep_ranges: List[Tuple[float, float]] = []
+    for range_start, range_end in normalized_ranges:
+        keep_ranges.extend(
+            build_clip_keep_ranges(
+                video_path,
+                range_start,
+                range_end,
+                cleanup_settings,
+            )
+        )
+    return normalize_source_ranges(keep_ranges)
+
+
+def get_words_for_keep_ranges(
+    transcript_data: Dict, keep_ranges: List[Tuple[float, float]]
+) -> List[Dict[str, Any]]:
+    """Project transcript word timings into the output timeline after cuts."""
+    if not transcript_data or not transcript_data.get("words") or not keep_ranges:
+        return []
+
+    relevant_words: List[Dict[str, Any]] = []
+    timeline_offset = 0.0
+
+    for keep_start, keep_end in keep_ranges:
+        range_words = get_absolute_words_in_range(transcript_data, keep_start, keep_end)
+        for word in range_words:
+            relevant_words.append(
+                {
+                    "text": word["text"],
+                    "start": timeline_offset + (word["start"] - keep_start),
+                    "end": timeline_offset + (word["end"] - keep_start),
+                    "confidence": word.get("confidence", 1.0),
+                }
+            )
+        timeline_offset += keep_end - keep_start
+
+    return relevant_words
+
+
 def create_assemblyai_subtitles(
     video_path: Path,
     clip_start: float,
@@ -711,6 +951,7 @@ def create_assemblyai_subtitles(
     font_size: int = 24,
     font_color: str = "#FFFFFF",
     caption_template: str = "default",
+    keep_ranges: Optional[List[Tuple[float, float]]] = None,
 ) -> List[TextClip]:
     """Create subtitles using AssemblyAI's precise word timing with template support."""
     transcript_data = load_cached_transcript_data(video_path)
@@ -738,7 +979,10 @@ def create_assemblyai_subtitles(
     )
 
     # Get words in range
-    relevant_words = get_words_in_range(transcript_data, clip_start, clip_end)
+    if keep_ranges:
+        relevant_words = get_words_for_keep_ranges(transcript_data, keep_ranges)
+    else:
+        relevant_words = get_words_in_range(transcript_data, clip_start, clip_end)
 
     if not relevant_words:
         logger.warning("No words found in clip timerange")
@@ -1161,10 +1405,16 @@ def create_optimized_clip(
     font_color: str = "#FFFFFF",
     caption_template: str = "default",
     output_format: str = "vertical",
+    keep_ranges: Optional[List[Tuple[float, float]]] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size)."""
     try:
-        duration = end_time - start_time
+        effective_keep_ranges = [
+            (max(start_time, start), min(end_time, end))
+            for start, end in (keep_ranges or [(start_time, end_time)])
+            if min(end_time, end) - max(start_time, start) > 0.05
+        ]
+        duration = sum(end - start for start, end in effective_keep_ranges)
         if duration <= 0:
             logger.error(f"Invalid clip duration: {duration:.1f}s")
             return False
@@ -1176,15 +1426,16 @@ def create_optimized_clip(
         )
 
         # Fast path: no subtitles + original = ffmpeg stream copy (no re-encoding)
-        if not add_subtitles and keep_original:
+        if not add_subtitles and keep_original and len(effective_keep_ranges) == 1:
             import subprocess
+            fast_path_start, fast_path_end = effective_keep_ranges[0]
             result = subprocess.run(
                 [
                     "ffmpeg",
                     "-y",
-                    "-ss", str(start_time),
+                    "-ss", str(fast_path_start),
                     "-i", str(video_path),
-                    "-t", str(duration),
+                    "-t", str(fast_path_end - fast_path_start),
                     "-c", "copy",
                     "-movflags", "+faststart",
                     str(output_path),
@@ -1201,6 +1452,11 @@ def create_optimized_clip(
 
         # Load and process video
         video = VideoFileClip(str(video_path))
+        clip = None
+        cropped_clip = None
+        processed_clip = None
+        final_clip = None
+        source_segments: List[Any] = []
 
         if start_time >= video.duration:
             logger.error(
@@ -1209,8 +1465,26 @@ def create_optimized_clip(
             video.close()
             return False
 
-        end_time = min(end_time, video.duration)
-        clip = video.subclipped(start_time, end_time)
+        effective_keep_ranges = [
+            (max(0.0, start), min(end, video.duration))
+            for start, end in effective_keep_ranges
+            if min(end, video.duration) - max(0.0, start) > 0.05
+        ]
+        if not effective_keep_ranges:
+            logger.error("No keep ranges remained after clamping to video duration")
+            video.close()
+            return False
+
+        start_time = effective_keep_ranges[0][0]
+        end_time = effective_keep_ranges[-1][1]
+
+        for range_start, range_end in effective_keep_ranges:
+            source_segments.append(video.subclipped(range_start, range_end))
+
+        if len(source_segments) == 1:
+            clip = source_segments[0]
+        else:
+            clip = concatenate_videoclips(source_segments, method="compose")
 
         if keep_original:
             # No face detection, no crop, no resize - use trimmed clip as-is
@@ -1245,6 +1519,7 @@ def create_optimized_clip(
                 font_size,
                 font_color,
                 caption_template,
+                effective_keep_ranges if len(effective_keep_ranges) > 1 else None,
             )
             final_clips.extend(subtitle_clips)
 
@@ -1267,13 +1542,16 @@ def create_optimized_clip(
         )
 
         # Cleanup
-        if final_clip is not processed_clip:
+        if final_clip is not None and final_clip is not processed_clip:
             final_clip.close()
-        if processed_clip is not cropped_clip:
+        if processed_clip is not None and processed_clip is not cropped_clip and processed_clip is not clip:
             processed_clip.close()
         if cropped_clip is not None:
             cropped_clip.close()
-        clip.close()
+        if clip is not None and clip not in source_segments:
+            clip.close()
+        for source_segment in source_segments:
+            source_segment.close()
         video.close()
 
         logger.info(f"Successfully created clip: {output_path}")
@@ -1294,6 +1572,7 @@ def create_clips_from_segments(
     caption_template: str = "default",
     output_format: str = "vertical",
     add_subtitles: bool = True,
+    cleanup_settings: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Create optimized video clips from segments with template support."""
     logger.info(
@@ -1310,8 +1589,17 @@ def create_clips_from_segments(
                 f"Processing segment {i + 1}: start='{segment.get('start_time')}', end='{segment.get('end_time')}'"
             )
 
-            start_seconds = parse_timestamp_to_seconds(segment["start_time"])
-            end_seconds = parse_timestamp_to_seconds(segment["end_time"])
+            provided_keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
+            provided_source_ranges = normalize_source_ranges(segment.get("source_ranges"))
+            if provided_keep_ranges:
+                start_seconds = provided_keep_ranges[0][0]
+                end_seconds = provided_keep_ranges[-1][1]
+            elif provided_source_ranges:
+                start_seconds = provided_source_ranges[0][0]
+                end_seconds = provided_source_ranges[-1][1]
+            else:
+                start_seconds = parse_timestamp_to_seconds(segment["start_time"])
+                end_seconds = parse_timestamp_to_seconds(segment["end_time"])
 
             duration = end_seconds - start_seconds
             logger.info(
@@ -1324,8 +1612,24 @@ def create_clips_from_segments(
                 )
                 continue
 
-            clip_filename = f"clip_{i + 1}_{segment['start_time'].replace(':', '')}-{segment['end_time'].replace(':', '')}.mp4"
+            clip_filename = (
+                f"clip_{i + 1}_{segment['start_time'].replace(':', '')}-"
+                f"{segment['end_time'].replace(':', '')}_{uuid.uuid4().hex[:12]}.mp4"
+            )
             clip_path = output_dir / clip_filename
+
+            if provided_keep_ranges:
+                keep_ranges = provided_keep_ranges
+            elif provided_source_ranges:
+                keep_ranges = build_keep_ranges_from_source_ranges(
+                    video_path,
+                    provided_source_ranges,
+                    cleanup_settings,
+                )
+            else:
+                keep_ranges = build_clip_keep_ranges(
+                    video_path, start_seconds, end_seconds, cleanup_settings
+                )
 
             success = create_optimized_clip(
                 video_path,
@@ -1338,16 +1642,19 @@ def create_clips_from_segments(
                 font_color,
                 caption_template,
                 output_format,
+                keep_ranges,
             )
 
             if success:
+                save_clip_source_ranges(clip_path, keep_ranges)
+                cleaned_duration = sum(end - start for start, end in keep_ranges)
                 clip_info = {
                     "clip_id": i + 1,
                     "filename": clip_filename,
                     "path": str(clip_path),
                     "start_time": segment["start_time"],
                     "end_time": segment["end_time"],
-                    "duration": duration,
+                    "duration": cleaned_duration,
                     "text": segment["text"],
                     "relevance_score": segment["relevance_score"],
                     "reasoning": segment["reasoning"],
@@ -1358,9 +1665,10 @@ def create_clips_from_segments(
                     "value_score": segment.get("value_score", 0),
                     "shareability_score": segment.get("shareability_score", 0),
                     "hook_type": segment.get("hook_type"),
+                    "keep_ranges": keep_ranges,
                 }
                 clips_info.append(clip_info)
-                logger.info(f"Created clip {i + 1}: {duration:.1f}s")
+                logger.info(f"Created clip {i + 1}: {cleaned_duration:.1f}s")
             else:
                 logger.error(f"Failed to create clip {i + 1}")
 
@@ -1493,6 +1801,7 @@ def create_clips_with_transitions(
     caption_template: str = "default",
     output_format: str = "vertical",
     add_subtitles: bool = True,
+    cleanup_settings: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Create standalone video clips without inter-clip transitions.
 
@@ -1514,6 +1823,7 @@ def create_clips_with_transitions(
         caption_template,
         output_format,
         add_subtitles,
+        cleanup_settings,
     )
 
 

@@ -22,13 +22,12 @@ logger = logging.getLogger(__name__)
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from sqlalchemy import text
 
 from .models import User, Task, Source, GeneratedClip
 from .database import init_db, close_db, get_db, AsyncSessionLocal
-from .auth_headers import get_signed_user_id, USER_ID_HEADER
+from .auth_headers import get_authenticated_user_id as get_backend_user_id
 from .api.routes.tasks import router as tasks_router
 from .api.routes.feedback import router as feedback_router
 from .api.routes.billing import router as billing_router
@@ -73,20 +72,8 @@ app.include_router(tasks_router)
 app.include_router(feedback_router)
 app.include_router(billing_router)
 
-# Mount static files for serving clips
-clips_dir = Path(config.temp_dir) / "clips"
-clips_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/clips", StaticFiles(directory=str(clips_dir)), name="clips")
-
-
 def _get_authenticated_user_id(request: Request) -> str:
-    if config.monetization_enabled:
-        return get_signed_user_id(request, config)
-
-    user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User authentication required")
-    return user_id
+    return get_backend_user_id(request, config)
 
 
 def _resolve_uploaded_video_path(url: str) -> Path:
@@ -659,7 +646,7 @@ async def get_task_clips(task_id: str, db: AsyncSession = Depends(get_db)):
                 "reasoning": clip.reasoning,
                 "clip_order": clip.clip_order,
                 "created_at": clip.created_at.isoformat(),
-                "video_url": f"/clips/{clip.filename}",  # URL for frontend to access the clip
+                "video_url": f"/tasks/{task_id}/clips/{clip.id}/file",
                 # Virality scores
                 "virality_score": clip.virality_score or 0,
                 "hook_score": clip.hook_score or 0,

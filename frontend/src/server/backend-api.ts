@@ -1,9 +1,14 @@
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 
 export const DEFAULT_FORWARDED_HEADERS = [
+  "accept-ranges",
   "cache-control",
+  "content-length",
+  "content-range",
   "content-disposition",
   "content-type",
+  "etag",
+  "last-modified",
   "x-trace-id",
 ] as const;
 

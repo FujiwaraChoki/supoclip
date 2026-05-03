@@ -10,9 +10,9 @@ import logging
 import uuid
 import aiofiles
 
-from ...config import Config
+from ...config import get_config
 from ...database import get_db
-from ...auth_headers import get_signed_user_id, USER_ID_HEADER
+from ...auth_headers import get_authenticated_user_id as get_backend_user_id
 from ...services.billing_service import BillingService
 from ...font_registry import (
     FONTS_DIR,
@@ -28,18 +28,41 @@ from fastapi import Depends
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["media"])
+MAX_VIDEO_UPLOAD_BYTES = 1_000_000_000
+MAX_FONT_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 def _get_authenticated_user_id(request: Request) -> str:
-    config = Config()
-    if config.monetization_enabled:
-        return get_signed_user_id(request, config)
+    config = get_config()
+    return get_backend_user_id(request, config)
 
-    # Self-hosted: accept user_id or x-supoclip-user-id (frontend uses buildBackendAuthHeaders)
-    user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User authentication required")
-    return user_id
+
+async def _write_upload_to_disk(
+    uploaded_file: UploadFile,
+    target_path: Path,
+    max_bytes: int,
+) -> None:
+    chunk_size = 1024 * 1024
+    written = 0
+
+    try:
+        async with aiofiles.open(target_path, "wb") as destination:
+            while True:
+                chunk = await uploaded_file.read(chunk_size)
+                if not chunk:
+                    break
+
+                written += len(chunk)
+                if written > max_bytes:
+                    raise HTTPException(
+                        status_code=413, detail="Uploaded file is too large"
+                    )
+
+                await destination.write(chunk)
+    except Exception:
+        if target_path.exists():
+            target_path.unlink(missing_ok=True)
+        raise
 
 
 @router.get("/fonts")
@@ -128,9 +151,7 @@ async def upload_font(
             target_path = user_fonts_dir / f"{stored_stem}-{suffix}{extension}"
             suffix += 1
 
-        content = await uploaded_file.read()
-        async with aiofiles.open(target_path, "wb") as uploaded_font:
-            await uploaded_font.write(content)
+        await _write_upload_to_disk(uploaded_file, target_path, MAX_FONT_UPLOAD_BYTES)
 
         logger.info(f"Uploaded font: {target_path.name}")
 
@@ -216,7 +237,7 @@ async def get_caption_templates():
 @router.get("/broll/status")
 async def get_broll_status():
     """Return whether B-roll integrations are configured."""
-    config = Config()
+    config = get_config()
     return {
         "configured": bool(config.pexels_api_key),
         "provider": "pexels" if config.pexels_api_key else None,
@@ -228,6 +249,7 @@ async def upload_video(request: Request):
     """Upload a video to the server."""
     try:
         _get_authenticated_user_id(request)
+        config = get_config()
 
         # Get the form data
         form_data = await request.form()
@@ -249,9 +271,7 @@ async def upload_video(request: Request):
         video_path = uploads_dir / unique_filename
 
         # Save the uploaded file
-        async with aiofiles.open(video_path, "wb") as f:
-            content = await upload.read()
-            await f.write(content)
+        await _write_upload_to_disk(upload, video_path, MAX_VIDEO_UPLOAD_BYTES)
 
         logger.info(f"✅ Video uploaded successfully to: {video_path}")
 

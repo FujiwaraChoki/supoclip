@@ -9,14 +9,12 @@ This is the new main entry point with:
 """
 
 from contextlib import asynccontextmanager
-from pathlib import Path
 import logging
 import time
 
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -156,10 +154,6 @@ def create_app(
             },
             headers={TRACE_HEADER: trace_id},
         )
-
-    clips_dir = Path(runtime_config.temp_dir) / "clips"
-    clips_dir.mkdir(parents=True, exist_ok=True)
-    app.mount("/clips", StaticFiles(directory=str(clips_dir)), name="clips")
 
     app.include_router(tasks.router)
     app.include_router(admin_router)

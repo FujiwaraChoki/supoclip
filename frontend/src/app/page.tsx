@@ -118,6 +118,10 @@ export default function Home() {
   const [brollAvailable, setBrollAvailable] = useState(false);
   const [outputFormat, setOutputFormat] = useState<"vertical" | "original">("vertical");
   const [addSubtitles, setAddSubtitles] = useState(true);
+  const [cutLongPauses, setCutLongPauses] = useState(false);
+  const [pauseThresholdMs, setPauseThresholdMs] = useState("900");
+  const [removeFillerWords, setRemoveFillerWords] = useState(false);
+  const [filteredWords, setFilteredWords] = useState("");
 
   // Latest task state
   const [latestTask, setLatestTask] = useState<LatestTask | null>(null);
@@ -405,6 +409,13 @@ export default function Home() {
 
     try {
       let videoUrl = url;
+      const normalizedPauseThreshold = Number.isFinite(Number(pauseThresholdMs))
+        ? Math.max(250, Math.min(3000, Math.round(Number(pauseThresholdMs))))
+        : 900;
+      const normalizedFilteredWords = filteredWords
+        .split(",")
+        .map((word) => word.trim().toLowerCase())
+        .filter(Boolean);
 
       // If uploading file, upload it first
       if (sourceType === "upload" && fileRef.current) {
@@ -450,7 +461,11 @@ export default function Home() {
           include_broll: includeBroll,
           processing_mode: "fast",
           output_format: outputFormat,
-          add_subtitles: addSubtitles
+          add_subtitles: addSubtitles,
+          cut_long_pauses: cutLongPauses,
+          pause_threshold_ms: normalizedPauseThreshold,
+          remove_filler_words: removeFillerWords,
+          filtered_words: normalizedFilteredWords,
         }),
       });
 
@@ -470,6 +485,10 @@ export default function Home() {
         include_broll: includeBroll,
         output_format: outputFormat,
         add_subtitles: addSubtitles,
+        cut_long_pauses: cutLongPauses,
+        pause_threshold_ms: normalizedPauseThreshold,
+        remove_filler_words: removeFillerWords,
+        filtered_words: normalizedFilteredWords,
         processing_mode: "fast",
       });
       // Redirect immediately to the task page
@@ -940,6 +959,61 @@ export default function Home() {
                       onCheckedChange={setAddSubtitles}
                       disabled={isLoading}
                     />
+                  </div>
+
+                  <div className="rounded-lg border bg-stone-50 p-3 space-y-3">
+                    <div>
+                      <h3 className="text-sm font-medium text-stone-900">Clip cleanup</h3>
+                      <p className="text-xs text-stone-500">Remove dead air and common filler phrases while rendering.</p>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-stone-900">Cut long pauses</div>
+                        <div className="text-xs text-stone-500">Split out silence gaps longer than your threshold.</div>
+                      </div>
+                      <Switch
+                        checked={cutLongPauses}
+                        onCheckedChange={setCutLongPauses}
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-stone-500">Pause threshold (ms)</label>
+                      <Input
+                        type="number"
+                        min={250}
+                        max={3000}
+                        step={50}
+                        value={pauseThresholdMs}
+                        onChange={(e) => setPauseThresholdMs(e.target.value)}
+                        disabled={isLoading || !cutLongPauses}
+                        placeholder="900"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-stone-900">Remove filler words</div>
+                        <div className="text-xs text-stone-500">Uses a safe default list like “um”, “uh”, and “you know”.</div>
+                      </div>
+                      <Switch
+                        checked={removeFillerWords}
+                        onCheckedChange={setRemoveFillerWords}
+                        disabled={isLoading}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-stone-500">Extra filtered words or phrases</label>
+                      <Input
+                        value={filteredWords}
+                        onChange={(e) => setFilteredWords(e.target.value)}
+                        disabled={isLoading}
+                        placeholder="basically, literally, to be honest"
+                      />
+                    </div>
                   </div>
                 </CardContent>
               </Card>

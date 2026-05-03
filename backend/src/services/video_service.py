@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional, Callable, Awaitable
 import logging
 import json
 import subprocess
+import uuid
 
 from ..utils.async_helpers import run_in_thread
 from ..youtube_utils import (
@@ -20,6 +21,12 @@ from ..video_utils import (
     create_clips_with_transitions,
     create_optimized_clip,
     parse_timestamp_to_seconds,
+    build_clip_keep_ranges,
+    build_keep_ranges_from_source_ranges,
+)
+from ..clip_source_map import (
+    normalize_source_ranges,
+    save_clip_source_ranges,
 )
 from ..ai import get_most_relevant_parts_by_transcript
 from ..config import Config
@@ -55,7 +62,7 @@ class VideoService:
         if url.startswith(UPLOAD_URL_PREFIX):
             filename = Path(url.removeprefix(UPLOAD_URL_PREFIX)).name
             return Path(config.temp_dir) / "uploads" / filename
-        return Path(url)
+        raise ValueError("Only upload:// references are allowed for local video sources")
 
     @staticmethod
     async def download_video(url: str, task_id: Optional[str] = None) -> Optional[Path]:
@@ -125,6 +132,7 @@ class VideoService:
         caption_template: str = "default",
         output_format: str = "vertical",
         add_subtitles: bool = True,
+        cleanup_settings: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Create standalone video clips from segments with optional subtitles.
@@ -147,6 +155,7 @@ class VideoService:
             caption_template,
             output_format,
             add_subtitles,
+            cleanup_settings,
         )
 
         logger.info(f"Successfully created {len(clips_info)} clips")
@@ -164,11 +173,21 @@ class VideoService:
         caption_template: str = "default",
         output_format: str = "vertical",
         add_subtitles: bool = True,
+        cleanup_settings: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Render a single clip in the thread pool and return clip_info dict, or None on failure."""
         try:
-            start_seconds = parse_timestamp_to_seconds(segment["start_time"])
-            end_seconds = parse_timestamp_to_seconds(segment["end_time"])
+            provided_keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
+            source_ranges = normalize_source_ranges(segment.get("source_ranges"))
+            if provided_keep_ranges:
+                start_seconds = provided_keep_ranges[0][0]
+                end_seconds = provided_keep_ranges[-1][1]
+            elif source_ranges:
+                start_seconds = source_ranges[0][0]
+                end_seconds = source_ranges[-1][1]
+            else:
+                start_seconds = parse_timestamp_to_seconds(segment["start_time"])
+                end_seconds = parse_timestamp_to_seconds(segment["end_time"])
             duration = end_seconds - start_seconds
 
             if duration <= 0:
@@ -177,12 +196,29 @@ class VideoService:
                 )
                 return None
 
+            unique_suffix = uuid.uuid4().hex[:12]
             clip_filename = (
                 f"clip_{clip_index + 1}_"
                 f"{segment['start_time'].replace(':', '')}-"
-                f"{segment['end_time'].replace(':', '')}.mp4"
+                f"{segment['end_time'].replace(':', '')}_"
+                f"{unique_suffix}.mp4"
             )
             clip_path = output_dir / clip_filename
+            if provided_keep_ranges:
+                keep_ranges = provided_keep_ranges
+            elif source_ranges:
+                keep_ranges = build_keep_ranges_from_source_ranges(
+                    video_path,
+                    source_ranges,
+                    cleanup_settings,
+                )
+            else:
+                keep_ranges = build_clip_keep_ranges(
+                    video_path,
+                    start_seconds,
+                    end_seconds,
+                    cleanup_settings,
+                )
 
             success = await run_in_thread(
                 create_optimized_clip,
@@ -196,20 +232,25 @@ class VideoService:
                 font_color,
                 caption_template,
                 output_format,
+                keep_ranges,
             )
 
             if not success:
                 logger.error(f"Failed to create clip {clip_index + 1}")
                 return None
 
-            logger.info(f"Created clip {clip_index + 1}: {duration:.1f}s")
+            save_clip_source_ranges(clip_path, keep_ranges)
+            cleaned_duration = sum(end - start for start, end in keep_ranges)
+            logger.info(
+                f"Created clip {clip_index + 1}: {cleaned_duration:.1f}s"
+            )
             return {
                 "clip_id": clip_index + 1,
                 "filename": clip_filename,
                 "path": str(clip_path),
                 "start_time": segment["start_time"],
                 "end_time": segment["end_time"],
-                "duration": duration,
+                "duration": cleaned_duration,
                 "text": segment.get("text", ""),
                 "relevance_score": segment.get("relevance_score", 0.0),
                 "reasoning": segment.get("reasoning", ""),
@@ -219,6 +260,7 @@ class VideoService:
                 "value_score": segment.get("value_score", 0),
                 "shareability_score": segment.get("shareability_score", 0),
                 "hook_type": segment.get("hook_type"),
+                "keep_ranges": keep_ranges,
             }
         except Exception as e:
             logger.error(f"Error creating clip {clip_index + 1}: {e}")
@@ -245,7 +287,11 @@ class VideoService:
     def determine_source_type(url: str) -> str:
         """Determine if source is YouTube or uploaded file."""
         video_id = get_youtube_video_id(url)
-        return "youtube" if video_id else "video_url"
+        if video_id:
+            return "youtube"
+        if url.startswith(UPLOAD_URL_PREFIX):
+            return "video_url"
+        raise ValueError("Only YouTube URLs or upload:// references are supported")
 
     @staticmethod
     async def process_video_complete(

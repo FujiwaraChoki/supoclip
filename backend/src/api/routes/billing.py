@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...auth_headers import USER_ID_HEADER, get_signed_user_id
+from ...auth_headers import get_authenticated_user_id
 from ...config import get_config
 from ...database import get_db
 from ...models import User
@@ -22,14 +22,7 @@ class SubscriptionEmailRequest(BaseModel):
 
 def _get_user_id_from_headers(request: Request) -> str:
     config = get_config()
-    if config.monetization_enabled:
-        return get_signed_user_id(request, config)
-
-    user_id = request.headers.get("user_id") or request.headers.get(USER_ID_HEADER)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User authentication required")
-
-    return user_id
+    return get_authenticated_user_id(request, config)
 
 
 @router.post("/subscription-email")

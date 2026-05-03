@@ -7,7 +7,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from ...auth_headers import get_signed_user_id
+from ...auth_headers import get_authenticated_user_id
 from ...config import get_config
 
 logger = logging.getLogger(__name__)
@@ -42,13 +42,7 @@ class FeedbackRequest(BaseModel):
 @router.post("/feedback")
 async def submit_feedback(body: FeedbackRequest, request: Request):
     config = get_config()
-    if config.monetization_enabled:
-        user_id = get_signed_user_id(request, config)
-    else:
-        user_id = request.headers.get("user_id")
-
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User authentication required")
+    user_id = get_authenticated_user_id(request, config)
 
     is_sales = body.category in SALES_CATEGORIES
     webhook_url = (

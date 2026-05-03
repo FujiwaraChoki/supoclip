@@ -90,8 +90,9 @@ const EXPORT_DIMENSIONS = {
 export default function TaskEditPage() {
   const params = useParams();
   const { data: session } = useSession();
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const taskApiUrl = "/api/tasks";
+  const getClipUrl = (videoUrl: string) =>
+    videoUrl.startsWith("/api/") ? videoUrl : `/api${videoUrl}`;
 
   const [task, setTask] = useState<TaskDetails | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
@@ -323,7 +324,7 @@ export default function TaskEditPage() {
     setExportProgress(0);
 
     try {
-      const sourceResponse = await fetch(`${apiUrl}${selectedClip.video_url}`);
+      const sourceResponse = await fetch(getClipUrl(selectedClip.video_url));
       if (!sourceResponse.ok) {
         throw new Error(`Failed to fetch source clip: ${sourceResponse.status}`);
       }
@@ -638,7 +639,7 @@ export default function TaskEditPage() {
                         <video
                           ref={videoRef}
                           key={selectedClip.id}
-                          src={`${apiUrl}${selectedClip.video_url}`}
+                          src={getClipUrl(selectedClip.video_url)}
                           controls
                           onTimeUpdate={handleTimeUpdate}
                           onPlay={() => setIsPlaying(true)}

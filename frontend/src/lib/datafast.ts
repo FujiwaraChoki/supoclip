@@ -1,6 +1,12 @@
 "use client";
 
-type DataFastValue = string | number | boolean | null | undefined;
+type DataFastValue =
+  | string
+  | number
+  | boolean
+  | readonly (string | number | boolean)[]
+  | null
+  | undefined;
 
 export type DataFastMetadata = Record<string, DataFastValue>;
 

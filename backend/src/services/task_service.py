@@ -30,6 +30,16 @@ from ..clip_editor import (
     overlay_custom_captions,
 )
 from ..video_utils import parse_timestamp_to_seconds
+from ..clip_cleanup import normalize_clip_cleanup_settings
+from ..clip_source_map import (
+    copy_clip_source_ranges,
+    load_clip_source_ranges,
+    save_clip_source_ranges,
+    source_range_bounds,
+    split_source_ranges,
+    total_source_duration,
+    trim_source_ranges,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +147,7 @@ class TaskService:
         progress_callback: Optional[Callable] = None,
         should_cancel: Optional[Callable] = None,
         clip_ready_callback: Optional[Callable] = None,
+        cleanup_settings: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -218,6 +229,10 @@ class TaskService:
                 analysis_json=result.get("analysis_json"),
             )
 
+            normalized_cleanup_settings = normalize_clip_cleanup_settings(
+                **(cleanup_settings or {})
+            )
+
             # Render clips incrementally: render, save, notify one at a time
             segments_to_render = result.get("segments_to_render", [])
             video_path = Path(result["video_path"])
@@ -254,6 +269,7 @@ class TaskService:
                     caption_template,
                     output_format,
                     add_subtitles,
+                    normalized_cleanup_settings,
                 )
                 if clip_info is None:
                     continue  # Skip failed clip
@@ -451,8 +467,12 @@ class TaskService:
 
         # Get clips
         clips = await self.clip_repo.get_clips_by_task(self.db, task_id)
-        task["clips"] = clips
+        task["clips"] = [
+            {key: value for key, value in clip.items() if key != "file_path"}
+            for clip in clips
+        ]
         task["clips_count"] = len(clips)
+        task.update(await self._load_task_source_settings(task_id))
 
         return task
 
@@ -481,6 +501,7 @@ class TaskService:
         caption_template: str,
         include_broll: bool,
         apply_to_existing: bool,
+        cleanup_settings: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Update task-level settings and optionally regenerate all clips."""
         await self.task_repo.update_task_settings(
@@ -500,6 +521,7 @@ class TaskService:
                 font_size,
                 font_color,
                 caption_template,
+                cleanup_settings=cleanup_settings,
             )
 
         return await self.get_task_with_clips(task_id) or {}
@@ -511,6 +533,7 @@ class TaskService:
         font_size: int,
         font_color: str,
         caption_template: str,
+        cleanup_settings: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Regenerate all clips in a task using existing segment boundaries."""
         task = await self.task_repo.get_task_by_id(self.db, task_id)
@@ -519,28 +542,31 @@ class TaskService:
 
         source_url = task.get("source_url")
         source_type = task.get("source_type")
-        output_format = "vertical"
-        add_subtitles = True
-
-        # Preserve original output_format and add_subtitles from task creation (stored in Redis)
-        redis_client = redis.Redis(
-            host=self.config.redis_host,
-            port=self.config.redis_port,
-            password=self.config.redis_password,
-            decode_responses=True,
+        metadata = await self._load_task_source_settings(task_id)
+        output_format = metadata.get("output_format", "vertical")
+        add_subtitles = metadata.get("add_subtitles", True)
+        cleanup_payload = cleanup_settings or {
+            "cut_long_pauses": metadata.get("cut_long_pauses"),
+            "pause_threshold_ms": metadata.get("pause_threshold_ms"),
+            "remove_filler_words": metadata.get("remove_filler_words"),
+            "filtered_words": metadata.get("filtered_words"),
+        }
+        normalized_cleanup_settings = normalize_clip_cleanup_settings(
+            cleanup_payload.get("cut_long_pauses"),
+            cleanup_payload.get("pause_threshold_ms"),
+            cleanup_payload.get("remove_filler_words"),
+            cleanup_payload.get("filtered_words"),
         )
-        try:
-            source_payload = await redis_client.get(f"task_source:{task_id}")
-            if source_payload:
-                parsed = json.loads(source_payload)
-                of = parsed.get("output_format", output_format)
-                if of in ("vertical", "original"):
-                    output_format = of
-                asub = parsed.get("add_subtitles", add_subtitles)
-                if isinstance(asub, bool):
-                    add_subtitles = asub
-        finally:
-            await redis_client.close()
+        existing_cleanup_settings = normalize_clip_cleanup_settings(
+            metadata.get("cut_long_pauses"),
+            metadata.get("pause_threshold_ms"),
+            metadata.get("remove_filler_words"),
+            metadata.get("filtered_words"),
+        )
+        should_recompute_cleanup = (
+            cleanup_settings is not None
+            and normalized_cleanup_settings != existing_cleanup_settings
+        )
 
         if not source_url or not source_type:
             raise ValueError("Task source URL is missing; cannot regenerate clips")
@@ -560,23 +586,38 @@ class TaskService:
             if not video_path.exists():
                 raise ValueError("Source video file no longer exists")
 
-        segments = [
-            {
-                "start_time": clip["start_time"],
-                "end_time": clip["end_time"],
-                "text": clip.get("text") or "",
-                "relevance_score": clip.get("relevance_score", 0.5),
-                "reasoning": clip.get("reasoning")
-                or "Regenerated with updated settings",
-                "virality_score": clip.get("virality_score", 0),
-                "hook_score": clip.get("hook_score", 0),
-                "engagement_score": clip.get("engagement_score", 0),
-                "value_score": clip.get("value_score", 0),
-                "shareability_score": clip.get("shareability_score", 0),
-                "hook_type": clip.get("hook_type"),
-            }
-            for clip in clips
-        ]
+        segments = []
+        for clip in clips:
+            source_ranges = self._get_clip_source_ranges(clip)
+            bounds = source_range_bounds(source_ranges)
+            if bounds:
+                start_time = self._seconds_to_mmss(bounds[0])
+                end_time = self._seconds_to_mmss(bounds[1])
+            else:
+                start_time = clip["start_time"]
+                end_time = clip["end_time"]
+
+            segments.append(
+                {
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    **(
+                        {"source_ranges": source_ranges}
+                        if should_recompute_cleanup
+                        else {"keep_ranges": source_ranges}
+                    ),
+                    "text": clip.get("text") or "",
+                    "relevance_score": clip.get("relevance_score", 0.5),
+                    "reasoning": clip.get("reasoning")
+                    or "Regenerated with updated settings",
+                    "virality_score": clip.get("virality_score", 0),
+                    "hook_score": clip.get("hook_score", 0),
+                    "engagement_score": clip.get("engagement_score", 0),
+                    "value_score": clip.get("value_score", 0),
+                    "shareability_score": clip.get("shareability_score", 0),
+                    "hook_type": clip.get("hook_type"),
+                }
+            )
 
         clips_info = await self.video_service.create_video_clips(
             video_path,
@@ -587,6 +628,7 @@ class TaskService:
             caption_template,
             output_format,
             add_subtitles,
+            normalized_cleanup_settings,
         )
 
         await self.clip_repo.delete_clips_by_task(self.db, task_id)
@@ -635,10 +677,14 @@ class TaskService:
         output_path = trim_clip_file(
             input_path, Path(self.config.temp_dir) / "clips", start_offset, end_offset
         )
-        clip_duration = max(0.1, clip["duration"] - start_offset - end_offset)
-
-        start_seconds = parse_timestamp_to_seconds(clip["start_time"]) + start_offset
-        end_seconds = start_seconds + clip_duration
+        source_ranges = self._get_clip_source_ranges(clip)
+        trimmed_ranges = trim_source_ranges(source_ranges, start_offset, end_offset)
+        clip_duration = max(0.1, total_source_duration(trimmed_ranges))
+        bounds = source_range_bounds(trimmed_ranges)
+        if not bounds:
+            raise ValueError("Trimmed clip has no remaining source mapping")
+        start_seconds, end_seconds = bounds
+        save_clip_source_ranges(output_path, trimmed_ranges)
 
         new_start = self._seconds_to_mmss(start_seconds)
         new_end = self._seconds_to_mmss(end_seconds)
@@ -670,19 +716,26 @@ class TaskService:
             input_path, Path(self.config.temp_dir) / "clips", split_time
         )
 
-        start_seconds = parse_timestamp_to_seconds(clip["start_time"])
         clamped_split = max(0.2, min(split_time, float(clip["duration"]) - 0.2))
-        split_abs = start_seconds + clamped_split
-        end_seconds = parse_timestamp_to_seconds(clip["end_time"])
+        source_ranges = self._get_clip_source_ranges(clip)
+        first_ranges, second_ranges = split_source_ranges(source_ranges, clamped_split)
+        first_bounds = source_range_bounds(first_ranges)
+        second_bounds = source_range_bounds(second_ranges)
+        if not first_bounds or not second_bounds:
+            raise ValueError("Split clip has invalid source mapping")
+        save_clip_source_ranges(first_path, first_ranges)
+        save_clip_source_ranges(second_path, second_ranges)
+        first_duration = max(0.1, total_source_duration(first_ranges))
+        second_duration = max(0.1, total_source_duration(second_ranges))
 
         await self.clip_repo.update_clip(
             self.db,
             clip_id,
             first_path.name,
             str(first_path),
-            clip["start_time"],
-            self._seconds_to_mmss(split_abs),
-            clamped_split,
+            self._seconds_to_mmss(first_bounds[0]),
+            self._seconds_to_mmss(first_bounds[1]),
+            first_duration,
             clip.get("text") or "",
         )
 
@@ -691,9 +744,9 @@ class TaskService:
             task_id=task_id,
             filename=second_path.name,
             file_path=str(second_path),
-            start_time=self._seconds_to_mmss(split_abs),
-            end_time=self._seconds_to_mmss(end_seconds),
-            duration=max(0.1, end_seconds - split_abs),
+            start_time=self._seconds_to_mmss(second_bounds[0]),
+            end_time=self._seconds_to_mmss(second_bounds[1]),
+            duration=second_duration,
             text=clip.get("text") or "",
             relevance_score=clip.get("relevance_score", 0.5),
             reasoning=clip.get("reasoning") or "Split from original clip",
@@ -726,9 +779,19 @@ class TaskService:
             Path(self.config.temp_dir) / "clips",
         )
 
-        start_time = ordered[0]["start_time"]
-        end_time = ordered[-1]["end_time"]
-        duration = sum(float(c.get("duration", 0.0)) for c in ordered)
+        merged_ranges = []
+        for clip in ordered:
+            merged_ranges.extend(self._get_clip_source_ranges(clip))
+        merged_bounds = source_range_bounds(merged_ranges)
+        if merged_bounds:
+            start_time = self._seconds_to_mmss(merged_bounds[0])
+            end_time = self._seconds_to_mmss(merged_bounds[1])
+            duration = total_source_duration(merged_ranges)
+            save_clip_source_ranges(merged_path, merged_ranges)
+        else:
+            start_time = ordered[0]["start_time"]
+            end_time = ordered[-1]["end_time"]
+            duration = sum(float(c.get("duration", 0.0)) for c in ordered)
         text = " ".join((c.get("text") or "").strip() for c in ordered if c.get("text"))
 
         first = ordered[0]
@@ -772,6 +835,7 @@ class TaskService:
             position,
             highlight_words,
         )
+        copy_clip_source_ranges(input_path, output_path)
 
         await self.clip_repo.update_clip(
             self.db,
@@ -795,3 +859,68 @@ class TaskService:
         minutes = total // 60
         secs = total % 60
         return f"{minutes:02d}:{secs:02d}"
+
+    @staticmethod
+    def _get_clip_source_ranges(clip: Dict[str, Any]) -> list[tuple[float, float]]:
+        file_path = clip.get("file_path")
+        if isinstance(file_path, str) and file_path:
+            persisted = load_clip_source_ranges(Path(file_path))
+            if persisted:
+                return persisted
+
+        start_seconds = parse_timestamp_to_seconds(clip["start_time"])
+        end_seconds = parse_timestamp_to_seconds(clip["end_time"])
+        return [(start_seconds, end_seconds)]
+
+    async def _load_task_source_settings(self, task_id: str) -> Dict[str, Any]:
+        defaults = {
+            "output_format": "vertical",
+            "add_subtitles": True,
+            **normalize_clip_cleanup_settings(),
+        }
+        redis_client = redis.Redis(
+            host=self.config.redis_host,
+            port=self.config.redis_port,
+            decode_responses=True,
+        )
+        try:
+            payload = await redis_client.get(f"task_source:{task_id}")
+        except Exception as exc:
+            logger.warning(
+                "Falling back to default task source settings for task %s: %s",
+                task_id,
+                exc,
+            )
+            return defaults
+        finally:
+            try:
+                await redis_client.close()
+            except Exception:
+                pass
+
+        if not payload:
+            return defaults
+
+        try:
+            parsed = json.loads(payload)
+        except json.JSONDecodeError:
+            return defaults
+
+        output_format = parsed.get("output_format", defaults["output_format"])
+        if output_format not in {"vertical", "original"}:
+            output_format = defaults["output_format"]
+
+        add_subtitles = parsed.get("add_subtitles", defaults["add_subtitles"])
+        if not isinstance(add_subtitles, bool):
+            add_subtitles = defaults["add_subtitles"]
+
+        return {
+            "output_format": output_format,
+            "add_subtitles": add_subtitles,
+            **normalize_clip_cleanup_settings(
+                parsed.get("cut_long_pauses"),
+                parsed.get("pause_threshold_ms"),
+                parsed.get("remove_filler_words"),
+                parsed.get("filtered_words"),
+            ),
+        }

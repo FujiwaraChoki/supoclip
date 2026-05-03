@@ -96,6 +96,10 @@ interface TaskDetails {
   font_color?: string;
   caption_template?: string;
   include_broll?: boolean;
+  cut_long_pauses?: boolean;
+  pause_threshold_ms?: number;
+  remove_filler_words?: boolean;
+  filtered_words?: string[];
 }
 
 interface FontOption {
@@ -133,6 +137,10 @@ export default function TaskPage() {
   const [projectFontColor, setProjectFontColor] = useState("#FFFFFF");
   const [projectCaptionTemplate, setProjectCaptionTemplate] = useState("default");
   const [projectIncludeBroll, setProjectIncludeBroll] = useState(false);
+  const [projectCutLongPauses, setProjectCutLongPauses] = useState(false);
+  const [projectPauseThresholdMs, setProjectPauseThresholdMs] = useState("900");
+  const [projectRemoveFillerWords, setProjectRemoveFillerWords] = useState(false);
+  const [projectFilteredWords, setProjectFilteredWords] = useState("");
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
@@ -143,6 +151,8 @@ export default function TaskPage() {
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const taskApiUrl = "/api/tasks";
+  const getClipUrl = (videoUrl: string) =>
+    videoUrl.startsWith("/api/") ? videoUrl : `/api${videoUrl}`;
 
   const buildSupportError = useCallback(async (response: Response, fallbackMessage: string) => {
     const parsed = await parseApiError(response, fallbackMessage);
@@ -186,6 +196,10 @@ export default function TaskPage() {
         setProjectFontColor(taskData.font_color || "#FFFFFF");
         setProjectCaptionTemplate(taskData.caption_template || "default");
         setProjectIncludeBroll(Boolean(taskData.include_broll));
+        setProjectCutLongPauses(Boolean(taskData.cut_long_pauses));
+        setProjectPauseThresholdMs(String(taskData.pause_threshold_ms || 900));
+        setProjectRemoveFillerWords(Boolean(taskData.remove_filler_words));
+        setProjectFilteredWords((taskData.filtered_words || []).join(", "));
 
         // Fetch clips if task is completed or processing (incremental clips)
         if (taskData.status === "completed" || taskData.status === "processing") {
@@ -546,6 +560,14 @@ export default function TaskPage() {
     const parsedSize = Number(projectFontSize || "24");
     const safeFontSize = Number.isFinite(parsedSize) ? Math.max(12, Math.min(72, Math.round(parsedSize))) : 24;
     const normalizedColor = /^#[0-9A-Fa-f]{6}$/.test(projectFontColor) ? projectFontColor : "#FFFFFF";
+    const parsedPauseThreshold = Number(projectPauseThresholdMs || "900");
+    const safePauseThreshold = Number.isFinite(parsedPauseThreshold)
+      ? Math.max(250, Math.min(3000, Math.round(parsedPauseThreshold)))
+      : 900;
+    const normalizedFilteredWords = projectFilteredWords
+      .split(",")
+      .map((word) => word.trim().toLowerCase())
+      .filter(Boolean);
 
     setIsApplyingSettings(true);
     try {
@@ -560,6 +582,10 @@ export default function TaskPage() {
           font_color: normalizedColor,
           caption_template: projectCaptionTemplate,
           include_broll: projectIncludeBroll,
+          cut_long_pauses: projectCutLongPauses,
+          pause_threshold_ms: safePauseThreshold,
+          remove_filler_words: projectRemoveFillerWords,
+          filtered_words: normalizedFilteredWords,
           apply_to_existing: true,
         }),
       });
@@ -834,7 +860,7 @@ export default function TaskPage() {
                     <CardContent className="p-0">
                       <div className="flex flex-col lg:flex-row">
                         <div className="relative flex-shrink-0 bg-black rounded-lg overflow-hidden m-3">
-                          <DynamicVideoPlayer src={`${apiUrl}${clip.video_url}`} poster="/placeholder-video.jpg" />
+                          <DynamicVideoPlayer src={getClipUrl(clip.video_url)} poster="/placeholder-video.jpg" />
                         </div>
                         <div className="p-6 flex-1">
                           <div className="flex items-start justify-between mb-4">
@@ -872,7 +898,7 @@ export default function TaskPage() {
                             </div>
                           )}
                           <Button size="sm" variant="outline" asChild>
-                            <a href={`${apiUrl}${clip.video_url}`} download={clip.filename}>
+                            <a href={getClipUrl(clip.video_url)} download={clip.filename}>
                               <Download className="w-4 h-4" />
                               Download
                             </a>
@@ -1052,6 +1078,55 @@ export default function TaskPage() {
                     />
                     Include B-roll
                   </label>
+
+                  <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">Clip cleanup</div>
+                      <div className="text-xs text-gray-500">Apply silence and filler-word cuts to regenerated clips.</div>
+                    </div>
+
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={projectCutLongPauses}
+                        onChange={(e) => setProjectCutLongPauses(e.target.checked)}
+                        className="rounded"
+                      />
+                      Cut long pauses
+                    </label>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-gray-500">Pause threshold (ms)</label>
+                      <Input
+                        type="number"
+                        min={250}
+                        max={3000}
+                        step={50}
+                        value={projectPauseThresholdMs}
+                        onChange={(e) => setProjectPauseThresholdMs(e.target.value)}
+                        disabled={!projectCutLongPauses}
+                      />
+                    </div>
+
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={projectRemoveFillerWords}
+                        onChange={(e) => setProjectRemoveFillerWords(e.target.checked)}
+                        className="rounded"
+                      />
+                      Remove filler words
+                    </label>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-gray-500">Extra filtered words or phrases</label>
+                      <Input
+                        value={projectFilteredWords}
+                        onChange={(e) => setProjectFilteredWords(e.target.value)}
+                        placeholder="basically, literally, to be honest"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <SheetFooter>
@@ -1075,7 +1150,7 @@ export default function TaskPage() {
                   <div className="flex flex-col lg:flex-row">
                     {/* Video Player */}
                     <div className="relative flex-shrink-0 bg-black rounded-lg overflow-hidden m-3">
-                      <DynamicVideoPlayer src={`${apiUrl}${clip.video_url}`} poster="/placeholder-video.jpg" />
+                      <DynamicVideoPlayer src={getClipUrl(clip.video_url)} poster="/placeholder-video.jpg" />
                     </div>
 
                     {/* Clip Details */}
@@ -1203,7 +1278,7 @@ export default function TaskPage() {
 
                       <div className="flex gap-2">
                         <Button size="sm" variant="outline" asChild>
-                          <a href={`${apiUrl}${clip.video_url}`} download={clip.filename}>
+                          <a href={getClipUrl(clip.video_url)} download={clip.filename}>
                             <Download className="w-4 h-4" />
                             Download
                           </a>

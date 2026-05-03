@@ -40,18 +40,18 @@ arq src.workers.tasks.WorkerSettings
 
 ```bash
 cd frontend
-npm install
-npm run dev          # Dev server with Turbopack
-npm run build        # Prisma generate + Next.js build
-npm run lint
+pnpm install
+pnpm run dev          # Dev server with Turbopack
+pnpm run build        # Prisma generate + Next.js build
+pnpm run lint
 ```
 
 ### Waitlist
 
 ```bash
 cd waitlist
-bun install          # Uses bun, not npm
-bun run dev
+pnpm install
+pnpm run dev
 ```
 
 ### No tests

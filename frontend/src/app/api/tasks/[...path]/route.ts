@@ -30,6 +30,12 @@ async function proxyTaskRequest(
       ...(request.headers.get("accept")
         ? { Accept: request.headers.get("accept") as string }
         : {}),
+      ...(request.headers.get("range")
+        ? { Range: request.headers.get("range") as string }
+        : {}),
+      ...(request.headers.get("if-range")
+        ? { "If-Range": request.headers.get("if-range") as string }
+        : {}),
     },
     body,
     cache: "no-store",

@@ -48,6 +48,9 @@ class Config:
         self.self_host = self._get_bool_env("SELF_HOST", True)
         self.monetization_enabled = not self.self_host
         self.backend_auth_secret = self._get_optional_env("BACKEND_AUTH_SECRET")
+        self.allow_unsigned_backend_auth = self._get_bool_env(
+            "ALLOW_UNSIGNED_BACKEND_AUTH", False
+        )
         self.auth_signature_ttl_seconds = int(
             os.getenv("AUTH_SIGNATURE_TTL_SECONDS", "300")
         )

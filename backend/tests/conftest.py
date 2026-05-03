@@ -1,5 +1,8 @@
 import os
 import sys
+import time
+import hmac
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -81,6 +84,8 @@ async def app(db_session):
     config = Config()
     config.self_host = True
     config.monetization_enabled = False
+    config.backend_auth_secret = "test-backend-auth-secret"
+    config.allow_unsigned_backend_auth = False
     config.redis_host = os.getenv("REDIS_HOST", "127.0.0.1")
     config.redis_port = int(os.getenv("REDIS_PORT", "6379"))
 
@@ -99,4 +104,15 @@ async def client(app):
 
 @pytest.fixture()
 def auth_headers():
-    return {"x-supoclip-user-id": "user-1"}
+    user_id = "user-1"
+    timestamp = str(int(time.time()))
+    payload = f"{user_id}:{timestamp}".encode("utf-8")
+    signature = hmac.new(
+        b"test-backend-auth-secret", payload, hashlib.sha256
+    ).hexdigest()
+
+    return {
+        "x-supoclip-user-id": user_id,
+        "x-supoclip-ts": timestamp,
+        "x-supoclip-signature": signature,
+    }
