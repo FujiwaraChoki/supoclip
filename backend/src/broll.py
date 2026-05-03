@@ -9,10 +9,9 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
-from .config import Config
+from .config import get_config
 
 logger = logging.getLogger(__name__)
-config = Config()
 
 PEXELS_API_URL = "https://api.pexels.com/videos/search"
 PEXELS_VIDEO_URL = "https://api.pexels.com/videos/videos"
@@ -59,7 +58,8 @@ async def search_broll_videos(
     Returns:
         List of video results from Pexels
     """
-    if not config.pexels_api_key:
+    runtime_config = get_config()
+    if not runtime_config.pexels_api_key:
         logger.warning("Pexels API key not configured")
         return []
 
@@ -74,7 +74,7 @@ async def search_broll_videos(
                     "per_page": per_page
                 },
                 headers={
-                    "Authorization": config.pexels_api_key
+                    "Authorization": runtime_config.pexels_api_key
                 },
                 timeout=30.0
             )
@@ -232,7 +232,7 @@ async def fetch_broll_for_opportunities(
     Returns:
         List of B-roll suggestions with download paths
     """
-    if not config.pexels_api_key:
+    if not get_config().pexels_api_key:
         logger.warning("Pexels API key not configured, skipping B-roll fetch")
         return []
 

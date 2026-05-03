@@ -1,25 +1,32 @@
 from dotenv import load_dotenv
 import os
 
+from .runtime_settings import get_cached_setting, setting_prefers_admin
+
 load_dotenv()
 
 _config_override = None
+LOCAL_OLLAMA_BASE_URL = "http://localhost:11434/v1"
+DOCKER_OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
 
 
 class Config:
     def __init__(self):
-        self.openai_api_key = self._get_optional_env("OPENAI_API_KEY")
-        self.anthropic_api_key = self._get_optional_env("ANTHROPIC_API_KEY")
-        self.google_api_key = self._get_optional_env("GOOGLE_API_KEY")
-        self.youtube_data_api_key = self._get_optional_env("YOUTUBE_DATA_API_KEY")
-        self.ollama_base_url = self._get_optional_env("OLLAMA_BASE_URL")
-        self.ollama_api_key = self._get_optional_env("OLLAMA_API_KEY")
+        self.openai_api_key = self._get_runtime_setting("OPENAI_API_KEY")
+        self.anthropic_api_key = self._get_runtime_setting("ANTHROPIC_API_KEY")
+        self.google_api_key = self._get_runtime_setting("GOOGLE_API_KEY")
+        self.youtube_data_api_key = self._get_runtime_setting("YOUTUBE_DATA_API_KEY")
+        self.ollama_base_url = self._get_runtime_setting("OLLAMA_BASE_URL")
+        self.ollama_api_key = self._get_runtime_setting("OLLAMA_API_KEY")
 
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
-        self.llm = self._get_optional_env("LLM") or self._infer_default_llm()
-        self.assembly_ai_api_key = os.getenv("ASSEMBLY_AI_API_KEY")
-        self.pexels_api_key = os.getenv("PEXELS_API_KEY")
-        self.apify_api_token = self._get_optional_env("APIFY_API_TOKEN")
+        self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
+        self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
+        self.pexels_api_key = self._get_runtime_setting("PEXELS_API_KEY")
+        self.apify_api_token = self._get_runtime_setting("APIFY_API_TOKEN")
+        self.youtube_download_provider = self._normalize_youtube_download_provider(
+            os.getenv("YOUTUBE_DOWNLOAD_PROVIDER", "yt_dlp")
+        )
         self.youtube_metadata_provider = self._normalize_youtube_metadata_provider(
             os.getenv("YOUTUBE_METADATA_PROVIDER", "yt_dlp")
         )
@@ -87,6 +94,28 @@ class Config:
         normalized = value.strip()
         return normalized or None
 
+    @classmethod
+    def _get_runtime_setting(cls, name: str):
+        env_value = cls._get_optional_env(name)
+        admin_value = get_cached_setting(name)
+        if admin_value and setting_prefers_admin(name):
+            return admin_value
+        return env_value or admin_value
+
+    def as_runtime_settings(self) -> dict[str, str | None]:
+        return {
+            "ASSEMBLY_AI_API_KEY": self.assembly_ai_api_key,
+            "LLM": self.llm,
+            "OPENAI_API_KEY": self.openai_api_key,
+            "GOOGLE_API_KEY": self.google_api_key,
+            "ANTHROPIC_API_KEY": self.anthropic_api_key,
+            "OLLAMA_BASE_URL": self.ollama_base_url,
+            "OLLAMA_API_KEY": self.ollama_api_key,
+            "YOUTUBE_DATA_API_KEY": self.youtube_data_api_key,
+            "APIFY_API_TOKEN": self.apify_api_token,
+            "PEXELS_API_KEY": self.pexels_api_key,
+        }
+
     @staticmethod
     def _get_bool_env(name: str, default: bool) -> bool:
         value = os.getenv(name)
@@ -120,8 +149,24 @@ class Config:
             return "youtube_data_api"
         return "yt_dlp"
 
+    @staticmethod
+    def _normalize_youtube_download_provider(value: str | None) -> str:
+        normalized = (value or "").strip().lower().replace("-", "_")
+        if normalized == "apify":
+            return "apify"
+        return "yt_dlp"
+
     def resolve_youtube_data_api_key(self) -> str | None:
         return self.youtube_data_api_key or self.google_api_key
+
+    def resolve_ollama_base_url(self) -> str:
+        return self.ollama_base_url or self._default_ollama_base_url()
+
+    @staticmethod
+    def _default_ollama_base_url() -> str:
+        if os.path.exists("/.dockerenv"):
+            return DOCKER_OLLAMA_BASE_URL
+        return LOCAL_OLLAMA_BASE_URL
 
     def _infer_default_llm(self) -> str:
         """

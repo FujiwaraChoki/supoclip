@@ -45,6 +45,7 @@ async def process_video_task(
         Dict with processing results
     """
     from ..database import AsyncSessionLocal
+    from ..runtime_settings import load_runtime_settings_cache
     from ..services.task_service import TaskService
     from ..workers.progress import ProgressTracker
 
@@ -55,6 +56,7 @@ async def process_video_task(
     progress = ProgressTracker(ctx["redis"], task_id)
 
     async with AsyncSessionLocal() as db:
+        await load_runtime_settings_cache(db)
         task_service = TaskService(db)
 
         try:

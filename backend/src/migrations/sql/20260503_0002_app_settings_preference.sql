@@ -1,0 +1,2 @@
+ALTER TABLE app_settings
+ADD COLUMN IF NOT EXISTS prefer_admin_value BOOLEAN NOT NULL DEFAULT false;

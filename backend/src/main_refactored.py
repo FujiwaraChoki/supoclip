@@ -19,7 +19,8 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import Config, get_config, set_config_override
-from .database import close_db, configure_database, get_db, init_db
+from .database import AsyncSessionLocal, close_db, configure_database, get_db, init_db
+from .runtime_settings import load_runtime_settings_cache
 from .workers.job_queue import JobQueue
 from .api.routes import tasks
 from .api.routes.admin import router as admin_router
@@ -41,8 +42,12 @@ def create_app(
     session_maker=None,
     queue_adapter=JobQueue,
 ):
-    runtime_config = config or get_config()
-    set_config_override(runtime_config)
+    if config is None:
+        set_config_override(None)
+        runtime_config = get_config()
+    else:
+        runtime_config = config
+        set_config_override(runtime_config)
     if session_maker is not None:
         configure_database(
             session_maker=session_maker,
@@ -56,6 +61,9 @@ def create_app(
         try:
             await init_db()
             logger.info("✅ Database initialized")
+            async with AsyncSessionLocal() as db:
+                await load_runtime_settings_cache(db)
+            logger.info("✅ Runtime settings loaded")
 
             await queue_adapter.get_pool()
             logger.info("✅ Job queue initialized")

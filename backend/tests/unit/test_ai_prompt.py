@@ -1,4 +1,13 @@
-from src.ai import build_transcript_analysis_prompt, transcript_analysis_system_prompt
+from types import SimpleNamespace
+
+from pydantic_ai.models.ollama import OllamaModel
+
+from src.ai import (
+    _build_transcript_model,
+    _get_missing_llm_key_error,
+    build_transcript_analysis_prompt,
+    transcript_analysis_system_prompt,
+)
 
 
 def test_system_prompt_enforces_grounding_rules():
@@ -39,3 +48,33 @@ def test_build_transcript_analysis_prompt_mentions_broll_only_when_enabled():
 
     assert "B-roll opportunities" not in without_broll
     assert "B-roll opportunities" in with_broll
+
+
+def test_ollama_llm_builds_native_ollama_model():
+    runtime_config = SimpleNamespace(
+        llm="ollama:gpt-oss:20b",
+        ollama_api_key=None,
+        resolve_ollama_base_url=lambda: "http://ollama.example/v1",
+    )
+
+    model = _build_transcript_model(runtime_config)
+
+    assert isinstance(model, OllamaModel)
+    assert model.model_name == "gpt-oss:20b"
+    assert model.base_url == "http://ollama.example/v1/"
+
+
+def test_llm_validation_rejects_unsupported_or_incomplete_model_names():
+    runtime_config = SimpleNamespace(
+        google_api_key=None,
+        openai_api_key=None,
+        anthropic_api_key=None,
+    )
+
+    assert "Unsupported LLM provider" in _get_missing_llm_key_error(
+        "local:model", runtime_config
+    )
+    assert "missing a model name" in _get_missing_llm_key_error(
+        "ollama:", runtime_config
+    )
+    assert _get_missing_llm_key_error("ollama:gpt-oss:20b", runtime_config) is None

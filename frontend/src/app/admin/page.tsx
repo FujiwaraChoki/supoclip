@@ -3,7 +3,12 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { AdminUserToggle } from "@/components/admin/admin-user-toggle";
+import {
+  RuntimeSettingsForm,
+  type RuntimeSetting,
+} from "@/components/admin/runtime-settings-form";
 import { Badge } from "@/components/ui/badge";
+import { fetchBackend } from "@/server/backend-api";
 
 const ACTIVE_TASK_STATUSES = ["queued", "processing", "pending"];
 
@@ -46,8 +51,30 @@ export default async function AdminPage({
   }
 
   const { user: selectedUserId } = await searchParams;
+  const adminUserId = session.user.id;
+
+  async function loadRuntimeSettings(): Promise<{
+    settings: RuntimeSetting[];
+    error: string | null;
+  }> {
+    try {
+      const response = await fetchBackend("/admin/runtime-settings", {
+        method: "GET",
+        userId: adminUserId,
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        return { settings: [], error: "Unable to load runtime settings." };
+      }
+      const payload = (await response.json()) as { settings?: RuntimeSetting[] };
+      return { settings: payload.settings ?? [], error: null };
+    } catch {
+      return { settings: [], error: "Unable to reach the backend settings API." };
+    }
+  }
 
   const [
+    runtimeSettings,
     totalUsers,
     adminUsers,
     totalTasks,
@@ -60,6 +87,7 @@ export default async function AdminPage({
     selectedUser,
     selectedUserTasks,
   ] = await Promise.all([
+    loadRuntimeSettings(),
     prisma.user.count(),
     prisma.user.count({ where: { is_admin: true } }),
     prisma.task.count(),
@@ -194,6 +222,18 @@ export default async function AdminPage({
           <p className="text-xs uppercase tracking-wide text-gray-500">Currently processing</p>
           <p className="mt-2 text-2xl font-semibold text-black">{activeTasks}</p>
         </div>
+      </section>
+
+      <section className="mt-8 rounded-lg border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 px-4 py-3">
+          <h2 className="text-lg font-medium">Runtime Settings</h2>
+          <p className="text-sm text-gray-600">Configure provider keys and model settings without editing env files.</p>
+        </div>
+        {runtimeSettings.error ? (
+          <div className="px-4 py-5 text-sm text-red-700">{runtimeSettings.error}</div>
+        ) : (
+          <RuntimeSettingsForm settings={runtimeSettings.settings} />
+        )}
       </section>
 
       <section className="mt-8 rounded-lg border border-gray-200 bg-white">

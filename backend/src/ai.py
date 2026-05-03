@@ -9,31 +9,49 @@ import logging
 import re
 
 from pydantic_ai import Agent
-from pydantic import BaseModel, Field
+from pydantic_ai.models import Model
+from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.providers.ollama import OllamaProvider
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
-from .config import Config
+from .config import Config, get_config
+from .runtime_settings import apply_settings_to_process_env
 
 logger = logging.getLogger(__name__)
-config = Config()
 
 
 class ViralityAnalysis(BaseModel):
     """Detailed virality breakdown for a segment."""
 
     hook_score: int = Field(
-        description="How strong is the opening hook (0-25)", ge=0, le=25
+        default=15,
+        description="How strong is the opening hook (0-25)",
+        ge=0,
+        le=25,
     )
     engagement_score: int = Field(
-        description="How engaging/entertaining is the content (0-25)", ge=0, le=25
+        default=15,
+        description="How engaging/entertaining is the content (0-25)",
+        ge=0,
+        le=25,
     )
     value_score: int = Field(
-        description="Educational/informational value (0-25)", ge=0, le=25
+        default=15,
+        description="Educational/informational value (0-25)",
+        ge=0,
+        le=25,
     )
     shareability_score: int = Field(
-        description="Likelihood of being shared (0-25)", ge=0, le=25
+        default=15,
+        description="Likelihood of being shared (0-25)",
+        ge=0,
+        le=25,
     )
     total_score: int = Field(
-        description="Combined virality score (0-100)", ge=0, le=100
+        default=60,
+        description="Combined virality score (0-100)",
+        ge=0,
+        le=100,
     )
     hook_type: Optional[
         Literal["question", "statement", "statistic", "story", "contrast", "none"]
@@ -41,7 +59,14 @@ class ViralityAnalysis(BaseModel):
         default="none",
         description="Type of hook: question, statement, statistic, story, contrast, or none",
     )
-    virality_reasoning: str = Field(description="Explanation of the virality score")
+    virality_reasoning: str = Field(
+        default="The model did not provide a detailed virality breakdown.",
+        description="Explanation of the virality score",
+    )
+
+
+def _default_virality_analysis() -> ViralityAnalysis:
+    return ViralityAnalysis()
 
 
 class TranscriptSegment(BaseModel):
@@ -50,32 +75,62 @@ class TranscriptSegment(BaseModel):
     start_time: str = Field(description="Start timestamp in MM:SS format")
     end_time: str = Field(description="End timestamp in MM:SS format")
     text: str = Field(
+        validation_alias=AliasChoices("text", "segment"),
         description=(
             "Transcript text taken only from the selected timestamp range. "
             "Keep it verbatim or near-verbatim, and do not paraphrase or merge non-contiguous lines."
         )
     )
     relevance_score: float = Field(
+        default=0.75,
         description="Relevance score from 0.0 to 1.0", ge=0.0, le=1.0
     )
     reasoning: str = Field(
+        default="Selected by the AI model as a clip candidate.",
         description=(
             "Brief factual explanation of why this exact segment works as a clip. "
             "Base it only on the provided transcript content."
         )
     )
-    virality: ViralityAnalysis = Field(description="Detailed virality score breakdown")
+    virality: ViralityAnalysis = Field(
+        default_factory=_default_virality_analysis,
+        description="Detailed virality score breakdown",
+    )
 
 
 class BRollOpportunity(BaseModel):
     """Identifies an opportunity to insert B-roll footage."""
 
-    timestamp: str = Field(description="When to insert B-roll (MM:SS format)")
-    duration: float = Field(
-        description="How long to show B-roll (2-5 seconds)", ge=2.0, le=5.0
+    timestamp: str = Field(
+        default="00:00",
+        validation_alias=AliasChoices("timestamp", "segment_start_time", "start_time"),
+        description="When to insert B-roll (MM:SS format)",
     )
-    search_term: str = Field(description="Keyword to search for B-roll footage")
-    context: str = Field(description="What's being discussed at this point")
+    duration: float = Field(
+        default=3.0,
+        description="How long to show B-roll (2-5 seconds)",
+        ge=2.0,
+        le=5.0,
+    )
+    search_term: str = Field(
+        default="related visual",
+        validation_alias=AliasChoices("search_term", "broll", "visual", "query"),
+        description="Keyword to search for B-roll footage",
+    )
+    context: str = Field(
+        default="Suggested B-roll opportunity from the model.",
+        validation_alias=AliasChoices("context", "description"),
+        description="What's being discussed at this point",
+    )
+
+    @field_validator("search_term", "context", mode="before")
+    @classmethod
+    def _coerce_textish_value(cls, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, list):
+            return ", ".join(str(item) for item in value if item is not None)
+        return str(value)
 
 
 class TranscriptAnalysis(BaseModel):
@@ -194,25 +249,48 @@ Find 3-7 compelling segments that would work well as standalone clips. Quality o
 
 # Lazy-loaded agent to avoid import-time failures when API keys aren't set
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
+_transcript_agent_signature: Optional[tuple[str | None, ...]] = None
+
+SUPPORTED_LLM_PROVIDERS = {"google", "google-gla", "openai", "anthropic", "ollama"}
 
 
-def _get_missing_llm_key_error(model_name: str) -> Optional[str]:
+def _split_llm_name(model_name: str) -> tuple[str, str | None]:
+    if ":" not in model_name:
+        return model_name.strip().lower(), None
+
+    provider, provider_model_name = model_name.split(":", 1)
+    return provider.strip().lower(), provider_model_name.strip() or None
+
+
+def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optional[str]:
     """Return a clear configuration error when the selected LLM key is missing."""
-    provider = model_name.split(":", 1)[0].strip().lower()
+    provider, provider_model_name = _split_llm_name(model_name)
 
-    if provider in {"google", "google-gla"} and not config.google_api_key:
+    if provider not in SUPPORTED_LLM_PROVIDERS:
+        return (
+            f"Unsupported LLM provider '{provider}'. "
+            "Use google-gla:*, openai:*, anthropic:*, or ollama:*."
+        )
+
+    if not provider_model_name:
+        return (
+            "Selected LLM is missing a model name. "
+            "Use the format provider:model, for example ollama:gpt-oss:20b."
+        )
+
+    if provider in {"google", "google-gla"} and not runtime_config.google_api_key:
         return (
             "Selected LLM provider is Google, but GOOGLE_API_KEY is not set. "
             "Set GOOGLE_API_KEY or set LLM to openai:* / anthropic:* / ollama:* with the matching API key."
         )
 
-    if provider == "openai" and not config.openai_api_key:
+    if provider == "openai" and not runtime_config.openai_api_key:
         return (
             "Selected LLM provider is OpenAI, but OPENAI_API_KEY is not set. "
             "Set OPENAI_API_KEY or choose another provider with a matching API key."
         )
 
-    if provider == "anthropic" and not config.anthropic_api_key:
+    if provider == "anthropic" and not runtime_config.anthropic_api_key:
         return (
             "Selected LLM provider is Anthropic, but ANTHROPIC_API_KEY is not set. "
             "Set ANTHROPIC_API_KEY or choose another provider with a matching API key."
@@ -226,19 +304,55 @@ def _get_missing_llm_key_error(model_name: str) -> Optional[str]:
     return None
 
 
+def _build_transcript_model(runtime_config: Config) -> Model | str:
+    provider, provider_model_name = _split_llm_name(runtime_config.llm)
+    if provider != "ollama":
+        return runtime_config.llm
+
+    if not provider_model_name:
+        raise RuntimeError(
+            "Selected LLM provider is Ollama, but no model name was provided. "
+            "Use the format ollama:<model>, for example ollama:gpt-oss:20b."
+        )
+
+    return OllamaModel(
+        provider_model_name,
+        provider=OllamaProvider(
+            base_url=runtime_config.resolve_ollama_base_url(),
+            api_key=runtime_config.ollama_api_key,
+        ),
+    )
+
+
 def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
     """Get or create the transcript analysis agent (lazy initialization)."""
-    global _transcript_agent
-    if _transcript_agent is None:
-        config_error = _get_missing_llm_key_error(config.llm)
+    global _transcript_agent, _transcript_agent_signature
+    runtime_config = get_config()
+    provider, _ = _split_llm_name(runtime_config.llm)
+    signature = (
+        runtime_config.llm,
+        runtime_config.openai_api_key,
+        runtime_config.google_api_key,
+        runtime_config.anthropic_api_key,
+        runtime_config.ollama_base_url,
+        runtime_config.ollama_api_key,
+    )
+    if _transcript_agent is None or _transcript_agent_signature != signature:
+        apply_settings_to_process_env(runtime_config.as_runtime_settings())
+        config_error = _get_missing_llm_key_error(runtime_config.llm, runtime_config)
         if config_error:
             raise RuntimeError(config_error)
 
         _transcript_agent = Agent[None, TranscriptAnalysis](
-            model=config.llm,
-            result_type=TranscriptAnalysis,
+            model=_build_transcript_model(runtime_config),
+            output_type=TranscriptAnalysis,
             system_prompt=transcript_analysis_system_prompt,
+            # Some local Ollama/OpenAI-compatible endpoints reject the structured
+            # retry message as content:null. The schema accepts common local
+            # model omissions, so prefer validating the first response directly.
+            output_retries=0 if provider == "ollama" else 2,
         )
+        _transcript_agent_signature = signature
     return _transcript_agent
 
 
@@ -294,7 +408,7 @@ async def get_most_relevant_parts_by_transcript(
             )
         )
 
-        analysis = result.data
+        analysis = result.output
         logger.info(
             f"AI analysis found {len(analysis.most_relevant_segments)} segments"
         )

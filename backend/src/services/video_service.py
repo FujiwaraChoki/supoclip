@@ -29,10 +29,9 @@ from ..clip_source_map import (
     save_clip_source_ranges,
 )
 from ..ai import get_most_relevant_parts_by_transcript
-from ..config import Config
+from ..config import get_config
 
 logger = logging.getLogger(__name__)
-config = Config()
 UPLOAD_URL_PREFIX = "upload://"
 
 
@@ -61,7 +60,7 @@ class VideoService:
         """Resolve uploaded-video references without exposing server filesystem paths."""
         if url.startswith(UPLOAD_URL_PREFIX):
             filename = Path(url.removeprefix(UPLOAD_URL_PREFIX)).name
-            return Path(config.temp_dir) / "uploads" / filename
+            return Path(get_config().temp_dir) / "uploads" / filename
         raise ValueError("Only upload:// references are allowed for local video sources")
 
     @staticmethod
@@ -102,8 +101,9 @@ class VideoService:
         """
         logger.info(f"Generating transcript for: {video_path}")
         speech_model = "best"
+        runtime_config = get_config()
         if processing_mode == "fast":
-            speech_model = config.fast_mode_transcript_model
+            speech_model = runtime_config.fast_mode_transcript_model
 
         transcript = await run_in_thread(get_video_transcript, video_path, speech_model)
         logger.info(f"Transcript generated: {len(transcript)} characters")
@@ -141,7 +141,7 @@ class VideoService:
         add_subtitles: False skips subtitles; with original format uses ffmpeg stream copy (no re-encode).
         """
         logger.info(f"Creating {len(segments)} video clips subtitles={add_subtitles}")
-        clips_output_dir = Path(config.temp_dir) / "clips"
+        clips_output_dir = Path(get_config().temp_dir) / "clips"
         clips_output_dir.mkdir(parents=True, exist_ok=True)
 
         clips_info = await run_in_thread(
@@ -318,6 +318,7 @@ class VideoService:
                           Signature: async def callback(progress: int, message: str, status: str)
         """
         try:
+            runtime_config = get_config()
             # Step 1: Get video path (download or use existing)
             if should_cancel and await should_cancel():
                 raise Exception("Task cancelled")
@@ -329,8 +330,8 @@ class VideoService:
                 video_info = await async_get_youtube_video_info(url, task_id=task_id)
                 if video_info:
                     duration = video_info.get("duration", 0)
-                    if duration and duration > config.max_video_duration:
-                        mins = config.max_video_duration // 60
+                    if duration and duration > runtime_config.max_video_duration:
+                        mins = runtime_config.max_video_duration // 60
                         raise Exception(
                             f"Video is too long ({duration // 60} min). "
                             f"Maximum allowed duration is {mins} minutes."
@@ -346,8 +347,8 @@ class VideoService:
 
             # Post-download duration guard (catches cases where preflight info was unavailable)
             file_duration = VideoService._get_file_duration(video_path)
-            if file_duration and file_duration > config.max_video_duration:
-                mins = config.max_video_duration // 60
+            if file_duration and file_duration > runtime_config.max_video_duration:
+                mins = runtime_config.max_video_duration // 60
                 raise Exception(
                     f"Video is too long ({int(file_duration) // 60} min). "
                     f"Maximum allowed duration is {mins} minutes."
@@ -434,7 +435,7 @@ class VideoService:
                     )
 
             if processing_mode == "fast":
-                segments_json = segments_json[: config.fast_mode_max_clips]
+                segments_json = segments_json[: runtime_config.fast_mode_max_clips]
 
             return {
                 "segments": segments_json,

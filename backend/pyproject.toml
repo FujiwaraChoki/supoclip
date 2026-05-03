@@ -9,7 +9,7 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn>=0.27.0",
     "openai-whisper>=20250625",
-    "pydantic-ai>=0.4.9",
+    "pydantic-ai>=1.89.1",
     "setuptools-rust>=1.11.1",
     "asyncpg>=0.29.0",
     "sqlalchemy>=2.0.25",
@@ -31,6 +31,7 @@ dependencies = [
     "redis>=5.0.0",
     "resend>=2.13.0",
     "requests>=2.32.0",
+    "cryptography>=42.0.0",
 ]
 
 [dependency-groups]

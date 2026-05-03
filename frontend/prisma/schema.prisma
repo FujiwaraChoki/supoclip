@@ -50,8 +50,23 @@ model User {
   tasks         Task[]
   sessions      Session[]
   accounts      Account[]
+  app_settings  AppSetting[]
 
   @@map("users")
+}
+
+model AppSetting {
+  setting_key     String   @id @db.VarChar(100)
+  encrypted_value String
+  prefer_admin_value Boolean @default(false)
+  updated_by      String?  @db.VarChar(36)
+  created_at      DateTime @default(now()) @db.Timestamptz
+  updated_at      DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  user            User?    @relation(fields: [updated_by], references: [id], onDelete: SetNull)
+
+  @@index([updated_by])
+  @@map("app_settings")
 }
 
 model Task {

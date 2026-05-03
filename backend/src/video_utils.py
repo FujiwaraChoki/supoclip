@@ -27,14 +27,13 @@ import assemblyai as aai
 import srt
 from datetime import timedelta
 
-from .config import Config
+from .config import get_config
 from .clip_cleanup import DEFAULT_FILTERED_WORDS, clip_cleanup_enabled
 from .clip_source_map import normalize_source_ranges, save_clip_source_ranges
 from .caption_templates import get_template, CAPTION_TEMPLATES
 from .font_registry import find_font_path
 
 logger = logging.getLogger(__name__)
-config = Config()
 TRANSCRIPT_CACHE_SCHEMA_VERSION = 2
 
 
@@ -97,7 +96,7 @@ def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
     logger.info(f"Getting transcript for: {video_path}")
 
     # Configure AssemblyAI
-    aai.settings.api_key = config.assembly_ai_api_key
+    aai.settings.api_key = get_config().assembly_ai_api_key
     transcriber = aai.Transcriber()
 
     # Request word-level timestamps for precise subtitle sync
