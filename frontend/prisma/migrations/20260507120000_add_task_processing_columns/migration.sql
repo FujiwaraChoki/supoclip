@@ -1,0 +1,10 @@
+ALTER TABLE "tasks"
+ADD COLUMN IF NOT EXISTS "progress" INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS "progress_message" TEXT,
+ADD COLUMN IF NOT EXISTS "caption_template" VARCHAR(50) DEFAULT 'default',
+ADD COLUMN IF NOT EXISTS "include_broll" BOOLEAN DEFAULT false;
+
+ALTER TABLE "sources"
+ADD COLUMN IF NOT EXISTS "url" VARCHAR(1000);
+
+UPDATE "tasks" SET "progress" = 0 WHERE "progress" IS NULL;

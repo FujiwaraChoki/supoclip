@@ -122,6 +122,10 @@ class Task(Base):
     status: Mapped[str] = mapped_column(
         String(20), server_default=sql_text("'pending'"), nullable=False
     )
+    progress: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, server_default=sql_text("'0'")
+    )
+    progress_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Font customization fields
     font_family: Mapped[Optional[str]] = mapped_column(

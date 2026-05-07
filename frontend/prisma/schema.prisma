@@ -75,12 +75,16 @@ model Task {
   source_id            String?
   generated_clips_ids  String[]
   status               String    @default("pending") @db.VarChar(20)
+  progress             Int?      @default(0)
+  progress_message     String?
   completion_notification_sent_at DateTime? @db.Timestamptz
 
   // Font customization fields
   font_family          String?   @default("TikTokSans-Regular") @db.VarChar(100)
   font_size            Int?      @default(24)
   font_color           String?   @default("#FFFFFF") @db.VarChar(7)
+  caption_template     String?   @default("default") @db.VarChar(50)
+  include_broll        Boolean?  @default(false)
 
   created_at           DateTime  @default(now()) @db.Timestamptz
   updated_at           DateTime  @default(now()) @updatedAt @db.Timestamptz
@@ -100,6 +104,7 @@ model Source {
   id         String   @id @default(uuid())
   type       String   @db.VarChar(20)
   title      String   @db.VarChar(500)
+  url        String?  @db.VarChar(1000)
   created_at DateTime @default(now()) @db.Timestamptz
   updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
 
