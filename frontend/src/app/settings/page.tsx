@@ -159,7 +159,15 @@ export default function SettingsPage() {
             }
           : {}),
       });
-      const data = await response.json();
+      const responseText = await response.text();
+      let data: { url?: string; error?: string } = {};
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          data = { error: responseText };
+        }
+      }
 
       if (!response.ok || !data.url) {
         throw new Error(data.error || "Unable to open billing");
