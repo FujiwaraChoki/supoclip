@@ -31,14 +31,14 @@ class SubscriptionEmailService:
             html=(
                 f"<p>Hi {first_name},</p>"
                 "<p>Thanks for subscribing to SupoClip.</p>"
-                "<p>Your Pro plan is now active, and you can jump back in anytime to create more clips.</p>"
+                "<p>Your paid plan is now active, and you can jump back in anytime to create more clips.</p>"
                 "<p>We’re excited to have you with us.</p>"
                 "<p>Team SupoClip</p>"
             ),
             text=(
                 f"Hi {first_name},\n\n"
                 "Thanks for subscribing to SupoClip.\n\n"
-                "Your Pro plan is now active, and you can jump back in anytime to create more clips.\n\n"
+                "Your paid plan is now active, and you can jump back in anytime to create more clips.\n\n"
                 "We’re excited to have you with us.\n\n"
                 "Team SupoClip"
             ),

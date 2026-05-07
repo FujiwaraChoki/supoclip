@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { signOut, useSession } from "@/lib/auth-client";
+import { formatBillingPlanName, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
 import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail } from "lucide-react";
@@ -48,7 +49,7 @@ export default function SettingsPage() {
   const { data: session, isPending } = useSession();
   const isAdmin = Boolean((session?.user as { is_admin?: boolean } | undefined)?.is_admin);
 
-  const proPriceMonthly = process.env.NEXT_PUBLIC_PRO_PRICE_MONTHLY || "9.99";
+  const paidPlans = getPublicBillingPlans();
 
   // Load available fonts from backend and inject them into the page
   useEffect(() => {
@@ -140,22 +141,33 @@ export default function SettingsPage() {
     fetchBillingSummary();
   }, [session?.user?.id]);
 
-  const handleBillingAction = async () => {
+  const handleBillingAction = async (selectedPlan?: BillingPlanId) => {
     if (!billingSummary?.monetization_enabled) return;
 
-    const route = billingSummary.plan === "pro" ? "/api/billing/portal" : "/api/billing/checkout";
+    const isPaid = isPaidBillingPlan(billingSummary.plan);
+    const route = isPaid ? "/api/billing/portal" : "/api/billing/checkout";
+    const body = !isPaid && selectedPlan ? JSON.stringify({ plan: selectedPlan }) : undefined;
 
     try {
       setIsBillingActionLoading(true);
-      const response = await fetch(route, { method: "POST" });
+      const response = await fetch(route, {
+        method: "POST",
+        ...(body
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body,
+            }
+          : {}),
+      });
       const data = await response.json();
 
       if (!response.ok || !data.url) {
         throw new Error(data.error || "Unable to open billing");
       }
 
-      track(billingSummary.plan === "pro" ? "billing_portal_opened" : "billing_checkout_started", {
+      track(isPaid ? "billing_portal_opened" : "billing_checkout_started", {
         plan: billingSummary.plan,
+        selected_plan: selectedPlan,
       });
       window.location.href = data.url;
     } catch (billingError) {
@@ -461,8 +473,8 @@ export default function SettingsPage() {
               <div className="border rounded-lg p-4 bg-gray-50 space-y-3">
                 <div>
                   <h3 className="text-lg font-semibold text-black">Billing</h3>
-                  {billingSummary.plan !== "pro" && (
-                    <p className="text-sm text-gray-600">Video processing requires Pro (${proPriceMonthly}/month).</p>
+                  {!isPaidBillingPlan(billingSummary.plan) && (
+                    <p className="text-sm text-gray-600">Video processing requires a paid plan.</p>
                   )}
                   <p className="text-sm text-gray-600">
                     {billingSummary.upgrade_required
@@ -471,24 +483,40 @@ export default function SettingsPage() {
                       ? `${billingSummary.usage_count} generations in this billing period`
                       : `${billingSummary.usage_count}/${billingSummary.usage_limit} generations used this period`}
                   </p>
-                  <p className="text-sm text-gray-500 capitalize">
-                    Plan: {billingSummary.plan} ({billingSummary.subscription_status})
+                  <p className="text-sm text-gray-500">
+                    Plan: {formatBillingPlanName(billingSummary.plan)} ({billingSummary.subscription_status})
                   </p>
                 </div>
 
-                <Button
-                  type="button"
-                  variant={billingSummary.plan === "pro" ? "outline" : "default"}
-                  onClick={handleBillingAction}
-                  disabled={isBillingActionLoading}
-                  className="w-full"
-                >
-                  {isBillingActionLoading
-                    ? "Loading..."
-                    : billingSummary.plan === "pro"
-                      ? "Manage Billing"
-                      : `Upgrade to Pro ($${proPriceMonthly}/mo)`}
-                </Button>
+                {isPaidBillingPlan(billingSummary.plan) ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleBillingAction()}
+                    disabled={isBillingActionLoading}
+                    className="w-full"
+                  >
+                    {isBillingActionLoading ? "Loading..." : "Manage Billing"}
+                  </Button>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {paidPlans.map((plan) => (
+                      <Button
+                        key={plan.id}
+                        type="button"
+                        variant={plan.highlighted ? "default" : "outline"}
+                        onClick={() => handleBillingAction(plan.id)}
+                        disabled={isBillingActionLoading}
+                        className="h-auto min-h-12 flex-col gap-0.5 py-2"
+                      >
+                        <span>{isBillingActionLoading ? "Loading..." : plan.cta}</span>
+                        <span className="text-xs font-normal opacity-80">
+                          ${plan.priceMonthly}/mo · {plan.generationLimit} generations
+                        </span>
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

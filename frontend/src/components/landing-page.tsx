@@ -24,12 +24,12 @@ import {
   ChevronDown,
   ExternalLink,
   Check,
-  Infinity,
   Zap,
   Menu,
   X,
 } from "lucide-react";
 import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
+import { getPublicBillingPlans } from "@/lib/billing-plans";
 
 const HOSTED_APP_URL = "https://supoclip.com";
 
@@ -116,12 +116,6 @@ const FEATURES = [
 ];
 
 function getPlans() {
-  const proPriceMonthly = process.env.NEXT_PUBLIC_PRO_PRICE_MONTHLY || "9.99";
-  const proLimit = parseInt(process.env.NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT || "0", 10);
-
-  const proGenerationsLabel =
-    proLimit === 0 ? "Unlimited generations" : `${proLimit} generations per month`;
-
   return [
     {
       name: "Self-Hosted",
@@ -138,27 +132,24 @@ function getPlans() {
       cta: "View on GitHub",
       ctaHref: "https://github.com/FujiwaraChoki/supoclip",
       highlighted: false,
-      isUnlimited: false,
     },
-    {
-      name: "Pro",
-      price: `$${proPriceMonthly}`,
+    ...getPublicBillingPlans().map((plan) => ({
+      name: plan.name,
+      price: `$${plan.priceMonthly}`,
       period: "/month",
-      description: "For power users who clip daily and need more generations.",
+      description: plan.description,
       features: [
-        proGenerationsLabel,
+        `${plan.generationLimit} generations per month`,
         "Everything in Free",
         "B-Roll overlays",
         "Caption templates",
         "Platform export presets",
-        "Priority processing",
-        "Early access to new features",
+        ...(plan.id === "scale" ? ["Priority processing"] : ["Early access to new features"]),
       ],
-      cta: "Upgrade to Pro",
+      cta: plan.cta,
       ctaHref: "",
-      highlighted: true,
-      isUnlimited: proLimit === 0,
-    },
+      highlighted: plan.highlighted,
+    })),
   ];
 }
 
@@ -588,12 +579,12 @@ export default function LandingPage() {
               Simple pricing, no surprises
             </h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Start free. Upgrade when you need unlimited power.
+              Start free. Upgrade when you need more generations.
               Self-hosters get everything free, always.
             </p>
           </ScrollReveal>
 
-          <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto items-start">
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto items-start">
             {getPlans().map((plan, i) => (
               <ScrollReveal key={plan.name} delay={i * 0.12}>
                 <Card
@@ -666,14 +657,7 @@ export default function LandingPage() {
                                 : ""
                             }
                           >
-                            {plan.isUnlimited && feature.includes("Unlimited") ? (
-                              <span className="flex items-center gap-1.5 font-medium">
-                                <Infinity className="w-3.5 h-3.5" />
-                                {feature}
-                              </span>
-                            ) : (
-                              feature
-                            )}
+                            {feature}
                           </span>
                         </li>
                       ))}

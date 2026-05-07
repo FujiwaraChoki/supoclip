@@ -27,7 +27,8 @@ describe("/api/billing/webhook", () => {
     process.env = {
       ...env,
       STRIPE_WEBHOOK_SECRET: "whsec_test",
-      STRIPE_PRICE_ID: "price_test",
+      STRIPE_PRO_PRICE_ID: "price_pro",
+      STRIPE_SCALE_PRICE_ID: "price_scale",
     };
   });
 
@@ -159,5 +160,64 @@ describe("/api/billing/webhook", () => {
     expect(deleteEvent).not.toHaveBeenCalled();
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+
+  it("maps subscription updates to the Scale plan by Stripe price ID", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const stripe = {
+      webhooks: {
+        constructEvent: vi.fn().mockReturnValue({
+          id: "evt_4",
+          type: "customer.subscription.updated",
+          data: {
+            object: {
+              id: "sub_123",
+              customer: "cus_123",
+              status: "active",
+              trial_end: null,
+              items: {
+                data: [
+                  {
+                    price: { id: "price_scale" },
+                    current_period_start: 1770000000,
+                    current_period_end: 1772592000,
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      },
+    };
+
+    vi.mocked(getServerStripeClient).mockReturnValue(stripe as never);
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: {
+        create: vi.fn().mockResolvedValue({}),
+        delete: vi.fn().mockResolvedValue({}),
+      },
+      user: {
+        updateMany,
+      },
+    } as never);
+
+    const response = await POST(
+      new Request("http://localhost/api/billing/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          plan: "scale",
+          subscription_status: "active",
+          stripe_subscription_id: "sub_123",
+        }),
+      }),
+    );
   });
 });

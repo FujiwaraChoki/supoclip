@@ -124,8 +124,12 @@ These determine whether the app behaves like an open self-hosted product or a mo
 | `BACKEND_AUTH_SECRET` | unset in practice | Shared secret for trusted frontend-to-backend requests in hosted mode |
 | `AUTH_SIGNATURE_TTL_SECONDS` | `300` | Lifetime of backend request signatures |
 | `FREE_PLAN_TASK_LIMIT` | `10` | Hosted-mode free plan generation allowance |
-| `PRO_PLAN_TASK_LIMIT` | `0` | Hosted-mode pro allowance; `0` is unlimited |
-| `NEXT_PUBLIC_PRO_PRICE_MONTHLY` | `9.99` | Frontend display price for the pro plan |
+| `PRO_PLAN_TASK_LIMIT` | `50` | Hosted-mode Pro generation allowance |
+| `SCALE_PLAN_TASK_LIMIT` | `300` | Hosted-mode Scale generation allowance |
+| `NEXT_PUBLIC_PRO_PRICE_MONTHLY` | `10` | Frontend display price for the Pro plan |
+| `NEXT_PUBLIC_SCALE_PRICE_MONTHLY` | `50` | Frontend display price for the Scale plan |
+| `NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT` | `50` | Frontend display allowance for the Pro plan |
+| `NEXT_PUBLIC_SCALE_PLAN_TASK_LIMIT` | `300` | Frontend display allowance for the Scale plan |
 
 ### Stripe settings
 
@@ -135,7 +139,9 @@ Required when `SELF_HOST=false` and you want subscription management:
 |---|---|
 | `STRIPE_SECRET_KEY` | Server-side Stripe API access |
 | `STRIPE_WEBHOOK_SECRET` | Verifies Stripe webhook signatures |
-| `STRIPE_PRICE_ID` | Price identifier for the paid plan |
+| `STRIPE_PRO_PRICE_ID` | Price identifier for the Pro plan |
+| `STRIPE_SCALE_PRICE_ID` | Price identifier for the Scale plan |
+| `STRIPE_PRICE_ID` | Legacy fallback price identifier for the Pro plan |
 | `STRIPE_CHECKOUT_URL` | Optional fallback checkout URL |
 | `STRIPE_CUSTOMER_PORTAL_URL` | Optional fallback billing portal URL |
 
@@ -243,7 +249,14 @@ SELF_HOST=false
 BACKEND_AUTH_SECRET=replace_me
 STRIPE_SECRET_KEY=your_key
 STRIPE_WEBHOOK_SECRET=your_key
-STRIPE_PRICE_ID=price_xxx
+STRIPE_PRO_PRICE_ID=price_xxx
+STRIPE_SCALE_PRICE_ID=price_xxx
+PRO_PLAN_TASK_LIMIT=50
+SCALE_PLAN_TASK_LIMIT=300
+NEXT_PUBLIC_PRO_PRICE_MONTHLY=10
+NEXT_PUBLIC_SCALE_PRICE_MONTHLY=50
+NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT=50
+NEXT_PUBLIC_SCALE_PLAN_TASK_LIMIT=300
 RESEND_API_KEY=your_key
 RESEND_FROM_EMAIL="SupoClip <onboarding@your-domain.com>"
 ```

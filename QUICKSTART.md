@@ -112,7 +112,11 @@ If you enable hosted monetization with `SELF_HOST=false`, set these as well:
 | `BACKEND_AUTH_SECRET` | Shared secret used by frontend API routes to call the backend |
 | `STRIPE_SECRET_KEY` | Stripe server-side API key |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
-| `STRIPE_PRICE_ID` | Stripe price ID for the Pro subscription |
+| `STRIPE_PRO_PRICE_ID` | Stripe price ID for the $10 Pro subscription |
+| `STRIPE_SCALE_PRICE_ID` | Stripe price ID for the $50 Scale subscription |
+| `STRIPE_PRICE_ID` | Legacy fallback Stripe price ID for the Pro subscription |
+| `PRO_PLAN_TASK_LIMIT` | Pro monthly generation limit, usually `50` |
+| `SCALE_PLAN_TASK_LIMIT` | Scale monthly generation limit, usually `300` |
 | `RESEND_API_KEY` | Resend API key used to send subscription emails |
 | `RESEND_FROM_EMAIL` | Verified sender address used for subscription emails |
 

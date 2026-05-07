@@ -120,14 +120,14 @@ async def upload_font(
         user_id = _get_authenticated_user_id(request)
         billing_service = BillingService(db)
         summary = await billing_service.get_usage_summary(user_id)
-        pro_access = not summary.get("monetization_enabled") or (
-            summary.get("plan") == "pro"
+        paid_access = not summary.get("monetization_enabled") or (
+            summary.get("plan") in {"pro", "scale"}
             and summary.get("subscription_status") in {"active", "trialing"}
         )
-        if not pro_access:
+        if not paid_access:
             raise HTTPException(
                 status_code=403,
-                detail="Custom font uploads are available for Pro users only",
+                detail="Custom font uploads are available for paid plans only",
             )
 
         if not uploaded_file.filename:

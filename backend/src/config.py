@@ -62,7 +62,8 @@ class Config:
             os.getenv("AUTH_SIGNATURE_TTL_SECONDS", "300")
         )
         self.free_plan_task_limit = int(os.getenv("FREE_PLAN_TASK_LIMIT", "10"))
-        self.pro_plan_task_limit = int(os.getenv("PRO_PLAN_TASK_LIMIT", "0"))
+        self.pro_plan_task_limit = int(os.getenv("PRO_PLAN_TASK_LIMIT", "50"))
+        self.scale_plan_task_limit = int(os.getenv("SCALE_PLAN_TASK_LIMIT", "300"))
         self.cors_origins = self._get_csv_env(
             "CORS_ORIGINS",
             [

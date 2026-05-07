@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { signOut, useSession } from "@/lib/auth-client";
+import { formatBillingPlanName, isPaidBillingPlan } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import Link from "next/link";
@@ -361,11 +362,11 @@ export default function Home() {
 
   const canUploadCustomFonts =
     !billingSummary?.monetization_enabled ||
-    (billingSummary.plan === "pro" && ["active", "trialing"].includes(billingSummary.subscription_status));
+    (isPaidBillingPlan(billingSummary.plan) && ["active", "trialing"].includes(billingSummary.subscription_status));
   const generationRequiresUpgrade =
     Boolean(billingSummary?.monetization_enabled && !billingSummary.can_create_task);
   const generationGateMessage =
-    billingSummary?.reason || "Upgrade to Pro to process videos.";
+    billingSummary?.reason || "Choose a paid plan to process videos.";
   const generationControlsDisabled = isLoading || generationRequiresUpgrade;
 
   const handleSignOut = async () => {
@@ -555,12 +556,14 @@ export default function Home() {
                 <div className="flex items-center gap-2 mr-1">
                   <Badge
                     className={`text-[10px] px-1.5 py-0 h-5 ${
-                      billingSummary.plan === "pro" && !billingSummary.upgrade_required
+                      isPaidBillingPlan(billingSummary.plan) && !billingSummary.upgrade_required
                         ? "bg-stone-900 text-white"
                         : "bg-amber-100 text-amber-800 border border-amber-200"
                     }`}
                   >
-                    {billingSummary.plan === "pro" && !billingSummary.upgrade_required ? "Pro" : "Upgrade required"}
+                    {isPaidBillingPlan(billingSummary.plan) && !billingSummary.upgrade_required
+                      ? formatBillingPlanName(billingSummary.plan)
+                      : "Upgrade required"}
                   </Badge>
                   {!billingSummary.upgrade_required && (
                   <div className="flex items-center gap-1.5">
@@ -622,12 +625,14 @@ export default function Home() {
               {billingSummary?.monetization_enabled && (
                 <Badge
                   className={`text-[10px] px-1.5 py-0 h-5 ${
-                    billingSummary.plan === "pro" && !billingSummary.upgrade_required
+                    isPaidBillingPlan(billingSummary.plan) && !billingSummary.upgrade_required
                       ? "bg-stone-900 text-white"
                       : "bg-amber-100 text-amber-800 border border-amber-200"
                   }`}
                 >
-                  {billingSummary.plan === "pro" && !billingSummary.upgrade_required ? "Pro" : "Upgrade required"}
+                  {isPaidBillingPlan(billingSummary.plan) && !billingSummary.upgrade_required
+                    ? formatBillingPlanName(billingSummary.plan)
+                    : "Upgrade required"}
                 </Badge>
               )}
               <Button
@@ -671,7 +676,7 @@ export default function Home() {
               {billingSummary?.monetization_enabled && (
                 billingSummary.upgrade_required ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-                  <p className="text-xs font-medium text-amber-900">Upgrade to Pro to process videos.</p>
+                  <p className="text-xs font-medium text-amber-900">Choose a paid plan to process videos.</p>
                 </div>
                 ) : (
                 <div className="flex items-center gap-2 px-3 py-2">
@@ -809,7 +814,7 @@ export default function Home() {
               </h2>
               <p className="text-stone-500">
                 {generationRequiresUpgrade
-                  ? "Video processing is available on Pro."
+                  ? "Video processing is available on paid plans."
                   : "Paste a YouTube link or upload a video — AI handles the rest."}
               </p>
             </div>
@@ -820,7 +825,7 @@ export default function Home() {
                   <AlertCircle className="h-4 w-4 text-amber-600" />
                   <AlertDescription className="text-sm text-amber-900">
                     <span className="font-medium">{generationGateMessage}</span>{" "}
-                    Free accounts can browse SupoClip, but video generation requires Pro.
+                    Free accounts can browse SupoClip, but video generation requires a paid plan.
                     <Link href="/settings" className="ml-1 font-semibold underline underline-offset-2">
                       Upgrade in settings
                     </Link>.
@@ -1097,7 +1102,7 @@ export default function Home() {
                           </Button>
                         </div>
                         {!canUploadCustomFonts && (
-                          <p className="text-xs text-amber-700">Custom font upload is available on Pro plans.</p>
+                          <p className="text-xs text-amber-700">Custom font upload is available on paid plans.</p>
                         )}
                         <Input
                           type="text"
@@ -1281,7 +1286,7 @@ export default function Home() {
                   isLoading
                 }
               >
-                {isLoading ? "Processing..." : generationRequiresUpgrade ? "Upgrade to Pro to Process" : "Process Video"}
+                {isLoading ? "Processing..." : generationRequiresUpgrade ? "Choose a Paid Plan" : "Process Video"}
               </Button>
             </form>
           </div>

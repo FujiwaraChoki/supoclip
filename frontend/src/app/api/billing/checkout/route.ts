@@ -4,8 +4,9 @@ import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { monetizationEnabled } from "@/lib/monetization";
 import { getStripeClient } from "@/lib/stripe";
+import { getServerBillingPlan } from "@/server/billing-plans";
 
-export async function POST() {
+export async function POST(request: Request) {
   if (!monetizationEnabled) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -15,12 +16,27 @@ export async function POST() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const priceId = process.env.STRIPE_PRICE_ID;
+  let requestedPlan = "pro";
+  try {
+    const body = await request.json();
+    if (typeof body?.plan === "string") {
+      requestedPlan = body.plan;
+    }
+  } catch {
+    requestedPlan = "pro";
+  }
+
+  const billingPlan = getServerBillingPlan(requestedPlan);
+  if (!billingPlan) {
+    return NextResponse.json({ error: "Unknown billing plan" }, { status: 400 });
+  }
+
+  const priceId = billingPlan.priceId;
   if (!priceId) {
-    const fallbackUrl = process.env.STRIPE_CHECKOUT_URL;
+    const fallbackUrl = billingPlan.id === "pro" ? process.env.STRIPE_CHECKOUT_URL : null;
     if (!fallbackUrl) {
       return NextResponse.json(
-        { error: "STRIPE_PRICE_ID or STRIPE_CHECKOUT_URL must be configured" },
+        { error: `Stripe price is not configured for ${billingPlan.id}` },
         { status: 500 }
       );
     }
@@ -55,6 +71,7 @@ export async function POST() {
     customer: customerId,
     metadata: {
       userId: session.user.id,
+      plan: billingPlan.id,
     },
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${appUrl}/settings?billing=success`,

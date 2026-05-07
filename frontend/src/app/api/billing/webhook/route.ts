@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 import { monetizationEnabled } from "@/lib/monetization";
 import { fetchBackend } from "@/server/backend-api";
+import { getPlanIdForStripePrice, hasAnyConfiguredStripePrice } from "@/server/billing-plans";
 import { getPrismaClient } from "@/server/prisma";
 import { getServerStripeClient } from "@/server/stripe";
 import Stripe from "stripe";
 
 type SubscriptionEmailEvent = "subscribed" | "unsubscribed";
+const PAID_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 
 function toDate(unixSeconds: number | null | undefined): Date | null {
   if (!unixSeconds) {
@@ -15,12 +17,19 @@ function toDate(unixSeconds: number | null | undefined): Date | null {
   return new Date(unixSeconds * 1000);
 }
 
-function isProSubscription(subscription: Stripe.Subscription, expectedPriceId: string): boolean {
-  const hasExpectedPrice = subscription.items.data.some(
-    (item) => item.price?.id === expectedPriceId
-  );
+function getPaidSubscriptionPlan(subscription: Stripe.Subscription): "pro" | "scale" | null {
+  if (!PAID_SUBSCRIPTION_STATUSES.has(subscription.status)) {
+    return null;
+  }
 
-  return hasExpectedPrice && (subscription.status === "active" || subscription.status === "trialing");
+  for (const item of subscription.items.data) {
+    const plan = getPlanIdForStripePrice(item.price?.id);
+    if (plan) {
+      return plan;
+    }
+  }
+
+  return null;
 }
 
 function getSubscriptionPeriod(subscription: Stripe.Subscription): {
@@ -40,14 +49,14 @@ function getSubscriptionPeriod(subscription: Stripe.Subscription): {
   };
 }
 
-async function upsertSubscriptionState(subscription: Stripe.Subscription, expectedPriceId: string) {
+async function upsertSubscriptionState(subscription: Stripe.Subscription) {
   const prisma = getPrismaClient();
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
   const subscriptionId = subscription.id;
   const status = subscription.status;
   const { currentPeriodStart, currentPeriodEnd } = getSubscriptionPeriod(subscription);
 
-  const plan = isProSubscription(subscription, expectedPriceId) ? "pro" : "free";
+  const plan = getPaidSubscriptionPlan(subscription) || "free";
 
   await prisma.user.updateMany({
     where: { stripe_customer_id: customerId },
@@ -97,7 +106,7 @@ async function sendSubscriptionEmailBestEffort(
   }
 }
 
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session, expectedPriceId: string) {
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const prisma = getPrismaClient();
   if (session.mode !== "subscription") {
     return;
@@ -135,9 +144,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session, expecte
 
   const stripe = getServerStripeClient();
   const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-  await upsertSubscriptionState(subscription, expectedPriceId);
+  await upsertSubscriptionState(subscription);
 
-  if (userId && isProSubscription(subscription, expectedPriceId)) {
+  if (userId && getPaidSubscriptionPlan(subscription)) {
     await sendSubscriptionEmailBestEffort(userId, "subscribed");
   }
 }
@@ -177,9 +186,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Webhook secret is not configured" }, { status: 500 });
   }
 
-  const expectedPriceId = process.env.STRIPE_PRICE_ID;
-  if (!expectedPriceId) {
-    return NextResponse.json({ error: "STRIPE_PRICE_ID is not configured" }, { status: 500 });
+  if (!hasAnyConfiguredStripePrice()) {
+    return NextResponse.json({ error: "No Stripe prices are configured" }, { status: 500 });
   }
 
   const signature = request.headers.get("stripe-signature");
@@ -214,11 +222,11 @@ export async function POST(request: Request) {
 
   try {
     if (event.type === "checkout.session.completed") {
-      await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session, expectedPriceId);
+      await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
     }
 
     if (event.type === "customer.subscription.updated") {
-      await upsertSubscriptionState(event.data.object as Stripe.Subscription, expectedPriceId);
+      await upsertSubscriptionState(event.data.object as Stripe.Subscription);
     }
 
     if (event.type === "customer.subscription.deleted") {

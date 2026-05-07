@@ -199,6 +199,7 @@ For anything beyond local experimentation:
 - Decide whether you want self-host mode or monetized hosted mode before launch
 - Verify all callback URLs and origins match your deployed domain
 - If using DataFast, set `NEXT_PUBLIC_DATAFAST_DOMAIN` to the deployed root domain you want tracked
+- For hosted billing, create and verify both Stripe monthly prices before deploy: Pro at `$10/month` and Scale at `$50/month`
 
 ## Useful Commands
 

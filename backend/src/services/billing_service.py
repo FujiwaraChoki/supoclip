@@ -9,6 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Config, get_config
 
+PAID_PLAN_STATUSES = {"active", "trialing"}
+PAID_PLAN_LIMIT_CONFIG = {
+    "pro": "pro_plan_task_limit",
+    "scale": "scale_plan_task_limit",
+}
+
 
 class BillingLimitExceeded(Exception):
     def __init__(self, summary: dict[str, Any]):
@@ -119,7 +125,7 @@ class BillingService:
 
         plan = row["plan"]
         status = row["subscription_status"]
-        is_paid = plan == "pro" and status in {"active", "trialing"}
+        is_paid = plan in PAID_PLAN_LIMIT_CONFIG and status in PAID_PLAN_STATUSES
 
         if not is_paid:
             return {
@@ -134,10 +140,12 @@ class BillingService:
                 "remaining": 0,
                 "can_create_task": False,
                 "upgrade_required": True,
-                "reason": "Upgrade to Pro to process videos.",
+                "reason": "Choose a paid plan to process videos.",
             }
 
-        usage_limit = self.config.pro_plan_task_limit
+        usage_limit = int(
+            getattr(self.config, PAID_PLAN_LIMIT_CONFIG[plan])
+        )
         unlimited = usage_limit <= 0
         can_create = unlimited or usage_count < usage_limit
         remaining = None if unlimited else max(usage_limit - usage_count, 0)

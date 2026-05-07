@@ -186,7 +186,7 @@ Users can refine clips after generation:
 
 If monetization is enabled:
 
-- Free and pro limits can affect whether task creation is allowed
+- Free and paid-plan limits can affect whether task creation is allowed
 - The homepage and settings page surface billing state
 - Users can open checkout or the customer portal from the frontend
 
