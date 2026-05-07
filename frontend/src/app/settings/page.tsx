@@ -30,6 +30,7 @@ interface BillingSummary {
   usage_count: number;
   usage_limit: number | null;
   remaining: number | null;
+  upgrade_required: boolean;
 }
 
 export default function SettingsPage() {
@@ -461,10 +462,12 @@ export default function SettingsPage() {
                 <div>
                   <h3 className="text-lg font-semibold text-black">Billing</h3>
                   {billingSummary.plan !== "pro" && (
-                    <p className="text-sm text-gray-600">Pro plan: ${proPriceMonthly}/month</p>
+                    <p className="text-sm text-gray-600">Video processing requires Pro (${proPriceMonthly}/month).</p>
                   )}
                   <p className="text-sm text-gray-600">
-                    {billingSummary.usage_limit === null
+                    {billingSummary.upgrade_required
+                      ? "Current plan cannot create generations."
+                      : billingSummary.usage_limit === null
                       ? `${billingSummary.usage_count} generations in this billing period`
                       : `${billingSummary.usage_count}/${billingSummary.usage_limit} generations used this period`}
                   </p>

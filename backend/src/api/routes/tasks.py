@@ -275,7 +275,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             status_code=402,
             detail={
                 "code": "SUBSCRIPTION_REQUIRED",
-                "message": "Active subscription required to create tasks.",
+                "message": "Upgrade to Pro to process videos.",
                 "billing": e.summary,
             },
         )

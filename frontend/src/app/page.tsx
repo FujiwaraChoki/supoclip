@@ -362,6 +362,11 @@ export default function Home() {
   const canUploadCustomFonts =
     !billingSummary?.monetization_enabled ||
     (billingSummary.plan === "pro" && ["active", "trialing"].includes(billingSummary.subscription_status));
+  const generationRequiresUpgrade =
+    Boolean(billingSummary?.monetization_enabled && !billingSummary.can_create_task);
+  const generationGateMessage =
+    billingSummary?.reason || "Upgrade to Pro to process videos.";
+  const generationControlsDisabled = isLoading || generationRequiresUpgrade;
 
   const handleSignOut = async () => {
     await signOut();
@@ -391,8 +396,8 @@ export default function Home() {
     if (sourceType === "upload" && !fileRef.current) return;
     if (sourceType === "youtube" && !url.trim()) return;
     if (!session?.user?.id) return;
-    if (billingSummary?.monetization_enabled && !billingSummary.can_create_task) {
-      setError(billingSummary.reason || "Active subscription required to continue processing.");
+    if (generationRequiresUpgrade) {
+      setError(generationGateMessage);
       return;
     }
 
@@ -550,13 +555,14 @@ export default function Home() {
                 <div className="flex items-center gap-2 mr-1">
                   <Badge
                     className={`text-[10px] px-1.5 py-0 h-5 ${
-                      billingSummary.plan === "pro"
+                      billingSummary.plan === "pro" && !billingSummary.upgrade_required
                         ? "bg-stone-900 text-white"
-                        : "bg-stone-100 text-stone-600 border border-stone-200"
+                        : "bg-amber-100 text-amber-800 border border-amber-200"
                     }`}
                   >
-                    {billingSummary.plan === "pro" ? "Pro" : "Free"}
+                    {billingSummary.plan === "pro" && !billingSummary.upgrade_required ? "Pro" : "Upgrade required"}
                   </Badge>
+                  {!billingSummary.upgrade_required && (
                   <div className="flex items-center gap-1.5">
                     <div className="w-16 h-1.5 bg-stone-200 rounded-full overflow-hidden">
                       <div
@@ -579,6 +585,7 @@ export default function Home() {
                         : `${billingSummary.usage_count}`}
                     </span>
                   </div>
+                  )}
                 </div>
               )}
               <Link href="/list">
@@ -615,12 +622,12 @@ export default function Home() {
               {billingSummary?.monetization_enabled && (
                 <Badge
                   className={`text-[10px] px-1.5 py-0 h-5 ${
-                    billingSummary.plan === "pro"
+                    billingSummary.plan === "pro" && !billingSummary.upgrade_required
                       ? "bg-stone-900 text-white"
-                      : "bg-stone-100 text-stone-600 border border-stone-200"
+                      : "bg-amber-100 text-amber-800 border border-amber-200"
                   }`}
                 >
-                  {billingSummary.plan === "pro" ? "Pro" : "Free"}
+                  {billingSummary.plan === "pro" && !billingSummary.upgrade_required ? "Pro" : "Upgrade required"}
                 </Badge>
               )}
               <Button
@@ -662,6 +669,11 @@ export default function Home() {
 
               {/* Usage bar (mobile) */}
               {billingSummary?.monetization_enabled && (
+                billingSummary.upgrade_required ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-xs font-medium text-amber-900">Upgrade to Pro to process videos.</p>
+                </div>
+                ) : (
                 <div className="flex items-center gap-2 px-3 py-2">
                   <div className="flex-1 h-1.5 bg-stone-200 rounded-full overflow-hidden">
                     <div
@@ -681,9 +693,10 @@ export default function Home() {
                   <span className="text-xs text-stone-500 tabular-nums whitespace-nowrap">
                     {billingSummary.usage_limit
                       ? `${billingSummary.usage_count}/${billingSummary.usage_limit}`
-                      : `${billingSummary.usage_count}`}
+                    : `${billingSummary.usage_count}`}
                   </span>
                 </div>
+                )
               )}
 
               {/* Nav links */}
@@ -795,11 +808,26 @@ export default function Home() {
                 Create New Clip
               </h2>
               <p className="text-stone-500">
-                Paste a YouTube link or upload a video — AI handles the rest.
+                {generationRequiresUpgrade
+                  ? "Video processing is available on Pro."
+                  : "Paste a YouTube link or upload a video — AI handles the rest."}
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+              {generationRequiresUpgrade && (
+                <Alert className="border-amber-200 bg-amber-50">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-sm text-amber-900">
+                    <span className="font-medium">{generationGateMessage}</span>{" "}
+                    Free accounts can browse SupoClip, but video generation requires Pro.
+                    <Link href="/settings" className="ml-1 font-semibold underline underline-offset-2">
+                      Upgrade in settings
+                    </Link>.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {/* Source Type Tabs */}
               <div className="space-y-3">
                 <div className="flex gap-2">
@@ -811,7 +839,7 @@ export default function Home() {
                       fileRef.current = null;
                       if (fileInputRef.current) fileInputRef.current.value = "";
                     }}
-                    disabled={isLoading}
+                    disabled={generationControlsDisabled}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                       sourceType === "youtube"
                         ? "bg-stone-900 text-white shadow-sm"
@@ -824,7 +852,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setSourceType("upload")}
-                    disabled={isLoading}
+                    disabled={generationControlsDisabled}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                       sourceType === "upload"
                         ? "bg-stone-900 text-white shadow-sm"
@@ -846,14 +874,14 @@ export default function Home() {
                       placeholder="https://www.youtube.com/watch?v=..."
                       value={url}
                       onChange={(e) => setUrl(e.target.value)}
-                      disabled={isLoading}
+                      disabled={generationControlsDisabled}
                       className="h-14 pl-12 text-base rounded-xl border-stone-300 focus:border-stone-500 placeholder:text-stone-400"
                     />
                   </div>
                 ) : (
                   <div
                     className="relative border-2 border-dashed border-stone-300 rounded-xl p-8 text-center hover:border-stone-400 transition-colors cursor-pointer"
-                    onClick={() => !isLoading && fileInputRef.current?.click()}
+                    onClick={() => !generationControlsDisabled && fileInputRef.current?.click()}
                   >
                     <input
                       id="video-upload"
@@ -861,7 +889,7 @@ export default function Home() {
                       accept="video/*"
                       ref={fileInputRef}
                       onChange={handleFileChange}
-                      disabled={isLoading}
+                      disabled={generationControlsDisabled}
                       className="hidden"
                     />
                     <Upload className="w-8 h-8 text-stone-400 mx-auto mb-3" />
@@ -890,7 +918,7 @@ export default function Home() {
                     <label className="text-sm text-stone-600">
                       Caption Style
                     </label>
-                    <Select value={captionTemplate} onValueChange={handleTemplateChange} disabled={isLoading}>
+                    <Select value={captionTemplate} onValueChange={handleTemplateChange} disabled={generationControlsDisabled}>
                       <SelectTrigger className="w-full h-11">
                         <SelectValue>
                           {availableTemplates.find(t => t.id === captionTemplate)?.name || "Select style"}
@@ -924,7 +952,7 @@ export default function Home() {
                       <Switch
                         checked={includeBroll}
                         onCheckedChange={setIncludeBroll}
-                        disabled={isLoading}
+                        disabled={generationControlsDisabled}
                       />
                     </div>
                   )}
@@ -957,7 +985,7 @@ export default function Home() {
                     <Switch
                       checked={addSubtitles}
                       onCheckedChange={setAddSubtitles}
-                      disabled={isLoading}
+                      disabled={generationControlsDisabled}
                     />
                   </div>
 
@@ -975,7 +1003,7 @@ export default function Home() {
                       <Switch
                         checked={cutLongPauses}
                         onCheckedChange={setCutLongPauses}
-                        disabled={isLoading}
+                        disabled={generationControlsDisabled}
                       />
                     </div>
 
@@ -988,7 +1016,7 @@ export default function Home() {
                         step={50}
                         value={pauseThresholdMs}
                         onChange={(e) => setPauseThresholdMs(e.target.value)}
-                        disabled={isLoading || !cutLongPauses}
+                        disabled={generationControlsDisabled || !cutLongPauses}
                         placeholder="900"
                       />
                     </div>
@@ -1001,7 +1029,7 @@ export default function Home() {
                       <Switch
                         checked={removeFillerWords}
                         onCheckedChange={setRemoveFillerWords}
-                        disabled={isLoading}
+                        disabled={generationControlsDisabled}
                       />
                     </div>
 
@@ -1010,7 +1038,7 @@ export default function Home() {
                       <Input
                         value={filteredWords}
                         onChange={(e) => setFilteredWords(e.target.value)}
-                        disabled={isLoading}
+                        disabled={generationControlsDisabled}
                         placeholder="basically, literally, to be honest"
                       />
                     </div>
@@ -1062,7 +1090,7 @@ export default function Home() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            disabled={isLoading || isUploadingFont || !canUploadCustomFonts}
+                            disabled={generationControlsDisabled || isUploadingFont || !canUploadCustomFonts}
                             onClick={() => fontUploadInputRef.current?.click()}
                           >
                             {isUploadingFont ? "Uploading..." : "Upload Font"}
@@ -1076,9 +1104,9 @@ export default function Home() {
                           value={fontSearch}
                           onChange={(e) => setFontSearch(e.target.value)}
                           placeholder="Search fonts"
-                          disabled={isLoading}
+                          disabled={generationControlsDisabled}
                         />
-                        <Select value={fontFamily} onValueChange={setFontFamily} disabled={isLoading}>
+                        <Select value={fontFamily} onValueChange={setFontFamily} disabled={generationControlsDisabled}>
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="Select font" />
                           </SelectTrigger>
@@ -1119,7 +1147,7 @@ export default function Home() {
                               max={48}
                               min={12}
                               step={2}
-                              disabled={isLoading}
+                              disabled={generationControlsDisabled}
                               className="w-full"
                             />
                           </div>
@@ -1140,14 +1168,14 @@ export default function Home() {
                               type="color"
                               value={fontColor}
                               onChange={(e) => setFontColor(e.target.value)}
-                              disabled={isLoading}
+                              disabled={generationControlsDisabled}
                               className="w-10 h-8 rounded border border-stone-300 cursor-pointer disabled:cursor-not-allowed"
                             />
                             <Input
                               type="text"
                               value={fontColor}
                               onChange={(e) => setFontColor(e.target.value)}
-                              disabled={isLoading}
+                              disabled={generationControlsDisabled}
                               placeholder="#FFFFFF"
                               className="flex-1 h-8 text-xs"
                               pattern="^#[0-9A-Fa-f]{6}$"
@@ -1159,7 +1187,7 @@ export default function Home() {
                                 key={color}
                                 type="button"
                                 onClick={() => setFontColor(color)}
-                                disabled={isLoading}
+                                disabled={generationControlsDisabled}
                                 className="w-5 h-5 rounded border-2 border-stone-300 cursor-pointer hover:scale-110 transition-transform disabled:cursor-not-allowed"
                                 style={{ backgroundColor: color }}
                                 title={color}
@@ -1249,11 +1277,11 @@ export default function Home() {
                 disabled={
                   (sourceType === "youtube" && !url.trim()) ||
                   (sourceType === "upload" && !fileRef.current) ||
-                  (billingSummary?.monetization_enabled && !billingSummary.can_create_task) ||
+                  generationRequiresUpgrade ||
                   isLoading
                 }
               >
-                {isLoading ? "Processing..." : "Process Video"}
+                {isLoading ? "Processing..." : generationRequiresUpgrade ? "Upgrade to Pro to Process" : "Process Video"}
               </Button>
             </form>
           </div>

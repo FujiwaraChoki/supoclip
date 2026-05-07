@@ -23,7 +23,7 @@ class _FakeSession:
 
 
 @pytest.mark.asyncio
-async def test_billing_summary_allows_free_quota():
+async def test_billing_summary_requires_paid_subscription():
     row = type(
         "BillingRow",
         (),
@@ -43,36 +43,11 @@ async def test_billing_summary_allows_free_quota():
 
     summary = await service.get_usage_summary("user-1")
 
-    assert summary["can_create_task"] is True
-    assert summary["upgrade_required"] is False
-    assert summary["usage_limit"] == 10
-    assert summary["remaining"] == 8
-
-
-@pytest.mark.asyncio
-async def test_billing_summary_blocks_free_user_after_quota():
-    row = type(
-        "BillingRow",
-        (),
-        {
-            "plan": "free",
-            "subscription_status": "inactive",
-            "billing_period_start": datetime.now(timezone.utc),
-            "billing_period_end": datetime.now(timezone.utc),
-            "trial_ends_at": None,
-        },
-    )()
-    count_row = type("CountRow", (), {"total": 10})()
-    service = BillingService(_FakeSession([row, count_row]))  # type: ignore[arg-type]
-    service.config.self_host = False
-    service.config.monetization_enabled = True
-    service.config.free_plan_task_limit = 10
-
-    summary = await service.get_usage_summary("user-1")
-
     assert summary["can_create_task"] is False
     assert summary["upgrade_required"] is True
-    assert summary["reason"] == "Free plan usage limit reached"
+    assert summary["usage_limit"] == 0
+    assert summary["remaining"] == 0
+    assert summary["reason"] == "Upgrade to Pro to process videos."
 
 
 @pytest.mark.asyncio

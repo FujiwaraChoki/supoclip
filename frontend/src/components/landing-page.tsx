@@ -117,7 +117,6 @@ const FEATURES = [
 
 function getPlans() {
   const proPriceMonthly = process.env.NEXT_PUBLIC_PRO_PRICE_MONTHLY || "9.99";
-  const freeLimit = parseInt(process.env.NEXT_PUBLIC_FREE_PLAN_TASK_LIMIT || "10", 10);
   const proLimit = parseInt(process.env.NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT || "0", 10);
 
   const proGenerationsLabel =
