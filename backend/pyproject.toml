@@ -18,7 +18,6 @@ dependencies = [
     "yt-dlp>=2025.7.21",
     "whisper>=1.1.10",
     "greenlet>=2.0.0",
-    "moviepy>=2.2.1",
     "opencv-python>=4.8.0",
     "srt-equalizer>=0.1.10",
     "assemblyai>=0.35.0",

@@ -12,6 +12,17 @@ class _FailingRedisClient:
         return None
 
 
+class _RedisClient:
+    def __init__(self, payload: str):
+        self.payload = payload
+
+    async def get(self, _key: str):
+        return self.payload
+
+    async def close(self):
+        return None
+
+
 @pytest.mark.asyncio
 async def test_load_task_source_settings_falls_back_when_redis_fails(monkeypatch):
     monkeypatch.setattr(
@@ -79,3 +90,29 @@ def test_merge_task_source_metadata_preserves_existing_render_settings():
     assert merged["pause_threshold_ms"] == 1200
     assert merged["remove_filler_words"] is True
     assert merged["filtered_words"] == ["basically"]
+
+
+def test_merge_task_source_metadata_accepts_smart_vertical_modes():
+    merged = _merge_task_source_metadata(
+        {},
+        source_url="upload://demo.mp4",
+        source_type="video_url",
+        output_format="vertical_split",
+        add_subtitles=True,
+    )
+
+    assert merged["output_format"] == "vertical_split"
+
+
+@pytest.mark.asyncio
+async def test_load_task_source_settings_accepts_speaker_pan_mode(monkeypatch):
+    payload = '{"output_format": "vertical_pan", "add_subtitles": true}'
+    monkeypatch.setattr(
+        "src.services.task_service.redis.Redis",
+        lambda **_kwargs: _RedisClient(payload),
+    )
+
+    service = TaskService(db=None)
+    settings = await service._load_task_source_settings("task-123")
+
+    assert settings["output_format"] == "vertical_pan"

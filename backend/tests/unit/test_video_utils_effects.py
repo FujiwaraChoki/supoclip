@@ -1,133 +1,89 @@
-from types import SimpleNamespace
 from unittest.mock import patch
+from pathlib import Path
+
+import pytest
 
 from src import video_utils
 
 
-class FakeClip:
-    def __init__(self, name="clip", size=(240, 60), duration=1.0, audio=None):
-        self.name = name
-        self.size = size
-        self.duration = duration
-        self.audio = audio
-        self.effects = []
-        self.position = None
-        self.start = None
-        self.write_calls = []
-        self.closed = False
-        self.subclip_calls = []
-        self.audio_source = None
+def test_build_ass_subtitles_preserves_background_template(tmp_path):
+    video_path = tmp_path / "source.mp4"
+    video_path.with_suffix(".transcript_cache.json").write_text(
+        """
+        {
+          "version": 2,
+          "words": [
+            {"text": "quiet", "start": 0, "end": 400, "confidence": 0.99},
+            {"text": "caption", "start": 400, "end": 900, "confidence": 0.99}
+          ],
+          "utterances": [],
+          "text": "quiet caption"
+        }
+        """,
+        encoding="utf-8",
+    )
+    ass_path = tmp_path / "captions.ass"
 
-    def with_duration(self, duration):
-        self.duration = duration
-        return self
+    success = video_utils.build_assemblyai_ass_subtitles(
+        video_path,
+        clip_start=0.0,
+        clip_end=1.0,
+        video_width=1080,
+        video_height=1920,
+        output_ass_path=ass_path,
+        caption_template="minimal",
+        keep_ranges=[(0.0, 1.0)],
+    )
 
-    def with_start(self, start):
-        self.start = start
-        return self
-
-    def with_position(self, position):
-        self.position = position
-        return self
-
-    def with_effects(self, effects):
-        self.effects = effects
-        return self
-
-    def subclipped(self, start, end=None):
-        self.subclip_calls.append((start, end))
-        clip_duration = self.duration if end is None else end - start
-        return FakeClip(
-            name=f"{self.name}.subclip{len(self.subclip_calls)}",
-            size=self.size,
-            duration=clip_duration,
-            audio=self.audio,
-        )
-
-    def resized(self, size):
-        self.size = size
-        return self
-
-    def with_audio(self, audio):
-        self.audio_source = audio
-        self.audio = audio
-        return self
-
-    def write_videofile(self, *args, **kwargs):
-        self.write_calls.append((args, kwargs))
-
-    def close(self):
-        self.closed = True
+    content = ass_path.read_text(encoding="utf-8")
+    assert success is True
+    assert "Style: Default" in content
+    assert ",3," in content
+    assert "\\fad(150,150)" in content
 
 
-def test_create_fade_subtitles_uses_moviepy_effect_objects_for_background():
-    template = {
-        "font_size": 48,
-        "font_color": "#FFFFFF",
-        "position_y": 0.75,
-        "background": True,
-        "background_color": "#00000080",
-    }
-    relevant_words = [
-        {"text": "hello", "start": 0.0, "end": 0.4},
-        {"text": "world", "start": 0.4, "end": 1.0},
-    ]
-    text_clip = FakeClip(name="text", size=(280, 70))
-    background_clip = FakeClip(name="background", size=(300, 80))
+def test_prepare_audio_for_transcription_extracts_compact_mp3(tmp_path):
+    video_path = tmp_path / "source.mp4"
+    video_path.write_bytes(b"video")
+    commands = []
 
-    with (
-        patch("src.video_utils.VideoProcessor") as mock_processor,
-        patch("src.video_utils.TextClip", return_value=text_clip),
-        patch("src.video_utils.ColorClip", return_value=background_clip),
-        patch("src.video_utils.get_scaled_font_size", return_value=48),
-        patch("src.video_utils.get_subtitle_max_width", return_value=700),
-        patch("src.video_utils.get_safe_vertical_position", return_value=800),
-    ):
-        mock_processor.return_value = SimpleNamespace(font_path="font.ttf")
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
 
-        clips = video_utils.create_fade_subtitles(
-            relevant_words,
-            video_width=1080,
-            video_height=1920,
-            template=template,
-            font_family="TikTokSans-Regular",
-        )
+    def fake_run(command, timeout=900):
+        commands.append(command)
+        Path(command[-1]).write_bytes(b"audio")
+        return Result()
 
-    assert clips[0] is background_clip
-    assert [effect.__class__.__name__ for effect in background_clip.effects] == [
-        "CrossFadeIn",
-        "CrossFadeOut",
-    ]
-    assert all(hasattr(effect, "copy") for effect in background_clip.effects)
+    with patch("src.video_utils.run_ffmpeg_command", side_effect=fake_run):
+        audio_path = video_utils._prepare_audio_for_transcription(video_path)
+
+    assert audio_path.name == "source.assemblyai.mp3"
+    assert audio_path.read_bytes() == b"audio"
+    assert commands[0][0] == "ffmpeg"
+    assert "-vn" in commands[0]
+    assert "64k" in commands[0]
 
 
-def test_apply_transition_effect_preserves_current_clip_duration_and_boundary(tmp_path):
-    clip1 = FakeClip(name="clip1", size=(1080, 1920), duration=4.0, audio="audio1")
-    clip2 = FakeClip(name="clip2", size=(1080, 1920), duration=4.0, audio="audio2")
-    transition = FakeClip(name="transition", size=(720, 1280), duration=1.2)
-    intro_segment = FakeClip(name="intro", size=(1080, 1920), duration=1.2)
-    final_clip = FakeClip(name="final", size=(1080, 1920), duration=4.0)
+def test_apply_transition_effect_builds_ffmpeg_xfade_command(tmp_path):
+    commands = []
 
-    def fake_composite_video_clip(clips, size):
-        composite = intro_segment
-        composite.source_clips = clips
-        composite.size = size
-        return composite
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
 
-    concatenated_segments = []
-
-    def fake_concatenate_videoclips(clips, method):
-        concatenated_segments.append((clips, method))
-        return final_clip
+    def fake_run(command, timeout=900):
+        commands.append(command)
+        return Result()
 
     with (
-        patch("moviepy.VideoFileClip", side_effect=[clip1, clip2, transition]),
-        patch("moviepy.CompositeVideoClip", side_effect=fake_composite_video_clip),
-        patch("moviepy.concatenate_videoclips", side_effect=fake_concatenate_videoclips),
-        patch("src.video_utils.VideoProcessor") as mock_processor,
+        patch("src.video_utils.ffprobe_duration", side_effect=[4.0, 4.0]),
+        patch("src.video_utils.ffprobe_video_size", return_value=(1080, 1920)),
+        patch("src.video_utils.run_ffmpeg_command", side_effect=fake_run),
     ):
-        mock_processor.return_value.get_optimal_encoding_settings.return_value = {}
-
         success = video_utils.apply_transition_effect(
             tmp_path / "clip1.mp4",
             tmp_path / "clip2.mp4",
@@ -136,23 +92,12 @@ def test_apply_transition_effect_preserves_current_clip_duration_and_boundary(tm
         )
 
     assert success is True
-    assert clip1.subclip_calls == [(2.8, 4.0)]
-    assert clip2.subclip_calls == [(0, 1.2), (1.2, 4.0)]
-    assert [effect.__class__.__name__ for effect in intro_segment.source_clips[0].effects] == [
-        "FadeOut"
-    ]
-    assert [effect.__class__.__name__ for effect in intro_segment.source_clips[1].effects] == [
-        "FadeIn"
-    ]
-    assert all(
-        hasattr(effect, "copy")
-        for effect in intro_segment.source_clips[0].effects
-        + intro_segment.source_clips[1].effects
-    )
-    assert intro_segment.audio_source == "audio2"
-    assert len(concatenated_segments) == 1
-    assert len(concatenated_segments[0][0]) == 2
-    assert final_clip.write_calls
+    command = commands[0]
+    filter_graph = command[command.index("-filter_complex") + 1]
+    assert "xfade=transition=fade:duration=1.500:offset=0" in filter_graph
+    assert "trim=start=2.500:end=4.000" in filter_graph
+    assert "trim=start=1.500:end=4.000" in filter_graph
+    assert "-map" in command
 
 
 def test_create_clips_with_transitions_keeps_standalone_clip_exports(tmp_path):
@@ -181,3 +126,154 @@ def test_create_clips_with_transitions_keeps_standalone_clip_exports(tmp_path):
 
     assert result == clips_info
     mock_create.assert_called_once()
+
+
+def test_build_assemblyai_ass_subtitles_uses_cached_word_timings(tmp_path):
+    video_path = tmp_path / "source.mp4"
+    cache_path = video_path.with_suffix(".transcript_cache.json")
+    cache_path.write_text(
+        """
+        {
+          "version": 2,
+          "words": [
+            {"text": "hello", "start": 1000, "end": 1300, "confidence": 0.99},
+            {"text": "world", "start": 1300, "end": 1800, "confidence": 0.99}
+          ],
+          "utterances": [],
+          "text": "hello world"
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    ass_path = tmp_path / "captions.ass"
+    success = video_utils.build_assemblyai_ass_subtitles(
+        video_path,
+        clip_start=1.0,
+        clip_end=2.0,
+        video_width=1080,
+        video_height=1920,
+        output_ass_path=ass_path,
+        font_family="TikTokSans-Regular",
+        font_size=32,
+        font_color="#FFFFFF",
+        caption_template="default",
+        keep_ranges=[(1.0, 2.0)],
+    )
+
+    content = ass_path.read_text(encoding="utf-8")
+    assert success is True
+    assert "PlayResX: 1080" in content
+    assert "hello world" in content
+    assert "Dialogue:" in content
+
+
+def test_ass_font_name_uses_internal_font_family():
+    assert video_utils.ass_font_name("THEBOLDFONT") == "THE BOLD FONT (FREE VERSION)"
+
+
+def test_extend_keep_ranges_finishes_nearby_sentence(tmp_path):
+    video_path = tmp_path / "source.mp4"
+    video_path.with_suffix(".transcript_cache.json").write_text(
+        """
+        {
+          "version": 2,
+          "words": [
+            {"text": "One", "start": 15440, "end": 15760, "confidence": 0.99},
+            {"text": "has", "start": 15760, "end": 16040, "confidence": 0.99},
+            {"text": "depression", "start": 16040, "end": 16520, "confidence": 0.99},
+            {"text": "and", "start": 16520, "end": 16680, "confidence": 0.99},
+            {"text": "the", "start": 16680, "end": 16840, "confidence": 0.99},
+            {"text": "other", "start": 16840, "end": 17080, "confidence": 0.99},
+            {"text": "has", "start": 17080, "end": 17320, "confidence": 0.99},
+            {"text": "anger", "start": 17320, "end": 17680, "confidence": 0.99},
+            {"text": "issues.", "start": 17680, "end": 18000, "confidence": 0.99}
+          ],
+          "utterances": [],
+          "text": "One has depression and the other has anger issues."
+        }
+        """,
+        encoding="utf-8",
+    )
+
+    with patch("src.video_utils.ffprobe_duration", return_value=60.0):
+        ranges = video_utils.extend_keep_ranges_to_sentence_boundary(
+            video_path,
+            [(0.0, 16.0)],
+        )
+
+    assert ranges[0][0] == 0.0
+    assert ranges[0][1] == pytest.approx(18.35)
+
+
+def test_burn_ass_subtitles_passes_fontsdir_to_ffmpeg(tmp_path):
+    commands = []
+
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command, timeout=900):
+        commands.append(command)
+        return Result()
+
+    with patch("src.video_utils.run_ffmpeg_command", side_effect=fake_run):
+        success = video_utils.burn_ass_subtitles_ffmpeg(
+            tmp_path / "input.mp4",
+            tmp_path / "captions.ass",
+            tmp_path / "output.mp4",
+            fonts_dir=tmp_path / "fonts",
+        )
+
+    assert success is True
+    video_filter = commands[0][commands[0].index("-vf") + 1]
+    assert "fontsdir=" in video_filter
+    assert video_filter.endswith(",setsar=1")
+
+
+def test_ass_font_name_uses_internal_font_family_for_libass():
+    assert video_utils.ass_font_name("THEBOLDFONT") == "THE BOLD FONT (FREE VERSION)"
+
+
+def test_burn_ass_subtitles_passes_selected_fonts_dir(tmp_path):
+    commands = []
+
+    class Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def fake_run(command, timeout=900):
+        commands.append(command)
+        return Result()
+
+    with patch("src.video_utils.run_ffmpeg_command", side_effect=fake_run):
+        success = video_utils.burn_ass_subtitles_ffmpeg(
+            tmp_path / "input.mp4",
+            tmp_path / "captions.ass",
+            tmp_path / "output.mp4",
+            tmp_path / "fonts",
+        )
+
+    assert success is True
+    video_filter = commands[0][commands[0].index("-vf") + 1]
+    assert f"fontsdir={tmp_path / 'fonts'}" in video_filter
+    assert video_filter.endswith(",setsar=1")
+
+
+def test_build_clip_signal_summary_surfaces_hook_and_audio_peak(monkeypatch, tmp_path):
+    transcript = "\n".join(
+        [
+            "[00:00 - 00:04] Speaker A: This is normal setup",
+            "[00:05 - 00:08] Speaker B: Wait what happened?",
+            "[00:08 - 00:12] Speaker A: Nobody expected the result!",
+        ]
+    )
+    monkeypatch.setattr(video_utils, "detect_audio_peak_times", lambda _path: [6.0])
+
+    summary = video_utils.build_clip_signal_summary(tmp_path / "source.mp4", transcript)
+
+    assert "Wait what happened?" in summary
+    assert "audio energy peak" in summary
+    assert "question/hook" in summary

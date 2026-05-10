@@ -1,10 +1,13 @@
 from pathlib import Path
 from typing import Any
 import re
+import struct
 
 SUPPORTED_FONT_EXTENSIONS = (".ttf", ".otf")
 FONTS_DIR = Path(__file__).parent.parent / "fonts"
 USER_FONTS_DIR = FONTS_DIR / "users"
+TTF_NAME_ID_FONT_FAMILY = 1
+TTF_NAME_ID_FULL_NAME = 4
 
 
 def _display_name(font_stem: str) -> str:
@@ -86,6 +89,95 @@ def find_font_path(
         for font_path in USER_FONTS_DIR.glob(f"**/{requested}.*"):
             if font_path.suffix.lower() in SUPPORTED_FONT_EXTENSIONS:
                 return font_path
+
+    return None
+
+
+def _decode_ttf_name(raw_value: bytes, platform_id: int) -> str:
+    encodings = ["utf-16-be"] if platform_id in {0, 3} else ["mac_roman", "utf-8"]
+    for encoding in encodings:
+        try:
+            decoded = raw_value.decode(encoding).strip("\x00").strip()
+        except UnicodeDecodeError:
+            continue
+        if decoded:
+            return decoded
+    return ""
+
+
+def get_font_family_name(font_path: Path) -> str | None:
+    """Read a font's internal family name for renderers that match by metadata."""
+    try:
+        data = Path(font_path).read_bytes()
+        if len(data) < 12:
+            return None
+
+        num_tables = struct.unpack_from(">H", data, 4)[0]
+        name_table_offset = None
+        name_table_length = None
+        table_record_offset = 12
+        for table_index in range(num_tables):
+            record_offset = table_record_offset + table_index * 16
+            if record_offset + 16 > len(data):
+                return None
+            tag, _checksum, table_offset, table_length = struct.unpack_from(
+                ">4sIII", data, record_offset
+            )
+            if tag == b"name":
+                name_table_offset = table_offset
+                name_table_length = table_length
+                break
+
+        if name_table_offset is None or name_table_length is None:
+            return None
+        if name_table_offset + min(name_table_length, 6) > len(data):
+            return None
+
+        _format_selector, record_count, string_offset = struct.unpack_from(
+            ">HHH", data, name_table_offset
+        )
+        storage_start = name_table_offset + string_offset
+        candidates: dict[int, list[str]] = {
+            TTF_NAME_ID_FONT_FAMILY: [],
+            TTF_NAME_ID_FULL_NAME: [],
+        }
+
+        for record_index in range(record_count):
+            record_offset = name_table_offset + 6 + record_index * 12
+            if record_offset + 12 > len(data):
+                break
+            (
+                platform_id,
+                _encoding_id,
+                language_id,
+                name_id,
+                value_length,
+                value_offset,
+            ) = struct.unpack_from(">HHHHHH", data, record_offset)
+            if name_id not in candidates:
+                continue
+            value_start = storage_start + value_offset
+            value_end = value_start + value_length
+            if value_start < storage_start or value_end > len(data):
+                continue
+            decoded = _decode_ttf_name(data[value_start:value_end], platform_id)
+            if not decoded:
+                continue
+            # Prefer English records when present, but keep every valid name as fallback.
+            if language_id in {0x0409, 0x0000}:
+                candidates[name_id].insert(0, decoded)
+            else:
+                candidates[name_id].append(decoded)
+
+        family_names = list(dict.fromkeys(candidates[TTF_NAME_ID_FONT_FAMILY]))
+        if family_names:
+            return min(family_names, key=len)
+
+        for candidate in candidates[TTF_NAME_ID_FULL_NAME]:
+            if candidate:
+                return candidate
+    except Exception:
+        return None
 
     return None
 

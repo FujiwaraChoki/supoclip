@@ -3,7 +3,7 @@ import { getPrismaClient } from "@/server/prisma";
 import { getServerSession } from "@/server/session";
 
 // GET /api/preferences - Get user preferences
-export async function GET(_: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession();
 

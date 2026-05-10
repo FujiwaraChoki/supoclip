@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
+import hashlib
 from unittest.mock import AsyncMock
 
 import pytest
 
 from src.config import Config
+from src.ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from src.services import task_service as task_service_module
 from src.services.task_service import TaskService
 
@@ -56,7 +58,7 @@ def build_clip_result() -> dict:
 
 def build_task_service() -> TaskService:
     config = Config()
-    config.app_base_url = "http://localhost:3000"
+    config.app_base_url = "http://localhost:3107"
     config.resend_api_key = "re_test"
     config.resend_from_email = "SupoClip <noreply@example.com>"
     service = TaskService(db=AsyncMock(), config=config)
@@ -83,6 +85,54 @@ def build_task_service() -> TaskService:
         }
     )
     return service
+
+
+def test_cache_key_includes_analysis_prompt_version():
+    url = "https://www.youtube.com/watch?v=demo"
+    cache_key = TaskService._build_cache_key(
+        url,
+        "youtube",
+        "fast",
+    )
+    expected = hashlib.sha256(
+        f"youtube|fast|{TRANSCRIPT_ANALYSIS_CACHE_VERSION}|{url}".encode("utf-8")
+    ).hexdigest()
+
+    assert cache_key == expected
+
+
+@pytest.mark.asyncio
+async def test_process_task_fails_when_no_clip_segments_are_selected():
+    service = build_task_service()
+    service.video_service.process_video_complete = AsyncMock(
+        return_value={
+            "clips": [],
+            "segments_to_render": [],
+            "video_path": "/tmp/source.mp4",
+            "segments": [],
+            "summary": None,
+            "key_topics": [],
+            "transcript": "Transcript",
+            "analysis_json": '{"most_relevant_segments":[]}',
+        }
+    )
+
+    with pytest.raises(ValueError, match="No usable clip segments"):
+        await service.process_task(
+            task_id="task-1",
+            url="https://www.youtube.com/watch?v=demo",
+            source_type="youtube",
+        )
+
+    service.cache_repo.upsert_cache.assert_awaited_once()
+    assert service.cache_repo.upsert_cache.await_args.kwargs["analysis_json"] is None
+    service.task_repo.update_task_status.assert_any_await(
+        service.db,
+        "task-1",
+        "error",
+        progress_message="No usable clip segments were selected for this video.",
+    )
+    service.clip_repo.create_clip.assert_not_awaited()
 
 
 @pytest.mark.asyncio

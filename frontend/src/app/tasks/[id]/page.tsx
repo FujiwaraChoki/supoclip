@@ -130,7 +130,7 @@ export default function TaskPage() {
   const [captionText, setCaptionText] = useState("");
   const [captionPosition, setCaptionPosition] = useState("bottom");
   const [highlightWords, setHighlightWords] = useState("");
-  const [exportPreset, setExportPreset] = useState("tiktok");
+  const [exportPreset, setExportPreset] = useState("original");
 
   const [projectFontFamily, setProjectFontFamily] = useState("TikTokSans-Regular");
   const [projectFontSize, setProjectFontSize] = useState("24");
@@ -622,6 +622,19 @@ export default function TaskPage() {
     URL.revokeObjectURL(blobUrl);
   };
 
+  const handleDownloadClip = (clip: Clip) => {
+    if (exportPreset === "original") {
+      const link = document.createElement("a");
+      link.href = getClipUrl(clip.video_url);
+      link.download = clip.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      return;
+    }
+    void handleExportClip(clip.id, clip.filename);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white p-4">
@@ -889,12 +902,6 @@ export default function TaskPage() {
                             <div className="mb-4">
                               <h4 className="font-medium text-black mb-2">Transcript</h4>
                               <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded">{clip.text}</p>
-                            </div>
-                          )}
-                          {clip.reasoning && (
-                            <div className="mb-4">
-                              <h4 className="font-medium text-black mb-2">AI Analysis</h4>
-                              <p className="text-sm text-gray-600">{clip.reasoning}</p>
                             </div>
                           )}
                           <Button size="sm" variant="outline" asChild>
@@ -1269,43 +1276,33 @@ export default function TaskPage() {
                         </div>
                       )}
 
-                      {clip.reasoning && (
-                        <div className="mb-4">
-                          <h4 className="font-medium text-black mb-2">AI Analysis</h4>
-                          <p className="text-sm text-gray-600">{clip.reasoning}</p>
-                        </div>
-                      )}
-
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" asChild>
-                          <a href={getClipUrl(clip.video_url)} download={clip.filename}>
+                      <div className="flex items-center gap-2">
+                        <div className="inline-flex items-stretch h-8 rounded-md border border-input bg-background shadow-xs overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadClip(clip)}
+                            className="inline-flex items-center gap-1.5 px-3 text-sm font-medium hover:bg-accent transition-colors focus-visible:outline-none focus-visible:bg-accent"
+                          >
                             <Download className="w-4 h-4" />
                             Download
-                          </a>
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleExportClip(clip.id, clip.filename)}>
-                          <Download className="w-4 h-4" />
-                          Export
-                        </Button>
-                        <Select value={exportPreset} onValueChange={setExportPreset}>
-                          <SelectTrigger className="h-8 w-28">
-                            <SelectValue placeholder="Preset" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="tiktok">TikTok</SelectItem>
-                            <SelectItem value="reels">Reels</SelectItem>
-                            <SelectItem value="shorts">Shorts</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
-                          onClick={() => setDeletingClipId(clip.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </Button>
+                          </button>
+                          <Select value={exportPreset} onValueChange={setExportPreset}>
+                            <SelectTrigger
+                              size="sm"
+                              aria-label="Download format"
+                              className="h-8 min-w-[112px] rounded-none border-0 border-l border-input shadow-none focus-visible:ring-0 focus-visible:border-input bg-transparent"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent align="end">
+                              <SelectItem value="original">Original</SelectItem>
+                              <SelectItem value="tiktok">TikTok</SelectItem>
+                              <SelectItem value="reels">Reels</SelectItem>
+                              <SelectItem value="shorts">Shorts</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
                         <Button
                           size="sm"
                           variant="outline"
@@ -1316,6 +1313,16 @@ export default function TaskPage() {
                         >
                           <Scissors className="w-4 h-4" />
                           Edit
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label="Delete clip"
+                          className="ml-auto text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => setDeletingClipId(clip.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
 

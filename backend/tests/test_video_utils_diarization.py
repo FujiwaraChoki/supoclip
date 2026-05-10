@@ -128,12 +128,14 @@ class VideoUtilsDiarizationTests(unittest.TestCase):
                 )
             ],
         )
-        mock_transcriber.return_value.transcribe.return_value = transcript
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            video_path = Path(temp_dir) / "sample.mp4"
-            video_path.touch()
-            result = video_utils.get_video_transcript(video_path)
+        with patch(
+            "src.video_utils._submit_and_wait_for_assemblyai_transcript",
+            return_value=transcript,
+        ):
+            with tempfile.TemporaryDirectory() as temp_dir:
+                video_path = Path(temp_dir) / "sample.mp4"
+                video_path.touch()
+                result = video_utils.get_video_transcript(video_path)
 
         self.assertIn("Speaker A: Hello there.", result)
         mock_transcription_config.assert_called_once()

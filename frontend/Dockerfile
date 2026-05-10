@@ -37,9 +37,9 @@ COPY . .
 # Generate Prisma client
 RUN pnpm exec prisma generate
 
-EXPOSE 3000
+EXPOSE 3107
 
-ENV PORT=3000
+ENV PORT=3107
 ENV HOSTNAME="0.0.0.0"
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -67,7 +67,7 @@ ENV SKIP_LINT=1
 
 # Build-time env vars (NEXT_PUBLIC_* must be present at build time)
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
-ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3107
 ARG NEXT_PUBLIC_SELF_HOST=true
 ARG NEXT_PUBLIC_PRO_PRICE_MONTHLY=10
 ARG NEXT_PUBLIC_SCALE_PRICE_MONTHLY=50
@@ -117,9 +117,9 @@ COPY --from=builder /app/prisma ./prisma
 
 USER nextjs
 
-EXPOSE 3000
+EXPOSE 3107
 
-ENV PORT=3000
+ENV PORT=3107
 ENV HOSTNAME="0.0.0.0"
 
 # Start the application

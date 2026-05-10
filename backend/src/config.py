@@ -22,6 +22,9 @@ class Config:
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
+        self.assembly_ai_http_timeout_seconds = int(
+            os.getenv("ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS", "900")
+        )
         self.pexels_api_key = self._get_runtime_setting("PEXELS_API_KEY")
         self.apify_api_token = self._get_runtime_setting("APIFY_API_TOKEN")
         self.youtube_download_provider = self._normalize_youtube_download_provider(
@@ -67,8 +70,8 @@ class Config:
         self.cors_origins = self._get_csv_env(
             "CORS_ORIGINS",
             [
-                "http://localhost:3000",
-                "http://sp.localhost:3000",
+                "http://localhost:3107",
+                "http://sp.localhost:3107",
             ],
         )
         self.resend_api_key = self._get_optional_env("RESEND_API_KEY")
@@ -76,7 +79,7 @@ class Config:
             "RESEND_FROM_EMAIL", "SupoClip <onboarding@resend.dev>"
         )
         self.app_base_url = (
-            self._get_optional_env("NEXT_PUBLIC_APP_URL") or "http://localhost:3000"
+            self._get_optional_env("NEXT_PUBLIC_APP_URL") or "http://localhost:3107"
         ).rstrip("/")
         self.discord_feedback_webhook_url = self._get_optional_env("DISCORD_FEEDBACK_WEBHOOK_URL")
         self.discord_sales_webhook_url = self._get_optional_env("DISCORD_SALES_WEBHOOK_URL")

@@ -7,7 +7,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FeedbackButton } from "@/components/feedback-button";
 
-const defaultMetadataBase = "http://localhost:3000";
+const defaultMetadataBase = "http://localhost:3107";
 
 function getMetadataBase() {
   try {

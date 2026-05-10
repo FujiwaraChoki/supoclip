@@ -37,7 +37,7 @@ async function createStripeCustomerForUser(user: {
 
 async function createPortalSession(customerId: string) {
   const stripe = getStripeClient();
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3107";
   return stripe.billingPortal.sessions.create({
     customer: customerId,
     return_url: `${appUrl}/settings`,

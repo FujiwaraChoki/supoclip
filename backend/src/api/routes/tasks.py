@@ -23,6 +23,7 @@ from ...workers.progress import ProgressTracker
 from ...config import get_config
 from ...font_registry import is_font_accessible
 from ...clip_cleanup import normalize_clip_cleanup_settings
+from ...video_utils import VALID_OUTPUT_FORMATS
 from ...admin_auth import require_admin_user
 import redis.asyncio as redis
 from ...clip_editor import export_with_preset, EXPORT_PRESETS
@@ -117,7 +118,7 @@ def _merge_task_source_metadata(
         merged["url"] = source_url
     if isinstance(source_type, str) and source_type:
         merged["source_type"] = source_type
-    if output_format in {"vertical", "original"}:
+    if output_format in VALID_OUTPUT_FORMATS:
         merged["output_format"] = output_format
     if isinstance(add_subtitles, bool):
         merged["add_subtitles"] = add_subtitles
@@ -190,7 +191,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     if processing_mode not in {"fast", "balanced", "quality"}:
         processing_mode = runtime_config.default_processing_mode
     output_format = data.get("output_format", "vertical")
-    if output_format not in {"vertical", "original"}:
+    if output_format not in VALID_OUTPUT_FORMATS:
         output_format = "vertical"
     add_subtitles = data.get("add_subtitles", True)
     if not isinstance(add_subtitles, bool):
@@ -275,7 +276,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             status_code=402,
             detail={
                 "code": "SUBSCRIPTION_REQUIRED",
-                "message": "Upgrade to Pro to process videos.",
+                "message": "Choose a paid plan to process videos.",
                 "billing": e.summary,
             },
         )
@@ -876,7 +877,7 @@ async def resume_task(
         if not source_type:
             source_type = metadata.get("source_type")
         of = metadata.get("output_format", output_format)
-        if of in ("vertical", "original"):
+        if of in VALID_OUTPUT_FORMATS:
             output_format = of
         asub = metadata.get("add_subtitles", add_subtitles)
         if isinstance(asub, bool):

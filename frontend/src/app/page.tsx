@@ -50,6 +50,8 @@ interface FontOption {
   format?: string;
 }
 
+type OutputFormat = "vertical" | "vertical_pan" | "vertical_split" | "original";
+
 const extractYouTubeVideoId = (value: string): string | null => {
   const input = value.trim();
   if (!input) return null;
@@ -117,7 +119,7 @@ export default function Home() {
   const [availableTemplates, setAvailableTemplates] = useState<Array<{ id: string, name: string, description: string, animation: string, font_family?: string, font_size?: number, font_color?: string }>>([]);
   const [includeBroll, setIncludeBroll] = useState(false);
   const [brollAvailable, setBrollAvailable] = useState(false);
-  const [outputFormat, setOutputFormat] = useState<"vertical" | "original">("vertical");
+  const [outputFormat, setOutputFormat] = useState<OutputFormat>("vertical");
   const [addSubtitles, setAddSubtitles] = useState(true);
   const [cutLongPauses, setCutLongPauses] = useState(false);
   const [pauseThresholdMs, setPauseThresholdMs] = useState("900");
@@ -963,19 +965,29 @@ export default function Home() {
                   )}
 
                   {/* Output format */}
-                  <div className="flex items-center justify-between p-3 border rounded-lg bg-stone-50">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-between gap-4 p-3 border rounded-lg bg-stone-50">
+                    <div className="flex min-w-0 items-center gap-3">
                       <Monitor className="w-4 h-4 text-blue-500" />
                       <div>
-                        <h3 className="text-sm font-medium text-stone-900">Wide format</h3>
-                        <p className="text-xs text-stone-500">Keep original aspect ratio instead of 9:16 vertical</p>
+                        <h3 className="text-sm font-medium text-stone-900">Framing</h3>
+                        <p className="text-xs text-stone-500">Choose how clips are reframed for social video</p>
                       </div>
                     </div>
-                    <Switch
-                      checked={outputFormat === "original"}
-                      onCheckedChange={(checked) => setOutputFormat(checked ? "original" : "vertical")}
-                      disabled={isLoading}
-                    />
+                    <Select
+                      value={outputFormat}
+                      onValueChange={(value) => setOutputFormat(value as OutputFormat)}
+                      disabled={generationControlsDisabled}
+                    >
+                      <SelectTrigger className="w-[180px] bg-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="vertical">Auto 9:16</SelectItem>
+                        <SelectItem value="vertical_pan">Speaker pan</SelectItem>
+                        <SelectItem value="vertical_split">Split-screen</SelectItem>
+                        <SelectItem value="original">Original</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Add subtitles */}

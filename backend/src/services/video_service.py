@@ -23,6 +23,9 @@ from ..video_utils import (
     parse_timestamp_to_seconds,
     build_clip_keep_ranges,
     build_keep_ranges_from_source_ranges,
+    build_clip_signal_summary,
+    extend_keep_ranges_to_sentence_boundary,
+    seconds_to_mmss,
 )
 from ..clip_source_map import (
     normalize_source_ranges,
@@ -110,13 +113,16 @@ class VideoService:
         return transcript
 
     @staticmethod
-    async def analyze_transcript(transcript: str) -> Any:
+    async def analyze_transcript(transcript: str, clip_signals: Optional[str] = None) -> Any:
         """
         Analyze transcript with AI to find relevant segments.
         This is already async, no need to wrap.
         """
         logger.info("Starting AI analysis of transcript")
-        relevant_parts = await get_most_relevant_parts_by_transcript(transcript)
+        relevant_parts = await get_most_relevant_parts_by_transcript(
+            transcript,
+            clip_signals=clip_signals,
+        )
         logger.info(
             f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"
         )
@@ -219,6 +225,7 @@ class VideoService:
                     end_seconds,
                     cleanup_settings,
                 )
+            keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
 
             success = await run_in_thread(
                 create_optimized_clip,
@@ -381,27 +388,44 @@ class VideoService:
                 try:
                     cached_analysis = json.loads(cached_analysis_json)
                     segments = cached_analysis.get("most_relevant_segments", [])
+                    if not segments:
+                        logger.info(
+                            "Ignoring cached transcript analysis with no clip segments"
+                        )
+                    else:
 
-                    class _SimpleResult:
-                        def __init__(self, payload: Dict[str, Any]):
-                            self.summary = payload.get("summary")
-                            self.key_topics = payload.get("key_topics")
-                            self.most_relevant_segments = payload.get(
-                                "most_relevant_segments", []
-                            )
+                        class _SimpleResult:
+                            def __init__(self, payload: Dict[str, Any]):
+                                self.summary = payload.get("summary")
+                                self.key_topics = payload.get("key_topics")
+                                self.most_relevant_segments = payload.get(
+                                    "most_relevant_segments", []
+                                )
 
-                    relevant_parts = _SimpleResult(
-                        {
-                            "summary": cached_analysis.get("summary"),
-                            "key_topics": cached_analysis.get("key_topics", []),
-                            "most_relevant_segments": segments,
-                        }
-                    )
+                        relevant_parts = _SimpleResult(
+                            {
+                                "summary": cached_analysis.get("summary"),
+                                "key_topics": cached_analysis.get("key_topics", []),
+                                "most_relevant_segments": segments,
+                            }
+                        )
                 except Exception:
                     relevant_parts = None
 
             if relevant_parts is None:
-                relevant_parts = await VideoService.analyze_transcript(transcript)
+                try:
+                    clip_signals = await run_in_thread(
+                        build_clip_signal_summary,
+                        video_path,
+                        transcript,
+                    )
+                except Exception as exc:
+                    logger.warning("Clip signal extraction failed: %s", exc)
+                    clip_signals = None
+                relevant_parts = await VideoService.analyze_transcript(
+                    transcript,
+                    clip_signals=clip_signals,
+                )
 
             # Step 4: Create clips
             if should_cancel and await should_cancel():
@@ -414,6 +438,9 @@ class VideoService:
             segments_json: List[Dict[str, Any]] = []
             for segment in raw_segments:
                 if isinstance(segment, dict):
+                    virality = segment.get("virality") or {}
+                    if hasattr(virality, "model_dump"):
+                        virality = virality.model_dump()
                     segments_json.append(
                         {
                             "start_time": segment.get("start_time"),
@@ -421,9 +448,16 @@ class VideoService:
                             "text": segment.get("text", ""),
                             "relevance_score": segment.get("relevance_score", 0.0),
                             "reasoning": segment.get("reasoning", ""),
+                            "virality_score": virality.get("total_score", 0),
+                            "hook_score": virality.get("hook_score", 0),
+                            "engagement_score": virality.get("engagement_score", 0),
+                            "value_score": virality.get("value_score", 0),
+                            "shareability_score": virality.get("shareability_score", 0),
+                            "hook_type": virality.get("hook_type"),
                         }
                     )
                 else:
+                    virality = segment.virality.model_dump() if segment.virality else {}
                     segments_json.append(
                         {
                             "start_time": segment.start_time,
@@ -431,6 +465,12 @@ class VideoService:
                             "text": segment.text,
                             "relevance_score": segment.relevance_score,
                             "reasoning": segment.reasoning,
+                            "virality_score": virality.get("total_score", 0),
+                            "hook_score": virality.get("hook_score", 0),
+                            "engagement_score": virality.get("engagement_score", 0),
+                            "value_score": virality.get("value_score", 0),
+                            "shareability_score": virality.get("shareability_score", 0),
+                            "hook_type": virality.get("hook_type"),
                         }
                     )
 

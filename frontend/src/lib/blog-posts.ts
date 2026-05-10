@@ -46,7 +46,7 @@ export function getBlogPost(slug: string) {
 }
 
 export function getSiteUrl() {
-  const fallbackUrl = "http://localhost:3000";
+  const fallbackUrl = "http://localhost:3107";
 
   try {
     return new URL(process.env.NEXT_PUBLIC_APP_URL || fallbackUrl).origin;

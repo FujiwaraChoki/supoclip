@@ -41,7 +41,7 @@ describe("/api/billing/checkout", () => {
       ...env,
       STRIPE_PRO_PRICE_ID: "price_pro",
       STRIPE_SCALE_PRICE_ID: "price_scale",
-      NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+      NEXT_PUBLIC_APP_URL: "http://localhost:3107",
     };
     vi.mocked(auth.api.getSession).mockResolvedValue({
       user: { id: "user-1", email: "user@example.com", name: "User" },

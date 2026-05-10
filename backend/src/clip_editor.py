@@ -7,10 +7,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List
-import uuid
 import subprocess
-
-from moviepy import VideoFileClip, concatenate_videoclips, CompositeVideoClip, TextClip
+import tempfile
+import uuid
 
 
 @dataclass
@@ -33,6 +32,51 @@ def _safe_name(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}.mp4"
 
 
+def _run(command: list[str]) -> None:
+    subprocess.run(command, check=True, capture_output=True, text=True)
+
+
+def _ffprobe_duration(path: Path) -> float:
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+            str(path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return max(0.0, float(result.stdout.strip()))
+
+
+def _ffprobe_size(path: Path) -> tuple[int, int]:
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height",
+            "-of",
+            "csv=s=x:p=0",
+            str(path),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    width, height = result.stdout.strip().split("x", 1)
+    return int(width), int(height)
+
+
 def _double_bitrate(value: str) -> str:
     normalized = value.strip().lower()
     if normalized.endswith("m"):
@@ -42,32 +86,55 @@ def _double_bitrate(value: str) -> str:
     return value
 
 
-def _source_fps(clip: VideoFileClip) -> float:
-    fps = clip.fps if clip.fps and clip.fps > 0 else 30
-    return float(fps)
+def _encode_args(audio_bitrate: str = "256k") -> list[str]:
+    return [
+        "-c:v",
+        "libx264",
+        "-preset",
+        "slow",
+        "-crf",
+        "18",
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-c:a",
+        "aac",
+        "-b:a",
+        audio_bitrate,
+        "-movflags",
+        "+faststart",
+    ]
 
 
-def _high_quality_encode_options(fps: float) -> dict[str, object]:
-    return {
-        "codec": "libx264",
-        "audio_codec": "aac",
-        "audio_bitrate": "256k",
-        "preset": "slow",
-        "logger": None,
-        "fps": fps,
-        "ffmpeg_params": [
-            "-crf",
-            "18",
-            "-pix_fmt",
-            "yuv420p",
-            "-profile:v",
-            "high",
-            "-movflags",
-            "+faststart",
-            "-sws_flags",
-            "lanczos",
-        ],
-    }
+def _ass_timestamp(seconds: float) -> str:
+    seconds = max(0.0, seconds)
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = seconds - (hours * 3600) - (minutes * 60)
+    return f"{hours}:{minutes:02d}:{secs:05.2f}"
+
+
+def _ass_color(hex_color: str) -> str:
+    value = (hex_color or "#FFFFFF").strip().lstrip("#")
+    if len(value) != 6:
+        value = "FFFFFF"
+    red, green, blue = value[0:2], value[2:4], value[4:6]
+    return f"&H00{blue}{green}{red}&"
+
+
+def _escape_ass_text(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
+
+
+def _escape_filter_path(path: Path) -> str:
+    return (
+        str(path)
+        .replace("\\", "\\\\")
+        .replace(":", "\\:")
+        .replace("'", "\\'")
+        .replace(" ", "\\ ")
+    )
 
 
 def trim_clip_file(
@@ -75,16 +142,25 @@ def trim_clip_file(
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / _safe_name("trim")
+    duration = _ffprobe_duration(input_path)
+    start = max(0.0, start_offset)
+    end = max(start + 0.1, duration - max(end_offset, 0.0))
+    end = min(end, duration)
 
-    clip = VideoFileClip(str(input_path))
-    try:
-        end_time = max(start_offset + 0.1, clip.duration - max(end_offset, 0.0))
-        trimmed = clip.subclipped(max(0.0, start_offset), min(end_time, clip.duration))
-        trimmed.write_videofile(str(output_path), **_high_quality_encode_options(_source_fps(clip)))
-        trimmed.close()
-    finally:
-        clip.close()
-
+    _run(
+        [
+            "ffmpeg",
+            "-y",
+            "-ss",
+            f"{start:.3f}",
+            "-i",
+            str(input_path),
+            "-t",
+            f"{end - start:.3f}",
+            *_encode_args(),
+            str(output_path),
+        ]
+    )
     return output_path
 
 
@@ -92,38 +168,72 @@ def split_clip_file(
     input_path: Path, output_dir: Path, split_time: float
 ) -> tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
+    duration = _ffprobe_duration(input_path)
+    split_at = max(0.2, min(split_time, duration - 0.2))
     first_path = output_dir / _safe_name("split_a")
     second_path = output_dir / _safe_name("split_b")
 
-    clip = VideoFileClip(str(input_path))
-    try:
-        source_fps = _source_fps(clip)
-        s = max(0.2, min(split_time, clip.duration - 0.2))
-        part_a = clip.subclipped(0, s)
-        part_b = clip.subclipped(s, clip.duration)
-        part_a.write_videofile(str(first_path), **_high_quality_encode_options(source_fps))
-        part_b.write_videofile(str(second_path), **_high_quality_encode_options(source_fps))
-        part_a.close()
-        part_b.close()
-    finally:
-        clip.close()
-
+    _run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(input_path),
+            "-t",
+            f"{split_at:.3f}",
+            *_encode_args(),
+            str(first_path),
+        ]
+    )
+    _run(
+        [
+            "ffmpeg",
+            "-y",
+            "-ss",
+            f"{split_at:.3f}",
+            "-i",
+            str(input_path),
+            "-t",
+            f"{duration - split_at:.3f}",
+            *_encode_args(),
+            str(second_path),
+        ]
+    )
     return first_path, second_path
 
 
 def merge_clip_files(paths: Iterable[Path], output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / _safe_name("merge")
+    input_paths = list(paths)
+    if not input_paths:
+        raise ValueError("No clips provided for merge")
 
-    clips = [VideoFileClip(str(p)) for p in paths]
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".txt", prefix="supoclip_concat_", delete=False
+    ) as handle:
+        list_path = Path(handle.name)
+        for path in input_paths:
+            escaped = str(path).replace("'", "'\\''")
+            handle.write(f"file '{escaped}'\n")
+
     try:
-        source_fps = next((_source_fps(clip) for clip in clips if clip.fps and clip.fps > 0), 30.0)
-        merged = concatenate_videoclips(clips, method="compose")
-        merged.write_videofile(str(output_path), **_high_quality_encode_options(source_fps))
-        merged.close()
+        _run(
+            [
+                "ffmpeg",
+                "-y",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                str(list_path),
+                *_encode_args(),
+                str(output_path),
+            ]
+        )
     finally:
-        for clip in clips:
-            clip.close()
+        list_path.unlink(missing_ok=True)
 
     return output_path
 
@@ -137,51 +247,67 @@ def overlay_custom_captions(
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / _safe_name("caption")
+    words = [word for word in caption_text.split() if word.strip()]
+    if not words:
+        _run(["ffmpeg", "-y", "-i", str(input_path), *_encode_args(), str(output_path)])
+        return output_path
 
-    base_clip = VideoFileClip(str(input_path))
+    width, height = _ffprobe_size(input_path)
+    duration = _ffprobe_duration(input_path)
+    y_position = {
+        "top": int(height * 0.18),
+        "middle": int(height * 0.52),
+        "bottom": int(height * 0.78),
+    }.get(position, int(height * 0.78))
+    highlighted = {word.strip().lower() for word in highlight_words if word.strip()}
+    word_duration = max(duration / max(len(words), 1), 0.1)
+    ass_path = output_dir / f"captions_{uuid.uuid4().hex[:12]}.ass"
+
+    header = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: {width}
+PlayResY: {height}
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,64,{_ass_color("#FFFFFF")},&H000000FF,&H00000000,&H99000000,1,0,0,0,100,100,0,0,1,2,0,5,60,60,60,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    events = []
+    for idx, word in enumerate(words):
+        start = idx * word_duration
+        end = min(duration, start + word_duration)
+        color = (
+            _ass_color("#FFD700")
+            if word.lower().strip(".,!?;:") in highlighted
+            else _ass_color("#FFFFFF")
+        )
+        events.append(
+            "Dialogue: 0,"
+            f"{_ass_timestamp(start)},{_ass_timestamp(end)},Default,,0,0,0,,"
+            f"{{\\pos({width // 2},{y_position})\\c{color}}}{_escape_ass_text(word)}"
+        )
+
     try:
-        words = [w for w in caption_text.split() if w.strip()]
-        source_fps = _source_fps(base_clip)
-        if not words:
-            base_clip.write_videofile(str(output_path), **_high_quality_encode_options(source_fps))
-            return output_path
-
-        y_position = {
-            "top": int(base_clip.h * 0.18),
-            "middle": int(base_clip.h * 0.52),
-            "bottom": int(base_clip.h * 0.78),
-        }.get(position, int(base_clip.h * 0.78))
-
-        highlighted = {w.strip().lower() for w in highlight_words if w.strip()}
-        word_duration = max(base_clip.duration / max(len(words), 1), 0.1)
-
-        caption_layers = []
-        for idx, word in enumerate(words):
-            color = (
-                "#FFD700" if word.lower().strip(".,!?;:") in highlighted else "#FFFFFF"
-            )
-            text_layer = (
-                TextClip(
-                    text=word,
-                    font_size=64,
-                    color=color,
-                    stroke_color="black",
-                    stroke_width=2,
-                    method="label",
-                )
-                .with_start(idx * word_duration)
-                .with_duration(word_duration)
-                .with_position(("center", y_position))
-            )
-            caption_layers.append(text_layer)
-
-        composite = CompositeVideoClip([base_clip] + caption_layers)
-        composite.write_videofile(str(output_path), **_high_quality_encode_options(source_fps))
-        composite.close()
-        for layer in caption_layers:
-            layer.close()
+        ass_path.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
+        _run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i",
+                str(input_path),
+                "-vf",
+                f"subtitles=filename={_escape_filter_path(ass_path)}",
+                *_encode_args(),
+                str(output_path),
+            ]
+        )
     finally:
-        base_clip.close()
+        ass_path.unlink(missing_ok=True)
 
     return output_path
 
@@ -196,7 +322,8 @@ def export_with_preset(input_path: Path, output_dir: Path, preset_name: str) -> 
     scale_filter = (
         f"scale={preset.width}:{preset.height}:"
         "force_original_aspect_ratio=decrease:flags=lanczos,"
-        f"pad={preset.width}:{preset.height}:(ow-iw)/2:(oh-ih)/2"
+        f"pad={preset.width}:{preset.height}:(ow-iw)/2:(oh-ih)/2,"
+        "setsar=1"
     )
     command = [
         "ffmpeg",
@@ -229,5 +356,5 @@ def export_with_preset(input_path: Path, output_dir: Path, preset_name: str) -> 
         "+faststart",
         str(output_path),
     ]
-    subprocess.run(command, check=True, capture_output=True)
+    _run(command)
     return output_path

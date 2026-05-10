@@ -29,8 +29,9 @@ from ..clip_editor import (
     merge_clip_files,
     overlay_custom_captions,
 )
-from ..video_utils import parse_timestamp_to_seconds
+from ..video_utils import VALID_OUTPUT_FORMATS, parse_timestamp_to_seconds
 from ..clip_cleanup import normalize_clip_cleanup_settings
+from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..clip_source_map import (
     copy_clip_source_ranges,
     load_clip_source_ranges,
@@ -58,7 +59,10 @@ class TaskService:
 
     @staticmethod
     def _build_cache_key(url: str, source_type: str, processing_mode: str) -> str:
-        payload = f"{source_type}|{processing_mode}|{url.strip()}"
+        payload = (
+            f"{source_type}|{processing_mode}|"
+            f"{TRANSCRIPT_ANALYSIS_CACHE_VERSION}|{url.strip()}"
+        )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def _is_stale_queued_task(self, task: Dict[str, Any]) -> bool:
@@ -220,6 +224,25 @@ class TaskService:
                 perf_counter() - pipeline_start, 3
             )
 
+            normalized_cleanup_settings = normalize_clip_cleanup_settings(
+                **(cleanup_settings or {})
+            )
+
+            # Render clips incrementally: render, save, notify one at a time
+            segments_to_render = result.get("segments_to_render", [])
+            if not segments_to_render:
+                await self.cache_repo.upsert_cache(
+                    self.db,
+                    cache_key=cache_key,
+                    source_url=url,
+                    source_type=source_type,
+                    transcript_text=result.get("transcript"),
+                    analysis_json=None,
+                )
+                raise ValueError(
+                    "No usable clip segments were selected for this video."
+                )
+
             await self.cache_repo.upsert_cache(
                 self.db,
                 cache_key=cache_key,
@@ -229,12 +252,6 @@ class TaskService:
                 analysis_json=result.get("analysis_json"),
             )
 
-            normalized_cleanup_settings = normalize_clip_cleanup_settings(
-                **(cleanup_settings or {})
-            )
-
-            # Render clips incrementally: render, save, notify one at a time
-            segments_to_render = result.get("segments_to_render", [])
             video_path = Path(result["video_path"])
             total_clips = len(segments_to_render)
             clips_output_dir = Path(self.config.temp_dir) / "clips"
@@ -366,10 +383,10 @@ class TaskService:
             message = str(e).lower()
             if "download" in message or "youtube" in message:
                 error_code = "download_error"
-            elif "transcript" in message:
-                error_code = "transcription_error"
             elif "analysis" in message:
                 error_code = "analysis_error"
+            elif "transcript" in message:
+                error_code = "transcription_error"
             elif "cancelled" in message:
                 error_code = "cancelled"
 
@@ -908,7 +925,7 @@ class TaskService:
             return defaults
 
         output_format = parsed.get("output_format", defaults["output_format"])
-        if output_format not in {"vertical", "original"}:
+        if output_format not in VALID_OUTPUT_FORMATS:
             output_format = defaults["output_format"]
 
         add_subtitles = parsed.get("add_subtitles", defaults["add_subtitles"])
