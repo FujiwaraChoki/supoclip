@@ -1,0 +1,76 @@
+name: Build & push Supoclip image to BN ECR
+
+# Triggers:
+# - Push to main (after PR merge) → tag with `latest` + commit SHA
+# - Manual dispatch → ad-hoc rebuild
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/supoclip-image.yml'
+  workflow_dispatch:
+
+# OIDC token exchange with AWS — see BN's stacks/openIDConnectStack.ts.
+# The role allows any Integrity-Labs/* repo to push to ECR.
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-2
+  AWS_ACCOUNT_ID: '508102262178' # nonprod (budgie stage hosts the shared Supoclip cluster)
+  ECR_REPOSITORY: supoclip-backend
+  ECS_CLUSTER: SupoclipCluster
+  ECS_BACKEND_SERVICE: BackendService
+  ECS_WORKER_SERVICE: WorkerService
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/bn-infra-github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+            ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Force-redeploy ECS services
+        # ECS will pull the new `latest` tag on each rollout. Both backend and
+        # worker run from the same image; redeploy in parallel.
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_BACKEND_SERVICE" \
+            --force-new-deployment \
+            --region "$AWS_REGION" &
+
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_WORKER_SERVICE" \
+            --force-new-deployment \
+            --region "$AWS_REGION" &
+
+          wait
