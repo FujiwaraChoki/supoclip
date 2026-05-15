@@ -163,6 +163,16 @@ class Task(Base):
         DateTime(timezone=True), nullable=True
     )
 
+    # Optional outbound webhook called on terminal status (completed / error).
+    # Receivers verify HMAC via X-Supoclip-Signature header. See
+    # services/webhook_notification_service.py.
+    webhook_url: Mapped[Optional[str]] = mapped_column(
+        String(2048), nullable=True
+    )
+    webhook_delivered_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -202,6 +202,17 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
         data.get("remove_filler_words"),
         data.get("filtered_words"),
     )
+    webhook_url = data.get("webhook_url")
+    if webhook_url is not None:
+        if not isinstance(webhook_url, str) or len(webhook_url) > 2048:
+            raise HTTPException(
+                status_code=400, detail="webhook_url must be a string <= 2048 chars"
+            )
+        if not (webhook_url.startswith("http://") or webhook_url.startswith("https://")):
+            raise HTTPException(
+                status_code=400, detail="webhook_url must be http(s)"
+            )
+
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
@@ -222,6 +233,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             caption_template=caption_template,
             include_broll=include_broll,
             processing_mode=processing_mode,
+            webhook_url=webhook_url,
         )
 
         # Get source type for worker
