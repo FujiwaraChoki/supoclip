@@ -28,6 +28,7 @@ class TaskRepository:
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
+        webhook_url: Optional[str] = None,
     ) -> str:
         """Create a new task and return its ID."""
         task_id = str(uuid4())
@@ -36,12 +37,12 @@ class TaskRepository:
                 text("""
                     INSERT INTO tasks (
                         id, user_id, source_id, status, font_family, font_size, font_color,
-                        caption_template, include_broll, processing_mode,
+                        caption_template, include_broll, processing_mode, webhook_url,
                         created_at, updated_at
                     )
                     VALUES (
                         :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
-                        :caption_template, :include_broll, :processing_mode,
+                        :caption_template, :include_broll, :processing_mode, :webhook_url,
                         NOW(), NOW()
                     )
                     RETURNING id
@@ -57,6 +58,7 @@ class TaskRepository:
                     "caption_template": caption_template,
                     "include_broll": include_broll,
                     "processing_mode": processing_mode,
+                    "webhook_url": webhook_url,
                 },
             )
         except Exception:
@@ -145,6 +147,8 @@ class TaskRepository:
             "completion_notification_sent_at": getattr(
                 row, "completion_notification_sent_at", None
             ),
+            "webhook_url": getattr(row, "webhook_url", None),
+            "webhook_delivered_at": getattr(row, "webhook_delivered_at", None),
             "source_url": getattr(row, "source_url", None),
             "created_at": row.created_at,
             "updated_at": row.updated_at,
@@ -444,6 +448,24 @@ class TaskRepository:
                 WHERE id = :task_id
                   AND completion_notification_sent_at IS NULL
                 RETURNING completion_notification_sent_at
+                """
+            ),
+            {"task_id": task_id},
+        )
+        await db.commit()
+        return result.fetchone() is not None
+
+    @staticmethod
+    async def mark_webhook_delivered(db: AsyncSession, task_id: str) -> bool:
+        result = await db.execute(
+            text(
+                """
+                UPDATE tasks
+                SET webhook_delivered_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = :task_id
+                  AND webhook_delivered_at IS NULL
+                RETURNING webhook_delivered_at
                 """
             ),
             {"task_id": task_id},

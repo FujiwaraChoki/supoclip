@@ -22,6 +22,7 @@ from .task_completion_email_service import (
     TaskCompletionEmailService,
     TaskCompletionRecipient,
 )
+from .webhook_notification_service import WebhookNotificationService
 from ..config import Config, get_config
 from ..clip_editor import (
     trim_clip_file,
@@ -95,6 +96,7 @@ class TaskService:
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
+        webhook_url: Optional[str] = None,
     ) -> str:
         """
         Create a new task with associated source.
@@ -131,6 +133,7 @@ class TaskService:
             caption_template=caption_template,
             include_broll=include_broll,
             processing_mode=processing_mode,
+            webhook_url=webhook_url,
         )
 
         logger.info(f"Created task {task_id} for user {user_id}")
@@ -352,6 +355,12 @@ class TaskService:
                 task_id=task_id,
                 clips_count=len(clip_ids),
             )
+            await self._send_webhook_notification_if_needed(
+                task_id=task_id,
+                status="completed",
+                clips_count=len(clip_ids),
+                generated_clips_ids=clip_ids,
+            )
 
             logger.info(
                 f"Task {task_id} completed successfully with {len(clip_ids)} clips"
@@ -394,6 +403,13 @@ class TaskService:
                 self.db,
                 task_id,
                 completed_at=datetime.utcnow(),
+                error_code=error_code,
+            )
+            await self._send_webhook_notification_if_needed(
+                task_id=task_id,
+                status="error",
+                clips_count=0,
+                generated_clips_ids=[],
                 error_code=error_code,
             )
             raise
@@ -453,6 +469,98 @@ class TaskService:
         except Exception:
             logger.exception(
                 "Failed to send completion notification for task %s",
+                task_id,
+            )
+
+    async def _send_webhook_notification_if_needed(
+        self,
+        *,
+        task_id: str,
+        status: str,
+        clips_count: int,
+        generated_clips_ids: list[str],
+        error_code: Optional[str] = None,
+    ) -> None:
+        """Fire the optional outbound webhook on terminal task status.
+
+        No-op when the task has no `webhook_url` set, when delivery has
+        already been stamped, or when `BACKEND_AUTH_SECRET` is unset.
+        Failures are logged but never raised — completion path must not
+        depend on receiver availability.
+
+        Idempotency model: at-most-once via atomic stamp-then-deliver.
+        `mark_webhook_delivered` is a conditional UPDATE
+        (`WHERE webhook_delivered_at IS NULL`) so only one concurrent
+        worker can win the stamp. The winner attempts delivery; the
+        loser short-circuits. If delivery fails after winning the stamp
+        we accept the loss and log loudly — the receiver does not need
+        to dedupe.
+        """
+        try:
+            task = await self.task_repo.get_task_by_id(self.db, task_id)
+        except Exception:
+            logger.exception("Failed to fetch task for webhook delivery %s", task_id)
+            return
+
+        if not task:
+            return
+        webhook_url = task.get("webhook_url")
+        if not webhook_url:
+            return
+        if task.get("webhook_delivered_at"):
+            logger.info("Webhook already delivered for task %s; skipping", task_id)
+            return
+
+        secret = self.config.backend_auth_secret or ""
+        service = WebhookNotificationService(secret)
+        if not service.is_configured:
+            logger.warning(
+                "BACKEND_AUTH_SECRET unset; skipping webhook delivery for task %s",
+                task_id,
+            )
+            return
+
+        # Atomic claim. Only the first worker to win the CAS gets here.
+        try:
+            won = await self.task_repo.mark_webhook_delivered(self.db, task_id)
+        except Exception:
+            logger.exception("Failed to claim webhook stamp for task %s", task_id)
+            return
+        if not won:
+            logger.info(
+                "Another worker already claimed webhook stamp for task %s; skipping",
+                task_id,
+            )
+            return
+
+        completed_at_value = task.get("completed_at")
+        completed_at_iso = (
+            completed_at_value.isoformat() if completed_at_value else datetime.utcnow().isoformat()
+        )
+
+        try:
+            delivered = await service.deliver(
+                webhook_url=webhook_url,
+                task_id=task_id,
+                job_id=None,
+                status=status,
+                clips_count=clips_count,
+                generated_clips_ids=generated_clips_ids,
+                error_code=error_code,
+                completed_at=completed_at_iso,
+            )
+            if not delivered:
+                # Stamp was claimed but delivery failed — at-most-once means
+                # we don't retry. Log so operators can manually replay if needed.
+                logger.error(
+                    "Webhook delivery failed for task %s after claiming stamp; "
+                    "manual replay required",
+                    task_id,
+                )
+        except Exception:
+            logger.exception(
+                "Webhook delivery raised for task %s after claiming stamp; "
+                "manual replay required",
                 task_id,
             )
 

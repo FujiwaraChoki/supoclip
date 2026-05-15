@@ -11,7 +11,10 @@ import json
 import logging
 from typing import Dict, Any
 import inspect
+import ipaddress
 import re
+import socket
+from urllib.parse import urlparse
 
 from ...database import get_db
 from ...database import AsyncSessionLocal
@@ -30,6 +33,52 @@ from ...clip_editor import export_with_preset, EXPORT_PRESETS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+
+def _validate_webhook_url(value: Any) -> None:
+    """Validate an outbound webhook URL against SSRF targets.
+
+    Rejects:
+        - non-strings, oversized inputs
+        - schemes other than http/https
+        - hostnames that resolve to loopback / private / link-local /
+          multicast / unspecified address space
+
+    DNS resolution is done eagerly here; the worker may resolve again
+    at delivery time and a TOCTOU window exists. Acceptable for a
+    self-hosted internal-only deployment, but defense-in-depth at the
+    egress layer (e.g. NAT egress filtering) is the right belt-and-
+    braces for a public-facing instance.
+    """
+    if not isinstance(value, str) or not value or len(value) > 2048:
+        raise HTTPException(status_code=400, detail="webhook_url must be a string <= 2048 chars")
+
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="webhook_url must be http(s)")
+    if not parsed.hostname:
+        raise HTTPException(status_code=400, detail="webhook_url is missing a hostname")
+
+    hostname = parsed.hostname
+    try:
+        addrinfos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        raise HTTPException(status_code=400, detail="webhook_url hostname does not resolve")
+
+    for addrinfo in addrinfos:
+        ip = ipaddress.ip_address(addrinfo[4][0])
+        if (
+            ip.is_loopback
+            or ip.is_private
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_unspecified
+            or ip.is_reserved
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="webhook_url resolves to a non-public address",
+            )
 
 
 def _normalize_font_size(value: Any, default: int = 24) -> int:
@@ -202,6 +251,10 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
         data.get("remove_filler_words"),
         data.get("filtered_words"),
     )
+    webhook_url = data.get("webhook_url")
+    if webhook_url is not None:
+        _validate_webhook_url(webhook_url)
+
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
@@ -222,6 +275,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             caption_template=caption_template,
             include_broll=include_broll,
             processing_mode=processing_mode,
+            webhook_url=webhook_url,
         )
 
         # Get source type for worker
