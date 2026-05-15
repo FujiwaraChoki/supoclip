@@ -120,8 +120,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
+      # No npm cache — see frontend job above for rationale (no committed lockfile).
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Install backend dependencies
         run: cd backend && uv sync --all-groups
       - name: Install frontend dependencies
