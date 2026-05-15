@@ -11,6 +11,12 @@ on:
       - '.github/workflows/supoclip-image.yml'
   workflow_dispatch:
 
+# Serialize deploys per ref so older builds can't redeploy after a newer
+# build pushed `latest`. Concurrent runs on the same branch are cancelled.
+concurrency:
+  group: supoclip-image-${{ github.ref }}
+  cancel-in-progress: true
+
 # OIDC token exchange with AWS — see BN's stacks/openIDConnectStack.ts.
 # The role allows any Integrity-Labs/* repo to push to ECR.
 permissions:
@@ -58,19 +64,25 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Force-redeploy ECS services
-        # ECS will pull the new `latest` tag on each rollout. Both backend and
-        # worker run from the same image; redeploy in parallel.
+        # ECS will pull the new `latest` tag on each rollout. Both backend
+        # and worker run from the same image; trigger redeploys in parallel
+        # then wait for both to reach steady state so failed rollouts fail
+        # this job rather than silently leaving the cluster mid-deploy.
         run: |
           aws ecs update-service \
             --cluster "$ECS_CLUSTER" \
             --service "$ECS_BACKEND_SERVICE" \
             --force-new-deployment \
-            --region "$AWS_REGION" &
-
+            --region "$AWS_REGION" \
+            > /dev/null
           aws ecs update-service \
             --cluster "$ECS_CLUSTER" \
             --service "$ECS_WORKER_SERVICE" \
             --force-new-deployment \
-            --region "$AWS_REGION" &
+            --region "$AWS_REGION" \
+            > /dev/null
 
-          wait
+          aws ecs wait services-stable \
+            --cluster "$ECS_CLUSTER" \
+            --services "$ECS_BACKEND_SERVICE" "$ECS_WORKER_SERVICE" \
+            --region "$AWS_REGION"

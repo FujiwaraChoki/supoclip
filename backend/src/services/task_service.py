@@ -487,6 +487,14 @@ class TaskService:
         already been stamped, or when `BACKEND_AUTH_SECRET` is unset.
         Failures are logged but never raised — completion path must not
         depend on receiver availability.
+
+        Idempotency model: at-most-once via atomic stamp-then-deliver.
+        `mark_webhook_delivered` is a conditional UPDATE
+        (`WHERE webhook_delivered_at IS NULL`) so only one concurrent
+        worker can win the stamp. The winner attempts delivery; the
+        loser short-circuits. If delivery fails after winning the stamp
+        we accept the loss and log loudly — the receiver does not need
+        to dedupe.
         """
         try:
             task = await self.task_repo.get_task_by_id(self.db, task_id)
@@ -496,13 +504,10 @@ class TaskService:
 
         if not task:
             return
-        webhook_url = task.get("webhook_url") if isinstance(task, dict) else getattr(task, "webhook_url", None)
+        webhook_url = task.get("webhook_url")
         if not webhook_url:
             return
-        webhook_delivered_at = (
-            task.get("webhook_delivered_at") if isinstance(task, dict) else getattr(task, "webhook_delivered_at", None)
-        )
-        if webhook_delivered_at:
+        if task.get("webhook_delivered_at"):
             logger.info("Webhook already delivered for task %s; skipping", task_id)
             return
 
@@ -515,9 +520,20 @@ class TaskService:
             )
             return
 
-        completed_at_value = (
-            task.get("completed_at") if isinstance(task, dict) else getattr(task, "completed_at", None)
-        )
+        # Atomic claim. Only the first worker to win the CAS gets here.
+        try:
+            won = await self.task_repo.mark_webhook_delivered(self.db, task_id)
+        except Exception:
+            logger.exception("Failed to claim webhook stamp for task %s", task_id)
+            return
+        if not won:
+            logger.info(
+                "Another worker already claimed webhook stamp for task %s; skipping",
+                task_id,
+            )
+            return
+
+        completed_at_value = task.get("completed_at")
         completed_at_iso = (
             completed_at_value.isoformat() if completed_at_value else datetime.utcnow().isoformat()
         )
@@ -533,10 +549,20 @@ class TaskService:
                 error_code=error_code,
                 completed_at=completed_at_iso,
             )
-            if delivered:
-                await self.task_repo.mark_webhook_delivered(self.db, task_id)
+            if not delivered:
+                # Stamp was claimed but delivery failed — at-most-once means
+                # we don't retry. Log so operators can manually replay if needed.
+                logger.error(
+                    "Webhook delivery failed for task %s after claiming stamp; "
+                    "manual replay required",
+                    task_id,
+                )
         except Exception:
-            logger.exception("Webhook delivery raised for task %s", task_id)
+            logger.exception(
+                "Webhook delivery raised for task %s after claiming stamp; "
+                "manual replay required",
+                task_id,
+            )
 
     async def get_task_with_clips(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Get task details with all clips."""

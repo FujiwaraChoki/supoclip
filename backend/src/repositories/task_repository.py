@@ -147,6 +147,8 @@ class TaskRepository:
             "completion_notification_sent_at": getattr(
                 row, "completion_notification_sent_at", None
             ),
+            "webhook_url": getattr(row, "webhook_url", None),
+            "webhook_delivered_at": getattr(row, "webhook_delivered_at", None),
             "source_url": getattr(row, "source_url", None),
             "created_at": row.created_at,
             "updated_at": row.updated_at,

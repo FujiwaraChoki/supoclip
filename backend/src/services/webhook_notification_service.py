@@ -87,10 +87,18 @@ class WebhookNotificationService:
                         task_id, resp.status_code,
                     )
                     return False
+                if 500 <= resp.status_code < 600:
+                    logger.warning(
+                        "Webhook delivery 5xx for task %s (attempt %d): %s",
+                        task_id, attempt, resp.status_code,
+                    )
+                    continue
+                # 1xx/3xx — receiver isn't speaking our protocol. Don't retry.
                 logger.warning(
-                    "Webhook delivery 5xx for task %s (attempt %d): %s",
-                    task_id, attempt, resp.status_code,
+                    "Webhook delivery got unexpected status for task %s: %s; not retrying",
+                    task_id, resp.status_code,
                 )
+                return False
             except (httpx.TimeoutException, httpx.NetworkError) as exc:
                 logger.warning(
                     "Webhook delivery network error for task %s (attempt %d): %s",

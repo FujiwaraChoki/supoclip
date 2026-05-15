@@ -7,14 +7,18 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'tasks' AND column_name = 'webhook_url'
+        WHERE table_schema = current_schema()
+          AND table_name = 'tasks'
+          AND column_name = 'webhook_url'
     ) THEN
         ALTER TABLE tasks ADD COLUMN webhook_url VARCHAR(2048);
     END IF;
 
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'tasks' AND column_name = 'webhook_delivered_at'
+        WHERE table_schema = current_schema()
+          AND table_name = 'tasks'
+          AND column_name = 'webhook_delivered_at'
     ) THEN
         ALTER TABLE tasks ADD COLUMN webhook_delivered_at TIMESTAMP WITH TIME ZONE;
     END IF;
