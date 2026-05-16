@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text as sa_text
 from typing import List, Dict, Any, Optional
 import logging
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -33,23 +34,34 @@ class ClipRepository:
         shareability_score: int = 0,
         hook_type: Optional[str] = None,
     ) -> str:
-        """Create a new clip record and return its ID."""
+        """Create a new clip record and return its ID.
+
+        Generates the id client-side rather than relying on the DB column
+        default. init.sql declares `id ... DEFAULT uuid_generate_v4()::text`,
+        but in deployments where SQLAlchemy auto-creates the table from
+        models.py (which uses a Python-side default rather than a SQL
+        DEFAULT clause) the DB ends up with no default at all — the raw
+        INSERT below then violates the NOT NULL constraint. Generating
+        the id here matches the convention in models.generate_uuid_string()
+        and makes the INSERT portable across both bootstrap paths.
+        """
+        clip_id = str(uuid.uuid4())
         try:
-            result = await db.execute(
+            await db.execute(
                 sa_text("""
                     INSERT INTO generated_clips
-                    (task_id, filename, file_path, start_time, end_time, duration,
+                    (id, task_id, filename, file_path, start_time, end_time, duration,
                      text, relevance_score, reasoning, clip_order,
                      virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
                      created_at)
                     VALUES
-                    (:task_id, :filename, :file_path, :start_time, :end_time, :duration,
+                    (:id, :task_id, :filename, :file_path, :start_time, :end_time, :duration,
                      :text, :relevance_score, :reasoning, :clip_order,
                      :virality_score, :hook_score, :engagement_score, :value_score, :shareability_score, :hook_type,
                      NOW())
-                    RETURNING id
                 """),
                 {
+                    "id": clip_id,
                     "task_id": task_id,
                     "filename": filename,
                     "file_path": file_path,
@@ -70,17 +82,17 @@ class ClipRepository:
             )
         except Exception:
             await db.rollback()
-            result = await db.execute(
+            await db.execute(
                 sa_text("""
                     INSERT INTO generated_clips
-                    (task_id, filename, file_path, start_time, end_time, duration,
+                    (id, task_id, filename, file_path, start_time, end_time, duration,
                      text, relevance_score, reasoning, clip_order, created_at)
                     VALUES
-                    (:task_id, :filename, :file_path, :start_time, :end_time, :duration,
+                    (:id, :task_id, :filename, :file_path, :start_time, :end_time, :duration,
                      :text, :relevance_score, :reasoning, :clip_order, NOW())
-                    RETURNING id
                 """),
                 {
+                    "id": clip_id,
                     "task_id": task_id,
                     "filename": filename,
                     "file_path": file_path,
@@ -93,11 +105,8 @@ class ClipRepository:
                     "clip_order": clip_order,
                 },
             )
-        clip_id = result.scalar()
-        if not clip_id:
-            raise RuntimeError("Failed to create clip: no ID returned")
         logger.debug(f"Created clip {clip_id} for task {task_id}")
-        return str(clip_id)
+        return clip_id
 
     @staticmethod
     async def get_clips_by_task(db: AsyncSession, task_id: str) -> List[Dict[str, Any]]:
