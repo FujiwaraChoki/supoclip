@@ -8,6 +8,9 @@ import logging
 import json
 import subprocess
 import uuid
+from urllib.parse import urlparse
+
+import httpx
 
 from ..utils.async_helpers import run_in_thread
 from ..youtube_utils import (
@@ -65,6 +68,43 @@ class VideoService:
             filename = Path(url.removeprefix(UPLOAD_URL_PREFIX)).name
             return Path(get_config().temp_dir) / "uploads" / filename
         raise ValueError("Only upload:// references are allowed for local video sources")
+
+    @staticmethod
+    async def download_remote_video(url: str) -> Path:
+        """Stream a remote http(s) URL to a local file under temp_dir/downloads.
+
+        Used for service-to-service handoffs where an upstream pipeline gives
+        us an HTTPS URL (e.g. an S3 presigned URL) pointing at a video file.
+        Returns the local path the rest of the pipeline can read.
+        """
+        downloads_dir = Path(get_config().temp_dir) / "downloads"
+        downloads_dir.mkdir(parents=True, exist_ok=True)
+
+        # Extension is best-effort from the URL path; default to .mp4.
+        path = urlparse(url).path
+        ext = Path(path).suffix if path else ""
+        if not ext or len(ext) > 5:
+            ext = ".mp4"
+        target = downloads_dir / f"{uuid.uuid4()}{ext}"
+
+        logger.info(f"Downloading remote video to {target}: {url[:120]}...")
+        # No fixed timeout on read — long videos take a while. Connect/write
+        # timeouts stay aggressive so a stalled DNS/handshake fails fast.
+        timeout = httpx.Timeout(connect=10.0, read=None, write=30.0, pool=10.0)
+        try:
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                async with client.stream("GET", url) as response:
+                    response.raise_for_status()
+                    with target.open("wb") as out:
+                        async for chunk in response.aiter_bytes(chunk_size=1024 * 1024):
+                            out.write(chunk)
+        except httpx.HTTPError as exc:
+            # Clean up any partial file before bubbling the error up.
+            target.unlink(missing_ok=True)
+            raise Exception(f"Failed to download remote video: {exc}") from exc
+
+        logger.info(f"Remote video downloaded: {target} ({target.stat().st_size} bytes)")
+        return target
 
     @staticmethod
     async def download_video(url: str, task_id: Optional[str] = None) -> Optional[Path]:
@@ -292,13 +332,27 @@ class VideoService:
 
     @staticmethod
     def determine_source_type(url: str) -> str:
-        """Determine if source is YouTube or uploaded file."""
+        """Determine if source is YouTube, uploaded file, or remote HTTPS URL.
+
+        Returns one of:
+            - "youtube"    — bare YouTube URL, downloaded via yt-dlp
+            - "video_url"  — upload:// reference to a previously-uploaded file
+                             OR an http(s):// URL that this worker will fetch
+                             via httpx (added for service-to-service handoff,
+                             e.g. an S3 presigned URL handed in by an upstream
+                             pipeline).
+        """
         video_id = get_youtube_video_id(url)
         if video_id:
             return "youtube"
         if url.startswith(UPLOAD_URL_PREFIX):
             return "video_url"
-        raise ValueError("Only YouTube URLs or upload:// references are supported")
+        parsed = urlparse(url)
+        if parsed.scheme in ("http", "https") and parsed.netloc:
+            return "video_url"
+        raise ValueError(
+            "Only YouTube URLs, upload:// references, or http(s):// URLs are supported"
+        )
 
     @staticmethod
     async def process_video_complete(
@@ -347,10 +401,14 @@ class VideoService:
                 video_path = await VideoService.download_video(url, task_id=task_id)
                 if not video_path:
                     raise Exception("Failed to download video")
-            else:
+            elif url.startswith(UPLOAD_URL_PREFIX):
                 video_path = VideoService.resolve_local_video_path(url)
                 if not video_path.exists():
                     raise Exception("Video file not found")
+            else:
+                # Remote http(s) URL — stream it down to local disk for processing.
+                # determine_source_type already validated the scheme/host.
+                video_path = await VideoService.download_remote_video(url)
 
             # Post-download duration guard (catches cases where preflight info was unavailable)
             file_duration = VideoService._get_file_duration(video_path)
