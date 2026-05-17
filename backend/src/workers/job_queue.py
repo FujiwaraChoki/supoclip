@@ -92,8 +92,16 @@ class JobQueue:
         Job(job_id=..., redis=pool) constructor. The Job handle is
         cheap to create — it's just a pair of references — and reading
         from Redis happens lazily on info()/status()/result().
+
+        We pin `_queue_name` to our default queue so Job.status() can
+        find queued-but-not-yet-started jobs (status() reads the queue
+        ZSET via `zscore(self._queue_name, job_id)` to detect the
+        `queued` state). Without this, status() would default to
+        arq's `arq:queue` and return `not_found` for anything still
+        waiting in our `supoclip_tasks` queue. info() and result() are
+        queue-agnostic.
         """
-        return Job(job_id=job_id, redis=pool)
+        return Job(job_id=job_id, redis=pool, _queue_name=DEFAULT_QUEUE_NAME)
 
     @classmethod
     async def get_job_result(cls, job_id: str):
