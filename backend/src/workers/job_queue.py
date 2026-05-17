@@ -99,3 +99,21 @@ class JobQueue:
         if job:
             return await job.status()
         return None
+
+    @classmethod
+    async def get_job_info(cls, job_id: str):
+        """Return the JobDef (function name + args/kwargs) for a job.
+
+        Used to verify a polling request is authorised for the job it
+        names — callers can match args[N] against the path parameter
+        that should own the job, without needing a separate persistence
+        layer for the task↔job association. arq stores the job def in
+        Redis as long as the job exists or its result is still cached.
+
+        Returns None if the job is unknown to Redis.
+        """
+        pool = await cls.get_pool()
+        job = await pool.job(job_id)
+        if job is None:
+            return None
+        return await job.info()

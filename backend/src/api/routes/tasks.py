@@ -747,8 +747,36 @@ async def get_merge_job(
         task_service = TaskService(db)
         await _require_task_owner(request, task_service, db, task_id)
 
+        # Bind the job to the path task before exposing its status/result.
+        # Owning *any* task isn't enough — without this check, a caller who
+        # guessed a merge_job_id could probe a job that belongs to a
+        # different task (and learn its merged clip_id). We verify via
+        # arq's stored JobDef which carries the original args we passed
+        # at enqueue (task_id, clip_ids) — no extra persistence layer
+        # needed.
+        info = await JobQueue.get_job_info(merge_job_id)
+        if info is None:
+            raise HTTPException(
+                status_code=404, detail=f"Merge job {merge_job_id} not found"
+            )
+        if info.function != "merge_clips_job":
+            # Wrong fn => not a merge job at all; treat as not-found rather
+            # than leak which functions exist.
+            raise HTTPException(
+                status_code=404, detail=f"Merge job {merge_job_id} not found"
+            )
+        # args === (task_id, clip_ids) per merge_clips_job signature.
+        # Mismatch means the caller is asking about a job that belongs
+        # to a different task — pretend it doesn't exist.
+        if not info.args or info.args[0] != task_id:
+            raise HTTPException(
+                status_code=404, detail=f"Merge job {merge_job_id} not found"
+            )
+
         status = await JobQueue.get_job_status(merge_job_id)
         if status is None:
+            # Race: arq evicted the job's status entry between our info()
+            # call and now. Treat as not-found.
             raise HTTPException(
                 status_code=404, detail=f"Merge job {merge_job_id} not found"
             )
