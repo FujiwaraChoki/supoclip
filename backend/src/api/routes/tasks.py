@@ -578,7 +578,11 @@ async def get_clip_file(
         if not clip or clip.get("task_id") != task_id:
             raise HTTPException(status_code=404, detail="Clip not found")
 
-        clip_path = Path(clip["file_path"])
+        # Stored file_path may be local OR an s3:// URI — resolve downloads
+        # from S3 to a local cache when needed.
+        from ...storage import get_storage
+
+        clip_path = get_storage().resolve(clip["file_path"])
         if not clip_path.exists():
             raise HTTPException(status_code=404, detail="Clip file not found")
 
@@ -831,9 +835,13 @@ async def export_clip(
 
         from pathlib import Path
 
+        from ...storage import get_storage
+
         runtime_config = get_config()
+        # Resolve stored path (may be s3://) to a readable local file.
+        clip_local_path = get_storage().resolve(clip["file_path"])
         output_path = export_with_preset(
-            Path(clip["file_path"]),
+            clip_local_path,
             Path(runtime_config.temp_dir) / "exports",
             preset_name,
         )

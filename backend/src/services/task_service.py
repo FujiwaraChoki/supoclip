@@ -23,6 +23,7 @@ from .task_completion_email_service import (
     TaskCompletionRecipient,
 )
 from .webhook_notification_service import WebhookNotificationService
+from ..storage import get_storage
 from ..config import Config, get_config
 from ..clip_editor import (
     trim_clip_file,
@@ -294,12 +295,21 @@ class TaskService:
                 if clip_info is None:
                     continue  # Skip failed clip
 
+                # Promote the local clip to shared storage (S3) when STORAGE_BUCKET
+                # is set. Falls through to the local path for docker-compose dev.
+                # Required for multi-task deployments (e.g. ECS Fargate) where the
+                # backend reading /clips/merge doesn't share a filesystem with the
+                # worker that just created the clip.
+                storage = get_storage()
+                local_clip_path = Path(clip_info["path"])
+                stored_path = storage.save(local_clip_path)
+
                 # Save to DB immediately
                 clip_id = await self.clip_repo.create_clip(
                     self.db,
                     task_id=task_id,
                     filename=clip_info["filename"],
-                    file_path=clip_info["path"],
+                    file_path=stored_path,
                     start_time=clip_info["start_time"],
                     end_time=clip_info["end_time"],
                     duration=clip_info["duration"],
@@ -758,13 +768,16 @@ class TaskService:
 
         await self.clip_repo.delete_clips_by_task(self.db, task_id)
 
+        storage = get_storage()
         clip_ids = []
         for i, clip_info in enumerate(clips_info):
+            # Same shared-storage promotion as the primary clip-creation path.
+            stored_clip_path = storage.save(Path(clip_info["path"]))
             clip_id = await self.clip_repo.create_clip(
                 self.db,
                 task_id=task_id,
                 filename=clip_info["filename"],
-                file_path=clip_info["path"],
+                file_path=stored_clip_path,
                 start_time=clip_info["start_time"],
                 end_time=clip_info["end_time"],
                 duration=clip_info["duration"],
@@ -795,7 +808,8 @@ class TaskService:
         if not clip or clip["task_id"] != task_id:
             raise ValueError("Clip not found")
 
-        input_path = Path(clip["file_path"])
+        storage = get_storage()
+        input_path = storage.resolve(clip["file_path"])
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
@@ -810,6 +824,8 @@ class TaskService:
             raise ValueError("Trimmed clip has no remaining source mapping")
         start_seconds, end_seconds = bounds
         save_clip_source_ranges(output_path, trimmed_ranges)
+        # Promote the trimmed clip to shared storage so cross-task reads work.
+        stored_output = storage.save(output_path)
 
         new_start = self._seconds_to_mmss(start_seconds)
         new_end = self._seconds_to_mmss(end_seconds)
@@ -818,7 +834,7 @@ class TaskService:
             self.db,
             clip_id,
             output_path.name,
-            str(output_path),
+            stored_output,
             new_start,
             new_end,
             clip_duration,
@@ -833,7 +849,8 @@ class TaskService:
         if not clip or clip["task_id"] != task_id:
             raise ValueError("Clip not found")
 
-        input_path = Path(clip["file_path"])
+        storage = get_storage()
+        input_path = storage.resolve(clip["file_path"])
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
@@ -852,12 +869,15 @@ class TaskService:
         save_clip_source_ranges(second_path, second_ranges)
         first_duration = max(0.1, total_source_duration(first_ranges))
         second_duration = max(0.1, total_source_duration(second_ranges))
+        # Promote both split halves to shared storage.
+        stored_first = storage.save(first_path)
+        stored_second = storage.save(second_path)
 
         await self.clip_repo.update_clip(
             self.db,
             clip_id,
             first_path.name,
-            str(first_path),
+            stored_first,
             self._seconds_to_mmss(first_bounds[0]),
             self._seconds_to_mmss(first_bounds[1]),
             first_duration,
@@ -868,7 +888,7 @@ class TaskService:
             self.db,
             task_id=task_id,
             filename=second_path.name,
-            file_path=str(second_path),
+            file_path=stored_second,
             start_time=self._seconds_to_mmss(second_bounds[0]),
             end_time=self._seconds_to_mmss(second_bounds[1]),
             duration=second_duration,
@@ -899,10 +919,18 @@ class TaskService:
             clips.append(clip)
 
         ordered = sorted(clips, key=lambda c: c.get("clip_order", 0))
-        merged_path = merge_clip_files(
-            [Path(c["file_path"]) for c in ordered],
+        storage = get_storage()
+        # Stored paths may be either local (legacy) or s3:// URIs — resolve()
+        # downloads from S3 transparently when needed before ffmpeg sees them.
+        local_clip_paths = [storage.resolve(c["file_path"]) for c in ordered]
+        merged_local_path = merge_clip_files(
+            local_clip_paths,
             Path(self.config.temp_dir) / "clips",
         )
+        # save() returns either an s3:// URI (S3 mode) or the local path string
+        # (dev mode). Persist whichever shape — subsequent reads via resolve()
+        # handle both.
+        merged_stored = storage.save(merged_local_path)
 
         merged_ranges = []
         for clip in ordered:
@@ -912,7 +940,9 @@ class TaskService:
             start_time = self._seconds_to_mmss(merged_bounds[0])
             end_time = self._seconds_to_mmss(merged_bounds[1])
             duration = total_source_duration(merged_ranges)
-            save_clip_source_ranges(merged_path, merged_ranges)
+            # Clip source ranges keyed off the local path on disk — the file is
+            # still here in this task even after save() uploaded it.
+            save_clip_source_ranges(merged_local_path, merged_ranges)
         else:
             start_time = ordered[0]["start_time"]
             end_time = ordered[-1]["end_time"]
@@ -923,8 +953,8 @@ class TaskService:
         await self.clip_repo.update_clip(
             self.db,
             first["id"],
-            merged_path.name,
-            str(merged_path),
+            merged_local_path.name,
+            merged_stored,
             start_time,
             end_time,
             duration,
@@ -949,7 +979,8 @@ class TaskService:
         if not clip or clip["task_id"] != task_id:
             raise ValueError("Clip not found")
 
-        input_path = Path(clip["file_path"])
+        storage = get_storage()
+        input_path = storage.resolve(clip["file_path"])
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
@@ -962,11 +993,15 @@ class TaskService:
         )
         copy_clip_source_ranges(input_path, output_path)
 
+        # Promote the captioned output to shared storage so later reads from
+        # other tasks (serve, merge, re-caption) work.
+        stored_output = storage.save(output_path)
+
         await self.clip_repo.update_clip(
             self.db,
             clip_id,
             output_path.name,
-            str(output_path),
+            stored_output,
             clip["start_time"],
             clip["end_time"],
             clip["duration"],
