@@ -31,6 +31,7 @@ dependencies = [
     "resend>=2.13.0",
     "requests>=2.32.0",
     "cryptography>=42.0.0",
+    "boto3>=1.34.0",
 ]
 
 [dependency-groups]
