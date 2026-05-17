@@ -40,8 +40,8 @@ def _run(command: list[str]) -> None:
     stderr (where ffmpeg writes its diagnostics) gets buried in the .stderr
     attribute that nothing downstream looks at.
 
-    Re-raise as CalledProcessError with stderr in the message-rendered form,
-    so callers that format the exception (e.g. HTTPException details, logger
+    Re-raise as RuntimeError with stderr embedded in the message string, so
+    callers that format the exception (e.g. HTTPException details, logger
     messages) see the actual error without extra code.
     """
     try:

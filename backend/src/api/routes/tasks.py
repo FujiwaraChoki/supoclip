@@ -836,11 +836,13 @@ async def export_clip(
         from pathlib import Path
 
         from ...storage import get_storage
+        from ...utils.async_helpers import run_in_thread
 
         runtime_config = get_config()
         # Resolve stored path (may be s3://) to a readable local file.
         clip_local_path = await get_storage().resolve(clip["file_path"])
-        output_path = export_with_preset(
+        output_path = await run_in_thread(
+            export_with_preset,
             clip_local_path,
             Path(runtime_config.temp_dir) / "exports",
             preset_name,
