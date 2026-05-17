@@ -771,12 +771,30 @@ async def get_merge_job(
         # needed.
         info = await JobQueue.get_job_info(merge_job_id)
         if info is None:
+            # Distinguishes "Redis doesn't know this job_id at all" from
+            # the function/args mismatch branches below. Each branch
+            # returns the same opaque 404 to callers to avoid leaking
+            # the existence (or shape) of other tasks' jobs, but the
+            # server log line tells us which case fired so we can debug
+            # disappearing-job reports (worker on different Redis, key
+            # eviction, race, etc.).
+            logger.warning(
+                "Merge job not found: info=None merge_job_id=%s task_id=%s",
+                merge_job_id,
+                task_id,
+            )
             raise HTTPException(
                 status_code=404, detail=f"Merge job {merge_job_id} not found"
             )
         if info.function != "merge_clips_job":
             # Wrong fn => not a merge job at all; treat as not-found rather
             # than leak which functions exist.
+            logger.warning(
+                "Merge job not found: function mismatch merge_job_id=%s task_id=%s function=%s",
+                merge_job_id,
+                task_id,
+                info.function,
+            )
             raise HTTPException(
                 status_code=404, detail=f"Merge job {merge_job_id} not found"
             )
@@ -784,6 +802,12 @@ async def get_merge_job(
         # Mismatch means the caller is asking about a job that belongs
         # to a different task — pretend it doesn't exist.
         if not info.args or info.args[0] != task_id:
+            logger.warning(
+                "Merge job not found: args mismatch merge_job_id=%s task_id=%s info_args=%r",
+                merge_job_id,
+                task_id,
+                info.args,
+            )
             raise HTTPException(
                 status_code=404, detail=f"Merge job {merge_job_id} not found"
             )
@@ -795,6 +819,11 @@ async def get_merge_job(
         if status_str is None:
             # Race: arq evicted the job's status entry between our info()
             # call and now. Treat as not-found.
+            logger.warning(
+                "Merge job not found: status=None after info OK merge_job_id=%s task_id=%s",
+                merge_job_id,
+                task_id,
+            )
             raise HTTPException(
                 status_code=404, detail=f"Merge job {merge_job_id} not found"
             )
