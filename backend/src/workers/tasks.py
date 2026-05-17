@@ -118,6 +118,42 @@ async def process_video_task(
             # Error will be caught by arq and task status will be updated
             raise
 
+async def merge_clips_job(
+    ctx: Dict[str, Any],
+    task_id: str,
+    clip_ids: list[str],
+) -> Dict[str, Any]:
+    """
+    Background worker task to merge clips.
+
+    The synchronous /tasks/{task_id}/clips/merge endpoint blocks the HTTP
+    request for the full ffmpeg concat-encode duration, which routinely
+    exceeds the ALB idle timeout (60s default, 300s after the band-aid
+    bump) and surfaces as a 504 to the caller. This worker variant is
+    enqueued by /tasks/{task_id}/clips/merge_async and polled via
+    /tasks/{task_id}/clips/merge_jobs/{job_id} so callers never hold an
+    HTTP connection open for the encode.
+
+    Returns the same dict shape as TaskService.merge_clips so arq's
+    job result storage carries the merged_clip_id straight to the poller.
+    """
+    from ..database import AsyncSessionLocal
+    from ..runtime_settings import load_runtime_settings_cache
+    from ..services.task_service import TaskService
+
+    set_trace_id(f"merge-{task_id}")
+    logger.info(f"Worker merging {len(clip_ids)} clips for task {task_id}")
+
+    async with AsyncSessionLocal() as db:
+        await load_runtime_settings_cache(db)
+        task_service = TaskService(db)
+        result = await task_service.merge_clips(task_id, clip_ids)
+        logger.info(
+            f"Merge complete task={task_id} merged_clip_id={result.get('clip_id')}"
+        )
+        return result
+
+
 # Worker configuration for arq
 class WorkerSettings:
     """Configuration for arq worker."""
@@ -128,7 +164,7 @@ class WorkerSettings:
     config = Config()
 
     # Functions to run
-    functions = [process_video_task]
+    functions = [process_video_task, merge_clips_job]
     queue_name = "supoclip_tasks"
 
     # Redis settings from environment

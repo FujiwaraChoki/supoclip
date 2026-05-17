@@ -658,7 +658,12 @@ async def split_clip(
 async def merge_clips(
     task_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    """Merge multiple clips into one clip."""
+    """Merge clips synchronously. Kept for back-compat — prefer /merge_async.
+
+    The ffmpeg concat-encode regularly exceeds the ALB idle timeout for
+    multi-clip composites and surfaces as a 504 here. New callers should
+    use the async variant.
+    """
     try:
         payload = await request.json()
         clip_ids = payload.get("clip_ids") or []
@@ -676,6 +681,107 @@ async def merge_clips(
     except Exception as e:
         logger.error(f"Error merging clips: {e}")
         raise HTTPException(status_code=500, detail=f"Error merging clips: {str(e)}")
+
+
+@router.post("/{task_id}/clips/merge_async", status_code=202)
+async def merge_clips_async(
+    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Enqueue a merge job and return immediately.
+
+    Poll status via GET /tasks/{task_id}/clips/merge_jobs/{merge_job_id}.
+    Validation (ownership, clip existence) runs synchronously so bad
+    requests fail fast instead of burning a worker slot.
+    """
+    try:
+        payload = await request.json()
+        clip_ids = payload.get("clip_ids") or []
+        if not isinstance(clip_ids, list):
+            raise HTTPException(status_code=400, detail="clip_ids must be an array")
+        if len(clip_ids) < 2:
+            raise HTTPException(
+                status_code=400, detail="At least two clips are required to merge"
+            )
+
+        task_service = TaskService(db)
+        await _require_task_owner(request, task_service, db, task_id)
+
+        for clip_id in clip_ids:
+            clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
+            if not clip or clip["task_id"] != task_id:
+                raise HTTPException(
+                    status_code=404, detail=f"Clip {clip_id} not found on task"
+                )
+
+        merge_job_id = await JobQueue.enqueue_job(
+            "merge_clips_job", task_id, clip_ids
+        )
+        logger.info(
+            f"Enqueued merge job {merge_job_id} task={task_id} clips={len(clip_ids)}"
+        )
+        return {"merge_job_id": merge_job_id, "status": "queued"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error enqueueing merge: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error enqueueing merge: {str(e)}"
+        )
+
+
+@router.get("/{task_id}/clips/merge_jobs/{merge_job_id}")
+async def get_merge_job(
+    task_id: str,
+    merge_job_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Poll a queued merge.
+
+    Status values mirror arq's JobStatus enum (deferred | queued |
+    in_progress | complete | not_found). On `complete` the response
+    carries either `clip_id` + `message` (success) or `error` (worker
+    exception, surfaced as the str() of the raised exception).
+    """
+    try:
+        task_service = TaskService(db)
+        await _require_task_owner(request, task_service, db, task_id)
+
+        status = await JobQueue.get_job_status(merge_job_id)
+        if status is None:
+            raise HTTPException(
+                status_code=404, detail=f"Merge job {merge_job_id} not found"
+            )
+
+        status_str = str(status).split(".")[-1].lower()
+        response: Dict[str, Any] = {
+            "merge_job_id": merge_job_id,
+            "status": status_str,
+        }
+
+        if status_str == "complete":
+            try:
+                result = await JobQueue.get_job_result(merge_job_id)
+                if isinstance(result, dict):
+                    response["clip_id"] = result.get("clip_id")
+                    response["message"] = result.get("message")
+                else:
+                    response["error"] = (
+                        f"Unexpected worker result type: {type(result).__name__}"
+                    )
+            except Exception as exc:
+                # arq raises the original worker exception when the job
+                # ended in failure; expose its string form to the caller.
+                response["error"] = str(exc)
+
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching merge job status: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error fetching merge job status: {str(e)}"
+        )
 
 
 @router.patch("/{task_id}/clips/{clip_id}/captions")
