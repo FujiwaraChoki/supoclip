@@ -171,6 +171,22 @@ async def test_merge_async_rejects_unknown_clip(client, db_session, auth_headers
 
 
 @pytest.mark.asyncio
+async def test_merge_async_rejects_malformed_json(client, db_session, auth_headers):
+    await create_user(db_session, user_id="user-1", email="owner@example.com")
+    source = await create_source(db_session, title="Owner source")
+    task = await create_task(db_session, user_id="user-1", source_id=source["id"])
+
+    response = await client.post(
+        f"/tasks/{task['id']}/clips/merge_async",
+        headers={**auth_headers, "Content-Type": "application/json"},
+        content=b"{not valid json",
+    )
+
+    assert response.status_code == 400
+    assert "JSON" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_merge_async_rejects_single_clip(client, db_session, auth_headers):
     await create_user(db_session, user_id="user-1", email="owner@example.com")
     source = await create_source(db_session, title="Owner source")

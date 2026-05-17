@@ -694,7 +694,12 @@ async def merge_clips_async(
     requests fail fast instead of burning a worker slot.
     """
     try:
-        payload = await request.json()
+        try:
+            payload = await request.json()
+        except json.JSONDecodeError as exc:
+            # Without this, the bare `except Exception` below converts
+            # client malformed-body errors into 500s.
+            raise HTTPException(status_code=400, detail="Malformed JSON body") from exc
         clip_ids = payload.get("clip_ids") or []
         if not isinstance(clip_ids, list):
             raise HTTPException(status_code=400, detail="clip_ids must be an array")
@@ -738,10 +743,15 @@ async def get_merge_job(
 ):
     """Poll a queued merge.
 
-    Status values mirror arq's JobStatus enum (deferred | queued |
-    in_progress | complete | not_found). On `complete` the response
-    carries either `clip_id` + `message` (success) or `error` (worker
-    exception, surfaced as the str() of the raised exception).
+    Status values mirror arq's JobStatus enum: `deferred | queued |
+    in_progress | complete`. Missing jobs (unknown id, or job whose
+    Redis state has expired) are returned as **HTTP 404**, not a
+    `not_found` status — clients should treat 404 as the
+    job-doesn't-exist signal.
+
+    On `complete` the response carries either `clip_id` + `message`
+    (success) or `error` (worker exception, surfaced as the str() of
+    the raised exception).
     """
     try:
         task_service = TaskService(db)
