@@ -6,6 +6,7 @@ import logging
 from typing import Optional
 from arq import create_pool
 from arq.connections import RedisSettings, ArqRedis
+from arq.jobs import Job
 from ..config import get_config
 
 logger = logging.getLogger(__name__)
@@ -83,22 +84,36 @@ class JobQueue:
         )
 
     @classmethod
+    def _job(cls, pool: ArqRedis, job_id: str) -> Job:
+        """Construct an arq Job handle for a given id.
+
+        ArqRedis itself has no `.job()` method (despite the obvious
+        name); the public API for looking up an existing job is the
+        Job(job_id=..., redis=pool) constructor. The Job handle is
+        cheap to create — it's just a pair of references — and reading
+        from Redis happens lazily on info()/status()/result().
+        """
+        return Job(job_id=job_id, redis=pool)
+
+    @classmethod
     async def get_job_result(cls, job_id: str):
-        """Get the result of a completed job."""
+        """Return the worker function's return value, or re-raise its exception."""
         pool = await cls.get_pool()
-        job = await pool.job(job_id)
-        if job:
-            return await job.result()
-        return None
+        return await cls._job(pool, job_id).result()
 
     @classmethod
     async def get_job_status(cls, job_id: str) -> Optional[str]:
-        """Get the status of a job."""
+        """Return arq's JobStatus enum value as a string, or None if unknown."""
         pool = await cls.get_pool()
-        job = await pool.job(job_id)
-        if job:
-            return await job.status()
-        return None
+        status = await cls._job(pool, job_id).status()
+        # JobStatus.not_found is how arq signals a missing job — surface
+        # that as None so callers don't have to import arq internals.
+        if status is None:
+            return None
+        status_str = str(status).split(".")[-1].lower()
+        if status_str == "not_found":
+            return None
+        return status
 
     @classmethod
     async def get_job_info(cls, job_id: str):
@@ -113,7 +128,4 @@ class JobQueue:
         Returns None if the job is unknown to Redis.
         """
         pool = await cls.get_pool()
-        job = await pool.job(job_id)
-        if job is None:
-            return None
-        return await job.info()
+        return await cls._job(pool, job_id).info()
