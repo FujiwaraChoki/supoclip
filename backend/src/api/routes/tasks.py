@@ -700,6 +700,11 @@ async def merge_clips_async(
             # Without this, the bare `except Exception` below converts
             # client malformed-body errors into 500s.
             raise HTTPException(status_code=400, detail="Malformed JSON body") from exc
+        if not isinstance(payload, dict):
+            # JSON arrays / scalars are syntactically valid but don't
+            # have .get() — without this guard payload.get below
+            # AttributeErrors into the 500 fallback.
+            raise HTTPException(status_code=400, detail="JSON body must be an object")
         clip_ids = payload.get("clip_ids") or []
         if not isinstance(clip_ids, list):
             raise HTTPException(status_code=400, detail="clip_ids must be an array")
