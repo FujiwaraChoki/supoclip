@@ -103,17 +103,25 @@ class JobQueue:
 
     @classmethod
     async def get_job_status(cls, job_id: str) -> Optional[str]:
-        """Return arq's JobStatus enum value as a string, or None if unknown."""
+        """Return arq's JobStatus as a lowercase string, or None if unknown.
+
+        Normalising the enum -> str at the JobQueue boundary lets route
+        handlers consume the value directly without importing arq
+        internals (and prevents the easy bug of returning the enum object
+        through an Optional[str] signature).
+        """
         pool = await cls.get_pool()
         status = await cls._job(pool, job_id).status()
-        # JobStatus.not_found is how arq signals a missing job — surface
-        # that as None so callers don't have to import arq internals.
         if status is None:
             return None
+        # arq.jobs.JobStatus renders as "JobStatus.complete" etc. Take
+        # the suffix and lowercase it for a stable wire shape.
         status_str = str(status).split(".")[-1].lower()
+        # JobStatus.not_found is how arq signals a missing job — surface
+        # that as None at this boundary too.
         if status_str == "not_found":
             return None
-        return status
+        return status_str
 
     @classmethod
     async def get_job_info(cls, job_id: str):

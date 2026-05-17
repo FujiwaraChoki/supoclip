@@ -773,15 +773,17 @@ async def get_merge_job(
                 status_code=404, detail=f"Merge job {merge_job_id} not found"
             )
 
-        status = await JobQueue.get_job_status(merge_job_id)
-        if status is None:
+        # get_job_status normalises arq's JobStatus enum to a lowercase
+        # string (and returns None for not_found), so we can consume the
+        # value directly.
+        status_str = await JobQueue.get_job_status(merge_job_id)
+        if status_str is None:
             # Race: arq evicted the job's status entry between our info()
             # call and now. Treat as not-found.
             raise HTTPException(
                 status_code=404, detail=f"Merge job {merge_job_id} not found"
             )
 
-        status_str = str(status).split(".")[-1].lower()
         response: Dict[str, Any] = {
             "merge_job_id": merge_job_id,
             "status": status_str,

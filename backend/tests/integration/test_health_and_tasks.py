@@ -200,7 +200,7 @@ async def test_get_merge_job_returns_completion_result(
         new=AsyncMock(return_value=_job_info(task["id"])),
     ), patch(
         "src.api.routes.tasks.JobQueue.get_job_status",
-        new=AsyncMock(return_value="JobStatus.complete"),
+        new=AsyncMock(return_value="complete"),
     ), patch(
         "src.api.routes.tasks.JobQueue.get_job_result",
         new=AsyncMock(return_value={"clip_id": "merged-1", "message": "ok"}),
@@ -292,7 +292,7 @@ async def test_get_merge_job_rejects_cross_task_probe(
         new=AsyncMock(return_value=foreign_info),
     ), patch(
         "src.api.routes.tasks.JobQueue.get_job_status",
-        new=AsyncMock(return_value="JobStatus.complete"),
+        new=AsyncMock(return_value="complete"),
     ) as status_mock:
         response = await client.get(
             f"/tasks/{own_task['id']}/clips/merge_jobs/foreign-job",
@@ -321,7 +321,7 @@ async def test_get_merge_job_rejects_wrong_function(client, db_session, auth_hea
         new=AsyncMock(return_value=_job_info(task["id"], function="process_video_task")),
     ), patch(
         "src.api.routes.tasks.JobQueue.get_job_status",
-        new=AsyncMock(return_value="JobStatus.complete"),
+        new=AsyncMock(return_value="complete"),
     ) as status_mock:
         response = await client.get(
             f"/tasks/{task['id']}/clips/merge_jobs/wrong-fn-job",
