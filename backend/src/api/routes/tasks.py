@@ -582,7 +582,7 @@ async def get_clip_file(
         # from S3 to a local cache when needed.
         from ...storage import get_storage
 
-        clip_path = get_storage().resolve(clip["file_path"])
+        clip_path = await get_storage().resolve(clip["file_path"])
         if not clip_path.exists():
             raise HTTPException(status_code=404, detail="Clip file not found")
 
@@ -839,7 +839,7 @@ async def export_clip(
 
         runtime_config = get_config()
         # Resolve stored path (may be s3://) to a readable local file.
-        clip_local_path = get_storage().resolve(clip["file_path"])
+        clip_local_path = await get_storage().resolve(clip["file_path"])
         output_path = export_with_preset(
             clip_local_path,
             Path(runtime_config.temp_dir) / "exports",

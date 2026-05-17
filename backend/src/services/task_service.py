@@ -2,6 +2,7 @@
 Task service - orchestrates task creation and processing workflow.
 """
 
+import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional, Callable
 import logging
@@ -302,7 +303,7 @@ class TaskService:
                 # worker that just created the clip.
                 storage = get_storage()
                 local_clip_path = Path(clip_info["path"])
-                stored_path = storage.save(local_clip_path)
+                stored_path = await storage.save(local_clip_path)
 
                 # Save to DB immediately
                 clip_id = await self.clip_repo.create_clip(
@@ -772,7 +773,7 @@ class TaskService:
         clip_ids = []
         for i, clip_info in enumerate(clips_info):
             # Same shared-storage promotion as the primary clip-creation path.
-            stored_clip_path = storage.save(Path(clip_info["path"]))
+            stored_clip_path = await storage.save(Path(clip_info["path"]))
             clip_id = await self.clip_repo.create_clip(
                 self.db,
                 task_id=task_id,
@@ -809,7 +810,7 @@ class TaskService:
             raise ValueError("Clip not found")
 
         storage = get_storage()
-        input_path = storage.resolve(clip["file_path"])
+        input_path = await storage.resolve(clip["file_path"])
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
@@ -825,7 +826,7 @@ class TaskService:
         start_seconds, end_seconds = bounds
         save_clip_source_ranges(output_path, trimmed_ranges)
         # Promote the trimmed clip to shared storage so cross-task reads work.
-        stored_output = storage.save(output_path)
+        stored_output = await storage.save(output_path)
 
         new_start = self._seconds_to_mmss(start_seconds)
         new_end = self._seconds_to_mmss(end_seconds)
@@ -850,7 +851,7 @@ class TaskService:
             raise ValueError("Clip not found")
 
         storage = get_storage()
-        input_path = storage.resolve(clip["file_path"])
+        input_path = await storage.resolve(clip["file_path"])
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
@@ -870,8 +871,8 @@ class TaskService:
         first_duration = max(0.1, total_source_duration(first_ranges))
         second_duration = max(0.1, total_source_duration(second_ranges))
         # Promote both split halves to shared storage.
-        stored_first = storage.save(first_path)
-        stored_second = storage.save(second_path)
+        stored_first = await storage.save(first_path)
+        stored_second = await storage.save(second_path)
 
         await self.clip_repo.update_clip(
             self.db,
@@ -922,7 +923,8 @@ class TaskService:
         storage = get_storage()
         # Stored paths may be either local (legacy) or s3:// URIs — resolve()
         # downloads from S3 transparently when needed before ffmpeg sees them.
-        local_clip_paths = [storage.resolve(c["file_path"]) for c in ordered]
+        # Resolve clip paths in parallel — independent S3 downloads can overlap.
+        local_clip_paths = await asyncio.gather(*(storage.resolve(c["file_path"]) for c in ordered))
         merged_local_path = merge_clip_files(
             local_clip_paths,
             Path(self.config.temp_dir) / "clips",
@@ -930,7 +932,7 @@ class TaskService:
         # save() returns either an s3:// URI (S3 mode) or the local path string
         # (dev mode). Persist whichever shape — subsequent reads via resolve()
         # handle both.
-        merged_stored = storage.save(merged_local_path)
+        merged_stored = await storage.save(merged_local_path)
 
         merged_ranges = []
         for clip in ordered:
@@ -980,7 +982,7 @@ class TaskService:
             raise ValueError("Clip not found")
 
         storage = get_storage()
-        input_path = storage.resolve(clip["file_path"])
+        input_path = await storage.resolve(clip["file_path"])
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
@@ -995,7 +997,7 @@ class TaskService:
 
         # Promote the captioned output to shared storage so later reads from
         # other tasks (serve, merge, re-caption) work.
-        stored_output = storage.save(output_path)
+        stored_output = await storage.save(output_path)
 
         await self.clip_repo.update_clip(
             self.db,

@@ -28,6 +28,8 @@ from urllib.parse import urlparse
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
+from .utils.async_helpers import run_in_thread
+
 logger = logging.getLogger(__name__)
 
 S3_URI_SCHEME = "s3://"
@@ -58,7 +60,7 @@ class FileStorage:
     def enabled(self) -> bool:
         return bool(self.bucket)
 
-    def save(self, local_path: Path, key: Optional[str] = None) -> str:
+    async def save(self, local_path: Path, key: Optional[str] = None) -> str:
         """Upload a local file and return a storage URI.
 
         When S3 storage is enabled: uploads to `s3://{bucket}/{key_prefix}{key or filename}`
@@ -67,6 +69,9 @@ class FileStorage:
 
         When disabled: returns `str(local_path)` unchanged — backward-compatible
         with the docker-compose path-on-shared-volume convention.
+
+        Async because boto3's upload_file is blocking; offloading to a worker
+        thread keeps the event loop responsive during multi-MB uploads.
         """
         if not self.enabled or self._s3 is None:
             return str(local_path)
@@ -74,7 +79,7 @@ class FileStorage:
             raise FileNotFoundError(f"Cannot upload missing file: {local_path}")
         object_key = f"{self.key_prefix}{key or local_path.name}"
         try:
-            self._s3.upload_file(str(local_path), self.bucket, object_key)
+            await run_in_thread(self._s3.upload_file, str(local_path), self.bucket, object_key)
         except (BotoCoreError, ClientError) as exc:
             logger.error("S3 upload failed for %s → %s: %s", local_path, object_key, exc)
             raise
@@ -82,11 +87,15 @@ class FileStorage:
         logger.info("Uploaded %s → %s", local_path.name, uri)
         return uri
 
-    def resolve(self, stored: str) -> Path:
+    async def resolve(self, stored: str) -> Path:
         """Return a local Path for reading, downloading from S3 if needed.
 
         Files cached under `local_cache_dir` survive only as long as the
         task does — fine for short-lived merge/serve operations.
+
+        Async because boto3's download_file is blocking; offloading to a
+        worker thread keeps the event loop responsive during multi-MB
+        downloads.
         """
         if not stored.startswith(S3_URI_SCHEME):
             return Path(stored)
@@ -103,7 +112,7 @@ class FileStorage:
             return cache_path
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            self._s3.download_file(bucket, key, str(cache_path))
+            await run_in_thread(self._s3.download_file, bucket, key, str(cache_path))
         except (BotoCoreError, ClientError) as exc:
             logger.error("S3 download failed for %s: %s", stored, exc)
             cache_path.unlink(missing_ok=True)
@@ -111,7 +120,7 @@ class FileStorage:
         logger.info("Downloaded %s → %s", stored, cache_path)
         return cache_path
 
-    def delete(self, stored: str) -> None:
+    async def delete(self, stored: str) -> None:
         """Best-effort delete — for cleanup paths. Never raises."""
         if not stored.startswith(S3_URI_SCHEME):
             try:
@@ -123,7 +132,9 @@ class FileStorage:
             return
         parsed = urlparse(stored)
         try:
-            self._s3.delete_object(Bucket=parsed.netloc, Key=parsed.path.lstrip("/"))
+            await run_in_thread(
+                self._s3.delete_object, Bucket=parsed.netloc, Key=parsed.path.lstrip("/")
+            )
         except (BotoCoreError, ClientError):
             logger.warning("Failed to delete S3 object %s", stored, exc_info=True)
 
