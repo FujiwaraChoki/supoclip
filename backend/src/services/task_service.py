@@ -25,6 +25,7 @@ from .task_completion_email_service import (
 )
 from .webhook_notification_service import WebhookNotificationService
 from ..storage import get_storage
+from ..utils.async_helpers import run_in_thread
 from ..config import Config, get_config
 from ..clip_editor import (
     trim_clip_file,
@@ -814,8 +815,9 @@ class TaskService:
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
-        output_path = trim_clip_file(
-            input_path, Path(self.config.temp_dir) / "clips", start_offset, end_offset
+        output_path = await run_in_thread(
+            trim_clip_file,
+            input_path, Path(self.config.temp_dir) / "clips", start_offset, end_offset,
         )
         source_ranges = self._get_clip_source_ranges(clip)
         trimmed_ranges = trim_source_ranges(source_ranges, start_offset, end_offset)
@@ -855,8 +857,9 @@ class TaskService:
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
-        first_path, second_path = split_clip_file(
-            input_path, Path(self.config.temp_dir) / "clips", split_time
+        first_path, second_path = await run_in_thread(
+            split_clip_file,
+            input_path, Path(self.config.temp_dir) / "clips", split_time,
         )
 
         clamped_split = max(0.2, min(split_time, float(clip["duration"]) - 0.2))
@@ -925,7 +928,8 @@ class TaskService:
         # downloads from S3 transparently when needed before ffmpeg sees them.
         # Resolve clip paths in parallel — independent S3 downloads can overlap.
         local_clip_paths = await asyncio.gather(*(storage.resolve(c["file_path"]) for c in ordered))
-        merged_local_path = merge_clip_files(
+        merged_local_path = await run_in_thread(
+            merge_clip_files,
             local_clip_paths,
             Path(self.config.temp_dir) / "clips",
         )
@@ -986,7 +990,8 @@ class TaskService:
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
-        output_path = overlay_custom_captions(
+        output_path = await run_in_thread(
+            overlay_custom_captions,
             input_path,
             Path(self.config.temp_dir) / "clips",
             caption_text,

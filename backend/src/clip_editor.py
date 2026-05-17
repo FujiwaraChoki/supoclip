@@ -33,7 +33,27 @@ def _safe_name(prefix: str) -> str:
 
 
 def _run(command: list[str]) -> None:
-    subprocess.run(command, check=True, capture_output=True, text=True)
+    """Run a subprocess, surfacing stderr in the exception message on failure.
+
+    `subprocess.run(check=True)` raises CalledProcessError on non-zero exit,
+    but the default __str__ only shows the command + exit code — the actual
+    stderr (where ffmpeg writes its diagnostics) gets buried in the .stderr
+    attribute that nothing downstream looks at.
+
+    Re-raise as RuntimeError with stderr embedded in the message string, so
+    callers that format the exception (e.g. HTTPException details, logger
+    messages) see the actual error without extra code.
+    """
+    try:
+        subprocess.run(command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as exc:
+        # Keep the last 4KB of stderr — ffmpeg can be chatty; the meaningful
+        # error is almost always near the tail.
+        stderr_tail = (exc.stderr or "").strip()[-4096:]
+        suffix = f"\nstderr: {stderr_tail}" if stderr_tail else ""
+        raise RuntimeError(
+            f"Command {exc.cmd!r} returned non-zero exit status {exc.returncode}.{suffix}"
+        ) from exc
 
 
 def _ffprobe_duration(path: Path) -> float:
@@ -214,7 +234,13 @@ def merge_clip_files(paths: Iterable[Path], output_dir: Path) -> Path:
     ) as handle:
         list_path = Path(handle.name)
         for path in input_paths:
-            escaped = str(path).replace("'", "'\\''")
+            # Absolute paths only: ffmpeg's concat demuxer resolves relative
+            # paths against the directory of the LIST FILE (not the process
+            # cwd). We write the list to /tmp and the clips live under
+            # ./temp/storage_cache/ or ./temp/clips/ — a relative entry would
+            # be resolved to /tmp/temp/... which doesn't exist. resolve()
+            # also normalises symlinks + .. components for free.
+            escaped = str(path.resolve()).replace("'", "'\\''")
             handle.write(f"file '{escaped}'\n")
 
     try:
