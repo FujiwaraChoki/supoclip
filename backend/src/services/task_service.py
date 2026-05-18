@@ -194,10 +194,36 @@ class TaskService:
                 progress_message="Starting...",
             )
 
+            # Resolve the task's webhook_url + job_id once per process_task
+                # invocation so the progress callback below can fire outbound
+                # webhooks without re-querying the row on every tick. If the
+                # task has no webhook_url we skip — same policy as terminal
+                # delivery.
+            initial_task = await self.task_repo.get_task_by_id(self.db, task_id)
+            webhook_url = (initial_task or {}).get("webhook_url")
+            webhook_job_id = (initial_task or {}).get("job_id")
+
+            progress_webhook_secret = self.config.backend_auth_secret or ""
+            progress_webhook_service: Optional[WebhookNotificationService] = (
+                WebhookNotificationService(progress_webhook_secret)
+                if webhook_url and progress_webhook_secret
+                else None
+            )
+
+            # Throttle progress webhooks to 5% buckets so we don't hammer
+            # the receiver. arq's update_progress is called many times per
+            # second from inside ffmpeg / whisper; the receiver only cares
+            # about coarse-grained UI updates. Bucket -1 ensures the first
+            # call (typically 0%) always fires.
+            last_webhook_bucket = -1
+            WEBHOOK_PROGRESS_BUCKET_PCT = 5
+
             # Progress callback wrapper
             async def update_progress(
                 progress: int, message: str, status: str = "processing"
             ):
+                nonlocal last_webhook_bucket
+
                 await self.task_repo.update_task_status(
                     self.db,
                     task_id,
@@ -207,6 +233,35 @@ class TaskService:
                 )
                 if progress_callback:
                     await progress_callback(progress, message, status)
+
+                # Outbound webhook on coarse progress changes. Best-effort:
+                # `deliver_progress` doesn't raise, but defensively suppress
+                # anything that escapes so processing isn't gated on the
+                # receiver being healthy.
+                #
+                # The emitted `progress` is normalised to the bucket value
+                # (e.g. 73 → 70) so receivers see only multiples of
+                # WEBHOOK_PROGRESS_BUCKET_PCT, matching the documented 5%
+                # bucket contract. Per-tick precision would be misleading
+                # given we only ship one frame per bucket anyway.
+                if progress_webhook_service and webhook_url:
+                    bucket = progress // WEBHOOK_PROGRESS_BUCKET_PCT
+                    if bucket > last_webhook_bucket:
+                        last_webhook_bucket = bucket
+                        bucketed_progress = bucket * WEBHOOK_PROGRESS_BUCKET_PCT
+                        try:
+                            await progress_webhook_service.deliver_progress(
+                                webhook_url=webhook_url,
+                                task_id=task_id,
+                                job_id=webhook_job_id,
+                                progress=bucketed_progress,
+                                message=message,
+                            )
+                        except Exception:
+                            logger.exception(
+                                "Progress webhook raised unexpectedly for task %s",
+                                task_id,
+                            )
 
             # Process video with progress updates
             pipeline_start = perf_counter()
