@@ -609,6 +609,115 @@ def _repair_segment_bounds(
     return repaired_start, repaired_end
 
 
+def _merge_overlapping_segments(
+    segments: List[TranscriptSegment],
+) -> List[TranscriptSegment]:
+    """Coalesce segments whose timestamp ranges overlap (or touch) into a
+    single segment.
+
+    The LLM occasionally returns two clip candidates that share source
+    footage — e.g. `00:42-01:05` plus `01:00-01:18` covering the same hook
+    from two angles. Without coalescing, both ranges get rendered separately
+    and the merged output replays the overlap. Worse, the second clip's
+    reframing crop can disagree with the first across the shared window,
+    producing a visual jump-cut on identical audio.
+
+    Algorithm:
+      1. Sort by parsed start_time ascending.
+      2. Sweep — if the next segment starts at or before the running tail,
+         absorb it: extend `end_time` to max(tail, next.end), pick the
+         richer relevance / virality / reasoning from the two, concatenate
+         text only when both ranges contribute distinct content (we keep
+         the higher-scoring text and append the other if non-overlapping).
+      3. Otherwise commit the current run and start a new one.
+
+    Parse failures (malformed MM:SS) skip the merge for that pair —
+    safer to render two clips than to drop one silently.
+    """
+    if len(segments) < 2:
+        return segments
+
+    parsed: List[tuple[int, int, TranscriptSegment]] = []
+    for seg in segments:
+        try:
+            start = _parse_transcript_timestamp_seconds(seg.start_time)
+            end = _parse_transcript_timestamp_seconds(seg.end_time)
+        except ValueError:
+            # Unparseable bounds — surface as its own segment so we don't
+            # accidentally drop it during the sweep.
+            parsed.append((-1, -1, seg))
+            continue
+        parsed.append((start, end, seg))
+
+    parsed.sort(key=lambda triple: (triple[0], triple[1]))
+
+    merged: List[TranscriptSegment] = []
+    cur_start, cur_end, cur_seg = parsed[0]
+
+    def _pick_better(a: TranscriptSegment, b: TranscriptSegment) -> TranscriptSegment:
+        """Return whichever segment has the higher virality / relevance —
+        used as the carrier for fields we can't sensibly merge (text,
+        reasoning, virality breakdown)."""
+        a_virality = a.virality.total_score if a.virality else 0
+        b_virality = b.virality.total_score if b.virality else 0
+        if a_virality != b_virality:
+            return a if a_virality > b_virality else b
+        return a if a.relevance_score >= b.relevance_score else b
+
+    for start, end, seg in parsed[1:]:
+        # Touch-or-overlap test: `start <= cur_end` means a 1-second gap
+        # closes into a single segment too. Tighten to `<` if you want a
+        # gap to remain as two clips.
+        if start >= 0 and cur_start >= 0 and start <= cur_end:
+            new_end_seconds = max(cur_end, end)
+            cur_end_str = _format_transcript_timestamp(new_end_seconds)
+            cur_start_str = _format_transcript_timestamp(cur_start)
+
+            carrier = _pick_better(cur_seg, seg)
+            other = seg if carrier is cur_seg else cur_seg
+
+            # If the loser's text contributes anything the winner doesn't,
+            # append it so the AI's full pick is preserved on the merged
+            # clip's metadata. Otherwise the winner's text alone is fine.
+            merged_text = carrier.text
+            other_text = other.text.strip()
+            if other_text and other_text not in carrier.text:
+                merged_text = f"{carrier.text} {other_text}".strip()
+
+            cur_seg = carrier.model_copy(
+                update={
+                    "start_time": cur_start_str,
+                    "end_time": cur_end_str,
+                    "text": merged_text,
+                    "relevance_score": max(cur_seg.relevance_score, seg.relevance_score),
+                }
+            )
+            cur_end = new_end_seconds
+            logger.info(
+                "Merged overlapping segments: %s-%s + %s-%s -> %s-%s",
+                cur_start_str,
+                _format_transcript_timestamp(cur_end if cur_end == new_end_seconds else cur_end),
+                seg.start_time,
+                seg.end_time,
+                cur_start_str,
+                cur_end_str,
+            )
+        else:
+            merged.append(cur_seg)
+            cur_start, cur_end, cur_seg = start, end, seg
+
+    merged.append(cur_seg)
+
+    if len(merged) != len(segments):
+        logger.info(
+            "Coalesced %d overlapping segment(s): %d -> %d",
+            len(segments) - len(merged),
+            len(segments),
+            len(merged),
+        )
+    return merged
+
+
 async def get_most_relevant_parts_by_transcript(
     transcript: str, include_broll: bool = False, clip_signals: str | None = None
 ) -> TranscriptAnalysis:
@@ -719,6 +828,14 @@ async def get_most_relevant_parts_by_transcript(
                     f"Skipping segment with invalid timestamp format: {segment.start_time}-{segment.end_time}: {e}"
                 )
                 continue
+
+        # Merge segments whose timestamp ranges overlap (or touch) into a
+        # single clip BEFORE sorting. Without this, the LLM occasionally
+        # emits two candidates that share the same source footage —
+        # downstream we'd render the same audio twice in quick succession
+        # and the merged output stutters. Reframing/encoding the union
+        # range once is both faster and produces a cleaner result.
+        validated_segments = _merge_overlapping_segments(validated_segments)
 
         # Sort by virality score (primary) then relevance (secondary)
         validated_segments.sort(
