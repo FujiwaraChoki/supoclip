@@ -238,16 +238,23 @@ class TaskService:
                 # `deliver_progress` doesn't raise, but defensively suppress
                 # anything that escapes so processing isn't gated on the
                 # receiver being healthy.
+                #
+                # The emitted `progress` is normalised to the bucket value
+                # (e.g. 73 → 70) so receivers see only multiples of
+                # WEBHOOK_PROGRESS_BUCKET_PCT, matching the documented 5%
+                # bucket contract. Per-tick precision would be misleading
+                # given we only ship one frame per bucket anyway.
                 if progress_webhook_service and webhook_url:
                     bucket = progress // WEBHOOK_PROGRESS_BUCKET_PCT
                     if bucket > last_webhook_bucket:
                         last_webhook_bucket = bucket
+                        bucketed_progress = bucket * WEBHOOK_PROGRESS_BUCKET_PCT
                         try:
                             await progress_webhook_service.deliver_progress(
                                 webhook_url=webhook_url,
                                 task_id=task_id,
                                 job_id=webhook_job_id,
-                                progress=progress,
+                                progress=bucketed_progress,
                                 message=message,
                             )
                         except Exception:

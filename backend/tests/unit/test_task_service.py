@@ -67,6 +67,14 @@ def build_task_service() -> TaskService:
     service.task_repo.update_task_runtime_metadata = AsyncMock()
     service.task_repo.update_task_status = AsyncMock()
     service.task_repo.update_task_clips = AsyncMock()
+    # `process_task` resolves webhook_url + job_id near the top so the
+    # progress callback can fire outbound webhooks. Tests don't exercise
+    # the progress path (no webhook_url set on the row), so a sentinel
+    # dict is enough — the webhook service is gated on `webhook_url`
+    # being truthy.
+    service.task_repo.get_task_by_id = AsyncMock(
+        return_value={"webhook_url": None, "job_id": None}
+    )
     service.clip_repo.create_clip = AsyncMock(return_value="clip-1")
     service.video_service.create_single_clip = AsyncMock(return_value=build_clip_result())
     service.video_service.apply_single_transition = AsyncMock(
