@@ -18,15 +18,24 @@ concurrency:
   cancel-in-progress: true
 
 # OIDC token exchange with AWS — see BN's stacks/openIDConnectStack.ts.
-# The role allows any Integrity-Labs/* repo to push to ECR.
+# The bn-infra-github-actions role exists in BOTH the nonprod and prod
+# Brand Ninja accounts and trusts any Integrity-Labs/* repo, so the same
+# workflow can push to both ECRs.
 permissions:
   id-token: write
   contents: read
 
 env:
   AWS_REGION: ap-southeast-2
-  AWS_ACCOUNT_ID: '508102262178' # nonprod (budgie stage hosts the shared Supoclip cluster)
   ECR_REPOSITORY: supoclip-backend
+  # NonProd hosts the live/running shared Supoclip cluster used by BN
+  # budgie + preprod environments.
+  NONPROD_ACCOUNT_ID: '508102262178'
+  # Prod has an equivalent cluster (provisioned by infra/supoclip CDK)
+  # that's intentionally scaled to 0 by default. We keep `:latest` fresh
+  # in its ECR so scaling it up is immediate; ECS rollout is NOT triggered
+  # from this workflow — operator-controlled.
+  PROD_ACCOUNT_ID: '014392677562'
   ECS_CLUSTER: SupoclipCluster
   ECS_BACKEND_SERVICE: BackendService
   ECS_WORKER_SERVICE: WorkerService
@@ -37,33 +46,50 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/bn-infra-github-actions
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push image
+      # Build the image once into the local docker daemon, then tag and push
+      # it to each account ECR separately. Building once (vs twice via two
+      # build-push-action invocations) avoids non-determinism between the
+      # nonprod and prod copies — identical bytes, identical digest.
+      - name: Build image (local)
         uses: docker/build-push-action@v6
         with:
           context: ./backend
           file: ./backend/Dockerfile
           platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
-            ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          push: false
+          load: true
+          tags: supoclip-backend:build
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Force-redeploy ECS services
+      # ----------------------------------------------------------------
+      # NonProd: push image + force ECS rollout
+      # ----------------------------------------------------------------
+
+      - name: Configure AWS credentials (NonProd)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.NONPROD_ACCOUNT_ID }}:role/bn-infra-github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to NonProd ECR
+        id: nonprod-ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Tag and push to NonProd ECR
+        env:
+          REGISTRY: ${{ steps.nonprod-ecr-login.outputs.registry }}
+          SHA: ${{ github.sha }}
+        run: |
+          docker tag supoclip-backend:build "$REGISTRY/$ECR_REPOSITORY:latest"
+          docker tag supoclip-backend:build "$REGISTRY/$ECR_REPOSITORY:$SHA"
+          docker push "$REGISTRY/$ECR_REPOSITORY:latest"
+          docker push "$REGISTRY/$ECR_REPOSITORY:$SHA"
+
+      - name: Force-redeploy NonProd ECS services
         # ECS will pull the new `latest` tag on each rollout. Both backend
         # and worker run from the same image; trigger redeploys in parallel
         # then wait for both to reach steady state so failed rollouts fail
@@ -86,3 +112,31 @@ jobs:
             --cluster "$ECS_CLUSTER" \
             --services "$ECS_BACKEND_SERVICE" "$ECS_WORKER_SERVICE" \
             --region "$AWS_REGION"
+
+      # ----------------------------------------------------------------
+      # Prod: push image only (no auto-rollout)
+      # ----------------------------------------------------------------
+      # The Prod Supoclip cluster sits at desiredCount=0 by default. We
+      # keep `:latest` fresh so an operator-initiated scale-up immediately
+      # finds an image to pull, but we do NOT drive an ECS rollout from
+      # this workflow — that's reserved for explicit operator action.
+
+      - name: Configure AWS credentials (Prod)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.PROD_ACCOUNT_ID }}:role/bn-infra-github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Prod ECR
+        id: prod-ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Tag and push to Prod ECR
+        env:
+          REGISTRY: ${{ steps.prod-ecr-login.outputs.registry }}
+          SHA: ${{ github.sha }}
+        run: |
+          docker tag supoclip-backend:build "$REGISTRY/$ECR_REPOSITORY:latest"
+          docker tag supoclip-backend:build "$REGISTRY/$ECR_REPOSITORY:$SHA"
+          docker push "$REGISTRY/$ECR_REPOSITORY:latest"
+          docker push "$REGISTRY/$ECR_REPOSITORY:$SHA"
