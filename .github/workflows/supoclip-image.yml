@@ -44,17 +44,17 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       # Build the image once into the local docker daemon, then tag and push
       # it to each account ECR separately. Building once (vs twice via two
       # build-push-action invocations) avoids non-determinism between the
       # nonprod and prod copies — identical bytes, identical digest.
       - name: Build image (local)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -70,14 +70,14 @@ jobs:
       # ----------------------------------------------------------------
 
       - name: Configure AWS credentials (NonProd)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
           role-to-assume: arn:aws:iam::${{ env.NONPROD_ACCOUNT_ID }}:role/bn-infra-github-actions
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to NonProd ECR
         id: nonprod-ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2
 
       - name: Tag and push to NonProd ECR
         env:
@@ -122,14 +122,14 @@ jobs:
       # this workflow — that's reserved for explicit operator action.
 
       - name: Configure AWS credentials (Prod)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
         with:
           role-to-assume: arn:aws:iam::${{ env.PROD_ACCOUNT_ID }}:role/bn-infra-github-actions
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Prod ECR
         id: prod-ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2
 
       - name: Tag and push to Prod ECR
         env:
