@@ -163,5 +163,124 @@ class VideoUtilsDiarizationTests(unittest.TestCase):
         self.assertEqual(payload["words"][0]["text"], "legacy")
 
 
+class VideoUtilsHardCutReframeTests(unittest.TestCase):
+    """Diarization-driven hard-cut reframe helpers (ENG-5595)."""
+
+    def test_get_utterances_for_keep_ranges_rebases_to_clip_time(self):
+        transcript_data = {
+            "utterances": [
+                {"start": 10_000, "end": 12_000, "speaker": "A"},
+                {"start": 12_000, "end": 14_000, "speaker": "B"},
+                {"start": 30_000, "end": 31_000, "speaker": "A"},
+            ]
+        }
+        # Two kept ranges (seconds) are concatenated into one clip timeline.
+        keep_ranges = [(10.0, 14.0), (30.0, 31.0)]
+
+        projected = video_utils.get_utterances_for_keep_ranges(
+            transcript_data, keep_ranges
+        )
+
+        self.assertEqual(
+            projected,
+            [
+                {"start": 0.0, "end": 2.0, "speaker": "A"},
+                {"start": 2.0, "end": 4.0, "speaker": "B"},
+                # Second range starts at clip-relative offset 4.0 (= 14-10).
+                {"start": 4.0, "end": 5.0, "speaker": "A"},
+            ],
+        )
+
+    def test_get_utterances_for_keep_ranges_skips_unlabeled(self):
+        transcript_data = {
+            "utterances": [
+                {"start": 0, "end": 1000, "speaker": None},
+                {"start": 1000, "end": 2000, "speaker": "A"},
+            ]
+        }
+        projected = video_utils.get_utterances_for_keep_ranges(
+            transcript_data, [(0.0, 2.0)]
+        )
+        self.assertEqual(projected, [{"start": 1.0, "end": 2.0, "speaker": "A"}])
+
+    def test_map_speaker_labels_to_sides_uses_region_motion(self):
+        # Sampled every 1s; left motion dominates 0-3s, right motion 3-6s.
+        times = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
+        left_values = [10.0, 10.0, 10.0, 1.0, 1.0, 1.0]
+        right_values = [1.0, 1.0, 1.0, 10.0, 10.0, 10.0]
+        utterances = [
+            {"start": 0.0, "end": 2.5, "speaker": "A"},
+            {"start": 3.0, "end": 5.5, "speaker": "B"},
+        ]
+
+        mapping = video_utils.map_speaker_labels_to_sides(
+            utterances, times, left_values, right_values
+        )
+
+        self.assertEqual(mapping["A"], "left")
+        self.assertEqual(mapping["B"], "right")
+
+    def test_build_speaker_timeline_from_utterances_cuts_on_speaker_change(self):
+        utterances = [
+            {"start": 0.0, "end": 3.0, "speaker": "A"},
+            {"start": 3.0, "end": 6.0, "speaker": "B"},
+            {"start": 6.0, "end": 9.0, "speaker": "A"},
+        ]
+        label_to_side = {"A": "left", "B": "right"}
+
+        timeline = video_utils.build_speaker_timeline_from_utterances(
+            utterances, label_to_side, min_duration=1.0
+        )
+
+        self.assertEqual([seg["speaker"] for seg in timeline], ["left", "right", "left"])
+        # Cut boundary lands where the next speaker begins.
+        self.assertAlmostEqual(timeline[0]["end"], 3.0)
+        self.assertAlmostEqual(timeline[1]["end"], 6.0)
+
+    def test_build_speaker_timeline_debounces_short_turns(self):
+        # A short 0.3s interjection from B should be absorbed into A's turn.
+        utterances = [
+            {"start": 0.0, "end": 4.0, "speaker": "A"},
+            {"start": 4.0, "end": 4.3, "speaker": "B"},
+            {"start": 4.3, "end": 8.0, "speaker": "A"},
+        ]
+        label_to_side = {"A": "left", "B": "right"}
+
+        timeline = video_utils.build_speaker_timeline_from_utterances(
+            utterances, label_to_side, min_duration=1.5
+        )
+
+        self.assertEqual([seg["speaker"] for seg in timeline], ["left"])
+
+    def test_build_speaker_timeline_coalesces_same_side(self):
+        utterances = [
+            {"start": 0.0, "end": 2.0, "speaker": "A"},
+            {"start": 2.0, "end": 4.0, "speaker": "C"},  # C also maps left
+        ]
+        label_to_side = {"A": "left", "C": "left"}
+
+        timeline = video_utils.build_speaker_timeline_from_utterances(
+            utterances, label_to_side, min_duration=1.0
+        )
+
+        self.assertEqual(len(timeline), 1)
+        self.assertEqual(timeline[0]["speaker"], "left")
+
+    def test_single_speaker_maps_to_one_side_triggers_static_fallback(self):
+        # One diarized speaker -> only one side in the mapping. detect_speaker_reframe_plan
+        # treats len(set(sides)) < 2 as "no cuts" and falls back to the static crop.
+        times = [0.0, 1.0, 2.0, 3.0]
+        left_values = [5.0, 5.0, 5.0, 5.0]
+        right_values = [1.0, 1.0, 1.0, 1.0]
+        utterances = [{"start": 0.0, "end": 3.5, "speaker": "A"}]
+
+        mapping = video_utils.map_speaker_labels_to_sides(
+            utterances, times, left_values, right_values
+        )
+
+        self.assertEqual(set(mapping.values()), {"left"})
+        self.assertLess(len(set(mapping.values())), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

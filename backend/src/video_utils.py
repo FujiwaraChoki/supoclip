@@ -34,7 +34,17 @@ from .font_registry import FONTS_DIR, find_font_path, get_font_family_name
 
 logger = logging.getLogger(__name__)
 TRANSCRIPT_CACHE_SCHEMA_VERSION = 2
-VALID_OUTPUT_FORMATS = {"vertical", "vertical_pan", "vertical_split", "original"}
+# `vertical` performs diarization-driven hard-cut speaker reframing, falling back to a
+# static centre crop for single-speaker clips. `horizontal` is the BN-template-aligned
+# name for keep-source 16:9 output; `original` is retained as a backward-compatible alias.
+HORIZONTAL_OUTPUT_FORMATS = {"horizontal", "original"}
+VALID_OUTPUT_FORMATS = {
+    "vertical",
+    "vertical_pan",
+    "vertical_split",
+    "horizontal",
+    "original",
+}
 CLIP_END_SENTENCE_EXTENSION_SECONDS = 3.0
 CLIP_END_PADDING_SECONDS = 0.35
 SENTENCE_END_RE = re.compile(r"""[.!?]["')\]}]*$""")
@@ -1288,6 +1298,110 @@ def build_speaker_timeline_from_motion(
     return merged
 
 
+def map_speaker_labels_to_sides(
+    utterances: List[Dict[str, Any]],
+    times: List[float],
+    left_values: List[float],
+    right_values: List[float],
+) -> Dict[str, str]:
+    """Bind each diarized speaker label to the left/right face zone.
+
+    Audio diarization tells us *when* each label speaks; the per-region lip-motion
+    signal (left vs right) tells us *where* that speaker sits. For each label we
+    accumulate the left-minus-right motion over its utterance windows and assign it
+    to the side it leans toward, forcing the two strongest labels onto opposite sides.
+    """
+    if not utterances or not times or len(left_values) != len(right_values):
+        return {}
+
+    def normalize(values: List[float]) -> List[float]:
+        mean_value = sum(values) / max(len(values), 1)
+        return [value / mean_value if mean_value > 0 else 0.0 for value in values]
+
+    # No pre-smoothing: summing the left-minus-right signal across each speaker's
+    # (multi-second) utterance windows already integrates out per-frame noise, and a
+    # wide smoothing window would flatten short clips to their mean and erase the signal.
+    left = normalize(left_values)
+    right = normalize(right_values)
+    if not left or not right:
+        return {}
+
+    # Per-label accumulated "leftness" (left motion minus right motion) and airtime.
+    scores: Dict[str, float] = {}
+    airtime: Dict[str, float] = {}
+    for utterance in utterances:
+        label = utterance["speaker"]
+        airtime[label] = airtime.get(label, 0.0) + max(
+            0.0, utterance["end"] - utterance["start"]
+        )
+        for idx, sample_time in enumerate(times):
+            if utterance["start"] <= sample_time <= utterance["end"]:
+                scores[label] = scores.get(label, 0.0) + (left[idx] - right[idx])
+
+    if not scores:
+        return {}
+
+    # Assign the most "left-leaning" label to left, the most "right-leaning" to right;
+    # any remaining labels follow the sign of their own score (nearest zone).
+    ordered = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    mapping: Dict[str, str] = {}
+    mapping[ordered[0][0]] = "left"
+    if len(ordered) > 1:
+        mapping[ordered[-1][0]] = "right"
+    for label, score in ordered:
+        if label not in mapping:
+            mapping[label] = "left" if score >= 0 else "right"
+    return mapping
+
+
+def build_speaker_timeline_from_utterances(
+    utterances: List[Dict[str, Any]],
+    label_to_side: Dict[str, str],
+    min_duration: float = 1.5,
+) -> List[Dict[str, Any]]:
+    """Build a hard-cut timeline (clip-relative seconds) from diarized utterances.
+
+    Produces contiguous {start, end, speaker: "left"|"right"} segments where ``end``
+    is the cut point to the next speaker — the shape ``build_pan_expression`` expects.
+    Consecutive same-side utterances coalesce, and runs shorter than ``min_duration``
+    are absorbed into their neighbour to debounce rapid back-and-forth.
+    """
+    sided = [
+        {
+            "start": utterance["start"],
+            "end": utterance["end"],
+            "speaker": label_to_side.get(utterance["speaker"]),
+        }
+        for utterance in sorted(utterances, key=lambda item: item["start"])
+        if label_to_side.get(utterance["speaker"]) is not None
+    ]
+    if not sided:
+        return []
+
+    # Coalesce consecutive same-side utterances; bridge gaps so cuts land at the
+    # moment the next speaker begins.
+    runs: List[Dict[str, Any]] = []
+    for segment in sided:
+        if runs and runs[-1]["speaker"] == segment["speaker"]:
+            runs[-1]["end"] = max(runs[-1]["end"], segment["end"])
+            continue
+        if runs:
+            runs[-1]["end"] = segment["start"]
+        runs.append(dict(segment))
+
+    # Debounce: drop runs shorter than min_duration by extending the previous run.
+    merged: List[Dict[str, Any]] = []
+    for run in runs:
+        if merged and (run["end"] - run["start"]) < min_duration:
+            merged[-1]["end"] = run["end"]
+            continue
+        if merged and merged[-1]["speaker"] == run["speaker"]:
+            merged[-1]["end"] = run["end"]
+            continue
+        merged.append(run)
+    return merged
+
+
 def cluster_two_face_regions(
     face_centers: List[Tuple[int, int, int, float]],
     width: int,
@@ -1353,9 +1467,34 @@ def build_pan_expression(
 def detect_speaker_reframe_plan(
     clip_path: Path,
     output_format: str,
+    utterances: Optional[List[Dict[str, Any]]] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Build a speaker-aware pan or split-screen plan for a trimmed clip."""
+    """Build a speaker-aware hard-cut, pan, or split-screen plan for a trimmed clip.
+
+    The default ``vertical`` path uses the diarized ``utterances`` (clip-relative
+    seconds, with a ``speaker`` label) to decide *when* to cut and the per-region
+    lip-motion signal to decide *where* each speaker sits. Cuts reuse the same
+    step-function crop expression as ``vertical_pan`` — for a hard cut the step is the
+    intended behaviour, not a bug. Returning ``None`` lets the caller fall back to the
+    static centre crop (single-speaker clips, no diarization, etc.).
+    """
     try:
+        # Cheap early-out for the default 'vertical' hard-cut path: a clip with fewer
+        # than two diarized speakers needs no cuts, so skip face detection and the
+        # motion pass entirely and let the caller render the static crop.
+        if output_format == "vertical":
+            distinct_speakers = {
+                utterance.get("speaker")
+                for utterance in (utterances or [])
+                if utterance.get("speaker")
+            }
+            if len(distinct_speakers) < 2:
+                logger.info(
+                    "vertical: %d diarized speaker(s) — using static crop",
+                    len(distinct_speakers),
+                )
+                return None
+
         width, height = ffprobe_video_size(clip_path)
         if width / max(height, 1) <= 1.2:
             return None
@@ -1430,13 +1569,35 @@ def detect_speaker_reframe_plan(
                 return None
             times, left_values = parse_motion_metadata(left_motion)
             _, right_values = parse_motion_metadata(right_motion)
-            timeline = build_speaker_timeline_from_motion(
-                times,
-                left_values,
-                right_values,
+
+        if output_format == "vertical":
+            label_to_side = map_speaker_labels_to_sides(
+                utterances, times, left_values, right_values
             )
-            if len(timeline) < 2:
+            if len(set(label_to_side.values())) < 2:
+                logger.info("vertical: only one speaker zone in use — static crop")
                 return None
+            timeline = build_speaker_timeline_from_utterances(utterances, label_to_side)
+            if len(timeline) < 2:
+                logger.info("vertical: fewer than 2 speaker turns — static crop")
+                return None
+            return {
+                "mode": "cut",
+                "width": width,
+                "height": height,
+                "crop_w": crop_w,
+                "crop_h": height,
+                "x_expression": build_pan_expression(timeline, left_x, right_x),
+                "timeline": timeline,
+            }
+
+        timeline = build_speaker_timeline_from_motion(
+            times,
+            left_values,
+            right_values,
+        )
+        if len(timeline) < 2:
+            return None
 
         return {
             "mode": "pan",
@@ -1467,19 +1628,20 @@ def render_reframed_clip_ffmpeg(
     input_path: Path,
     output_path: Path,
     output_format: str,
+    utterances: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[bool, int, int]:
     """Render the requested aspect/framing mode and return final dimensions."""
     width, height = ffprobe_video_size(input_path)
-    if output_format == "original":
+    if output_format in HORIZONTAL_OUTPUT_FORMATS:
         shutil.copyfile(input_path, output_path)
         return True, round_to_even(width), round_to_even(height)
 
     plan = (
-        detect_speaker_reframe_plan(input_path, output_format)
-        if output_format in {"vertical_pan", "vertical_split"}
+        detect_speaker_reframe_plan(input_path, output_format, utterances)
+        if output_format in {"vertical", "vertical_pan", "vertical_split"}
         else None
     )
-    if plan and plan["mode"] == "pan":
+    if plan and plan["mode"] in {"pan", "cut"}:
         video_filter = (
             f"crop={plan['crop_w']}:{plan['crop_h']}:x='{plan['x_expression']}':y=0,"
             "scale=1080:1920:flags=lanczos,setsar=1"
@@ -2024,6 +2186,71 @@ def get_words_for_keep_ranges(
     return relevant_words
 
 
+def get_absolute_utterances_in_range(
+    transcript_data: Dict, clip_start: float, clip_end: float
+) -> List[Dict[str, Any]]:
+    """Extract diarized utterances (absolute seconds) overlapping a timerange."""
+    if not transcript_data or not transcript_data.get("utterances"):
+        return []
+
+    clip_start_ms = int(clip_start * 1000)
+    clip_end_ms = int(clip_end * 1000)
+
+    relevant: List[Dict[str, Any]] = []
+    for utterance in transcript_data["utterances"]:
+        speaker = utterance.get("speaker")
+        if speaker is None:
+            continue
+        utt_start = int(utterance["start"])
+        utt_end = int(utterance["end"])
+        overlap_start = max(utt_start, clip_start_ms)
+        overlap_end = min(utt_end, clip_end_ms)
+        if overlap_end <= overlap_start:
+            continue
+        relevant.append(
+            {
+                "start": overlap_start / 1000.0,
+                "end": overlap_end / 1000.0,
+                "speaker": speaker,
+            }
+        )
+    return relevant
+
+
+def get_utterances_for_keep_ranges(
+    transcript_data: Dict, keep_ranges: List[Tuple[float, float]]
+) -> List[Dict[str, Any]]:
+    """Project diarized utterances into the clip-relative timeline after cuts."""
+    if not transcript_data or not transcript_data.get("utterances") or not keep_ranges:
+        return []
+
+    projected: List[Dict[str, Any]] = []
+    timeline_offset = 0.0
+    for keep_start, keep_end in keep_ranges:
+        for utterance in get_absolute_utterances_in_range(
+            transcript_data, keep_start, keep_end
+        ):
+            projected.append(
+                {
+                    "start": timeline_offset + (utterance["start"] - keep_start),
+                    "end": timeline_offset + (utterance["end"] - keep_start),
+                    "speaker": utterance["speaker"],
+                }
+            )
+        timeline_offset += keep_end - keep_start
+    return projected
+
+
+def load_clip_relative_utterances(
+    video_path: Path, keep_ranges: List[Tuple[float, float]]
+) -> List[Dict[str, Any]]:
+    """Load cached diarized utterances projected onto the clip-relative timeline."""
+    transcript_data = load_cached_transcript_data(video_path)
+    if not transcript_data:
+        return []
+    return get_utterances_for_keep_ranges(transcript_data, keep_ranges)
+
+
 def create_optimized_clip(
     video_path: Path,
     start_time: float,
@@ -2037,7 +2264,8 @@ def create_optimized_clip(
     output_format: str = "vertical",
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
 ) -> bool:
-    """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size)."""
+    """Create clip with optional subtitles. output_format: 'vertical' (9:16, hard-cut
+    speaker reframing) or 'horizontal' (keep source 16:9; 'original' is an alias)."""
     try:
         if keep_ranges:
             effective_keep_ranges = normalize_source_ranges(keep_ranges)
@@ -2056,13 +2284,14 @@ def create_optimized_clip(
             logger.error(f"Invalid clip duration: {duration:.1f}s")
             return False
 
-        keep_original = output_format == "original"
+        keep_original = output_format in HORIZONTAL_OUTPUT_FORMATS
         logger.info(
             f"Creating clip: {start_time:.1f}s - {end_time:.1f}s ({duration:.1f}s) "
-            f"subtitles={add_subtitles} template '{caption_template}' format={'original' if keep_original else 'vertical'}"
+            f"subtitles={add_subtitles} template '{caption_template}' "
+            f"format={'horizontal' if keep_original else output_format}"
         )
 
-        # Fast path: no subtitles + original = ffmpeg stream copy (no re-encoding)
+        # Fast path: no subtitles + horizontal = ffmpeg stream copy (no re-encoding)
         if not add_subtitles and keep_original and len(effective_keep_ranges) == 1:
             fast_path_start, fast_path_end = effective_keep_ranges[0]
             result = subprocess.run(
@@ -2103,10 +2332,16 @@ def create_optimized_clip(
             reframe_format = (
                 output_format if output_format in VALID_OUTPUT_FORMATS else "vertical"
             )
+            clip_utterances = (
+                load_clip_relative_utterances(video_path, effective_keep_ranges)
+                if reframe_format == "vertical"
+                else None
+            )
             framed_ok, target_width, target_height = render_reframed_clip_ffmpeg(
                 source_clip_path,
                 framed_clip_path,
                 reframe_format,
+                clip_utterances,
             )
             if not framed_ok:
                 raise RuntimeError("ffmpeg reframe render failed")

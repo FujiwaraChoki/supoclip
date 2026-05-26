@@ -183,8 +183,9 @@ class VideoService:
         """
         Create standalone video clips from segments with optional subtitles.
         Runs in thread pool as video processing is CPU-intensive.
-        output_format: 'vertical' (9:16) or 'original' (keep source size, faster).
-        add_subtitles: False skips subtitles; with original format uses ffmpeg stream copy (no re-encode).
+        output_format: 'vertical' (9:16, hard-cut speaker reframing) or 'horizontal'
+        (keep source 16:9, faster; 'original' is a backward-compatible alias).
+        add_subtitles: False skips subtitles; with horizontal format uses ffmpeg stream copy (no re-encode).
         """
         logger.info(f"Creating {len(segments)} video clips subtitles={add_subtitles}")
         clips_output_dir = Path(get_config().temp_dir) / "clips"
