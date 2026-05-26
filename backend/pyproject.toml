@@ -22,7 +22,11 @@ dependencies = [
     "srt-equalizer>=0.1.10",
     "assemblyai>=0.35.0",
     "srt>=3.5.3",
-    "mediapipe>=0.10.0",
+    # NOTE: mediapipe was removed (supoclip#15). Its working cp311-linux wheels
+    # require protobuf<5, which conflicts with pydantic-ai (protobuf>=5.29.4);
+    # the only protobuf-5 mediapipe (0.10.35) ships a stub wheel with no
+    # `mediapipe.python`. Face detection now uses OpenCV's DNN detector (cv2.dnn
+    # + a bundled model), which has no such conflict — see video_utils.py.
     "numpy>=1.24.0",
     "aiofiles>=23.2.0",
     "sse-starlette>=1.6.5",

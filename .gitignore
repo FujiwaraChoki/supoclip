@@ -8,3 +8,5 @@ temp/
 *.m4a
 frontend/e2e/.seed.json
 .coverage
+# OpenCV DNN face-detector models — downloaded at image build (see backend/Dockerfile)
+backend/models/

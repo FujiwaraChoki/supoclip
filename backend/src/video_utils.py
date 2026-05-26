@@ -527,6 +527,53 @@ def detect_optimal_crop_region(
         return (x_offset, y_offset, new_width, new_height)
 
 
+# OpenCV DNN face-detector model files, baked into the image at build time
+# (see backend/Dockerfile). Resolved relative to this file so it works both in
+# the container (/app/models) and in local dev (backend/models).
+DNN_FACE_MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
+_DNN_FACE_NET: Optional["cv2.dnn_Net"] = None
+_DNN_FACE_NET_LOADED = False
+
+
+def _get_dnn_face_net() -> Optional["cv2.dnn_Net"]:
+    """
+    Lazily load and cache the OpenCV DNN (SSD/ResNet) face detector.
+
+    Returns the loaded net, or None if the model files are missing or fail to
+    load — in which case detection degrades to the weak Haar cascade. That
+    degradation is logged at ERROR level (not silently) because it noticeably
+    hurts crop placement. See Integrity-Labs/supoclip#15.
+    """
+    global _DNN_FACE_NET, _DNN_FACE_NET_LOADED
+    if _DNN_FACE_NET_LOADED:
+        return _DNN_FACE_NET
+    _DNN_FACE_NET_LOADED = True
+
+    model_path = DNN_FACE_MODEL_DIR / "opencv_face_detector_uint8.pb"
+    config_path = DNN_FACE_MODEL_DIR / "opencv_face_detector.pbtxt"
+    if not model_path.exists() or not config_path.exists():
+        logger.error(
+            "OpenCV DNN face-detector model files missing in %s (expected "
+            "opencv_face_detector_uint8.pb + opencv_face_detector.pbtxt). Face "
+            "detection will fall back to the weak Haar cascade and crops will be "
+            "degraded. See supoclip#15.",
+            DNN_FACE_MODEL_DIR,
+        )
+        return None
+
+    try:
+        _DNN_FACE_NET = cv2.dnn.readNetFromTensorflow(str(model_path), str(config_path))
+        logger.info("Using OpenCV DNN face detector")
+    except Exception as e:
+        logger.error(
+            "OpenCV DNN face detector failed to load (%r); falling back to the "
+            "weak Haar cascade. Crops will be degraded. See supoclip#15.",
+            e,
+        )
+        _DNN_FACE_NET = None
+    return _DNN_FACE_NET
+
+
 def detect_faces_in_clip(
     video_path: Path, start_time: float, end_time: float
 ) -> List[Tuple[int, int, int, float]]:
@@ -537,47 +584,17 @@ def detect_faces_in_clip(
     face_centers = []
 
     try:
-        # Try to use MediaPipe (most accurate)
-        mp_face_detection = None
-        try:
-            import mediapipe as mp
+        # Primary detector: OpenCV DNN (SSD/ResNet face detector — accurate and
+        # needs no extra Python deps beyond cv2). `_get_dnn_face_net` loads it
+        # once and logs LOUDLY if the model is unavailable, so the drop to the
+        # weak Haar cascade is never silent. See Integrity-Labs/supoclip#15.
+        dnn_net = _get_dnn_face_net()
 
-            mp_face_detection = mp.solutions.face_detection.FaceDetection(
-                model_selection=0,  # 0 for short-range (better for close faces)
-                min_detection_confidence=0.5,
-            )
-            logger.info("Using MediaPipe face detector")
-        except ImportError:
-            logger.info("MediaPipe not available, falling back to OpenCV")
-        except Exception as e:
-            logger.warning(f"MediaPipe face detector failed to initialize: {e}")
-
-        # Initialize OpenCV face detectors as fallback
+        # Haar cascade — only used when the DNN detector is unavailable, or
+        # finds no face in a given frame.
         haar_cascade = cv2.CascadeClassifier(
             cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
         )
-
-        # Try to load DNN face detector (more accurate than Haar)
-        dnn_net = None
-        try:
-            # Load OpenCV's DNN face detector
-            prototxt_path = cv2.data.haarcascades.replace(
-                "haarcascades", "opencv_face_detector.pbtxt"
-            )
-            model_path = cv2.data.haarcascades.replace(
-                "haarcascades", "opencv_face_detector_uint8.pb"
-            )
-
-            # If DNN model files don't exist, we'll fall back to Haar cascade
-            import os
-
-            if os.path.exists(prototxt_path) and os.path.exists(model_path):
-                dnn_net = cv2.dnn.readNetFromTensorflow(model_path, prototxt_path)
-                logger.info("OpenCV DNN face detector loaded as backup")
-            else:
-                logger.info("OpenCV DNN face detector not available")
-        except Exception:
-            logger.info("OpenCV DNN face detector failed to load")
 
         # Sample more frames for better face detection (every 0.5 seconds)
         duration = end_time - start_time
@@ -609,36 +626,11 @@ def detect_faces_in_clip(
                 ok, frame_bgr = capture.read()
                 if not ok or frame_bgr is None:
                     continue
-                frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-                height, width = frame.shape[:2]
+                height, width = frame_bgr.shape[:2]
                 detected_faces = []
 
-                # Try MediaPipe first (most accurate)
-                if mp_face_detection is not None:
-                    try:
-                        # MediaPipe expects RGB format
-                        results = mp_face_detection.process(frame)
-
-                        if results.detections:
-                            for detection in results.detections:
-                                bbox = detection.location_data.relative_bounding_box
-                                confidence = detection.score[0]
-
-                                # Convert relative coordinates to absolute
-                                x = int(bbox.xmin * width)
-                                y = int(bbox.ymin * height)
-                                w = int(bbox.width * width)
-                                h = int(bbox.height * height)
-
-                                if w > 30 and h > 30:  # Minimum face size
-                                    detected_faces.append((x, y, w, h, confidence))
-                    except Exception as e:
-                        logger.warning(
-                            f"MediaPipe detection failed for frame at {sample_time}s: {e}"
-                        )
-
-                # If MediaPipe didn't find faces, try DNN detector
-                if not detected_faces and dnn_net is not None:
+                # Primary: OpenCV DNN detector
+                if dnn_net is not None:
                     try:
                         blob = cv2.dnn.blobFromImage(
                             frame_bgr, 1.0, (300, 300), [104, 117, 123]
@@ -647,7 +639,7 @@ def detect_faces_in_clip(
                         detections = dnn_net.forward()
 
                         for i in range(detections.shape[2]):
-                            confidence = detections[0, 0, i, 2]
+                            confidence = float(detections[0, 0, i, 2])
                             if confidence > 0.5:  # Confidence threshold
                                 x1 = int(detections[0, 0, i, 3] * width)
                                 y1 = int(detections[0, 0, i, 4] * height)
@@ -664,7 +656,7 @@ def detect_faces_in_clip(
                             f"DNN detection failed for frame at {sample_time}s: {e}"
                         )
 
-                # If still no faces found, use Haar cascade
+                # If the DNN found no faces (or is unavailable), use Haar cascade
                 if not detected_faces:
                     try:
                         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
@@ -715,10 +707,6 @@ def detect_faces_in_clip(
                 continue
 
         capture.release()
-
-        # Close MediaPipe detector
-        if mp_face_detection is not None:
-            mp_face_detection.close()
 
         # Remove outliers (faces that are very far from the median position)
         if len(face_centers) > 2:
