@@ -39,6 +39,29 @@ primitive for cuts (it was only a bug for *panning*). Reuse it, fed by diarizati
 
 **Dropped vs original plan:** smooth pan, Savitzky-Golay smoothing, vendoring LR-ASD + torch.
 
+### Increment 2: per-shot reframing for edited clips
+
+The first cut only handled locked 2-shots: `detect_speaker_reframe_plan` bailed when a
+clip had `>2` scene cuts (its fixed left/right zones, sampled once from the first 12 s,
+mis-frame after a camera change). Real edited podcast clips cut frequently, so they always
+fell back to the static crop. Diagnosed on prod job `baeb9911` (4/8/10 scene cuts per clip
+→ `Skipping speaker reframe` → static).
+
+Fix — route by scene-cut count in the `vertical` path:
+- **≤2 cuts** → existing whole-clip 2-zone motion + diarization logic (locked 2-shots).
+- **>2 cuts** → `build_per_shot_cut_plan`: segment at scene-cut *times*
+  (`detect_scene_cut_times`), detect faces *within each shot*, frame the weighted face
+  centre of that shot (lands on the single person the editor cut to; centres between faces
+  for a wide shot), and **hard-cut `crop_x` between shots** via a generalized step
+  expression (`build_step_x_expression`). Near-equal / sub-0.6 s segments coalesce
+  (`merge_x_segments`) to avoid micro-cuts; falls back to static when framing never moves
+  or there are >60 segments. The pan/split modes still bail on >2 cuts.
+
+Cost stays bounded: per-shot face *detection* only (the ffmpeg motion pass runs only on the
+≤2-cut locked-2-shot path). Single-speaker / no-diarization clips still early-out to static.
+Known v1 limit: a held 2-shot *within* an edited clip is centred between faces rather than
+speaker-selected (per-shot active-speaker selection is a later increment).
+
 **Guards to keep (council):** min-segment debounce, single-speaker → static crop, model-asset
 integrity check (#15 pattern), per-clip static-crop escape hatch, validation gating each step.
 

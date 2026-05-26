@@ -282,5 +282,64 @@ class VideoUtilsHardCutReframeTests(unittest.TestCase):
         self.assertLess(len(set(mapping.values())), 2)
 
 
+class VideoUtilsPerShotReframeTests(unittest.TestCase):
+    """Per-shot reframing helpers for heavily-edited clips (ENG-5595)."""
+
+    def test_build_shot_boundaries_segments_at_cuts(self):
+        shots = video_utils.build_shot_boundaries([5.0, 12.0], 20.0)
+        self.assertEqual(shots, [(0.0, 5.0), (5.0, 12.0), (12.0, 20.0)])
+
+    def test_build_shot_boundaries_ignores_out_of_range_and_dupes(self):
+        # cuts at/after duration or <=0 are dropped; duplicates collapsed
+        shots = video_utils.build_shot_boundaries([0.0, 5.0, 5.0, 25.0], 20.0)
+        self.assertEqual(shots, [(0.0, 5.0), (5.0, 20.0)])
+
+    def test_build_shot_boundaries_no_cuts_is_single_shot(self):
+        self.assertEqual(video_utils.build_shot_boundaries([], 10.0), [(0.0, 10.0)])
+
+    def test_weighted_face_center_x_frames_single_face(self):
+        # one face centred at x=900 in a 1920-wide frame, crop 606 wide
+        crop_x = video_utils.weighted_face_center_x([(900, 540, 10000, 0.9)], 1920, 606)
+        self.assertEqual(crop_x, video_utils.clamp_even(900 - 303, 0, 1920 - 606))
+
+    def test_weighted_face_center_x_clamps_and_handles_empty(self):
+        self.assertIsNone(video_utils.weighted_face_center_x([], 1920, 606))
+        # face hard against the right edge clamps to max offset (even)
+        crop_x = video_utils.weighted_face_center_x([(1900, 540, 5000, 0.8)], 1920, 606)
+        self.assertEqual(crop_x, video_utils.round_to_even(1920 - 606))
+
+    def test_merge_x_segments_coalesces_near_equal_and_short(self):
+        segments = [
+            {"start": 0.0, "end": 4.0, "x": 100},
+            {"start": 4.0, "end": 8.0, "x": 102},   # within tol of 100 -> merge
+            {"start": 8.0, "end": 8.3, "x": 700},    # too short -> absorbed
+            {"start": 8.3, "end": 14.0, "x": 700},
+        ]
+        merged = video_utils.merge_x_segments(segments, tol=5, min_duration=0.6)
+        self.assertEqual(
+            merged,
+            [
+                {"start": 0.0, "end": 8.3, "x": 100},
+                {"start": 8.3, "end": 14.0, "x": 700},
+            ],
+        )
+
+    def test_build_step_x_expression_hard_cuts_between_offsets(self):
+        segments = [
+            {"start": 0.0, "end": 5.0, "x": 100},
+            {"start": 5.0, "end": 12.0, "x": 700},
+            {"start": 12.0, "end": 20.0, "x": 300},
+        ]
+        expr = video_utils.build_step_x_expression(segments)
+        # t<5 -> 100, t<12 -> 700, else 300 (last segment's end is unused)
+        self.assertEqual(
+            expr,
+            "if(lt(t\\,5.0000)\\,100\\,if(lt(t\\,12.0000)\\,700\\,300))",
+        )
+
+    def test_build_step_x_expression_empty(self):
+        self.assertIsNone(video_utils.build_step_x_expression([]))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1190,8 +1190,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return True
 
 
-def count_scene_cuts(video_path: Path, threshold: float = 0.35) -> int:
-    """Count likely scene cuts in a clip using ffmpeg's scene score."""
+def detect_scene_cut_times(video_path: Path, threshold: float = 0.35) -> List[float]:
+    """Return the timestamps (seconds) of likely scene cuts in a clip.
+
+    Uses ffmpeg's scene-score detector. The returned times are the cut boundaries
+    (clip-relative), sorted ascending — used to segment a clip into shots for
+    per-shot reframing.
+    """
     result = run_ffmpeg_command(
         [
             "ffmpeg",
@@ -1206,8 +1211,14 @@ def count_scene_cuts(video_path: Path, threshold: float = 0.35) -> int:
         timeout=300,
     )
     if result.returncode != 0:
-        return 0
-    return len(re.findall(r"pts_time:", result.stderr))
+        return []
+    times = sorted(float(match) for match in re.findall(r"pts_time:([0-9.]+)", result.stderr))
+    return times
+
+
+def count_scene_cuts(video_path: Path, threshold: float = 0.35) -> int:
+    """Count likely scene cuts in a clip using ffmpeg's scene score."""
+    return len(detect_scene_cut_times(video_path, threshold))
 
 
 def parse_motion_metadata(path: Path) -> Tuple[List[float], List[float]]:
@@ -1464,6 +1475,130 @@ def build_pan_expression(
     return expression
 
 
+def weighted_face_center_x(
+    face_centers: List[Tuple[int, int, int, float]], width: int, crop_w: int
+) -> Optional[int]:
+    """Even, clamped crop x-offset that frames the area/confidence-weighted centre of
+    the given face centres. Returns ``None`` when there are no faces. For a single-face
+    shot this lands on the face; for a multi-face shot it centres between them."""
+    if not face_centers:
+        return None
+    total_weight = sum(area * confidence for _, _, area, confidence in face_centers)
+    if total_weight > 0:
+        center_x = (
+            sum(x * area * confidence for x, _, area, confidence in face_centers)
+            / total_weight
+        )
+    else:
+        center_x = sum(face[0] for face in face_centers) / len(face_centers)
+    return clamp_even(int(center_x) - crop_w // 2, 0, max(0, width - crop_w))
+
+
+def build_shot_boundaries(
+    cut_times: List[float], duration: float
+) -> List[Tuple[float, float]]:
+    """Turn scene-cut timestamps into contiguous (start, end) shot ranges."""
+    bounds = sorted(
+        {0.0, float(duration), *(round(t, 4) for t in cut_times if 0.0 < t < duration)}
+    )
+    return [
+        (bounds[i], bounds[i + 1])
+        for i in range(len(bounds) - 1)
+        if bounds[i + 1] > bounds[i]
+    ]
+
+
+def merge_x_segments(
+    segments: List[Dict[str, Any]], tol: int, min_duration: float = 0.6
+) -> List[Dict[str, Any]]:
+    """Coalesce consecutive crop-x segments that frame ~the same place (within ``tol``
+    px) or are too short (< ``min_duration`` s) to be worth a cut, by extending the
+    previous segment. Avoids jittery micro-cuts when the framing barely moves."""
+    merged: List[Dict[str, Any]] = []
+    for segment in segments:
+        if merged and (
+            abs(segment["x"] - merged[-1]["x"]) <= tol
+            or (segment["end"] - segment["start"]) < min_duration
+        ):
+            merged[-1]["end"] = segment["end"]
+            continue
+        merged.append(dict(segment))
+    return merged
+
+
+def build_step_x_expression(segments: List[Dict[str, Any]]) -> Optional[str]:
+    """Build an ffmpeg crop ``x`` expression that hard-cuts between the absolute
+    x-offsets of contiguous {start, end, x} segments (a piecewise-constant step)."""
+    if not segments:
+        return None
+    expression = str(segments[-1]["x"])
+    for segment in reversed(segments[:-1]):
+        expression = f"if(lt(t\\,{segment['end']:.4f})\\,{segment['x']}\\,{expression})"
+    return expression
+
+
+def build_per_shot_cut_plan(
+    clip_path: Path,
+    width: int,
+    height: int,
+    duration: float,
+    crop_w: int,
+    cut_times: List[float],
+) -> Optional[Dict[str, Any]]:
+    """Reframe a heavily-edited clip per shot.
+
+    Fixed left/right zones break across camera cuts, so for clips with several scene
+    cuts we segment at the cut boundaries, detect faces *within each shot*, and frame
+    the weighted face centre of that shot — landing on the (usually single) person the
+    editor cut to. The crop hard-cuts between shots. Returns ``None`` (→ static crop)
+    when framing never meaningfully moves or there are too many segments.
+    """
+    center_x = clamp_even((width - crop_w) // 2, 0, max(0, width - crop_w))
+    shots = build_shot_boundaries(cut_times, duration)
+    if len(shots) < 2:
+        return None
+
+    shot_sample_cap = 6.0  # only sample the head of each shot — bounds detection cost
+    raw_segments: List[Dict[str, Any]] = []
+    for shot_start, shot_end in shots:
+        faces = detect_faces_in_clip(
+            clip_path, shot_start, min(shot_end, shot_start + shot_sample_cap)
+        )
+        crop_x = weighted_face_center_x(faces, width, crop_w)
+        raw_segments.append(
+            {
+                "start": shot_start,
+                "end": shot_end,
+                "x": crop_x if crop_x is not None else center_x,
+            }
+        )
+
+    merged = merge_x_segments(raw_segments, tol=max(2, int(crop_w * 0.04)))
+    if len({segment["x"] for segment in merged}) < 2:
+        logger.info("vertical (per-shot): single framing across shots — static crop")
+        return None
+
+    max_segments = 60
+    if len(merged) > max_segments:
+        logger.info(
+            "vertical (per-shot): %d segments exceeds cap — static crop", len(merged)
+        )
+        return None
+
+    logger.info(
+        "vertical (per-shot): %d shots -> %d framing segments", len(shots), len(merged)
+    )
+    return {
+        "mode": "cut",
+        "width": width,
+        "height": height,
+        "crop_w": crop_w,
+        "crop_h": height,
+        "x_expression": build_step_x_expression(merged),
+        "timeline": merged,
+    }
+
+
 def detect_speaker_reframe_plan(
     clip_path: Path,
     output_format: str,
@@ -1499,18 +1634,27 @@ def detect_speaker_reframe_plan(
         if width / max(height, 1) <= 1.2:
             return None
 
-        scene_cuts = count_scene_cuts(clip_path)
-        if scene_cuts > 2:
-            logger.info("Skipping speaker reframe: %d scene cuts detected", scene_cuts)
+        duration = ffprobe_duration(clip_path)
+        crop_w = round_to_even(min(width, int(height * 9 / 16)))
+        scene_cut_times = detect_scene_cut_times(clip_path)
+        if len(scene_cut_times) > 2:
+            # Heavily-edited / multi-cam: fixed left/right zones don't hold across
+            # camera changes. The default vertical path reframes per shot instead;
+            # the pan/split modes still bail (they assume a locked 2-shot).
+            if output_format == "vertical":
+                return build_per_shot_cut_plan(
+                    clip_path, width, height, duration, crop_w, scene_cut_times
+                )
+            logger.info(
+                "Skipping speaker reframe: %d scene cuts detected", len(scene_cut_times)
+            )
             return None
 
-        duration = ffprobe_duration(clip_path)
         face_centers = detect_faces_in_clip(clip_path, 0, min(duration, 12.0))
         regions = cluster_two_face_regions(face_centers, width, height)
         if not regions:
             return None
 
-        crop_w = round_to_even(min(width, int(height * 9 / 16)))
         left_x = clamp_even(
             regions["left"]["center_x"] - crop_w // 2,
             0,
