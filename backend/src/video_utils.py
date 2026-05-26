@@ -708,10 +708,6 @@ def detect_faces_in_clip(
 
         capture.release()
 
-        # Close MediaPipe detector
-        if mp_face_detection is not None:
-            mp_face_detection.close()
-
         # Remove outliers (faces that are very far from the median position)
         if len(face_centers) > 2:
             face_centers = filter_face_outliers(face_centers)
