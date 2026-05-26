@@ -297,16 +297,42 @@ class VideoUtilsPerShotReframeTests(unittest.TestCase):
     def test_build_shot_boundaries_no_cuts_is_single_shot(self):
         self.assertEqual(video_utils.build_shot_boundaries([], 10.0), [(0.0, 10.0)])
 
-    def test_weighted_face_center_x_frames_single_face(self):
+    def test_pick_shot_crop_x_frames_single_face(self):
         # one face centred at x=900 in a 1920-wide frame, crop 606 wide
-        crop_x = video_utils.weighted_face_center_x([(900, 540, 10000, 0.9)], 1920, 606)
+        crop_x = video_utils.pick_shot_crop_x([(900, 540, 10000, 0.9)], 1920, 606)
         self.assertEqual(crop_x, video_utils.clamp_even(900 - 303, 0, 1920 - 606))
 
-    def test_weighted_face_center_x_clamps_and_handles_empty(self):
-        self.assertIsNone(video_utils.weighted_face_center_x([], 1920, 606))
+    def test_pick_shot_crop_x_clamps_and_handles_empty(self):
+        self.assertIsNone(video_utils.pick_shot_crop_x([], 1920, 606))
         # face hard against the right edge clamps to max offset (even)
-        crop_x = video_utils.weighted_face_center_x([(1900, 540, 5000, 0.8)], 1920, 606)
+        crop_x = video_utils.pick_shot_crop_x([(1900, 540, 5000, 0.8)], 1920, 606)
         self.assertEqual(crop_x, video_utils.round_to_even(1920 - 606))
+
+    def test_pick_shot_crop_x_two_close_faces_centre_between(self):
+        # two faces 200px apart (< crop_w*0.9) both fit -> centre between them
+        faces = [(800, 540, 9000, 0.9), (1000, 540, 9000, 0.9)]
+        crop_x = video_utils.pick_shot_crop_x(faces, 1920, 606)
+        self.assertEqual(crop_x, video_utils.clamp_even(900 - 303, 0, 1920 - 606))
+
+    def test_pick_shot_crop_x_wide_two_shot_picks_dominant_not_gap(self):
+        # left person at x=400, right person at x=1500 (1100px apart, > crop_w*0.9);
+        # right cluster is larger/closer -> frame the right person, NOT the midpoint.
+        faces = [
+            (400, 540, 4000, 0.8),   # left, smaller
+            (1500, 540, 12000, 0.95),  # right, dominant
+        ]
+        crop_x = video_utils.pick_shot_crop_x(faces, 1920, 606)
+        self.assertEqual(crop_x, video_utils.clamp_even(1500 - 303, 0, 1920 - 606))
+        # crucially, it is NOT the midpoint gap framing
+        midpoint_x = video_utils.clamp_even(950 - 303, 0, 1920 - 606)
+        self.assertNotEqual(crop_x, midpoint_x)
+
+    def test_pick_shot_crop_x_wide_two_shot_near_tie_uses_continuity(self):
+        # equal-weight wide two-shot: tie broken toward prev_x (left side here)
+        faces = [(400, 540, 8000, 0.9), (1500, 540, 8000, 0.9)]
+        left_offset = video_utils.clamp_even(400 - 303, 0, 1920 - 606)
+        crop_x = video_utils.pick_shot_crop_x(faces, 1920, 606, prev_x=left_offset)
+        self.assertEqual(crop_x, left_offset)
 
     def test_merge_x_segments_coalesces_near_equal_and_short(self):
         segments = [

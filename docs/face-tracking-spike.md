@@ -59,8 +59,24 @@ Fix — route by scene-cut count in the `vertical` path:
 
 Cost stays bounded: per-shot face *detection* only (the ffmpeg motion pass runs only on the
 ≤2-cut locked-2-shot path). Single-speaker / no-diarization clips still early-out to static.
-Known v1 limit: a held 2-shot *within* an edited clip is centred between faces rather than
-speaker-selected (per-shot active-speaker selection is a later increment).
+
+### Increment 3: don't frame the gap in a wide two-shot
+
+Increment 2 framed each shot at the *weighted face centre*. For a held two-shot where both
+people are too far apart to fit in 9:16, that average lands on the **gap between them**, so
+the crop shows neither face (diagnosed on prod job `35c41936`, source `84a92cfd`: a wide
+two-shot framed on the couch between the two hosts).
+
+`pick_shot_crop_x` replaces the plain average: it median-splits a shot's faces into left/right
+clusters and, when the two cluster centres are **more than ~one crop-width apart** (can't both
+fit), frames the **higher-weight (larger/closer) cluster** instead of the midpoint — with
+near-ties broken toward the previous shot's framing for continuity. Shots with one person, or
+two people who *do* fit, still frame the weighted centre. Guarantees the crop lands on a real
+face, never the empty gap.
+
+Known limit: in a *balanced* wide two-shot it frames the more prominent person for the whole
+shot, not necessarily the active speaker — speaker-accurate selection within a shot (per-shot
+lip-motion / diarization mapping) is the next increment.
 
 **Guards to keep (council):** min-segment debounce, single-speaker → static crop, model-asset
 integrity check (#15 pattern), per-clip static-crop escape hatch, validation gating each step.

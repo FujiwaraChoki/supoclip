@@ -1475,23 +1475,59 @@ def build_pan_expression(
     return expression
 
 
-def weighted_face_center_x(
-    face_centers: List[Tuple[int, int, int, float]], width: int, crop_w: int
+def pick_shot_crop_x(
+    face_centers: List[Tuple[int, int, int, float]],
+    width: int,
+    crop_w: int,
+    prev_x: Optional[int] = None,
 ) -> Optional[int]:
-    """Even, clamped crop x-offset that frames the area/confidence-weighted centre of
-    the given face centres. Returns ``None`` when there are no faces. For a single-face
-    shot this lands on the face; for a multi-face shot it centres between them."""
+    """Crop x-offset for one shot.
+
+    When the shot's faces fit in the 9:16 window, frames their weighted centre. When the
+    shot holds two people too far apart to both fit, frames ONE of them — the
+    higher-weight (larger/closer) cluster — instead of the empty gap between them, which
+    is what an average would land on. Near-ties are broken toward ``prev_x`` so framing
+    doesn't flicker between shots. Returns ``None`` when there are no faces.
+    """
     if not face_centers:
         return None
-    total_weight = sum(area * confidence for _, _, area, confidence in face_centers)
-    if total_weight > 0:
-        center_x = (
-            sum(x * area * confidence for x, _, area, confidence in face_centers)
-            / total_weight
-        )
-    else:
-        center_x = sum(face[0] for face in face_centers) / len(face_centers)
-    return clamp_even(int(center_x) - crop_w // 2, 0, max(0, width - crop_w))
+
+    def weighted_center_x(faces: List[Tuple[int, int, int, float]]) -> float:
+        total = sum(area * conf for _, _, area, conf in faces)
+        if total > 0:
+            return sum(x * area * conf for x, _, area, conf in faces) / total
+        return sum(face[0] for face in faces) / len(faces)
+
+    def to_offset(center_x: float) -> int:
+        return clamp_even(int(center_x) - crop_w // 2, 0, max(0, width - crop_w))
+
+    median_x = float(np.median([face[0] for face in face_centers]))
+    left = [face for face in face_centers if face[0] <= median_x]
+    right = [face for face in face_centers if face[0] > median_x]
+    if left and right:
+        left_cx = weighted_center_x(left)
+        right_cx = weighted_center_x(right)
+        # Two distinct people whose centres are more than a crop-width apart can't both
+        # be framed — pick one rather than centring on the gap between them.
+        if abs(right_cx - left_cx) > crop_w * 0.9:
+            left_weight = sum(area * conf for _, _, area, conf in left)
+            right_weight = sum(area * conf for _, _, area, conf in right)
+            near_tie = (
+                max(left_weight, right_weight) > 0
+                and abs(left_weight - right_weight) / max(left_weight, right_weight)
+                < 0.2
+            )
+            if near_tie and prev_x is not None:
+                chosen = (
+                    left_cx
+                    if abs(to_offset(left_cx) - prev_x) <= abs(to_offset(right_cx) - prev_x)
+                    else right_cx
+                )
+            else:
+                chosen = left_cx if left_weight >= right_weight else right_cx
+            return to_offset(chosen)
+
+    return to_offset(weighted_center_x(face_centers))
 
 
 def build_shot_boundaries(
@@ -1549,9 +1585,10 @@ def build_per_shot_cut_plan(
 
     Fixed left/right zones break across camera cuts, so for clips with several scene
     cuts we segment at the cut boundaries, detect faces *within each shot*, and frame
-    the weighted face centre of that shot — landing on the (usually single) person the
-    editor cut to. The crop hard-cuts between shots. Returns ``None`` (→ static crop)
-    when framing never meaningfully moves or there are too many segments.
+    that shot — landing on the single person the editor cut to, or, in a held two-shot
+    that's too wide to fit both, on one of them rather than the gap between. The crop
+    hard-cuts between shots. Returns ``None`` (→ static crop) when framing never
+    meaningfully moves or there are too many segments.
     """
     center_x = clamp_even((width - crop_w) // 2, 0, max(0, width - crop_w))
     shots = build_shot_boundaries(cut_times, duration)
@@ -1564,7 +1601,8 @@ def build_per_shot_cut_plan(
         faces = detect_faces_in_clip(
             clip_path, shot_start, min(shot_end, shot_start + shot_sample_cap)
         )
-        crop_x = weighted_face_center_x(faces, width, crop_w)
+        prev_x = raw_segments[-1]["x"] if raw_segments else None
+        crop_x = pick_shot_crop_x(faces, width, crop_w, prev_x)
         raw_segments.append(
             {
                 "start": shot_start,
