@@ -89,6 +89,18 @@ Cost stays bounded: the lip-motion pass runs only on held-two-shot shots, capped
 (beyond that, or on motion/mapping failure, it falls back to increment 3's dominant framing).
 Single-person shots — still the common edited pattern — never trigger a motion pass.
 
+### Increment 5: hold framing through weak/no-face shots
+
+A wide two-shot where both subjects look *down/away* (e.g. reading) yields almost no detections,
+so the framing fell back to the geometric **centre** — which on a wide two-shot is the empty gap
+between the people (diagnosed on prod job `aa760c17`: a shot logged only `Detected 1 reliable
+face center` and framed the side table). Now, a shot with fewer than `min_shot_faces` (3)
+detections is treated as **unknown** and `fill_weak_shot_framing` **holds a neighbour's framing**
+— carry the previous framed shot forward, backfill leading weak shots from the first framed shot
+— instead of snapping to the centre. Per-shot decisions are now logged
+(`vertical (per-shot): … two-shot speaker-cut | weak → hold neighbour | faces=N → x=…`) so the
+framing path is diagnosable from CloudWatch.
+
 **Guards to keep (council):** min-segment debounce, single-speaker → static crop, model-asset
 integrity check (#15 pattern), per-clip static-crop escape hatch, validation gating each step.
 

@@ -1707,6 +1707,28 @@ def build_two_shot_segments(
     return [{"start": shot_start, "end": shot_end, "x": chosen_x}]
 
 
+def fill_weak_shot_framing(
+    segments: List[Dict[str, Any]], fallback_x: int
+) -> List[Dict[str, Any]]:
+    """Resolve shots whose framing is unknown (``x is None`` — too few faces to trust,
+    e.g. subjects looking down). Hold a neighbour's framing instead of snapping to the
+    centre: carry the previous framed x forward, then backfill any leading weak shots
+    from the first framed x. Falls back to ``fallback_x`` only if nothing was framed."""
+    last_x: Optional[int] = None
+    for segment in segments:
+        if segment["x"] is None:
+            segment["x"] = last_x
+        else:
+            last_x = segment["x"]
+    first_known = next(
+        (segment["x"] for segment in segments if segment["x"] is not None), fallback_x
+    )
+    for segment in segments:
+        if segment["x"] is None:
+            segment["x"] = first_known
+    return segments
+
+
 def build_per_shot_cut_plan(
     clip_path: Path,
     width: int,
@@ -1733,7 +1755,9 @@ def build_per_shot_cut_plan(
     utterances = utterances or []
     shot_sample_cap = 6.0  # only sample the head of each shot — bounds detection cost
     max_motion_passes = 8  # cap per-shot lip-motion passes so all-wide-shot clips can't explode cost
+    min_shot_faces = 3  # below this the face signal is too weak to trust (e.g. heads down)
     motion_passes = 0
+    last_framed_x: Optional[int] = None
     raw_segments: List[Dict[str, Any]] = []
     for shot_start, shot_end in shots:
         faces = detect_faces_in_clip(
@@ -1749,18 +1773,40 @@ def build_per_shot_cut_plan(
             )
             if shot_segments:
                 raw_segments.extend(shot_segments)
+                last_framed_x = shot_segments[-1]["x"]
+                logger.info(
+                    "vertical (per-shot): %.1f-%.1fs two-shot speaker-cut -> %d segs",
+                    shot_start,
+                    shot_end,
+                    len(shot_segments),
+                )
                 continue
 
-        prev_x = raw_segments[-1]["x"] if raw_segments else None
-        crop_x = pick_shot_crop_x(faces, width, crop_w, prev_x)
-        raw_segments.append(
-            {
-                "start": shot_start,
-                "end": shot_end,
-                "x": crop_x if crop_x is not None else center_x,
-            }
-        )
+        if len(faces) < min_shot_faces:
+            # Too few faces to trust a crop here (subjects looking down/away). Defer —
+            # fill_weak_shot_framing holds a neighbour's framing rather than snapping to
+            # the centre, which on a wide two-shot is the empty gap between people.
+            crop_x = None
+            logger.info(
+                "vertical (per-shot): %.1f-%.1fs weak (faces=%d) -> hold neighbour",
+                shot_start,
+                shot_end,
+                len(faces),
+            )
+        else:
+            crop_x = pick_shot_crop_x(faces, width, crop_w, last_framed_x)
+            if crop_x is not None:
+                last_framed_x = crop_x
+            logger.info(
+                "vertical (per-shot): %.1f-%.1fs faces=%d -> x=%s",
+                shot_start,
+                shot_end,
+                len(faces),
+                crop_x,
+            )
+        raw_segments.append({"start": shot_start, "end": shot_end, "x": crop_x})
 
+    fill_weak_shot_framing(raw_segments, center_x)
     merged = merge_x_segments(raw_segments, tol=max(2, int(crop_w * 0.04)))
     if len({segment["x"] for segment in merged}) < 2:
         logger.info("vertical (per-shot): single framing across shots — static crop")

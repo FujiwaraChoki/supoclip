@@ -389,6 +389,24 @@ class VideoUtilsPerShotReframeTests(unittest.TestCase):
             video_utils.sides_timeline_to_x_segments([], 0.0, 10.0, 400, 900), []
         )
 
+    def test_fill_weak_shot_framing_forward_fills(self):
+        # a weak (x=None) shot between two framed shots holds the previous framing
+        segments = [{"x": 100}, {"x": None}, {"x": 700}, {"x": None}]
+        video_utils.fill_weak_shot_framing(segments, fallback_x=960)
+        self.assertEqual([s["x"] for s in segments], [100, 100, 700, 700])
+
+    def test_fill_weak_shot_framing_backfills_leading_weak(self):
+        # leading weak shots (no previous framing) backfill from the first framed shot,
+        # NOT the centre — this is the wide-two-shot "heads down" gap fix
+        segments = [{"x": None}, {"x": None}, {"x": 500}]
+        video_utils.fill_weak_shot_framing(segments, fallback_x=960)
+        self.assertEqual([s["x"] for s in segments], [500, 500, 500])
+
+    def test_fill_weak_shot_framing_all_weak_uses_fallback(self):
+        segments = [{"x": None}, {"x": None}]
+        video_utils.fill_weak_shot_framing(segments, fallback_x=960)
+        self.assertEqual([s["x"] for s in segments], [960, 960])
+
 
 if __name__ == "__main__":
     unittest.main()
