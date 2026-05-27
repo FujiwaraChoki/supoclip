@@ -14,9 +14,23 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.config import Config
+from src.config import Config, set_config_override
 from src.database import configure_database, init_db, reset_database_state
 from src.main_refactored import create_app
+
+
+@pytest.fixture(autouse=True)
+def _reset_config_override():
+    """Clear any global config override left behind by a test.
+
+    create_app(config=...) installs a process-wide override via
+    set_config_override(); the API tests that exercise it never reset it, so the
+    override (built with default env, e.g. CLIP_RENDER_CONCURRENCY=3) leaks into
+    later tests that read get_config() after monkeypatching env. Resetting after
+    every test keeps get_config() honest about the current environment.
+    """
+    yield
+    set_config_override(None)
 
 
 class _FakeRedisPool:

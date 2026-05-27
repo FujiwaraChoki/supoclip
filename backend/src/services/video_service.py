@@ -4,6 +4,7 @@ Video service - handles video processing business logic.
 
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable, Awaitable
+import asyncio
 import logging
 import json
 import subprocess
@@ -21,7 +22,6 @@ from ..youtube_utils import (
 )
 from ..video_utils import (
     get_video_transcript,
-    create_clips_with_transitions,
     create_optimized_clip,
     parse_timestamp_to_seconds,
     build_clip_keep_ranges,
@@ -187,23 +187,41 @@ class VideoService:
         (keep source 16:9, faster; 'original' is a backward-compatible alias).
         add_subtitles: False skips subtitles; with horizontal format uses ffmpeg stream copy (no re-encode).
         """
-        logger.info(f"Creating {len(segments)} video clips subtitles={add_subtitles}")
+        concurrency = get_config().clip_render_concurrency
+        logger.info(
+            f"Creating {len(segments)} video clips subtitles={add_subtitles} "
+            f"(render concurrency={concurrency})"
+        )
         clips_output_dir = Path(get_config().temp_dir) / "clips"
         clips_output_dir.mkdir(parents=True, exist_ok=True)
 
-        clips_info = await run_in_thread(
-            create_clips_with_transitions,
-            video_path,
-            segments,
-            clips_output_dir,
-            font_family,
-            font_size,
-            font_color,
-            caption_template,
-            output_format,
-            add_subtitles,
-            cleanup_settings,
+        # Render clips concurrently. Each create_single_clip offloads its ffmpeg work to a
+        # thread (the subprocess releases the GIL), so a bounded gather overlaps the renders
+        # across the worker's vCPUs instead of running them one at a time. The semaphore
+        # caps how many ffmpeg pipelines run at once so we don't oversubscribe CPU/memory.
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def render(index: int, segment: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            async with semaphore:
+                return await VideoService.create_single_clip(
+                    video_path,
+                    segment,
+                    index,
+                    clips_output_dir,
+                    font_family,
+                    font_size,
+                    font_color,
+                    caption_template,
+                    output_format,
+                    add_subtitles,
+                    cleanup_settings,
+                )
+
+        results = await asyncio.gather(
+            *(render(index, segment) for index, segment in enumerate(segments))
         )
+        # gather preserves input order, so clips stay in segment order; drop failed renders.
+        clips_info = [clip for clip in results if clip is not None]
 
         logger.info(f"Successfully created {len(clips_info)} clips")
         return clips_info

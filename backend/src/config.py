@@ -42,6 +42,12 @@ class Config:
 
         self.max_clips = int(os.getenv("MAX_CLIPS", "10"))
         self.clip_duration = int(os.getenv("CLIP_DURATION", "30"))  # seconds
+        # How many clips to render concurrently. Each render is ffmpeg-heavy (subprocess,
+        # releases the GIL), so a bounded fan-out parallelises across the worker's vCPUs.
+        # Default 3 leaves headroom on a 4-vCPU worker for ffmpeg's own threading.
+        self.clip_render_concurrency = max(
+            1, int(os.getenv("CLIP_RENDER_CONCURRENCY", "3"))
+        )
 
         self.temp_dir = os.getenv("TEMP_DIR", "temp")
 
