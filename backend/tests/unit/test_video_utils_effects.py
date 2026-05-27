@@ -346,3 +346,44 @@ def test_build_clip_signal_summary_surfaces_hook_and_audio_peak(monkeypatch, tmp
     assert "Wait what happened?" in summary
     assert "audio energy peak" in summary
     assert "question/hook" in summary
+
+
+class TestResolveOutlinePx:
+    """ENG-5634: an explicit stroke colour must yield a visible outline even on
+    templates (e.g. "minimal") that bake stroke_width 0."""
+
+    def test_stroke_color_forces_outline_when_template_has_none(self):
+        # The reported bug: "minimal" (stroke_width 0) + a chosen outline colour
+        # rendered no outline because width stayed 0.
+        assert video_utils.resolve_outline_px({"stroke_width": 0}, "#000000") == 2
+
+    def test_no_outline_when_no_color_and_template_has_none(self):
+        # "minimal" without an override stays outline-free, as designed.
+        assert video_utils.resolve_outline_px({"stroke_width": 0}, None) == 0
+
+    def test_template_width_preserved_when_set(self):
+        assert video_utils.resolve_outline_px({"stroke_width": 3}, "#000000") == 3
+        assert video_utils.resolve_outline_px({"stroke_width": 3}, None) == 3
+
+    def test_missing_stroke_width_defaults_to_two(self):
+        # Absent stroke_width falls back to the template default (2), not 0.
+        assert video_utils.resolve_outline_px({}, None) == 2
+
+
+class TestGetScaledFontSize:
+    """ENG-5634: the font-size ceiling was raised 64 → 200 so large user sizes
+    actually render (the old cap collapsed anything above ~43 to 64)."""
+
+    def test_large_size_no_longer_capped_at_64(self):
+        # 100 on a 1080-wide clip → 100 * 1.5 = 150, previously clamped to 64.
+        assert video_utils.get_scaled_font_size(100, 1080) == 150
+
+    def test_very_large_size_clamped_to_new_max(self):
+        assert video_utils.get_scaled_font_size(1000, 1080) == 200
+
+    def test_small_size_clamped_to_min(self):
+        assert video_utils.get_scaled_font_size(1, 720) == 24
+
+    def test_template_default_size_unaffected(self):
+        # Minimal's 24 on a 1080 clip → 36, comfortably under the cap.
+        assert video_utils.get_scaled_font_size(24, 1080) == 36

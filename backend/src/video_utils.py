@@ -398,10 +398,18 @@ def clamp_even(value: int, minimum: int, maximum: int) -> int:
     return round_to_even(max(minimum, min(value, maximum)))
 
 
+FONT_SIZE_MIN_PX = 24
+# Upper bound raised 64 → 200 (ENG-5634): the old 64px ceiling collapsed any
+# user font size above ~43 (on a 1080-wide clip) to the same value, so large
+# captions were impossible and a chosen size looked ignored. 24px floor stays
+# for legibility.
+FONT_SIZE_MAX_PX = 200
+
+
 def get_scaled_font_size(base_font_size: int, video_width: int) -> int:
     """Scale caption font size by output width with sensible bounds."""
     scaled_size = int(base_font_size * (video_width / 720))
-    return max(24, min(64, scaled_size))
+    return max(FONT_SIZE_MIN_PX, min(FONT_SIZE_MAX_PX, scaled_size))
 
 
 def get_subtitle_max_width(video_width: int) -> int:
@@ -1080,6 +1088,21 @@ def extend_keep_ranges_to_sentence_boundary(
     return [*normalized[:-1], (last_start, extended_end)]
 
 
+def resolve_outline_px(template: Dict[str, Any], stroke_color: Optional[str]) -> int:
+    """Outline (stroke) width for ASS captions.
+
+    Width is template-driven, but an explicit ``stroke_color`` override implies
+    the caller wants a visible outline even when the chosen template bakes none
+    (e.g. "minimal" has ``stroke_width`` 0). Without this, setting an outline
+    colour on such a template is a no-op — the colour lands on a 0px border and
+    nothing renders. Defaults to 2px in that case. (ENG-5634.)
+    """
+    px = int(template.get("stroke_width", 2) or 0)
+    if stroke_color and px == 0:
+        return 2
+    return px
+
+
 def build_assemblyai_ass_subtitles(
     video_path: Path,
     clip_start: float,
@@ -1129,7 +1152,7 @@ def build_assemblyai_ass_subtitles(
     outline = hex_to_ass_color(effective_stroke_color or "#000000", "#000000")
     back_color = hex_to_ass_color(template.get("background_color"), "#00000080")
     font_px = get_scaled_font_size(effective_font_size, video_width)
-    outline_px = int(template.get("stroke_width", 2) or 0)
+    outline_px = resolve_outline_px(template, stroke_color)
     shadow_px = 2 if template.get("shadow") else 0
     pos_y = float(template.get("position_y", 0.75))
     y_pos = int(video_height * pos_y)
