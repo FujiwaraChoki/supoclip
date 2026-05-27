@@ -73,6 +73,7 @@ class WebhookNotificationService:
         generated_clips_ids: list[str],
         error_code: Optional[str],
         completed_at: str,
+        clips: Optional[list[dict[str, Any]]] = None,
         message: Optional[str] = None,
     ) -> bool:
         ts, signature = self._sign(task_id)
@@ -86,6 +87,9 @@ class WebhookNotificationService:
             "status": status,
             "clips_count": clips_count,
             "generated_clips_ids": generated_clips_ids,
+            # Per-clip metadata ({id, start_time, end_time, text, clip_order}).
+            # Lets receivers build one record per clip without re-fetching.
+            "clips": clips or [],
             "error_code": error_code,
             "completed_at": completed_at,
         }

@@ -53,6 +53,43 @@ async def _call(service: WebhookNotificationService, transport: httpx.MockTransp
 
 
 @pytest.mark.asyncio
+async def test_payload_includes_per_clip_metadata():
+    import json
+
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={"ok": True})
+
+    service = WebhookNotificationService(SECRET)
+    clips = [
+        {"id": "a", "start_time": "00:00", "end_time": "00:08", "text": "hi", "clip_order": 1},
+        {"id": "b", "start_time": "00:10", "end_time": "00:20", "text": "yo", "clip_order": 2},
+    ]
+    delivered = await _call(service, httpx.MockTransport(handler), clips=clips)
+
+    assert delivered is True
+    assert bodies[0]["clips"] == clips
+
+
+@pytest.mark.asyncio
+async def test_payload_clips_defaults_to_empty_list():
+    import json
+
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={"ok": True})
+
+    service = WebhookNotificationService(SECRET)
+    # no `clips` kwarg → payload still carries the key as an empty list
+    await _call(service, httpx.MockTransport(handler))
+    assert bodies[0]["clips"] == []
+
+
+@pytest.mark.asyncio
 async def test_delivers_on_2xx_no_retry():
     calls: list[httpx.Request] = []
 

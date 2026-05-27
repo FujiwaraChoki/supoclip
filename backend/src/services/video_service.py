@@ -397,10 +397,14 @@ class VideoService:
         cached_analysis_json: Optional[str] = None,
         progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]] = None,
         should_cancel: Optional[Callable[[], Awaitable[bool]]] = None,
+        max_clips: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.
         Returns dict with segments and clips info.
+
+        max_clips: optional per-request cap on how many clips to keep (defaults to
+        config.max_clips). Lets callers request a specific number of clips.
 
         progress_callback: Optional function to call with progress updates
                           Signature: async def callback(progress: int, message: str, status: str)
@@ -559,8 +563,12 @@ class VideoService:
                         }
                     )
 
+            # Cap clip count: the caller's max_clips (if given) else the configured
+            # default; fast mode additionally never exceeds fast_mode_max_clips.
+            effective_max_clips = max_clips if max_clips and max_clips > 0 else runtime_config.max_clips
             if processing_mode == "fast":
-                segments_json = segments_json[: runtime_config.fast_mode_max_clips]
+                effective_max_clips = min(effective_max_clips, runtime_config.fast_mode_max_clips)
+            segments_json = segments_json[:effective_max_clips]
 
             return {
                 "segments": segments_json,

@@ -246,6 +246,9 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     # Optional highlight (active word) + outline overrides; None => template default.
     highlight_color = _normalize_optional_font_color(font_options.get("highlight_color"))
     stroke_color = _normalize_optional_font_color(font_options.get("stroke_color"))
+    # Optional per-request clip count; None => server default (config.max_clips).
+    max_clips = data.get("max_clips")
+    max_clips = int(max_clips) if isinstance(max_clips, int) and max_clips > 0 else None
     caption_template = data.get("caption_template", "default")
     include_broll = data.get("include_broll", False)
     runtime_config = get_config()
@@ -319,6 +322,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             cleanup_settings,
             highlight_color,
             stroke_color,
+            max_clips,
         )
 
         # Save source metadata for resume/retries in environments without sources.url column

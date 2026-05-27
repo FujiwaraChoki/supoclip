@@ -164,6 +164,7 @@ class TaskService:
         cleanup_settings: Optional[Dict[str, Any]] = None,
         highlight_color: Optional[str] = None,
         stroke_color: Optional[str] = None,
+        max_clips: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -286,6 +287,7 @@ class TaskService:
                 cached_analysis_json=cached_analysis_json,
                 progress_callback=update_progress,
                 should_cancel=should_cancel,
+                max_clips=max_clips,
             )
             stage_timings["pipeline_seconds"] = round(
                 perf_counter() - pipeline_start, 3
@@ -613,6 +615,25 @@ class TaskService:
             completed_at_value.isoformat() if completed_at_value else datetime.utcnow().isoformat()
         )
 
+        # Per-clip metadata so downstream consumers (e.g. Brand Ninja's per-clip
+        # content fanout) can build one record per clip without a second round-trip.
+        clip_items: list[dict] = []
+        if status == "completed" and generated_clips_ids:
+            try:
+                clip_rows = await self.clip_repo.get_clips_by_task(self.db, task_id)
+                clip_items = [
+                    {
+                        "id": row.get("id"),
+                        "start_time": row.get("start_time"),
+                        "end_time": row.get("end_time"),
+                        "text": row.get("text"),
+                        "clip_order": row.get("clip_order"),
+                    }
+                    for row in clip_rows
+                ]
+            except Exception:
+                logger.exception("Failed to load per-clip metadata for webhook %s", task_id)
+
         try:
             delivered = await service.deliver(
                 webhook_url=webhook_url,
@@ -621,6 +642,7 @@ class TaskService:
                 status=status,
                 clips_count=clips_count,
                 generated_clips_ids=generated_clips_ids,
+                clips=clip_items,
                 error_code=error_code,
                 completed_at=completed_at_iso,
             )

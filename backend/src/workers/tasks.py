@@ -29,6 +29,7 @@ async def process_video_task(
     cleanup_settings: Dict[str, Any] | None = None,
     highlight_color: str | None = None,
     stroke_color: str | None = None,
+    max_clips: int | None = None,
 ) -> Dict[str, Any]:
     """
     Background worker task to process a video.
@@ -96,6 +97,7 @@ async def process_video_task(
                 cleanup_settings=cleanup_settings,
                 highlight_color=highlight_color,
                 stroke_color=stroke_color,
+                max_clips=max_clips,
             )
 
             logger.info(f"Task {task_id} completed successfully")
