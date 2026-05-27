@@ -1542,55 +1542,51 @@ def pick_shot_crop_x(
     crop_w: int,
     prev_x: Optional[int] = None,
 ) -> Optional[int]:
-    """Crop x-offset for one shot — always centred on a single face, never the gap.
+    """Crop x-offset for one shot — always centred on real faces, never the empty gap.
 
-    Whenever the shot holds two meaningfully-separated face clusters (two people), frames
-    ONE of them — the higher-weight (larger/closer) cluster — rather than the midpoint an
-    average would land on (the empty gap between them). Only when the detections form a
-    single tight group (one person) does it centre on that group. Near-ties are broken
-    toward ``prev_x`` so framing doesn't flicker. Returns ``None`` only when no faces.
+    Robust to any number of people. For every detected face we consider the 9:16 window
+    that frames the faces sitting within a crop-width of it, then score that window by the
+    total face-weight (area × confidence) it actually encloses; the highest-scoring window
+    wins. Consequences:
+
+      * one face → centre on it;
+      * two (or more) faces that fit inside ``crop_w`` → centre on that group, all visible;
+      * faces too far apart to share the window (e.g. seated hosts, a 3-person couch) →
+        centre on the heaviest single face — never the midpoint/gap between two of them,
+        which is what a global average (or a two-cluster median split) lands on.
+
+    Near-tied windows break toward ``prev_x`` so framing doesn't flicker between shots.
+    Returns ``None`` only when there are no faces.
     """
     if not face_centers:
         return None
 
-    def weighted_center_x(faces: List[Tuple[int, int, int, float]]) -> float:
-        total = sum(area * conf for _, _, area, conf in faces)
-        if total > 0:
-            return sum(x * area * conf for x, _, area, conf in faces) / total
-        return sum(face[0] for face in faces) / len(faces)
+    half = crop_w / 2.0
+
+    def weight(face: Tuple[int, int, int, float]) -> float:
+        return face[2] * face[3]
 
     def to_offset(center_x: float) -> int:
-        return clamp_even(int(center_x) - crop_w // 2, 0, max(0, width - crop_w))
+        return clamp_even(int(round(center_x)) - crop_w // 2, 0, max(0, width - crop_w))
 
-    median_x = float(np.median([face[0] for face in face_centers]))
-    left = [face for face in face_centers if face[0] <= median_x]
-    right = [face for face in face_centers if face[0] > median_x]
-    if left and right:
-        left_cx = weighted_center_x(left)
-        right_cx = weighted_center_x(right)
-        # Two distinct, separated face clusters → frame ONE of them, never the midpoint
-        # between (the gap). Threshold is deliberately low (~a third of the crop width):
-        # a single person's detection jitter stays well under it, but two seated hosts
-        # clear it easily, so we centre on a face instead of the space between them.
-        if abs(right_cx - left_cx) > crop_w * 0.35:
-            left_weight = sum(area * conf for _, _, area, conf in left)
-            right_weight = sum(area * conf for _, _, area, conf in right)
-            near_tie = (
-                max(left_weight, right_weight) > 0
-                and abs(left_weight - right_weight) / max(left_weight, right_weight)
-                < 0.2
-            )
-            if near_tie and prev_x is not None:
-                chosen = (
-                    left_cx
-                    if abs(to_offset(left_cx) - prev_x) <= abs(to_offset(right_cx) - prev_x)
-                    else right_cx
-                )
-            else:
-                chosen = left_cx if left_weight >= right_weight else right_cx
-            return to_offset(chosen)
+    best_offset: Optional[int] = None
+    best_key: Optional[Tuple[float, float]] = None
+    for anchor in face_centers:
+        # Faces that could share a single crop-width window with this anchor.
+        group = [face for face in face_centers if abs(face[0] - anchor[0]) <= crop_w]
+        total = sum(weight(face) for face in group) or 1.0
+        center = sum(face[0] * weight(face) for face in group) / total
+        low, high = center - half, center + half
+        enclosed = sum(weight(face) for face in face_centers if low <= face[0] <= high)
+        offset = to_offset(center)
+        dist_prev = abs(offset - prev_x) if prev_x is not None else 0
+        # Maximise enclosed face-weight; break ties toward the previous shot's framing.
+        key = (enclosed, -float(dist_prev))
+        if best_key is None or key > best_key:
+            best_key = key
+            best_offset = offset
 
-    return to_offset(weighted_center_x(face_centers))
+    return best_offset
 
 
 def build_shot_boundaries(

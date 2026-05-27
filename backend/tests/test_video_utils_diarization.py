@@ -327,17 +327,17 @@ class VideoUtilsPerShotReframeTests(unittest.TestCase):
         midpoint_x = video_utils.clamp_even(950 - 303, 0, 1920 - 606)
         self.assertNotEqual(crop_x, midpoint_x)
 
-    def test_pick_shot_crop_x_moderately_separated_picks_one_not_gap(self):
-        # two faces ~350px apart — within the OLD 0.9*crop_w threshold (would have framed
-        # the midpoint gap), now past the 0.35*crop_w threshold → frame the heavier one.
+    def test_pick_shot_crop_x_moderately_separated_faces_both_fit(self):
+        # two faces ~350px apart both fit inside a 606px window, so we frame them
+        # together (both visible) rather than dropping one. The window must enclose
+        # BOTH face centres — i.e. it is not a gap/one-sided crop.
         faces = [
-            (700, 540, 6000, 0.85),    # left, smaller
-            (1050, 540, 12000, 0.95),  # right, heavier
+            (700, 540, 6000, 0.85),
+            (1050, 540, 12000, 0.95),
         ]
         crop_x = video_utils.pick_shot_crop_x(faces, 1920, 606)
-        self.assertEqual(crop_x, video_utils.clamp_even(1050 - 303, 0, 1920 - 606))
-        midpoint_x = video_utils.clamp_even(875 - 303, 0, 1920 - 606)
-        self.assertNotEqual(crop_x, midpoint_x)  # crucially NOT the gap
+        self.assertLessEqual(crop_x, 700)
+        self.assertGreaterEqual(crop_x + 606, 1050)
 
     def test_pick_shot_crop_x_wide_two_shot_near_tie_uses_continuity(self):
         # equal-weight wide two-shot: tie broken toward prev_x (left side here)
@@ -345,6 +345,38 @@ class VideoUtilsPerShotReframeTests(unittest.TestCase):
         left_offset = video_utils.clamp_even(400 - 303, 0, 1920 - 606)
         crop_x = video_utils.pick_shot_crop_x(faces, 1920, 606, prev_x=left_offset)
         self.assertEqual(crop_x, left_offset)
+
+    def test_pick_shot_crop_x_three_people_frames_one_not_gap(self):
+        # Three hosts on couches, each >crop_w apart (the case that broke the old
+        # median-split: faces left+middle landed on one "side" and its centroid was the
+        # empty gap between them). The middle host is heaviest → frame the middle host;
+        # crucially NOT either between-host gap.
+        faces = [
+            (330, 540, 8000, 0.9),    # left
+            (1180, 540, 12000, 0.95),  # middle, heaviest
+            (1800, 540, 9000, 0.9),   # right
+        ]
+        crop_x = video_utils.pick_shot_crop_x(faces, 1920, 606)
+        self.assertEqual(crop_x, video_utils.clamp_even(1180 - 303, 0, 1920 - 606))
+        # not centred on either gap between adjacent hosts
+        left_gap = video_utils.clamp_even((330 + 1180) // 2 - 303, 0, 1920 - 606)
+        right_gap = video_utils.clamp_even((1180 + 1800) // 2 - 303, 0, 1920 - 606)
+        self.assertNotEqual(crop_x, left_gap)
+        self.assertNotEqual(crop_x, right_gap)
+
+    def test_pick_shot_crop_x_three_people_window_lands_on_a_face(self):
+        # Regardless of which host is heaviest, the chosen window must contain a real
+        # face centre near its middle — never frame the space between two hosts.
+        faces = [
+            (300, 540, 10000, 0.92),
+            (980, 540, 10000, 0.92),
+            (1650, 540, 10000, 0.92),
+        ]
+        crop_x = video_utils.pick_shot_crop_x(faces, 1920, 606)
+        window_center = crop_x + 303
+        nearest = min(abs(window_center - face[0]) for face in faces)
+        # within ~a quarter crop-width of an actual face, i.e. on a person not a gap
+        self.assertLess(nearest, 606 * 0.25)
 
     def test_merge_x_segments_coalesces_near_equal_and_short(self):
         segments = [
