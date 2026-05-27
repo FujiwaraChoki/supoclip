@@ -95,6 +95,18 @@ def _normalize_font_color(value: Any, default: str = "#FFFFFF") -> str:
     return default
 
 
+def _normalize_optional_font_color(value: Any) -> str | None:
+    """Validate an optional #RRGGBB caption-colour override.
+
+    Returns None when absent or malformed so the renderer falls back to the
+    caption template's baked colour — unlike font_color, which always defaults
+    to white. Used for the highlight (active-word) and stroke (outline) colours.
+    """
+    if isinstance(value, str) and re.match(r"^#[0-9A-Fa-f]{6}$", value):
+        return value.upper()
+    return None
+
+
 def _normalize_font_family(value: Any, default: str = "TikTokSans-Regular") -> str:
     if isinstance(value, str) and value.strip():
         return value.strip()
@@ -231,6 +243,9 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     )
     font_size = _normalize_font_size(font_options.get("font_size", 24))
     font_color = _normalize_font_color(font_options.get("font_color", "#FFFFFF"))
+    # Optional highlight (active word) + outline overrides; None => template default.
+    highlight_color = _normalize_optional_font_color(font_options.get("highlight_color"))
+    stroke_color = _normalize_optional_font_color(font_options.get("stroke_color"))
     caption_template = data.get("caption_template", "default")
     include_broll = data.get("include_broll", False)
     runtime_config = get_config()
@@ -276,6 +291,8 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             include_broll=include_broll,
             processing_mode=processing_mode,
             webhook_url=webhook_url,
+            highlight_color=highlight_color,
+            stroke_color=stroke_color,
         )
 
         # Get source type for worker
@@ -300,6 +317,8 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             output_format,
             add_subtitles,
             cleanup_settings,
+            highlight_color,
+            stroke_color,
         )
 
         # Save source metadata for resume/retries in environments without sources.url column
@@ -933,6 +952,8 @@ async def apply_task_settings(
         )
         font_size = _normalize_font_size(payload.get("font_size", 24))
         font_color = _normalize_font_color(payload.get("font_color", "#FFFFFF"))
+        highlight_color = _normalize_optional_font_color(payload.get("highlight_color"))
+        stroke_color = _normalize_optional_font_color(payload.get("stroke_color"))
         caption_template = payload.get("caption_template", "default")
         include_broll = bool(payload.get("include_broll", False))
         apply_to_existing = bool(payload.get("apply_to_existing", False))
@@ -961,6 +982,8 @@ async def apply_task_settings(
             include_broll,
             apply_to_existing,
             cleanup_settings,
+            highlight_color=highlight_color,
+            stroke_color=stroke_color,
         )
         metadata = await _load_task_source_metadata(task_id)
         await _save_task_source_metadata(

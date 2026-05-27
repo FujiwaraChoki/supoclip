@@ -100,6 +100,8 @@ class TaskService:
         include_broll: bool = False,
         processing_mode: str = "fast",
         webhook_url: Optional[str] = None,
+        highlight_color: Optional[str] = None,
+        stroke_color: Optional[str] = None,
     ) -> str:
         """
         Create a new task with associated source.
@@ -137,6 +139,8 @@ class TaskService:
             include_broll=include_broll,
             processing_mode=processing_mode,
             webhook_url=webhook_url,
+            highlight_color=highlight_color,
+            stroke_color=stroke_color,
         )
 
         logger.info(f"Created task {task_id} for user {user_id}")
@@ -158,6 +162,8 @@ class TaskService:
         should_cancel: Optional[Callable] = None,
         clip_ready_callback: Optional[Callable] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        highlight_color: Optional[str] = None,
+        stroke_color: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -348,6 +354,8 @@ class TaskService:
                     output_format,
                     add_subtitles,
                     normalized_cleanup_settings,
+                    highlight_color,
+                    stroke_color,
                 )
                 if clip_info is None:
                     continue  # Skip failed clip
@@ -694,6 +702,8 @@ class TaskService:
         include_broll: bool,
         apply_to_existing: bool,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        highlight_color: Optional[str] = None,
+        stroke_color: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Update task-level settings and optionally regenerate all clips."""
         await self.task_repo.update_task_settings(
@@ -704,6 +714,8 @@ class TaskService:
             font_color,
             caption_template,
             include_broll,
+            highlight_color=highlight_color,
+            stroke_color=stroke_color,
         )
 
         if apply_to_existing:
@@ -714,6 +726,8 @@ class TaskService:
                 font_color,
                 caption_template,
                 cleanup_settings=cleanup_settings,
+                highlight_color=highlight_color,
+                stroke_color=stroke_color,
             )
 
         return await self.get_task_with_clips(task_id) or {}
@@ -726,6 +740,8 @@ class TaskService:
         font_color: str,
         caption_template: str,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        highlight_color: Optional[str] = None,
+        stroke_color: Optional[str] = None,
     ) -> None:
         """Regenerate all clips in a task using existing segment boundaries."""
         task = await self.task_repo.get_task_by_id(self.db, task_id)
@@ -821,6 +837,8 @@ class TaskService:
             output_format,
             add_subtitles,
             normalized_cleanup_settings,
+            highlight_color,
+            stroke_color,
         )
 
         await self.clip_repo.delete_clips_by_task(self.db, task_id)

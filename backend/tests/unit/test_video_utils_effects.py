@@ -42,6 +42,75 @@ def test_build_ass_subtitles_preserves_background_template(tmp_path):
     assert "\\fad(150,150)" in content
 
 
+def _write_karaoke_transcript(video_path: Path) -> None:
+    video_path.with_suffix(".transcript_cache.json").write_text(
+        """
+        {
+          "version": 2,
+          "words": [
+            {"text": "hello", "start": 0, "end": 400, "confidence": 0.99},
+            {"text": "world", "start": 400, "end": 900, "confidence": 0.99}
+          ],
+          "utterances": [],
+          "text": "hello world"
+        }
+        """,
+        encoding="utf-8",
+    )
+
+
+def test_build_ass_subtitles_applies_highlight_and_stroke_overrides(tmp_path):
+    # "tiktok" is a karaoke template, so the active-word highlight colour shows
+    # up inline in the events and the outline colour in the Style line.
+    video_path = tmp_path / "source.mp4"
+    _write_karaoke_transcript(video_path)
+    ass_path = tmp_path / "captions.ass"
+
+    success = video_utils.build_assemblyai_ass_subtitles(
+        video_path,
+        clip_start=0.0,
+        clip_end=1.0,
+        video_width=1080,
+        video_height=1920,
+        output_ass_path=ass_path,
+        caption_template="tiktok",
+        keep_ranges=[(0.0, 1.0)],
+        highlight_color="#00FF00",
+        stroke_color="#1A2B3C",
+    )
+
+    content = ass_path.read_text(encoding="utf-8")
+    assert success is True
+    # Overrides win over the template's baked colours...
+    assert video_utils.hex_to_ass_color("#00FF00") in content
+    assert video_utils.hex_to_ass_color("#1A2B3C") in content
+    # ...so tiktok's baked pink highlight (#FE2C55) must NOT appear.
+    assert video_utils.hex_to_ass_color("#FE2C55") not in content
+
+
+def test_build_ass_subtitles_falls_back_to_template_colours_when_no_override(tmp_path):
+    video_path = tmp_path / "source.mp4"
+    _write_karaoke_transcript(video_path)
+    ass_path = tmp_path / "captions.ass"
+
+    success = video_utils.build_assemblyai_ass_subtitles(
+        video_path,
+        clip_start=0.0,
+        clip_end=1.0,
+        video_width=1080,
+        video_height=1920,
+        output_ass_path=ass_path,
+        caption_template="tiktok",
+        keep_ranges=[(0.0, 1.0)],
+    )
+
+    content = ass_path.read_text(encoding="utf-8")
+    assert success is True
+    # No override => tiktok's baked highlight (#FE2C55) and black outline apply.
+    assert video_utils.hex_to_ass_color("#FE2C55") in content
+    assert video_utils.hex_to_ass_color("#000000") in content
+
+
 def test_prepare_audio_for_transcription_extracts_compact_mp3(tmp_path):
     video_path = tmp_path / "source.mp4"
     video_path.write_bytes(b"video")

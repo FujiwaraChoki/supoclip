@@ -179,6 +179,8 @@ class VideoService:
         output_format: str = "vertical",
         add_subtitles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        highlight_color: Optional[str] = None,
+        stroke_color: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Create standalone video clips from segments with optional subtitles.
@@ -215,6 +217,8 @@ class VideoService:
                     output_format,
                     add_subtitles,
                     cleanup_settings,
+                    highlight_color,
+                    stroke_color,
                 )
 
         results = await asyncio.gather(
@@ -239,6 +243,8 @@ class VideoService:
         output_format: str = "vertical",
         add_subtitles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        highlight_color: Optional[str] = None,
+        stroke_color: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Render a single clip in the thread pool and return clip_info dict, or None on failure."""
         try:
@@ -299,6 +305,8 @@ class VideoService:
                 caption_template,
                 output_format,
                 keep_ranges,
+                highlight_color,
+                stroke_color,
             )
 
             if not success:

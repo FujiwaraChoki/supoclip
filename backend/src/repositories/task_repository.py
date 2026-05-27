@@ -29,6 +29,8 @@ class TaskRepository:
         include_broll: bool = False,
         processing_mode: str = "fast",
         webhook_url: Optional[str] = None,
+        highlight_color: Optional[str] = None,
+        stroke_color: Optional[str] = None,
     ) -> str:
         """Create a new task and return its ID."""
         task_id = str(uuid4())
@@ -37,11 +39,13 @@ class TaskRepository:
                 text("""
                     INSERT INTO tasks (
                         id, user_id, source_id, status, font_family, font_size, font_color,
+                        highlight_color, stroke_color,
                         caption_template, include_broll, processing_mode, webhook_url,
                         created_at, updated_at
                     )
                     VALUES (
                         :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
+                        :highlight_color, :stroke_color,
                         :caption_template, :include_broll, :processing_mode, :webhook_url,
                         NOW(), NOW()
                     )
@@ -55,6 +59,8 @@ class TaskRepository:
                     "font_family": font_family,
                     "font_size": font_size,
                     "font_color": font_color,
+                    "highlight_color": highlight_color,
+                    "stroke_color": stroke_color,
                     "caption_template": caption_template,
                     "include_broll": include_broll,
                     "processing_mode": processing_mode,
@@ -136,6 +142,8 @@ class TaskRepository:
             "font_family": row.font_family,
             "font_size": row.font_size,
             "font_color": row.font_color,
+            "highlight_color": getattr(row, "highlight_color", None),
+            "stroke_color": getattr(row, "stroke_color", None),
             "caption_template": getattr(row, "caption_template", "default"),
             "include_broll": getattr(row, "include_broll", False),
             "processing_mode": getattr(row, "processing_mode", "fast"),
@@ -242,6 +250,8 @@ class TaskRepository:
         font_color: str,
         caption_template: str,
         include_broll: bool,
+        highlight_color: Optional[str] = None,
+        stroke_color: Optional[str] = None,
     ) -> None:
         """Update task styling settings."""
         try:
@@ -252,6 +262,8 @@ class TaskRepository:
                     SET font_family = :font_family,
                         font_size = :font_size,
                         font_color = :font_color,
+                        highlight_color = :highlight_color,
+                        stroke_color = :stroke_color,
                         caption_template = :caption_template,
                         include_broll = :include_broll,
                         updated_at = NOW()
@@ -263,6 +275,8 @@ class TaskRepository:
                     "font_family": font_family,
                     "font_size": font_size,
                     "font_color": font_color,
+                    "highlight_color": highlight_color,
+                    "stroke_color": stroke_color,
                     "caption_template": caption_template,
                     "include_broll": include_broll,
                 },

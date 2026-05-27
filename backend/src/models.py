@@ -137,6 +137,14 @@ class Task(Base):
     font_color: Mapped[Optional[str]] = mapped_column(
         String(7), nullable=True, server_default=sql_text("'#FFFFFF'")
     )  # Hex color code
+    # Secondary/tertiary caption colours. No server_default: NULL means "use the
+    # caption template's baked highlight_color / stroke_color".
+    highlight_color: Mapped[Optional[str]] = mapped_column(
+        String(7), nullable=True
+    )  # Active-word highlight; hex
+    stroke_color: Mapped[Optional[str]] = mapped_column(
+        String(7), nullable=True
+    )  # Text outline; hex
 
     # Caption template and B-roll options
     caption_template: Mapped[Optional[str]] = mapped_column(

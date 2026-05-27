@@ -1092,8 +1092,13 @@ def build_assemblyai_ass_subtitles(
     font_color: str = "#FFFFFF",
     caption_template: str = "default",
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
+    highlight_color: Optional[str] = None,
+    stroke_color: Optional[str] = None,
 ) -> bool:
-    """Generate ASS subtitles from cached AssemblyAI word timings."""
+    """Generate ASS subtitles from cached AssemblyAI word timings.
+
+    highlight_color / stroke_color override the caption template's baked
+    active-word and outline colours; None keeps the template default."""
     transcript_data = load_cached_transcript_data(video_path)
     if not transcript_data or not transcript_data.get("words"):
         logger.warning("No cached transcript data available for ASS subtitles")
@@ -1117,9 +1122,11 @@ def build_assemblyai_ass_subtitles(
     if caption_template == "minimal":
         chunk_size = 6
 
+    effective_highlight_color = highlight_color or template.get("highlight_color")
+    effective_stroke_color = stroke_color or template.get("stroke_color")
     primary = hex_to_ass_color(effective_font_color)
-    highlight = hex_to_ass_color(template.get("highlight_color"), "#FFD700")
-    outline = hex_to_ass_color(template.get("stroke_color") or "#000000", "#000000")
+    highlight = hex_to_ass_color(effective_highlight_color, "#FFD700")
+    outline = hex_to_ass_color(effective_stroke_color or "#000000", "#000000")
     back_color = hex_to_ass_color(template.get("background_color"), "#00000080")
     font_px = get_scaled_font_size(effective_font_size, video_width)
     outline_px = int(template.get("stroke_width", 2) or 0)
@@ -2605,9 +2612,14 @@ def create_optimized_clip(
     caption_template: str = "default",
     output_format: str = "vertical",
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
+    highlight_color: Optional[str] = None,
+    stroke_color: Optional[str] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16, hard-cut
-    speaker reframing) or 'horizontal' (keep source 16:9; 'original' is an alias)."""
+    speaker reframing) or 'horizontal' (keep source 16:9; 'original' is an alias).
+
+    highlight_color / stroke_color override the caption template's active-word
+    and outline colours; None keeps the template default."""
     try:
         if keep_ranges:
             effective_keep_ranges = normalize_source_ranges(keep_ranges)
@@ -2700,6 +2712,8 @@ def create_optimized_clip(
                 font_color,
                 caption_template,
                 effective_keep_ranges,
+                highlight_color,
+                stroke_color,
             ):
                 if not burn_ass_subtitles_ffmpeg(
                     framed_clip_path,
