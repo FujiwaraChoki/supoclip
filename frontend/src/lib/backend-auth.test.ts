@@ -1,4 +1,8 @@
-import { buildBackendAuthHeaders } from "./backend-auth";
+import {
+  buildBackendAuthHeaders,
+  getBackendAuthSecret,
+  hasSignedBackendAuth,
+} from "./backend-auth";
 
 describe("buildBackendAuthHeaders", () => {
   const originalSecret = process.env.BACKEND_AUTH_SECRET;
@@ -18,12 +22,26 @@ describe("buildBackendAuthHeaders", () => {
     expect(buildBackendAuthHeaders("user-1")).toEqual({
       "x-supoclip-user-id": "user-1",
     });
+    expect(getBackendAuthSecret()).toBeNull();
+    expect(hasSignedBackendAuth()).toBe(false);
+  });
+
+  it("treats blank secrets as unavailable", () => {
+    process.env.BACKEND_AUTH_SECRET = "   ";
+
+    expect(buildBackendAuthHeaders("user-1")).toEqual({
+      "x-supoclip-user-id": "user-1",
+    });
+    expect(getBackendAuthSecret()).toBeNull();
+    expect(hasSignedBackendAuth()).toBe(false);
   });
 
   it("builds signed headers when a secret is configured", () => {
     process.env.BACKEND_AUTH_SECRET = "secret";
     vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
 
+    expect(getBackendAuthSecret()).toBe("secret");
+    expect(hasSignedBackendAuth()).toBe(true);
     expect(buildBackendAuthHeaders("user-1")).toEqual({
       "x-supoclip-user-id": "user-1",
       "x-supoclip-ts": "1700000000",
