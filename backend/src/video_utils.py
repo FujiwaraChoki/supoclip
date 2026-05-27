@@ -418,6 +418,46 @@ def get_subtitle_max_width(video_width: int) -> int:
     return max(200, video_width - (horizontal_padding * 2))
 
 
+# Average glyph advance as a fraction of font pixel height. We can't measure the
+# burned-in font here, so estimate conservatively (slightly wide) to wrap before
+# overflowing rather than after. THEBOLDFONT and similar display faces run wide.
+_AVG_GLYPH_ADVANCE_RATIO = 0.6
+
+
+def caption_line_break_indices(word_texts: List[str], font_px: int, max_width: int) -> set:
+    """0-based word indices after which to insert a line break so each caption
+    line fits within ``max_width`` px.
+
+    Captions are positioned with ``\\pos`` and rendered with ``WrapStyle: 2`` (no
+    automatic word wrap — only explicit ``\\N`` breaks), so wide chunks overflow
+    the frame, especially at large font sizes. We estimate line width from the
+    scaled font size and break greedily on word boundaries.
+    """
+    approx_char_w = max(1.0, font_px * _AVG_GLYPH_ADVANCE_RATIO)
+    max_chars = max(8, int(max_width / approx_char_w))
+    breaks: set = set()
+    line_chars = 0
+    for i, text in enumerate(word_texts):
+        addition = len(text) if line_chars == 0 else len(text) + 1  # +1 joining space
+        if line_chars > 0 and line_chars + addition > max_chars:
+            breaks.add(i - 1)  # break after the previous word
+            line_chars = len(text)
+        else:
+            line_chars += addition
+    return breaks
+
+
+def join_caption_parts(parts: List[str], break_after: set) -> str:
+    """Join caption word parts (plain or style-wrapped) inserting an ASS ``\\N``
+    line break after each index in ``break_after``, a space otherwise."""
+    out: List[str] = []
+    for i, part in enumerate(parts):
+        out.append(part)
+        if i < len(parts) - 1:
+            out.append("\\N" if i in break_after else " ")
+    return "".join(out)
+
+
 def get_safe_vertical_position(
     video_height: int, text_height: int, position_y: float
 ) -> int:
@@ -1103,6 +1143,23 @@ def resolve_outline_px(template: Dict[str, Any], stroke_color: Optional[str]) ->
     return px
 
 
+def resolve_border_style(template: Dict[str, Any], stroke_color: Optional[str]) -> int:
+    """ASS BorderStyle for captions: 1 = per-glyph outline, 3 = opaque box
+    behind the text.
+
+    An explicit ``stroke_color`` means the user wants a text OUTLINE, so force
+    BorderStyle 1 even when the template renders an opaque box (e.g. "minimal"
+    sets ``background`` + ``background_color``). Without this, the chosen outline
+    colour renders as a box border around a filled background rather than an
+    actual outline. With no stroke override, honour the template's box. (ENG-5634.)
+    """
+    if stroke_color:
+        return 1
+    if template.get("background") and template.get("background_color"):
+        return 3
+    return 1
+
+
 def build_assemblyai_ass_subtitles(
     video_path: Path,
     clip_start: float,
@@ -1157,7 +1214,7 @@ def build_assemblyai_ass_subtitles(
     pos_y = float(template.get("position_y", 0.75))
     y_pos = int(video_height * pos_y)
     font_name = ass_font_name(effective_font_family)
-    border_style = 3 if template.get("background") and template.get("background_color") else 1
+    border_style = resolve_border_style(template, stroke_color)
 
     header = f"""[Script Info]
 ScriptType: v4.00+
@@ -1176,10 +1233,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     events: List[str] = []
     base_prefix = f"{{\\pos({video_width // 2},{y_pos})}}"
+    max_width = get_subtitle_max_width(video_width)
     for chunk_start in range(0, len(relevant_words), chunk_size):
         chunk = relevant_words[chunk_start : chunk_start + chunk_size]
         chunk_end = chunk[-1]["end"]
-        chunk_text = " ".join(escape_ass_text(word["text"]) for word in chunk)
+        word_texts = [escape_ass_text(word["text"]) for word in chunk]
+        # Wrap wide chunks across multiple lines (\N) so they don't run off the
+        # frame — WrapStyle 2 does no auto-wrap, and \pos ignores L/R margins.
+        line_breaks = caption_line_break_indices(word_texts, font_px, max_width)
+        chunk_text = join_caption_parts(word_texts, line_breaks)
 
         if animation == "karaoke":
             for idx, word in enumerate(chunk):
@@ -1194,7 +1256,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                         parts.append(f"{{\\c{highlight}}}{text}{{\\c{primary}}}")
                     else:
                         parts.append(text)
-                line = " ".join(parts)
+                line = join_caption_parts(parts, line_breaks)
                 events.append(
                     f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{base_prefix}{line}"
                 )

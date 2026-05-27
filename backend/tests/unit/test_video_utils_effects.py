@@ -387,3 +387,49 @@ class TestGetScaledFontSize:
     def test_template_default_size_unaffected(self):
         # Minimal's 24 on a 1080 clip → 36, comfortably under the cap.
         assert video_utils.get_scaled_font_size(24, 1080) == 36
+
+
+class TestResolveBorderStyle:
+    """ENG-5634: an explicit stroke colour must render a per-glyph outline
+    (BorderStyle 1), not the template's opaque box (BorderStyle 3)."""
+
+    BOX_TEMPLATE = {"background": True, "background_color": "#00000080"}
+
+    def test_stroke_color_forces_outline_over_box(self):
+        # The reported bug: "minimal" (a box template) + an outline colour
+        # rendered a black box, not an outline.
+        assert video_utils.resolve_border_style(self.BOX_TEMPLATE, "#000000") == 1
+
+    def test_box_template_keeps_box_without_stroke(self):
+        assert video_utils.resolve_border_style(self.BOX_TEMPLATE, None) == 3
+
+    def test_non_box_template_is_outline(self):
+        assert video_utils.resolve_border_style({"background": False, "background_color": None}, None) == 1
+
+    def test_stroke_color_on_non_box_template_stays_outline(self):
+        assert video_utils.resolve_border_style({"background": False, "background_color": None}, "#000000") == 1
+
+
+class TestCaptionWrapping:
+    """ENG-5634: wide caption chunks wrap across lines (\\N) instead of running
+    off the frame (WrapStyle 2 + \\pos does no auto-wrap)."""
+
+    def test_no_break_when_text_fits(self):
+        # Small font, short text → fits one line, no breaks.
+        assert video_utils.caption_line_break_indices(["hello", "world"], 40, 952) == set()
+
+    def test_wide_text_wraps_at_large_font(self):
+        words = ["puppies.", "Just", "to", "keep", "you", "like"]
+        breaks = video_utils.caption_line_break_indices(words, 150, 952)
+        assert breaks  # large font on a 1080-wide frame must wrap
+
+    def test_break_index_is_after_a_word(self):
+        words = ["puppies.", "Just", "to", "keep", "you", "like"]
+        breaks = video_utils.caption_line_break_indices(words, 150, 952)
+        assert all(0 <= b < len(words) - 1 for b in breaks)
+
+    def test_join_inserts_newline_at_breaks(self):
+        assert video_utils.join_caption_parts(["a", "b", "c"], {0}) == "a\\Nb c"
+
+    def test_join_all_spaces_without_breaks(self):
+        assert video_utils.join_caption_parts(["a", "b", "c"], set()) == "a b c"
