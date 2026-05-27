@@ -1238,6 +1238,60 @@ def parse_motion_metadata(path: Path) -> Tuple[List[float], List[float]]:
     return times, values
 
 
+def measure_region_motion(
+    clip_path: Path,
+    left_region: Dict[str, int],
+    right_region: Dict[str, int],
+    start: float = 0.0,
+    duration: Optional[float] = None,
+) -> Optional[Tuple[List[float], List[float], List[float]]]:
+    """Run the per-region lip-motion pass (frame-difference luma on each face ROI).
+
+    Optionally scoped to a ``[start, start + duration]`` window via input seeking — used
+    both for the whole clip (locked 2-shot) and for a single shot of an edited clip.
+    Returns ``(times, left_values, right_values)`` with times relative to the window
+    start, or ``None`` if ffmpeg fails.
+    """
+    with tempfile.TemporaryDirectory(prefix="supoclip_motion_") as motion_dir:
+        left_motion = Path(motion_dir) / "left.txt"
+        right_motion = Path(motion_dir) / "right.txt"
+        filter_complex = (
+            f"[0:v]split=2[l][r];"
+            f"[l]crop={left_region['roi_w']}:{left_region['roi_h']}:{left_region['roi_x']}:{left_region['roi_y']},"
+            f"format=gray,tblend=all_mode=difference,signalstats,"
+            f"metadata=mode=print:key=lavfi.signalstats.YAVG:file={ffmpeg_escape_filter_path(left_motion)}[lo];"
+            f"[r]crop={right_region['roi_w']}:{right_region['roi_h']}:{right_region['roi_x']}:{right_region['roi_y']},"
+            f"format=gray,tblend=all_mode=difference,signalstats,"
+            f"metadata=mode=print:key=lavfi.signalstats.YAVG:file={ffmpeg_escape_filter_path(right_motion)}[ro]"
+        )
+        command = ["ffmpeg", "-y"]
+        if start > 0:
+            command += ["-ss", f"{start:.3f}"]
+        command += ["-i", str(clip_path)]
+        if duration is not None:
+            command += ["-t", f"{duration:.3f}"]
+        command += [
+            "-filter_complex",
+            filter_complex,
+            "-map",
+            "[lo]",
+            "-f",
+            "null",
+            "-",
+            "-map",
+            "[ro]",
+            "-f",
+            "null",
+            "-",
+        ]
+        result = run_ffmpeg_command(command, timeout=300)
+        if result.returncode != 0:
+            return None
+        times, left_values = parse_motion_metadata(left_motion)
+        _, right_values = parse_motion_metadata(right_motion)
+    return times, left_values, right_values
+
+
 def smooth_values(values: List[float], window: int = 15) -> List[float]:
     if not values:
         return []
@@ -1573,6 +1627,86 @@ def build_step_x_expression(segments: List[Dict[str, Any]]) -> Optional[str]:
     return expression
 
 
+def sides_timeline_to_x_segments(
+    timeline: List[Dict[str, Any]],
+    shot_start: float,
+    shot_end: float,
+    left_x: int,
+    right_x: int,
+) -> List[Dict[str, Any]]:
+    """Convert a shot-relative left/right speaker timeline into clip-relative
+    {start, end, x} crop segments spanning ``[shot_start, shot_end]``."""
+    segments = [
+        {
+            "start": segment["start"] + shot_start,
+            "end": segment["end"] + shot_start,
+            "x": left_x if segment["speaker"] == "left" else right_x,
+        }
+        for segment in timeline
+    ]
+    if segments:
+        segments[0]["start"] = shot_start
+        segments[-1]["end"] = shot_end
+    return segments
+
+
+def build_two_shot_segments(
+    clip_path: Path,
+    shot_start: float,
+    shot_end: float,
+    regions: Dict[str, Dict[str, int]],
+    crop_w: int,
+    width: int,
+    utterances: List[Dict[str, Any]],
+) -> Optional[List[Dict[str, Any]]]:
+    """Speaker-select within a held two-shot.
+
+    Runs the lip-motion pass scoped to the shot and uses the diarized utterances to cut
+    between the two people by who is talking — when two speakers share the shot — or to
+    frame the talking (higher-motion) person when only one speaks. Returns clip-relative
+    {start, end, x} segments, or ``None`` to fall back to dominant framing.
+    """
+    left_x = clamp_even(regions["left"]["center_x"] - crop_w // 2, 0, max(0, width - crop_w))
+    right_x = clamp_even(regions["right"]["center_x"] - crop_w // 2, 0, max(0, width - crop_w))
+
+    shot_utterances: List[Dict[str, Any]] = []
+    for utterance in utterances:
+        overlap_start = max(utterance["start"], shot_start)
+        overlap_end = min(utterance["end"], shot_end)
+        if overlap_end - overlap_start > 0.05 and utterance.get("speaker"):
+            shot_utterances.append(
+                {
+                    "start": overlap_start - shot_start,
+                    "end": overlap_end - shot_start,
+                    "speaker": utterance["speaker"],
+                }
+            )
+    if not shot_utterances:
+        return None
+
+    motion = measure_region_motion(
+        clip_path, regions["left"], regions["right"], start=shot_start, duration=shot_end - shot_start
+    )
+    if motion is None:
+        return None
+    times, left_values, right_values = motion
+
+    if len({utterance["speaker"] for utterance in shot_utterances}) >= 2:
+        label_to_side = map_speaker_labels_to_sides(
+            shot_utterances, times, left_values, right_values
+        )
+        if len(set(label_to_side.values())) < 2:
+            return None
+        timeline = build_speaker_timeline_from_utterances(shot_utterances, label_to_side)
+        if len(timeline) < 2:
+            return None
+        return sides_timeline_to_x_segments(timeline, shot_start, shot_end, left_x, right_x)
+
+    # Single speaker holding a two-shot: frame the talking (higher-motion) person.
+    chosen_x = left_x if sum(left_values) >= sum(right_values) else right_x
+    return [{"start": shot_start, "end": shot_end, "x": chosen_x}]
+
+
 def build_per_shot_cut_plan(
     clip_path: Path,
     width: int,
@@ -1580,6 +1714,7 @@ def build_per_shot_cut_plan(
     duration: float,
     crop_w: int,
     cut_times: List[float],
+    utterances: Optional[List[Dict[str, Any]]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Reframe a heavily-edited clip per shot.
 
@@ -1595,12 +1730,27 @@ def build_per_shot_cut_plan(
     if len(shots) < 2:
         return None
 
+    utterances = utterances or []
     shot_sample_cap = 6.0  # only sample the head of each shot — bounds detection cost
+    max_motion_passes = 8  # cap per-shot lip-motion passes so all-wide-shot clips can't explode cost
+    motion_passes = 0
     raw_segments: List[Dict[str, Any]] = []
     for shot_start, shot_end in shots:
         faces = detect_faces_in_clip(
             clip_path, shot_start, min(shot_end, shot_start + shot_sample_cap)
         )
+        # A held two-shot (two distinct, far-apart face clusters): cut between the two
+        # people by who is speaking, rather than holding on the dominant one.
+        regions = cluster_two_face_regions(faces, width, height)
+        if regions is not None and motion_passes < max_motion_passes:
+            motion_passes += 1
+            shot_segments = build_two_shot_segments(
+                clip_path, shot_start, shot_end, regions, crop_w, width, utterances
+            )
+            if shot_segments:
+                raw_segments.extend(shot_segments)
+                continue
+
         prev_x = raw_segments[-1]["x"] if raw_segments else None
         crop_x = pick_shot_crop_x(faces, width, crop_w, prev_x)
         raw_segments.append(
@@ -1681,7 +1831,7 @@ def detect_speaker_reframe_plan(
             # the pan/split modes still bail (they assume a locked 2-shot).
             if output_format == "vertical":
                 return build_per_shot_cut_plan(
-                    clip_path, width, height, duration, crop_w, scene_cut_times
+                    clip_path, width, height, duration, crop_w, scene_cut_times, utterances
                 )
             logger.info(
                 "Skipping speaker reframe: %d scene cuts detected", len(scene_cut_times)
@@ -1712,45 +1862,10 @@ def detect_speaker_reframe_plan(
                 "regions": regions,
             }
 
-        with tempfile.TemporaryDirectory(prefix="supoclip_motion_") as motion_dir:
-            left_motion = Path(motion_dir) / "left.txt"
-            right_motion = Path(motion_dir) / "right.txt"
-            left = regions["left"]
-            right = regions["right"]
-            filter_complex = (
-                f"[0:v]split=2[l][r];"
-                f"[l]crop={left['roi_w']}:{left['roi_h']}:{left['roi_x']}:{left['roi_y']},"
-                f"format=gray,tblend=all_mode=difference,signalstats,"
-                f"metadata=mode=print:key=lavfi.signalstats.YAVG:file={ffmpeg_escape_filter_path(left_motion)}[lo];"
-                f"[r]crop={right['roi_w']}:{right['roi_h']}:{right['roi_x']}:{right['roi_y']},"
-                f"format=gray,tblend=all_mode=difference,signalstats,"
-                f"metadata=mode=print:key=lavfi.signalstats.YAVG:file={ffmpeg_escape_filter_path(right_motion)}[ro]"
-            )
-            result = run_ffmpeg_command(
-                [
-                    "ffmpeg",
-                    "-y",
-                    "-i",
-                    str(clip_path),
-                    "-filter_complex",
-                    filter_complex,
-                    "-map",
-                    "[lo]",
-                    "-f",
-                    "null",
-                    "-",
-                    "-map",
-                    "[ro]",
-                    "-f",
-                    "null",
-                    "-",
-                ],
-                timeout=300,
-            )
-            if result.returncode != 0:
-                return None
-            times, left_values = parse_motion_metadata(left_motion)
-            _, right_values = parse_motion_metadata(right_motion)
+        motion = measure_region_motion(clip_path, regions["left"], regions["right"])
+        if motion is None:
+            return None
+        times, left_values, right_values = motion
 
         if output_format == "vertical":
             label_to_side = map_speaker_labels_to_sides(

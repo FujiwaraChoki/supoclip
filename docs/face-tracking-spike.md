@@ -74,9 +74,20 @@ near-ties broken toward the previous shot's framing for continuity. Shots with o
 two people who *do* fit, still frame the weighted centre. Guarantees the crop lands on a real
 face, never the empty gap.
 
-Known limit: in a *balanced* wide two-shot it frames the more prominent person for the whole
-shot, not necessarily the active speaker — speaker-accurate selection within a shot (per-shot
-lip-motion / diarization mapping) is the next increment.
+### Increment 4: speaker-select within a held two-shot
+
+Increment 3 framed a wide two-shot on the more *prominent* person for the whole shot — not
+necessarily the active speaker. Increment 4 closes that: when a shot is a held two-shot
+(`cluster_two_face_regions` finds two distinct, far-apart clusters), run the lip-motion pass
+**scoped to that shot** (`measure_region_motion` with `-ss/-t`) and reuse the locked-2-shot
+machinery — `map_speaker_labels_to_sides` + `build_speaker_timeline_from_utterances` — to
+**cut between the two people by who's talking**. One speaker holding the two-shot → frame the
+higher-motion (talking) one. So the per-shot path *contains* the locked-2-shot logic as the
+single-shot case.
+
+Cost stays bounded: the lip-motion pass runs only on held-two-shot shots, capped at 8 per clip
+(beyond that, or on motion/mapping failure, it falls back to increment 3's dominant framing).
+Single-person shots — still the common edited pattern — never trigger a motion pass.
 
 **Guards to keep (council):** min-segment debounce, single-speaker → static crop, model-asset
 integrity check (#15 pattern), per-clip static-crop escape hatch, validation gating each step.

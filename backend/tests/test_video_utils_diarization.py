@@ -366,6 +366,29 @@ class VideoUtilsPerShotReframeTests(unittest.TestCase):
     def test_build_step_x_expression_empty(self):
         self.assertIsNone(video_utils.build_step_x_expression([]))
 
+    def test_sides_timeline_to_x_segments_maps_and_spans_shot(self):
+        # shot-relative left/right speaker timeline -> clip-relative x segments,
+        # snapped to cover the whole shot [100.0, 130.0]
+        timeline = [
+            {"start": 0.5, "end": 12.0, "speaker": "left"},
+            {"start": 12.0, "end": 25.0, "speaker": "right"},
+        ]
+        segments = video_utils.sides_timeline_to_x_segments(
+            timeline, shot_start=100.0, shot_end=130.0, left_x=400, right_x=900
+        )
+        self.assertEqual(
+            segments,
+            [
+                {"start": 100.0, "end": 112.0, "x": 400},   # start snapped to shot_start
+                {"start": 112.0, "end": 130.0, "x": 900},   # end snapped to shot_end
+            ],
+        )
+
+    def test_sides_timeline_to_x_segments_empty(self):
+        self.assertEqual(
+            video_utils.sides_timeline_to_x_segments([], 0.0, 10.0, 400, 900), []
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
