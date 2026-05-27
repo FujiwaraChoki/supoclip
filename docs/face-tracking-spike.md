@@ -101,6 +101,24 @@ detections is treated as **unknown** and `fill_weak_shot_framing` **holds a neig
 (`vertical (per-shot): … two-shot speaker-cut | weak → hold neighbour | faces=N → x=…`) so the
 framing path is diagnosable from CloudWatch.
 
+### Increment 6: always centre on a face when one exists
+
+Product rule (decided after seeing repeated wide-shot gaps on a decor-heavy set): **if a shot
+has one or more faces, always centre on one of them — a slightly-wrong face beats the gap.** Two
+changes implement it:
+- `pick_shot_crop_x` only centred on a single face when the two clusters were `> 0.9 * crop_w`
+  apart; between ~0.35 and 0.9 it averaged them → the midpoint *gap*. The threshold dropped to
+  **`0.35 * crop_w`**, so any two seated hosts → frame ONE (the heavier cluster); only a single
+  tight detection group centres on the group.
+- `build_per_shot_cut_plan` no longer holds-previous below a 3-face floor — it frames on **≥1
+  face** (`pick_shot_crop_x` returns `None` only for a truly faceless shot, which then holds a
+  neighbour). So weak/turned-away shots still land on whatever face was detected rather than the
+  centre.
+
+Accepted trade-off: on a wide two-shot we now commit to one host (occasionally the non-speaker)
+and on a decor-heavy set may briefly frame a detected *photo/screen* face — both judged better
+than centring on the gap. Liveness/motion-gating of decoy faces remains a future option.
+
 **Guards to keep (council):** min-segment debounce, single-speaker → static crop, model-asset
 integrity check (#15 pattern), per-clip static-crop escape hatch, validation gating each step.
 

@@ -327,6 +327,18 @@ class VideoUtilsPerShotReframeTests(unittest.TestCase):
         midpoint_x = video_utils.clamp_even(950 - 303, 0, 1920 - 606)
         self.assertNotEqual(crop_x, midpoint_x)
 
+    def test_pick_shot_crop_x_moderately_separated_picks_one_not_gap(self):
+        # two faces ~350px apart — within the OLD 0.9*crop_w threshold (would have framed
+        # the midpoint gap), now past the 0.35*crop_w threshold → frame the heavier one.
+        faces = [
+            (700, 540, 6000, 0.85),    # left, smaller
+            (1050, 540, 12000, 0.95),  # right, heavier
+        ]
+        crop_x = video_utils.pick_shot_crop_x(faces, 1920, 606)
+        self.assertEqual(crop_x, video_utils.clamp_even(1050 - 303, 0, 1920 - 606))
+        midpoint_x = video_utils.clamp_even(875 - 303, 0, 1920 - 606)
+        self.assertNotEqual(crop_x, midpoint_x)  # crucially NOT the gap
+
     def test_pick_shot_crop_x_wide_two_shot_near_tie_uses_continuity(self):
         # equal-weight wide two-shot: tie broken toward prev_x (left side here)
         faces = [(400, 540, 8000, 0.9), (1500, 540, 8000, 0.9)]

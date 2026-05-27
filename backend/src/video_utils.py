@@ -1535,13 +1535,13 @@ def pick_shot_crop_x(
     crop_w: int,
     prev_x: Optional[int] = None,
 ) -> Optional[int]:
-    """Crop x-offset for one shot.
+    """Crop x-offset for one shot — always centred on a single face, never the gap.
 
-    When the shot's faces fit in the 9:16 window, frames their weighted centre. When the
-    shot holds two people too far apart to both fit, frames ONE of them — the
-    higher-weight (larger/closer) cluster — instead of the empty gap between them, which
-    is what an average would land on. Near-ties are broken toward ``prev_x`` so framing
-    doesn't flicker between shots. Returns ``None`` when there are no faces.
+    Whenever the shot holds two meaningfully-separated face clusters (two people), frames
+    ONE of them — the higher-weight (larger/closer) cluster — rather than the midpoint an
+    average would land on (the empty gap between them). Only when the detections form a
+    single tight group (one person) does it centre on that group. Near-ties are broken
+    toward ``prev_x`` so framing doesn't flicker. Returns ``None`` only when no faces.
     """
     if not face_centers:
         return None
@@ -1561,9 +1561,11 @@ def pick_shot_crop_x(
     if left and right:
         left_cx = weighted_center_x(left)
         right_cx = weighted_center_x(right)
-        # Two distinct people whose centres are more than a crop-width apart can't both
-        # be framed — pick one rather than centring on the gap between them.
-        if abs(right_cx - left_cx) > crop_w * 0.9:
+        # Two distinct, separated face clusters → frame ONE of them, never the midpoint
+        # between (the gap). Threshold is deliberately low (~a third of the crop width):
+        # a single person's detection jitter stays well under it, but two seated hosts
+        # clear it easily, so we centre on a face instead of the space between them.
+        if abs(right_cx - left_cx) > crop_w * 0.35:
             left_weight = sum(area * conf for _, _, area, conf in left)
             right_weight = sum(area * conf for _, _, area, conf in right)
             near_tie = (
@@ -1755,7 +1757,6 @@ def build_per_shot_cut_plan(
     utterances = utterances or []
     shot_sample_cap = 6.0  # only sample the head of each shot — bounds detection cost
     max_motion_passes = 8  # cap per-shot lip-motion passes so all-wide-shot clips can't explode cost
-    min_shot_faces = 3  # below this the face signal is too weak to trust (e.g. heads down)
     motion_passes = 0
     last_framed_x: Optional[int] = None
     raw_segments: List[Dict[str, Any]] = []
@@ -1782,27 +1783,25 @@ def build_per_shot_cut_plan(
                 )
                 continue
 
-        if len(faces) < min_shot_faces:
-            # Too few faces to trust a crop here (subjects looking down/away). Defer —
-            # fill_weak_shot_framing holds a neighbour's framing rather than snapping to
-            # the centre, which on a wide two-shot is the empty gap between people.
-            crop_x = None
+        # Always centre on a face when the shot has one (even a single/imperfect
+        # detection) — a slightly-wrong face beats framing the empty gap. pick_shot_crop_x
+        # returns None only for a genuinely faceless shot, which fill_weak_shot_framing
+        # then resolves by holding a neighbour's framing rather than snapping to centre.
+        crop_x = pick_shot_crop_x(faces, width, crop_w, last_framed_x)
+        if crop_x is not None:
+            last_framed_x = crop_x
             logger.info(
-                "vertical (per-shot): %.1f-%.1fs weak (faces=%d) -> hold neighbour",
-                shot_start,
-                shot_end,
-                len(faces),
-            )
-        else:
-            crop_x = pick_shot_crop_x(faces, width, crop_w, last_framed_x)
-            if crop_x is not None:
-                last_framed_x = crop_x
-            logger.info(
-                "vertical (per-shot): %.1f-%.1fs faces=%d -> x=%s",
+                "vertical (per-shot): %.1f-%.1fs faces=%d -> x=%d",
                 shot_start,
                 shot_end,
                 len(faces),
                 crop_x,
+            )
+        else:
+            logger.info(
+                "vertical (per-shot): %.1f-%.1fs no faces -> hold neighbour",
+                shot_start,
+                shot_end,
             )
         raw_segments.append({"start": shot_start, "end": shot_end, "x": crop_x})
 
