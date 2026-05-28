@@ -9,7 +9,7 @@ from sse_starlette.sse import EventSourceResponse
 from pathlib import Path
 import json
 import logging
-from typing import Dict, Any
+from typing import Any, Dict, Optional
 import inspect
 import ipaddress
 import re
@@ -263,6 +263,15 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     add_subtitles = data.get("add_subtitles", True)
     if not isinstance(add_subtitles, bool):
         add_subtitles = True
+    # BN derives this from a `subtitles` text placeholder in the template's
+    # Polotno doc; we accept it as a unitless ratio in [0, 1] (0=top, 1=bottom)
+    # and clamp out-of-range values rather than rejecting (the BN side already
+    # clamps but we re-validate on the boundary). None / missing / wrong-type
+    # falls back to the caption_template default deeper down. (ENG-5671)
+    raw_position_y = data.get("subtitle_position_y")
+    subtitle_position_y: Optional[float] = None
+    if isinstance(raw_position_y, (int, float)) and not isinstance(raw_position_y, bool):
+        subtitle_position_y = max(0.0, min(1.0, float(raw_position_y)))
     cleanup_settings = normalize_clip_cleanup_settings(
         data.get("cut_long_pauses"),
         data.get("pause_threshold_ms"),
@@ -323,6 +332,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             highlight_color,
             stroke_color,
             max_clips,
+            subtitle_position_y,
         )
 
         # Save source metadata for resume/retries in environments without sources.url column

@@ -165,6 +165,7 @@ class TaskService:
         highlight_color: Optional[str] = None,
         stroke_color: Optional[str] = None,
         max_clips: Optional[int] = None,
+        subtitle_position_y: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -358,6 +359,7 @@ class TaskService:
                     normalized_cleanup_settings,
                     highlight_color,
                     stroke_color,
+                    subtitle_position_y,
                 )
                 if clip_info is None:
                     continue  # Skip failed clip

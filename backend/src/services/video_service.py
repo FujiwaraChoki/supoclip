@@ -181,6 +181,7 @@ class VideoService:
         cleanup_settings: Optional[Dict[str, Any]] = None,
         highlight_color: Optional[str] = None,
         stroke_color: Optional[str] = None,
+        subtitle_position_y: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
         """
         Create standalone video clips from segments with optional subtitles.
@@ -219,6 +220,7 @@ class VideoService:
                     cleanup_settings,
                     highlight_color,
                     stroke_color,
+                    subtitle_position_y,
                 )
 
         results = await asyncio.gather(
@@ -245,6 +247,7 @@ class VideoService:
         cleanup_settings: Optional[Dict[str, Any]] = None,
         highlight_color: Optional[str] = None,
         stroke_color: Optional[str] = None,
+        subtitle_position_y: Optional[float] = None,
     ) -> Optional[Dict[str, Any]]:
         """Render a single clip in the thread pool and return clip_info dict, or None on failure."""
         try:
@@ -307,6 +310,7 @@ class VideoService:
                 keep_ranges,
                 highlight_color,
                 stroke_color,
+                subtitle_position_y,
             )
 
             if not success:
@@ -398,6 +402,7 @@ class VideoService:
         progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]] = None,
         should_cancel: Optional[Callable[[], Awaitable[bool]]] = None,
         max_clips: Optional[int] = None,
+        subtitle_position_y: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.

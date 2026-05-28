@@ -1197,11 +1197,19 @@ def build_assemblyai_ass_subtitles(
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
     highlight_color: Optional[str] = None,
     stroke_color: Optional[str] = None,
+    subtitle_position_y: Optional[float] = None,
 ) -> bool:
     """Generate ASS subtitles from cached AssemblyAI word timings.
 
     highlight_color / stroke_color override the caption template's baked
-    active-word and outline colours; None keeps the template default."""
+    active-word and outline colours; None keeps the template default.
+
+    subtitle_position_y overrides the caption template's position_y (unitless
+    ratio in [0, 1], 0=top, 1=bottom). BN derives this from a `subtitles`
+    placeholder element in the source template's Polotno doc so designers
+    control caption placement visually rather than living with the
+    caption_template's hardcoded default (0.75 / lower-third). None keeps
+    the template default. (ENG-5671)"""
     transcript_data = load_cached_transcript_data(video_path)
     if not transcript_data or not transcript_data.get("words"):
         logger.warning("No cached transcript data available for ASS subtitles")
@@ -1234,7 +1242,14 @@ def build_assemblyai_ass_subtitles(
     font_px = get_scaled_font_size(effective_font_size, video_width)
     outline_px = resolve_outline_px(template, stroke_color)
     shadow_px = 2 if template.get("shadow") else 0
-    pos_y = float(template.get("position_y", 0.75))
+    # Caller-supplied position wins so a BN template placeholder can override
+    # the caption_template's baked default without per-template forks.
+    pos_y = (
+        float(subtitle_position_y)
+        if subtitle_position_y is not None
+        else float(template.get("position_y", 0.75))
+    )
+    pos_y = max(0.0, min(1.0, pos_y))
     y_pos = int(video_height * pos_y)
     font_name = ass_font_name(effective_font_family)
     border_style = resolve_border_style(template, stroke_color)
@@ -2717,6 +2732,7 @@ def create_optimized_clip(
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
     highlight_color: Optional[str] = None,
     stroke_color: Optional[str] = None,
+    subtitle_position_y: Optional[float] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16, hard-cut
     speaker reframing) or 'horizontal' (keep source 16:9; 'original' is an alias).
@@ -2817,6 +2833,7 @@ def create_optimized_clip(
                 effective_keep_ranges,
                 highlight_color,
                 stroke_color,
+                subtitle_position_y,
             ):
                 if not burn_ass_subtitles_ffmpeg(
                     framed_clip_path,
