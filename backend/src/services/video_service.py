@@ -28,6 +28,8 @@ from ..video_utils import (
     build_keep_ranges_from_source_ranges,
     build_clip_signal_summary,
     extend_keep_ranges_to_sentence_boundary,
+    format_transcript_from_cached_data,
+    hydrate_word_cache_from_bn_transcript,
     seconds_to_mmss,
 )
 from ..clip_source_map import (
@@ -403,10 +405,21 @@ class VideoService:
         should_cancel: Optional[Callable[[], Awaitable[bool]]] = None,
         max_clips: Optional[int] = None,
         subtitle_position_y: Optional[float] = None,
+        transcript_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.
         Returns dict with segments and clips info.
+
+        transcript_url: Optional pre-signed URL to a BN-produced ElevenLabs
+        word-level transcript JSON. When set (and the local *.transcript_cache.json
+        is missing), the worker hydrates the cache from this URL and skips the
+        AssemblyAI pass. Fixes the SIGTERM/arq retry case where the per-run /tmp
+        word cache is lost and captions + speaker-reframe both fall back together.
+        Re-fetched on every worker entry (including retries), so durability comes
+        from arq replaying the kwarg + BN's signed URL being valid for ~7 days.
+        Falls back to AssemblyAI when omitted or when the fetch/mapping fails.
+        (ENG-5686)
 
         max_clips: optional per-request cap on how many clips to keep (defaults to
         config.max_clips). Lets callers request a specific number of clips.
@@ -462,11 +475,37 @@ class VideoService:
             if progress_callback:
                 await progress_callback(30, "Generating transcript...", "processing")
 
+            # ENG-5686: hydrate the word-level cache from BN's pre-signed
+            # transcript URL when available. This must happen BEFORE the
+            # `cached_transcript` short-circuit below, because on an arq retry
+            # `cached_transcript` is populated from processing_cache but the
+            # per-run `*.transcript_cache.json` (which captions + speaker-
+            # reframe both consume via `load_cached_transcript_data`) has been
+            # lost with /tmp — the original ENG-5675 bug. Hydrating here is
+            # idempotent (no-ops if the local file exists), so it's safe to
+            # run on every entry. Failure falls through to AssemblyAI.
+            bn_transcript_hydrated = False
+            if transcript_url:
+                bn_transcript_hydrated = await run_in_thread(
+                    hydrate_word_cache_from_bn_transcript, video_path, transcript_url
+                )
+
             transcript = cached_transcript
             if not transcript:
-                transcript = await VideoService.generate_transcript(
-                    video_path, processing_mode=processing_mode
-                )
+                if bn_transcript_hydrated:
+                    # We have word-level data in the local cache; derive the
+                    # formatted-text transcript from it instead of calling
+                    # AssemblyAI again. Reuses `format_transcript_for_analysis`
+                    # via a lightweight wrapper that walks the cached
+                    # utterances; downstream `analyze_transcript` only needs
+                    # the formatted string.
+                    transcript = await run_in_thread(
+                        format_transcript_from_cached_data, video_path
+                    )
+                else:
+                    transcript = await VideoService.generate_transcript(
+                        video_path, processing_mode=processing_mode
+                    )
 
             # Step 3: AI analysis
             if should_cancel and await should_cancel():

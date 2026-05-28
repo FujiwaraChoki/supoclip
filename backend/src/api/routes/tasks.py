@@ -282,6 +282,17 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     if webhook_url is not None:
         _validate_webhook_url(webhook_url)
 
+    # Optional pre-signed URL to a BN-produced word-level transcript JSON
+    # (ElevenLabs Scribe, MIME bnMimeTypes.ELEVENLABS_TRANSCRIPT). When set,
+    # the worker hydrates the local *.transcript_cache.json from this URL and
+    # skips AssemblyAI — fixes the SIGTERM/arq retry case where the per-run
+    # /tmp word cache is lost and captions + speaker-reframe both fall back
+    # together. Reuses the outbound-URL validator (SSRF-safe; rejects private
+    # IPs) since the requirements are identical to webhook_url. (ENG-5686)
+    transcript_url = data.get("transcript_url")
+    if transcript_url is not None:
+        _validate_webhook_url(transcript_url)
+
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
@@ -333,6 +344,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             stroke_color,
             max_clips,
             subtitle_position_y,
+            transcript_url,
         )
 
         # Save source metadata for resume/retries in environments without sources.url column

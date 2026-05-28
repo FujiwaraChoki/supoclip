@@ -319,6 +319,254 @@ def _serialize_transcript_word(word) -> Dict[str, Any]:
     }
 
 
+def _elevenlabs_speaker_to_assemblyai(speaker_no: Any) -> Optional[str]:
+    """
+    Map BN's ElevenLabs `speakerNo` (0-indexed int from `speaker_X` labels) to the
+    AssemblyAI-style speaker letter ('A', 'B', 'C', ...) the cache + downstream
+    code expects. Returns None when speakerNo isn't a usable int (single-speaker
+    sources, or scribe runs without diarization).
+    """
+    if speaker_no is None:
+        return None
+    try:
+        idx = int(speaker_no)
+    except (TypeError, ValueError):
+        return None
+    if idx < 0 or idx > 25:
+        # Beyond 'Z'; clamp rather than raise so a 27-speaker edge case doesn't
+        # kill the hydrate path. Downstream just sees an extra speaker bucket.
+        return chr(ord("A") + (idx % 26))
+    return chr(ord("A") + idx)
+
+
+def map_bn_transcript_to_cache_shape(bn_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Map BN's stored ElevenLabs Scribe transcript JSON to Supoclip's existing
+    AssemblyAI-style cache shape. Pure function (no I/O) so the mapping is
+    unit-testable in isolation from the hydrate-from-URL plumbing.
+
+    Input (the JSON BN uploads via uploadSource in
+    packages/tools/plugins/ELEVENLABS/SPEECH_TO_TEXT/tool.ts):
+
+        {
+          "transcript": "...",
+          "words": [
+            {"text": "...", "type": "word"|"spacing"|"audio_event",
+             "start": float_seconds, "end": float_seconds,
+             "speakerNo": 0, "speakerLabel": "Speaker 0", ...},
+            ...
+          ],
+          "language": "en"
+        }
+
+    Output (matches `cache_transcript_data`'s on-disk shape so
+    `load_cached_transcript_data` and `build_assemblyai_ass_subtitles` work
+    unchanged):
+
+        {
+          "version": TRANSCRIPT_CACHE_SCHEMA_VERSION,
+          "words":      [{"text", "start", "end", "confidence", "speaker"}],
+          "utterances": [{"text", "start", "end", "speaker", "words": [...]}],
+          "text": "..."
+        }
+
+    Transformations:
+        - seconds (float) → milliseconds (int): the AssemblyAI shape stores ms.
+        - `speakerNo` (0,1,2,...) → `speaker` letter ('A','B','C',...).
+        - Drop entries where `type != 'word'` (BN keeps spacing/audio_event
+          markers; AssemblyAI's words list is word-only).
+        - Group consecutive same-speaker words into `utterances`. Mirrors how
+          AssemblyAI's diarized response shapes utterances (one per speaker
+          run). Required so vertical reframe's diarization fallback at
+          `video_utils.py:2715` sees usable speaker boundaries.
+        - `confidence` is hardcoded to 1.0 — ElevenLabs Scribe doesn't expose
+          per-word confidence in BN's stored shape; downstream code only checks
+          it via `hasattr`, so a constant value preserves behaviour.
+    """
+    raw_words = bn_payload.get("words") or []
+    transcript_text = bn_payload.get("transcript") or ""
+
+    words_out: List[Dict[str, Any]] = []
+    for word in raw_words:
+        if not isinstance(word, dict):
+            continue
+        if (word.get("type") or "word") != "word":
+            # Skip spacing/audio_event markers — AssemblyAI's `words` list is
+            # word-only, and downstream subtitle/diarization code assumes the
+            # same.
+            continue
+        start = word.get("start")
+        end = word.get("end")
+        if start is None or end is None:
+            continue
+        words_out.append(
+            {
+                "text": word.get("text", ""),
+                "start": int(round(float(start) * 1000)),
+                "end": int(round(float(end) * 1000)),
+                "confidence": 1.0,
+                "speaker": _elevenlabs_speaker_to_assemblyai(word.get("speakerNo")),
+            }
+        )
+
+    # Group consecutive same-speaker words into utterances. Tracks the active
+    # run; on a speaker change (or end of list) flushes the run as one utterance.
+    utterances_out: List[Dict[str, Any]] = []
+    current_speaker: Optional[str] = None
+    current_run: List[Dict[str, Any]] = []
+
+    def _flush_run():
+        if not current_run:
+            return
+        utterances_out.append(
+            {
+                "text": " ".join(w["text"] for w in current_run if w.get("text")),
+                "start": current_run[0]["start"],
+                "end": current_run[-1]["end"],
+                "speaker": current_speaker,
+                "words": list(current_run),
+            }
+        )
+
+    for w in words_out:
+        if w["speaker"] != current_speaker and current_run:
+            _flush_run()
+            current_run = []
+        current_speaker = w["speaker"]
+        current_run.append(w)
+    _flush_run()
+
+    return {
+        "version": TRANSCRIPT_CACHE_SCHEMA_VERSION,
+        "words": words_out,
+        "utterances": utterances_out,
+        "text": transcript_text,
+    }
+
+
+def format_transcript_from_cached_data(video_path: Path) -> str:
+    """
+    Read the local `*.transcript_cache.json` and produce the same formatted
+    line-per-utterance string that `get_video_transcript` returns. Used after
+    `hydrate_word_cache_from_bn_transcript` so the AI-analysis step doesn't
+    need to call AssemblyAI just to get the formatted text — the word/utterance
+    data we already wrote to the cache is enough.
+
+    Mirrors the format from `format_transcript_for_analysis` for parity with
+    the AssemblyAI path: `[MM:SS.s - MM:SS.s] Speaker X: text`. Returns an
+    empty string when the cache is missing or empty so the caller can decide
+    how to fall back.
+    """
+    data = load_cached_transcript_data(video_path)
+    if not data:
+        return ""
+
+    utterances = data.get("utterances") or []
+    if utterances:
+        lines = []
+        for u in utterances:
+            start_time = format_ms_to_timestamp(u.get("start", 0))
+            end_time = format_ms_to_timestamp(u.get("end", 0))
+            speaker = u.get("speaker")
+            speaker_prefix = f"Speaker {speaker}: " if speaker else ""
+            lines.append(
+                f"[{start_time} - {end_time}] {speaker_prefix}{u.get('text', '')}"
+            )
+        return "\n".join(lines)
+
+    # No utterances (e.g. single-speaker scribe with diarization off) →
+    # synthesise lines from words. Mirrors the words-only branch of
+    # format_transcript_for_analysis but reads from the cached dict.
+    words = data.get("words") or []
+    if not words:
+        return data.get("text", "")
+    # Just join the texts with the speaker change boundaries — coarse but
+    # sufficient for AI analysis since this branch is rare.
+    return " ".join(w.get("text", "") for w in words)
+
+
+def hydrate_word_cache_from_bn_transcript(
+    video_path: Path, transcript_url: str
+) -> bool:
+    """
+    Fetch BN's pre-signed ElevenLabs transcript JSON and write it to the local
+    `*.transcript_cache.json` so `load_cached_transcript_data` succeeds without
+    a fresh AssemblyAI pass. Returns True on success, False on any failure
+    (the caller falls back to AssemblyAI).
+
+    Fixes the SIGTERM/arq retry case (ENG-5675/5686): on every worker entry we
+    re-hydrate from the URL, so the lost /tmp word cache is rebuilt before the
+    transcript-skip branch at `video_service.py:465-469` can fire. URL is a BN
+    pre-signed S3 link with ~7-day expiry; arq retries within that window
+    succeed.
+    """
+    cache_path = video_path.with_suffix(".transcript_cache.json")
+    if cache_path.exists():
+        logger.info(
+            "Local transcript cache already present at %s; skipping BN hydrate",
+            cache_path,
+        )
+        return True
+
+    try:
+        runtime_config = get_config()
+        timeout = getattr(runtime_config, "assembly_ai_http_timeout_seconds", 60)
+        # Use a separate, smaller timeout for the JSON fetch — AssemblyAI's
+        # poll timeout is sized for minutes-long jobs; downloading a transcript
+        # JSON blob from S3 should be seconds.
+        fetch_timeout = min(int(timeout) if timeout else 60, 60)
+        logger.info(
+            "Hydrating word cache from BN transcript URL (timeout=%ss)",
+            fetch_timeout,
+        )
+        with httpx.Client(timeout=fetch_timeout) as client:
+            response = client.get(transcript_url)
+            response.raise_for_status()
+            bn_payload = response.json()
+    except Exception as exc:
+        # Be lenient: any fetch / parse failure → fall back to AssemblyAI. This
+        # is intentionally broad — a malformed URL, expired signature, S3 5xx,
+        # or partial JSON should never block a clipping job; AssemblyAI is the
+        # safety net.
+        logger.warning(
+            "Failed to fetch/parse BN transcript from %s: %s. Falling back to AssemblyAI.",
+            transcript_url,
+            exc,
+        )
+        return False
+
+    try:
+        cache_data = map_bn_transcript_to_cache_shape(bn_payload)
+    except Exception as exc:
+        logger.warning(
+            "Failed to map BN transcript payload to cache shape: %s. Falling back to AssemblyAI.",
+            exc,
+        )
+        return False
+
+    if not cache_data["words"]:
+        # Zero usable words after mapping (audio-less video, scribe returned
+        # only audio_event markers, etc). Let AssemblyAI try; if it returns the
+        # same thing the existing empty-transcript handling kicks in (see
+        # reference_supoclip_prod_empty_transcript).
+        logger.warning(
+            "BN transcript hydrate produced 0 usable words for %s; falling back to AssemblyAI.",
+            video_path,
+        )
+        return False
+
+    with open(cache_path, "w") as f:
+        json.dump(cache_data, f)
+
+    logger.info(
+        "Hydrated %s words / %s utterances from BN transcript to %s",
+        len(cache_data["words"]),
+        len(cache_data["utterances"]),
+        cache_path,
+    )
+    return True
+
+
 def format_transcript_for_analysis(transcript) -> List[str]:
     """Format transcripts into readable timestamped segments for AI analysis."""
     utterances = getattr(transcript, "utterances", None) or []

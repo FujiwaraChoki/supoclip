@@ -166,6 +166,7 @@ class TaskService:
         stroke_color: Optional[str] = None,
         max_clips: Optional[int] = None,
         subtitle_position_y: Optional[float] = None,
+        transcript_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -289,6 +290,7 @@ class TaskService:
                 progress_callback=update_progress,
                 should_cancel=should_cancel,
                 max_clips=max_clips,
+                transcript_url=transcript_url,
             )
             stage_timings["pipeline_seconds"] = round(
                 perf_counter() - pipeline_start, 3

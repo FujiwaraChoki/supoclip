@@ -31,6 +31,7 @@ async def process_video_task(
     stroke_color: str | None = None,
     max_clips: int | None = None,
     subtitle_position_y: float | None = None,
+    transcript_url: str | None = None,
 ) -> Dict[str, Any]:
     """
     Background worker task to process a video.
@@ -100,6 +101,7 @@ async def process_video_task(
                 stroke_color=stroke_color,
                 max_clips=max_clips,
                 subtitle_position_y=subtitle_position_y,
+                transcript_url=transcript_url,
             )
 
             logger.info(f"Task {task_id} completed successfully")
