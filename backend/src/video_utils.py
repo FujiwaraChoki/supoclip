@@ -458,6 +458,29 @@ def join_caption_parts(parts: List[str], break_after: set) -> str:
     return "".join(out)
 
 
+def chunk_words_by_sentence(words: List[Dict[str, Any]], chunk_size: int) -> List[List[Dict[str, Any]]]:
+    """Group caption words into chunks that never carry a sentence END into the
+    next sentence.
+
+    A word ending in sentence-final punctuation (``.`` ``!`` ``?`` ``…``, ignoring
+    trailing quotes/brackets) closes the current chunk, so the start of the next
+    sentence always begins a fresh caption. ``chunk_size`` is an upper bound, so a
+    long sentence still splits across multiple captions. (ENG-5664.)
+    """
+    chunks: List[List[Dict[str, Any]]] = []
+    current: List[Dict[str, Any]] = []
+    for word in words:
+        current.append(word)
+        text = (word.get("text") or "").rstrip("\"'”’)]}>")
+        ends_sentence = text.endswith((".", "!", "?", "…"))
+        if ends_sentence or len(current) >= chunk_size:
+            chunks.append(current)
+            current = []
+    if current:
+        chunks.append(current)
+    return chunks
+
+
 def get_safe_vertical_position(
     video_height: int, text_height: int, position_y: float
 ) -> int:
@@ -1234,8 +1257,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     events: List[str] = []
     base_prefix = f"{{\\pos({video_width // 2},{y_pos})}}"
     max_width = get_subtitle_max_width(video_width)
-    for chunk_start in range(0, len(relevant_words), chunk_size):
-        chunk = relevant_words[chunk_start : chunk_start + chunk_size]
+    for chunk in chunk_words_by_sentence(relevant_words, chunk_size):
         chunk_end = chunk[-1]["end"]
         word_texts = [escape_ass_text(word["text"]) for word in chunk]
         # Wrap wide chunks across multiple lines (\N) so they don't run off the

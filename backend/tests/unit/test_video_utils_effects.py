@@ -433,3 +433,37 @@ class TestCaptionWrapping:
 
     def test_join_all_spaces_without_breaks(self):
         assert video_utils.join_caption_parts(["a", "b", "c"], set()) == "a b c"
+
+
+class TestChunkWordsBySentence:
+    """ENG-5664: caption chunks break at sentence ends so no caption carries the
+    end of one sentence into the start of the next."""
+
+    @staticmethod
+    def _w(*texts):
+        return [{"text": t, "start": 0.0, "end": 1.0} for t in texts]
+
+    @staticmethod
+    def _texts(chunks):
+        return [[wd["text"] for wd in c] for c in chunks]
+
+    def test_breaks_after_sentence_end(self):
+        chunks = video_utils.chunk_words_by_sentence(self._w("end", "of", "sentence.", "New", "one"), chunk_size=6)
+        assert self._texts(chunks) == [["end", "of", "sentence."], ["New", "one"]]
+
+    def test_respects_chunk_size_cap_for_long_sentence(self):
+        chunks = video_utils.chunk_words_by_sentence(self._w("a", "b", "c", "d", "e"), chunk_size=2)
+        assert self._texts(chunks) == [["a", "b"], ["c", "d"], ["e"]]
+
+    def test_question_and_exclamation_break(self):
+        chunks = video_utils.chunk_words_by_sentence(self._w("really?", "Yes!", "ok"), chunk_size=6)
+        assert self._texts(chunks) == [["really?"], ["Yes!"], ["ok"]]
+
+    def test_trailing_quote_after_punctuation_still_breaks(self):
+        chunks = video_utils.chunk_words_by_sentence(self._w('done."', "Next"), chunk_size=6)
+        assert self._texts(chunks) == [['done."'], ["Next"]]
+
+    def test_no_empty_chunks(self):
+        chunks = video_utils.chunk_words_by_sentence(self._w("a.", "b.", "c"), chunk_size=4)
+        assert all(c for c in chunks)
+        assert self._texts(chunks) == [["a."], ["b."], ["c"]]
