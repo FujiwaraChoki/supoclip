@@ -86,7 +86,7 @@ class Config:
         self.default_processing_mode = os.getenv("DEFAULT_PROCESSING_MODE", "fast")
         self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "4"))
         self.fast_mode_transcript_model = os.getenv(
-            "FAST_MODE_TRANSCRIPT_MODEL", "nano"
+            "FAST_MODE_TRANSCRIPT_MODEL", "universal-2"
         )
 
     @staticmethod

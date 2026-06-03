@@ -35,6 +35,7 @@ from .font_registry import FONTS_DIR, find_font_path, get_font_family_name
 logger = logging.getLogger(__name__)
 TRANSCRIPT_CACHE_SCHEMA_VERSION = 2
 VALID_OUTPUT_FORMATS = {"vertical", "vertical_pan", "vertical_split", "original"}
+DEFAULT_SPEECH_MODELS = ["universal-3-pro", "universal-2"]
 CLIP_END_SENTENCE_EXTENSION_SECONDS = 3.0
 CLIP_END_PADDING_SECONDS = 0.35
 SENTENCE_END_RE = re.compile(r"""[.!?]["')\]}]*$""")
@@ -177,26 +178,22 @@ def _submit_and_wait_for_assemblyai_transcript(
         time.sleep(aai.settings.polling_interval)
 
 
-def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
+def get_video_transcript(
+    video_path: Path, speech_models: Optional[List[str]] = None
+) -> str:
     """Get transcript using AssemblyAI with word-level timing for precise subtitles."""
     logger.info(f"Getting transcript for: {video_path}")
 
-    # Configure AssemblyAI
     runtime_config = get_config()
     aai.settings.api_key = runtime_config.assembly_ai_api_key
     aai.settings.http_timeout = runtime_config.assembly_ai_http_timeout_seconds
     transcriber = aai.Transcriber()
 
-    # Request word-level timestamps for precise subtitle sync
-    speech_model_value = aai.SpeechModel.best
-    if speech_model == "nano":
-        speech_model_value = aai.SpeechModel.nano
-
     config_obj = aai.TranscriptionConfig(
         speaker_labels=True,
         punctuate=True,
         format_text=True,
-        speech_model=speech_model_value,
+        speech_models=speech_models or DEFAULT_SPEECH_MODELS,
     )
 
     try:

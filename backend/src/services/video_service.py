@@ -103,12 +103,14 @@ class VideoService:
         Runs in thread pool to avoid blocking.
         """
         logger.info(f"Generating transcript for: {video_path}")
-        speech_model = "best"
         runtime_config = get_config()
-        if processing_mode == "fast":
-            speech_model = runtime_config.fast_mode_transcript_model
+        speech_models = (
+            [runtime_config.fast_mode_transcript_model]
+            if processing_mode == "fast"
+            else ["universal-3-pro", "universal-2"]
+        )
 
-        transcript = await run_in_thread(get_video_transcript, video_path, speech_model)
+        transcript = await run_in_thread(get_video_transcript, video_path, speech_models)
         logger.info(f"Transcript generated: {len(transcript)} characters")
         return transcript
 
