@@ -19,7 +19,26 @@ class Config:
         self.ollama_base_url = self._get_runtime_setting("OLLAMA_BASE_URL")
         self.ollama_api_key = self._get_runtime_setting("OLLAMA_API_KEY")
 
-        self.whisper_model = os.getenv("WHISPER_MODEL", "base")
+        self.transcription_provider = self._normalize_transcription_provider(
+            self._get_runtime_setting("TRANSCRIPTION_PROVIDER") or "assemblyai"
+        )
+        self.local_whisper_backend = self._normalize_local_whisper_backend(
+            self._get_runtime_setting("LOCAL_WHISPER_BACKEND") or "auto"
+        )
+        self.local_whisper_model = (
+            self._get_runtime_setting("LOCAL_WHISPER_MODEL")
+            or os.getenv("WHISPER_MODEL_SIZE")
+            or os.getenv("WHISPER_MODEL")
+            or "base"
+        )
+        self.local_whisper_model_path = self._get_runtime_setting(
+            "LOCAL_WHISPER_MODEL_PATH"
+        )
+        self.local_whisper_model_dir = self._get_runtime_setting(
+            "LOCAL_WHISPER_MODEL_DIR"
+        )
+        self.whisper_cpp_binary = self._get_runtime_setting("WHISPER_CPP_BINARY")
+        self.whisper_model = self.local_whisper_model
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
         self.assembly_ai_http_timeout_seconds = int(
@@ -109,6 +128,12 @@ class Config:
     def as_runtime_settings(self) -> dict[str, str | None]:
         return {
             "ASSEMBLY_AI_API_KEY": self.assembly_ai_api_key,
+            "TRANSCRIPTION_PROVIDER": self.transcription_provider,
+            "LOCAL_WHISPER_BACKEND": self.local_whisper_backend,
+            "LOCAL_WHISPER_MODEL": self.local_whisper_model,
+            "LOCAL_WHISPER_MODEL_DIR": self.local_whisper_model_dir,
+            "LOCAL_WHISPER_MODEL_PATH": self.local_whisper_model_path,
+            "WHISPER_CPP_BINARY": self.whisper_cpp_binary,
             "LLM": self.llm,
             "OPENAI_API_KEY": self.openai_api_key,
             "GOOGLE_API_KEY": self.google_api_key,
@@ -145,6 +170,20 @@ class Config:
         if normalized in {"360", "480", "720", "1080"}:
             return normalized
         return "1080"
+
+    @staticmethod
+    def _normalize_transcription_provider(value: str | None) -> str:
+        normalized = (value or "").strip().lower().replace("-", "_")
+        if normalized in {"local_whisper", "whisper"}:
+            return "local_whisper"
+        return "assemblyai"
+
+    @staticmethod
+    def _normalize_local_whisper_backend(value: str | None) -> str:
+        normalized = (value or "").strip().lower().replace("-", "_")
+        if normalized in {"openai_whisper", "whisper_cpp"}:
+            return normalized
+        return "auto"
 
     @staticmethod
     def _normalize_youtube_metadata_provider(value: str | None) -> str:

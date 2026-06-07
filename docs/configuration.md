@@ -23,7 +23,20 @@ In most cases, edit `.env` and then rebuild or restart the stack.
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `ASSEMBLY_AI_API_KEY` | Yes | Enables word-level transcription used for clip extraction and subtitles |
+| `TRANSCRIPTION_PROVIDER` | No | `assemblyai` by default, or `local_whisper` to transcribe locally |
+| `ASSEMBLY_AI_API_KEY` | If using AssemblyAI | Enables hosted word-level transcription used for clip extraction and subtitles |
+| `LOCAL_WHISPER_BACKEND` | If using local Whisper | `auto`, `openai_whisper`, or `whisper_cpp` |
+| `LOCAL_WHISPER_MODEL` | If using `openai_whisper` | Model name such as `base`, `small`, or `medium` |
+| `LOCAL_WHISPER_MODEL_DIR` | Optional | Model cache/download directory for `openai_whisper` |
+| `LOCAL_WHISPER_MODEL_PATH` | If using `whisper_cpp` | Explicit model file path, for example a GGML `.bin` model |
+| `WHISPER_CPP_BINARY` | If `whisper-cli` is not on `PATH` | Path to a whisper.cpp CLI executable |
+
+`local_whisper` does not require a transcription API key. It can either use the
+existing Python `openai-whisper` dependency with named models or a
+whisper.cpp-compatible CLI with any local GGML Whisper model file. If the
+backend runs in Docker, mount the model file or model directory into the
+container and set `LOCAL_WHISPER_MODEL_PATH` or `LOCAL_WHISPER_MODEL_DIR` to the
+container path.
 
 ### LLM selection
 
@@ -82,7 +95,7 @@ These settings affect clip generation speed, throughput, and defaults.
 | `DEFAULT_PROCESSING_MODE` | `fast` | Default mode for new tasks |
 | `FAST_MODE_MAX_CLIPS` | `4` | Clip cap used by fast mode |
 | `FAST_MODE_TRANSCRIPT_MODEL` | `nano` | Lightweight transcript path for fast mode |
-| `WHISPER_MODEL_SIZE` | `medium` in `.env.example` | Whisper model size when Whisper is used locally |
+| `WHISPER_MODEL_SIZE` | `medium` in `.env.example` | Legacy alias for `LOCAL_WHISPER_MODEL` |
 | `QUEUED_TASK_TIMEOUT_SECONDS` | `180` | Marks stale queued tasks as failed instead of leaving them stuck forever |
 | `MAX_VIDEO_DURATION` | `5400` | Maximum accepted input video length in seconds |
 | `MAX_CLIPS` | `10` | Upper bound used by backend logic |
@@ -227,6 +240,7 @@ docker-compose up -d
 For basic self-hosted use:
 
 ```env
+TRANSCRIPTION_PROVIDER=assemblyai
 ASSEMBLY_AI_API_KEY=your_key
 LLM=google-gla:gemini-3-flash-preview
 GOOGLE_API_KEY=your_key

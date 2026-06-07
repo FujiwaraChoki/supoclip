@@ -117,9 +117,17 @@ docker-compose logs -f worker
 
 Verify:
 
-- `ASSEMBLY_AI_API_KEY` is set
+- `TRANSCRIPTION_PROVIDER` is `assemblyai` or `local_whisper`
+- `ASSEMBLY_AI_API_KEY` is set when using `TRANSCRIPTION_PROVIDER=assemblyai`
+- Local Whisper settings are valid when using `TRANSCRIPTION_PROVIDER=local_whisper`
 - `LLM` matches the provider key you supplied
 - The provider account is active and has quota
+
+### Local Whisper examples
+
+- `LOCAL_WHISPER_BACKEND=openai_whisper` requires a valid `LOCAL_WHISPER_MODEL` name or checkpoint path
+- `LOCAL_WHISPER_BACKEND=whisper_cpp` requires `LOCAL_WHISPER_MODEL_PATH` and a reachable `whisper-cli`/`main` executable
+- In Docker, local model paths must exist inside the backend and worker containers, not only on the host
 
 ### Provider mismatch examples
 

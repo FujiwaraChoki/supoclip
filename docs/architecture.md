@@ -295,7 +295,7 @@ The rough pipeline is:
    - YouTube via Apify actor, with `yt-dlp` fallback
    - Uploaded file from the frontend
 2. Transcription
-   - AssemblyAI for word-level timestamps
+   - AssemblyAI or local Whisper for timestamped transcript data
 3. Segment selection
    - LLM chooses promising short moments
 4. Rendering

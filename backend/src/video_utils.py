@@ -5,6 +5,7 @@ Optimized for ffmpeg, AssemblyAI integration, and high-quality output.
 
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
+from dataclasses import dataclass, field
 import logging
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
@@ -38,6 +39,31 @@ VALID_OUTPUT_FORMATS = {"vertical", "vertical_pan", "vertical_split", "original"
 CLIP_END_SENTENCE_EXTENSION_SECONDS = 3.0
 CLIP_END_PADDING_SECONDS = 0.35
 SENTENCE_END_RE = re.compile(r"""[.!?]["')\]}]*$""")
+
+
+@dataclass
+class TranscriptWord:
+    text: str
+    start: int
+    end: int
+    confidence: float = 1.0
+    speaker: Optional[str] = None
+
+
+@dataclass
+class TranscriptUtterance:
+    text: str
+    start: int
+    end: int
+    speaker: Optional[str] = None
+    words: List[TranscriptWord] = field(default_factory=list)
+
+
+@dataclass
+class LocalTranscript:
+    text: str
+    words: List[TranscriptWord]
+    utterances: List[TranscriptUtterance] = field(default_factory=list)
 
 
 class VideoProcessor:
@@ -94,12 +120,18 @@ class VideoProcessor:
         return settings.get(target_quality, settings["high"])
 
 
-def _prepare_audio_for_transcription(video_path: Path) -> Path:
-    """Extract a compact audio-only file before uploading to AssemblyAI."""
-    audio_path = video_path.with_name(f"{video_path.stem}.assemblyai.mp3")
+def _prepare_audio_for_transcription(
+    video_path: Path,
+    cache_tag: str = "assemblyai",
+    extension: str = "mp3",
+    codec_args: Optional[List[str]] = None,
+) -> Path:
+    """Extract a compact audio-only file for transcription."""
+    audio_path = video_path.with_name(f"{video_path.stem}.{cache_tag}.{extension}")
     if audio_path.exists() and audio_path.stat().st_size > 0:
         return audio_path
 
+    codec_args = codec_args or ["-b:a", "64k"]
     command = [
         "ffmpeg",
         "-y",
@@ -110,8 +142,7 @@ def _prepare_audio_for_transcription(video_path: Path) -> Path:
         "1",
         "-ar",
         "16000",
-        "-b:a",
-        "64k",
+        *codec_args,
         str(audio_path),
     ]
     result = run_ffmpeg_command(command, timeout=900)
@@ -178,6 +209,14 @@ def _submit_and_wait_for_assemblyai_transcript(
 
 
 def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
+    """Get transcript using the configured transcription provider."""
+    runtime_config = get_config()
+    if runtime_config.transcription_provider == "local_whisper":
+        return _get_local_whisper_video_transcript(video_path)
+    return _get_assemblyai_video_transcript(video_path, speech_model)
+
+
+def _get_assemblyai_video_transcript(video_path: Path, speech_model: str = "best") -> str:
     """Get transcript using AssemblyAI with word-level timing for precise subtitles."""
     logger.info(f"Getting transcript for: {video_path}")
 
@@ -241,6 +280,292 @@ def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
     except Exception as e:
         logger.error(f"Error in transcription: {e}")
         raise
+
+
+def _get_local_whisper_video_transcript(video_path: Path) -> str:
+    """Get transcript using a local Whisper backend without a hosted API key."""
+    runtime_config = get_config()
+    backend = runtime_config.local_whisper_backend
+    model_path = runtime_config.local_whisper_model_path
+    if backend == "auto":
+        backend = "whisper_cpp" if model_path else "openai_whisper"
+
+    logger.info(
+        "Starting local Whisper transcription with backend=%s model=%s model_path=%s",
+        backend,
+        runtime_config.local_whisper_model,
+        model_path,
+    )
+
+    if backend == "whisper_cpp":
+        transcript = _transcribe_with_whisper_cpp(video_path)
+    elif backend == "openai_whisper":
+        transcript = _transcribe_with_openai_whisper(video_path)
+    else:
+        raise RuntimeError(f"Unsupported local Whisper backend: {backend}")
+
+    cache_transcript_data(video_path, transcript)
+    formatted_lines = format_transcript_for_analysis(transcript)
+    result = "\n".join(formatted_lines)
+    logger.info(
+        "Local Whisper transcript formatted: %s segments, %s chars",
+        len(formatted_lines),
+        len(result),
+    )
+    return result
+
+
+def _transcribe_with_openai_whisper(video_path: Path) -> LocalTranscript:
+    """Transcribe with the openai-whisper Python package."""
+    runtime_config = get_config()
+    try:
+        import whisper
+    except ImportError as exc:
+        raise RuntimeError(
+            "LOCAL_WHISPER_BACKEND=openai_whisper requires the openai-whisper package."
+        ) from exc
+
+    if not hasattr(whisper, "load_model"):
+        raise RuntimeError(
+            "The installed 'whisper' module does not expose load_model. "
+            "Install openai-whisper or use LOCAL_WHISPER_BACKEND=whisper_cpp."
+        )
+
+    model_ref = runtime_config.local_whisper_model_path or runtime_config.local_whisper_model
+    model_kwargs = {}
+    if runtime_config.local_whisper_model_dir:
+        model_kwargs["download_root"] = runtime_config.local_whisper_model_dir
+
+    model = whisper.load_model(model_ref, **model_kwargs)
+    result = model.transcribe(
+        str(video_path),
+        fp16=False,
+        word_timestamps=True,
+        verbose=False,
+    )
+    return _build_local_whisper_transcript_from_openai_result(result)
+
+
+def _transcribe_with_whisper_cpp(video_path: Path) -> LocalTranscript:
+    """Transcribe with a whisper.cpp-compatible CLI and GGML model file."""
+    runtime_config = get_config()
+    if not runtime_config.local_whisper_model_path:
+        raise RuntimeError(
+            "LOCAL_WHISPER_BACKEND=whisper_cpp requires LOCAL_WHISPER_MODEL_PATH."
+        )
+
+    binary = runtime_config.whisper_cpp_binary or _find_whisper_cpp_binary()
+    if not binary:
+        raise RuntimeError(
+            "Unable to find a whisper.cpp CLI. Set WHISPER_CPP_BINARY to a "
+            "whisper-cli/main executable, or use LOCAL_WHISPER_BACKEND=openai_whisper."
+        )
+
+    audio_path = _prepare_audio_for_transcription(
+        video_path,
+        cache_tag="local_whisper",
+        extension="wav",
+        codec_args=["-c:a", "pcm_s16le"],
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        output_prefix = Path(temp_dir) / "transcript"
+        command = [
+            binary,
+            "-m",
+            runtime_config.local_whisper_model_path,
+            "-f",
+            str(audio_path),
+            "-oj",
+            "-of",
+            str(output_prefix),
+            "-np",
+        ]
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=runtime_config.assembly_ai_http_timeout_seconds,
+        )
+        if result.returncode != 0:
+            logger.error(
+                "whisper.cpp command failed: %s\n%s",
+                " ".join(command),
+                result.stderr[-4000:],
+            )
+            raise RuntimeError("Local whisper.cpp transcription failed")
+
+        json_path = output_prefix.with_suffix(".json")
+        if json_path.exists():
+            payload = json.loads(json_path.read_text(encoding="utf-8"))
+        else:
+            payload = json.loads(result.stdout)
+    return _build_local_whisper_transcript_from_whisper_cpp_result(payload)
+
+
+def _find_whisper_cpp_binary() -> Optional[str]:
+    for candidate in ("whisper-cli", "whisper-cpp", "main"):
+        binary = shutil.which(candidate)
+        if binary:
+            return binary
+    return None
+
+
+def _build_local_whisper_transcript_from_openai_result(
+    result: Dict[str, Any]
+) -> LocalTranscript:
+    segments = result.get("segments") or []
+    words: List[TranscriptWord] = []
+    utterances: List[TranscriptUtterance] = []
+
+    for segment in segments:
+        segment_text = str(segment.get("text") or "").strip()
+        start_ms = _seconds_to_ms(segment.get("start", 0))
+        end_ms = _seconds_to_ms(segment.get("end", segment.get("start", 0)))
+        segment_words = _words_from_openai_segment(segment, start_ms, end_ms)
+        words.extend(segment_words)
+        if segment_text:
+            utterances.append(
+                TranscriptUtterance(
+                    text=segment_text,
+                    start=start_ms,
+                    end=max(end_ms, start_ms + 1),
+                    words=segment_words,
+                )
+            )
+
+    text = str(result.get("text") or " ".join(word.text for word in words)).strip()
+    return LocalTranscript(text=text, words=words, utterances=utterances)
+
+
+def _build_local_whisper_transcript_from_whisper_cpp_result(
+    payload: Dict[str, Any]
+) -> LocalTranscript:
+    segments = payload.get("transcription") or payload.get("segments") or []
+    words: List[TranscriptWord] = []
+    utterances: List[TranscriptUtterance] = []
+
+    for segment in segments:
+        segment_text = str(segment.get("text") or "").strip()
+        start_ms, end_ms = _whisper_cpp_segment_offsets_ms(segment)
+        segment_words = _distribute_words_across_segment(
+            segment_text,
+            start_ms,
+            end_ms,
+        )
+        words.extend(segment_words)
+        if segment_text:
+            utterances.append(
+                TranscriptUtterance(
+                    text=segment_text,
+                    start=start_ms,
+                    end=max(end_ms, start_ms + 1),
+                    words=segment_words,
+                )
+            )
+
+    text = str(
+        payload.get("text")
+        or payload.get("result", {}).get("text")
+        or " ".join(utterance.text for utterance in utterances)
+    ).strip()
+    return LocalTranscript(text=text, words=words, utterances=utterances)
+
+
+def _words_from_openai_segment(
+    segment: Dict[str, Any], start_ms: int, end_ms: int
+) -> List[TranscriptWord]:
+    raw_words = segment.get("words") or []
+    words = []
+    for raw_word in raw_words:
+        text = str(raw_word.get("word") or raw_word.get("text") or "").strip()
+        if not text:
+            continue
+        words.append(
+            TranscriptWord(
+                text=text,
+                start=_seconds_to_ms(raw_word.get("start", start_ms / 1000)),
+                end=_seconds_to_ms(raw_word.get("end", end_ms / 1000)),
+                confidence=float(raw_word.get("probability") or raw_word.get("confidence") or 1.0),
+            )
+        )
+
+    if words:
+        return words
+    return _distribute_words_across_segment(
+        str(segment.get("text") or ""),
+        start_ms,
+        end_ms,
+    )
+
+
+def _distribute_words_across_segment(
+    text: str, start_ms: int, end_ms: int
+) -> List[TranscriptWord]:
+    parts = [part for part in text.strip().split() if part]
+    if not parts:
+        return []
+
+    end_ms = max(end_ms, start_ms + len(parts))
+    duration = max(1, end_ms - start_ms)
+    step = duration / len(parts)
+    words = []
+    for index, part in enumerate(parts):
+        word_start = int(round(start_ms + (index * step)))
+        word_end = int(round(start_ms + ((index + 1) * step)))
+        words.append(
+            TranscriptWord(
+                text=part,
+                start=word_start,
+                end=max(word_end, word_start + 1),
+                confidence=1.0,
+            )
+        )
+    return words
+
+
+def _whisper_cpp_segment_offsets_ms(segment: Dict[str, Any]) -> Tuple[int, int]:
+    offsets = segment.get("offsets") or {}
+    if "from" in offsets and "to" in offsets:
+        return int(offsets["from"]), int(offsets["to"])
+
+    timestamps = segment.get("timestamps") or {}
+    start = timestamps.get("from", segment.get("start", 0))
+    end = timestamps.get("to", segment.get("end", start))
+    return _timestampish_to_ms(start), _timestampish_to_ms(end)
+
+
+def _timestampish_to_ms(value: Any) -> int:
+    if isinstance(value, (int, float)):
+        return _seconds_to_ms(value)
+    raw = str(value).strip()
+    if not raw:
+        return 0
+    if raw.isdigit():
+        return int(raw)
+
+    normalized = raw.replace(",", ".")
+    parts = normalized.split(":")
+    try:
+        if len(parts) == 3:
+            hours = float(parts[0])
+            minutes = float(parts[1])
+            seconds = float(parts[2])
+            return int(round(((hours * 3600) + (minutes * 60) + seconds) * 1000))
+        if len(parts) == 2:
+            minutes = float(parts[0])
+            seconds = float(parts[1])
+            return int(round(((minutes * 60) + seconds) * 1000))
+        return _seconds_to_ms(float(normalized))
+    except ValueError:
+        return 0
+
+
+def _seconds_to_ms(value: Any) -> int:
+    try:
+        return int(round(float(value) * 1000))
+    except (TypeError, ValueError):
+        return 0
 
 
 def cache_transcript_data(video_path: Path, transcript) -> None:

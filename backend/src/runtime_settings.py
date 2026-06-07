@@ -13,7 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 RUNTIME_SETTING_KEYS: tuple[str, ...] = (
+    "TRANSCRIPTION_PROVIDER",
     "ASSEMBLY_AI_API_KEY",
+    "LOCAL_WHISPER_BACKEND",
+    "LOCAL_WHISPER_MODEL",
+    "LOCAL_WHISPER_MODEL_DIR",
+    "LOCAL_WHISPER_MODEL_PATH",
+    "WHISPER_CPP_BINARY",
     "LLM",
     "OPENAI_API_KEY",
     "GOOGLE_API_KEY",
@@ -27,6 +33,12 @@ RUNTIME_SETTING_KEYS: tuple[str, ...] = (
 
 PROCESS_ENV_SETTING_KEYS = frozenset(
     {
+        "TRANSCRIPTION_PROVIDER",
+        "LOCAL_WHISPER_BACKEND",
+        "LOCAL_WHISPER_MODEL",
+        "LOCAL_WHISPER_MODEL_DIR",
+        "LOCAL_WHISPER_MODEL_PATH",
+        "WHISPER_CPP_BINARY",
         "OPENAI_API_KEY",
         "GOOGLE_API_KEY",
         "ANTHROPIC_API_KEY",

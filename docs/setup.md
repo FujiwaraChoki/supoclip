@@ -11,7 +11,9 @@ This guide covers the recommended Docker setup, local development mode, and the 
 
 ### Required credentials
 
-- `ASSEMBLY_AI_API_KEY`
+- One transcription provider configuration:
+  - `ASSEMBLY_AI_API_KEY` with `TRANSCRIPTION_PROVIDER=assemblyai`
+  - `TRANSCRIPTION_PROVIDER=local_whisper` with a local Whisper model name or model path
 - One LLM provider configuration:
   - `OPENAI_API_KEY` with `LLM=openai:...`
   - `GOOGLE_API_KEY` with `LLM=google-gla:...`
@@ -46,6 +48,7 @@ cp .env.example .env
 Then edit `.env` and set at least:
 
 ```env
+TRANSCRIPTION_PROVIDER=assemblyai
 ASSEMBLY_AI_API_KEY=your_assemblyai_key
 LLM=google-gla:gemini-3-flash-preview
 GOOGLE_API_KEY=your_google_key
@@ -56,6 +59,24 @@ BACKEND_AUTH_SECRET=replace_this_if_using_hosted_mode
 NEXT_PUBLIC_DATAFAST_WEBSITE_ID=dfid_xxxxx
 NEXT_PUBLIC_DATAFAST_DOMAIN=your-domain.com
 NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST=false
+```
+
+To avoid a hosted transcription API key, use local Whisper instead:
+
+```env
+TRANSCRIPTION_PROVIDER=local_whisper
+LOCAL_WHISPER_BACKEND=openai_whisper
+LOCAL_WHISPER_MODEL=base
+```
+
+For a whisper.cpp GGML model file, mount the model into the backend/worker
+container and point SupoClip at the container path:
+
+```env
+TRANSCRIPTION_PROVIDER=local_whisper
+LOCAL_WHISPER_BACKEND=whisper_cpp
+LOCAL_WHISPER_MODEL_PATH=/models/ggml-small.bin
+WHISPER_CPP_BINARY=/usr/local/bin/whisper-cli
 ```
 
 ### 3. Start the stack

@@ -141,6 +141,76 @@ class VideoUtilsDiarizationTests(unittest.TestCase):
         mock_transcription_config.assert_called_once()
         self.assertTrue(mock_transcription_config.call_args.kwargs["speaker_labels"])
 
+    def test_get_video_transcript_uses_local_whisper_provider(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            video_path = Path(temp_dir) / "sample.mp4"
+            video_path.touch()
+            with (
+                patch(
+                    "src.video_utils.get_config",
+                    return_value=SimpleNamespace(transcription_provider="local_whisper"),
+                ),
+                patch(
+                    "src.video_utils._get_local_whisper_video_transcript",
+                    return_value="[00:00 - 00:02] local transcript",
+                ) as mock_local_transcript,
+            ):
+                result = video_utils.get_video_transcript(video_path)
+
+        self.assertEqual(result, "[00:00 - 00:02] local transcript")
+        mock_local_transcript.assert_called_once_with(video_path)
+
+    def test_openai_whisper_result_builds_cache_compatible_transcript(self):
+        transcript = video_utils._build_local_whisper_transcript_from_openai_result(
+            {
+                "text": "Hello there.",
+                "segments": [
+                    {
+                        "start": 0.0,
+                        "end": 1.0,
+                        "text": " Hello there.",
+                        "words": [
+                            {
+                                "word": "Hello",
+                                "start": 0.0,
+                                "end": 0.4,
+                                "probability": 0.9,
+                            },
+                            {
+                                "word": "there.",
+                                "start": 0.4,
+                                "end": 1.0,
+                                "probability": 0.8,
+                            },
+                        ],
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(transcript.text, "Hello there.")
+        self.assertEqual(transcript.words[0].text, "Hello")
+        self.assertEqual(transcript.words[0].start, 0)
+        self.assertEqual(transcript.words[1].end, 1000)
+        self.assertEqual(transcript.utterances[0].text, "Hello there.")
+
+    def test_whisper_cpp_result_builds_cache_compatible_transcript(self):
+        transcript = video_utils._build_local_whisper_transcript_from_whisper_cpp_result(
+            {
+                "transcription": [
+                    {
+                        "offsets": {"from": 1200, "to": 2200},
+                        "text": " General Kenobi.",
+                    }
+                ]
+            }
+        )
+
+        self.assertEqual(transcript.text, "General Kenobi.")
+        self.assertEqual(transcript.words[0].text, "General")
+        self.assertEqual(transcript.words[0].start, 1200)
+        self.assertEqual(transcript.words[-1].end, 2200)
+
     def test_load_cached_transcript_data_supports_legacy_word_only_cache(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             video_path = Path(temp_dir) / "sample.mp4"

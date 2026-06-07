@@ -22,10 +22,45 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 SETTING_METADATA = {
+    "TRANSCRIPTION_PROVIDER": {
+        "label": "Transcription provider",
+        "description": (
+            "Use assemblyai for hosted transcription or local_whisper for local Whisper."
+        ),
+        "input_type": "text",
+    },
     "ASSEMBLY_AI_API_KEY": {
         "label": "AssemblyAI API key",
-        "description": "Used for video transcription.",
+        "description": "Required when transcription provider is assemblyai.",
         "input_type": "password",
+    },
+    "LOCAL_WHISPER_BACKEND": {
+        "label": "Local Whisper backend",
+        "description": "auto, openai_whisper, or whisper_cpp.",
+        "input_type": "text",
+    },
+    "LOCAL_WHISPER_MODEL": {
+        "label": "Local Whisper model",
+        "description": "Model name for openai_whisper, for example base, small, or medium.",
+        "input_type": "text",
+    },
+    "LOCAL_WHISPER_MODEL_DIR": {
+        "label": "Local Whisper model directory",
+        "description": "Optional model cache/download directory for openai_whisper.",
+        "input_type": "text",
+    },
+    "LOCAL_WHISPER_MODEL_PATH": {
+        "label": "Local Whisper model path",
+        "description": (
+            "Optional explicit model file path, for example a GGML .bin file with "
+            "whisper_cpp."
+        ),
+        "input_type": "text",
+    },
+    "WHISPER_CPP_BINARY": {
+        "label": "whisper.cpp binary",
+        "description": "Optional path to whisper-cli or main when using whisper_cpp.",
+        "input_type": "text",
     },
     "LLM": {
         "label": "LLM model",
