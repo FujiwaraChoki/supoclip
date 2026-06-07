@@ -38,6 +38,16 @@ def _build_engine(database_url: str) -> AsyncEngine:
         max_overflow=20,
         pool_pre_ping=True,
         pool_recycle=3600,
+        # Safety net, not the primary fix (see get_clip_file/export_clip in
+        # api/routes/tasks.py for the actual leak this guards against): any
+        # session that ends up parked mid-transaction for this long is leaked,
+        # not legitimately busy — normal request/worker sessions commit on
+        # every DB write and never sit "idle in transaction" anywhere near
+        # this long. Killing it here returns the connection to the pool
+        # instead of letting it accumulate toward QueuePool exhaustion.
+        connect_args={
+            "server_settings": {"idle_in_transaction_session_timeout": "300000"}
+        },
     )
 
 
