@@ -16,5 +16,5 @@ def test_normalize_font_color_accepts_hex_values():
 
 
 def test_normalize_font_family_uses_default_for_empty_values():
-    assert _normalize_font_family("  ") == "TikTokSans-Regular"
+    assert _normalize_font_family("  ") == "THEBOLDFONT"
     assert _normalize_font_family("Inter") == "Inter"

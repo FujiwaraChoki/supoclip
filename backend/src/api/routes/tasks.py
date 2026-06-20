@@ -46,7 +46,7 @@ def _normalize_font_color(value: Any, default: str = "#FFFFFF") -> str:
     return default
 
 
-def _normalize_font_family(value: Any, default: str = "TikTokSans-Regular") -> str:
+def _normalize_font_family(value: Any, default: str = "THEBOLDFONT") -> str:
     if isinstance(value, str) and value.strip():
         return value.strip()
     return default
@@ -178,7 +178,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     # Get font options
     font_options = data.get("font_options", {})
     font_family = _normalize_font_family(
-        font_options.get("font_family", "TikTokSans-Regular")
+        font_options.get("font_family", "THEBOLDFONT")
     )
     font_size = _normalize_font_size(font_options.get("font_size", 24))
     font_color = _normalize_font_color(font_options.get("font_color", "#FFFFFF"))
@@ -691,7 +691,7 @@ async def apply_task_settings(
     try:
         payload = await request.json()
         font_family = _normalize_font_family(
-            payload.get("font_family", "TikTokSans-Regular")
+            payload.get("font_family", "THEBOLDFONT")
         )
         font_size = _normalize_font_size(payload.get("font_size", 24))
         font_color = _normalize_font_color(payload.get("font_color", "#FFFFFF"))
@@ -923,7 +923,7 @@ async def resume_task(
             source_url,
             source_type,
             task["user_id"],
-            task.get("font_family") or "TikTokSans-Regular",
+            task.get("font_family") or "THEBOLDFONT",
             task.get("font_size") or 24,
             task.get("font_color") or "#FFFFFF",
             task.get("caption_template") or "default",

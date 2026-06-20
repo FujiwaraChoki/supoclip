@@ -1,11 +1,15 @@
 # Use Python 3.11 slim image
 FROM python:3.11-slim
 
-# Install system dependencies including ffmpeg and unzip (for deno)
+# Install system dependencies including ffmpeg and unzip (for deno).
+# fonts-noto-color-emoji lets libass render colour emojis in burned captions.
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
     unzip \
+    fonts-noto-color-emoji \
+    fontconfig \
+    && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 
 # Install deno (required by yt-dlp for YouTube JS challenge solving)
