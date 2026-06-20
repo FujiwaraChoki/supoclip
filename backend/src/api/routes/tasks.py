@@ -528,6 +528,13 @@ async def get_clip_file(
         if not clip_path.exists():
             raise HTTPException(status_code=404, detail="Clip file not found")
 
+        # Release the DB connection before streaming: FastAPI keeps a `Depends(get_db)`
+        # session open for the full response lifetime, and FileResponse can take many
+        # seconds (large file, slow client, range-request scrubbing). Without this, the
+        # read-only transaction above sits as "idle in transaction" in Postgres for the
+        # whole transfer, which exhausts the connection pool under concurrent playback.
+        await db.close()
+
         return FileResponse(
             path=str(clip_path),
             media_type="video/mp4",
@@ -776,6 +783,11 @@ async def export_clip(
             raise HTTPException(status_code=404, detail="Clip not found")
 
         from pathlib import Path
+
+        # Release the DB connection before the (potentially multi-minute) ffmpeg
+        # re-encode and file streaming below — see get_clip_file for why holding it
+        # here turns into "idle in transaction" connection-pool exhaustion.
+        await db.close()
 
         runtime_config = get_config()
         output_path = export_with_preset(
