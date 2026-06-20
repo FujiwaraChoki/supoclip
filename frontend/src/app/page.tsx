@@ -198,7 +198,7 @@ export default function Home() {
   const isAdmin = Boolean((session?.user as { is_admin?: boolean } | undefined)?.is_admin);
 
   // Font customization states
-  const [fontFamily, setFontFamily] = useState("TikTokSans-Regular");
+  const [fontFamily, setFontFamily] = useState("THEBOLDFONT");
   const [fontSize, setFontSize] = useState(24);
   const [fontColor, setFontColor] = useState("#FFFFFF");
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
