@@ -30,11 +30,16 @@ from .clip_source_map import (
     save_clip_source_ranges,
 )
 from .caption_templates import get_template, CAPTION_TEMPLATES
+from .emoji_captions import annotate_caption_words
 from .font_registry import FONTS_DIR, find_font_path, get_font_family_name
 
 logger = logging.getLogger(__name__)
 TRANSCRIPT_CACHE_SCHEMA_VERSION = 2
 VALID_OUTPUT_FORMATS = {"vertical", "vertical_pan", "vertical_split", "original"}
+# Family name of the bundled colour-emoji font (fonts/NotoColorEmoji.ttf). We
+# force it explicitly per-emoji via an ASS \fn override so libass renders colour
+# emojis reliably instead of depending on automatic Unicode font fallback.
+EMOJI_FONT_NAME = "Noto Color Emoji"
 CLIP_END_SENTENCE_EXTENSION_SECONDS = 3.0
 CLIP_END_PADDING_SECONDS = 0.35
 SENTENCE_END_RE = re.compile(r"""[.!?]["')\]}]*$""")
@@ -389,9 +394,14 @@ def clamp_even(value: int, minimum: int, maximum: int) -> int:
 
 
 def get_scaled_font_size(base_font_size: int, video_width: int) -> int:
-    """Scale caption font size by output width with sensible bounds."""
-    scaled_size = int(base_font_size * (video_width / 720))
-    return max(24, min(64, scaled_size))
+    """Scale caption font size by output width with punchy, sensible bounds.
+
+    Tuned so even the small UI default (24) renders as a bold, readable caption
+    on a 1080-wide vertical clip, matching the larger short-form caption sizing
+    used by tools like OpusClip.
+    """
+    scaled_size = int(base_font_size * (video_width / 560.0))
+    return max(42, min(82, scaled_size))
 
 
 def get_subtitle_max_width(video_width: int) -> int:
@@ -868,6 +878,199 @@ def ffmpeg_escape_filter_value(value: str) -> str:
     )
 
 
+# --- shared encode quality profile -----------------------------------------
+# The final render pass determines output quality. We keep a single, slightly
+# higher-quality intermediate so the binding constraint is always this profile.
+FINAL_VIDEO_CRF = 19
+FINAL_VIDEO_PRESET = "medium"
+INTERMEDIATE_CRF = 16
+OUTPUT_FPS = 30
+AUDIO_BITRATE = "192k"
+# Normalise perceived loudness to the short-form social target (~ -14 LUFS).
+LOUDNORM_FILTER = "loudnorm=I=-14:TP=-1.5:LRA=11"
+
+
+def build_final_video_encode_args(
+    crf: int = FINAL_VIDEO_CRF,
+    preset: str = FINAL_VIDEO_PRESET,
+    fps: int = OUTPUT_FPS,
+) -> List[str]:
+    """libx264 args for the quality-determining final pass (CFR, H.264 High)."""
+    return [
+        "-c:v", "libx264",
+        "-preset", preset,
+        "-crf", str(crf),
+        "-pix_fmt", "yuv420p",
+        "-profile:v", "high",
+        "-level", "4.1",
+        "-r", str(fps),
+        "-x264-params", "keyint=120:min-keyint=30:scenecut=40",
+    ]
+
+
+def build_audio_output_args(has_audio: bool, loudnorm: bool = True) -> List[str]:
+    """Audio encode args (with optional loudness normalisation) or `-an`."""
+    if not has_audio:
+        return ["-an"]
+    args: List[str] = []
+    if loudnorm:
+        args += ["-af", LOUDNORM_FILTER]
+    args += ["-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ar", "48000"]
+    return args
+
+
+def subtitles_filter_fragment(
+    ass_path: Path, fonts_dir: Optional[Path] = None
+) -> str:
+    """ffmpeg `subtitles` filter fragment burning an ASS file (with fonts dir)."""
+    fragment = f"subtitles=filename={ffmpeg_escape_filter_path(ass_path)}"
+    if fonts_dir:
+        fragment += f":fontsdir={ffmpeg_escape_filter_value(str(fonts_dir))}"
+    return fragment
+
+
+_EMOJI_SUPPORT_CACHE: Optional[bool] = None
+
+
+def emoji_rendering_supported() -> bool:
+    """Whether this environment's libass renders COLOUR emojis (cached, one-shot).
+
+    Caption emojis are only injected when this returns True, so we never burn
+    ugly ".notdef" tofu boxes if the runtime's libass/FreeType can't rasterise
+    the bundled colour-emoji font. The captions still get keyword emphasis either
+    way. The probe burns a single emoji and checks the frame for saturated colour.
+    """
+    global _EMOJI_SUPPORT_CACHE
+    if _EMOJI_SUPPORT_CACHE is not None:
+        return _EMOJI_SUPPORT_CACHE
+
+    result = False
+    try:
+        with tempfile.TemporaryDirectory(prefix="supoclip_emojiprobe_") as probe_dir:
+            root = Path(probe_dir)
+            ass = root / "probe.ass"
+            frame = root / "probe.png"
+            ass.write_text(
+                "[Script Info]\n"
+                "ScriptType: v4.00+\nPlayResX: 120\nPlayResY: 120\n\n"
+                "[V4+ Styles]\n"
+                "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, "
+                "BackColour, Bold, BorderStyle, Outline, Shadow, Alignment, Encoding\n"
+                f"Style: D,{EMOJI_FONT_NAME},90,&H00FFFFFF,&H00000000,&H00000000,0,1,0,0,5,1\n\n"
+                "[Events]\n"
+                "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, "
+                "Effect, Text\n"
+                "Dialogue: 0,0:00:00.00,0:00:01.00,D,,0,0,0,,"
+                "{\\pos(60,60)}\U0001F525\n",
+                encoding="utf-8",
+            )
+            fonts = FONTS_DIR if FONTS_DIR.exists() else None
+            fragment = subtitles_filter_fragment(ass, fonts)
+            command = [
+                "ffmpeg", "-y",
+                "-f", "lavfi", "-i", "color=c=black:s=120x120:d=1",
+                "-vf", fragment,
+                "-frames:v", "1",
+                str(frame),
+            ]
+            if run_ffmpeg_command(command, timeout=60).returncode == 0 and frame.exists():
+                from PIL import Image
+
+                arr = np.asarray(Image.open(frame).convert("RGB"), dtype=np.int16)
+                spread = arr.max(axis=2) - arr.min(axis=2)  # 0 for grey/tofu
+                result = int((spread > 40).sum()) > 30
+    except Exception as exc:
+        logger.info("Emoji support probe failed (%s); disabling caption emojis", exc)
+        result = False
+
+    _EMOJI_SUPPORT_CACHE = result
+    logger.info("Caption colour-emoji rendering supported: %s", result)
+    return result
+
+
+def crossfade_fade_for_ranges(keep_ranges: List[Tuple[float, float]]) -> float:
+    """Crossfade duration render_source_ranges will use, or 0.0 for hard concat.
+
+    A single source of truth so caption timing (which compacts the same ranges)
+    stays perfectly in sync with the crossfade-shortened video timeline.
+    """
+    ranges = normalize_source_ranges(keep_ranges)
+    if len(ranges) < 2 or len(ranges) > 8:
+        return 0.0
+    durations = [end - start for start, end in ranges]
+    if min(durations) < 0.45:
+        return 0.0
+    fade = min(0.22, min(durations) * 0.5)
+    return fade if fade >= 0.06 else 0.0
+
+
+def render_ranges_crossfade_ffmpeg(
+    video_path: Path,
+    keep_ranges: List[Tuple[float, float]],
+    output_path: Path,
+    has_audio: bool,
+    transition: str = "fade",
+) -> bool:
+    """Stitch kept ranges together with short crossfades instead of hard cuts.
+
+    Turns the abrupt jump cuts left by pause/filler removal into quick, smooth
+    dissolves (video xfade + audio acrossfade), which read as intentional,
+    polished transitions.
+    """
+    keep_ranges = normalize_source_ranges(keep_ranges)
+    n = len(keep_ranges)
+    if n < 2:
+        return False
+    durations = [end - start for start, end in keep_ranges]
+    fade = crossfade_fade_for_ranges(keep_ranges)
+    if fade <= 0:
+        return False
+
+    parts: List[str] = []
+    for idx, (start, end) in enumerate(keep_ranges):
+        parts.append(
+            f"[0:v]trim=start={start:.3f}:end={end:.3f},setpts=PTS-STARTPTS,"
+            f"fps={OUTPUT_FPS},format=yuv420p,setsar=1[v{idx}]"
+        )
+        if has_audio:
+            parts.append(
+                f"[0:a]atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS[a{idx}]"
+            )
+
+    cur_v = "[v0]"
+    cumulative = durations[0]
+    for i in range(1, n):
+        offset = cumulative - fade
+        out = f"[vx{i}]"
+        parts.append(
+            f"{cur_v}[v{i}]xfade=transition={transition}:duration={fade:.3f}:"
+            f"offset={offset:.3f}{out}"
+        )
+        cumulative = cumulative + durations[i] - fade
+        cur_v = out
+
+    map_args = ["-map", cur_v]
+    if has_audio:
+        cur_a = "[a0]"
+        for i in range(1, n):
+            out = f"[ax{i}]"
+            parts.append(f"{cur_a}[a{i}]acrossfade=d={fade:.3f}{out}")
+            cur_a = out
+        map_args += ["-map", cur_a]
+
+    command = [
+        "ffmpeg", "-y", "-i", str(video_path),
+        "-filter_complex", ";".join(parts),
+        *map_args,
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF),
+        "-pix_fmt", "yuv420p",
+    ]
+    if has_audio:
+        command += ["-c:a", "aac", "-b:a", "192k"]
+    command += ["-movflags", "+faststart", str(output_path)]
+    return run_ffmpeg_command(command, timeout=1800).returncode == 0
+
+
 def render_source_ranges_ffmpeg(
     video_path: Path,
     keep_ranges: List[Tuple[float, float]],
@@ -894,7 +1097,7 @@ def render_source_ranges_ffmpeg(
             "-preset",
             "veryfast",
             "-crf",
-            "18",
+            str(INTERMEDIATE_CRF),
             "-pix_fmt",
             "yuv420p",
             "-c:a",
@@ -908,6 +1111,16 @@ def render_source_ranges_ffmpeg(
         return run_ffmpeg_command(command).returncode == 0
 
     has_audio = ffprobe_has_audio(video_path)
+
+    # Smooth a handful of substantial internal cuts with crossfades; fall back to
+    # a hard concat for many tiny fragments (heavy filler edits) or on failure.
+    if crossfade_fade_for_ranges(keep_ranges) > 0:
+        if render_ranges_crossfade_ffmpeg(
+            video_path, keep_ranges, output_path, has_audio
+        ):
+            return True
+        logger.info("Crossfade stitch failed; falling back to hard concat")
+
     filter_parts: List[str] = []
     concat_inputs: List[str] = []
     for idx, (start, end) in enumerate(keep_ranges):
@@ -945,7 +1158,7 @@ def render_source_ranges_ffmpeg(
         "-preset",
         "veryfast",
         "-crf",
-        "18",
+        str(INTERMEDIATE_CRF),
         "-pix_fmt",
         "yuv420p",
     ]
@@ -1094,8 +1307,14 @@ def build_assemblyai_ass_subtitles(
     font_color: str = "#FFFFFF",
     caption_template: str = "default",
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
+    caption_cues: Optional[List[Dict[str, Any]]] = None,
 ) -> bool:
-    """Generate ASS subtitles from cached AssemblyAI word timings."""
+    """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
+
+    Renders OpusClip-style captions: a per-word active highlight that pops, an
+    accent colour on emphasised power/keyword words, contextual emojis, a thick
+    scaled outline + drop shadow, and an optional pill behind the active word.
+    """
     transcript_data = load_cached_transcript_data(video_path)
     if not transcript_data or not transcript_data.get("words"):
         logger.warning("No cached transcript data available for ASS subtitles")
@@ -1105,7 +1324,7 @@ def build_assemblyai_ass_subtitles(
     effective_font_family = font_family or template["font_family"]
     effective_font_size = int(font_size) if font_size else int(template["font_size"])
     effective_font_color = font_color or template["font_color"]
-    animation = template.get("animation", "none")
+    animation = template.get("animation", "karaoke")
 
     if keep_ranges:
         relevant_words = get_words_for_keep_ranges(transcript_data, keep_ranges)
@@ -1115,21 +1334,50 @@ def build_assemblyai_ass_subtitles(
         logger.warning("No words found in clip timerange for ASS subtitles")
         return False
 
-    chunk_size = 4 if animation in {"fade", "none"} else 3
-    if caption_template == "minimal":
-        chunk_size = 6
+    # --- styling knobs (new template fields, all optional) ---
+    uppercase = bool(template.get("uppercase"))
+    # Only inject emojis when the runtime can actually render them in colour.
+    enable_emoji = bool(template.get("emoji", True)) and emoji_rendering_supported()
+    word_pop = bool(template.get("word_pop", True))
+    word_box = bool(template.get("word_box"))
+    glow = bool(template.get("glow"))
+    has_outline = template.get("stroke_color") is not None
+    # Emphasis colouring only makes sense when something distinguishes words.
+    enable_emphasis = animation != "none"
 
     primary = hex_to_ass_color(effective_font_color)
-    highlight = hex_to_ass_color(template.get("highlight_color"), "#FFD700")
+    highlight = hex_to_ass_color(template.get("highlight_color"), "#FFE000")
+    emphasis_color = hex_to_ass_color(
+        template.get("emphasis_color") or template.get("highlight_color"), "#FFE000"
+    )
     outline = hex_to_ass_color(template.get("stroke_color") or "#000000", "#000000")
     back_color = hex_to_ass_color(template.get("background_color"), "#00000080")
+    box_color = hex_to_ass_color(
+        template.get("word_box_color") or template.get("highlight_color"), "#00BF49"
+    )
+
     font_px = get_scaled_font_size(effective_font_size, video_width)
-    outline_px = int(template.get("stroke_width", 2) or 0)
-    shadow_px = 2 if template.get("shadow") else 0
-    pos_y = float(template.get("position_y", 0.75))
-    y_pos = int(video_height * pos_y)
+    base_stroke = int(template.get("stroke_width", 3) or 0)
+    # Scale the outline with the font so big captions keep a chunky, readable edge.
+    outline_px = max(base_stroke, round(font_px * base_stroke / 26)) if (has_outline and base_stroke) else 0
+    shadow_px = max(2, font_px // 20) if template.get("shadow") else 0
+    box_bord = max(outline_px + 2, font_px // 5)
+    pos_y = float(template.get("position_y", 0.80))
+    est_text_height = int(font_px * 1.5)
+    y_pos = get_safe_vertical_position(video_height, est_text_height, pos_y)
     font_name = ass_font_name(effective_font_family)
     border_style = 3 if template.get("background") and template.get("background_color") else 1
+
+    # Contextual emoji + emphasis annotations over the whole clip word list.
+    emoji_by_idx, emphasis_idx = annotate_caption_words(
+        relevant_words,
+        caption_cues,
+        enable_emoji=enable_emoji,
+        enable_emphasis=enable_emphasis,
+    )
+
+    max_words = max(1, int(template.get("max_words_per_line", 4) or 4))
+    chunk_size = max_words
 
     header = f"""[Script Info]
 ScriptType: v4.00+
@@ -1146,45 +1394,104 @@ Style: Default,{font_name},{font_px},{primary},&H000000FF,{outline},{back_color}
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
+    line_prefix = f"{{\\pos({video_width // 2},{y_pos})" + ("\\blur4" if glow else "") + "}"
+
+    # Every word span re-declares the caption font, so an emoji's \fn override
+    # can never leak into the following word.
+    font_tag = f"\\fn{font_name}"
+
+    def render_text(global_idx: int, word: Dict[str, Any]) -> str:
+        text = str(word.get("text", ""))
+        if uppercase:
+            text = text.upper()
+        disp = escape_ass_text(text)
+        emoji = emoji_by_idx.get(global_idx)
+        if emoji:
+            # Force the colour-emoji font for the glyph; the next word's span
+            # re-declares the caption font, so no explicit restore is needed.
+            disp = f"{disp} {{\\fn{EMOJI_FONT_NAME}}}{emoji}"
+        return disp
+
+    # The active word is distinguished by COLOUR only (and an optional box). We
+    # deliberately do NOT scale individual words: scaling a word changes its
+    # advance width, which reflows the centre-anchored line and makes the whole
+    # caption visibly vibrate as each word pops. The "pop" lives as a one-shot
+    # line entrance instead (see below).
+    def active_span(disp: str) -> str:
+        tags = f"{font_tag}\\c{highlight}"
+        if word_box:
+            tags += f"\\3c{box_color}\\bord{box_bord}\\shad0"
+        return f"{{{tags}}}{disp}"
+
+    def idle_span(global_idx: int, disp: str) -> str:
+        color = emphasis_color if (enable_emphasis and global_idx in emphasis_idx) else primary
+        tags = f"{font_tag}\\c{color}"
+        if word_box:
+            tags += f"\\3c{outline}\\bord{outline_px}\\shad{shadow_px}"
+        return f"{{{tags}}}{disp}"
+
+    # Subtle one-shot entrance for the whole line (uniform scale, centred), shown
+    # only as the first word of a chunk appears — gives a pop without any
+    # per-word reflow/vibration.
+    line_entrance = "\\fscx92\\fscy92\\t(0,140,\\fscx100\\fscy100)" if word_pop else ""
+
     events: List[str] = []
-    base_prefix = f"{{\\pos({video_width // 2},{y_pos})}}"
-    for chunk_start in range(0, len(relevant_words), chunk_size):
+    total = len(relevant_words)
+    for chunk_start in range(0, total, chunk_size):
         chunk = relevant_words[chunk_start : chunk_start + chunk_size]
-        chunk_end = chunk[-1]["end"]
-        chunk_text = " ".join(escape_ass_text(word["text"]) for word in chunk)
+        indices = list(range(chunk_start, chunk_start + len(chunk)))
+        chunk_end = float(chunk[-1]["end"])
 
         if animation == "karaoke":
-            for idx, word in enumerate(chunk):
+            for local_i, word in enumerate(chunk):
                 start = float(word["start"])
-                end = float(chunk[idx + 1]["start"]) if idx + 1 < len(chunk) else chunk_end
+                end = (
+                    float(chunk[local_i + 1]["start"])
+                    if local_i + 1 < len(chunk)
+                    else chunk_end
+                )
                 if end <= start:
                     end = start + 0.05
                 parts = []
-                for part_idx, part_word in enumerate(chunk):
-                    text = escape_ass_text(part_word["text"])
-                    if part_idx == idx:
-                        parts.append(f"{{\\c{highlight}}}{text}{{\\c{primary}}}")
-                    else:
-                        parts.append(text)
+                for local_j, other in enumerate(chunk):
+                    gj = indices[local_j]
+                    disp = render_text(gj, other)
+                    parts.append(active_span(disp) if local_j == local_i else idle_span(gj, disp))
                 line = " ".join(parts)
+                # Entrance only on the first word's event so it plays once, not
+                # once per word.
+                entrance = f"{{{line_entrance}}}" if (line_entrance and local_i == 0) else ""
                 events.append(
-                    f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{base_prefix}{line}"
+                    f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{line_prefix}{entrance}{line}"
                 )
         else:
             start = float(chunk[0]["start"])
-            end = float(chunk_end)
+            end = chunk_end
             if end <= start:
                 end = start + 0.05
-            effect_prefix = base_prefix
+            spans = []
+            for local_j, word in enumerate(chunk):
+                gj = indices[local_j]
+                disp = render_text(gj, word)
+                color = emphasis_color if (enable_emphasis and gj in emphasis_idx) else primary
+                spans.append(f"{{{font_tag}\\c{color}}}{disp}")
+            chunk_text = " ".join(spans)
+
+            effect = ""
             if animation == "fade":
-                effect_prefix = f"{base_prefix}{{\\fad(150,150)}}"
+                effect = "{\\fad(120,120)}"
             elif animation == "pop":
-                effect_prefix = (
-                    f"{base_prefix}{{\\fscx92\\fscy92\\t(0,140,\\fscx108\\fscy108)"
-                    "\\t(140,260,\\fscx100\\fscy100)}}"
+                effect = (
+                    "{\\fscx88\\fscy88\\t(0,130,\\fscx106\\fscy106)"
+                    "\\t(130,250,\\fscx100\\fscy100)}"
+                )
+            elif animation == "bounce":
+                effect = (
+                    "{\\fscx70\\fscy70\\t(0,120,\\fscx112\\fscy112)"
+                    "\\t(120,240,\\fscx100\\fscy100)}"
                 )
             events.append(
-                f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{effect_prefix}{chunk_text}"
+                f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{line_prefix}{effect}{chunk_text}"
             )
 
     output_ass_path.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
@@ -1348,18 +1655,37 @@ def cluster_two_face_regions(
 
 
 def build_pan_expression(
-    timeline: List[Dict[str, Any]], left_x: int, right_x: int
+    timeline: List[Dict[str, Any]], left_x: int, right_x: int, ramp: float = 0.45
 ) -> str:
+    """Eased crop-x expression that glides between two speaker framings.
+
+    Instead of snapping the crop instantly at each speaker change, this ramps
+    smoothly over ``ramp`` seconds, giving a natural camera-pan feel.
+    """
     if not timeline:
         return str(left_x)
+
     def x_for(speaker: str) -> int:
         return left_x if speaker == "left" else right_x
-    expression = str(x_for(timeline[-1]["speaker"]))
-    for segment in reversed(timeline[:-1]):
-        expression = (
-            f"if(lt(t\\,{segment['end']:.4f})\\,{x_for(segment['speaker'])}\\,{expression})"
-        )
-    return expression
+
+    keys: List[Tuple[float, float]] = [(0.0, float(x_for(timeline[0]["speaker"])))]
+    for segment in timeline:
+        switch_t = max(0.0, float(segment["start"]))
+        target = float(x_for(segment["speaker"]))
+        if abs(target - keys[-1][1]) < 1.0:
+            continue
+        keys.append((switch_t, keys[-1][1]))  # hold previous framing until switch
+        keys.append((switch_t + ramp, target))  # then ease into the new framing
+
+    cleaned: List[Tuple[float, int]] = []
+    for t, x in keys:
+        if cleaned and t <= cleaned[-1][0]:
+            t = cleaned[-1][0] + 0.01
+        cleaned.append((t, int(round(x))))
+
+    if len(cleaned) < 2:
+        return str(int(cleaned[0][1]) if cleaned else left_x)
+    return build_smooth_pan_expression(cleaned)
 
 
 def detect_speaker_reframe_plan(
@@ -1464,14 +1790,532 @@ def detect_speaker_reframe_plan(
         return None
 
 
-def build_static_vertical_filter(input_path: Path, width: int, height: int) -> str:
+def compute_vertical_crop_dims(
+    width: int, height: int, target_ratio: float = 9 / 16
+) -> Tuple[int, int]:
+    """Even-dimensioned 9:16 crop box that fits inside a source frame."""
+    if width <= 0 or height <= 0:
+        return width, height
+    if width / height > target_ratio:
+        crop_w = round_to_even(int(height * target_ratio))
+        crop_h = round_to_even(height)
+    else:
+        crop_w = round_to_even(width)
+        crop_h = round_to_even(int(width / target_ratio))
+    return (
+        max(2, min(crop_w, round_to_even(width))),
+        max(2, min(crop_h, round_to_even(height))),
+    )
+
+
+
+def _open_face_detectors():
+    """Initialise the MediaPipe (preferred) + Haar (fallback) face detectors."""
+    mp_face = None
+    try:
+        import mediapipe as mp
+
+        mp_face = mp.solutions.face_detection.FaceDetection(
+            model_selection=1, min_detection_confidence=0.5
+        )
+    except Exception as exc:
+        logger.info("MediaPipe unavailable (%s); using Haar", exc)
+    haar = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
+    return mp_face, haar
+
+
+def _detect_dominant_face(frame_bgr, mp_face, haar) -> Optional[Tuple[float, float]]:
+    """Return (center_x_fraction, area_fraction) of the dominant face, or None."""
+    h, w = frame_bgr.shape[:2]
+    frame_area = float(max(1, w * h))
+    best: Optional[Tuple[float, float, float]] = None  # (score, cx, area_frac)
+
+    if mp_face is not None:
+        try:
+            results = mp_face.process(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+            if results.detections:
+                for det in results.detections:
+                    box = det.location_data.relative_bounding_box
+                    bw = max(0.0, box.width) * w
+                    bh = max(0.0, box.height) * h
+                    conf = float(det.score[0]) if det.score else 0.5
+                    cx = (box.xmin + box.width / 2) * w
+                    score = bw * bh * conf
+                    if bw > 10 and bh > 10 and (best is None or score > best[0]):
+                        best = (score, cx, (bw * bh) / frame_area)
+        except Exception:
+            pass
+
+    if best is None:
+        try:
+            gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+            min_side = max(14, int(w * 0.04))
+            faces = haar.detectMultiScale(
+                gray,
+                scaleFactor=1.2,  # coarser scale steps -> ~2x faster
+                minNeighbors=3,
+                minSize=(min_side, min_side),
+                maxSize=(int(w * 0.7), int(h * 0.7)),
+            )
+            for (fx, fy, fw, fh) in faces:
+                score = float(fw * fh)
+                if best is None or score > best[0]:
+                    best = (score, fx + fw / 2.0, (fw * fh) / frame_area)
+        except Exception:
+            pass
+
+    if best is None:
+        return None
+    return best[1] / w, best[2]
+
+
+def _scene_cuts_from_diffs(diffs: List[Tuple[float, float]]) -> List[float]:
+    """Derive scene-cut timestamps from per-frame difference spikes."""
+    if len(diffs) < 3:
+        return []
+    vals = [d for _, d in diffs]
+    mean = sum(vals) / len(vals)
+    std = (sum((v - mean) ** 2 for v in vals) / len(vals)) ** 0.5
+    threshold = max(14.0, mean + 3.5 * std)
+    cuts: List[float] = []
+    for i, (t, d) in enumerate(diffs):
+        if d <= threshold:
+            continue
+        if (i == 0 or d >= diffs[i - 1][1]) and (
+            i == len(diffs) - 1 or d >= diffs[i + 1][1]
+        ):
+            cuts.append(t)
+    return cuts
+
+
+def analyze_vertical_clip(
+    input_path: Path,
+    *,
+    sample_fps: float = 3.0,
+    proc_width: int = 480,
+) -> Tuple[List[Tuple[float, Optional[float], float]], List[float]]:
+    """Fast single-pass clip analysis: face track + scene cuts in one decode.
+
+    Replaces slow per-sample random seeks (and a separate scene-detect pass) with
+    a single sequential ffmpeg decode at low fps/resolution, piped straight into
+    lightweight face detection. Scene cuts come from frame differences computed
+    in the same pass. Returns (track, scene_cuts) where track entries are
+    (t, center_x_in_source_px or None, area_frac).
+    """
+    width, height = ffprobe_video_size(input_path)
+    if width <= 0 or height <= 0:
+        return [], []
+    proc_w = round_to_even(min(proc_width, width))
+    proc_h = round_to_even(max(2, int(round(proc_w * height / width))))
+    frame_bytes = proc_w * proc_h * 3
+
+    command = [
+        "ffmpeg", "-v", "error", "-an", "-sn",
+        "-i", str(input_path),
+        "-vf", f"fps={sample_fps:.3f},scale={proc_w}:{proc_h}",
+        "-pix_fmt", "bgr24", "-f", "rawvideo",
+        "-threads", "0", "-",
+    ]
+    try:
+        proc = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+        )
+    except Exception as exc:
+        logger.warning("analyze_vertical_clip: ffmpeg spawn failed (%s)", exc)
+        return [], []
+
+    mp_face, haar = _open_face_detectors()
+    track: List[Tuple[float, Optional[float], float]] = []
+    diffs: List[Tuple[float, float]] = []
+    prev_small = None
+    idx = 0
+    try:
+        while True:
+            raw = proc.stdout.read(frame_bytes)
+            if not raw or len(raw) < frame_bytes:
+                break
+            frame = np.frombuffer(raw, dtype=np.uint8).reshape(proc_h, proc_w, 3)
+            t = idx / sample_fps
+            face = _detect_dominant_face(frame, mp_face, haar)
+            if face is None:
+                track.append((t, None, 0.0))
+            else:
+                cx_frac, area = face
+                track.append((t, cx_frac * width, area))
+            small = cv2.resize(frame, (32, 18)).astype(np.int16)
+            if prev_small is not None:
+                diffs.append((t, float(np.mean(np.abs(small - prev_small)))))
+            prev_small = small
+            idx += 1
+    finally:
+        try:
+            proc.stdout.close()
+        except Exception:
+            pass
+        proc.wait()
+        if mp_face is not None:
+            try:
+                mp_face.close()
+            except Exception:
+                pass
+
+    return track, _scene_cuts_from_diffs(diffs)
+
+
+def _median_filter(values: List[float], window: int = 3) -> List[float]:
+    """Small median filter to remove single-frame detection spikes."""
+    if window <= 1 or len(values) < window:
+        return list(values)
+    half = window // 2
+    out: List[float] = []
+    for i in range(len(values)):
+        lo = max(0, i - half)
+        hi = min(len(values), i + half + 1)
+        seg = sorted(values[lo:hi])
+        out.append(seg[len(seg) // 2])
+    return out
+
+
+def build_crop_trajectory(
+    track: List[Tuple[float, Optional[float], float]],
+    width: int,
+    crop_w: int,
+    *,
+    deadzone_frac: float = 0.05,
+    smooth_time: float = 0.9,
+    max_pan_speed_frac: float = 0.4,
+) -> List[Tuple[float, int]]:
+    """Turn a raw face-centre track into a smooth, eased crop-x trajectory.
+
+    Returns keyframes [(t, x)] for the crop's left edge. The motion is produced
+    by a critically-damped spring (Unity-style SmoothDamp) easing toward a
+    comfort-zone target, which gives natural ease-in/ease-out with no overshoot
+    and no mechanical ramp-then-stop feel. A deadzone keeps the frame still for
+    small head movements; a median pre-filter removes detection spikes. Returns
+    [] when there isn't enough signal to track.
+    """
+    if not track:
+        return []
+    max_x = max(0, width - crop_w)
+    if max_x <= 0:
+        return []
+
+    centers: List[Optional[float]] = [c for _, c, _ in track]
+    times = [t for t, _, _ in track]
+    detected = sum(1 for c in centers if c is not None)
+    if detected < max(3, len(centers) // 5):
+        return []  # too sparse to trust — caller falls back to a static crop
+
+    # Gap-fill missing detections: forward fill, then back fill.
+    last: Optional[float] = None
+    for i in range(len(centers)):
+        if centers[i] is None:
+            centers[i] = last
+        else:
+            last = centers[i]
+    last = None
+    for i in range(len(centers) - 1, -1, -1):
+        if centers[i] is None:
+            centers[i] = last
+        else:
+            last = centers[i]
+    if any(c is None for c in centers):
+        return []
+
+    desired = [min(max(c - crop_w / 2.0, 0.0), float(max_x)) for c in centers]
+    desired = _median_filter(desired, window=3)
+
+    deadzone = max(2.0, crop_w * deadzone_frac)
+    max_speed = max(1.0, width * max_pan_speed_frac)
+    smooth_time = max(0.05, smooth_time)
+    omega = 2.0 / smooth_time
+
+    # Comfort-zone target: a stable goal that only moves once the subject drifts
+    # past the deadzone, so the spring isn't chasing sub-deadzone jitter.
+    targets: List[float] = []
+    anchor = desired[0]
+    for d in desired:
+        if d - anchor > deadzone:
+            anchor = d - deadzone
+        elif anchor - d > deadzone:
+            anchor = d + deadzone
+        targets.append(anchor)
+
+    # Critically-damped spring toward the comfort-zone target.
+    eased: List[float] = []
+    cur = float(targets[0])
+    vel = 0.0
+    for i, tgt in enumerate(targets):
+        dt = (times[i] - times[i - 1]) if i > 0 else 0.0
+        if dt <= 0:
+            eased.append(cur)
+            continue
+        x = omega * dt
+        exp_factor = 1.0 / (1.0 + x + 0.48 * x * x + 0.235 * x * x * x)
+        change = cur - tgt
+        max_change = max_speed * smooth_time
+        change = max(-max_change, min(change, max_change))
+        adj_target = cur - change
+        temp = (vel + omega * change) * dt
+        vel = (vel - omega * temp) * exp_factor
+        out = adj_target + (change + temp) * exp_factor
+        # Prevent overshoot past the target.
+        if (tgt - cur > 0) == (out > tgt):
+            out = tgt
+            vel = (out - tgt) / dt
+        cur = min(max(out, 0.0), float(max_x))
+        eased.append(cur)
+
+    # Final low-pass pass: removes residual velocity steps so the piecewise-
+    # linear keyframes read as continuous, fluid motion.
+    eased = smooth_values(eased, window=5)
+
+    # Keep keyframes fine enough that linear interpolation tracks the smooth
+    # curve without visible faceting.
+    def simplify(tol: float) -> List[Tuple[float, int]]:
+        keys: List[Tuple[float, int]] = [(0.0, int(round(eased[0])))]
+        for i in range(1, len(eased)):
+            if abs(eased[i] - keys[-1][1]) >= tol:
+                keys.append((times[i], int(round(eased[i]))))
+        if keys[-1][0] < times[-1]:
+            keys.append((times[-1], int(round(eased[-1]))))
+        return keys
+
+    tol = max(1.5, crop_w * 0.006)
+    keys = simplify(tol)
+    while len(keys) > 90:
+        tol *= 1.5
+        keys = simplify(tol)
+
+    if keys and keys[0][0] > 0.0:
+        keys[0] = (0.0, keys[0][1])
+    return keys
+
+
+def trajectory_has_movement(keys: List[Tuple[float, int]], crop_w: int) -> bool:
+    """Whether a trajectory pans enough to be worth a moving crop."""
+    if len(keys) < 2:
+        return False
+    xs = [x for _, x in keys]
+    return (max(xs) - min(xs)) >= max(8, crop_w * 0.04)
+
+
+def build_smooth_pan_expression(keys: List[Tuple[float, int]]) -> str:
+    """Piecewise-linear ffmpeg crop-x expression interpolating the keyframes.
+
+    Commas are escaped for use inside a quoted filtergraph expression. The
+    result is rounded to an even integer for clean chroma subsampling.
+    """
+    if not keys:
+        return "0"
+    if len(keys) == 1:
+        return str(int(keys[0][1]))
+
+    expr = str(int(keys[-1][1]))
+    for i in range(len(keys) - 2, -1, -1):
+        t0, x0 = keys[i]
+        t1, x1 = keys[i + 1]
+        span = max(1e-3, t1 - t0)
+        lerp = f"({int(x0)}+({int(x1) - int(x0)})*(t-{t0:.3f})/{span:.3f})"
+        expr = f"if(lt(t\\,{t1:.3f})\\,{lerp}\\,{expr})"
+    return f"trunc(({expr})/2)*2"
+
+
+# Scene-aware vertical layout tuning. A shot is a "face shot" (tracked crop) if a
+# face is detected in at least FACE_PRESENCE_RATE of frames over a short window —
+# this keeps far-away/small talking-head faces as crops while only flagging true
+# content (tweets/graphs with NO face) as full-frame fit. A tiny area floor
+# rejects single-pixel false positives. Short layout islands are merged so the
+# layout doesn't flicker, and switch points snap to nearby scene cuts.
+FACE_PRESENCE_MIN_AREA = 0.002
+FACE_RATE_WINDOW = 2.0
+FACE_PRESENCE_RATE = 0.25
+# Only switch to the full-frame fit for genuinely sustained content shots, so a
+# brief detection drop while talking never causes a jarring zoom-out.
+MIN_LAYOUT_SECONDS = 1.5
+LAYOUT_SNAP_WINDOW = 0.6
+
+
+def build_layout_plan(
+    track: List[Tuple[float, Optional[float], float]],
+    scene_cuts: List[float],
+    duration: float,
+) -> List[Dict[str, Any]]:
+    """Classify a clip into 'face' (tracked crop) and 'fit' (full-frame) shots.
+
+    Talking-head shots become a tracked crop; content shots (tweets, graphs,
+    code — no real face) become a full-frame blurred-background fit so nothing
+    is cropped off. Boundaries are debounced and snapped to scene cuts.
+    """
+    if duration <= 0 or not track:
+        return [{"start": 0.0, "end": max(0.0, duration), "kind": "face"}]
+
+    times = [t for t, _, _ in track]
+    present = [
+        1 if (c is not None and a >= FACE_PRESENCE_MIN_AREA) else 0
+        for _, c, a in track
+    ]
+
+    # Classify by face-presence RATE over a window: a real talking shot has a
+    # face in many frames (even if small/spotty); a content shot has ~none.
+    diffs = [times[i] - times[i - 1] for i in range(1, len(times))]
+    dt = sorted(diffs)[len(diffs) // 2] if diffs else 0.25
+    half = max(1, int(round(FACE_RATE_WINDOW / 2.0 / max(dt, 0.05))))
+    smoothed: List[int] = []
+    for i in range(len(present)):
+        seg = present[max(0, i - half) : min(len(present), i + half + 1)]
+        rate = sum(seg) / len(seg)
+        smoothed.append(1 if rate >= FACE_PRESENCE_RATE else 0)
+
+    # Build runs of constant layout value.
+    runs: List[List[float]] = []
+    run_start, run_val = 0.0, smoothed[0]
+    for i in range(1, len(times)):
+        if smoothed[i] != run_val:
+            runs.append([run_start, times[i], run_val])
+            run_start, run_val = times[i], smoothed[i]
+    runs.append([run_start, duration, run_val])
+
+    def coalesce(rs: List[List[float]]) -> List[List[float]]:
+        out = [rs[0][:]]
+        for r in rs[1:]:
+            if r[2] == out[-1][2]:
+                out[-1][1] = r[1]
+            else:
+                out.append(r[:])
+        return out
+
+    # Merge any run shorter than the minimum layout duration (flip + coalesce).
+    runs = coalesce(runs)
+    changed = True
+    while changed and len(runs) > 1:
+        changed = False
+        for r in runs:
+            if r[1] - r[0] < MIN_LAYOUT_SECONDS:
+                r[2] = 1 - r[2]
+                changed = True
+                break
+        if changed:
+            runs = coalesce(runs)
+
+    # Snap internal boundaries to nearby scene cuts for clean switches.
+    cuts = sorted(c for c in (scene_cuts or []) if 0.05 < c < duration - 0.05)
+    for i in range(len(runs) - 1):
+        boundary = runs[i][1]
+        near = [c for c in cuts if abs(c - boundary) <= LAYOUT_SNAP_WINDOW]
+        if not near:
+            continue
+        snapped = min(near, key=lambda c: abs(c - boundary))
+        if runs[i][0] + 0.1 < snapped < runs[i + 1][1] - 0.1:
+            runs[i][1] = snapped
+            runs[i + 1][0] = snapped
+
+    return [
+        {"start": r[0], "end": r[1], "kind": "face" if r[2] == 1 else "fit"}
+        for r in runs
+    ]
+
+
+def build_vertical_compositor_filter(
+    crop_chain: str,
+    face_intervals: List[Tuple[float, float]],
+    fit_intervals: List[Tuple[float, float]],
+    blur_sigma: int = 14,
+) -> str:
+    """filter_complex switching between a tracked face crop and a blurred-
+    background full-frame fit over time. Produces a labelled [vout] stream.
+
+    Layers: a blurred fill background (always), the face crop on top during face
+    shots (covers the frame), and the centred full-frame fit during content
+    shots (background shows around it).
+    """
+    def enable_expr(intervals: List[Tuple[float, float]]) -> str:
+        if not intervals:
+            return "0"
+        return "+".join(
+            f"between(t\\,{a:.3f}\\,{b:.3f})" for a, b in intervals
+        )
+
+    face_en = enable_expr(face_intervals)
+    fit_en = enable_expr(fit_intervals)
+    # Smooth Gaussian background: blur at half resolution (plenty of detail for a
+    # heavy blur) with multiple passes for a true Gaussian falloff, then upscale
+    # 2x with bilinear so there's no lanczos ringing/blockiness — a creamy blur.
+    return (
+        "[0:v]split=3[bgsrc][crsrc][ftsrc];"
+        "[bgsrc]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,"
+        f"gblur=sigma={blur_sigma}:steps=2,scale=1080:1920:flags=bilinear,setsar=1[bg];"
+        f"[crsrc]{crop_chain}[face];"
+        "[ftsrc]scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,"
+        "scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[fit];"
+        f"[bg][face]overlay=0:0:enable='{face_en}'[t1];"
+        f"[t1][fit]overlay=(W-w)/2:(H-h)/2:enable='{fit_en}'[vout]"
+    )
+
+
+def build_vertical_filter_plan(
+    input_path: Path, width: int, height: int
+) -> Tuple[str, str]:
+    """Build the 9:16 reframing filter for the default vertical mode.
+
+    Returns (filter, mode): mode 'vf' is a simple crop chain; mode 'complex' is a
+    filter_complex producing [vout]. Talking-head-only clips use the cheap
+    tracked crop; clips containing content shots use the scene-aware compositor
+    so tweets / graphs / slides are shown in full instead of being cropped.
+    """
+    crop_w, crop_h = compute_vertical_crop_dims(width, height)
     duration = ffprobe_duration(input_path)
-    crop_x, crop_y, crop_w, crop_h = detect_optimal_crop_region(
-        input_path, 0, min(duration, 12.0)
+
+    # Narrow/portrait source: no horizontal room to crop — static fit.
+    if crop_w >= width:
+        sx, sy, sw, sh = detect_optimal_crop_region(input_path, 0, min(duration, 12.0))
+        return (
+            f"crop={sw}:{sh}:{sx}:{sy},scale=1080:1920:flags=lanczos,setsar=1",
+            "vf",
+        )
+
+    # One fast decode pass yields both the face track and the scene cuts.
+    try:
+        track, scene_cuts = analyze_vertical_clip(input_path)
+    except Exception as exc:
+        logger.warning("Clip analysis failed (%s); using static crop", exc)
+        track, scene_cuts = [], []
+
+    keys = build_crop_trajectory(track, width, crop_w) if track else []
+    if keys and trajectory_has_movement(keys, crop_w):
+        x_expr = build_smooth_pan_expression(keys)
+        crop_chain = (
+            f"crop={crop_w}:{crop_h}:x='{x_expr}':y=0,"
+            "scale=1080:1920:flags=lanczos,setsar=1"
+        )
+    else:
+        if keys:
+            static_x = clamp_even(
+                int(np.median([x for _, x in keys])), 0, max(0, width - crop_w)
+            )
+        else:
+            sx, _, _, _ = detect_optimal_crop_region(input_path, 0, min(duration, 12.0))
+            static_x = clamp_even(sx, 0, max(0, width - crop_w))
+        crop_chain = (
+            f"crop={crop_w}:{crop_h}:{static_x}:0,scale=1080:1920:flags=lanczos,setsar=1"
+        )
+
+    # Decide the layout over time. All-face clips skip the compositor (cheaper).
+    plan = build_layout_plan(track, scene_cuts, duration)
+    fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "fit"]
+    if not fit_intervals:
+        return (crop_chain, "vf")
+
+    face_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "face"]
+    logger.info(
+        "Scene-aware vertical layout: %d face shot(s), %d content shot(s)",
+        len(face_intervals), len(fit_intervals),
     )
     return (
-        f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y},"
-        "scale=1080:1920:flags=lanczos,setsar=1"
+        build_vertical_compositor_filter(crop_chain, face_intervals, fit_intervals),
+        "complex",
     )
 
 
@@ -1479,86 +2323,114 @@ def render_reframed_clip_ffmpeg(
     input_path: Path,
     output_path: Path,
     output_format: str,
+    subtitle_ass_path: Optional[Path] = None,
+    fonts_dir: Optional[Path] = None,
 ) -> Tuple[bool, int, int]:
-    """Render the requested aspect/framing mode and return final dimensions."""
+    """Render the final framed clip and (optionally) burn subtitles in one pass.
+
+    Collapsing reframing + subtitle burn into a single encode avoids a whole
+    generation of re-encode loss. The pass uses the high-quality profile, CFR
+    output and loudness-normalised audio.
+    """
     width, height = ffprobe_video_size(input_path)
+    has_audio = ffprobe_has_audio(input_path)
+    subs = (
+        subtitles_filter_fragment(subtitle_ass_path, fonts_dir)
+        if subtitle_ass_path
+        else None
+    )
+    audio_args = build_audio_output_args(has_audio)
+
     if output_format == "original":
-        shutil.copyfile(input_path, output_path)
-        return True, round_to_even(width), round_to_even(height)
+        out_w, out_h = round_to_even(width), round_to_even(height)
+        if not subs:
+            shutil.copyfile(input_path, output_path)
+            return True, out_w, out_h
+        command = [
+            "ffmpeg", "-y", "-i", str(input_path),
+            "-vf", f"{subs},setsar=1",
+            *build_final_video_encode_args(),
+            *audio_args,
+            "-movflags", "+faststart",
+            str(output_path),
+        ]
+        return run_ffmpeg_command(command).returncode == 0, out_w, out_h
 
     plan = (
         detect_speaker_reframe_plan(input_path, output_format)
         if output_format in {"vertical_pan", "vertical_split"}
         else None
     )
-    if plan and plan["mode"] == "pan":
-        video_filter = (
-            f"crop={plan['crop_w']}:{plan['crop_h']}:x='{plan['x_expression']}':y=0,"
-            "scale=1080:1920:flags=lanczos,setsar=1"
-        )
-    elif plan and plan["mode"] == "split":
+
+    if plan and plan["mode"] == "split":
         left = plan["regions"]["left"]
         right = plan["regions"]["right"]
+        vstack_tail = f",{subs}" if subs else ""
         video_filter = (
             f"[0:v]split=2[l][r];"
             f"[l]crop={left['tile_w']}:{left['tile_h']}:{left['tile_x']}:{left['tile_y']},"
             f"scale=1080:960:flags=lanczos,setsar=1[lv];"
             f"[r]crop={right['tile_w']}:{right['tile_h']}:{right['tile_x']}:{right['tile_y']},"
             f"scale=1080:960:flags=lanczos,setsar=1[rv];"
-            "[lv][rv]vstack,setsar=1[v]"
+            f"[lv][rv]vstack,setsar=1{vstack_tail}[v]"
         )
         command = [
-            "ffmpeg",
-            "-y",
-            "-i",
-            str(input_path),
-            "-filter_complex",
-            video_filter,
-            "-map",
-            "[v]",
-            "-map",
-            "0:a?",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "fast",
-            "-crf",
-            "20",
-            "-pix_fmt",
-            "yuv420p",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            "-movflags",
-            "+faststart",
+            "ffmpeg", "-y", "-i", str(input_path),
+            "-filter_complex", video_filter,
+            "-map", "[v]", "-map", "0:a?",
+            *build_final_video_encode_args(),
+            *audio_args,
+            "-movflags", "+faststart",
             str(output_path),
         ]
         return run_ffmpeg_command(command).returncode == 0, 1080, 1920
-    else:
-        video_filter = build_static_vertical_filter(input_path, width, height)
 
+    if plan and plan["mode"] == "pan":
+        video_filter = (
+            f"crop={plan['crop_w']}:{plan['crop_h']}:x='{plan['x_expression']}':y=0,"
+            "scale=1080:1920:flags=lanczos,setsar=1"
+        )
+        if subs:
+            video_filter = f"{video_filter},{subs}"
+        command = [
+            "ffmpeg", "-y", "-i", str(input_path),
+            "-vf", video_filter,
+            *build_final_video_encode_args(),
+            *audio_args,
+            "-movflags", "+faststart",
+            str(output_path),
+        ]
+        return run_ffmpeg_command(command).returncode == 0, 1080, 1920
+
+    # Default "vertical": scene-aware — tracked crop for face shots, blurred-
+    # background full-frame fit for content shots (tweets/graphs/slides).
+    video_filter, mode = build_vertical_filter_plan(input_path, width, height)
+    if mode == "complex":
+        if subs:
+            graph = f"{video_filter};[vout]{subs}[v]"
+            map_label = "[v]"
+        else:
+            graph = video_filter
+            map_label = "[vout]"
+        command = [
+            "ffmpeg", "-y", "-i", str(input_path),
+            "-filter_complex", graph,
+            "-map", map_label, "-map", "0:a?",
+            *build_final_video_encode_args(),
+            *audio_args,
+            "-movflags", "+faststart",
+            str(output_path),
+        ]
+        return run_ffmpeg_command(command).returncode == 0, 1080, 1920
+
+    if subs:
+        video_filter = f"{video_filter},{subs}"
     command = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        str(input_path),
-        "-vf",
-        video_filter,
-        "-c:v",
-        "libx264",
-        "-preset",
-        "fast",
-        "-crf",
-        "20",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
-        "-movflags",
-        "+faststart",
+        "ffmpeg", "-y", "-i", str(input_path),
+        "-vf", video_filter,
+        *build_final_video_encode_args(),
+        *audio_args,
+        "-movflags", "+faststart",
         str(output_path),
     ]
     return run_ffmpeg_command(command).returncode == 0, 1080, 1920
@@ -2013,14 +2885,23 @@ def build_keep_ranges_from_source_ranges(
 def get_words_for_keep_ranges(
     transcript_data: Dict, keep_ranges: List[Tuple[float, float]]
 ) -> List[Dict[str, Any]]:
-    """Project transcript word timings into the output timeline after cuts."""
+    """Project transcript word timings into the output timeline after cuts.
+
+    When the kept ranges are stitched with crossfades (see
+    ``crossfade_fade_for_ranges``) each junction shortens the timeline by the
+    fade duration, so word offsets are pulled earlier by the same amount to keep
+    captions locked to the spoken audio.
+    """
     if not transcript_data or not transcript_data.get("words") or not keep_ranges:
         return []
 
+    fade = crossfade_fade_for_ranges(keep_ranges)
     relevant_words: List[Dict[str, Any]] = []
     timeline_offset = 0.0
 
-    for keep_start, keep_end in keep_ranges:
+    for index, (keep_start, keep_end) in enumerate(keep_ranges):
+        if index > 0:
+            timeline_offset -= fade  # account for the crossfade overlap
         range_words = get_absolute_words_in_range(transcript_data, keep_start, keep_end)
         for word in range_words:
             relevant_words.append(
@@ -2101,8 +2982,7 @@ def create_optimized_clip(
         with tempfile.TemporaryDirectory(prefix="supoclip_render_") as temp_dir:
             temp_root = Path(temp_dir)
             source_clip_path = temp_root / "source.mp4"
-            framed_clip_path = temp_root / "framed.mp4"
-            subtitled_clip_path = temp_root / "subtitled.mp4"
+            final_clip_path = temp_root / "final.mp4"
             ass_path = temp_root / "captions.ass"
 
             if not render_source_ranges_ffmpeg(
@@ -2115,14 +2995,19 @@ def create_optimized_clip(
             reframe_format = (
                 output_format if output_format in VALID_OUTPUT_FORMATS else "vertical"
             )
-            framed_ok, target_width, target_height = render_reframed_clip_ffmpeg(
-                source_clip_path,
-                framed_clip_path,
-                reframe_format,
-            )
-            if not framed_ok:
-                raise RuntimeError("ffmpeg reframe render failed")
 
+            # Output dimensions are known ahead of the render: vertical modes are
+            # always 1080x1920, "original" keeps the (even) source size. Knowing
+            # them lets us build the ASS captions up front and burn them in the
+            # SAME pass as reframing — one encode instead of two.
+            if reframe_format == "original":
+                src_w, src_h = ffprobe_video_size(source_clip_path)
+                target_width, target_height = round_to_even(src_w), round_to_even(src_h)
+            else:
+                target_width, target_height = 1080, 1920
+
+            burn_ass_path: Optional[Path] = None
+            fonts_dir: Optional[Path] = None
             if add_subtitles and build_assemblyai_ass_subtitles(
                 video_path,
                 start_time,
@@ -2136,19 +3021,22 @@ def create_optimized_clip(
                 caption_template,
                 effective_keep_ranges,
             ):
-                if not burn_ass_subtitles_ffmpeg(
-                    framed_clip_path,
-                    ass_path,
-                    subtitled_clip_path,
-                    ass_fonts_dir(
-                        font_family or get_template(caption_template)["font_family"]
-                    ),
-                ):
-                    raise RuntimeError("ffmpeg subtitle burn failed")
-                shutil.move(str(subtitled_clip_path), str(output_path))
-            else:
-                shutil.move(str(framed_clip_path), str(output_path))
+                burn_ass_path = ass_path
+                fonts_dir = ass_fonts_dir(
+                    font_family or get_template(caption_template)["font_family"]
+                )
 
+            framed_ok, _, _ = render_reframed_clip_ffmpeg(
+                source_clip_path,
+                final_clip_path,
+                reframe_format,
+                subtitle_ass_path=burn_ass_path,
+                fonts_dir=fonts_dir,
+            )
+            if not framed_ok:
+                raise RuntimeError("ffmpeg reframe render failed")
+
+            shutil.move(str(final_clip_path), str(output_path))
             logger.info(f"Successfully created clip with ffmpeg: {output_path}")
             return True
 

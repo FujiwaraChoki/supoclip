@@ -7,3 +7,8 @@ temp/
 .env
 *.m4a
 frontend/e2e/.seed.json
+
+# local demo / scratch artifacts (not for the repo)
+backend/demo_clips/
+backend/demo_clips_*.log
+backend/run_demo.py
