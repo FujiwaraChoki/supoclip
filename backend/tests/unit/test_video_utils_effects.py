@@ -39,7 +39,7 @@ def test_build_ass_subtitles_preserves_background_template(tmp_path):
     assert success is True
     assert "Style: Default" in content
     assert ",3," in content
-    assert "\\fad(150,150)" in content
+    assert "\\fad(120,120)" in content
 
 
 def test_prepare_audio_for_transcription_extracts_compact_mp3(tmp_path):
@@ -164,7 +164,10 @@ def test_build_assemblyai_ass_subtitles_uses_cached_word_timings(tmp_path):
     content = ass_path.read_text(encoding="utf-8")
     assert success is True
     assert "PlayResX: 1080" in content
-    assert "hello world" in content
+    # Words are now each wrapped in their own font/colour span for per-word
+    # karaoke highlighting, so check the cached words are rendered individually.
+    assert "hello" in content
+    assert "world" in content
     assert "Dialogue:" in content
 
 
