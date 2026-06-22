@@ -52,7 +52,7 @@ SupoClip provides the same core functionality with more control:
 ### Prerequisites
 
 - Docker and Docker Compose
-- An AssemblyAI API key (for transcription) - [Get one here](https://www.assemblyai.com/)
+- A transcript provider: local Whisper, local `faster-whisper`, or an AssemblyAI API key - [Get one here](https://www.assemblyai.com/)
 - An LLM provider for AI analysis - OpenAI, Google, Anthropic, or Ollama
 
 ### 1. Clone and Configure
@@ -66,7 +66,20 @@ Create a `.env` file in the root directory:
 
 ```env
 # Required: Video transcription
-ASSEMBLY_AI_API_KEY=your_assemblyai_api_key
+# Option A: local/self-hosted Whisper
+TRANSCRIPT_PROVIDER=whisper
+WHISPER_MODEL=medium
+# WHISPER_LANGUAGE=en  # Optional
+
+# Option B: faster-whisper
+# TRANSCRIPT_PROVIDER=faster_whisper
+# WHISPER_MODEL=medium
+# FASTER_WHISPER_DEVICE=auto
+# FASTER_WHISPER_COMPUTE_TYPE=default
+
+# Option C: AssemblyAI
+# TRANSCRIPT_PROVIDER=assemblyai
+# ASSEMBLY_AI_API_KEY=your_assemblyai_api_key
 
 # Required: Choose ONE LLM provider and set its API key
 # Option A: Google Gemini (recommended - fast & cost-effective)

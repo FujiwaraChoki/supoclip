@@ -23,7 +23,8 @@ In most cases, edit `.env` and then rebuild or restart the stack.
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `ASSEMBLY_AI_API_KEY` | Yes | Enables word-level transcription used for clip extraction and subtitles |
+| `TRANSCRIPT_PROVIDER` | Yes | Selects `whisper`, `faster_whisper`, or `assemblyai` |
+| `ASSEMBLY_AI_API_KEY` | If using AssemblyAI | Enables hosted word-level transcription used for clip extraction and subtitles |
 
 ### LLM selection
 
@@ -81,8 +82,12 @@ These settings affect clip generation speed, throughput, and defaults.
 |---|---|---|
 | `DEFAULT_PROCESSING_MODE` | `fast` | Default mode for new tasks |
 | `FAST_MODE_MAX_CLIPS` | `4` | Clip cap used by fast mode |
-| `FAST_MODE_TRANSCRIPT_MODEL` | `nano` | Lightweight transcript path for fast mode |
-| `WHISPER_MODEL_SIZE` | `medium` in `.env.example` | Whisper model size when Whisper is used locally |
+| `FAST_MODE_TRANSCRIPT_MODEL` | `nano` | Lightweight AssemblyAI transcript path for fast mode when `TRANSCRIPT_PROVIDER=assemblyai` |
+| `WHISPER_MODEL` | `medium` in `.env.example` | Whisper model name when `TRANSCRIPT_PROVIDER` is `whisper` or `faster_whisper` |
+| `WHISPER_MODEL_SIZE` | `medium` in `.env.example` | Backward-compatible alias for `WHISPER_MODEL` |
+| `WHISPER_LANGUAGE` | auto-detect | Optional language hint for Whisper, for example `en` |
+| `FASTER_WHISPER_DEVICE` | `auto` | Optional device override for `faster_whisper`, for example `cpu` or `cuda` |
+| `FASTER_WHISPER_COMPUTE_TYPE` | `default` | Optional compute type for `faster_whisper`, for example `int8` or `float16` |
 | `QUEUED_TASK_TIMEOUT_SECONDS` | `180` | Marks stale queued tasks as failed instead of leaving them stuck forever |
 | `MAX_VIDEO_DURATION` | `5400` | Maximum accepted input video length in seconds |
 | `MAX_CLIPS` | `10` | Upper bound used by backend logic |
@@ -227,7 +232,8 @@ docker-compose up -d
 For basic self-hosted use:
 
 ```env
-ASSEMBLY_AI_API_KEY=your_key
+TRANSCRIPT_PROVIDER=whisper
+WHISPER_MODEL=medium
 LLM=google-gla:gemini-3-flash-preview
 GOOGLE_API_KEY=your_key
 BETTER_AUTH_SECRET=replace_me

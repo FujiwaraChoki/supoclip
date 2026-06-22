@@ -33,7 +33,19 @@ Edit the `.env` file in the project root and add your API keys:
 
 ```bash
 # Required for video transcription
-ASSEMBLY_AI_API_KEY=your_assemblyai_key_here
+TRANSCRIPT_PROVIDER=whisper
+WHISPER_MODEL=medium
+# WHISPER_LANGUAGE=en
+
+# Or use faster-whisper instead
+# TRANSCRIPT_PROVIDER=faster_whisper
+# WHISPER_MODEL=medium
+# FASTER_WHISPER_DEVICE=auto
+# FASTER_WHISPER_COMPUTE_TYPE=default
+
+# Or use AssemblyAI instead
+# TRANSCRIPT_PROVIDER=assemblyai
+# ASSEMBLY_AI_API_KEY=your_assemblyai_key_here
 
 # Choose one AI provider for clip selection
 OPENAI_API_KEY=your_openai_key_here
@@ -87,14 +99,19 @@ docker-compose up -d --build
 
 | Variable | Description | Where to Get |
 |----------|-------------|--------------|
-| `ASSEMBLY_AI_API_KEY` | Speech-to-text transcription | https://www.assemblyai.com/ |
+| `TRANSCRIPT_PROVIDER` | `whisper`, `faster_whisper`, or `assemblyai` | n/a |
+| `ASSEMBLY_AI_API_KEY` | Speech-to-text transcription when using `assemblyai` | https://www.assemblyai.com/ |
 | `LLM` | AI model identifier | e.g., `openai:gpt-5.2` or `ollama:gpt-oss:20b` |
 
 ### Optional Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `WHISPER_MODEL` | `medium` | Whisper model name used when `TRANSCRIPT_PROVIDER=whisper` |
 | `WHISPER_MODEL_SIZE` | `medium` | Whisper model size (tiny/base/small/medium/large) |
+| `WHISPER_LANGUAGE` | auto-detect | Optional language hint for Whisper, e.g. `en` |
+| `FASTER_WHISPER_DEVICE` | `auto` | Device override for `faster_whisper`, e.g. `cpu` or `cuda` |
+| `FASTER_WHISPER_COMPUTE_TYPE` | `default` | Compute type for `faster_whisper`, e.g. `int8` or `float16` |
 | `BETTER_AUTH_SECRET` | dev secret | Auth secret (change in production!) |
 | `GOOGLE_API_KEY` | - | For Google Gemini models |
 | `ANTHROPIC_API_KEY` | - | For Claude models |
