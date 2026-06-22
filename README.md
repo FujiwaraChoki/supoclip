@@ -90,6 +90,11 @@ GOOGLE_API_KEY=your_google_api_key
 # LLM=openai:gpt-5.2
 # OPENAI_API_KEY=your_openai_api_key
 
+# Option B2: vLLM / OpenAI-compatible endpoint
+# LLM=openai:Qwen/Qwen2.5-7B-Instruct
+# OPENAI_BASE_URL=http://localhost:8000/v1
+# OPENAI_API_KEY=empty  # Optional for many local vLLM setups
+
 # Option C: Anthropic Claude
 # LLM=anthropic:claude-4-sonnet
 # ANTHROPIC_API_KEY=your_anthropic_api_key
@@ -155,6 +160,7 @@ If you enable DataFast, also verify that:
 - Make sure you've set the correct LLM provider AND its corresponding API key in `.env`
 - Default is `google-gla:gemini-3-flash-preview` which requires `GOOGLE_API_KEY`
 - If using `openai:gpt-5.2`, you MUST set `OPENAI_API_KEY`
+- If using `openai:*` with a local OpenAI-compatible server such as vLLM, set `OPENAI_BASE_URL`
 - If using `ollama:*`, run Ollama and optionally set `OLLAMA_BASE_URL`
   (`http://localhost:11434/v1` for local backend runs, `http://host.docker.internal:11434/v1` for Docker)
 - Rebuild after changing `.env`: `docker-compose up -d --build`

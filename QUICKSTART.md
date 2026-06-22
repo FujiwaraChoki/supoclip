@@ -49,6 +49,7 @@ WHISPER_MODEL=medium
 
 # Choose one AI provider for clip selection
 OPENAI_API_KEY=your_openai_key_here
+OPENAI_BASE_URL=
 
 # Configure which AI model to use
 LLM=openai:gpt-4
@@ -56,6 +57,11 @@ LLM=openai:gpt-4
 # OR use Ollama locally
 # LLM=ollama:gpt-oss:20b
 # OLLAMA_BASE_URL=http://localhost:11434/v1
+
+# OR use vLLM / another OpenAI-compatible server
+# LLM=openai:Qwen/Qwen2.5-7B-Instruct
+# OPENAI_BASE_URL=http://localhost:8000/v1
+# OPENAI_API_KEY=empty
 
 # Optional: Resend for waitlist + subscription lifecycle emails
 # Required if you want hosted billing emails when SELF_HOST=false
@@ -115,6 +121,7 @@ docker-compose up -d --build
 | `BETTER_AUTH_SECRET` | dev secret | Auth secret (change in production!) |
 | `GOOGLE_API_KEY` | - | For Google Gemini models |
 | `ANTHROPIC_API_KEY` | - | For Claude models |
+| `OPENAI_BASE_URL` | - | Optional base URL for OpenAI-compatible servers such as vLLM |
 | `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | For local/self-hosted Ollama endpoint |
 | `OLLAMA_API_KEY` | - | Optional, required for Ollama Cloud |
 | `RESEND_API_KEY` | - | Optional in self-host mode, required for hosted billing/waitlist emails |

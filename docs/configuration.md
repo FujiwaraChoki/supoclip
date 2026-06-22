@@ -32,12 +32,15 @@ In most cases, edit `.env` and then rebuild or restart the stack.
 |---|---|---|
 | `LLM` | Yes | Selects the provider and model, for example `google-gla:gemini-3-flash-preview` |
 | `OPENAI_API_KEY` | If using OpenAI | Required for `openai:*` models |
+| `OPENAI_BASE_URL` | Optional | Base URL for OpenAI-compatible endpoints such as vLLM |
 | `GOOGLE_API_KEY` | If using Google | Required for `google-gla:*` models |
 | `ANTHROPIC_API_KEY` | If using Anthropic | Required for `anthropic:*` models |
 | `OLLAMA_BASE_URL` | If using Ollama remotely | Base URL for Ollama-compatible endpoints |
 | `OLLAMA_API_KEY` | Optional | Used for hosted Ollama providers such as Ollama Cloud |
 
 The backend can infer a default LLM from whichever API key is present, but setting `LLM` explicitly is safer and easier to debug.
+
+For local OpenAI-compatible servers such as vLLM, use `LLM=openai:<model>` together with `OPENAI_BASE_URL=http://host:port/v1`. Many local setups also accept a placeholder `OPENAI_API_KEY` such as `empty`.
 
 ## Core Application Settings
 
