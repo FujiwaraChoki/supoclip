@@ -82,26 +82,34 @@ WHISPER_MODEL=medium
 # ASSEMBLY_AI_API_KEY=your_assemblyai_api_key
 
 # Required: Choose ONE LLM provider and set its API key
-# Option A: Google Gemini (recommended - fast & cost-effective)
-LLM=google-gla:gemini-3-flash-preview
-GOOGLE_API_KEY=your_google_api_key
+# Option A: Recommended local Mac self-hosted setup
+TRANSCRIPT_PROVIDER=faster_whisper
+WHISPER_MODEL=base
+FASTER_WHISPER_DEVICE=cpu
+FASTER_WHISPER_COMPUTE_TYPE=int8
+LLM=ollama:qwen2.5:7b
+OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
 
-# Option B: OpenAI GPT-5.2 (best reasoning)
+# Option B: Google Gemini (hosted - fast & cost-effective)
+# LLM=google-gla:gemini-3-flash-preview
+# GOOGLE_API_KEY=your_google_api_key
+
+# Option C: OpenAI GPT-5.2 (best reasoning)
 # LLM=openai:gpt-5.2
 # OPENAI_API_KEY=your_openai_api_key
 
-# Option B2: vLLM / OpenAI-compatible endpoint
+# Option C2: vLLM / OpenAI-compatible endpoint
 # LLM=openai:Qwen/Qwen2.5-7B-Instruct
 # OPENAI_BASE_URL=http://localhost:8000/v1
 # OPENAI_API_KEY=empty  # Optional for many local vLLM setups
 
-# Option C: Anthropic Claude
+# Option D: Anthropic Claude
 # LLM=anthropic:claude-4-sonnet
 # ANTHROPIC_API_KEY=your_anthropic_api_key
 
-# Option D: Ollama (local/self-hosted)
+# Option E: Alternative Ollama model
 # LLM=ollama:gpt-oss:20b
-# OLLAMA_BASE_URL=  # Optional; defaults to localhost locally, host.docker.internal in Docker
+# OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
 # OLLAMA_API_KEY=your_ollama_api_key  # Optional (Ollama Cloud)
 
 # Optional: Auth secret (change in production)
@@ -158,7 +166,8 @@ If you enable DataFast, also verify that:
 
 **Backend fails to start with API key error:**
 - Make sure you've set the correct LLM provider AND its corresponding API key in `.env`
-- Default is `google-gla:gemini-3-flash-preview` which requires `GOOGLE_API_KEY`
+- Recommended local self-hosted setup is `faster_whisper` + `ollama:qwen2.5:7b`
+- Hosted default in examples is `google-gla:gemini-3-flash-preview` which requires `GOOGLE_API_KEY`
 - If using `openai:gpt-5.2`, you MUST set `OPENAI_API_KEY`
 - If using `openai:*` with a local OpenAI-compatible server such as vLLM, set `OPENAI_BASE_URL`
 - If using `ollama:*`, run Ollama and optionally set `OLLAMA_BASE_URL`
