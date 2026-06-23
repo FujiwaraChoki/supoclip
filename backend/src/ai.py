@@ -11,7 +11,9 @@ import re
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
 from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from .config import Config, get_config
@@ -295,7 +297,11 @@ Find 2-5 compelling segments that would work well as standalone clips. Quality o
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
 _transcript_agent_signature: Optional[tuple[str | None, ...]] = None
 
-SUPPORTED_LLM_PROVIDERS = {"google", "google-gla", "openai", "anthropic", "ollama"}
+SUPPORTED_LLM_PROVIDERS = {"google", "google-gla", "openai", "anthropic", "ollama", "atlas"}
+
+# Default Atlas Cloud OpenAI-compatible endpoint and model.
+ATLAS_DEFAULT_BASE_URL = "https://api.atlascloud.ai/v1"
+ATLAS_DEFAULT_MODEL = "deepseek-ai/deepseek-v4-pro"
 
 
 def _split_llm_name(model_name: str) -> tuple[str, str | None]:
@@ -313,7 +319,7 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
     if provider not in SUPPORTED_LLM_PROVIDERS:
         return (
             f"Unsupported LLM provider '{provider}'. "
-            "Use google-gla:*, openai:*, anthropic:*, or ollama:*."
+            "Use google-gla:*, openai:*, anthropic:*, atlas:*, or ollama:*."
         )
 
     if not provider_model_name:
@@ -340,6 +346,12 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
             "Set ANTHROPIC_API_KEY or choose another provider with a matching API key."
         )
 
+    if provider == "atlas" and not runtime_config.atlas_api_key:
+        return (
+            "Selected LLM provider is Atlas Cloud, but ATLASCLOUD_API_KEY is not set. "
+            "Set ATLASCLOUD_API_KEY or choose another provider with a matching API key."
+        )
+
     if provider == "ollama":
         # Ollama can run locally without an API key. OLLAMA_BASE_URL/OLLAMA_API_KEY
         # are optional and passed through as environment variables.
@@ -350,6 +362,25 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
 
 def _build_transcript_model(runtime_config: Config) -> Model | str:
     provider, provider_model_name = _split_llm_name(runtime_config.llm)
+
+    if provider == "atlas":
+        if not provider_model_name:
+            raise RuntimeError(
+                "Selected LLM provider is Atlas Cloud, but no model name was provided. "
+                "Use the format atlas:<model>, for example "
+                "atlas:deepseek-ai/deepseek-v4-pro."
+            )
+        # Atlas Cloud exposes an OpenAI-compatible API, so reuse the OpenAI
+        # chat model with a custom base_url. deepseek-v4-pro is a reasoning
+        # model, so keep max_tokens generous in build_transcript_analysis_prompt.
+        return OpenAIChatModel(
+            provider_model_name,
+            provider=OpenAIProvider(
+                base_url=runtime_config.resolve_atlas_base_url(),
+                api_key=runtime_config.atlas_api_key,
+            ),
+        )
+
     if provider != "ollama":
         return runtime_config.llm
 
@@ -378,6 +409,8 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
         runtime_config.openai_api_key,
         runtime_config.google_api_key,
         runtime_config.anthropic_api_key,
+        runtime_config.atlas_api_key,
+        runtime_config.atlas_base_url,
         runtime_config.ollama_base_url,
         runtime_config.ollama_api_key,
     )

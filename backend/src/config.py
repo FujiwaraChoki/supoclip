@@ -8,6 +8,7 @@ load_dotenv()
 _config_override = None
 LOCAL_OLLAMA_BASE_URL = "http://localhost:11434/v1"
 DOCKER_OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
+DEFAULT_ATLAS_BASE_URL = "https://api.atlascloud.ai/v1"
 
 
 class Config:
@@ -18,6 +19,8 @@ class Config:
         self.youtube_data_api_key = self._get_runtime_setting("YOUTUBE_DATA_API_KEY")
         self.ollama_base_url = self._get_runtime_setting("OLLAMA_BASE_URL")
         self.ollama_api_key = self._get_runtime_setting("OLLAMA_API_KEY")
+        self.atlas_api_key = self._get_runtime_setting("ATLASCLOUD_API_KEY")
+        self.atlas_base_url = self._get_runtime_setting("ATLASCLOUD_BASE_URL")
 
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
@@ -115,6 +118,8 @@ class Config:
             "ANTHROPIC_API_KEY": self.anthropic_api_key,
             "OLLAMA_BASE_URL": self.ollama_base_url,
             "OLLAMA_API_KEY": self.ollama_api_key,
+            "ATLASCLOUD_API_KEY": self.atlas_api_key,
+            "ATLASCLOUD_BASE_URL": self.atlas_base_url,
             "YOUTUBE_DATA_API_KEY": self.youtube_data_api_key,
             "APIFY_API_TOKEN": self.apify_api_token,
             "PEXELS_API_KEY": self.pexels_api_key,
@@ -166,6 +171,9 @@ class Config:
     def resolve_ollama_base_url(self) -> str:
         return self.ollama_base_url or self._default_ollama_base_url()
 
+    def resolve_atlas_base_url(self) -> str:
+        return self.atlas_base_url or DEFAULT_ATLAS_BASE_URL
+
     @staticmethod
     def _default_ollama_base_url() -> str:
         if os.path.exists("/.dockerenv"):
@@ -183,6 +191,8 @@ class Config:
             return "openai:gpt-5.2"
         if self.anthropic_api_key:
             return "anthropic:claude-4-sonnet"
+        if self.atlas_api_key:
+            return "atlas:deepseek-ai/deepseek-v4-pro"
         return "google-gla:gemini-3-flash-preview"
 
 
