@@ -99,13 +99,15 @@ class VideoService:
         video_path: Path, processing_mode: str = "balanced"
     ) -> str:
         """
-        Generate transcript from video using AssemblyAI.
+        Generate transcript from video using the configured provider
+        (assemblyai, whisper, or youtube_captions).
         Runs in thread pool to avoid blocking.
         """
         logger.info(f"Generating transcript for: {video_path}")
-        speech_model = "best"
         runtime_config = get_config()
-        if processing_mode == "fast":
+        provider = runtime_config.transcription_provider
+        speech_model = "best"
+        if processing_mode == "fast" and provider == "assemblyai":
             speech_model = runtime_config.fast_mode_transcript_model
 
         transcript = await run_in_thread(get_video_transcript, video_path, speech_model)
