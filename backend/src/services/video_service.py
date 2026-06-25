@@ -59,6 +59,38 @@ class VideoService:
             return None
 
     @staticmethod
+    def _build_fallback_segment(
+        video_duration: Optional[float],
+        transcript: str,
+        target_duration: int,
+    ) -> Dict[str, Any]:
+        """Create a bounded starter clip when AI analysis selects no segments."""
+        fallback_duration = max(1.0, float(target_duration or 30))
+        if video_duration and video_duration > 0:
+            fallback_duration = min(fallback_duration, max(1.0, video_duration))
+
+        transcript_preview = " ".join((transcript or "").split())
+        if len(transcript_preview) > 240:
+            transcript_preview = f"{transcript_preview[:237]}..."
+
+        return {
+            "start_time": "00:00",
+            "end_time": seconds_to_mmss(fallback_duration),
+            "text": transcript_preview,
+            "relevance_score": 0.25,
+            "reasoning": (
+                "AI analysis did not identify a strong standalone segment, "
+                "so SupoClip generated the first available portion of the video."
+            ),
+            "virality_score": 0,
+            "hook_score": 0,
+            "engagement_score": 0,
+            "value_score": 0,
+            "shareability_score": 0,
+            "hook_type": "fallback",
+        }
+
+    @staticmethod
     def resolve_local_video_path(url: str) -> Path:
         """Resolve uploaded-video references without exposing server filesystem paths."""
         if url.startswith(UPLOAD_URL_PREFIX):
@@ -476,6 +508,18 @@ class VideoService:
 
             if processing_mode == "fast":
                 segments_json = segments_json[: runtime_config.fast_mode_max_clips]
+
+            if not segments_json:
+                logger.warning(
+                    "AI analysis selected no segments; using fallback clip window"
+                )
+                segments_json = [
+                    VideoService._build_fallback_segment(
+                        file_duration,
+                        transcript,
+                        runtime_config.clip_duration,
+                    )
+                ]
 
             return {
                 "segments": segments_json,
