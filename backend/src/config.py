@@ -13,15 +13,32 @@ DOCKER_OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
 class Config:
     def __init__(self):
         self.openai_api_key = self._get_runtime_setting("OPENAI_API_KEY")
+        self.openai_base_url = self._get_runtime_setting("OPENAI_BASE_URL")
         self.anthropic_api_key = self._get_runtime_setting("ANTHROPIC_API_KEY")
         self.google_api_key = self._get_runtime_setting("GOOGLE_API_KEY")
         self.youtube_data_api_key = self._get_runtime_setting("YOUTUBE_DATA_API_KEY")
         self.ollama_base_url = self._get_runtime_setting("OLLAMA_BASE_URL")
         self.ollama_api_key = self._get_runtime_setting("OLLAMA_API_KEY")
-
-        self.whisper_model = os.getenv("WHISPER_MODEL", "base")
-        self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
+
+        self.transcript_provider = self._normalize_transcript_provider(
+            self._get_runtime_setting("TRANSCRIPT_PROVIDER")
+            or self._default_transcript_provider()
+        )
+        self.whisper_model = (
+            self._get_runtime_setting("WHISPER_MODEL")
+            or self._get_optional_env("WHISPER_MODEL_SIZE")
+            or self._get_optional_env("WHISPER_MODEL")
+            or "medium"
+        )
+        self.whisper_language = self._get_runtime_setting("WHISPER_LANGUAGE")
+        self.faster_whisper_device = (
+            self._get_runtime_setting("FASTER_WHISPER_DEVICE") or "auto"
+        )
+        self.faster_whisper_compute_type = (
+            self._get_runtime_setting("FASTER_WHISPER_COMPUTE_TYPE") or "default"
+        )
+        self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
         self.assembly_ai_http_timeout_seconds = int(
             os.getenv("ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS", "900")
         )
@@ -111,9 +128,15 @@ class Config:
 
     def as_runtime_settings(self) -> dict[str, str | None]:
         return {
+            "TRANSCRIPT_PROVIDER": self.transcript_provider,
+            "WHISPER_MODEL": self.whisper_model,
+            "WHISPER_LANGUAGE": self.whisper_language,
+            "FASTER_WHISPER_DEVICE": self.faster_whisper_device,
+            "FASTER_WHISPER_COMPUTE_TYPE": self.faster_whisper_compute_type,
             "ASSEMBLY_AI_API_KEY": self.assembly_ai_api_key,
             "LLM": self.llm,
             "OPENAI_API_KEY": self.openai_api_key,
+            "OPENAI_BASE_URL": self.openai_base_url,
             "GOOGLE_API_KEY": self.google_api_key,
             "ANTHROPIC_API_KEY": self.anthropic_api_key,
             "OLLAMA_BASE_URL": self.ollama_base_url,
@@ -163,8 +186,20 @@ class Config:
             return "apify"
         return "yt_dlp"
 
+    @staticmethod
+    def _normalize_transcript_provider(value: str | None) -> str:
+        normalized = (value or "").strip().lower().replace("-", "_")
+        if normalized in {"assemblyai", "assembly_ai"}:
+            return "assemblyai"
+        if normalized == "faster_whisper":
+            return "faster_whisper"
+        return "whisper"
+
     def resolve_youtube_data_api_key(self) -> str | None:
         return self.youtube_data_api_key or self.google_api_key
+
+    def resolve_openai_base_url(self) -> str | None:
+        return self.openai_base_url
 
     def resolve_ollama_base_url(self) -> str:
         return self.ollama_base_url or self._default_ollama_base_url()
@@ -174,6 +209,11 @@ class Config:
         if os.path.exists("/.dockerenv"):
             return DOCKER_OLLAMA_BASE_URL
         return LOCAL_OLLAMA_BASE_URL
+
+    def _default_transcript_provider(self) -> str:
+        if self.assembly_ai_api_key:
+            return "assemblyai"
+        return "whisper"
 
     def _infer_default_llm(self) -> str:
         """

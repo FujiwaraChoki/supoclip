@@ -33,17 +33,40 @@ Edit the `.env` file in the project root and add your API keys:
 
 ```bash
 # Required for video transcription
-ASSEMBLY_AI_API_KEY=your_assemblyai_key_here
+TRANSCRIPT_PROVIDER=whisper
+WHISPER_MODEL=medium
+# WHISPER_LANGUAGE=en
+
+# Recommended local Mac self-hosted setup
+TRANSCRIPT_PROVIDER=faster_whisper
+WHISPER_MODEL=base
+FASTER_WHISPER_DEVICE=cpu
+FASTER_WHISPER_COMPUTE_TYPE=int8
+
+# Or use AssemblyAI instead
+# TRANSCRIPT_PROVIDER=assemblyai
+# ASSEMBLY_AI_API_KEY=your_assemblyai_key_here
 
 # Choose one AI provider for clip selection
-OPENAI_API_KEY=your_openai_key_here
+# Recommended local Mac self-hosted setup with Ollama:
+LLM=ollama:qwen2.5:7b
+OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
+
+# Or use OpenAI
+# OPENAI_API_KEY=your_openai_key_here
+# OPENAI_BASE_URL=
 
 # Configure which AI model to use
-LLM=openai:gpt-4
+# LLM=openai:gpt-4
 
 # OR use Ollama locally
 # LLM=ollama:gpt-oss:20b
-# OLLAMA_BASE_URL=http://localhost:11434/v1
+# OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
+
+# OR use vLLM / another OpenAI-compatible server
+# LLM=openai:Qwen/Qwen2.5-7B-Instruct
+# OPENAI_BASE_URL=http://localhost:8000/v1
+# OPENAI_API_KEY=empty
 
 # Optional: Resend for waitlist + subscription lifecycle emails
 # Required if you want hosted billing emails when SELF_HOST=false
@@ -87,18 +110,24 @@ docker-compose up -d --build
 
 | Variable | Description | Where to Get |
 |----------|-------------|--------------|
-| `ASSEMBLY_AI_API_KEY` | Speech-to-text transcription | https://www.assemblyai.com/ |
+| `TRANSCRIPT_PROVIDER` | `whisper`, `faster_whisper`, or `assemblyai` | n/a |
+| `ASSEMBLY_AI_API_KEY` | Speech-to-text transcription when using `assemblyai` | https://www.assemblyai.com/ |
 | `LLM` | AI model identifier | e.g., `openai:gpt-5.2` or `ollama:gpt-oss:20b` |
 
 ### Optional Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `WHISPER_MODEL_SIZE` | `medium` | Whisper model size (tiny/base/small/medium/large) |
+| `WHISPER_MODEL` | `base` | Whisper model name used when `TRANSCRIPT_PROVIDER=whisper` |
+| `WHISPER_MODEL_SIZE` | `base` | Whisper model size (tiny/base/small/medium/large) |
+| `WHISPER_LANGUAGE` | auto-detect | Optional language hint for Whisper, e.g. `en` |
+| `FASTER_WHISPER_DEVICE` | `cpu` | Device override for `faster_whisper`, e.g. `cpu` or `cuda` |
+| `FASTER_WHISPER_COMPUTE_TYPE` | `int8` | Compute type for `faster_whisper`, e.g. `int8` or `float16` |
 | `BETTER_AUTH_SECRET` | dev secret | Auth secret (change in production!) |
 | `GOOGLE_API_KEY` | - | For Google Gemini models |
 | `ANTHROPIC_API_KEY` | - | For Claude models |
-| `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | For local/self-hosted Ollama endpoint |
+| `OPENAI_BASE_URL` | - | Optional base URL for OpenAI-compatible servers such as vLLM |
+| `OLLAMA_BASE_URL` | `http://host.docker.internal:11434/v1` | For Dockerized backend talking to local/self-hosted Ollama on Mac |
 | `OLLAMA_API_KEY` | - | Optional, required for Ollama Cloud |
 | `RESEND_API_KEY` | - | Optional in self-host mode, required for hosted billing/waitlist emails |
 | `RESEND_FROM_EMAIL` | `SupoClip <onboarding@resend.dev>` | Verified sender for backend subscription emails |
@@ -149,8 +178,8 @@ LLM=google-gla:gemini-3-pro-preview
 
 ### Ollama
 ```bash
-LLM=ollama:gpt-oss:20b
-OLLAMA_BASE_URL=http://localhost:11434/v1
+LLM=ollama:qwen2.5:7b
+OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
 ```
 
 ## Troubleshooting

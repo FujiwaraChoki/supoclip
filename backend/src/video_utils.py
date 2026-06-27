@@ -8,6 +8,8 @@ from typing import List, Dict, Any, Tuple, Optional
 import logging
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
+from functools import lru_cache
 import json
 import re
 import uuid
@@ -43,6 +45,31 @@ EMOJI_FONT_NAME = "Noto Color Emoji"
 CLIP_END_SENTENCE_EXTENSION_SECONDS = 3.0
 CLIP_END_PADDING_SECONDS = 0.35
 SENTENCE_END_RE = re.compile(r"""[.!?]["')\]}]*$""")
+
+
+@dataclass
+class TranscriptWordData:
+    text: str
+    start: int
+    end: int
+    confidence: float = 1.0
+    speaker: str | None = None
+
+
+@dataclass
+class TranscriptUtteranceData:
+    text: str
+    start: int
+    end: int
+    speaker: str | None = None
+    words: list[TranscriptWordData] = field(default_factory=list)
+
+
+@dataclass
+class TranscriptData:
+    text: str
+    words: list[TranscriptWordData] = field(default_factory=list)
+    utterances: list[TranscriptUtteranceData] = field(default_factory=list)
 
 
 class VideoProcessor:
@@ -99,9 +126,11 @@ class VideoProcessor:
         return settings.get(target_quality, settings["high"])
 
 
-def _prepare_audio_for_transcription(video_path: Path) -> Path:
-    """Extract a compact audio-only file before uploading to AssemblyAI."""
-    audio_path = video_path.with_name(f"{video_path.stem}.assemblyai.mp3")
+def _prepare_audio_for_transcription(
+    video_path: Path, cache_suffix: str = "transcript"
+) -> Path:
+    """Extract a compact audio-only file before sending audio to an STT provider."""
+    audio_path = video_path.with_name(f"{video_path.stem}.{cache_suffix}.mp3")
     if audio_path.exists() and audio_path.stat().st_size > 0:
         return audio_path
 
@@ -132,6 +161,190 @@ def _prepare_audio_for_transcription(video_path: Path) -> Path:
         audio_path.stat().st_size / (1024 * 1024),
     )
     return audio_path
+
+
+def _get_item_value(item: Any, name: str, default: Any = None) -> Any:
+    if isinstance(item, dict):
+        return item.get(name, default)
+    return getattr(item, name, default)
+
+
+def _normalize_transcript_text(value: str | None) -> str:
+    return re.sub(r"\s+", " ", (value or "").strip())
+
+
+def _seconds_to_ms(value: Any) -> int:
+    return int(round(float(value or 0) * 1000))
+
+
+def _approximate_words_from_text(
+    text: str, start_ms: int, end_ms: int
+) -> list[TranscriptWordData]:
+    tokens = [token for token in text.split() if token]
+    if not tokens:
+        return []
+
+    total_duration = max(end_ms - start_ms, len(tokens))
+    step = total_duration / len(tokens)
+    words: list[TranscriptWordData] = []
+    cursor = float(start_ms)
+    for index, token in enumerate(tokens):
+        word_start = int(round(cursor))
+        cursor += step
+        if index == len(tokens) - 1:
+            word_end = end_ms
+        else:
+            word_end = int(round(cursor))
+        if word_end <= word_start:
+            word_end = word_start + 1
+        words.append(
+            TranscriptWordData(
+                text=token,
+                start=word_start,
+                end=word_end,
+            )
+        )
+    return words
+
+
+@lru_cache(maxsize=4)
+def _load_whisper_model(model_name: str):
+    import whisper
+
+    logger.info("Loading Whisper model: %s", model_name)
+    return whisper.load_model(model_name)
+
+
+@lru_cache(maxsize=8)
+def _load_faster_whisper_model(
+    model_name: str, device: str = "auto", compute_type: str = "default"
+):
+    from faster_whisper import WhisperModel
+
+    logger.info(
+        "Loading faster-whisper model: %s (device=%s, compute_type=%s)",
+        model_name,
+        device,
+        compute_type,
+    )
+    return WhisperModel(model_name, device=device, compute_type=compute_type)
+
+
+def _build_transcript_data_from_segments(
+    segments: list[Any], transcript_text: str | None = None
+) -> TranscriptData:
+    words: list[TranscriptWordData] = []
+    utterances: list[TranscriptUtteranceData] = []
+    for segment in segments:
+        segment_text = _normalize_transcript_text(_get_item_value(segment, "text"))
+        segment_start_ms = _seconds_to_ms(_get_item_value(segment, "start"))
+        segment_end_ms = _seconds_to_ms(_get_item_value(segment, "end"))
+
+        segment_words: list[TranscriptWordData] = []
+        for word in _get_item_value(segment, "words", []) or []:
+            word_text = _normalize_transcript_text(_get_item_value(word, "word"))
+            if not word_text:
+                continue
+
+            word_start_ms = _seconds_to_ms(
+                _get_item_value(word, "start", _get_item_value(segment, "start"))
+            )
+            word_end_ms = _seconds_to_ms(
+                _get_item_value(word, "end", _get_item_value(segment, "end"))
+            )
+            if word_end_ms <= word_start_ms:
+                word_end_ms = word_start_ms + 1
+
+            probability = _get_item_value(word, "probability")
+            segment_words.append(
+                TranscriptWordData(
+                    text=word_text,
+                    start=word_start_ms,
+                    end=word_end_ms,
+                    confidence=float(probability) if probability is not None else 1.0,
+                )
+            )
+
+        if not segment_words and segment_text:
+            segment_words = _approximate_words_from_text(
+                segment_text, segment_start_ms, segment_end_ms
+            )
+
+        if not segment_text and segment_words:
+            segment_text = " ".join(word.text for word in segment_words)
+
+        if segment_words:
+            segment_start_ms = segment_words[0].start
+            segment_end_ms = segment_words[-1].end
+
+        if segment_text:
+            utterances.append(
+                TranscriptUtteranceData(
+                    text=segment_text,
+                    start=segment_start_ms,
+                    end=max(segment_end_ms, segment_start_ms + 1),
+                    words=segment_words,
+                )
+            )
+            words.extend(segment_words)
+
+    normalized_text = _normalize_transcript_text(transcript_text)
+    if not normalized_text:
+        normalized_text = " ".join(utterance.text for utterance in utterances).strip()
+
+    return TranscriptData(
+        text=normalized_text,
+        words=words,
+        utterances=utterances,
+    )
+
+
+def _transcribe_with_whisper(video_path: Path, runtime_config) -> TranscriptData:
+    logger.info(
+        "Starting local Whisper transcription with model %s",
+        runtime_config.whisper_model,
+    )
+    model = _load_whisper_model(runtime_config.whisper_model)
+    transcription_media_path = _prepare_audio_for_transcription(video_path, "whisper")
+
+    transcription_options: dict[str, Any] = {
+        "word_timestamps": True,
+        "verbose": False,
+        "condition_on_previous_text": False,
+    }
+    if runtime_config.whisper_language:
+        transcription_options["language"] = runtime_config.whisper_language
+
+    result = model.transcribe(str(transcription_media_path), **transcription_options)
+    segments = result.get("segments") or []
+    return _build_transcript_data_from_segments(segments, result.get("text"))
+
+
+def _transcribe_with_faster_whisper(video_path: Path, runtime_config) -> TranscriptData:
+    logger.info(
+        "Starting faster-whisper transcription with model %s (device=%s, compute_type=%s)",
+        runtime_config.whisper_model,
+        runtime_config.faster_whisper_device,
+        runtime_config.faster_whisper_compute_type,
+    )
+    model = _load_faster_whisper_model(
+        runtime_config.whisper_model,
+        runtime_config.faster_whisper_device,
+        runtime_config.faster_whisper_compute_type,
+    )
+    transcription_media_path = _prepare_audio_for_transcription(
+        video_path, "faster-whisper"
+    )
+
+    transcription_options: dict[str, Any] = {
+        "word_timestamps": True,
+        "condition_on_previous_text": False,
+    }
+    if runtime_config.whisper_language:
+        transcription_options["language"] = runtime_config.whisper_language
+
+    segments, _info = model.transcribe(str(transcription_media_path), **transcription_options)
+    return _build_transcript_data_from_segments(list(segments))
 
 
 def _submit_and_wait_for_assemblyai_transcript(
@@ -183,58 +396,69 @@ def _submit_and_wait_for_assemblyai_transcript(
 
 
 def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
-    """Get transcript using AssemblyAI with word-level timing for precise subtitles."""
+    """Get a transcript with word-level timing for precise subtitles."""
     logger.info(f"Getting transcript for: {video_path}")
-
-    # Configure AssemblyAI
     runtime_config = get_config()
-    aai.settings.api_key = runtime_config.assembly_ai_api_key
-    aai.settings.http_timeout = runtime_config.assembly_ai_http_timeout_seconds
-    transcriber = aai.Transcriber()
-
-    # Request word-level timestamps for precise subtitle sync
-    speech_model_value = aai.SpeechModel.best
-    if speech_model == "nano":
-        speech_model_value = aai.SpeechModel.nano
-
-    config_obj = aai.TranscriptionConfig(
-        speaker_labels=True,
-        punctuate=True,
-        format_text=True,
-        speech_model=speech_model_value,
-    )
 
     try:
-        logger.info("Starting AssemblyAI transcription")
-        transcription_media_path = _prepare_audio_for_transcription(video_path)
-        transcript = None
-        for attempt in range(1, 4):
-            try:
-                transcript = _submit_and_wait_for_assemblyai_transcript(
-                    transcriber,
-                    transcription_media_path,
-                    config_obj,
-                    runtime_config.assembly_ai_http_timeout_seconds,
+        provider = runtime_config.transcript_provider
+        transcript: Any
+        if provider == "whisper":
+            transcript = _transcribe_with_whisper(video_path, runtime_config)
+        elif provider == "faster_whisper":
+            transcript = _transcribe_with_faster_whisper(video_path, runtime_config)
+        else:
+            if not runtime_config.assembly_ai_api_key:
+                raise RuntimeError(
+                    "TRANSCRIPT_PROVIDER is set to assemblyai but ASSEMBLY_AI_API_KEY is missing."
                 )
-                break
-            except (httpx.TimeoutException, TimeoutError):
-                logger.warning(
-                    "AssemblyAI transcription timed out on attempt %s/3",
-                    attempt,
-                )
-                if attempt == 3:
-                    raise
 
-        if transcript is None:
-            raise RuntimeError("AssemblyAI transcription did not return a transcript")
+            aai.settings.api_key = runtime_config.assembly_ai_api_key
+            aai.settings.http_timeout = runtime_config.assembly_ai_http_timeout_seconds
+            transcriber = aai.Transcriber()
 
-        if transcript.status == aai.TranscriptStatus.error:
-            logger.error(f"AssemblyAI transcription failed: {transcript.error}")
-            raise Exception(f"Transcription failed: {transcript.error}")
+            speech_model_value = aai.SpeechModel.best
+            if speech_model == "nano":
+                speech_model_value = aai.SpeechModel.nano
+
+            config_obj = aai.TranscriptionConfig(
+                speaker_labels=True,
+                punctuate=True,
+                format_text=True,
+                speech_model=speech_model_value,
+            )
+
+            logger.info("Starting AssemblyAI transcription")
+            transcription_media_path = _prepare_audio_for_transcription(
+                video_path, "assemblyai"
+            )
+            transcript = None
+            for attempt in range(1, 4):
+                try:
+                    transcript = _submit_and_wait_for_assemblyai_transcript(
+                        transcriber,
+                        transcription_media_path,
+                        config_obj,
+                        runtime_config.assembly_ai_http_timeout_seconds,
+                    )
+                    break
+                except (httpx.TimeoutException, TimeoutError):
+                    logger.warning(
+                        "AssemblyAI transcription timed out on attempt %s/3",
+                        attempt,
+                    )
+                    if attempt == 3:
+                        raise
+
+            if transcript is None:
+                raise RuntimeError("AssemblyAI transcription did not return a transcript")
+
+            if transcript.status == aai.TranscriptStatus.error:
+                logger.error(f"AssemblyAI transcription failed: {transcript.error}")
+                raise Exception(f"Transcription failed: {transcript.error}")
 
         formatted_lines = format_transcript_for_analysis(transcript)
 
-        # Cache the raw transcript for subtitle generation
         cache_transcript_data(video_path, transcript)
 
         result = "\n".join(formatted_lines)
@@ -249,34 +473,36 @@ def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
 
 
 def cache_transcript_data(video_path: Path, transcript) -> None:
-    """Cache AssemblyAI transcript data for subtitle generation."""
+    """Cache transcript data for subtitle generation."""
     cache_path = video_path.with_suffix(".transcript_cache.json")
 
     words_data = []
-    if transcript.words:
-        words_data = [_serialize_transcript_word(word) for word in transcript.words]
+    words = _get_item_value(transcript, "words", []) or []
+    if words:
+        words_data = [_serialize_transcript_word(word) for word in words]
 
     utterances_data = []
-    if getattr(transcript, "utterances", None):
+    utterances = _get_item_value(transcript, "utterances", []) or []
+    if utterances:
         utterances_data = [
             {
-                "text": utterance.text,
-                "start": utterance.start,
-                "end": utterance.end,
-                "speaker": getattr(utterance, "speaker", None),
+                "text": _get_item_value(utterance, "text", ""),
+                "start": _get_item_value(utterance, "start", 0),
+                "end": _get_item_value(utterance, "end", 0),
+                "speaker": _get_item_value(utterance, "speaker", None),
                 "words": [
                     _serialize_transcript_word(word)
-                    for word in getattr(utterance, "words", []) or []
+                    for word in _get_item_value(utterance, "words", []) or []
                 ],
             }
-            for utterance in transcript.utterances
+            for utterance in utterances
         ]
 
     cache_data = {
         "version": TRANSCRIPT_CACHE_SCHEMA_VERSION,
         "words": words_data,
         "utterances": utterances_data,
-        "text": transcript.text,
+        "text": _get_item_value(transcript, "text", ""),
     }
 
     with open(cache_path, "w") as f:
@@ -286,7 +512,7 @@ def cache_transcript_data(video_path: Path, transcript) -> None:
 
 
 def load_cached_transcript_data(video_path: Path) -> Optional[Dict]:
-    """Load cached AssemblyAI transcript data."""
+    """Load cached transcript data."""
     cache_path = video_path.with_suffix(".transcript_cache.json")
 
     if not cache_path.exists():
@@ -306,31 +532,31 @@ def load_cached_transcript_data(video_path: Path) -> Optional[Dict]:
 
 def _serialize_transcript_word(word) -> Dict[str, Any]:
     return {
-        "text": word.text,
-        "start": word.start,
-        "end": word.end,
-        "confidence": word.confidence if hasattr(word, "confidence") else 1.0,
-        "speaker": getattr(word, "speaker", None),
+        "text": _get_item_value(word, "text", ""),
+        "start": _get_item_value(word, "start", 0),
+        "end": _get_item_value(word, "end", 0),
+        "confidence": _get_item_value(word, "confidence", 1.0),
+        "speaker": _get_item_value(word, "speaker", None),
     }
 
 
 def format_transcript_for_analysis(transcript) -> List[str]:
     """Format transcripts into readable timestamped segments for AI analysis."""
-    utterances = getattr(transcript, "utterances", None) or []
+    utterances = _get_item_value(transcript, "utterances", []) or []
     if utterances:
         formatted_lines = []
         for utterance in utterances:
-            start_time = format_ms_to_timestamp(utterance.start)
-            end_time = format_ms_to_timestamp(utterance.end)
-            speaker = getattr(utterance, "speaker", None)
+            start_time = format_ms_to_timestamp(_get_item_value(utterance, "start", 0))
+            end_time = format_ms_to_timestamp(_get_item_value(utterance, "end", 0))
+            speaker = _get_item_value(utterance, "speaker", None)
             speaker_prefix = f"Speaker {speaker}: " if speaker else ""
             formatted_lines.append(
-                f"[{start_time} - {end_time}] {speaker_prefix}{utterance.text}"
+                f"[{start_time} - {end_time}] {speaker_prefix}{_get_item_value(utterance, 'text', '')}"
             )
         return formatted_lines
 
     formatted_lines = []
-    words = getattr(transcript, "words", None) or []
+    words = _get_item_value(transcript, "words", []) or []
     if not words:
         return formatted_lines
 
@@ -343,20 +569,20 @@ def format_transcript_for_analysis(transcript) -> List[str]:
 
     for word in words:
         if current_start is None:
-            current_start = word.start
+            current_start = _get_item_value(word, "start", 0)
 
-        current_segment.append(word.text)
+        current_segment.append(_get_item_value(word, "text", ""))
         segment_word_count += 1
 
         if (
             segment_word_count >= max_words_per_segment
-            or word.text.endswith(".")
-            or word.text.endswith("!")
-            or word.text.endswith("?")
+            or _get_item_value(word, "text", "").endswith(".")
+            or _get_item_value(word, "text", "").endswith("!")
+            or _get_item_value(word, "text", "").endswith("?")
         ):
             if current_segment:
                 start_time = format_ms_to_timestamp(current_start)
-                end_time = format_ms_to_timestamp(word.end)
+                end_time = format_ms_to_timestamp(_get_item_value(word, "end", 0))
                 text = " ".join(current_segment)
                 formatted_lines.append(f"[{start_time} - {end_time}] {text}")
 
@@ -366,7 +592,7 @@ def format_transcript_for_analysis(transcript) -> List[str]:
 
     if current_segment and current_start is not None:
         start_time = format_ms_to_timestamp(current_start)
-        end_time = format_ms_to_timestamp(words[-1].end)
+        end_time = format_ms_to_timestamp(_get_item_value(words[-1], "end", 0))
         text = " ".join(current_segment)
         formatted_lines.append(f"[{start_time} - {end_time}] {text}")
 

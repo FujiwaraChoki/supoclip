@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.models.ollama import OllamaModel
 
 from src.ai import (
@@ -85,6 +86,20 @@ def test_ollama_llm_builds_native_ollama_model():
     assert model.base_url == "http://ollama.example/v1/"
 
 
+def test_openai_llm_builds_openai_compatible_model_when_base_url_is_set():
+    runtime_config = SimpleNamespace(
+        llm="openai:Qwen/Qwen2.5-7B-Instruct",
+        openai_api_key="dummy-key",
+        resolve_openai_base_url=lambda: "http://vllm.example:8000/v1",
+    )
+
+    model = _build_transcript_model(runtime_config)
+
+    assert isinstance(model, OpenAIChatModel)
+    assert model.model_name == "Qwen/Qwen2.5-7B-Instruct"
+    assert model.base_url == "http://vllm.example:8000/v1/"
+
+
 def test_parse_transcript_timestamp_supports_minute_and_hour_formats():
     assert _parse_transcript_timestamp_seconds("02:35") == 155
     assert _parse_transcript_timestamp_seconds("01:02:35") == 3755
@@ -125,6 +140,7 @@ def test_llm_validation_rejects_unsupported_or_incomplete_model_names():
     runtime_config = SimpleNamespace(
         google_api_key=None,
         openai_api_key=None,
+        resolve_openai_base_url=lambda: None,
         anthropic_api_key=None,
     )
 
@@ -135,3 +151,17 @@ def test_llm_validation_rejects_unsupported_or_incomplete_model_names():
         "ollama:", runtime_config
     )
     assert _get_missing_llm_key_error("ollama:gpt-oss:20b", runtime_config) is None
+
+
+def test_openai_llm_validation_allows_openai_compatible_base_url_without_api_key():
+    runtime_config = SimpleNamespace(
+        google_api_key=None,
+        openai_api_key=None,
+        resolve_openai_base_url=lambda: "http://vllm.example:8000/v1",
+        anthropic_api_key=None,
+    )
+
+    assert (
+        _get_missing_llm_key_error("openai:Qwen/Qwen2.5-7B-Instruct", runtime_config)
+        is None
+    )

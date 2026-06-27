@@ -23,7 +23,8 @@ In most cases, edit `.env` and then rebuild or restart the stack.
 
 | Variable | Required | Purpose |
 |---|---|---|
-| `ASSEMBLY_AI_API_KEY` | Yes | Enables word-level transcription used for clip extraction and subtitles |
+| `TRANSCRIPT_PROVIDER` | Yes | Selects `whisper`, `faster_whisper`, or `assemblyai` |
+| `ASSEMBLY_AI_API_KEY` | If using AssemblyAI | Enables hosted word-level transcription used for clip extraction and subtitles |
 
 ### LLM selection
 
@@ -31,12 +32,15 @@ In most cases, edit `.env` and then rebuild or restart the stack.
 |---|---|---|
 | `LLM` | Yes | Selects the provider and model, for example `google-gla:gemini-3-flash-preview` |
 | `OPENAI_API_KEY` | If using OpenAI | Required for `openai:*` models |
+| `OPENAI_BASE_URL` | Optional | Base URL for OpenAI-compatible endpoints such as vLLM |
 | `GOOGLE_API_KEY` | If using Google | Required for `google-gla:*` models |
 | `ANTHROPIC_API_KEY` | If using Anthropic | Required for `anthropic:*` models |
 | `OLLAMA_BASE_URL` | If using Ollama remotely | Base URL for Ollama-compatible endpoints |
 | `OLLAMA_API_KEY` | Optional | Used for hosted Ollama providers such as Ollama Cloud |
 
 The backend can infer a default LLM from whichever API key is present, but setting `LLM` explicitly is safer and easier to debug.
+
+For local OpenAI-compatible servers such as vLLM, use `LLM=openai:<model>` together with `OPENAI_BASE_URL=http://host:port/v1`. Many local setups also accept a placeholder `OPENAI_API_KEY` such as `empty`.
 
 ## Core Application Settings
 
@@ -81,8 +85,12 @@ These settings affect clip generation speed, throughput, and defaults.
 |---|---|---|
 | `DEFAULT_PROCESSING_MODE` | `fast` | Default mode for new tasks |
 | `FAST_MODE_MAX_CLIPS` | `4` | Clip cap used by fast mode |
-| `FAST_MODE_TRANSCRIPT_MODEL` | `nano` | Lightweight transcript path for fast mode |
-| `WHISPER_MODEL_SIZE` | `medium` in `.env.example` | Whisper model size when Whisper is used locally |
+| `FAST_MODE_TRANSCRIPT_MODEL` | `nano` | Lightweight AssemblyAI transcript path for fast mode when `TRANSCRIPT_PROVIDER=assemblyai` |
+| `WHISPER_MODEL` | `medium` in `.env.example` | Whisper model name when `TRANSCRIPT_PROVIDER` is `whisper` or `faster_whisper` |
+| `WHISPER_MODEL_SIZE` | `medium` in `.env.example` | Backward-compatible alias for `WHISPER_MODEL` |
+| `WHISPER_LANGUAGE` | auto-detect | Optional language hint for Whisper, for example `en` |
+| `FASTER_WHISPER_DEVICE` | `auto` | Optional device override for `faster_whisper`, for example `cpu` or `cuda` |
+| `FASTER_WHISPER_COMPUTE_TYPE` | `default` | Optional compute type for `faster_whisper`, for example `int8` or `float16` |
 | `QUEUED_TASK_TIMEOUT_SECONDS` | `180` | Marks stale queued tasks as failed instead of leaving them stuck forever |
 | `MAX_VIDEO_DURATION` | `5400` | Maximum accepted input video length in seconds |
 | `MAX_CLIPS` | `10` | Upper bound used by backend logic |
@@ -228,7 +236,8 @@ docker-compose up -d
 For basic self-hosted use:
 
 ```env
-ASSEMBLY_AI_API_KEY=your_key
+TRANSCRIPT_PROVIDER=whisper
+WHISPER_MODEL=medium
 LLM=google-gla:gemini-3-flash-preview
 GOOGLE_API_KEY=your_key
 BETTER_AUTH_SECRET=replace_me

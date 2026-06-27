@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -22,6 +20,31 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 SETTING_METADATA = {
+    "TRANSCRIPT_PROVIDER": {
+        "label": "Transcript provider",
+        "description": "Choose `assemblyai`, `whisper`, or `faster_whisper` for transcription.",
+        "input_type": "text",
+    },
+    "WHISPER_MODEL": {
+        "label": "Whisper model",
+        "description": "Local Whisper model name such as tiny, base, small, medium, or large.",
+        "input_type": "text",
+    },
+    "WHISPER_LANGUAGE": {
+        "label": "Whisper language",
+        "description": "Optional ISO language code to skip auto-detection, for example en.",
+        "input_type": "text",
+    },
+    "FASTER_WHISPER_DEVICE": {
+        "label": "Faster Whisper device",
+        "description": "Optional execution device for `faster_whisper`, for example auto, cpu, or cuda.",
+        "input_type": "text",
+    },
+    "FASTER_WHISPER_COMPUTE_TYPE": {
+        "label": "Faster Whisper compute type",
+        "description": "Optional `faster_whisper` compute type such as default, int8, float16, or int8_float16.",
+        "input_type": "text",
+    },
     "ASSEMBLY_AI_API_KEY": {
         "label": "AssemblyAI API key",
         "description": "Used for video transcription.",
@@ -36,6 +59,11 @@ SETTING_METADATA = {
         "label": "OpenAI API key",
         "description": "Required for openai:* models.",
         "input_type": "password",
+    },
+    "OPENAI_BASE_URL": {
+        "label": "OpenAI base URL",
+        "description": "Optional base URL for OpenAI-compatible endpoints such as vLLM.",
+        "input_type": "text",
     },
     "GOOGLE_API_KEY": {
         "label": "Google API key",

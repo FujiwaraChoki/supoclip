@@ -70,7 +70,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: supoclip-backend
-    platform: linux/amd64
     command: [".venv/bin/uvicorn", "src.main_refactored:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "127.0.0.1:8000:8000"
@@ -88,6 +87,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - TRANSCRIPT_PROVIDER=${TRANSCRIPT_PROVIDER:-}
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
       - ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS=${ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS:-900}
       - APIFY_API_TOKEN=${APIFY_API_TOKEN}
@@ -97,11 +97,16 @@ services:
       - YOUTUBE_METADATA_PROVIDER=${YOUTUBE_METADATA_PROVIDER:-yt_dlp}
       - LLM=${LLM:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
+      - WHISPER_MODEL=${WHISPER_MODEL:-medium}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-medium}
+      - WHISPER_LANGUAGE=${WHISPER_LANGUAGE:-}
+      - FASTER_WHISPER_DEVICE=${FASTER_WHISPER_DEVICE:-auto}
+      - FASTER_WHISPER_COMPUTE_TYPE=${FASTER_WHISPER_COMPUTE_TYPE:-default}
       - QUEUED_TASK_TIMEOUT_SECONDS=${QUEUED_TASK_TIMEOUT_SECONDS:-180}
       - DEFAULT_PROCESSING_MODE=${DEFAULT_PROCESSING_MODE:-fast}
       - FAST_MODE_MAX_CLIPS=${FAST_MODE_MAX_CLIPS:-4}
@@ -140,7 +145,6 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: supoclip-worker
-    platform: linux/amd64
     command: [".venv/bin/arq", "src.workers.tasks.WorkerSettings"]
     volumes:
       - ./backend/src:/app/src
@@ -156,6 +160,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - TRANSCRIPT_PROVIDER=${TRANSCRIPT_PROVIDER:-}
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
       - ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS=${ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS:-900}
       - APIFY_API_TOKEN=${APIFY_API_TOKEN}
@@ -165,11 +170,16 @@ services:
       - YOUTUBE_METADATA_PROVIDER=${YOUTUBE_METADATA_PROVIDER:-yt_dlp}
       - LLM=${LLM:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
+      - WHISPER_MODEL=${WHISPER_MODEL:-medium}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-medium}
+      - WHISPER_LANGUAGE=${WHISPER_LANGUAGE:-}
+      - FASTER_WHISPER_DEVICE=${FASTER_WHISPER_DEVICE:-auto}
+      - FASTER_WHISPER_COMPUTE_TYPE=${FASTER_WHISPER_COMPUTE_TYPE:-default}
       - QUEUED_TASK_TIMEOUT_SECONDS=${QUEUED_TASK_TIMEOUT_SECONDS:-180}
       - DEFAULT_PROCESSING_MODE=${DEFAULT_PROCESSING_MODE:-fast}
       - FAST_MODE_MAX_CLIPS=${FAST_MODE_MAX_CLIPS:-4}

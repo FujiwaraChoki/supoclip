@@ -2,15 +2,16 @@
 AI-related functions for transcript analysis with enhanced precision and virality scoring.
 """
 
-from pathlib import Path
-from typing import List, Dict, Any, Optional, Literal
+from typing import List, Any, Optional, Literal
 import asyncio
 import logging
 import re
 
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
@@ -329,9 +330,11 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
         )
 
     if provider == "openai" and not runtime_config.openai_api_key:
+        if runtime_config.resolve_openai_base_url():
+            return None
         return (
             "Selected LLM provider is OpenAI, but OPENAI_API_KEY is not set. "
-            "Set OPENAI_API_KEY or choose another provider with a matching API key."
+            "Set OPENAI_API_KEY, or configure OPENAI_BASE_URL for an OpenAI-compatible endpoint such as vLLM."
         )
 
     if provider == "anthropic" and not runtime_config.anthropic_api_key:
@@ -350,6 +353,21 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
 
 def _build_transcript_model(runtime_config: Config) -> Model | str:
     provider, provider_model_name = _split_llm_name(runtime_config.llm)
+    if provider == "openai" and runtime_config.resolve_openai_base_url():
+        if not provider_model_name:
+            raise RuntimeError(
+                "Selected LLM provider is OpenAI, but no model name was provided. "
+                "Use the format openai:<model>, for example openai:Qwen/Qwen2.5-7B-Instruct."
+            )
+
+        return OpenAIChatModel(
+            provider_model_name,
+            provider=OpenAIProvider(
+                base_url=runtime_config.resolve_openai_base_url(),
+                api_key=runtime_config.openai_api_key,
+            ),
+        )
+
     if provider != "ollama":
         return runtime_config.llm
 
@@ -376,6 +394,7 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
     signature = (
         runtime_config.llm,
         runtime_config.openai_api_key,
+        runtime_config.openai_base_url,
         runtime_config.google_api_key,
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
