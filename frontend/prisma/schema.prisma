@@ -86,6 +86,13 @@ model Task {
   caption_template     String?   @default("default") @db.VarChar(50)
   include_broll        Boolean?  @default(false)
 
+  // Pattern-based clip generation fields
+  clip_generation_method  String?   @default("ai") @db.VarChar(20)
+  reference_image_path    String?   @db.VarChar(1000)
+  pattern_match_threshold Float?    @default(0.7)
+  pattern_clip_window     Int?      @default(60)
+  pattern_frame_interval  Int?      @default(2)
+
   created_at           DateTime  @default(now()) @db.Timestamptz
   updated_at           DateTime  @default(now()) @updatedAt @db.Timestamptz
 

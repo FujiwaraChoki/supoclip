@@ -41,6 +41,9 @@ class Config:
         )
 
         self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
+        self.max_video_duration_pattern = int(
+            os.getenv("MAX_VIDEO_DURATION_PATTERN", "14400")
+        )
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 
         self.max_clips = int(os.getenv("MAX_CLIPS", "10"))
@@ -90,6 +93,15 @@ class Config:
         self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "4"))
         self.fast_mode_transcript_model = os.getenv(
             "FAST_MODE_TRANSCRIPT_MODEL", "nano"
+        )
+
+        # Pattern-based clip generation defaults
+        self.pattern_match_threshold = float(
+            os.getenv("PATTERN_MATCH_THRESHOLD", "0.7")
+        )
+        self.pattern_clip_window = int(os.getenv("PATTERN_CLIP_WINDOW", "60"))
+        self.pattern_frame_interval = int(
+            os.getenv("PATTERN_FRAME_INTERVAL", "2")
         )
 
     @staticmethod

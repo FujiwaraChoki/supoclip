@@ -501,3 +501,147 @@ class VideoService:
         except Exception as e:
             logger.error(f"Error in video processing pipeline: {e}")
             raise
+
+    @staticmethod
+    async def process_video_pattern_based(
+        url: str,
+        source_type: str,
+        task_id: Optional[str] = None,
+        reference_image_path: str = "",
+        match_threshold: float = 0.7,
+        clip_window_seconds: int = 60,
+        frame_interval: int = 2,
+        font_family: str = "TikTokSans-Regular",
+        font_size: int = 24,
+        font_color: str = "#FFFFFF",
+        caption_template: str = "default",
+        output_format: str = "vertical",
+        add_subtitles: bool = True,
+        progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]] = None,
+        should_cancel: Optional[Callable[[], Awaitable[bool]]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Complete video processing pipeline using pattern-based detection.
+
+        Instead of transcript analysis, this uses OpenCV to find visual patterns
+        matching a reference image and generates clips around each match.
+        """
+        try:
+            runtime_config = get_config()
+
+            # Step 1: Download/resolve video
+            if should_cancel and await should_cancel():
+                raise Exception("Task cancelled")
+
+            if progress_callback:
+                await progress_callback(10, "Downloading video...", "processing")
+
+            if source_type == "youtube":
+                video_info = await async_get_youtube_video_info(url, task_id=task_id)
+                if video_info:
+                    duration = video_info.get("duration", 0)
+                    # Pattern matching uses a higher duration limit
+                    max_duration = runtime_config.max_video_duration_pattern
+                    if duration and duration > max_duration:
+                        mins = max_duration // 60
+                        raise Exception(
+                            f"Video is too long ({duration // 60} min). "
+                            f"Maximum allowed duration for pattern matching is {mins} minutes."
+                        )
+
+                video_path = await VideoService.download_video(url, task_id=task_id)
+                if not video_path:
+                    raise Exception("Failed to download video")
+            else:
+                video_path = VideoService.resolve_local_video_path(url)
+                if not video_path.exists():
+                    raise Exception("Video file not found")
+
+            # Post-download duration guard
+            file_duration = VideoService._get_file_duration(video_path)
+            max_duration = runtime_config.max_video_duration_pattern
+            if file_duration and file_duration > max_duration:
+                mins = max_duration // 60
+                raise Exception(
+                    f"Video is too long ({int(file_duration) // 60} min). "
+                    f"Maximum allowed duration for pattern matching is {mins} minutes."
+                )
+
+            # Step 2: Detect pattern matches
+            if should_cancel and await should_cancel():
+                raise Exception("Task cancelled")
+
+            if progress_callback:
+                await progress_callback(
+                    30, "Detecting visual patterns...", "processing"
+                )
+
+            from ..services.pattern_service import (
+                detect_pattern_matches,
+                merge_nearby_matches,
+                build_segments_from_matches,
+            )
+
+            match_result = await run_in_thread(
+                detect_pattern_matches,
+                video_path,
+                reference_image_path,
+                task_id or "unknown",
+                frame_interval,
+                match_threshold,
+            )
+
+            if should_cancel and await should_cancel():
+                raise Exception("Task cancelled")
+
+            if progress_callback:
+                await progress_callback(
+                    60,
+                    f"Found {match_result.match_count} pattern matches",
+                    "processing",
+                )
+
+            # Merge nearby matches
+            merged_matches = merge_nearby_matches(
+                match_result.matches, min_gap_seconds=10.0
+            )
+
+            # Get video duration for segment building
+            video_duration = file_duration or 0.0
+            if video_duration <= 0:
+                video_duration = VideoService._get_file_duration(video_path) or 0.0
+
+            # Build segments from matches
+            segments_json = build_segments_from_matches(
+                merged_matches,
+                clip_window_seconds=clip_window_seconds,
+                video_duration=video_duration,
+            )
+
+            if not segments_json:
+                raise ValueError(
+                    "No pattern matches found in the video. "
+                    "Try lowering the match sensitivity or using a different reference image."
+                )
+
+            # Step 3: Ready to create clips
+            if should_cancel and await should_cancel():
+                raise Exception("Task cancelled")
+
+            if progress_callback:
+                await progress_callback(70, "Creating video clips...", "processing")
+
+            return {
+                "segments": segments_json,
+                "segments_to_render": segments_json,
+                "video_path": str(video_path),
+                "clips": [],
+                "summary": None,
+                "key_topics": None,
+                "transcript": None,
+                "analysis_json": None,
+            }
+
+        except Exception as e:
+            logger.error(f"Error in pattern-based video processing: {e}")
+            raise

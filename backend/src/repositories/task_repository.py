@@ -28,6 +28,11 @@ class TaskRepository:
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
+        clip_generation_method: str = "ai",
+        reference_image_path: Optional[str] = None,
+        pattern_match_threshold: float = 0.7,
+        pattern_clip_window: int = 60,
+        pattern_frame_interval: int = 2,
     ) -> str:
         """Create a new task and return its ID."""
         task_id = str(uuid4())
@@ -37,11 +42,15 @@ class TaskRepository:
                     INSERT INTO tasks (
                         id, user_id, source_id, status, font_family, font_size, font_color,
                         caption_template, include_broll, processing_mode,
+                        clip_generation_method, reference_image_path,
+                        pattern_match_threshold, pattern_clip_window, pattern_frame_interval,
                         created_at, updated_at
                     )
                     VALUES (
                         :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
                         :caption_template, :include_broll, :processing_mode,
+                        :clip_generation_method, :reference_image_path,
+                        :pattern_match_threshold, :pattern_clip_window, :pattern_frame_interval,
                         NOW(), NOW()
                     )
                     RETURNING id
@@ -57,6 +66,11 @@ class TaskRepository:
                     "caption_template": caption_template,
                     "include_broll": include_broll,
                     "processing_mode": processing_mode,
+                    "clip_generation_method": clip_generation_method,
+                    "reference_image_path": reference_image_path,
+                    "pattern_match_threshold": pattern_match_threshold,
+                    "pattern_clip_window": pattern_clip_window,
+                    "pattern_frame_interval": pattern_frame_interval,
                 },
             )
         except Exception:

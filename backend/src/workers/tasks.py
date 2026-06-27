@@ -27,6 +27,11 @@ async def process_video_task(
     output_format: str = "vertical",
     add_subtitles: bool = True,
     cleanup_settings: Dict[str, Any] | None = None,
+    clip_generation_method: str = "ai",
+    reference_image_path: str | None = None,
+    pattern_match_threshold: float = 0.7,
+    pattern_clip_window: int = 60,
+    pattern_frame_interval: int = 2,
 ) -> Dict[str, Any]:
     """
     Background worker task to process a video.
@@ -92,6 +97,11 @@ async def process_video_task(
                 should_cancel=should_cancel,
                 clip_ready_callback=clip_ready_callback,
                 cleanup_settings=cleanup_settings,
+                clip_generation_method=clip_generation_method,
+                reference_image_path=reference_image_path,
+                pattern_match_threshold=pattern_match_threshold,
+                pattern_clip_window=pattern_clip_window,
+                pattern_frame_interval=pattern_frame_interval,
             )
 
             logger.info(f"Task {task_id} completed successfully")

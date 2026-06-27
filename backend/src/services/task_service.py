@@ -95,6 +95,11 @@ class TaskService:
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
+        clip_generation_method: str = "ai",
+        reference_image_path: Optional[str] = None,
+        pattern_match_threshold: float = 0.7,
+        pattern_clip_window: int = 60,
+        pattern_frame_interval: int = 2,
     ) -> str:
         """
         Create a new task with associated source.
@@ -103,6 +108,16 @@ class TaskService:
         # Validate user exists
         if not await self.task_repo.user_exists(self.db, user_id):
             raise ValueError(f"User {user_id} not found")
+
+        # Validate clip generation method
+        if clip_generation_method not in {"ai", "pattern", "both"}:
+            clip_generation_method = "ai"
+
+        # Validate pattern method requires reference image
+        if clip_generation_method in ("pattern", "both") and not reference_image_path:
+            raise ValueError(
+                "Reference image is required for pattern-based clip generation"
+            )
 
         # Determine source type
         source_type = self.video_service.determine_source_type(url)
@@ -131,6 +146,11 @@ class TaskService:
             caption_template=caption_template,
             include_broll=include_broll,
             processing_mode=processing_mode,
+            clip_generation_method=clip_generation_method,
+            reference_image_path=reference_image_path,
+            pattern_match_threshold=pattern_match_threshold,
+            pattern_clip_window=pattern_clip_window,
+            pattern_frame_interval=pattern_frame_interval,
         )
 
         logger.info(f"Created task {task_id} for user {user_id}")
@@ -152,6 +172,11 @@ class TaskService:
         should_cancel: Optional[Callable] = None,
         clip_ready_callback: Optional[Callable] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        clip_generation_method: str = "ai",
+        reference_image_path: Optional[str] = None,
+        pattern_match_threshold: float = 0.7,
+        pattern_clip_window: int = 60,
+        pattern_frame_interval: int = 2,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -204,22 +229,107 @@ class TaskService:
 
             # Process video with progress updates
             pipeline_start = perf_counter()
-            result = await self.video_service.process_video_complete(
-                url=url,
-                source_type=source_type,
-                task_id=task_id,
-                font_family=font_family,
-                font_size=font_size,
-                font_color=font_color,
-                caption_template=caption_template,
-                processing_mode=processing_mode,
-                output_format=output_format,
-                add_subtitles=add_subtitles,
-                cached_transcript=cached_transcript,
-                cached_analysis_json=cached_analysis_json,
-                progress_callback=update_progress,
-                should_cancel=should_cancel,
-            )
+
+            # Branch based on clip generation method
+            if clip_generation_method == "pattern":
+                result = await self.video_service.process_video_pattern_based(
+                    url=url,
+                    source_type=source_type,
+                    task_id=task_id,
+                    reference_image_path=reference_image_path or "",
+                    match_threshold=pattern_match_threshold,
+                    clip_window_seconds=pattern_clip_window,
+                    frame_interval=pattern_frame_interval,
+                    font_family=font_family,
+                    font_size=font_size,
+                    font_color=font_color,
+                    caption_template=caption_template,
+                    output_format=output_format,
+                    add_subtitles=add_subtitles,
+                    progress_callback=update_progress,
+                    should_cancel=should_cancel,
+                )
+            elif clip_generation_method == "both":
+                # Run AI pipeline (may fail for long videos)
+                ai_segments = []
+                ai_result = None
+                try:
+                    ai_result = await self.video_service.process_video_complete(
+                        url=url,
+                        source_type=source_type,
+                        task_id=task_id,
+                        font_family=font_family,
+                        font_size=font_size,
+                        font_color=font_color,
+                        caption_template=caption_template,
+                        processing_mode=processing_mode,
+                        output_format=output_format,
+                        add_subtitles=add_subtitles,
+                        cached_transcript=cached_transcript,
+                        cached_analysis_json=cached_analysis_json,
+                        progress_callback=update_progress,
+                        should_cancel=should_cancel,
+                    )
+                    ai_segments = ai_result.get("segments_to_render", [])
+                except Exception as e:
+                    logger.warning(f"AI pipeline failed in 'both' mode, continuing with pattern only: {e}")
+
+                # Run pattern pipeline
+                pattern_result = await self.video_service.process_video_pattern_based(
+                    url=url,
+                    source_type=source_type,
+                    task_id=task_id,
+                    reference_image_path=reference_image_path or "",
+                    match_threshold=pattern_match_threshold,
+                    clip_window_seconds=pattern_clip_window,
+                    frame_interval=pattern_frame_interval,
+                    font_family=font_family,
+                    font_size=font_size,
+                    font_color=font_color,
+                    caption_template=caption_template,
+                    output_format=output_format,
+                    add_subtitles=add_subtitles,
+                    progress_callback=update_progress,
+                    should_cancel=should_cancel,
+                )
+                pattern_segments = pattern_result.get("segments_to_render", [])
+
+                if not ai_segments and not pattern_segments:
+                    raise ValueError(
+                        "Both AI and pattern pipelines failed to find any segments."
+                    )
+
+                # Combine both (keep both, no deduplication)
+                combined_segments = ai_segments + pattern_segments
+                result = {
+                    "segments": combined_segments,
+                    "segments_to_render": combined_segments,
+                    "video_path": (ai_result or pattern_result).get("video_path"),
+                    "clips": [],
+                    "summary": ai_result.get("summary") if ai_result else None,
+                    "key_topics": ai_result.get("key_topics") if ai_result else None,
+                    "transcript": ai_result.get("transcript") if ai_result else None,
+                    "analysis_json": ai_result.get("analysis_json") if ai_result else None,
+                }
+            else:
+                # Default: AI-based (current behavior)
+                result = await self.video_service.process_video_complete(
+                    url=url,
+                    source_type=source_type,
+                    task_id=task_id,
+                    font_family=font_family,
+                    font_size=font_size,
+                    font_color=font_color,
+                    caption_template=caption_template,
+                    processing_mode=processing_mode,
+                    output_format=output_format,
+                    add_subtitles=add_subtitles,
+                    cached_transcript=cached_transcript,
+                    cached_analysis_json=cached_analysis_json,
+                    progress_callback=update_progress,
+                    should_cancel=should_cancel,
+                )
+
             stage_timings["pipeline_seconds"] = round(
                 perf_counter() - pipeline_start, 3
             )

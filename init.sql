@@ -70,6 +70,13 @@ CREATE TABLE tasks (
     stage_timings_json TEXT,
     completion_notification_sent_at TIMESTAMP WITH TIME ZONE,
 
+    -- Pattern-based clip generation fields
+    clip_generation_method VARCHAR(20) DEFAULT 'ai',
+    reference_image_path VARCHAR(1000),
+    pattern_match_threshold DOUBLE PRECISION DEFAULT 0.7,
+    pattern_clip_window INTEGER DEFAULT 60,
+    pattern_frame_interval INTEGER DEFAULT 2,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
