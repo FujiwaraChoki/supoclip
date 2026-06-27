@@ -192,16 +192,20 @@ def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
     aai.settings.http_timeout = runtime_config.assembly_ai_http_timeout_seconds
     transcriber = aai.Transcriber()
 
-    # Request word-level timestamps for precise subtitle sync
-    speech_model_value = aai.SpeechModel.best
-    if speech_model == "nano":
-        speech_model_value = aai.SpeechModel.nano
+    # AssemblyAI now only accepts "universal-3-pro" and "universal-2" in
+    # `speech_models`. Legacy values ("best", "nano", "universal") are mapped
+    # onto these: fast mode prefers the cheaper universal-2, default uses
+    # universal-3-pro with universal-2 as fallback.
+    if speech_model in ("nano", "universal-2"):
+        speech_models_value = ["universal-2"]
+    else:
+        speech_models_value = ["universal-3-pro", "universal-2"]
 
     config_obj = aai.TranscriptionConfig(
         speaker_labels=True,
         punctuate=True,
         format_text=True,
-        speech_model=speech_model_value,
+        speech_models=speech_models_value,
     )
 
     try:
