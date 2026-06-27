@@ -22,10 +22,12 @@ class _FakeResponse:
 
 def test_download_video_via_apify_saves_file(tmp_path, monkeypatch):
     actor_calls = {}
+    monkeypatch.setenv("APIFY_RUN_TIMEOUT_SECONDS", "123")
 
     class FakeActor:
-        def call(self, run_input):
+        def call(self, run_input, **kwargs):
             actor_calls["run_input"] = run_input
+            actor_calls.update(kwargs)
             return {"defaultDatasetId": "dataset-1"}
 
     class FakeDataset:
@@ -63,6 +65,7 @@ def test_download_video_via_apify_saves_file(tmp_path, monkeypatch):
     assert actor_calls["token"] == "apify-token"
     assert actor_calls["actor_id"] == "epctex/youtube-video-downloader"
     assert actor_calls["dataset_id"] == "dataset-1"
+    assert actor_calls["timeout_secs"] == 123
     assert actor_calls["run_input"] == {
         "startUrls": ["https://www.youtube.com/watch?v=abcdefghijk"],
         "quality": "720",
@@ -72,8 +75,9 @@ def test_download_video_via_apify_saves_file(tmp_path, monkeypatch):
 
 def test_download_video_via_apify_raises_when_dataset_is_empty(tmp_path, monkeypatch):
     class FakeActor:
-        def call(self, run_input):
+        def call(self, run_input, **kwargs):
             del run_input
+            del kwargs
             return {"defaultDatasetId": "dataset-1"}
 
     class FakeDataset:
@@ -105,8 +109,9 @@ def test_download_video_via_apify_raises_when_dataset_is_empty(tmp_path, monkeyp
 
 def test_download_video_via_apify_raises_when_download_url_missing(tmp_path, monkeypatch):
     class FakeActor:
-        def call(self, run_input):
+        def call(self, run_input, **kwargs):
             del run_input
+            del kwargs
             return {"defaultDatasetId": "dataset-1"}
 
     class FakeDataset:
@@ -136,10 +141,49 @@ def test_download_video_via_apify_raises_when_download_url_missing(tmp_path, mon
         )
 
 
+def test_download_video_via_apify_raises_when_actor_item_failed(tmp_path, monkeypatch):
+    class FakeActor:
+        def call(self, run_input, **kwargs):
+            del run_input
+            del kwargs
+            return {"defaultDatasetId": "dataset-1"}
+
+    class FakeDataset:
+        def iterate_items(self):
+            yield {
+                "status": "failed",
+                "output": {},
+                "error": "Timed out after 3600000ms.",
+            }
+
+    class FakeClient:
+        def __init__(self, token):
+            del token
+
+        def actor(self, actor_id):
+            del actor_id
+            return FakeActor()
+
+        def dataset(self, dataset_id):
+            del dataset_id
+            return FakeDataset()
+
+    monkeypatch.setattr("src.apify_youtube_downloader.ApifyClient", FakeClient)
+
+    with pytest.raises(ApifyDownloadError, match="Timed out after 3600000ms"):
+        download_video_via_apify(
+            url="https://www.youtube.com/watch?v=abcdefghijk",
+            video_id="abcdefghijk",
+            temp_dir=tmp_path,
+            api_token="apify-token",
+        )
+
+
 def test_download_video_via_apify_wraps_actor_exception(tmp_path, monkeypatch):
     class FakeActor:
-        def call(self, run_input):
+        def call(self, run_input, **kwargs):
             del run_input
+            del kwargs
             raise RuntimeError("actor exploded")
 
     class FakeClient:
