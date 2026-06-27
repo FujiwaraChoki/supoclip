@@ -36,6 +36,9 @@ class Config:
         self.apify_youtube_default_quality = self._normalize_apify_quality(
             os.getenv("APIFY_YOUTUBE_DEFAULT_QUALITY", "1080")
         )
+        self.apify_run_timeout_seconds = int(
+            os.getenv("APIFY_RUN_TIMEOUT_SECONDS", "900")
+        )
 
         self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")

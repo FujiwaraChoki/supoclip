@@ -86,6 +86,7 @@ Set `YOUTUBE_DOWNLOAD_PROVIDER=apify` only when you want to use the paid Apify a
 YOUTUBE_DOWNLOAD_PROVIDER=apify
 APIFY_API_TOKEN=your_apify_token
 APIFY_YOUTUBE_DEFAULT_QUALITY=1080
+APIFY_RUN_TIMEOUT_SECONDS=900
 ```
 
 Notes:
@@ -93,6 +94,7 @@ Notes:
 - `yt_dlp` is the free default and does not require `APIFY_API_TOKEN`.
 - If `yt-dlp` fails and `APIFY_API_TOKEN` is set, the backend can still try Apify as a fallback.
 - If Apify is selected but unavailable or fails, the backend falls back to `yt-dlp`.
+- `APIFY_RUN_TIMEOUT_SECONDS` caps the Apify actor run time before SupoClip gives up.
 
 ## YouTube Metadata Provider
 
