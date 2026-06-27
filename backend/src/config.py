@@ -20,6 +20,9 @@ class Config:
         self.ollama_api_key = self._get_runtime_setting("OLLAMA_API_KEY")
 
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
+        self.transcription_provider = self._normalize_transcription_provider(
+            os.getenv("TRANSCRIPTION_PROVIDER", "assemblyai")
+        )
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
         self.assembly_ai_http_timeout_seconds = int(
@@ -174,6 +177,13 @@ class Config:
         if os.path.exists("/.dockerenv"):
             return DOCKER_OLLAMA_BASE_URL
         return LOCAL_OLLAMA_BASE_URL
+
+    @staticmethod
+    def _normalize_transcription_provider(value: str | None) -> str:
+        normalized = (value or "").strip().lower().replace("-", "_")
+        if normalized in ("whisper", "youtube_captions"):
+            return normalized
+        return "assemblyai"
 
     def _infer_default_llm(self) -> str:
         """
