@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE IF NOT EXISTS api_keys (
     id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
     user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
