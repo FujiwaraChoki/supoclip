@@ -18,13 +18,19 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import hashlib
 import json
 import os
 import re
 import time
+from dataclasses import replace
 from typing import Annotated, Awaitable, Callable, Optional
 
+import httpx
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.auth.middleware.auth_context import get_access_token
+from mcp.server.auth.provider import AccessToken
+from mcp.server.auth.settings import AuthSettings
 from pydantic import Field
 
 try:  # Python 3.10 lacks typing.Literal niceties only in edge cases; import is fine.
@@ -38,7 +44,75 @@ from .config import load_settings
 SETTINGS = load_settings()
 CLIENT = SupoClipClient(SETTINGS)
 
-mcp = FastMCP("supoclip_mcp")
+
+class SupoClipApiKeyVerifier:
+    """Validate MCP Bearer tokens against the configured SupoClip backend."""
+
+    def __init__(self, api_url: str, timeout: float) -> None:
+        self.api_url = api_url.rstrip("/")
+        self.timeout = timeout
+        self._cache: dict[str, tuple[float, bool]] = {}
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        raw_token = token.strip()
+        if not raw_token.startswith("sk_"):
+            return None
+
+        token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+        now = time.time()
+        cached = self._cache.get(token_hash)
+        if cached and cached[0] > now:
+            return self._access_token(raw_token) if cached[1] else None
+
+        valid = await self._is_valid_key(raw_token)
+        ttl = 60 if valid else 10
+        self._cache[token_hash] = (now + ttl, valid)
+        return self._access_token(raw_token) if valid else None
+
+    async def _is_valid_key(self, token: str) -> bool:
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(
+                    f"{self.api_url}/tasks/billing/summary",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+        except httpx.HTTPError:
+            return False
+
+        return response.status_code < 400
+
+    @staticmethod
+    def _access_token(token: str) -> AccessToken:
+        fingerprint = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+        return AccessToken(
+            token=token,
+            client_id=f"supoclip-api-key-{fingerprint}",
+            scopes=["supoclip"],
+        )
+
+
+def _build_mcp() -> FastMCP:
+    auth_settings = None
+    token_verifier = None
+    if SETTINGS.mcp_require_bearer_auth:
+        public_url = SETTINGS.mcp_public_url or f"http://{SETTINGS.mcp_host}:{SETTINGS.mcp_port}"
+        auth_settings = AuthSettings(
+            issuer_url=public_url,
+            resource_server_url=public_url,
+            required_scopes=["supoclip"],
+        )
+        token_verifier = SupoClipApiKeyVerifier(SETTINGS.api_url, SETTINGS.timeout)
+
+    return FastMCP(
+        "supoclip_mcp",
+        host=SETTINGS.mcp_host,
+        port=SETTINGS.mcp_port,
+        auth=auth_settings,
+        token_verifier=token_verifier,
+    )
+
+
+mcp = _build_mcp()
 
 ProcessingMode = Literal["fast", "balanced", "quality"]
 OutputFormat = Literal["vertical", "vertical_pan", "vertical_split", "original"]
@@ -51,6 +125,20 @@ TERMINAL_STATES = {"completed", "error", "cancelled"}
 # --------------------------------------------------------------------------- #
 def _json(data: object) -> str:
     return json.dumps(data, indent=2, default=str, ensure_ascii=False)
+
+
+def _client() -> SupoClipClient:
+    access_token = get_access_token()
+    if access_token and access_token.token:
+        return SupoClipClient(
+            replace(
+                SETTINGS,
+                api_key=access_token.token,
+                user_id=None,
+                auth_secret=None,
+            )
+        )
+    return CLIENT
 
 
 def tool_errors(func: Callable[..., Awaitable[str]]) -> Callable[..., Awaitable[str]]:
@@ -105,15 +193,16 @@ async def supoclip_health() -> str:
         whether the server is ``authenticated``, the download directory, and the
         backend's reported version/status.
     """
-    root = await CLIENT.request("GET", "/", authenticated=False)
-    health = await CLIENT.request("GET", "/health", authenticated=False)
+    root = await _client().request("GET", "/", authenticated=False)
+    health = await _client().request("GET", "/health", authenticated=False)
     return _json(
         {
             "configured": {
                 "api_url": SETTINGS.api_url,
-                "auth_mode": SETTINGS.auth_mode,
-                "authenticated": SETTINGS.is_authenticated,
+                "auth_mode": "bearer_token" if get_access_token() else SETTINGS.auth_mode,
+                "authenticated": bool(get_access_token()) or SETTINGS.is_authenticated,
                 "download_dir": SETTINGS.download_dir,
+                "mcp_transport": SETTINGS.mcp_transport,
             },
             "backend": root,
             "health": health,
@@ -142,7 +231,7 @@ async def supoclip_list_caption_templates() -> str:
         str: JSON ``{"templates": [{"id", "name", "description", "animation",
         "font_family", "font_size", "font_color", ...}]}``.
     """
-    data = await CLIENT.request("GET", "/caption-templates", authenticated=False)
+    data = await _client().request("GET", "/caption-templates", authenticated=False)
     return _json(data)
 
 
@@ -163,7 +252,7 @@ async def supoclip_list_transitions() -> str:
     Returns:
         str: JSON ``{"transitions": [{"name", "display_name", "file_path"}]}``.
     """
-    data = await CLIENT.request("GET", "/transitions", authenticated=False)
+    data = await _client().request("GET", "/transitions", authenticated=False)
     return _json(data)
 
 
@@ -187,7 +276,7 @@ async def supoclip_broll_status() -> str:
     Returns:
         str: JSON ``{"configured": bool, "provider": str | null}``.
     """
-    data = await CLIENT.request("GET", "/broll/status", authenticated=False)
+    data = await _client().request("GET", "/broll/status", authenticated=False)
     return _json(data)
 
 
@@ -214,7 +303,7 @@ async def supoclip_list_fonts() -> str:
     Returns:
         str: JSON ``{"fonts": [{"name", "display_name", ...}]}``.
     """
-    data = await CLIENT.request("GET", "/fonts")
+    data = await _client().request("GET", "/fonts")
     return _json(data)
 
 
@@ -240,7 +329,7 @@ async def supoclip_billing_summary() -> str:
         ``usage_limit``, ``remaining``, ``upgrade_required`` and
         ``monetization_enabled``.
     """
-    data = await CLIENT.request("GET", "/tasks/billing/summary")
+    data = await _client().request("GET", "/tasks/billing/summary")
     return _json(data)
 
 
@@ -384,7 +473,7 @@ async def supoclip_create_clip_task(
     if remove_filler_words is not None:
         body["remove_filler_words"] = remove_filler_words
 
-    data = await CLIENT.request("POST", "/tasks/", json_body=body)
+    data = await _client().request("POST", "/tasks/", json_body=body)
     return _json(data)
 
 
@@ -415,7 +504,7 @@ async def supoclip_list_tasks(
     Returns:
         str: JSON ``{"tasks": [{"id", "status", "progress", "title", ...}], "total": int}``.
     """
-    data = await CLIENT.request("GET", "/tasks/", params={"limit": limit})
+    data = await _client().request("GET", "/tasks/", params={"limit": limit})
     return _json(data)
 
 
@@ -445,7 +534,7 @@ async def supoclip_get_task(
         error/cancelled), ``progress`` (0-100), ``progress_message`` and a
         ``clips`` array (each with ``id``, ``filename``, timing and scores).
     """
-    data = await CLIENT.request("GET", f"/tasks/{task_id}")
+    data = await _client().request("GET", f"/tasks/{task_id}")
     return _json(data)
 
 
@@ -489,7 +578,7 @@ async def supoclip_wait_for_task(
     deadline = time.monotonic() + timeout_seconds
     last: dict = {}
     while True:
-        last = await CLIENT.request("GET", f"/tasks/{task_id}")
+        last = await _client().request("GET", f"/tasks/{task_id}")
         status = str(last.get("status", "unknown"))
         progress = last.get("progress", 0)
 
@@ -544,7 +633,7 @@ async def supoclip_list_clips(
         str: JSON ``{"task_id", "clips": [{"id", "filename", "start_time",
         "end_time", "virality_score", ...}], "total_clips": int}``.
     """
-    data = await CLIENT.request("GET", f"/tasks/{task_id}/clips")
+    data = await _client().request("GET", f"/tasks/{task_id}/clips")
     return _json(data)
 
 
@@ -585,7 +674,7 @@ async def supoclip_download_clip(
         local path of the saved MP4.
     """
     out_name = _safe_filename(filename or "", default=f"clip_{clip_id}.mp4")
-    result = await CLIENT.download(
+    result = await _client().download(
         f"/tasks/{task_id}/clips/{clip_id}/file", SETTINGS.download_dir, out_name
     )
     return _json(result)
@@ -629,7 +718,7 @@ async def supoclip_export_clip(
         str: JSON ``{"path": str, "filename": str, "bytes": int}``.
     """
     out_name = _safe_filename(filename or "", default=f"clip_{clip_id}_{preset}.mp4")
-    result = await CLIENT.download(
+    result = await _client().download(
         f"/tasks/{task_id}/clips/{clip_id}/export",
         SETTINGS.download_dir,
         out_name,
@@ -663,7 +752,7 @@ async def supoclip_cancel_task(
     Returns:
         str: JSON ``{"message": str}``.
     """
-    data = await CLIENT.request("POST", f"/tasks/{task_id}/cancel")
+    data = await _client().request("POST", f"/tasks/{task_id}/cancel")
     return _json(data)
 
 
@@ -689,7 +778,7 @@ async def supoclip_resume_task(
     Returns:
         str: JSON ``{"message": str, "job_id": str}``.
     """
-    data = await CLIENT.request("POST", f"/tasks/{task_id}/resume")
+    data = await _client().request("POST", f"/tasks/{task_id}/resume")
     return _json(data)
 
 
@@ -717,13 +806,13 @@ async def supoclip_delete_task(
     Returns:
         str: JSON ``{"message": str}``.
     """
-    data = await CLIENT.request("DELETE", f"/tasks/{task_id}")
+    data = await _client().request("DELETE", f"/tasks/{task_id}")
     return _json(data)
 
 
 def main() -> None:
-    """Console-script entry point: run the server over stdio."""
-    mcp.run()
+    """Console-script entry point."""
+    mcp.run(transport=SETTINGS.mcp_transport, mount_path=SETTINGS.mcp_mount_path)
 
 
 if __name__ == "__main__":

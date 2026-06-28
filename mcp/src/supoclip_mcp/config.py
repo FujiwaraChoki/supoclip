@@ -33,6 +33,12 @@ class Settings:
     auth_secret: Optional[str]
     download_dir: str
     timeout: float
+    mcp_transport: str
+    mcp_host: str
+    mcp_port: int
+    mcp_mount_path: str
+    mcp_public_url: Optional[str]
+    mcp_require_bearer_auth: bool
 
     @property
     def auth_mode(self) -> str:
@@ -63,6 +69,18 @@ def load_settings() -> Settings:
     except ValueError:
         timeout = 60.0
 
+    raw_port = _clean(os.getenv("SUPOCLIP_MCP_PORT"))
+    try:
+        mcp_port = int(raw_port) if raw_port else 9100
+    except ValueError:
+        mcp_port = 9100
+
+    transport = (_clean(os.getenv("SUPOCLIP_MCP_TRANSPORT")) or "stdio").lower()
+    if transport == "http":
+        transport = "streamable-http"
+    if transport not in {"stdio", "sse", "streamable-http"}:
+        transport = "stdio"
+
     return Settings(
         api_url=api_url,
         api_key=_clean(os.getenv("SUPOCLIP_API_KEY")),
@@ -70,4 +88,13 @@ def load_settings() -> Settings:
         auth_secret=_clean(os.getenv("SUPOCLIP_AUTH_SECRET")),
         download_dir=download_dir,
         timeout=timeout,
+        mcp_transport=transport,
+        mcp_host=_clean(os.getenv("SUPOCLIP_MCP_HOST")) or "127.0.0.1",
+        mcp_port=mcp_port,
+        mcp_mount_path=_clean(os.getenv("SUPOCLIP_MCP_MOUNT_PATH")) or "/",
+        mcp_public_url=_clean(os.getenv("SUPOCLIP_MCP_PUBLIC_URL")),
+        mcp_require_bearer_auth=(
+            (_clean(os.getenv("SUPOCLIP_MCP_REQUIRE_BEARER_AUTH")) or "").lower()
+            in {"1", "true", "yes", "on"}
+        ),
     )
