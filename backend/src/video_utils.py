@@ -189,7 +189,16 @@ def _submit_and_wait_for_assemblyai_transcript(
         time.sleep(aai.settings.polling_interval)
 
 
-def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
+def _assemblyai_speech_model_value(speech_model: str):
+    normalized = (speech_model or "universal").strip().lower()
+    if normalized in {"nano", "best", "universal", "universal-2", "universal-3-pro"}:
+        return aai.SpeechModel.universal
+    if normalized in {"slam-1", "slam_1"}:
+        return aai.SpeechModel.slam_1
+    return aai.SpeechModel.universal
+
+
+def get_video_transcript(video_path: Path, speech_model: str = "universal") -> str:
     """Get transcript using AssemblyAI with word-level timing for precise subtitles."""
     logger.info(f"Getting transcript for: {video_path}")
 
@@ -200,9 +209,7 @@ def get_video_transcript(video_path: Path, speech_model: str = "best") -> str:
     transcriber = aai.Transcriber()
 
     # Request word-level timestamps for precise subtitle sync
-    speech_model_value = aai.SpeechModel.best
-    if speech_model == "nano":
-        speech_model_value = aai.SpeechModel.nano
+    speech_model_value = _assemblyai_speech_model_value(speech_model)
 
     config_obj = aai.TranscriptionConfig(
         speaker_labels=True,
