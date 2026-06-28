@@ -134,6 +134,35 @@ services:
       retries: 5
       start_period: 60s
 
+  mcp:
+    build:
+      context: ./mcp
+      dockerfile: Dockerfile
+    container_name: supoclip-mcp
+    ports:
+      - "127.0.0.1:${SUPOCLIP_MCP_PORT:-9100}:9100"
+    volumes:
+      - mcp_downloads:/app/supoclip-downloads
+    environment:
+      - SUPOCLIP_API_URL=${SUPOCLIP_API_URL:-http://backend:8000}
+      - SUPOCLIP_DOWNLOAD_DIR=/app/supoclip-downloads
+      - SUPOCLIP_TIMEOUT=${SUPOCLIP_TIMEOUT:-60}
+      - SUPOCLIP_MCP_TRANSPORT=${SUPOCLIP_MCP_TRANSPORT:-sse}
+      - SUPOCLIP_MCP_HOST=0.0.0.0
+      - SUPOCLIP_MCP_PORT=9100
+      - SUPOCLIP_MCP_PUBLIC_URL=${SUPOCLIP_MCP_PUBLIC_URL:-http://localhost:9100}
+      - SUPOCLIP_MCP_REQUIRE_BEARER_AUTH=${SUPOCLIP_MCP_REQUIRE_BEARER_AUTH:-true}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 9100), 5); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
   # Worker process for background video processing
   worker:
     build:
@@ -249,6 +278,8 @@ volumes:
   redis_data:
     driver: local
   postgres_data:
+    driver: local
+  mcp_downloads:
     driver: local
 
 networks:

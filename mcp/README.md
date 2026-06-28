@@ -77,6 +77,33 @@ pip install -e .
 supoclip-mcp
 ```
 
+## Hosted SSE server
+
+For clients that add a remote MCP URL, run the server over SSE and require a
+SupoClip API key as the client Bearer token:
+
+```bash
+SUPOCLIP_API_URL=https://api.supoclip.com \
+SUPOCLIP_MCP_TRANSPORT=sse \
+SUPOCLIP_MCP_HOST=0.0.0.0 \
+SUPOCLIP_MCP_PORT=9100 \
+SUPOCLIP_MCP_PUBLIC_URL=https://mcp.supoclip.com \
+SUPOCLIP_MCP_REQUIRE_BEARER_AUTH=true \
+supoclip-mcp
+```
+
+Then configure the MCP client with:
+
+```text
+Server URL: https://mcp.supoclip.com/sse
+Transport: SSE
+Authentication: Bearer Token
+Token: sk_your_supoclip_api_key
+```
+
+With Docker Compose, the `mcp` service runs this mode by default and binds to
+`127.0.0.1:9100` for a reverse proxy.
+
 ## Use with Claude Desktop / Claude Code
 
 Add to your MCP client config (e.g. `claude_desktop_config.json`, or via
