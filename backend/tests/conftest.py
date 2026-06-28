@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.config import Config
+from src.config import Config, set_config_override
 from src.database import configure_database, init_db, reset_database_state
 from src.main_refactored import create_app
 
@@ -90,7 +90,10 @@ async def app(db_session):
     config.redis_port = int(os.getenv("REDIS_PORT", "6379"))
 
     test_app = create_app(config=config, queue_adapter=FakeQueueAdapter)
-    return test_app
+    try:
+        yield test_app
+    finally:
+        set_config_override(None)
 
 
 @pytest.fixture()

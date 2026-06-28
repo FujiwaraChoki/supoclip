@@ -119,7 +119,14 @@ def _prepare_audio_for_transcription(video_path: Path) -> Path:
         "64k",
         str(audio_path),
     ]
-    result = run_ffmpeg_command(command, timeout=900)
+    try:
+        result = run_ffmpeg_command(command, timeout=900)
+    except FileNotFoundError:
+        logger.warning(
+            "ffmpeg is not available; falling back to source video for transcription"
+        )
+        return video_path
+
     if result.returncode != 0 or not audio_path.exists() or audio_path.stat().st_size == 0:
         logger.warning(
             "Failed to extract transcription audio with ffmpeg; falling back to source video"

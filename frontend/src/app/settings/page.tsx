@@ -15,7 +15,7 @@ import { signOut, useSession } from "@/lib/auth-client";
 import { formatBillingPlanName, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail } from "lucide-react";
+import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight } from "lucide-react";
 
 interface UserPreferences {
   fontFamily: string;
@@ -453,6 +453,31 @@ export default function SettingsPage() {
                   disabled={isLoading}
                 />
               </div>
+            </div>
+
+            {/* Developer Section */}
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-black mb-1">
+                  Developer
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Programmatic access for tools like the SupoClip MCP server
+                </p>
+              </div>
+
+              <Link href="/settings/api-keys" className="block">
+                <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <KeyRound className="w-5 h-5 text-black" />
+                    <div>
+                      <p className="text-sm font-medium text-black">API Keys</p>
+                      <p className="text-xs text-gray-500">Create and manage API keys</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                </div>
+              </Link>
             </div>
 
             <Separator className="mb-4" />
