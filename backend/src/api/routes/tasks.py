@@ -32,6 +32,60 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
+@router.post("/upload-reference-image")
+async def upload_reference_image(request: Request):
+    """Upload a reference image for pattern-based clip generation."""
+    try:
+        import aiofiles
+        import uuid
+
+        _get_user_id_from_headers(request)
+
+        form_data = await request.form()
+        image_file = form_data.get("image")
+
+        if not image_file or not hasattr(image_file, "filename"):
+            raise HTTPException(status_code=400, detail="No image file provided")
+
+        # Validate file type
+        allowed_types = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
+        content_type = image_file.content_type or ""
+        if content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type: {content_type}. Allowed: PNG, JPG, JPEG, WEBP",
+            )
+
+        # Create uploads directory
+        config = get_config()
+        uploads_dir = Path(config.temp_dir) / "uploads"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate unique filename
+        file_extension = Path(image_file.filename).suffix or ".png"
+        unique_filename = f"ref_{uuid.uuid4()}{file_extension}"
+        image_path = uploads_dir / unique_filename
+
+        # Save the uploaded file
+        async with aiofiles.open(image_path, "wb") as f:
+            content = await image_file.read()
+            await f.write(content)
+
+        logger.info(f"Reference image uploaded to: {image_path}")
+
+        return {
+            "message": "Reference image uploaded successfully",
+            "reference_image_path": f"upload://{unique_filename}",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading reference image: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error uploading reference image: {str(e)}"
+        )
+
+
 def _normalize_font_size(value: Any, default: int = 24) -> int:
     try:
         parsed = int(value)
@@ -205,6 +259,28 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
+    # Pattern-based clip generation parameters
+    clip_generation_method = data.get("clip_generation_method", "ai")
+    if clip_generation_method not in {"ai", "pattern", "both"}:
+        clip_generation_method = "ai"
+    reference_image_path = data.get("reference_image_path")
+    pattern_match_threshold = float(
+        data.get("pattern_match_threshold", runtime_config.pattern_match_threshold)
+    )
+    pattern_clip_window = int(
+        data.get("pattern_clip_window", runtime_config.pattern_clip_window)
+    )
+    pattern_frame_interval = int(
+        data.get("pattern_frame_interval", runtime_config.pattern_frame_interval)
+    )
+
+    # Validate pattern method requires reference image
+    if clip_generation_method in ("pattern", "both") and not reference_image_path:
+        raise HTTPException(
+            status_code=400,
+            detail="Reference image is required for pattern-based clip generation",
+        )
+
     try:
         billing_service = BillingService(db)
         await billing_service.assert_can_create_task(user_id)
@@ -222,6 +298,11 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             caption_template=caption_template,
             include_broll=include_broll,
             processing_mode=processing_mode,
+            clip_generation_method=clip_generation_method,
+            reference_image_path=reference_image_path,
+            pattern_match_threshold=pattern_match_threshold,
+            pattern_clip_window=pattern_clip_window,
+            pattern_frame_interval=pattern_frame_interval,
         )
 
         # Get source type for worker
@@ -246,6 +327,11 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             output_format,
             add_subtitles,
             cleanup_settings,
+            clip_generation_method=clip_generation_method,
+            reference_image_path=reference_image_path,
+            pattern_match_threshold=pattern_match_threshold,
+            pattern_clip_window=pattern_clip_window,
+            pattern_frame_interval=pattern_frame_interval,
         )
 
         # Save source metadata for resume/retries in environments without sources.url column

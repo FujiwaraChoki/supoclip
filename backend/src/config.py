@@ -20,6 +20,9 @@ class Config:
         self.ollama_api_key = self._get_runtime_setting("OLLAMA_API_KEY")
 
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
+        self.transcription_provider = self._normalize_transcription_provider(
+            os.getenv("TRANSCRIPTION_PROVIDER", "assemblyai")
+        )
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
         self.assembly_ai_http_timeout_seconds = int(
@@ -41,6 +44,9 @@ class Config:
         )
 
         self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
+        self.max_video_duration_pattern = int(
+            os.getenv("MAX_VIDEO_DURATION_PATTERN", "14400")
+        )
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 
         self.max_clips = int(os.getenv("MAX_CLIPS", "10"))
@@ -90,6 +96,15 @@ class Config:
         self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "4"))
         self.fast_mode_transcript_model = os.getenv(
             "FAST_MODE_TRANSCRIPT_MODEL", "nano"
+        )
+
+        # Pattern-based clip generation defaults
+        self.pattern_match_threshold = float(
+            os.getenv("PATTERN_MATCH_THRESHOLD", "0.7")
+        )
+        self.pattern_clip_window = int(os.getenv("PATTERN_CLIP_WINDOW", "60"))
+        self.pattern_frame_interval = int(
+            os.getenv("PATTERN_FRAME_INTERVAL", "2")
         )
 
     @staticmethod
@@ -174,6 +189,13 @@ class Config:
         if os.path.exists("/.dockerenv"):
             return DOCKER_OLLAMA_BASE_URL
         return LOCAL_OLLAMA_BASE_URL
+
+    @staticmethod
+    def _normalize_transcription_provider(value: str | None) -> str:
+        normalized = (value or "").strip().lower().replace("-", "_")
+        if normalized in ("whisper", "youtube_captions"):
+            return normalized
+        return "assemblyai"
 
     def _infer_default_llm(self) -> str:
         """

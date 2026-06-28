@@ -2,7 +2,7 @@
 Task service - orchestrates task creation and processing workflow.
 """
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from typing import Dict, Any, Optional, Callable
 import logging
 from datetime import datetime
@@ -95,6 +95,11 @@ class TaskService:
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
+        clip_generation_method: str = "ai",
+        reference_image_path: Optional[str] = None,
+        pattern_match_threshold: float = 0.7,
+        pattern_clip_window: int = 60,
+        pattern_frame_interval: int = 2,
     ) -> str:
         """
         Create a new task with associated source.
@@ -103,6 +108,16 @@ class TaskService:
         # Validate user exists
         if not await self.task_repo.user_exists(self.db, user_id):
             raise ValueError(f"User {user_id} not found")
+
+        # Validate clip generation method
+        if clip_generation_method not in {"ai", "pattern", "both"}:
+            clip_generation_method = "ai"
+
+        # Validate pattern method requires reference image
+        if clip_generation_method in ("pattern", "both") and not reference_image_path:
+            raise ValueError(
+                "Reference image is required for pattern-based clip generation"
+            )
 
         # Determine source type
         source_type = self.video_service.determine_source_type(url)
@@ -131,6 +146,11 @@ class TaskService:
             caption_template=caption_template,
             include_broll=include_broll,
             processing_mode=processing_mode,
+            clip_generation_method=clip_generation_method,
+            reference_image_path=reference_image_path,
+            pattern_match_threshold=pattern_match_threshold,
+            pattern_clip_window=pattern_clip_window,
+            pattern_frame_interval=pattern_frame_interval,
         )
 
         logger.info(f"Created task {task_id} for user {user_id}")
@@ -152,10 +172,21 @@ class TaskService:
         should_cancel: Optional[Callable] = None,
         clip_ready_callback: Optional[Callable] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        clip_generation_method: str = "ai",
+        reference_image_path: Optional[str] = None,
+        pattern_match_threshold: float = 0.7,
+        pattern_clip_window: int = 60,
+        pattern_frame_interval: int = 2,
+        session_factory: Optional[async_sessionmaker[AsyncSession]] = None,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
         Returns processing results.
+
+        When *session_factory* is provided (worker usage), short-lived sessions
+        are created for each DB operation phase instead of holding a single
+        connection for the entire pipeline.  This prevents connection-pool
+        exhaustion during long-running video processing.
         """
         try:
             logger.info(f"Starting processing for task {task_id}")
@@ -163,63 +194,164 @@ class TaskService:
             stage_timings: Dict[str, float] = {}
             cache_key = self._build_cache_key(url, source_type, processing_mode)
 
-            cache_entry = await self.cache_repo.get_cache(self.db, cache_key)
-            cached_transcript = (
-                cache_entry.get("transcript_text") if cache_entry else None
-            )
-            cached_analysis_json = (
-                cache_entry.get("analysis_json") if cache_entry else None
-            )
-            cache_hit = bool(cached_transcript and cached_analysis_json)
+            # Helper: get a short-lived session from the factory, or use self.db
+            def _get_db():
+                if session_factory is not None:
+                    return session_factory()
+                # Wrap self.db in a dummy context manager that doesn't close it
+                from contextlib import asynccontextmanager
 
-            await self.task_repo.update_task_runtime_metadata(
-                self.db,
-                task_id,
-                started_at=started_at,
-                cache_hit=cache_hit,
-            )
+                @asynccontextmanager
+                async def _keep():
+                    yield self.db
 
-            # Update status to processing
-            await self.task_repo.update_task_status(
-                self.db,
-                task_id,
-                "processing",
-                progress=0,
-                progress_message="Starting...",
-            )
+                return _keep()
 
-            # Progress callback wrapper
+            # --- Phase 1: cache lookup & status setup (quick DB ops) ---
+            async with _get_db() as db:
+                cache_entry = await self.cache_repo.get_cache(db, cache_key)
+                cached_transcript = (
+                    cache_entry.get("transcript_text") if cache_entry else None
+                )
+                cached_analysis_json = (
+                    cache_entry.get("analysis_json") if cache_entry else None
+                )
+                cache_hit = bool(cached_transcript and cached_analysis_json)
+
+                await self.task_repo.update_task_runtime_metadata(
+                    db,
+                    task_id,
+                    started_at=started_at,
+                    cache_hit=cache_hit,
+                )
+
+                # Update status to processing
+                await self.task_repo.update_task_status(
+                    db,
+                    task_id,
+                    "processing",
+                    progress=0,
+                    progress_message="Starting...",
+                )
+
+            # Progress callback wrapper – reopens a session per DB write
             async def update_progress(
                 progress: int, message: str, status: str = "processing"
             ):
-                await self.task_repo.update_task_status(
-                    self.db,
-                    task_id,
-                    status,
-                    progress=progress,
-                    progress_message=message,
-                )
+                async with _get_db() as db:
+                    await self.task_repo.update_task_status(
+                        db,
+                        task_id,
+                        status,
+                        progress=progress,
+                        progress_message=message,
+                    )
                 if progress_callback:
                     await progress_callback(progress, message, status)
 
-            # Process video with progress updates
+            # --- Phase 2: Heavy video processing (NO DB connection held) ---
             pipeline_start = perf_counter()
-            result = await self.video_service.process_video_complete(
-                url=url,
-                source_type=source_type,
-                task_id=task_id,
-                font_family=font_family,
-                font_size=font_size,
-                font_color=font_color,
-                caption_template=caption_template,
-                processing_mode=processing_mode,
-                output_format=output_format,
-                add_subtitles=add_subtitles,
-                cached_transcript=cached_transcript,
-                cached_analysis_json=cached_analysis_json,
-                progress_callback=update_progress,
-                should_cancel=should_cancel,
-            )
+
+            # Branch based on clip generation method
+            if clip_generation_method == "pattern":
+                result = await self.video_service.process_video_pattern_based(
+                    url=url,
+                    source_type=source_type,
+                    task_id=task_id,
+                    reference_image_path=reference_image_path or "",
+                    match_threshold=pattern_match_threshold,
+                    clip_window_seconds=pattern_clip_window,
+                    frame_interval=pattern_frame_interval,
+                    font_family=font_family,
+                    font_size=font_size,
+                    font_color=font_color,
+                    caption_template=caption_template,
+                    output_format=output_format,
+                    add_subtitles=add_subtitles,
+                    progress_callback=update_progress,
+                    should_cancel=should_cancel,
+                )
+            elif clip_generation_method == "both":
+                # Run AI pipeline (may fail for long videos)
+                ai_segments = []
+                ai_result = None
+                try:
+                    ai_result = await self.video_service.process_video_complete(
+                        url=url,
+                        source_type=source_type,
+                        task_id=task_id,
+                        font_family=font_family,
+                        font_size=font_size,
+                        font_color=font_color,
+                        caption_template=caption_template,
+                        processing_mode=processing_mode,
+                        output_format=output_format,
+                        add_subtitles=add_subtitles,
+                        cached_transcript=cached_transcript,
+                        cached_analysis_json=cached_analysis_json,
+                        progress_callback=update_progress,
+                        should_cancel=should_cancel,
+                    )
+                    ai_segments = ai_result.get("segments_to_render", [])
+                except Exception as e:
+                    logger.warning(f"AI pipeline failed in 'both' mode, continuing with pattern only: {e}")
+
+                # Run pattern pipeline
+                pattern_result = await self.video_service.process_video_pattern_based(
+                    url=url,
+                    source_type=source_type,
+                    task_id=task_id,
+                    reference_image_path=reference_image_path or "",
+                    match_threshold=pattern_match_threshold,
+                    clip_window_seconds=pattern_clip_window,
+                    frame_interval=pattern_frame_interval,
+                    font_family=font_family,
+                    font_size=font_size,
+                    font_color=font_color,
+                    caption_template=caption_template,
+                    output_format=output_format,
+                    add_subtitles=add_subtitles,
+                    progress_callback=update_progress,
+                    should_cancel=should_cancel,
+                )
+                pattern_segments = pattern_result.get("segments_to_render", [])
+
+                if not ai_segments and not pattern_segments:
+                    raise ValueError(
+                        "Both AI and pattern pipelines failed to find any segments."
+                    )
+
+                # Combine both (keep both, no deduplication)
+                combined_segments = ai_segments + pattern_segments
+                result = {
+                    "segments": combined_segments,
+                    "segments_to_render": combined_segments,
+                    "video_path": (ai_result or pattern_result).get("video_path"),
+                    "clips": [],
+                    "summary": ai_result.get("summary") if ai_result else None,
+                    "key_topics": ai_result.get("key_topics") if ai_result else None,
+                    "transcript": ai_result.get("transcript") if ai_result else None,
+                    "analysis_json": ai_result.get("analysis_json") if ai_result else None,
+                }
+            else:
+                # Default: AI-based (current behavior)
+                result = await self.video_service.process_video_complete(
+                    url=url,
+                    source_type=source_type,
+                    task_id=task_id,
+                    font_family=font_family,
+                    font_size=font_size,
+                    font_color=font_color,
+                    caption_template=caption_template,
+                    processing_mode=processing_mode,
+                    output_format=output_format,
+                    add_subtitles=add_subtitles,
+                    cached_transcript=cached_transcript,
+                    cached_analysis_json=cached_analysis_json,
+                    progress_callback=update_progress,
+                    should_cancel=should_cancel,
+                )
+
             stage_timings["pipeline_seconds"] = round(
                 perf_counter() - pipeline_start, 3
             )
@@ -228,29 +360,30 @@ class TaskService:
                 **(cleanup_settings or {})
             )
 
-            # Render clips incrementally: render, save, notify one at a time
             segments_to_render = result.get("segments_to_render", [])
             if not segments_to_render:
-                await self.cache_repo.upsert_cache(
-                    self.db,
-                    cache_key=cache_key,
-                    source_url=url,
-                    source_type=source_type,
-                    transcript_text=result.get("transcript"),
-                    analysis_json=None,
-                )
+                async with _get_db() as db:
+                    await self.cache_repo.upsert_cache(
+                        db,
+                        cache_key=cache_key,
+                        source_url=url,
+                        source_type=source_type,
+                        transcript_text=result.get("transcript"),
+                        analysis_json=None,
+                    )
                 raise ValueError(
                     "No usable clip segments were selected for this video."
                 )
 
-            await self.cache_repo.upsert_cache(
-                self.db,
-                cache_key=cache_key,
-                source_url=url,
-                source_type=source_type,
-                transcript_text=result.get("transcript"),
-                analysis_json=result.get("analysis_json"),
-            )
+            async with _get_db() as db:
+                await self.cache_repo.upsert_cache(
+                    db,
+                    cache_key=cache_key,
+                    source_url=url,
+                    source_type=source_type,
+                    transcript_text=result.get("transcript"),
+                    analysis_json=result.get("analysis_json"),
+                )
 
             video_path = Path(result["video_path"])
             total_clips = len(segments_to_render)
@@ -260,6 +393,7 @@ class TaskService:
             clip_ids = []
             render_start = perf_counter()
 
+            # --- Phase 3: Clip rendering & DB saves (short-lived sessions) ---
             for i, segment in enumerate(segments_to_render):
                 # Check cancellation
                 if should_cancel and await should_cancel():
@@ -274,7 +408,7 @@ class TaskService:
                     f"Creating clip {i + 1}/{total_clips}...",
                 )
 
-                # Render single clip in thread pool
+                # Render single clip in thread pool (NO DB needed)
                 clip_info = await self.video_service.create_single_clip(
                     video_path,
                     segment,
@@ -291,67 +425,71 @@ class TaskService:
                 if clip_info is None:
                     continue  # Skip failed clip
 
-                # Save to DB immediately
-                clip_id = await self.clip_repo.create_clip(
-                    self.db,
-                    task_id=task_id,
-                    filename=clip_info["filename"],
-                    file_path=clip_info["path"],
-                    start_time=clip_info["start_time"],
-                    end_time=clip_info["end_time"],
-                    duration=clip_info["duration"],
-                    text=clip_info.get("text", ""),
-                    relevance_score=clip_info.get("relevance_score", 0.0),
-                    reasoning=clip_info.get("reasoning", ""),
-                    clip_order=i + 1,
-                    virality_score=clip_info.get("virality_score", 0),
-                    hook_score=clip_info.get("hook_score", 0),
-                    engagement_score=clip_info.get("engagement_score", 0),
-                    value_score=clip_info.get("value_score", 0),
-                    shareability_score=clip_info.get("shareability_score", 0),
-                    hook_type=clip_info.get("hook_type"),
-                )
-                await self.db.commit()
+                # Save to DB immediately (short-lived session)
+                async with _get_db() as db:
+                    clip_id = await self.clip_repo.create_clip(
+                        db,
+                        task_id=task_id,
+                        filename=clip_info["filename"],
+                        file_path=clip_info["path"],
+                        start_time=clip_info["start_time"],
+                        end_time=clip_info["end_time"],
+                        duration=clip_info["duration"],
+                        text=clip_info.get("text", ""),
+                        relevance_score=clip_info.get("relevance_score", 0.0),
+                        reasoning=clip_info.get("reasoning", ""),
+                        clip_order=i + 1,
+                        virality_score=clip_info.get("virality_score", 0),
+                        hook_score=clip_info.get("hook_score", 0),
+                        engagement_score=clip_info.get("engagement_score", 0),
+                        value_score=clip_info.get("value_score", 0),
+                        shareability_score=clip_info.get("shareability_score", 0),
+                        hook_type=clip_info.get("hook_type"),
+                    )
+                    await db.commit()
+
                 clip_ids.append(clip_id)
 
-                # Update task's clip IDs array
-                await self.task_repo.update_task_clips(self.db, task_id, clip_ids)
+                async with _get_db() as db:
+                    # Update task's clip IDs array
+                    await self.task_repo.update_task_clips(db, task_id, clip_ids)
 
-                # Notify frontend via SSE
-                if clip_ready_callback:
-                    clip_record = await self.clip_repo.get_clip_by_id(
-                        self.db, clip_id
-                    )
-                    if clip_record:
-                        await clip_ready_callback(i, total_clips, clip_record)
+                    # Notify frontend via SSE
+                    if clip_ready_callback:
+                        clip_record = await self.clip_repo.get_clip_by_id(
+                            db, clip_id
+                        )
+                        if clip_record:
+                            await clip_ready_callback(i, total_clips, clip_record)
 
             stage_timings["render_seconds"] = round(
                 perf_counter() - render_start, 3
             )
 
-            # Mark as completed
-            await self.task_repo.update_task_status(
-                self.db,
-                task_id,
-                "completed",
-                progress=100,
-                progress_message="Complete!",
-            )
+            # --- Phase 4: Completion (short-lived session) ---
+            async with _get_db() as db:
+                await self.task_repo.update_task_status(
+                    db,
+                    task_id,
+                    "completed",
+                    progress=100,
+                    progress_message="Complete!",
+                )
 
-            if progress_callback:
-                await progress_callback(100, "Complete!", "completed")
+                if progress_callback:
+                    await progress_callback(100, "Complete!", "completed")
 
-            await self.task_repo.update_task_runtime_metadata(
-                self.db,
-                task_id,
-                completed_at=datetime.utcnow(),
-                stage_timings_json=json.dumps(stage_timings),
-                error_code="",
-            )
-            await self._send_completion_notification_if_needed(
-                task_id=task_id,
-                clips_count=len(clip_ids),
-            )
+                await self.task_repo.update_task_runtime_metadata(
+                    db,
+                    task_id,
+                    completed_at=datetime.utcnow(),
+                    stage_timings_json=json.dumps(stage_timings),
+                    error_code="",
+                )
+                await self._send_completion_notification_if_needed(
+                    task_id=task_id,
+                    clips_count=len(clip_ids),
+                )
 
             logger.info(
                 f"Task {task_id} completed successfully with {len(clip_ids)} clips"
@@ -368,34 +506,36 @@ class TaskService:
         except Exception as e:
             logger.error(f"Error processing task {task_id}: {e}")
             if str(e) == "Task cancelled":
-                await self.task_repo.update_task_status(
-                    self.db,
-                    task_id,
-                    "cancelled",
-                    progress=0,
-                    progress_message="Cancelled by user",
-                )
+                async with _get_db() as db:
+                    await self.task_repo.update_task_status(
+                        db,
+                        task_id,
+                        "cancelled",
+                        progress=0,
+                        progress_message="Cancelled by user",
+                    )
                 raise
-            await self.task_repo.update_task_status(
-                self.db, task_id, "error", progress_message=str(e)
-            )
-            error_code = "task_error"
-            message = str(e).lower()
-            if "download" in message or "youtube" in message:
-                error_code = "download_error"
-            elif "analysis" in message:
-                error_code = "analysis_error"
-            elif "transcript" in message:
-                error_code = "transcription_error"
-            elif "cancelled" in message:
-                error_code = "cancelled"
+            async with _get_db() as db:
+                await self.task_repo.update_task_status(
+                    db, task_id, "error", progress_message=str(e)
+                )
+                error_code = "task_error"
+                message = str(e).lower()
+                if "download" in message or "youtube" in message:
+                    error_code = "download_error"
+                elif "analysis" in message:
+                    error_code = "analysis_error"
+                elif "transcript" in message:
+                    error_code = "transcription_error"
+                elif "cancelled" in message:
+                    error_code = "cancelled"
 
-            await self.task_repo.update_task_runtime_metadata(
-                self.db,
-                task_id,
-                completed_at=datetime.utcnow(),
-                error_code=error_code,
-            )
+                await self.task_repo.update_task_runtime_metadata(
+                    db,
+                    task_id,
+                    completed_at=datetime.utcnow(),
+                    error_code=error_code,
+                )
             raise
 
     async def _send_completion_notification_if_needed(

@@ -27,6 +27,11 @@ async def process_video_task(
     output_format: str = "vertical",
     add_subtitles: bool = True,
     cleanup_settings: Dict[str, Any] | None = None,
+    clip_generation_method: str = "ai",
+    reference_image_path: str | None = None,
+    pattern_match_threshold: float = 0.7,
+    pattern_clip_window: int = 60,
+    pattern_frame_interval: int = 2,
 ) -> Dict[str, Any]:
     """
     Background worker task to process a video.
@@ -44,7 +49,7 @@ async def process_video_task(
     Returns:
         Dict with processing results
     """
-    from ..database import AsyncSessionLocal
+    from ..database import AsyncSessionLocal, get_session_maker
     from ..runtime_settings import load_runtime_settings_cache
     from ..services.task_service import TaskService
     from ..workers.progress import ProgressTracker
@@ -55,68 +60,80 @@ async def process_video_task(
     # Create progress tracker
     progress = ProgressTracker(ctx["redis"], task_id)
 
+    # Load runtime settings with a short-lived session
     async with AsyncSessionLocal() as db:
         await load_runtime_settings_cache(db)
-        task_service = TaskService(db)
 
+    # Create TaskService – pass session_factory so process_task opens
+    # short-lived sessions per phase instead of holding one for hours.
+    session_factory = get_session_maker()
+    task_service = TaskService(AsyncSessionLocal(), config=None)
+
+    try:
+        # Progress callback
+        async def update_progress(
+            percent: int, message: str, status: str = "processing"
+        ):
+            await progress.update(percent, message, status)
+            logger.info(f"Task {task_id}: {percent}% - {message}")
+
+        async def should_cancel() -> bool:
+            cancelled = await ctx["redis"].get(f"task_cancel:{task_id}")
+            return bool(cancelled)
+
+        async def clip_ready_callback(
+            clip_index: int, total_clips: int, clip_data: dict
+        ):
+            await progress.clip_ready(clip_index, total_clips, clip_data)
+
+        # Process the video – session_factory lets process_task create
+        # short-lived sessions per DB phase, avoiding pool exhaustion.
+        result = await task_service.process_task(
+            task_id=task_id,
+            url=url,
+            source_type=source_type,
+            font_family=font_family,
+            font_size=font_size,
+            font_color=font_color,
+            caption_template=caption_template,
+            processing_mode=processing_mode,
+            output_format=output_format,
+            add_subtitles=add_subtitles,
+            progress_callback=update_progress,
+            should_cancel=should_cancel,
+            clip_ready_callback=clip_ready_callback,
+            cleanup_settings=cleanup_settings,
+            clip_generation_method=clip_generation_method,
+            reference_image_path=reference_image_path,
+            pattern_match_threshold=pattern_match_threshold,
+            pattern_clip_window=pattern_clip_window,
+            pattern_frame_interval=pattern_frame_interval,
+            session_factory=session_factory,
+        )
+
+        logger.info(f"Task {task_id} completed successfully")
+        return result
+
+    except Exception as e:
+        logger.error(f"Task {task_id} failed: {e}", exc_info=True)
         try:
-            # Progress callback
-            async def update_progress(
-                percent: int, message: str, status: str = "processing"
-            ):
-                await progress.update(percent, message, status)
-                logger.info(f"Task {task_id}: {percent}% - {message}")
-
-            async def should_cancel() -> bool:
-                cancelled = await ctx["redis"].get(f"task_cancel:{task_id}")
-                return bool(cancelled)
-
-            async def clip_ready_callback(
-                clip_index: int, total_clips: int, clip_data: dict
-            ):
-                await progress.clip_ready(clip_index, total_clips, clip_data)
-
-            # Process the video
-            result = await task_service.process_task(
-                task_id=task_id,
-                url=url,
-                source_type=source_type,
-                font_family=font_family,
-                font_size=font_size,
-                font_color=font_color,
-                caption_template=caption_template,
-                processing_mode=processing_mode,
-                output_format=output_format,
-                add_subtitles=add_subtitles,
-                progress_callback=update_progress,
-                should_cancel=should_cancel,
-                clip_ready_callback=clip_ready_callback,
-                cleanup_settings=cleanup_settings,
-            )
-
-            logger.info(f"Task {task_id} completed successfully")
-            return result
-
-        except Exception as e:
-            logger.error(f"Task {task_id} failed: {e}", exc_info=True)
-            try:
-                job_try = int(ctx.get("job_try", 1))
-                max_tries = int(getattr(WorkerSettings, "max_tries", 3))
-                if job_try >= max_tries:
-                    payload = {
-                        "task_id": task_id,
-                        "error": str(e),
-                        "tries": job_try,
-                    }
-                    await ctx["redis"].set(
-                        f"dead_letter:{task_id}", json.dumps(payload)
-                    )
-                    await ctx["redis"].sadd("tasks:dead_letter", task_id)
-                    await progress.error("Task failed permanently after retries")
-            except Exception:
-                logger.exception("Failed to persist dead-letter payload")
-            # Error will be caught by arq and task status will be updated
-            raise
+            job_try = int(ctx.get("job_try", 1))
+            max_tries = int(getattr(WorkerSettings, "max_tries", 3))
+            if job_try >= max_tries:
+                payload = {
+                    "task_id": task_id,
+                    "error": str(e),
+                    "tries": job_try,
+                }
+                await ctx["redis"].set(
+                    f"dead_letter:{task_id}", json.dumps(payload)
+                )
+                await ctx["redis"].sadd("tasks:dead_letter", task_id)
+                await progress.error("Task failed permanently after retries")
+        except Exception:
+            logger.exception("Failed to persist dead-letter payload")
+        # Error will be caught by arq and task status will be updated
+        raise
 
 # Worker configuration for arq
 class WorkerSettings:
@@ -141,5 +158,5 @@ class WorkerSettings:
     job_timeout = 10800  # 3 hour timeout for video processing
 
     # Worker pool settings
-    max_jobs = 4  # Process up to 4 jobs simultaneously
+    max_jobs = 2  # Process up to 2 jobs simultaneously (reduced to avoid DB pool exhaustion)
     cron_jobs = []

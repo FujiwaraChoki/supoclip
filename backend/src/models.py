@@ -163,6 +163,23 @@ class Task(Base):
         DateTime(timezone=True), nullable=True
     )
 
+    # Pattern-based clip generation fields
+    clip_generation_method: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True, server_default=sql_text("'ai'")
+    )
+    reference_image_path: Mapped[Optional[str]] = mapped_column(
+        String(1000), nullable=True
+    )
+    pattern_match_threshold: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, server_default=sql_text("'0.7'")
+    )
+    pattern_clip_window: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, server_default=sql_text("'60'")
+    )
+    pattern_frame_interval: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, server_default=sql_text("'2'")
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

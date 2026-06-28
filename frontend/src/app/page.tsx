@@ -18,7 +18,7 @@ import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor, Menu, X, LogOut, List, Shield, Settings } from "lucide-react";
+import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor, Menu, X, LogOut, List, Shield, Settings, Target } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import LandingPage from "@/components/landing-page";
 import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
@@ -183,6 +183,37 @@ async function uploadVideoFileViaProxy(file: File): Promise<string> {
   return uploadResult.video_path;
 }
 
+async function uploadReferenceImage(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append("image", file);
+
+  const uploadResponse = await fetch("/api/tasks/upload-reference-image", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!uploadResponse.ok) {
+    const fallbackMessage =
+      uploadResponse.status === 413
+        ? "Uploaded file is too large."
+        : `Upload error: ${uploadResponse.status}`;
+    const uploadError = await parseApiError(uploadResponse, fallbackMessage);
+    throw new Error(formatSupportMessage(uploadError));
+  }
+
+  const uploadResult = await uploadResponse.json();
+  if (
+    typeof uploadResult.reference_image_path !== "string" ||
+    !uploadResult.reference_image_path
+  ) {
+    throw new Error(
+      "Upload finished without a reference image path. Please try again."
+    );
+  }
+
+  return uploadResult.reference_image_path;
+}
+
 export default function Home() {
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -219,6 +250,16 @@ export default function Home() {
   const [pauseThresholdMs, setPauseThresholdMs] = useState("900");
   const [removeFillerWords, setRemoveFillerWords] = useState(false);
   const [filteredWords, setFilteredWords] = useState("");
+
+  // Clip generation method states
+  const [clipMethod, setClipMethod] = useState<"ai" | "pattern" | "both">("ai");
+  const [referenceImagePath, setReferenceImagePath] = useState<string | null>(null);
+  const [referenceImagePreview, setReferenceImagePreview] = useState<string | null>(null);
+  const [matchThreshold, setMatchThreshold] = useState(0.7);
+  const [patternClipWindow, setPatternClipWindow] = useState(60);
+  const [patternFrameInterval, setPatternFrameInterval] = useState(2);
+  const [isUploadingRefImage, setIsUploadingRefImage] = useState(false);
+  const refImageInputRef = useRef<HTMLInputElement | null>(null);
 
   // Latest task state
   const [latestTask, setLatestTask] = useState<LatestTask | null>(null);
@@ -497,6 +538,13 @@ export default function Home() {
       setError(generationGateMessage);
       return;
     }
+    if (
+      (clipMethod === "pattern" || clipMethod === "both") &&
+      !referenceImagePath
+    ) {
+      setError("Please upload a reference screenshot for pattern matching");
+      return;
+    }
 
     setIsLoading(true);
     setProgress(0);
@@ -551,6 +599,11 @@ export default function Home() {
           pause_threshold_ms: normalizedPauseThreshold,
           remove_filler_words: removeFillerWords,
           filtered_words: normalizedFilteredWords,
+          clip_generation_method: clipMethod,
+          reference_image_path: referenceImagePath,
+          pattern_match_threshold: matchThreshold,
+          pattern_clip_window: patternClipWindow,
+          pattern_frame_interval: patternFrameInterval,
         }),
       });
 
@@ -575,6 +628,7 @@ export default function Home() {
         remove_filler_words: removeFillerWords,
         filtered_words: normalizedFilteredWords,
         processing_mode: "fast",
+        clip_generation_method: clipMethod,
       });
       // Redirect immediately to the task page
       window.location.href = `/tasks/${taskIdFromStart}`;
@@ -593,6 +647,7 @@ export default function Home() {
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+      // Don't reset reference image settings - user may want to reuse them
     }
   };
 
@@ -989,6 +1044,225 @@ export default function Home() {
                 )}
               </div>
 
+              {/* Clip Generation Method Section */}
+              <Card className="border-stone-200">
+                <CardContent className="px-4 pt-0 pb-2.5 space-y-2.5">
+                  <div className="flex items-center gap-2 text-sm font-medium text-stone-900">
+                    <Target className="w-4 h-4" />
+                    Clip Generation Method
+                  </div>
+
+                  <div className="space-y-2">
+                    {[
+                      {
+                        value: "ai" as const,
+                        label: "AI Analysis",
+                        description: "Find viral moments using AI transcript analysis",
+                      },
+                      {
+                        value: "pattern" as const,
+                        label: "Pattern Match",
+                        description: "Find visual patterns from a screenshot",
+                      },
+                      {
+                        value: "both" as const,
+                        label: "Both",
+                        description: "Run AI + Pattern and combine results",
+                      },
+                    ].map((option) => (
+                      <label
+                        key={option.value}
+                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                          clipMethod === option.value
+                            ? "border-stone-900 bg-stone-50"
+                            : "border-stone-200 hover:border-stone-300"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="clipMethod"
+                          value={option.value}
+                          checked={clipMethod === option.value}
+                          onChange={(e) =>
+                            setClipMethod(e.target.value as "ai" | "pattern" | "both")
+                          }
+                          disabled={generationControlsDisabled}
+                          className="mt-0.5 accent-stone-900"
+                        />
+                        <div>
+                          <div className="text-sm font-medium text-stone-900">
+                            {option.label}
+                          </div>
+                          <div className="text-xs text-stone-500">
+                            {option.description}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+
+                  {/* Pattern settings (shown when pattern or both is selected) */}
+                  {(clipMethod === "pattern" || clipMethod === "both") && (
+                    <div className="space-y-3 pt-2 border-t border-stone-100">
+                      {/* Reference Image Upload */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-medium text-stone-500">
+                          Reference Screenshot
+                        </label>
+                        <div
+                          className="relative border-2 border-dashed border-stone-300 rounded-lg p-4 text-center hover:border-stone-400 transition-colors cursor-pointer"
+                          onClick={() =>
+                            !generationControlsDisabled &&
+                            refImageInputRef.current?.click()
+                          }
+                        >
+                          <input
+                            ref={refImageInputRef}
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/webp"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+
+                              // Validate file size (10MB max)
+                              if (file.size > 10 * 1024 * 1024) {
+                                setError("Reference image must be under 10MB");
+                                return;
+                              }
+
+                              setIsUploadingRefImage(true);
+                              setError(null);
+
+                              try {
+                                // Create preview
+                                const reader = new FileReader();
+                                reader.onload = (ev) => {
+                                  setReferenceImagePreview(
+                                    ev.target?.result as string
+                                  );
+                                };
+                                reader.readAsDataURL(file);
+
+                                // Upload
+                                const path = await uploadReferenceImage(file);
+                                setReferenceImagePath(path);
+                              } catch (err) {
+                                setError(
+                                  err instanceof Error
+                                    ? err.message
+                                    : "Failed to upload reference image"
+                                );
+                                setReferenceImagePreview(null);
+                                setReferenceImagePath(null);
+                              } finally {
+                                setIsUploadingRefImage(false);
+                              }
+                            }}
+                            disabled={generationControlsDisabled || isUploadingRefImage}
+                            className="hidden"
+                          />
+                          {isUploadingRefImage ? (
+                            <Loader2 className="w-6 h-6 text-stone-400 mx-auto mb-2 animate-spin" />
+                          ) : referenceImagePreview ? (
+                            <img
+                              src={referenceImagePreview}
+                              alt="Reference"
+                              className="max-h-24 mx-auto rounded"
+                            />
+                          ) : (
+                            <>
+                              <Upload className="w-6 h-6 text-stone-400 mx-auto mb-2" />
+                              <p className="text-xs text-stone-600">
+                                Drop a screenshot or click to browse
+                              </p>
+                              <p className="text-xs text-stone-400 mt-1">
+                                PNG, JPG, WEBP up to 10MB
+                              </p>
+                            </>
+                          )}
+                        </div>
+                        {referenceImagePath && (
+                          <p className="text-xs text-green-600 flex items-center gap-1">
+                            <CheckCircle className="w-3 h-3" />
+                            Reference image uploaded
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Match Sensitivity */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between">
+                          <label className="text-xs font-medium text-stone-500">
+                            Match Sensitivity
+                          </label>
+                          <span className="text-xs text-stone-400">
+                            {matchThreshold.toFixed(2)}
+                          </span>
+                        </div>
+                        <Slider
+                          value={[matchThreshold]}
+                          onValueChange={(value) => setMatchThreshold(value[0])}
+                          min={0.3}
+                          max={1.0}
+                          step={0.05}
+                          disabled={generationControlsDisabled}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-stone-400">
+                          <span>Loose</span>
+                          <span>Strict</span>
+                        </div>
+                      </div>
+
+                      {/* Clip Window */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-stone-500">
+                          Clip window (seconds before/after match)
+                        </label>
+                        <Input
+                          type="number"
+                          min={10}
+                          max={300}
+                          step={5}
+                          value={patternClipWindow}
+                          onChange={(e) =>
+                            setPatternClipWindow(
+                              Math.max(10, Math.min(300, Number(e.target.value) || 60))
+                            )
+                          }
+                          disabled={generationControlsDisabled}
+                          placeholder="60"
+                        />
+                      </div>
+
+                      {/* Frame Interval */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-stone-500">
+                          Frame check interval (seconds)
+                        </label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={10}
+                          step={1}
+                          value={patternFrameInterval}
+                          onChange={(e) =>
+                            setPatternFrameInterval(
+                              Math.max(1, Math.min(10, Number(e.target.value) || 2))
+                            )
+                          }
+                          disabled={generationControlsDisabled}
+                          placeholder="2"
+                        />
+                        <p className="text-xs text-stone-400">
+                          Lower = more precise but slower. Higher = faster but may miss quick moments.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Caption & Style Section */}
               <Card className="border-stone-200">
                 <CardContent className="px-4 pt-0 pb-2.5 space-y-2.5">
@@ -1372,10 +1646,20 @@ export default function Home() {
                   (sourceType === "youtube" && !url.trim()) ||
                   (sourceType === "upload" && !fileRef.current) ||
                   generationRequiresUpgrade ||
-                  isLoading
+                  isLoading ||
+                  ((clipMethod === "pattern" || clipMethod === "both") &&
+                    !referenceImagePath)
                 }
               >
-                {isLoading ? "Processing..." : generationRequiresUpgrade ? "Choose a Paid Plan" : "Process Video"}
+                {isLoading
+                  ? "Processing..."
+                  : generationRequiresUpgrade
+                    ? "Choose a Paid Plan"
+                    : clipMethod === "pattern"
+                      ? "Find Pattern & Create Clips"
+                      : clipMethod === "both"
+                        ? "Process Video (AI + Pattern)"
+                        : "Process Video"}
               </Button>
             </form>
           </div>
