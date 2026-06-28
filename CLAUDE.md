@@ -165,6 +165,17 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 - `POST /upload` — Upload video file
 - `GET /clips/{filename}` — Serve generated clips
 
+**API keys (programmatic access):**
+- `GET /api-keys/` — List the user's API keys (metadata only)
+- `POST /api-keys/` — Create a key (plaintext `sk_...` returned exactly once)
+- `DELETE /api-keys/{key_id}` — Revoke a key
+
+API keys authenticate `/tasks/*`, `/fonts` and `/upload` directly via
+`Authorization: Bearer sk_...` or `x-api-key`. Resolution lives in
+`auth_headers.resolve_authenticated_user_id` (API key → DB lookup, else falls
+back to the frontend's HMAC-signed session headers). Only the SHA-256 hash is
+stored (`api_keys` table). The frontend manages keys at `/settings/api-keys`.
+
 ## Environment Variables
 
 Required in `.env` (root) or `backend/.env`:
