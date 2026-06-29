@@ -349,7 +349,7 @@ async def supoclip_billing_summary() -> str:
 )
 @tool_errors
 async def supoclip_create_clip_task(
-    url: str,
+    url: str = "",
     title: str = "",
     processing_mode: str = "fast",
     output_format: str = "vertical",
@@ -425,6 +425,27 @@ async def supoclip_create_clip_task(
 
     data = await _client().request("POST", "/tasks/", json_body=body)
     return _json(data)
+
+
+@mcp.tool(
+    name="supoclip_create_clip",
+    annotations={
+        "title": "Create Clip",
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+        "openWorldHint": True,
+    },
+)
+@tool_errors
+async def supoclip_create_clip(url: str = "") -> str:
+    """Create a SupoClip task from a YouTube or direct video URL.
+
+    This is a compatibility alias for clients that fail to pass arguments to
+    the richer ``supoclip_create_clip_task`` tool. Pass the video URL in the
+    ``url`` argument.
+    """
+    return await supoclip_create_clip_task(url=url)
 
 
 @mcp.tool(
