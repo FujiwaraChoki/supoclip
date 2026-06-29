@@ -118,6 +118,7 @@ ProcessingMode = Literal["fast", "balanced", "quality"]
 OutputFormat = Literal["vertical", "vertical_pan", "vertical_split", "original"]
 ExportPreset = Literal["tiktok", "reels", "shorts"]
 TERMINAL_STATES = {"completed", "error", "cancelled"}
+VALID_OUTPUT_FORMATS = {"vertical", "vertical_pan", "vertical_split", "original"}
 
 
 # --------------------------------------------------------------------------- #
@@ -348,79 +349,18 @@ async def supoclip_billing_summary() -> str:
 )
 @tool_errors
 async def supoclip_create_clip_task(
-    url: Annotated[
-        str,
-        Field(
-            description="Video source URL — a YouTube link or a direct/uploaded video URL.",
-            min_length=4,
-            max_length=2000,
-        ),
-    ],
-    title: Annotated[
-        Optional[str],
-        Field(default=None, description="Optional title for the task.", max_length=300),
-    ] = None,
-    processing_mode: Annotated[
-        ProcessingMode,
-        Field(
-            default="fast",
-            description="Speed/quality tradeoff: 'fast' (fewer clips, quickest), "
-            "'balanced', or 'quality' (best, slowest).",
-        ),
-    ] = "fast",
-    output_format: Annotated[
-        OutputFormat,
-        Field(
-            default="vertical",
-            description="Clip framing: 'vertical' (9:16 face-tracked), 'vertical_pan', "
-            "'vertical_split', or 'original' aspect ratio.",
-        ),
-    ] = "vertical",
-    add_subtitles: Annotated[
-        bool,
-        Field(default=True, description="Burn word-synced subtitles into the clips."),
-    ] = True,
-    caption_template: Annotated[
-        str,
-        Field(
-            default="default",
-            description="Caption template id (see supoclip_list_caption_templates), "
-            "e.g. 'default', 'hormozi', 'mrbeast'.",
-            max_length=50,
-        ),
-    ] = "default",
-    include_broll: Annotated[
-        bool,
-        Field(
-            default=False,
-            description="Overlay automatic B-roll (only effective if the backend has "
-            "B-roll configured — check supoclip_broll_status).",
-        ),
-    ] = False,
-    font_family: Annotated[
-        Optional[str],
-        Field(default=None, description="Subtitle font name (see supoclip_list_fonts).", max_length=100),
-    ] = None,
-    font_size: Annotated[
-        Optional[int],
-        Field(default=None, description="Subtitle font size (12-72).", ge=12, le=72),
-    ] = None,
-    font_color: Annotated[
-        Optional[str],
-        Field(
-            default=None,
-            description="Subtitle color as a hex string like '#FFFFFF'.",
-            pattern=r"^#[0-9A-Fa-f]{6}$",
-        ),
-    ] = None,
-    cut_long_pauses: Annotated[
-        Optional[bool],
-        Field(default=None, description="Remove long silent pauses from clips."),
-    ] = None,
-    remove_filler_words: Annotated[
-        Optional[bool],
-        Field(default=None, description="Remove filler words (um, uh, like, ...) from clips."),
-    ] = None,
+    url: str,
+    title: str = "",
+    processing_mode: str = "fast",
+    output_format: str = "vertical",
+    add_subtitles: bool = True,
+    caption_template: str = "default",
+    include_broll: bool = False,
+    font_family: str = "",
+    font_size: int = 0,
+    font_color: str = "",
+    cut_long_pauses: bool = False,
+    remove_filler_words: bool = False,
 ) -> str:
     """Create a SupoClip task that downloads a video and generates viral short clips.
 
@@ -445,32 +385,42 @@ async def supoclip_create_clip_task(
     Returns:
         str: JSON ``{"task_id": str, "job_id": str, "message": str}`` on success.
     """
-    source: dict = {"url": url}
-    if title:
-        source["title"] = title
+    cleaned_url = (url or "").strip()
+    if len(cleaned_url) < 4:
+        raise SupoClipError("url is required. Pass a YouTube URL or direct video URL.")
+
+    normalized_mode = processing_mode if processing_mode in {"fast", "balanced", "quality"} else "fast"
+    normalized_format = output_format if output_format in VALID_OUTPUT_FORMATS else "vertical"
+
+    source: dict = {"url": cleaned_url[:2000]}
+    cleaned_title = title.strip()
+    if cleaned_title:
+        source["title"] = cleaned_title[:300]
 
     body: dict = {
         "source": source,
-        "processing_mode": processing_mode,
-        "output_format": output_format,
+        "processing_mode": normalized_mode,
+        "output_format": normalized_format,
         "add_subtitles": add_subtitles,
-        "caption_template": caption_template,
+        "caption_template": (caption_template or "default").strip()[:50] or "default",
         "include_broll": include_broll,
     }
 
     font_options: dict = {}
-    if font_family:
-        font_options["font_family"] = font_family
-    if font_size is not None:
-        font_options["font_size"] = font_size
-    if font_color:
-        font_options["font_color"] = font_color
+    cleaned_font_family = font_family.strip()
+    if cleaned_font_family:
+        font_options["font_family"] = cleaned_font_family[:100]
+    if font_size:
+        font_options["font_size"] = max(12, min(72, int(font_size)))
+    cleaned_font_color = font_color.strip()
+    if re.match(r"^#[0-9A-Fa-f]{6}$", cleaned_font_color):
+        font_options["font_color"] = cleaned_font_color
     if font_options:
         body["font_options"] = font_options
 
-    if cut_long_pauses is not None:
+    if cut_long_pauses:
         body["cut_long_pauses"] = cut_long_pauses
-    if remove_filler_words is not None:
+    if remove_filler_words:
         body["remove_filler_words"] = remove_filler_words
 
     data = await _client().request("POST", "/tasks/", json_body=body)
