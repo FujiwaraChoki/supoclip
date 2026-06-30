@@ -426,7 +426,7 @@ class TaskService:
         email_service = TaskCompletionEmailService(self.config)
         if not email_service.is_configured:
             logger.warning(
-                "Skipping completion notification for task %s because Resend is not configured",
+                "Skipping completion notification for task %s because Amazon SES is not configured",
                 task_id,
             )
             return

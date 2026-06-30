@@ -28,7 +28,7 @@ dependencies = [
     "sse-starlette>=1.6.5",
     "arq>=0.26.0",
     "redis>=5.0.0",
-    "resend>=2.13.0",
+    "boto3>=1.34.0",
     "requests>=2.32.0",
     "cryptography>=42.0.0",
 ]
