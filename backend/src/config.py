@@ -36,6 +36,14 @@ class Config:
         self.apify_youtube_default_quality = self._normalize_apify_quality(
             os.getenv("APIFY_YOUTUBE_DEFAULT_QUALITY", "1080")
         )
+        self.apify_youtube_downloader_actor = (
+            os.getenv(
+                "APIFY_YOUTUBE_DOWNLOADER_ACTOR",
+                "epctex/youtube-video-downloader",
+            )
+            .strip()
+            or "epctex/youtube-video-downloader"
+        )
         self.apify_run_timeout_seconds = int(
             os.getenv("APIFY_RUN_TIMEOUT_SECONDS", "900")
         )

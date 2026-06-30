@@ -377,7 +377,7 @@ class TaskService:
                 )
                 raise
             await self.task_repo.update_task_status(
-                self.db, task_id, "error", progress_message=str(e)
+                self.db, task_id, "error", progress=0, progress_message=str(e)
             )
             error_code = "task_error"
             message = str(e).lower()
