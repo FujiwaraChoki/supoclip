@@ -147,12 +147,14 @@ Required when `SELF_HOST=false` and you want subscription management:
 
 ## Email and Feedback Settings
 
-### Resend
+### Amazon SES
 
 | Variable | Purpose |
 |---|---|
-| `RESEND_API_KEY` | Sends hosted billing lifecycle emails |
-| `RESEND_FROM_EMAIL` | Verified sender address for subscription emails |
+| `AWS_REGION` | AWS region for Amazon SES, default `us-east-1` |
+| `AWS_ACCESS_KEY_ID` | AWS access key ID used to send hosted billing lifecycle emails |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret access key used to send hosted billing lifecycle emails |
+| `SES_FROM_EMAIL` | Verified sender address for subscription emails, default `SupoClip <onboarding@example.com>` |
 
 ### Discord feedback forwarding
 
@@ -258,8 +260,10 @@ NEXT_PUBLIC_PRO_PRICE_MONTHLY=10
 NEXT_PUBLIC_SCALE_PRICE_MONTHLY=50
 NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT=50
 NEXT_PUBLIC_SCALE_PLAN_TASK_LIMIT=300
-RESEND_API_KEY=your_key
-RESEND_FROM_EMAIL="SupoClip <onboarding@your-domain.com>"
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_aws_access_key_id
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+SES_FROM_EMAIL="SupoClip <onboarding@example.com>"
 ```
 
 ## Related Reading

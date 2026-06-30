@@ -4002,19 +4002,6 @@ wheels = [
 ]
 
 [[package]]
-name = "resend"
-version = "2.29.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "requests" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b0/e7/ebb504fee5dac9710192ca04550e8c8250bb2a7612a2397829e3934eb157/resend-2.29.0.tar.gz", hash = "sha256:cd905809a64128b29d5beda1d4a5bda8d60d438a66942ed736ca40238e9d2331", size = 43125, upload-time = "2026-04-16T13:14:56.183Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b0/91/9299b0eac66a33d48dea8c825063077f28d188d89b2d3178c3837c40b3df/resend-2.29.0-py2.py3-none-any.whl", hash = "sha256:aad7c6097c26cf2dbe46534a1fc8d92637fbdea28243b00a3363c8d3136331de", size = 68320, upload-time = "2026-04-16T13:14:54.928Z" },
-]
-
-[[package]]
 name = "rich"
 version = "15.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4355,6 +4342,7 @@ dependencies = [
     { name = "arq" },
     { name = "assemblyai" },
     { name = "asyncpg" },
+    { name = "boto3" },
     { name = "cryptography" },
     { name = "fastapi" },
     { name = "greenlet" },
@@ -4366,7 +4354,6 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "redis" },
     { name = "requests" },
-    { name = "resend" },
     { name = "setuptools-rust" },
     { name = "sqlalchemy" },
     { name = "srt" },
@@ -4393,6 +4380,7 @@ requires-dist = [
     { name = "arq", specifier = ">=0.26.0" },
     { name = "assemblyai", specifier = ">=0.35.0" },
     { name = "asyncpg", specifier = ">=0.29.0" },
+    { name = "boto3", specifier = ">=1.34.0" },
     { name = "cryptography", specifier = ">=42.0.0" },
     { name = "fastapi", specifier = ">=0.110.0" },
     { name = "greenlet", specifier = ">=2.0.0" },
@@ -4404,7 +4392,6 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "redis", specifier = ">=5.0.0" },
     { name = "requests", specifier = ">=2.32.0" },
-    { name = "resend", specifier = ">=2.13.0" },
     { name = "setuptools-rust", specifier = ">=1.11.1" },
     { name = "sqlalchemy", specifier = ">=2.0.25" },
     { name = "srt", specifier = ">=3.5.3" },

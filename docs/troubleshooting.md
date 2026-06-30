@@ -246,7 +246,7 @@ Checkout, portal access, billing summary, or subscription emails do not work.
 - Confirm Stripe keys are set
 - Confirm `STRIPE_PRICE_ID` is valid
 - Confirm `BACKEND_AUTH_SECRET` is set
-- Confirm `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are configured
+- Confirm `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `SES_FROM_EMAIL` are configured
 
 ### Webhook checks
 
@@ -256,7 +256,7 @@ Checkout, portal access, billing summary, or subscription emails do not work.
 
 ### Email checks
 
-- Confirm the sender domain is verified in Resend
+- Confirm the sender domain is verified in Amazon SES
 - Check backend logs for subscription email errors
 
 ## Database Problems

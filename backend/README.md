@@ -57,18 +57,20 @@ Notes:
 
 ## Email Configuration
 
-The backend now sends subscription lifecycle emails through Resend.
+The backend now sends subscription lifecycle emails through Amazon SES.
 
 Set these env vars when using hosted billing:
 
 ```
-RESEND_API_KEY=your_resend_api_key
-RESEND_FROM_EMAIL="SupoClip <onboarding@your-domain.com>"
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_aws_access_key_id
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+SES_FROM_EMAIL="SupoClip <onboarding@example.com>"
 ```
 
 Notes:
 
-- `RESEND_FROM_EMAIL` must be a verified sender/domain in Resend.
+- `SES_FROM_EMAIL` must be a verified identity/domain in Amazon SES.
 - The thank-you email is triggered after a successful Stripe checkout.
 - The cancellation email is triggered after Stripe subscription deletion.
 

@@ -95,8 +95,11 @@ BETTER_AUTH_SECRET=change_this_in_production
 # NEXT_PUBLIC_DATAFAST_DOMAIN=your-domain.com
 # NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST=false
 
-# Optional: Resend for waitlist confirmation emails
-# RESEND_API_KEY=your_resend_api_key
+# Optional: Amazon SES for waitlist confirmation emails
+# AWS_REGION=us-east-1
+# AWS_ACCESS_KEY_ID=your_aws_access_key_id
+# AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+# SES_FROM_EMAIL="SupoClip <onboarding@example.com>"
 
 # Optional: YouTube metadata provider
 # `yt_dlp` preserves the existing metadata behavior
@@ -178,8 +181,8 @@ If you enable DataFast, also verify that:
 - Font upload is Pro-only when monetization is enabled; self-hosted users can upload freely
 
 **Subscription emails are not sending:**
-- Set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` in `.env`
-- `RESEND_FROM_EMAIL` must be a verified sender/domain in your Resend account
+- Set `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `SES_FROM_EMAIL` in `.env`
+- `SES_FROM_EMAIL` must be a verified identity/domain in Amazon SES
 - The backend sends the “thank you for subscribing” email on `checkout.session.completed`
 - The backend sends the “sorry to see you go” email on `customer.subscription.deleted`
 
@@ -227,15 +230,17 @@ Start with:
 
 ## Hosted Billing Emails
 
-When you run SupoClip with monetization enabled (`SELF_HOST=false`), subscription lifecycle emails are sent through Resend by the backend:
+When you run SupoClip with monetization enabled (`SELF_HOST=false`), subscription lifecycle emails are sent through Amazon SES by the backend:
 
 - `checkout.session.completed` sends the thank-you-for-subscribing email
 - `customer.subscription.deleted` sends the sorry-to-see-you-go email
 
 Required env vars for this flow:
 
-- `RESEND_API_KEY`
-- `RESEND_FROM_EMAIL`
+- `AWS_REGION`
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `SES_FROM_EMAIL`
 - `BACKEND_AUTH_SECRET`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
