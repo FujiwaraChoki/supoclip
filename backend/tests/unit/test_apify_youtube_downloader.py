@@ -23,6 +23,10 @@ class _FakeResponse:
 def test_download_video_via_apify_saves_file(tmp_path, monkeypatch):
     actor_calls = {}
     monkeypatch.setenv("APIFY_RUN_TIMEOUT_SECONDS", "123")
+    monkeypatch.setenv(
+        "APIFY_YOUTUBE_DOWNLOADER_ACTOR",
+        "epctex/youtube-video-downloader",
+    )
 
     class FakeActor:
         def call(self, run_input, **kwargs):
@@ -70,6 +74,112 @@ def test_download_video_via_apify_saves_file(tmp_path, monkeypatch):
         "startUrls": ["https://www.youtube.com/watch?v=abcdefghijk"],
         "quality": "720",
         "proxy": {"useApifyProxy": True},
+    }
+
+
+def test_download_video_via_apify_supports_eunit_actor(tmp_path, monkeypatch):
+    actor_calls = {}
+    monkeypatch.setenv(
+        "APIFY_YOUTUBE_DOWNLOADER_ACTOR",
+        "eunit/youtube-video-downloader",
+    )
+
+    class FakeActor:
+        def call(self, run_input, **kwargs):
+            actor_calls["run_input"] = run_input
+            actor_calls.update(kwargs)
+            return {"defaultDatasetId": "dataset-1"}
+
+    class FakeDataset:
+        def iterate_items(self):
+            yield {"downloadUrl": "https://cdn.example.com/video.mp4"}
+
+    class FakeClient:
+        def __init__(self, token):
+            actor_calls["token"] = token
+
+        def actor(self, actor_id):
+            actor_calls["actor_id"] = actor_id
+            return FakeActor()
+
+        def dataset(self, dataset_id):
+            actor_calls["dataset_id"] = dataset_id
+            return FakeDataset()
+
+    monkeypatch.setattr("src.apify_youtube_downloader.ApifyClient", FakeClient)
+    monkeypatch.setattr(
+        "src.apify_youtube_downloader.requests.get",
+        lambda *args, **kwargs: _FakeResponse(),
+    )
+
+    path = download_video_via_apify(
+        url="https://www.youtube.com/watch?v=abcdefghijk",
+        video_id="abcdefghijk",
+        temp_dir=tmp_path,
+        api_token="apify-token",
+        quality="720",
+    )
+
+    assert path == tmp_path / "abcdefghijk.mp4"
+    assert actor_calls["actor_id"] == "eunit/youtube-video-downloader"
+    assert actor_calls["run_input"] == {
+        "startUrls": [{"url": "https://www.youtube.com/watch?v=abcdefghijk"}],
+        "downloadMode": "save-best-progressive",
+        "preferredQuality": "720p",
+        "preferredContainer": "mp4",
+    }
+
+
+def test_download_video_via_apify_supports_streamers_actor(tmp_path, monkeypatch):
+    actor_calls = {}
+    monkeypatch.setenv(
+        "APIFY_YOUTUBE_DOWNLOADER_ACTOR",
+        "streamers/youtube-video-downloader",
+    )
+
+    class FakeActor:
+        def call(self, run_input, **kwargs):
+            actor_calls["run_input"] = run_input
+            actor_calls.update(kwargs)
+            return {"defaultDatasetId": "dataset-1"}
+
+    class FakeDataset:
+        def iterate_items(self):
+            yield {"downloadedFileUrl": "https://cdn.example.com/video.webm"}
+
+    class FakeClient:
+        def __init__(self, token):
+            actor_calls["token"] = token
+
+        def actor(self, actor_id):
+            actor_calls["actor_id"] = actor_id
+            return FakeActor()
+
+        def dataset(self, dataset_id):
+            actor_calls["dataset_id"] = dataset_id
+            return FakeDataset()
+
+    monkeypatch.setattr("src.apify_youtube_downloader.ApifyClient", FakeClient)
+    monkeypatch.setattr(
+        "src.apify_youtube_downloader.requests.get",
+        lambda *args, **kwargs: _FakeResponse(headers={"Content-Type": "video/webm"}),
+    )
+
+    path = download_video_via_apify(
+        url="https://www.youtube.com/watch?v=abcdefghijk",
+        video_id="abcdefghijk",
+        temp_dir=tmp_path,
+        api_token="apify-token",
+        quality="720",
+    )
+
+    assert path == tmp_path / "abcdefghijk.webm"
+    assert actor_calls["actor_id"] == "streamers/youtube-video-downloader"
+    assert actor_calls["run_input"] == {
+        "videos": [{"url": "https://www.youtube.com/watch?v=abcdefghijk"}],
+        "storeInKVStore": True,
+        "preferredQuality": "720p",
+        "preferredFormat": "mp4",
     }
 
 

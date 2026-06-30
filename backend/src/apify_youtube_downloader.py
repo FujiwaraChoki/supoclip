@@ -23,6 +23,8 @@ from .config import get_config
 logger = logging.getLogger(__name__)
 
 APIFY_YOUTUBE_DOWNLOADER_ACTOR = "epctex/youtube-video-downloader"
+EUNIT_YOUTUBE_DOWNLOADER_ACTOR = "eunit/youtube-video-downloader"
+STREAMERS_YOUTUBE_DOWNLOADER_ACTOR = "streamers/youtube-video-downloader"
 ALLOWED_APIFY_QUALITIES = {"360", "480", "720", "1080"}
 
 
@@ -110,6 +112,31 @@ def _infer_file_extension(response: requests.Response, download_url: str) -> str
     return ".mp4"
 
 
+def _build_run_input(actor_id: str, url: str, quality: str) -> dict[str, Any]:
+    normalized_actor_id = actor_id.strip().lower()
+    if normalized_actor_id == EUNIT_YOUTUBE_DOWNLOADER_ACTOR:
+        return {
+            "startUrls": [{"url": url}],
+            "downloadMode": "save-best-progressive",
+            "preferredQuality": f"{quality}p",
+            "preferredContainer": "mp4",
+        }
+
+    if normalized_actor_id == STREAMERS_YOUTUBE_DOWNLOADER_ACTOR:
+        return {
+            "videos": [{"url": url}],
+            "storeInKVStore": True,
+            "preferredQuality": f"{quality}p",
+            "preferredFormat": "mp4",
+        }
+
+    return {
+        "startUrls": [url],
+        "quality": quality,
+        "proxy": {"useApifyProxy": True},
+    }
+
+
 def _download_file(download_url: str, destination_stem: Path) -> Path:
     response = requests.get(download_url, stream=True, timeout=(15, 120))
     response.raise_for_status()
@@ -158,20 +185,18 @@ def download_video_via_apify(
     temp_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info(
-        "Starting Apify YouTube download for %s with target quality %s and run timeout %ss",
+        "Starting Apify YouTube download for %s with actor %s, target quality %s, and run timeout %ss",
         video_id,
+        config.apify_youtube_downloader_actor,
         resolved_quality,
         config.apify_run_timeout_seconds,
     )
 
     try:
         client = ApifyClient(resolved_token)
-        run = client.actor(APIFY_YOUTUBE_DOWNLOADER_ACTOR).call(
-            run_input={
-                "startUrls": [url],
-                "quality": resolved_quality,
-                "proxy": {"useApifyProxy": True},
-            },
+        actor_id = config.apify_youtube_downloader_actor
+        run = client.actor(actor_id).call(
+            run_input=_build_run_input(actor_id, url, resolved_quality),
             timeout_secs=config.apify_run_timeout_seconds,
         )
         dataset_id = run.get("defaultDatasetId")
