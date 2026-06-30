@@ -116,7 +116,7 @@ def _build_run_input(actor_id: str, url: str, quality: str) -> dict[str, Any]:
     normalized_actor_id = actor_id.strip().lower()
     if normalized_actor_id == EUNIT_YOUTUBE_DOWNLOADER_ACTOR:
         return {
-            "url": url,
+            "startUrls": [{"url": url}],
             "downloadMode": "save-best-progressive",
             "preferredQuality": f"{quality}p",
             "preferredContainer": "mp4",

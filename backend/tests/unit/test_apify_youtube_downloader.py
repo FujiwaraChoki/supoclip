@@ -123,7 +123,7 @@ def test_download_video_via_apify_supports_eunit_actor(tmp_path, monkeypatch):
     assert path == tmp_path / "abcdefghijk.mp4"
     assert actor_calls["actor_id"] == "eunit/youtube-video-downloader"
     assert actor_calls["run_input"] == {
-        "url": "https://www.youtube.com/watch?v=abcdefghijk",
+        "startUrls": [{"url": "https://www.youtube.com/watch?v=abcdefghijk"}],
         "downloadMode": "save-best-progressive",
         "preferredQuality": "720p",
         "preferredContainer": "mp4",
