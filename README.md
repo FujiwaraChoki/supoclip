@@ -248,3 +248,7 @@ See [CLAUDE.md](CLAUDE.md) for detailed development instructions.
 ## License
 
 SupoClip is released under the AGPL-3.0 License. See [LICENSE](LICENSE) for details.
+
+Contributions are accepted under the terms in [CONTRIBUTING.md](CONTRIBUTING.md),
+including a license grant that allows the project owner to sublicense and
+relicense contributed code.
