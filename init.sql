@@ -25,6 +25,7 @@ CREATE TABLE users (
     is_admin BOOLEAN NOT NULL DEFAULT false,
     plan VARCHAR(20) NOT NULL DEFAULT 'free',
     subscription_status VARCHAR(20) NOT NULL DEFAULT 'inactive',
+    subscription_provider VARCHAR(20),
     stripe_customer_id VARCHAR(255) UNIQUE,
     stripe_subscription_id VARCHAR(255) UNIQUE,
     billing_period_start TIMESTAMP WITH TIME ZONE,
@@ -150,6 +151,13 @@ CREATE TABLE verification (
 
 -- Stripe webhook idempotency table
 CREATE TABLE stripe_webhook_events (
+    id VARCHAR(255) PRIMARY KEY,
+    type VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- RevenueCat webhook idempotency table
+CREATE TABLE revenuecat_webhook_events (
     id VARCHAR(255) PRIMARY KEY,
     type VARCHAR(255) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

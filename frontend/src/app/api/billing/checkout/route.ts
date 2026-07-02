@@ -6,6 +6,9 @@ import { monetizationEnabled } from "@/lib/monetization";
 import { getStripeClient } from "@/lib/stripe";
 import { getServerBillingPlan } from "@/server/billing-plans";
 
+const APP_STORE_MANAGED_MESSAGE = "Your subscription is managed through the App Store";
+const PAID_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
+
 export async function POST(request: Request) {
   if (!monetizationEnabled) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -31,6 +34,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unknown billing plan" }, { status: 400 });
   }
 
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      stripe_customer_id: true,
+      subscription_provider: true,
+      subscription_status: true,
+    },
+  });
+
+  if (
+    user?.subscription_provider === "apple" &&
+    PAID_SUBSCRIPTION_STATUSES.has(user.subscription_status)
+  ) {
+    return NextResponse.json(
+      { error: APP_STORE_MANAGED_MESSAGE },
+      { status: 409 }
+    );
+  }
+
   const priceId = billingPlan.priceId;
   if (!priceId) {
     const fallbackUrl = billingPlan.id === "pro" ? process.env.STRIPE_CHECKOUT_URL : null;
@@ -45,11 +67,6 @@ export async function POST(request: Request) {
 
   const stripe = getStripeClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3107";
-
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { stripe_customer_id: true },
-  });
 
   let customerId = user?.stripe_customer_id || null;
   if (!customerId) {

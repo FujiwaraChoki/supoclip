@@ -63,6 +63,9 @@ class User(Base):
     subscription_status: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default=sql_text("'inactive'")
     )
+    subscription_provider: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True
+    )
     stripe_customer_id: Mapped[Optional[str]] = mapped_column(
         String(255), nullable=True, unique=True
     )
@@ -101,6 +104,16 @@ class AppSetting(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class RevenueCatWebhookEvent(Base):
+    __tablename__ = "revenuecat_webhook_events"
+
+    id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    type: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
     )
 
 

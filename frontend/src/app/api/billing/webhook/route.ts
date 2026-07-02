@@ -56,13 +56,21 @@ async function upsertSubscriptionState(subscription: Stripe.Subscription) {
   const status = subscription.status;
   const { currentPeriodStart, currentPeriodEnd } = getSubscriptionPeriod(subscription);
 
-  const plan = getPaidSubscriptionPlan(subscription) || "free";
+  const paidPlan = getPaidSubscriptionPlan(subscription);
+  const plan = paidPlan || "free";
+
+  // A non-paid Stripe state must not clobber an entitlement owned by the App
+  // Store; only a paid Stripe grant may take over from an Apple subscription.
+  const providerFilter = paidPlan
+    ? {}
+    : { OR: [{ subscription_provider: "stripe" }, { subscription_provider: null }] };
 
   await prisma.user.updateMany({
-    where: { stripe_customer_id: customerId },
+    where: { stripe_customer_id: customerId, ...providerFilter },
     data: {
       plan,
       subscription_status: status,
+      subscription_provider: "stripe",
       stripe_subscription_id: subscriptionId,
       billing_period_start: toDate(currentPeriodStart),
       billing_period_end: toDate(currentPeriodEnd),
@@ -156,14 +164,18 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
   const user = await prisma.user.findFirst({
     where: { stripe_customer_id: customerId },
-    select: { id: true },
+    select: { id: true, subscription_provider: true },
   });
 
-  await prisma.user.updateMany({
-    where: { stripe_customer_id: customerId },
+  const result = await prisma.user.updateMany({
+    where: {
+      stripe_customer_id: customerId,
+      OR: [{ subscription_provider: "stripe" }, { subscription_provider: null }],
+    },
     data: {
       plan: "free",
       subscription_status: "canceled",
+      subscription_provider: null,
       stripe_subscription_id: null,
       billing_period_start: null,
       billing_period_end: null,
@@ -171,7 +183,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
     },
   });
 
-  if (user?.id) {
+  if (user?.id && result.count > 0) {
     await sendSubscriptionEmailBestEffort(user.id, "unsubscribed");
   }
 }
