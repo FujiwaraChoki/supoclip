@@ -9,16 +9,16 @@
   - `REVENUECAT_WEBHOOK_AUTH_HEADER`
   - Source: copy the value from local `frontend/.env`
 - Optional override vars were not present in local `frontend/.env`, so they were not set:
-  - `REVENUECAT_APPLE_MONTHLY_PRODUCT_ID`
-  - `REVENUECAT_APPLE_YEARLY_PRODUCT_ID`
+  - `REVENUECAT_PRO_PRODUCT_IDS`
+  - `REVENUECAT_SCALE_PRODUCT_IDS`
 
 ## Manual production steps still required
 
 1. Confirm `REVENUECAT_WEBHOOK_AUTH_HEADER` exists in the Vercel Production environment for `supoclip`.
 
 2. If custom RevenueCat product identifiers are needed, set these Vercel Production env vars from the production billing configuration:
-   - `REVENUECAT_APPLE_MONTHLY_PRODUCT_ID`
-   - `REVENUECAT_APPLE_YEARLY_PRODUCT_ID`
+   - `REVENUECAT_PRO_PRODUCT_IDS`
+   - `REVENUECAT_SCALE_PRODUCT_IDS`
 
 3. Run the Prisma migration against the production frontend database only after positively identifying the production `DATABASE_URL`:
 

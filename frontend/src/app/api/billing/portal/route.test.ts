@@ -45,7 +45,7 @@ describe("/api/billing/portal", () => {
       id: "user-1",
       email: "user@example.com",
       name: "User",
-      stripe_customer_id: "cus_123",
+      stripe_customer_id: null,
       subscription_provider: "apple",
       subscription_status: "trialing",
     } as never);
@@ -57,5 +57,31 @@ describe("/api/billing/portal", () => {
       error: "Your subscription is managed through the App Store",
     });
     expect(getStripeClient).not.toHaveBeenCalled();
+  });
+
+  it("allows App Store users with a Stripe customer to open the Stripe portal", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      id: "user-1",
+      email: "user@example.com",
+      name: "User",
+      stripe_customer_id: "cus_123",
+      subscription_provider: "apple",
+      subscription_status: "active",
+    } as never);
+    vi.mocked(getStripeClient).mockReturnValue({
+      billingPortal: {
+        sessions: {
+          create: vi.fn().mockResolvedValue({ url: "https://billing.stripe.test/session" }),
+        },
+      },
+    } as never);
+
+    const response = await POST();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      url: "https://billing.stripe.test/session",
+    });
+    expect(getStripeClient).toHaveBeenCalled();
   });
 });

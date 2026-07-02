@@ -324,4 +324,67 @@ describe("/api/billing/webhook", () => {
       }),
     );
   });
+
+  it("scopes active subscriptions with unmapped prices so they cannot clobber an Apple entitlement", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 0 });
+    const stripe = {
+      webhooks: {
+        constructEvent: vi.fn().mockReturnValue({
+          id: "evt_unmapped_active",
+          type: "customer.subscription.updated",
+          data: {
+            object: {
+              id: "sub_unmapped",
+              customer: "cus_123",
+              status: "active",
+              trial_end: null,
+              items: {
+                data: [
+                  {
+                    price: { id: "price_unknown" },
+                    current_period_start: 1770000000,
+                    current_period_end: 1772592000,
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      },
+    };
+
+    vi.mocked(getServerStripeClient).mockReturnValue(stripe as never);
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: {
+        create: vi.fn().mockResolvedValue({}),
+        delete: vi.fn().mockResolvedValue({}),
+      },
+      user: {
+        updateMany,
+      },
+    } as never);
+
+    const response = await POST(
+      new Request("http://localhost/api/billing/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          stripe_customer_id: "cus_123",
+          OR: [{ subscription_provider: "stripe" }, { subscription_provider: null }],
+        },
+        data: expect.objectContaining({
+          plan: "free",
+          subscription_status: "active",
+          subscription_provider: "stripe",
+        }),
+      }),
+    );
+  });
 });

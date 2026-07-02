@@ -56,11 +56,12 @@ async function upsertSubscriptionState(subscription: Stripe.Subscription) {
   const status = subscription.status;
   const { currentPeriodStart, currentPeriodEnd } = getSubscriptionPeriod(subscription);
 
-  const plan = getPaidSubscriptionPlan(subscription) || "free";
+  const paidPlan = getPaidSubscriptionPlan(subscription);
+  const plan = paidPlan || "free";
 
   // A non-paid Stripe state must not clobber an entitlement owned by the App
   // Store; only a paid Stripe grant may take over from an Apple subscription.
-  const providerFilter = PAID_SUBSCRIPTION_STATUSES.has(status)
+  const providerFilter = paidPlan
     ? {}
     : { OR: [{ subscription_provider: "stripe" }, { subscription_provider: null }] };
 

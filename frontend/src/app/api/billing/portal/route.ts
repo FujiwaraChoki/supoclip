@@ -71,7 +71,8 @@ export async function POST() {
 
   if (
     user?.subscription_provider === "apple" &&
-    PAID_SUBSCRIPTION_STATUSES.has(user.subscription_status)
+    PAID_SUBSCRIPTION_STATUSES.has(user.subscription_status) &&
+    !user.stripe_customer_id
   ) {
     return NextResponse.json(
       { error: APP_STORE_MANAGED_MESSAGE },
