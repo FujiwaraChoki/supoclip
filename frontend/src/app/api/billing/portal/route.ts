@@ -6,6 +6,9 @@ import { monetizationEnabled } from "@/lib/monetization";
 import { getStripeClient } from "@/lib/stripe";
 import Stripe from "stripe";
 
+const APP_STORE_MANAGED_MESSAGE = "Your subscription is managed through the App Store";
+const PAID_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
+
 function isMissingStripeCustomer(error: unknown): boolean {
   return (
     error instanceof Stripe.errors.StripeInvalidRequestError &&
@@ -56,8 +59,26 @@ export async function POST() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, email: true, name: true, stripe_customer_id: true },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      stripe_customer_id: true,
+      subscription_provider: true,
+      subscription_status: true,
+    },
   });
+
+  if (
+    user?.subscription_provider === "apple" &&
+    PAID_SUBSCRIPTION_STATUSES.has(user.subscription_status)
+  ) {
+    return NextResponse.json(
+      { error: APP_STORE_MANAGED_MESSAGE },
+      { status: 409 }
+    );
+  }
+
   let customerId = user?.stripe_customer_id || null;
 
   if (!customerId) {

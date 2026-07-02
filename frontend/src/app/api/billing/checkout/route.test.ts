@@ -48,6 +48,8 @@ describe("/api/billing/checkout", () => {
     } as never);
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       stripe_customer_id: "cus_123",
+      subscription_provider: null,
+      subscription_status: "inactive",
     } as never);
   });
 
@@ -91,6 +93,27 @@ describe("/api/billing/checkout", () => {
     );
 
     expect(response.status).toBe(400);
+  });
+
+  it("blocks Stripe checkout for active App Store subscriptions", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      stripe_customer_id: null,
+      subscription_provider: "apple",
+      subscription_status: "active",
+    } as never);
+
+    const response = await POST(
+      new Request("http://localhost/api/billing/checkout", {
+        method: "POST",
+        body: JSON.stringify({ plan: "pro" }),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "Your subscription is managed through the App Store",
+    });
+    expect(getStripeClient).not.toHaveBeenCalled();
   });
 
   it("returns a configuration error when the selected plan has no Stripe price", async () => {

@@ -44,6 +44,7 @@ class BillingService:
                     SELECT
                         plan,
                         subscription_status,
+                        subscription_provider,
                         billing_period_start,
                         billing_period_end,
                         trial_ends_at
@@ -60,6 +61,11 @@ class BillingService:
             return {
                 "plan": (row.plan or "free").lower(),
                 "subscription_status": (row.subscription_status or "inactive").lower(),
+                "subscription_provider": (
+                    row.subscription_provider.lower()
+                    if row.subscription_provider
+                    else None
+                ),
                 "billing_period_start": row.billing_period_start,
                 "billing_period_end": row.billing_period_end,
                 "trial_ends_at": row.trial_ends_at,
@@ -70,6 +76,7 @@ class BillingService:
             return {
                 "plan": "free",
                 "subscription_status": "inactive",
+                "subscription_provider": None,
                 "billing_period_start": start,
                 "billing_period_end": end,
                 "trial_ends_at": None,
@@ -103,6 +110,7 @@ class BillingService:
                 "monetization_enabled": False,
                 "plan": "self_host",
                 "subscription_status": "inactive",
+                "subscription_provider": None,
                 "period_start": None,
                 "period_end": None,
                 "usage_count": 0,
@@ -132,6 +140,7 @@ class BillingService:
                 "monetization_enabled": True,
                 "plan": plan,
                 "subscription_status": status,
+                "subscription_provider": row.get("subscription_provider"),
                 "period_start": start,
                 "period_end": end,
                 "trial_ends_at": row.get("trial_ends_at"),
@@ -155,6 +164,7 @@ class BillingService:
             "monetization_enabled": True,
             "plan": plan,
             "subscription_status": status,
+            "subscription_provider": row.get("subscription_provider"),
             "period_start": start,
             "period_end": end,
             "trial_ends_at": row.get("trial_ends_at"),

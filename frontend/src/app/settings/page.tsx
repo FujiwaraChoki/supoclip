@@ -28,6 +28,7 @@ interface BillingSummary {
   monetization_enabled: boolean;
   plan: string;
   subscription_status: string;
+  subscription_provider: string | null;
   usage_count: number;
   usage_limit: number | null;
   remaining: number | null;
@@ -522,15 +523,21 @@ export default function SettingsPage() {
                 </div>
 
                 {isPaidBillingPlan(billingSummary.plan) ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleBillingAction()}
-                    disabled={isBillingActionLoading}
-                    className="w-full"
-                  >
-                    {isBillingActionLoading ? "Loading..." : "Manage Billing"}
-                  </Button>
+                  billingSummary.subscription_provider === "apple" ? (
+                    <p className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600">
+                      Managed through the App Store
+                    </p>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleBillingAction()}
+                      disabled={isBillingActionLoading}
+                      className="w-full"
+                    >
+                      {isBillingActionLoading ? "Loading..." : "Manage Billing"}
+                    </Button>
+                  )
                 ) : (
                   <div className="grid gap-2 sm:grid-cols-2">
                     {paidPlans.map((plan) => (
