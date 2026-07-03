@@ -20,6 +20,9 @@ class Config:
         self.ollama_api_key = self._get_runtime_setting("OLLAMA_API_KEY")
 
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
+        self.transcription_provider = self._normalize_transcription_provider(
+            os.getenv("TRANSCRIPTION_PROVIDER", "assemblyai")
+        )
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
         self.assembly_ai_http_timeout_seconds = int(
@@ -57,6 +60,9 @@ class Config:
         self.scale_youtube_max_video_duration = int(
             os.getenv("SCALE_YOUTUBE_MAX_VIDEO_DURATION", "10800")
         )
+        self.max_video_upload_bytes = int(
+            os.getenv("MAX_VIDEO_UPLOAD_BYTES", "12000000000")
+        )
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 
         self.max_clips = int(os.getenv("MAX_CLIPS", "10"))
@@ -72,6 +78,12 @@ class Config:
         # Fail-safe: queued tasks should not stay queued forever
         self.queued_task_timeout_seconds = int(
             os.getenv("QUEUED_TASK_TIMEOUT_SECONDS", "180")
+        )
+        # Fail-safe: processing tasks whose worker died mid-run should not stay
+        # "processing" forever. Default comfortably exceeds arq's job_timeout so
+        # a legitimately long job is never falsely swept into "error".
+        self.processing_task_timeout_seconds = int(
+            os.getenv("PROCESSING_TASK_TIMEOUT_SECONDS", "14400")
         )
 
         self.self_host = self._get_bool_env("SELF_HOST", True)
@@ -179,6 +191,13 @@ class Config:
         if normalized in {"360", "480", "720", "1080", "1440", "2160"}:
             return normalized
         return "1080"
+
+    @staticmethod
+    def _normalize_transcription_provider(value: str | None) -> str:
+        normalized = (value or "").strip().lower().replace("-", "_")
+        if normalized in ("whisper", "youtube_captions"):
+            return normalized
+        return "assemblyai"
 
     @staticmethod
     def _normalize_youtube_metadata_provider(value: str | None) -> str:
