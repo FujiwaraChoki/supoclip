@@ -128,19 +128,26 @@ class VideoService:
 
     @staticmethod
     async def generate_transcript(
-        video_path: Path, processing_mode: str = "balanced"
+        video_path: Path,
+        processing_mode: str = "balanced",
+        source_url: Optional[str] = None,
     ) -> str:
         """
-        Generate transcript from video using AssemblyAI.
+        Generate transcript from video using the configured provider
+        (assemblyai, whisper, or youtube_captions).
         Runs in thread pool to avoid blocking.
         """
         logger.info(f"Generating transcript for: {video_path}")
         speech_model = "best"
         runtime_config = get_config()
-        if processing_mode == "fast":
+        # The fast-mode model selector is only meaningful for AssemblyAI; the
+        # other providers ignore it and would otherwise silently change behaviour.
+        if processing_mode == "fast" and runtime_config.transcription_provider == "assemblyai":
             speech_model = runtime_config.fast_mode_transcript_model
 
-        transcript = await run_in_thread(get_video_transcript, video_path, speech_model)
+        transcript = await run_in_thread(
+            get_video_transcript, video_path, speech_model, source_url
+        )
         logger.info(f"Transcript generated: {len(transcript)} characters")
         return transcript
 
@@ -403,7 +410,9 @@ class VideoService:
             transcript = cached_transcript
             if not transcript:
                 transcript = await VideoService.generate_transcript(
-                    video_path, processing_mode=processing_mode
+                    video_path,
+                    processing_mode=processing_mode,
+                    source_url=url if source_type == "youtube" else None,
                 )
 
             # Step 3: AI analysis

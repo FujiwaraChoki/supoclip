@@ -92,7 +92,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip
       - TEMP_DIR=/app/uploads
       - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - REDIS_PORT=6382
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
       - ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS=${ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS:-900}
@@ -109,6 +109,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
+      - TRANSCRIPTION_PROVIDER=${TRANSCRIPTION_PROVIDER:-assemblyai}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-medium}
       - QUEUED_TASK_TIMEOUT_SECONDS=${QUEUED_TASK_TIMEOUT_SECONDS:-180}
       - DEFAULT_PROCESSING_MODE=${DEFAULT_PROCESSING_MODE:-fast}
@@ -193,7 +194,7 @@ services:
       - DATABASE_URL=postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip
       - TEMP_DIR=/app/uploads
       - REDIS_HOST=redis
-      - REDIS_PORT=6379
+      - REDIS_PORT=6382
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
       - ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS=${ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS:-900}
@@ -210,8 +211,9 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
+      - TRANSCRIPTION_PROVIDER=${TRANSCRIPTION_PROVIDER:-assemblyai}
       - WHISPER_MODEL_SIZE=${WHISPER_MODEL_SIZE:-medium}
-      - QUEUED_TASK_TIMEOUT_SECONDS=${QUEUED_TASK_TIMEOUT_SECONDS:-180}
+      - QUEUED_TASK_TIMEOUT_SECONDS=${QUEUED_TASK_TIMEOUT_SECONDS:-18000}
       - DEFAULT_PROCESSING_MODE=${DEFAULT_PROCESSING_MODE:-fast}
       - FAST_MODE_MAX_CLIPS=${FAST_MODE_MAX_CLIPS:-4}
       - FAST_MODE_TRANSCRIPT_MODEL=${FAST_MODE_TRANSCRIPT_MODEL:-universal}
@@ -244,14 +246,14 @@ services:
     image: redis:7-alpine
     container_name: supoclip-redis
     ports:
-      - "6379:6379"
+      - "6382:6382"
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     command:
       [
         "sh",
         "-c",
-        "if [ -n \"$${REDIS_PASSWORD}\" ]; then exec docker-entrypoint.sh redis-server --requirepass \"$${REDIS_PASSWORD}\"; fi; exec docker-entrypoint.sh redis-server",
+        "if [ -n \"$${REDIS_PASSWORD}\" ]; then exec docker-entrypoint.sh redis-server --port 6382 --requirepass \"$${REDIS_PASSWORD}\"; fi; exec docker-entrypoint.sh redis-server --port 6382",
       ]
     volumes:
       - redis_data:/data
@@ -260,7 +262,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "if [ -n \"$${REDIS_PASSWORD}\" ]; then redis-cli -a \"$${REDIS_PASSWORD}\" ping; else redis-cli ping; fi",
+          "if [ -n \"$${REDIS_PASSWORD}\" ]; then redis-cli -p 6382 -a \"$${REDIS_PASSWORD}\" ping; else redis-cli -p 6382 ping; fi",
         ]
       interval: 30s
       timeout: 10s

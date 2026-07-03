@@ -60,7 +60,7 @@ def test_prepare_audio_for_transcription_extracts_compact_mp3(tmp_path):
     with patch("src.video_utils.run_ffmpeg_command", side_effect=fake_run):
         audio_path = video_utils._prepare_audio_for_transcription(video_path)
 
-    assert audio_path.name == "source.assemblyai.mp3"
+    assert audio_path.name == "source.transcription.mp3"
     assert audio_path.read_bytes() == b"audio"
     assert commands[0][0] == "ffmpeg"
     assert "-vn" in commands[0]

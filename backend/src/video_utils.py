@@ -23,6 +23,14 @@ import httpx
 import srt
 from datetime import timedelta
 
+try:
+    import whisper as _whisper
+
+    _WHISPER_AVAILABLE = True
+except ImportError:  # pragma: no cover - optional transcription backend
+    _whisper = None
+    _WHISPER_AVAILABLE = False
+
 from .config import get_config
 from .clip_cleanup import DEFAULT_FILTERED_WORDS, clip_cleanup_enabled
 from .clip_source_map import (
@@ -100,8 +108,8 @@ class VideoProcessor:
 
 
 def _prepare_audio_for_transcription(video_path: Path) -> Path:
-    """Extract a compact audio-only file before uploading to AssemblyAI."""
-    audio_path = video_path.with_name(f"{video_path.stem}.assemblyai.mp3")
+    """Extract a compact audio-only file for transcription."""
+    audio_path = video_path.with_name(f"{video_path.stem}.transcription.mp3")
     if audio_path.exists() and audio_path.stat().st_size > 0:
         return audio_path
 
@@ -189,33 +197,200 @@ def _submit_and_wait_for_assemblyai_transcript(
         time.sleep(aai.settings.polling_interval)
 
 
-def _assemblyai_speech_model_value(speech_model: str):
+def _assemblyai_speech_models_value(speech_model: str) -> List[str]:
+    """Map a model alias to the AssemblyAI ``speech_models`` list.
+
+    AssemblyAI deprecated the singular ``speech_model`` parameter server-side;
+    requests now require ``speech_models`` (a priority-ordered list) accepting
+    only ``universal-3-pro`` and ``universal-2``. Legacy aliases are mapped
+    onto those: fast/cheap mode prefers ``universal-2``; everything else uses
+    ``universal-3-pro`` with ``universal-2`` as a fallback.
+    """
     normalized = (speech_model or "universal").strip().lower()
-    if normalized in {"nano", "best", "universal", "universal-2", "universal-3-pro"}:
-        return aai.SpeechModel.universal
-    if normalized in {"slam-1", "slam_1"}:
-        return aai.SpeechModel.slam_1
-    return aai.SpeechModel.universal
+    if normalized in {"nano", "universal-2"}:
+        return ["universal-2"]
+    # "best", "universal", "universal-3-pro", slam variants, and anything else
+    # default to the highest-quality model with a cheaper fallback.
+    return ["universal-3-pro", "universal-2"]
 
 
-def get_video_transcript(video_path: Path, speech_model: str = "universal") -> str:
-    """Get transcript using AssemblyAI with word-level timing for precise subtitles."""
+_WHISPER_MODEL_CACHE: Dict[str, Any] = {}
+
+
+def _get_whisper_model(model_name: str = "base"):
+    """Load and cache a Whisper model by name."""
+    if not _WHISPER_AVAILABLE:
+        raise RuntimeError(
+            "Whisper is not installed. Install it with: uv add openai-whisper"
+        )
+    if model_name not in _WHISPER_MODEL_CACHE:
+        logger.info("Loading Whisper model: %s", model_name)
+        _WHISPER_MODEL_CACHE[model_name] = _whisper.load_model(model_name)
+    return _WHISPER_MODEL_CACHE[model_name]
+
+
+def transcribe_with_whisper(video_path: Path, model_name: str = "base") -> Dict[str, Any]:
+    """Transcribe video using local Whisper with word-level timestamps."""
+    audio_path = _prepare_audio_for_transcription(video_path)
+    model = _get_whisper_model(model_name)
+    logger.info("Starting Whisper transcription with model: %s", model_name)
+    return model.transcribe(str(audio_path), word_timestamps=True, language=None)
+
+
+def _whisper_result_to_transcript_data(whisper_result: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert a Whisper result dict to the standard transcript-cache format.
+
+    Whisper reports timings in seconds; the cache (and AssemblyAI path) stores
+    milliseconds, so each timestamp is multiplied by 1000 here.
+    """
+    words_data: List[Dict[str, Any]] = []
+    utterances_data: List[Dict[str, Any]] = []
+
+    for segment in whisper_result.get("segments") or []:
+        seg_words = [
+            {
+                "text": w.get("word", w.get("text", "")),
+                "start": int(w["start"] * 1000) if isinstance(w.get("start"), float) else int(w.get("start", 0)),
+                "end": int(w["end"] * 1000) if isinstance(w.get("end"), float) else int(w.get("end", 0)),
+                "confidence": w.get("probability", w.get("confidence", 1.0)),
+                "speaker": None,
+            }
+            for w in segment.get("words") or []
+        ]
+        utterances_data.append(
+            {
+                "text": segment.get("text", ""),
+                "start": int(segment["start"] * 1000) if "start" in segment else 0,
+                "end": int(segment["end"] * 1000) if "end" in segment else 0,
+                "speaker": None,
+                "words": seg_words,
+            }
+        )
+        words_data.extend(seg_words)
+
+    return {
+        "version": TRANSCRIPT_CACHE_SCHEMA_VERSION,
+        "words": words_data,
+        "utterances": utterances_data,
+        "text": whisper_result.get("text", ""),
+    }
+
+
+def transcribe_with_youtube_captions(video_url: str) -> Optional[str]:
+    """Extract a plain-text transcript from a YouTube video's captions via yt-dlp.
+
+    Only valid for YouTube-sourced videos. Returns plain text without word-level
+    timestamps, so subtitle generation is not supported on this path.
+    """
+    try:
+        import yt_dlp
+    except ImportError:
+        logger.error("yt-dlp is required for YouTube caption extraction")
+        return None
+
+    video_id = None
+    match = re.search(r"(?:v=|youtu\.be/|shorts/)([A-Za-z0-9_-]{11})", video_url)
+    if match:
+        video_id = match.group(1)
+
+    if not video_id:
+        logger.error("Could not extract YouTube video ID from URL: %s", video_url)
+        return None
+
+    temp_dir = Path(get_config().temp_dir)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    subs_path = temp_dir / f"{video_id}.en.vtt"
+
+    try:
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "writesubtitles": True,
+            "writeautomaticsub": True,
+            "subtitleslangs": ["en"],
+            "subtitlesformat": "vtt",
+            "skip_download": True,
+            "outtmpl": str(temp_dir / video_id),
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([video_url])
+
+        if subs_path.exists():
+            text = subs_path.read_text(encoding="utf-8")
+            lines = []
+            for line in text.splitlines():
+                stripped = line.strip()
+                if (
+                    stripped
+                    and not stripped.startswith("WEBVTT")
+                    and not stripped.startswith("Kind:")
+                    and not stripped.startswith("Language:")
+                    and "-->" not in line
+                    and not stripped.startswith("NOTE")
+                    and not re.match(r"^\d+$", stripped)
+                ):
+                    lines.append(stripped)
+            return " ".join(lines)
+
+        logger.warning("No English captions found for video %s", video_id)
+        return None
+
+    except Exception as e:
+        logger.error("Failed to extract YouTube captions: %s", e)
+        return None
+    finally:
+        for f in temp_dir.glob(f"{video_id}.*"):
+            if f.suffix in (".vtt", ".srt", ".ttml", ".json"):
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
+
+
+def get_video_transcript(
+    video_path: Path,
+    speech_model: str = "universal",
+    source_url: Optional[str] = None,
+) -> str:
+    """Get a video transcript using the configured provider.
+
+    Dispatches to AssemblyAI, local Whisper, or YouTube captions based on
+    ``TRANSCRIPTION_PROVIDER``. ``source_url`` enables the youtube_captions
+    provider, which needs the original URL rather than a local file path.
+    """
     logger.info(f"Getting transcript for: {video_path}")
-
-    # Configure AssemblyAI
     runtime_config = get_config()
+    provider = runtime_config.transcription_provider
+
+    if provider == "whisper":
+        return _get_transcript_with_whisper(video_path, runtime_config)
+    if provider == "youtube_captions":
+        if not source_url:
+            raise ValueError(
+                "youtube_captions provider requires a YouTube URL. "
+                "Pass source_url to get_video_transcript()."
+            )
+        return _get_transcript_with_youtube_captions(source_url)
+    return _get_transcript_with_assemblyai(video_path, speech_model, runtime_config)
+
+
+def _get_transcript_with_assemblyai(
+    video_path: Path, speech_model: str, runtime_config
+) -> str:
+    """Get transcript using AssemblyAI with word-level timing for precise subtitles."""
     aai.settings.api_key = runtime_config.assembly_ai_api_key
     aai.settings.http_timeout = runtime_config.assembly_ai_http_timeout_seconds
     transcriber = aai.Transcriber()
 
-    # Request word-level timestamps for precise subtitle sync
-    speech_model_value = _assemblyai_speech_model_value(speech_model)
+    # AssemblyAI now requires the plural `speech_models` list; the singular
+    # `best`/`nano`/`universal` values were deprecated server-side.
+    speech_models_value = _assemblyai_speech_models_value(speech_model)
 
     config_obj = aai.TranscriptionConfig(
         speaker_labels=True,
         punctuate=True,
         format_text=True,
-        speech_model=speech_model_value,
+        speech_models=speech_models_value,
     )
 
     try:
@@ -247,8 +422,6 @@ def get_video_transcript(video_path: Path, speech_model: str = "universal") -> s
             raise Exception(f"Transcription failed: {transcript.error}")
 
         formatted_lines = format_transcript_for_analysis(transcript)
-
-        # Cache the raw transcript for subtitle generation
         cache_transcript_data(video_path, transcript)
 
         result = "\n".join(formatted_lines)
@@ -258,13 +431,54 @@ def get_video_transcript(video_path: Path, speech_model: str = "universal") -> s
         return result
 
     except Exception as e:
-        logger.error(f"Error in transcription: {e}")
+        logger.error(f"Error in AssemblyAI transcription: {e}")
         raise
 
 
+def _get_transcript_with_whisper(video_path: Path, runtime_config) -> str:
+    """Get transcript using local Whisper with word-level timestamps."""
+    model_name = runtime_config.whisper_model
+    logger.info("Starting Whisper transcription with model: %s", model_name)
+    whisper_result = transcribe_with_whisper(video_path, model_name)
+
+    formatted_lines = format_transcript_for_analysis(whisper_result)
+    cache_transcript_data(video_path, whisper_result)
+
+    result = "\n".join(formatted_lines)
+    logger.info(
+        "Whisper transcript formatted: %d segments, %d chars",
+        len(formatted_lines),
+        len(result),
+    )
+    return result
+
+
+def _get_transcript_with_youtube_captions(source_url: str) -> str:
+    """Get transcript from YouTube captions (plain text, no word timings)."""
+    logger.info("Extracting YouTube captions for: %s", source_url)
+    transcript = transcribe_with_youtube_captions(source_url)
+    if not transcript:
+        raise RuntimeError(
+            "YouTube caption extraction failed or returned no captions. "
+            "Falling back requires a different TRANSCRIPTION_PROVIDER."
+        )
+    logger.info("YouTube caption transcript: %d chars", len(transcript))
+    return transcript
+
+
 def cache_transcript_data(video_path: Path, transcript) -> None:
-    """Cache AssemblyAI transcript data for subtitle generation."""
+    """Cache transcript data for subtitle generation.
+
+    Handles both AssemblyAI transcript objects and Whisper result dicts.
+    """
     cache_path = video_path.with_suffix(".transcript_cache.json")
+
+    if isinstance(transcript, dict):
+        cache_data = _whisper_result_to_transcript_data(transcript)
+        with open(cache_path, "w") as f:
+            json.dump(cache_data, f)
+        logger.info("Cached %d words to %s", len(cache_data["words"]), cache_path)
+        return
 
     words_data = []
     if transcript.words:
@@ -319,6 +533,14 @@ def load_cached_transcript_data(video_path: Path) -> Optional[Dict]:
 
 
 def _serialize_transcript_word(word) -> Dict[str, Any]:
+    if isinstance(word, dict):
+        return {
+            "text": word.get("word", word.get("text", "")),
+            "start": int(word["start"] * 1000) if isinstance(word.get("start"), float) else int(word.get("start", 0)),
+            "end": int(word["end"] * 1000) if isinstance(word.get("end"), float) else int(word.get("end", 0)),
+            "confidence": word.get("probability", word.get("confidence", 1.0)),
+            "speaker": word.get("speaker"),
+        }
     return {
         "text": word.text,
         "start": word.start,
@@ -329,7 +551,24 @@ def _serialize_transcript_word(word) -> Dict[str, Any]:
 
 
 def format_transcript_for_analysis(transcript) -> List[str]:
-    """Format transcripts into readable timestamped segments for AI analysis."""
+    """Format transcripts into readable timestamped segments for AI analysis.
+
+    Handles both AssemblyAI transcript objects (utterances/words with ms
+    timings) and Whisper result dicts (segments with second-based timings).
+    """
+    # Whisper result dict: treat each segment as an utterance, converting the
+    # second-based timings to milliseconds to match the timestamp formatter.
+    if isinstance(transcript, dict):
+        formatted_lines = []
+        for segment in transcript.get("segments") or []:
+            start_ms = int(segment.get("start", 0) * 1000)
+            end_ms = int(segment.get("end", 0) * 1000)
+            formatted_lines.append(
+                f"[{format_ms_to_timestamp(start_ms)} - {format_ms_to_timestamp(end_ms)}] "
+                f"{segment.get('text', '').strip()}"
+            )
+        return formatted_lines
+
     utterances = getattr(transcript, "utterances", None) or []
     if utterances:
         formatted_lines = []
