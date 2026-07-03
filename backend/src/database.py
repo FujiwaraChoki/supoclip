@@ -38,6 +38,14 @@ def _build_engine(database_url: str) -> AsyncEngine:
         max_overflow=20,
         pool_pre_ping=True,
         pool_recycle=3600,
+        # Safety net for the primary leak fix in api/routes/tasks.py
+        # (get_clip_file/export_clip release their session before streaming):
+        # any session parked mid-transaction this long is leaked, not legitimately
+        # busy. Killing it returns the connection to the pool instead of letting
+        # it accumulate toward QueuePool exhaustion.
+        connect_args={
+            "server_settings": {"idle_in_transaction_session_timeout": "300000"}
+        },
     )
 
 

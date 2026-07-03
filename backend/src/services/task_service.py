@@ -31,6 +31,7 @@ from ..clip_editor import (
     overlay_custom_captions,
 )
 from ..video_utils import VALID_OUTPUT_FORMATS, parse_timestamp_to_seconds
+from ..youtube_utils import cleanup_downloaded_files, extract_video_id
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..clip_source_map import (
@@ -71,19 +72,74 @@ class TaskService:
         if task.get("status") != "queued":
             return False
 
+        return self._task_age_seconds(task) >= self.config.queued_task_timeout_seconds
+
+    def _is_stale_processing_task(self, task: Dict[str, Any]) -> bool:
+        """Detect processing tasks whose worker likely died mid-run.
+
+        Recovers tasks stuck in "processing" (e.g. arq hard-killed the job past
+        its timeout) so they don't stay "processing" forever. The configured
+        timeout defaults well above arq's job_timeout, so a legitimately
+        long-running job is never falsely swept into "error".
+        """
+        if task.get("status") != "processing":
+            return False
+
+        return (
+            self._task_age_seconds(task)
+            >= self.config.processing_task_timeout_seconds
+        )
+
+    @staticmethod
+    def _task_age_seconds(task: Dict[str, Any]) -> float:
+        """Seconds since the task's last update (or creation)."""
         created_at = task.get("created_at")
         updated_at = task.get("updated_at") or created_at
 
         if not created_at or not updated_at:
-            return False
+            return 0.0
 
         now = (
             datetime.now(updated_at.tzinfo)
             if getattr(updated_at, "tzinfo", None)
             else datetime.utcnow()
         )
-        age_seconds = (now - updated_at).total_seconds()
-        return age_seconds >= self.config.queued_task_timeout_seconds
+        return (now - updated_at).total_seconds()
+
+    @staticmethod
+    def _cleanup_source_video(
+        video_path: Optional[Path], source_type: str, url: str
+    ) -> None:
+        """Delete the downloaded source video + audio sidecar after a task.
+
+        Generated clips and the tiny transcript-cache JSON are left in place.
+        For YouTube sources, ``cleanup_downloaded_files`` removes every
+        ``{video_id}.*`` artifact in temp/ (the merged video, sidecar audio,
+        and any stray partials). For uploads we only remove the audio sidecar
+        generated for transcription — the original upload is owned elsewhere.
+        """
+        if not video_path:
+            return
+
+        if source_type == "youtube":
+            try:
+                video_id = extract_video_id(url)
+                if video_id:
+                    cleanup_downloaded_files(video_id)
+                    logger.info("Cleaned up YouTube source artifacts for %s", video_id)
+                    return
+            except Exception as e:
+                logger.warning("Failed YouTube source cleanup: %s", e)
+
+        # Fallback / upload path: at least drop the transcription audio sidecar
+        # (e.g. "<stem>.transcription.mp3") next to the source file.
+        try:
+            sidecar = video_path.with_name(f"{video_path.stem}.transcription.mp3")
+            if sidecar.exists():
+                sidecar.unlink()
+                logger.info("Removed transcription audio sidecar: %s", sidecar.name)
+        except Exception as e:
+            logger.warning("Failed to remove transcription sidecar: %s", e)
 
     async def create_task_with_source(
         self,
@@ -159,6 +215,10 @@ class TaskService:
         Process a task: download video, analyze, create clips.
         Returns processing results.
         """
+        # Tracked so the downloaded source video can be cleaned up on both the
+        # success and error paths; multi-GB YouTube downloads otherwise pile up
+        # in temp/ until the disk fills and later tasks fail.
+        video_path: Optional[Path] = None
         try:
             logger.info(f"Starting processing for task {task_id}")
             started_at = datetime.utcnow()
@@ -372,6 +432,8 @@ class TaskService:
                 f"Task {task_id} completed successfully with {len(clip_ids)} clips"
             )
 
+            self._cleanup_source_video(video_path, source_type, url)
+
             return {
                 "task_id": task_id,
                 "clips_count": len(clip_ids),
@@ -382,6 +444,7 @@ class TaskService:
 
         except Exception as e:
             logger.error(f"Error processing task {task_id}: {e}")
+            self._cleanup_source_video(video_path, source_type, url)
             if str(e) == "Task cancelled":
                 await self.task_repo.update_task_status(
                     self.db,
@@ -491,6 +554,25 @@ class TaskService:
                 progress_message=(
                     "Task timed out while waiting in queue. "
                     "Ensure the worker service is running and healthy (docker-compose logs -f worker)."
+                ),
+            )
+            task = await self.task_repo.get_task_by_id(self.db, task_id)
+            if not task:
+                return None
+
+        if self._is_stale_processing_task(task):
+            timeout_seconds = self.config.processing_task_timeout_seconds
+            logger.warning(
+                f"Task {task_id} stuck in processing status for over {timeout_seconds}s; marking as error"
+            )
+            await self.task_repo.update_task_status(
+                self.db,
+                task_id,
+                "error",
+                progress=0,
+                progress_message=(
+                    "Task stalled during processing (worker likely stopped or timed out). "
+                    "Check the worker logs (docker-compose logs -f worker) and try again."
                 ),
             )
             task = await self.task_repo.get_task_by_id(self.db, task_id)
