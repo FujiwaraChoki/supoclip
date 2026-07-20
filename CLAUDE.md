@@ -165,6 +165,17 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 - `POST /upload` — Upload video file
 - `GET /clips/{filename}` — Serve generated clips
 
+**API keys (programmatic access):**
+- `GET /api-keys/` — List the user's API keys (metadata only)
+- `POST /api-keys/` — Create a key (plaintext `sk_...` returned exactly once)
+- `DELETE /api-keys/{key_id}` — Revoke a key
+
+API keys authenticate `/tasks/*`, `/fonts` and `/upload` directly via
+`Authorization: Bearer sk_...` or `x-api-key`. Resolution lives in
+`auth_headers.resolve_authenticated_user_id` (API key → DB lookup, else falls
+back to the frontend's HMAC-signed session headers). Only the SHA-256 hash is
+stored (`api_keys` table). The frontend manages keys at `/settings/api-keys`.
+
 ## Environment Variables
 
 Required in `.env` (root) or `backend/.env`:
@@ -201,3 +212,20 @@ Edit `backend/src/ai.py`: `simplified_system_prompt` controls selection criteria
 - Output: 9:16 vertical format, H.264, even pixel dimensions (`round_to_even()`)
 - Subtitles positioned at 75% down the frame
 - Virality scoring: `hook_score`, `engagement_score`, `value_score`, `shareability_score` (0-25 each, summed to `virality_score` 0-100)
+- Each segment gets an AI-written `hook_title` (3-9 words) burned into the top safe area for the first ~4s (`build_hook_title_ass` in `video_utils.py`), persisted on `generated_clips.hook_title`
+- Static talking-head crops get a slow ~5% Ken Burns punch-in (`kenburns_zoom_fragment`); tracked pans and split screens keep their own motion
+
+## MCP Server
+
+`mcp/` is a standalone [MCP](https://modelcontextprotocol.io) server
+(`supoclip-mcp`, Python/FastMCP, stdio) that exposes SupoClip to MCP clients
+(Claude Desktop/Code, Cursor, …). It is a thin client over the REST API.
+
+- **Default target:** the hosted API `https://api.supoclip.com`. Override with
+  `SUPOCLIP_API_URL` for self-hosting (e.g. `http://localhost:8000`).
+- **Auth:** a per-user API key in `SUPOCLIP_API_KEY` (see API keys above).
+  Self-hosters may instead use `SUPOCLIP_USER_ID` (+ `SUPOCLIP_AUTH_SECRET` when
+  signing is enforced).
+- **Tools:** create/list/get/wait/cancel/resume/delete tasks, list/download/
+  export clips, and public discovery (templates, transitions, fonts, B-roll).
+- Run with `cd mcp && uv run supoclip-mcp`. Details in `mcp/README.md`.

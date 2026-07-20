@@ -45,10 +45,12 @@ LLM=openai:gpt-4
 # LLM=ollama:gpt-oss:20b
 # OLLAMA_BASE_URL=http://localhost:11434/v1
 
-# Optional: Resend for waitlist + subscription lifecycle emails
+# Optional: Amazon SES for waitlist + subscription lifecycle emails
 # Required if you want hosted billing emails when SELF_HOST=false
-# RESEND_API_KEY=your_resend_api_key_here
-# RESEND_FROM_EMAIL="SupoClip <onboarding@your-domain.com>"
+# AWS_REGION=us-east-1
+# AWS_ACCESS_KEY_ID=your_aws_access_key_id
+# AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+# SES_FROM_EMAIL="SupoClip <onboarding@example.com>"
 ```
 
 ### 2. Start SupoClip
@@ -100,8 +102,10 @@ docker-compose up -d --build
 | `ANTHROPIC_API_KEY` | - | For Claude models |
 | `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | For local/self-hosted Ollama endpoint |
 | `OLLAMA_API_KEY` | - | Optional, required for Ollama Cloud |
-| `RESEND_API_KEY` | - | Optional in self-host mode, required for hosted billing/waitlist emails |
-| `RESEND_FROM_EMAIL` | `SupoClip <onboarding@resend.dev>` | Verified sender for backend subscription emails |
+| `AWS_REGION` | `us-east-1` | Optional in self-host mode, required for hosted billing/waitlist emails |
+| `AWS_ACCESS_KEY_ID` | - | Optional in self-host mode, required for hosted billing/waitlist emails |
+| `AWS_SECRET_ACCESS_KEY` | - | Optional in self-host mode, required for hosted billing/waitlist emails |
+| `SES_FROM_EMAIL` | `SupoClip <onboarding@example.com>` | Verified sender for backend subscription emails |
 
 ### Hosted Billing Email Setup
 
@@ -117,8 +121,10 @@ If you enable hosted monetization with `SELF_HOST=false`, set these as well:
 | `STRIPE_PRICE_ID` | Legacy fallback Stripe price ID for the Pro subscription |
 | `PRO_PLAN_TASK_LIMIT` | Pro monthly generation limit, usually `50` |
 | `SCALE_PLAN_TASK_LIMIT` | Scale monthly generation limit, usually `300` |
-| `RESEND_API_KEY` | Resend API key used to send subscription emails |
-| `RESEND_FROM_EMAIL` | Verified sender address used for subscription emails |
+| `AWS_REGION` | AWS region used for Amazon SES, default `us-east-1` |
+| `AWS_ACCESS_KEY_ID` | AWS access key ID used to send subscription emails via Amazon SES |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret access key used to send subscription emails via Amazon SES |
+| `SES_FROM_EMAIL` | Verified sender address used for subscription emails |
 
 The billing flow sends:
 

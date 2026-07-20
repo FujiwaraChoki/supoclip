@@ -15,7 +15,7 @@ import { signOut, useSession } from "@/lib/auth-client";
 import { formatBillingPlanName, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail } from "lucide-react";
+import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight } from "lucide-react";
 
 interface UserPreferences {
   fontFamily: string;
@@ -28,6 +28,7 @@ interface BillingSummary {
   monetization_enabled: boolean;
   plan: string;
   subscription_status: string;
+  subscription_provider: string | null;
   usage_count: number;
   usage_limit: number | null;
   remaining: number | null;
@@ -455,6 +456,31 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            {/* Developer Section */}
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-black mb-1">
+                  Developer
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Programmatic access for tools like the SupoClip MCP server
+                </p>
+              </div>
+
+              <Link href="/settings/api-keys" className="block">
+                <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <KeyRound className="w-5 h-5 text-black" />
+                    <div>
+                      <p className="text-sm font-medium text-black">API Keys</p>
+                      <p className="text-xs text-gray-500">Create and manage API keys</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                </div>
+              </Link>
+            </div>
+
             <Separator className="mb-4" />
 
             {/* Success/Error Messages */}
@@ -497,15 +523,21 @@ export default function SettingsPage() {
                 </div>
 
                 {isPaidBillingPlan(billingSummary.plan) ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleBillingAction()}
-                    disabled={isBillingActionLoading}
-                    className="w-full"
-                  >
-                    {isBillingActionLoading ? "Loading..." : "Manage Billing"}
-                  </Button>
+                  billingSummary.subscription_provider === "apple" ? (
+                    <p className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600">
+                      Managed through the App Store
+                    </p>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleBillingAction()}
+                      disabled={isBillingActionLoading}
+                      className="w-full"
+                    >
+                      {isBillingActionLoading ? "Loading..." : "Manage Billing"}
+                    </Button>
+                  )
                 ) : (
                   <div className="grid gap-2 sm:grid-cols-2">
                     {paidPlans.map((plan) => (

@@ -58,4 +58,4 @@ async def send_subscription_email(
             status_code=502, detail="Failed to send subscription email"
         ) from exc
 
-    return {"status": "ok", "provider": "resend", "email": email_result}
+    return {"status": "ok", "provider": "ses", "email": email_result}

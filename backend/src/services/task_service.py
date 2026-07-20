@@ -310,6 +310,7 @@ class TaskService:
                     value_score=clip_info.get("value_score", 0),
                     shareability_score=clip_info.get("shareability_score", 0),
                     hook_type=clip_info.get("hook_type"),
+                    hook_title=clip_info.get("hook_title"),
                 )
                 await self.db.commit()
                 clip_ids.append(clip_id)
@@ -377,7 +378,7 @@ class TaskService:
                 )
                 raise
             await self.task_repo.update_task_status(
-                self.db, task_id, "error", progress_message=str(e)
+                self.db, task_id, "error", progress=0, progress_message=str(e)
             )
             error_code = "task_error"
             message = str(e).lower()
@@ -428,7 +429,7 @@ class TaskService:
         email_service = TaskCompletionEmailService(self.config)
         if not email_service.is_configured:
             logger.warning(
-                "Skipping completion notification for task %s because Resend is not configured",
+                "Skipping completion notification for task %s because Amazon SES is not configured",
                 task_id,
             )
             return
@@ -635,6 +636,7 @@ class TaskService:
                     "value_score": clip.get("value_score", 0),
                     "shareability_score": clip.get("shareability_score", 0),
                     "hook_type": clip.get("hook_type"),
+                    "hook_title": clip.get("hook_title"),
                 }
             )
 
@@ -673,6 +675,7 @@ class TaskService:
                 value_score=clip_info.get("value_score", 0),
                 shareability_score=clip_info.get("shareability_score", 0),
                 hook_type=clip_info.get("hook_type"),
+                hook_title=clip_info.get("hook_title"),
             )
             clip_ids.append(clip_id)
 
@@ -776,6 +779,7 @@ class TaskService:
             value_score=clip.get("value_score", 0),
             shareability_score=clip.get("shareability_score", 0),
             hook_type=clip.get("hook_type"),
+            hook_title=clip.get("hook_title"),
         )
 
         await self.clip_repo.reorder_task_clips(self.db, task_id)

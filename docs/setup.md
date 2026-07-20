@@ -22,7 +22,7 @@ This guide covers the recommended Docker setup, local development mode, and the 
 
 - `PEXELS_API_KEY` for AI B-roll sourcing
 - `NEXT_PUBLIC_DATAFAST_WEBSITE_ID` and `NEXT_PUBLIC_DATAFAST_DOMAIN` for DataFast analytics
-- `RESEND_API_KEY` and `RESEND_FROM_EMAIL` for hosted billing emails
+- `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `SES_FROM_EMAIL` for hosted billing emails
 - Stripe keys if you are running with monetization enabled
 - Discord webhook URLs for feedback forwarding
 

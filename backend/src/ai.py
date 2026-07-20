@@ -23,7 +23,9 @@ IDEAL_CLIP_MIN_SECONDS = 25
 IDEAL_CLIP_MAX_SECONDS = 50
 MIN_ACCEPTED_CLIP_SECONDS = 15
 MAX_ACCEPTED_CLIP_SECONDS = 60
-TRANSCRIPT_ANALYSIS_CACHE_VERSION = "longer-clips-v3-duration-repair"
+TRANSCRIPT_ANALYSIS_CACHE_VERSION = "hook-titles-v4"
+HOOK_TITLE_MAX_CHARS = 64
+HOOK_TITLE_MAX_WORDS = 10
 TRANSCRIPT_SPAN_RE = re.compile(
     r"^\[(?P<start>\d{1,2}:\d{2}(?::\d{2})?)\s*-\s*"
     r"(?P<end>\d{1,2}:\d{2}(?::\d{2})?)\]\s*(?P<text>.*)$"
@@ -106,6 +108,14 @@ class TranscriptSegment(BaseModel):
         default_factory=_default_virality_analysis,
         description="Detailed virality score breakdown",
     )
+    hook_title: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("hook_title", "title", "headline"),
+        description=(
+            "Short punchy on-screen title for the clip (3-9 words). Grounded in "
+            "the segment content, no hashtags, no emojis, no surrounding quotes."
+        ),
+    )
 
     @field_validator("relevance_score", mode="before")
     @classmethod
@@ -176,7 +186,7 @@ OUTPUT CONTRACT:
 - Return valid JSON only. Do not output Markdown, headings, bullets, prose, code fences, explanations, or commentary outside the JSON object.
 - The top-level JSON object must include: "most_relevant_segments", "summary", and "key_topics".
 - Only include "broll_opportunities" when B-roll was requested.
-- Each item in "most_relevant_segments" must include: "start_time", "end_time", "text", "relevance_score", "reasoning", and "virality".
+- Each item in "most_relevant_segments" must include: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", and "hook_title".
 - Do not use "segment" as an output field. Use "text".
 - "virality" must include: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", and "virality_reasoning".
 - Every returned segment must be 15-60 seconds long. Prefer 25-50 seconds.
@@ -246,6 +256,14 @@ For each segment, provide a detailed virality breakdown:
    - 15-19: Content worth bookmarking
    - 10-14: Nice but not share-worthy
    - 0-9: Generic content
+
+HOOK TITLES ("hook_title" per segment):
+- Write a short on-screen headline (3-9 words) that is burned into the top of the clip
+- It must make a scrolling viewer stop: a bold claim, curiosity gap, number, or stakes taken directly from the segment
+- Stay grounded: only promise what the clip actually delivers; never invent facts or numbers
+- Do not simply repeat the first spoken words verbatim; reframe them as a headline
+- Plain text only: no hashtags, no emojis, no quotes around the title
+- Good examples: "The $40k mistake I keep seeing", "Why nobody tells you this about VC", "Do this before your next interview"
 
 HOOK TYPES to identify:
 - "question": Opens with a question that creates curiosity
@@ -452,12 +470,44 @@ JSON-only output requirements:
 - Return one valid JSON object and nothing else.
 - No Markdown, headings, bullets, code fences, or explanatory text outside JSON.
 - Top-level keys: "most_relevant_segments", "summary", "key_topics"{', "broll_opportunities"' if include_broll else ''}.
-- Segment keys: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality".
+- Segment keys: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", "hook_title".
+- "hook_title" is a 3-9 word plain-text headline for the clip, grounded in the segment (no hashtags, emojis, or quotes).
 - Virality keys: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", "virality_reasoning".
 - Do not return segments shorter than {MIN_ACCEPTED_CLIP_SECONDS} seconds or longer than {MAX_ACCEPTED_CLIP_SECONDS} seconds.
 
 Transcript:
 {transcript}"""
+
+
+def sanitize_hook_title(raw: Optional[str]) -> Optional[str]:
+    """Normalize an AI-provided hook title for on-screen rendering.
+
+    Strips wrapping quotes/markdown, collapses whitespace, drops hashtags, and
+    trims to a word-boundary length cap. Returns None when nothing usable is
+    left so callers can simply skip the overlay.
+    """
+    if not raw:
+        return None
+    title = str(raw).strip()
+    title = title.strip("\"'`“”‘’").strip()
+    title = re.sub(r"#\w+", "", title)
+    title = re.sub(r"\s+", " ", title).strip()
+    # Drop trailing sentence punctuation but keep ?/! (they carry the hook).
+    title = title.rstrip(".,;:-–— ").strip()
+    if not title:
+        return None
+
+    words = title.split()
+    if len(words) > HOOK_TITLE_MAX_WORDS:
+        words = words[:HOOK_TITLE_MAX_WORDS]
+        title = " ".join(words)
+    if len(title) > HOOK_TITLE_MAX_CHARS:
+        clipped = title[: HOOK_TITLE_MAX_CHARS + 1]
+        cut = clipped.rfind(" ")
+        title = (clipped[:cut] if cut > 20 else title[:HOOK_TITLE_MAX_CHARS]).rstrip(
+            ".,;:-–— "
+        )
+    return title or None
 
 
 def _parse_transcript_timestamp_seconds(timestamp: str) -> int:
@@ -703,6 +753,8 @@ async def get_most_relevant_parts_by_transcript(
                             f"Correcting virality total: {segment.virality.total_score} -> {calculated_total}"
                         )
                         segment.virality.total_score = calculated_total
+
+                segment.hook_title = sanitize_hook_title(segment.hook_title)
 
                 validated_segments.append(segment)
                 virality_info = (

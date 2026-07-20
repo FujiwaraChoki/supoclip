@@ -248,7 +248,7 @@ When `SELF_HOST=false`:
 - Billing summary endpoints matter
 - Usage limits can block new task creation
 - Stripe checkout and portal flows are active
-- Subscription emails can be sent via Resend
+- Subscription emails can be sent via Amazon SES
 
 ## User Roles
 

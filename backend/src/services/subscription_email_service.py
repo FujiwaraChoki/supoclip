@@ -4,13 +4,13 @@ from typing import Optional
 
 from ..config import Config
 from ..models import User
-from .email_service import EmailContent, ResendEmailService, first_name_for
+from .email_service import EmailContent, SesEmailService, first_name_for
 
 
 class SubscriptionEmailService:
     def __init__(self, config: Optional[Config] = None):
         self.config = config or Config()
-        self.email_service = ResendEmailService(self.config)
+        self.email_service = SesEmailService(self.config)
 
     @property
     def is_configured(self) -> bool:

@@ -12,7 +12,7 @@ import aiofiles
 
 from ...config import get_config
 from ...database import get_db
-from ...auth_headers import get_authenticated_user_id as get_backend_user_id
+from ...auth_headers import resolve_authenticated_user_id
 from ...services.billing_service import BillingService
 from ...font_registry import (
     FONTS_DIR,
@@ -32,9 +32,9 @@ MAX_VIDEO_UPLOAD_BYTES = 1_000_000_000
 MAX_FONT_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
-def _get_authenticated_user_id(request: Request) -> str:
+async def _get_authenticated_user_id(request: Request, db: AsyncSession) -> str:
     config = get_config()
-    return get_backend_user_id(request, config)
+    return await resolve_authenticated_user_id(request, db, config)
 
 
 async def _write_upload_to_disk(
@@ -66,10 +66,12 @@ async def _write_upload_to_disk(
 
 
 @router.get("/fonts")
-async def get_available_fonts_route(request: Request):
+async def get_available_fonts_route(
+    request: Request, db: AsyncSession = Depends(get_db)
+):
     """Get list of available fonts."""
     try:
-        user_id = _get_authenticated_user_id(request)
+        user_id = await _get_authenticated_user_id(request, db)
         if not FONTS_DIR.exists():
             return {"fonts": [], "message": "Fonts directory not found"}
 
@@ -83,10 +85,12 @@ async def get_available_fonts_route(request: Request):
 
 
 @router.get("/fonts/{font_name}")
-async def get_font_file(font_name: str, request: Request):
+async def get_font_file(
+    font_name: str, request: Request, db: AsyncSession = Depends(get_db)
+):
     """Serve a specific font file."""
     try:
-        user_id = _get_authenticated_user_id(request)
+        user_id = await _get_authenticated_user_id(request, db)
         font_path = find_font_path(font_name, user_id=user_id)
 
         if not font_path:
@@ -117,7 +121,7 @@ async def upload_font(
 ):
     """Upload a custom .ttf/.otf font so it appears in the font picker."""
     try:
-        user_id = _get_authenticated_user_id(request)
+        user_id = await _get_authenticated_user_id(request, db)
         billing_service = BillingService(db)
         summary = await billing_service.get_usage_summary(user_id)
         paid_access = not summary.get("monetization_enabled") or (
@@ -245,10 +249,10 @@ async def get_broll_status():
 
 
 @router.post("/upload")
-async def upload_video(request: Request):
+async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
     """Upload a video to the server."""
     try:
-        _get_authenticated_user_id(request)
+        await _get_authenticated_user_id(request, db)
         config = get_config()
 
         # Get the form data

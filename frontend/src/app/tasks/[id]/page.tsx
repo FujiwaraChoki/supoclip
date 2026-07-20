@@ -56,6 +56,7 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/comp
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import DynamicVideoPlayer from "@/components/dynamic-video-player";
+import { TranscriptPreview } from "@/components/transcript-preview";
 
 interface Clip {
   id: string;
@@ -77,6 +78,7 @@ interface Clip {
   value_score: number;
   shareability_score: number;
   hook_type: string | null;
+  hook_title: string | null;
 }
 
 interface TaskDetails {
@@ -878,8 +880,12 @@ export default function TaskPage() {
                         <div className="p-6 flex-1">
                           <div className="flex items-start justify-between mb-4">
                             <div>
-                              <h3 className="font-semibold text-lg text-black mb-1">Clip {clip.clip_order}</h3>
+                              <h3 className="font-semibold text-lg text-black mb-1">
+                                {clip.hook_title || `Clip ${clip.clip_order}`}
+                              </h3>
                               <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <span>Clip {clip.clip_order}</span>
+                                <span>•</span>
                                 <span>{clip.start_time} - {clip.end_time}</span>
                                 <span>•</span>
                                 <span>{formatDuration(clip.duration)}</span>
@@ -899,10 +905,7 @@ export default function TaskPage() {
                             </div>
                           </div>
                           {clip.text && (
-                            <div className="mb-4">
-                              <h4 className="font-medium text-black mb-2">Transcript</h4>
-                              <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded">{clip.text}</p>
-                            </div>
+                            <TranscriptPreview text={clip.text} clipTitle={`Clip ${clip.clip_order}`} />
                           )}
                           <Button size="sm" variant="outline" asChild>
                             <a href={getClipUrl(clip.video_url)} download={clip.filename}>
@@ -1174,8 +1177,12 @@ export default function TaskPage() {
                             />
                             Select for merge
                           </label>
-                          <h3 className="font-semibold text-lg text-black mb-1">Clip {clip.clip_order}</h3>
+                          <h3 className="font-semibold text-lg text-black mb-1">
+                            {clip.hook_title || `Clip ${clip.clip_order}`}
+                          </h3>
                           <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <span>Clip {clip.clip_order}</span>
+                            <span>•</span>
                             <span>
                               {clip.start_time} - {clip.end_time}
                             </span>
@@ -1272,10 +1279,7 @@ export default function TaskPage() {
                       )}
 
                       {clip.text && (
-                        <div className="mb-4">
-                          <h4 className="font-medium text-black mb-2">Transcript</h4>
-                          <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded">{clip.text}</p>
-                        </div>
+                        <TranscriptPreview text={clip.text} clipTitle={`Clip ${clip.clip_order}`} />
                       )}
 
                       <div className="flex items-center gap-2">

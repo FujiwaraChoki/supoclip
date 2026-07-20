@@ -76,6 +76,7 @@ describe("/api/billing/webhook", () => {
 
   it("notifies the backend when a subscription is deleted", async () => {
     const deleteEvent = vi.fn().mockResolvedValue({});
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
     const stripe = {
       webhooks: {
         constructEvent: vi.fn().mockReturnValue({
@@ -97,8 +98,8 @@ describe("/api/billing/webhook", () => {
         delete: deleteEvent,
       },
       user: {
-        findFirst: vi.fn().mockResolvedValue({ id: "user-1" }),
-        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findFirst: vi.fn().mockResolvedValue({ id: "user-1", subscription_provider: "stripe" }),
+        updateMany,
       },
     } as never);
     vi.mocked(fetchBackend).mockResolvedValue(new Response("{}", { status: 200 }));
@@ -112,6 +113,19 @@ describe("/api/billing/webhook", () => {
     );
 
     expect(fetchBackend).toHaveBeenCalled();
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          stripe_customer_id: "cus_123",
+          OR: [{ subscription_provider: "stripe" }, { subscription_provider: null }],
+        },
+        data: expect.objectContaining({
+          plan: "free",
+          subscription_status: "canceled",
+          subscription_provider: null,
+        }),
+      }),
+    );
     expect(response.status).toBe(200);
     expect(deleteEvent).not.toHaveBeenCalled();
   });
@@ -139,7 +153,7 @@ describe("/api/billing/webhook", () => {
         delete: deleteEvent,
       },
       user: {
-        findFirst: vi.fn().mockResolvedValue({ id: "user-1" }),
+        findFirst: vi.fn().mockResolvedValue({ id: "user-1", subscription_provider: "stripe" }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
     } as never);
@@ -160,6 +174,45 @@ describe("/api/billing/webhook", () => {
     expect(deleteEvent).not.toHaveBeenCalled();
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+
+  it("does not send an unsubscribe email when Stripe deletion is guarded by Apple provider", async () => {
+    const stripe = {
+      webhooks: {
+        constructEvent: vi.fn().mockReturnValue({
+          id: "evt_apple_guard",
+          type: "customer.subscription.deleted",
+          data: {
+            object: {
+              customer: "cus_123",
+            },
+          },
+        }),
+      },
+    };
+
+    vi.mocked(getServerStripeClient).mockReturnValue(stripe as never);
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: {
+        create: vi.fn().mockResolvedValue({}),
+        delete: vi.fn().mockResolvedValue({}),
+      },
+      user: {
+        findFirst: vi.fn().mockResolvedValue({ id: "user-1", subscription_provider: "apple" }),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    } as never);
+
+    const response = await POST(
+      new Request("http://localhost/api/billing/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchBackend).not.toHaveBeenCalled();
   });
 
   it("maps subscription updates to the Scale plan by Stripe price ID", async () => {
@@ -215,7 +268,121 @@ describe("/api/billing/webhook", () => {
         data: expect.objectContaining({
           plan: "scale",
           subscription_status: "active",
+          subscription_provider: "stripe",
           stripe_subscription_id: "sub_123",
+        }),
+      }),
+    );
+  });
+
+  it("scopes non-paid subscription updates so they cannot clobber an Apple entitlement", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 0 });
+    const stripe = {
+      webhooks: {
+        constructEvent: vi.fn().mockReturnValue({
+          id: "evt_5",
+          type: "customer.subscription.updated",
+          data: {
+            object: {
+              id: "sub_123",
+              customer: "cus_123",
+              status: "canceled",
+              trial_end: null,
+              items: { data: [] },
+            },
+          },
+        }),
+      },
+    };
+
+    vi.mocked(getServerStripeClient).mockReturnValue(stripe as never);
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: {
+        create: vi.fn().mockResolvedValue({}),
+        delete: vi.fn().mockResolvedValue({}),
+      },
+      user: {
+        updateMany,
+      },
+    } as never);
+
+    const response = await POST(
+      new Request("http://localhost/api/billing/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          stripe_customer_id: "cus_123",
+          OR: [{ subscription_provider: "stripe" }, { subscription_provider: null }],
+        },
+      }),
+    );
+  });
+
+  it("scopes active subscriptions with unmapped prices so they cannot clobber an Apple entitlement", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 0 });
+    const stripe = {
+      webhooks: {
+        constructEvent: vi.fn().mockReturnValue({
+          id: "evt_unmapped_active",
+          type: "customer.subscription.updated",
+          data: {
+            object: {
+              id: "sub_unmapped",
+              customer: "cus_123",
+              status: "active",
+              trial_end: null,
+              items: {
+                data: [
+                  {
+                    price: { id: "price_unknown" },
+                    current_period_start: 1770000000,
+                    current_period_end: 1772592000,
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      },
+    };
+
+    vi.mocked(getServerStripeClient).mockReturnValue(stripe as never);
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: {
+        create: vi.fn().mockResolvedValue({}),
+        delete: vi.fn().mockResolvedValue({}),
+      },
+      user: {
+        updateMany,
+      },
+    } as never);
+
+    const response = await POST(
+      new Request("http://localhost/api/billing/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          stripe_customer_id: "cus_123",
+          OR: [{ subscription_provider: "stripe" }, { subscription_provider: null }],
+        },
+        data: expect.objectContaining({
+          plan: "free",
+          subscription_status: "active",
+          subscription_provider: "stripe",
         }),
       }),
     );

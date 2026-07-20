@@ -17,7 +17,7 @@ from ...database import get_db
 from ...database import AsyncSessionLocal
 from ...services.task_service import TaskService
 from ...services.billing_service import BillingService, BillingLimitExceeded
-from ...auth_headers import get_authenticated_user_id
+from ...auth_headers import resolve_authenticated_user_id
 from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import get_config
@@ -52,10 +52,10 @@ def _normalize_font_family(value: Any, default: str = "THEBOLDFONT") -> str:
     return default
 
 
-def _get_user_id_from_headers(request: Request) -> str:
-    """Get the authenticated user ID from trusted frontend headers."""
+async def _get_user_id_from_headers(request: Request, db: AsyncSession) -> str:
+    """Resolve the authenticated user ID from an API key or signed frontend headers."""
     config = get_config()
-    return get_authenticated_user_id(request, config)
+    return await resolve_authenticated_user_id(request, db, config)
 
 
 async def _load_task_source_metadata(task_id: str) -> Dict[str, Any]:
@@ -132,7 +132,7 @@ async def _require_task_owner(
     request: Request, task_service: TaskService, db: AsyncSession, task_id: str
 ):
     """Ensure authenticated user owns the task."""
-    user_id = _get_user_id_from_headers(request)
+    user_id = await _get_user_id_from_headers(request, db)
 
     task = await task_service.task_repo.get_task_by_id(db, task_id)
     if not task:
@@ -151,7 +151,7 @@ async def list_tasks(
     """
     Get all tasks for the authenticated user.
     """
-    user_id = _get_user_id_from_headers(request)
+    user_id = await _get_user_id_from_headers(request, db)
 
     try:
         task_service = TaskService(db)
@@ -173,7 +173,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     data = await request.json()
 
     raw_source = data.get("source")
-    user_id = _get_user_id_from_headers(request)
+    user_id = await _get_user_id_from_headers(request, db)
 
     # Get font options
     font_options = data.get("font_options", {})
@@ -288,7 +288,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/billing/summary")
 async def get_billing_summary(request: Request, db: AsyncSession = Depends(get_db)):
     """Get monetization status and current usage for authenticated user."""
-    user_id = _get_user_id_from_headers(request)
+    user_id = await _get_user_id_from_headers(request, db)
 
     try:
         billing_service = BillingService(db)
@@ -359,9 +359,8 @@ async def get_task_progress_sse(task_id: str, request: Request):
     Streams progress updates as Server-Sent Events.
     """
 
-    user_id = _get_user_id_from_headers(request)
-
     async with AsyncSessionLocal() as local_db:
+        user_id = await _get_user_id_from_headers(request, local_db)
         task_service = TaskService(local_db)
         task = await task_service.task_repo.get_task_by_id(local_db, task_id)
 
@@ -456,7 +455,7 @@ async def delete_task(
 ):
     """Delete a task and all its associated clips."""
     try:
-        user_id = _get_user_id_from_headers(request)
+        user_id = await _get_user_id_from_headers(request, db)
         task_service = TaskService(db)
 
         # Get task to verify ownership
@@ -487,7 +486,7 @@ async def delete_clip(
 ):
     """Delete a specific clip."""
     try:
-        user_id = _get_user_id_from_headers(request)
+        user_id = await _get_user_id_from_headers(request, db)
         task_service = TaskService(db)
 
         # Verify task ownership

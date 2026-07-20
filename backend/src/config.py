@@ -39,6 +39,17 @@ class Config:
         self.apify_youtube_default_quality = self._normalize_apify_quality(
             os.getenv("APIFY_YOUTUBE_DEFAULT_QUALITY", "1080")
         )
+        self.apify_youtube_downloader_actor = (
+            os.getenv(
+                "APIFY_YOUTUBE_DOWNLOADER_ACTOR",
+                "epctex/youtube-video-downloader",
+            )
+            .strip()
+            or "epctex/youtube-video-downloader"
+        )
+        self.apify_run_timeout_seconds = int(
+            os.getenv("APIFY_RUN_TIMEOUT_SECONDS", "900")
+        )
 
         self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "21600"))
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
@@ -77,9 +88,11 @@ class Config:
                 "http://sp.localhost:3107",
             ],
         )
-        self.resend_api_key = self._get_optional_env("RESEND_API_KEY")
-        self.resend_from_email = os.getenv(
-            "RESEND_FROM_EMAIL", "SupoClip <onboarding@resend.dev>"
+        self.aws_region = self._get_optional_env("AWS_REGION")
+        self.aws_access_key_id = self._get_optional_env("AWS_ACCESS_KEY_ID")
+        self.aws_secret_access_key = self._get_optional_env("AWS_SECRET_ACCESS_KEY")
+        self.ses_from_email = os.getenv(
+            "SES_FROM_EMAIL", "SupoClip <onboarding@example.com>"
         )
         self.app_base_url = (
             self._get_optional_env("NEXT_PUBLIC_APP_URL") or "http://localhost:3107"
@@ -89,7 +102,7 @@ class Config:
         self.default_processing_mode = os.getenv("DEFAULT_PROCESSING_MODE", "fast")
         self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "4"))
         self.fast_mode_transcript_model = os.getenv(
-            "FAST_MODE_TRANSCRIPT_MODEL", "nano"
+            "FAST_MODE_TRANSCRIPT_MODEL", "universal"
         )
 
     @staticmethod

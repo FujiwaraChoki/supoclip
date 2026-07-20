@@ -37,7 +37,7 @@ from .clip_source_map import (
     save_clip_source_ranges,
 )
 from .caption_templates import get_template, CAPTION_TEMPLATES
-from .emoji_captions import annotate_caption_words
+from .emoji_captions import POWER_WORDS, annotate_caption_words, normalize_token
 from .font_registry import FONTS_DIR, find_font_path, get_font_family_name
 
 logger = logging.getLogger(__name__)
@@ -50,6 +50,11 @@ EMOJI_FONT_NAME = "Noto Color Emoji"
 CLIP_END_SENTENCE_EXTENSION_SECONDS = 3.0
 CLIP_END_PADDING_SECONDS = 0.35
 SENTENCE_END_RE = re.compile(r"""[.!?]["')\]}]*$""")
+# Burned-in hook title (AI-written headline shown at the top of the clip while
+# the hook plays out). Long enough to read twice, gone before it feels stale.
+HOOK_TITLE_SECONDS = 4.0
+HOOK_TITLE_MIN_SECONDS = 1.5
+HOOK_TITLE_TOP_MARGIN_FRAC = 0.07
 
 
 class VideoProcessor:
@@ -126,7 +131,14 @@ def _prepare_audio_for_transcription(video_path: Path) -> Path:
         "64k",
         str(audio_path),
     ]
-    result = run_ffmpeg_command(command, timeout=900)
+    try:
+        result = run_ffmpeg_command(command, timeout=900)
+    except FileNotFoundError:
+        logger.warning(
+            "ffmpeg is not available; falling back to source video for transcription"
+        )
+        return video_path
+
     if result.returncode != 0 or not audio_path.exists() or audio_path.stat().st_size == 0:
         logger.warning(
             "Failed to extract transcription audio with ffmpeg; falling back to source video"
@@ -190,6 +202,15 @@ def _submit_and_wait_for_assemblyai_transcript(
 
 
 _WHISPER_MODEL_CACHE: dict[str, Any] = {}
+
+
+def _assemblyai_speech_model_value(speech_model: str):
+    normalized = (speech_model or "universal").strip().lower()
+    if normalized in {"nano", "best", "universal", "universal-2", "universal-3-pro"}:
+        return aai.SpeechModel.universal
+    if normalized in {"slam-1", "slam_1"}:
+        return aai.SpeechModel.slam_1
+    return aai.SpeechModel.universal
 
 
 def _get_whisper_model(model_name: str = "base"):
@@ -342,9 +363,8 @@ def _get_transcript_with_assemblyai(
     aai.settings.http_timeout = runtime_config.assembly_ai_http_timeout_seconds
     transcriber = aai.Transcriber()
 
-    speech_model_value = aai.SpeechModel.best
-    if speech_model == "nano":
-        speech_model_value = aai.SpeechModel.nano
+    # Request word-level timestamps for precise subtitle sync
+    speech_model_value = _assemblyai_speech_model_value(speech_model)
 
     config_obj = aai.TranscriptionConfig(
         speaker_labels=True,
@@ -1528,6 +1548,103 @@ def extend_keep_ranges_to_sentence_boundary(
     return [*normalized[:-1], (last_start, extended_end)]
 
 
+def _balance_title_lines(words: List[str], max_chars: int) -> List[str]:
+    """Split title words into one line, or two lines balanced around the middle."""
+    text = " ".join(words)
+    if len(text) <= max_chars or len(words) < 2:
+        return [text]
+    best_lines = [text]
+    best_longest = len(text)
+    for i in range(1, len(words)):
+        first = " ".join(words[:i])
+        second = " ".join(words[i:])
+        longest = max(len(first), len(second))
+        if longest < best_longest:
+            best_longest = longest
+            best_lines = [first, second]
+    return best_lines
+
+
+def build_hook_title_ass(
+    hook_title: str,
+    template: Dict[str, Any],
+    video_width: int,
+    video_height: int,
+    output_duration: float,
+    font_name: str,
+    caption_font_px: int,
+) -> Tuple[str, List[str]]:
+    """Build the (style_line, dialogue_events) for a burned-in hook title.
+
+    The title sits in the top safe area (Alignment 8), styled off the caption
+    template so it reads as part of the same design system: same font, an
+    outline/backing for contrast, power words and numbers in the template's
+    highlight colour, and a quick fade+pop entrance.
+    """
+    uppercase = bool(template.get("uppercase"))
+    title_text = hook_title.upper() if uppercase else hook_title
+
+    primary = hex_to_ass_color(template.get("font_color"), "#FFFFFF")
+    highlight = hex_to_ass_color(
+        template.get("emphasis_color") or template.get("highlight_color"), "#FFE000"
+    )
+    outline = hex_to_ass_color(template.get("stroke_color") or "#000000", "#000000")
+    back_color = hex_to_ass_color(template.get("background_color"), "#00000080")
+
+    # Slightly smaller than the captions so the spoken words stay the hero.
+    base_px = max(34, min(66, int(caption_font_px * 0.82)))
+    usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_TOP_MARGIN_FRAC))
+    max_chars = max(10, int(usable_width / (base_px * 0.52)))
+    lines = _balance_title_lines(title_text.split(), max_chars)
+    longest = max(len(line) for line in lines)
+    hook_px = base_px
+    if longest > max_chars:
+        hook_px = max(30, min(base_px, int(usable_width / (longest * 0.52))))
+
+    base_stroke = int(template.get("stroke_width", 3) or 0)
+    has_outline = template.get("stroke_color") is not None and base_stroke > 0
+    border_style = 3 if (not has_outline and template.get("background_color")) else 1
+    outline_px = (
+        max(base_stroke, round(hook_px * base_stroke / 26)) if has_outline else 0
+    )
+    if border_style == 3:
+        outline_px = max(4, hook_px // 6)  # backing-box padding
+    elif outline_px == 0:
+        outline_px = max(2, hook_px // 16)  # always keep contrast on video
+    shadow_px = max(2, hook_px // 20) if template.get("shadow") else 0
+    margin_v = max(48, int(video_height * HOOK_TITLE_TOP_MARGIN_FRAC))
+
+    style_line = (
+        f"Style: Hook,{font_name},{hook_px},{primary},&H000000FF,{outline},{back_color},"
+        f"1,0,0,0,100,100,0,0,{border_style},{outline_px},{shadow_px},8,60,60,{margin_v},1"
+    )
+
+    # Accent power words / numbers in the template highlight colour.
+    rendered_lines: List[str] = []
+    for line in lines:
+        spans: List[str] = []
+        for word in line.split():
+            token = normalize_token(word)
+            accented = bool(token) and (token in POWER_WORDS or any(c.isdigit() for c in token))
+            color = highlight if accented else primary
+            spans.append(f"{{\\c{color}}}{escape_ass_text(word)}")
+        rendered_lines.append(" ".join(spans))
+    text = "\\N".join(rendered_lines)
+
+    start = 0.12
+    end = min(HOOK_TITLE_SECONDS, max(HOOK_TITLE_MIN_SECONDS, output_duration - 0.25))
+    if output_duration <= HOOK_TITLE_MIN_SECONDS:
+        start, end = 0.0, max(0.5, output_duration)
+    entrance = "\\fad(160,240)"
+    if template.get("word_pop", True):
+        entrance += "\\fscx90\\fscy90\\t(0,160,\\fscx100\\fscy100)"
+    events = [
+        f"Dialogue: 1,{ass_timestamp(start)},{ass_timestamp(end)},Hook,,0,0,0,,"
+        f"{{{entrance}}}{text}"
+    ]
+    return style_line, events
+
+
 def build_assemblyai_ass_subtitles(
     video_path: Path,
     clip_start: float,
@@ -1541,17 +1658,19 @@ def build_assemblyai_ass_subtitles(
     caption_template: str = "default",
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
     caption_cues: Optional[List[Dict[str, Any]]] = None,
+    hook_title: Optional[str] = None,
+    include_captions: bool = True,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
     Renders OpusClip-style captions: a per-word active highlight that pops, an
     accent colour on emphasised power/keyword words, contextual emojis, a thick
     scaled outline + drop shadow, and an optional pill behind the active word.
+    When ``hook_title`` is set, an AI-written headline is burned into the top
+    safe area while the hook plays out (it renders even when word-synced
+    captions are unavailable or disabled via ``include_captions``).
     """
     transcript_data = load_cached_transcript_data(video_path)
-    if not transcript_data or not transcript_data.get("words"):
-        logger.warning("No cached transcript data available for ASS subtitles")
-        return False
 
     template = get_template(caption_template)
     effective_font_family = font_family or template["font_family"]
@@ -1559,12 +1678,14 @@ def build_assemblyai_ass_subtitles(
     effective_font_color = font_color or template["font_color"]
     animation = template.get("animation", "karaoke")
 
-    if keep_ranges:
-        relevant_words = get_words_for_keep_ranges(transcript_data, keep_ranges)
-    else:
-        relevant_words = get_words_in_range(transcript_data, clip_start, clip_end)
-    if not relevant_words:
-        logger.warning("No words found in clip timerange for ASS subtitles")
+    relevant_words: List[Dict[str, Any]] = []
+    if include_captions and transcript_data and transcript_data.get("words"):
+        if keep_ranges:
+            relevant_words = get_words_for_keep_ranges(transcript_data, keep_ranges)
+        else:
+            relevant_words = get_words_in_range(transcript_data, clip_start, clip_end)
+    if not relevant_words and not hook_title:
+        logger.warning("No words or hook title available for ASS subtitles")
         return False
 
     # --- styling knobs (new template fields, all optional) ---
@@ -1601,6 +1722,28 @@ def build_assemblyai_ass_subtitles(
     font_name = ass_font_name(effective_font_family)
     border_style = 3 if template.get("background") and template.get("background_color") else 1
 
+    hook_style_block = ""
+    hook_events: List[str] = []
+    if hook_title:
+        if keep_ranges:
+            ranges = normalize_source_ranges(keep_ranges)
+            fade = crossfade_fade_for_ranges(ranges)
+            output_duration = sum(end - start for start, end in ranges) - fade * max(
+                0, len(ranges) - 1
+            )
+        else:
+            output_duration = max(0.0, clip_end - clip_start)
+        hook_style_line, hook_events = build_hook_title_ass(
+            hook_title,
+            template,
+            video_width,
+            video_height,
+            output_duration,
+            font_name,
+            font_px,
+        )
+        hook_style_block = f"{hook_style_line}\n"
+
     # Contextual emoji + emphasis annotations over the whole clip word list.
     emoji_by_idx, emphasis_idx = annotate_caption_words(
         relevant_words,
@@ -1622,7 +1765,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{font_name},{font_px},{primary},&H000000FF,{outline},{back_color},1,0,0,0,100,100,0,0,{border_style},{outline_px},{shadow_px},5,60,60,60,1
-
+{hook_style_block}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
@@ -1727,8 +1870,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{line_prefix}{effect}{chunk_text}"
             )
 
-    output_ass_path.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
-    logger.info("Wrote ASS subtitles: %s (%d events)", output_ass_path, len(events))
+    all_events = hook_events + events
+    output_ass_path.write_text(header + "\n".join(all_events) + "\n", encoding="utf-8")
+    logger.info(
+        "Wrote ASS subtitles: %s (%d events%s)",
+        output_ass_path,
+        len(all_events),
+        ", hook title" if hook_events else "",
+    )
     return True
 
 
@@ -2451,6 +2600,38 @@ def build_layout_plan(
     ]
 
 
+# Ken Burns punch-in for static crops: a barely-perceptible push toward the
+# subject so locked-off talking-head clips still have life. Applied to static
+# crops only — tracked pans, split screens and content-shot compositing already
+# have their own motion.
+KENBURNS_ZOOM_DELTA = 0.05
+KENBURNS_MIN_SECONDS = 3.0
+KENBURNS_SUPERSAMPLE_W = 1620
+KENBURNS_SUPERSAMPLE_H = 2880
+
+
+def kenburns_zoom_fragment(duration: float) -> Optional[str]:
+    """Slow linear punch-in fragment producing a 1080x1920 [setsar-ed] stream.
+
+    Zooms through a 1.5x supersampled frame so zoompan's integer crop offsets
+    stay sub-pixel in the output (no visible stepping). The frame rate is
+    normalised to OUTPUT_FPS *before* zoompan and re-declared on it, because
+    zoompan re-times its output at its own fps — matching the two keeps the
+    video duration identical and the audio in sync.
+    """
+    if duration < KENBURNS_MIN_SECONDS:
+        return None
+    z_expr = (
+        f"if(isnan(it)\\,1\\,1+{KENBURNS_ZOOM_DELTA}*min(it/{duration:.3f}\\,1))"
+    )
+    return (
+        f"scale={KENBURNS_SUPERSAMPLE_W}:{KENBURNS_SUPERSAMPLE_H}:flags=lanczos,"
+        f"fps={OUTPUT_FPS},"
+        f"zoompan=z='{z_expr}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)*0.35'"
+        f":d=1:s=1080x1920:fps={OUTPUT_FPS},setsar=1"
+    )
+
+
 def build_vertical_compositor_filter(
     crop_chain: str,
     face_intervals: List[Tuple[float, float]],
@@ -2501,13 +2682,12 @@ def build_vertical_filter_plan(
     crop_w, crop_h = compute_vertical_crop_dims(width, height)
     duration = ffprobe_duration(input_path)
 
-    # Narrow/portrait source: no horizontal room to crop — static fit.
+    # Narrow/portrait source: no horizontal room to crop — static fit, with a
+    # slow punch-in so the frame still breathes.
     if crop_w >= width:
         sx, sy, sw, sh = detect_optimal_crop_region(input_path, 0, min(duration, 12.0))
-        return (
-            f"crop={sw}:{sh}:{sx}:{sy},scale=1080:1920:flags=lanczos,setsar=1",
-            "vf",
-        )
+        tail = kenburns_zoom_fragment(duration) or "scale=1080:1920:flags=lanczos,setsar=1"
+        return (f"crop={sw}:{sh}:{sx}:{sy},{tail}", "vf")
 
     # One fast decode pass yields both the face track and the scene cuts.
     try:
@@ -2517,7 +2697,9 @@ def build_vertical_filter_plan(
         track, scene_cuts = [], []
 
     keys = build_crop_trajectory(track, width, crop_w) if track else []
-    if keys and trajectory_has_movement(keys, crop_w):
+    moving = bool(keys and trajectory_has_movement(keys, crop_w))
+    static_x = 0
+    if moving:
         x_expr = build_smooth_pan_expression(keys)
         crop_chain = (
             f"crop={crop_w}:{crop_h}:x='{x_expr}':y=0,"
@@ -2539,6 +2721,13 @@ def build_vertical_filter_plan(
     plan = build_layout_plan(track, scene_cuts, duration)
     fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "fit"]
     if not fit_intervals:
+        # Static, all-face clip: add the slow Ken Burns punch-in. (The moving
+        # tracked crop and the compositor path keep the plain chain — they
+        # already have motion, and zoompan's re-timing would fight overlays.)
+        if not moving:
+            zoom = kenburns_zoom_fragment(duration)
+            if zoom:
+                return (f"crop={crop_w}:{crop_h}:{static_x}:0,{zoom}", "vf")
         return (crop_chain, "vf")
 
     face_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "face"]
@@ -3162,6 +3351,7 @@ def create_optimized_clip(
     caption_template: str = "default",
     output_format: str = "vertical",
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
+    hook_title: Optional[str] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size)."""
     try:
@@ -3241,7 +3431,7 @@ def create_optimized_clip(
 
             burn_ass_path: Optional[Path] = None
             fonts_dir: Optional[Path] = None
-            if add_subtitles and build_assemblyai_ass_subtitles(
+            if (add_subtitles or hook_title) and build_assemblyai_ass_subtitles(
                 video_path,
                 start_time,
                 end_time,
@@ -3253,6 +3443,8 @@ def create_optimized_clip(
                 font_color,
                 caption_template,
                 effective_keep_ranges,
+                hook_title=hook_title,
+                include_captions=add_subtitles,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
@@ -3360,6 +3552,7 @@ def create_clips_from_segments(
                 caption_template,
                 output_format,
                 keep_ranges,
+                hook_title=segment.get("hook_title"),
             )
 
             if success:
@@ -3382,6 +3575,7 @@ def create_clips_from_segments(
                     "value_score": segment.get("value_score", 0),
                     "shareability_score": segment.get("shareability_score", 0),
                     "hook_type": segment.get("hook_type"),
+                    "hook_title": segment.get("hook_title"),
                     "keep_ranges": keep_ranges,
                 }
                 clips_info.append(clip_info)

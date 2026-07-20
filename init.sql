@@ -25,6 +25,7 @@ CREATE TABLE users (
     is_admin BOOLEAN NOT NULL DEFAULT false,
     plan VARCHAR(20) NOT NULL DEFAULT 'free',
     subscription_status VARCHAR(20) NOT NULL DEFAULT 'inactive',
+    subscription_provider VARCHAR(20),
     stripe_customer_id VARCHAR(255) UNIQUE,
     stripe_subscription_id VARCHAR(255) UNIQUE,
     billing_period_start TIMESTAMP WITH TIME ZONE,
@@ -95,6 +96,7 @@ CREATE TABLE generated_clips (
     value_score INTEGER DEFAULT 0,
     shareability_score INTEGER DEFAULT 0,
     hook_type VARCHAR(50),
+    hook_title VARCHAR(200),         -- AI-written on-screen headline
 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -155,6 +157,13 @@ CREATE TABLE stripe_webhook_events (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- RevenueCat webhook idempotency table
+CREATE TABLE revenuecat_webhook_events (
+    id VARCHAR(255) PRIMARY KEY,
+    type VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE app_settings (
     setting_key VARCHAR(100) PRIMARY KEY,
     encrypted_value TEXT NOT NULL,
@@ -162,6 +171,18 @@ CREATE TABLE app_settings (
     updated_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Per-user API keys for programmatic access (e.g. the MCP server)
+CREATE TABLE api_keys (
+    id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(120) NOT NULL DEFAULT 'API Key',
+    key_hash VARCHAR(64) NOT NULL UNIQUE,
+    key_prefix VARCHAR(16) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP WITH TIME ZONE,
+    revoked_at TIMESTAMP WITH TIME ZONE
 );
 
 -- Create indexes for better performance
@@ -182,6 +203,8 @@ CREATE INDEX idx_session_userId ON session("userId");
 CREATE INDEX idx_account_userId ON account("userId");
 CREATE INDEX idx_verification_identifier ON verification(identifier);
 CREATE INDEX idx_app_settings_updated_by ON app_settings(updated_by);
+CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
+CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()

@@ -59,8 +59,10 @@ def build_clip_result() -> dict:
 def build_task_service() -> TaskService:
     config = Config()
     config.app_base_url = "http://localhost:3107"
-    config.resend_api_key = "re_test"
-    config.resend_from_email = "SupoClip <noreply@example.com>"
+    config.aws_region = "us-east-1"
+    config.aws_access_key_id = "AKIATEST"
+    config.aws_secret_access_key = "secret-test"
+    config.ses_from_email = "SupoClip <noreply@example.com>"
     service = TaskService(db=AsyncMock(), config=config)
     service.cache_repo.get_cache = AsyncMock(return_value=None)
     service.cache_repo.upsert_cache = AsyncMock()
@@ -130,6 +132,7 @@ async def test_process_task_fails_when_no_clip_segments_are_selected():
         service.db,
         "task-1",
         "error",
+        progress=0,
         progress_message="No usable clip segments were selected for this video.",
     )
     service.clip_repo.create_clip.assert_not_awaited()

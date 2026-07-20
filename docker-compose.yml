@@ -51,7 +51,13 @@ services:
       - NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST=${NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST:-false}
       - STRIPE_CHECKOUT_URL=${STRIPE_CHECKOUT_URL}
       - STRIPE_CUSTOMER_PORTAL_URL=${STRIPE_CUSTOMER_PORTAL_URL}
-      - RESEND_API_KEY=${RESEND_API_KEY}
+      - REVENUECAT_WEBHOOK_AUTH_HEADER=${REVENUECAT_WEBHOOK_AUTH_HEADER}
+      - REVENUECAT_PRO_PRODUCT_IDS=${REVENUECAT_PRO_PRODUCT_IDS}
+      - REVENUECAT_SCALE_PRODUCT_IDS=${REVENUECAT_SCALE_PRODUCT_IDS}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - "SES_FROM_EMAIL=${SES_FROM_EMAIL:-SupoClip <onboarding@example.com>}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,9 +97,12 @@ services:
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
       - ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS=${ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS:-900}
       - APIFY_API_TOKEN=${APIFY_API_TOKEN}
+      - APIFY_YOUTUBE_DOWNLOADER_ACTOR=${APIFY_YOUTUBE_DOWNLOADER_ACTOR:-epctex/youtube-video-downloader}
       - APIFY_YOUTUBE_DEFAULT_QUALITY=${APIFY_YOUTUBE_DEFAULT_QUALITY:-1080}
+      - APIFY_RUN_TIMEOUT_SECONDS=${APIFY_RUN_TIMEOUT_SECONDS:-900}
       - YOUTUBE_DATA_API_KEY=${YOUTUBE_DATA_API_KEY}
       - YOUTUBE_METADATA_PROVIDER=${YOUTUBE_METADATA_PROVIDER:-yt_dlp}
+      - YOUTUBE_DOWNLOAD_PROVIDER=${YOUTUBE_DOWNLOAD_PROVIDER:-yt_dlp}
       - LLM=${LLM:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
@@ -105,7 +114,7 @@ services:
       - QUEUED_TASK_TIMEOUT_SECONDS=${QUEUED_TASK_TIMEOUT_SECONDS:-180}
       - DEFAULT_PROCESSING_MODE=${DEFAULT_PROCESSING_MODE:-fast}
       - FAST_MODE_MAX_CLIPS=${FAST_MODE_MAX_CLIPS:-4}
-      - FAST_MODE_TRANSCRIPT_MODEL=${FAST_MODE_TRANSCRIPT_MODEL:-nano}
+      - FAST_MODE_TRANSCRIPT_MODEL=${FAST_MODE_TRANSCRIPT_MODEL:-universal}
       - SELF_HOST=${SELF_HOST:-true}
       - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET:-supoclip_dev_backend_secret_change_me}
       - APP_SETTINGS_ENCRYPTION_KEY=${APP_SETTINGS_ENCRYPTION_KEY:-supoclip_dev_settings_secret_change_me}
@@ -114,8 +123,10 @@ services:
       - FREE_PLAN_TASK_LIMIT=${FREE_PLAN_TASK_LIMIT:-10}
       - PRO_PLAN_TASK_LIMIT=${PRO_PLAN_TASK_LIMIT:-50}
       - SCALE_PLAN_TASK_LIMIT=${SCALE_PLAN_TASK_LIMIT:-300}
-      - RESEND_API_KEY=${RESEND_API_KEY}
-      - "RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-SupoClip <onboarding@resend.dev>}"
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - "SES_FROM_EMAIL=${SES_FROM_EMAIL:-SupoClip <onboarding@example.com>}"
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3107}
       - DISCORD_FEEDBACK_WEBHOOK_URL=${DISCORD_FEEDBACK_WEBHOOK_URL}
       - DISCORD_SALES_WEBHOOK_URL=${DISCORD_SALES_WEBHOOK_URL}
@@ -133,6 +144,35 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+
+  mcp:
+    build:
+      context: ./mcp
+      dockerfile: Dockerfile
+    container_name: supoclip-mcp
+    ports:
+      - "127.0.0.1:${SUPOCLIP_MCP_PORT:-9100}:9100"
+    volumes:
+      - mcp_downloads:/app/supoclip-downloads
+    environment:
+      - SUPOCLIP_API_URL=${SUPOCLIP_API_URL:-http://backend:8000}
+      - SUPOCLIP_DOWNLOAD_DIR=/app/supoclip-downloads
+      - SUPOCLIP_TIMEOUT=${SUPOCLIP_TIMEOUT:-60}
+      - SUPOCLIP_MCP_TRANSPORT=${SUPOCLIP_MCP_TRANSPORT:-sse}
+      - SUPOCLIP_MCP_HOST=0.0.0.0
+      - SUPOCLIP_MCP_PORT=9100
+      - SUPOCLIP_MCP_PUBLIC_URL=${SUPOCLIP_MCP_PUBLIC_URL:-http://localhost:9100}
+      - SUPOCLIP_MCP_REQUIRE_BEARER_AUTH=${SUPOCLIP_MCP_REQUIRE_BEARER_AUTH:-true}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 9100), 5); s.close()"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
   # Worker process for background video processing
   worker:
@@ -159,9 +199,12 @@ services:
       - ASSEMBLY_AI_API_KEY=${ASSEMBLY_AI_API_KEY}
       - ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS=${ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS:-900}
       - APIFY_API_TOKEN=${APIFY_API_TOKEN}
+      - APIFY_YOUTUBE_DOWNLOADER_ACTOR=${APIFY_YOUTUBE_DOWNLOADER_ACTOR:-epctex/youtube-video-downloader}
       - APIFY_YOUTUBE_DEFAULT_QUALITY=${APIFY_YOUTUBE_DEFAULT_QUALITY:-1080}
+      - APIFY_RUN_TIMEOUT_SECONDS=${APIFY_RUN_TIMEOUT_SECONDS:-900}
       - YOUTUBE_DATA_API_KEY=${YOUTUBE_DATA_API_KEY}
       - YOUTUBE_METADATA_PROVIDER=${YOUTUBE_METADATA_PROVIDER:-yt_dlp}
+      - YOUTUBE_DOWNLOAD_PROVIDER=${YOUTUBE_DOWNLOAD_PROVIDER:-yt_dlp}
       - LLM=${LLM:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
@@ -173,7 +216,7 @@ services:
       - QUEUED_TASK_TIMEOUT_SECONDS=${QUEUED_TASK_TIMEOUT_SECONDS:-180}
       - DEFAULT_PROCESSING_MODE=${DEFAULT_PROCESSING_MODE:-fast}
       - FAST_MODE_MAX_CLIPS=${FAST_MODE_MAX_CLIPS:-4}
-      - FAST_MODE_TRANSCRIPT_MODEL=${FAST_MODE_TRANSCRIPT_MODEL:-nano}
+      - FAST_MODE_TRANSCRIPT_MODEL=${FAST_MODE_TRANSCRIPT_MODEL:-universal}
       - SELF_HOST=${SELF_HOST:-true}
       - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET:-supoclip_dev_backend_secret_change_me}
       - APP_SETTINGS_ENCRYPTION_KEY=${APP_SETTINGS_ENCRYPTION_KEY:-supoclip_dev_settings_secret_change_me}
@@ -182,8 +225,10 @@ services:
       - FREE_PLAN_TASK_LIMIT=${FREE_PLAN_TASK_LIMIT:-10}
       - PRO_PLAN_TASK_LIMIT=${PRO_PLAN_TASK_LIMIT:-50}
       - SCALE_PLAN_TASK_LIMIT=${SCALE_PLAN_TASK_LIMIT:-300}
-      - RESEND_API_KEY=${RESEND_API_KEY}
-      - "RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-SupoClip <onboarding@resend.dev>}"
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - "SES_FROM_EMAIL=${SES_FROM_EMAIL:-SupoClip <onboarding@example.com>}"
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3107}
     restart: unless-stopped
     extra_hosts:
@@ -249,6 +294,8 @@ volumes:
   redis_data:
     driver: local
   postgres_data:
+    driver: local
+  mcp_downloads:
     driver: local
 
 networks:

@@ -32,6 +32,7 @@ describe("/api/upload/authorization", () => {
   });
 
   it("falls back to the server-side proxy when signed backend auth is unavailable", async () => {
+    vi.stubEnv("BACKEND_AUTH_SECRET", "");
     vi.mocked(auth.api.getSession).mockResolvedValue({
       user: { id: "user-1" },
     } as never);

@@ -21,13 +21,14 @@ class _FakeSession:
         return _FakeResult(self.rows.pop(0))
 
 
-def _billing_row(plan: str, status: str = "active"):
+def _billing_row(plan: str, status: str = "active", provider: str | None = None):
     return type(
         "BillingRow",
         (),
         {
             "plan": plan,
             "subscription_status": status,
+            "subscription_provider": provider,
             "billing_period_start": datetime.now(timezone.utc),
             "billing_period_end": datetime.now(timezone.utc),
             "trial_ends_at": None,
