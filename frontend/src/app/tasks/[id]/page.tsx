@@ -933,7 +933,9 @@ export default function TaskPage() {
                 <AlertCircle className="w-12 h-12 mx-auto mb-2" />
                 <h2 className="text-xl font-semibold">Processing Failed</h2>
               </div>
-              <p className="text-gray-600 mb-4">There was an error processing your video. Please try again.</p>
+              <p className="text-gray-600 mb-4">
+                {task?.progress_message || "There was an error processing your video. Please try again."}
+              </p>
               <Link href="/">
                 <Button>
                   <ArrowLeft className="w-4 h-4" />

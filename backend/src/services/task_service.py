@@ -381,7 +381,9 @@ class TaskService:
             )
             error_code = "task_error"
             message = str(e).lower()
-            if "download" in message or "youtube" in message:
+            if "too long" in message:
+                error_code = "too_long"
+            elif "download" in message or "youtube" in message:
                 error_code = "download_error"
             elif "analysis" in message:
                 error_code = "analysis_error"
