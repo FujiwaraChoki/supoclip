@@ -48,3 +48,34 @@ export async function GET(_: Request, { params }: Params) {
     },
   });
 }
+
+export async function DELETE(_: Request, { params }: Params) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { fontName } = await params;
+  const apiUrl =
+    process.env.BACKEND_INTERNAL_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "http://localhost:8000";
+  const normalizedApiUrl = apiUrl.replace(/\/$/, "");
+  const encodedFontName = encodeURIComponent(fontName);
+  const backendAuthHeaders = buildBackendAuthHeaders(session.user.id);
+
+  const upstream = await fetch(`${normalizedApiUrl}/fonts/${encodedFontName}`, {
+    method: "DELETE",
+    headers: {
+      ...backendAuthHeaders,
+    },
+  });
+
+  const responseText = await upstream.text();
+  return new NextResponse(responseText, {
+    status: upstream.status,
+    headers: {
+      "Content-Type": upstream.headers.get("content-type") || "application/json",
+    },
+  });
+}

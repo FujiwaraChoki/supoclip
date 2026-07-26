@@ -49,7 +49,6 @@ import {
   RefreshCw,
   Subtitles,
   Settings2,
-  Type,
   Clapperboard,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
@@ -57,6 +56,7 @@ import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import DynamicVideoPlayer from "@/components/dynamic-video-player";
 import { TranscriptPreview } from "@/components/transcript-preview";
+import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 
 interface Clip {
   id: string;
@@ -104,11 +104,6 @@ interface TaskDetails {
   filtered_words?: string[];
 }
 
-interface FontOption {
-  name: string;
-  display_name: string;
-}
-
 export default function TaskPage() {
   const params = useParams();
   const router = useRouter();
@@ -146,6 +141,7 @@ export default function TaskPage() {
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
+  const [deletingFontName, setDeletingFontName] = useState<string | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<
     Array<{ id: string; name: string; description: string; animation: string }>
   >([]);
@@ -601,6 +597,34 @@ export default function TaskPage() {
     }
   };
 
+  const handleDeleteFont = async (font: FontOption) => {
+    if (font.scope !== "user" || deletingFontName) return;
+    if (!window.confirm(`Delete ${font.display_name}? This cannot be undone.`)) return;
+
+    setDeletingFontName(font.name);
+    try {
+      const response = await fetch(`/api/fonts/${encodeURIComponent(font.name)}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error(await buildSupportError(response, "Failed to delete font"));
+      }
+
+      const remainingFonts = availableFonts.filter((item) => item.name !== font.name);
+      setAvailableFonts(remainingFonts);
+      if (projectFontFamily === font.name) {
+        setProjectFontFamily(
+          remainingFonts.find((item) => item.scope === "system")?.name ||
+            "TikTokSans-Regular",
+        );
+      }
+    } catch (deleteError) {
+      alert(deleteError instanceof Error ? deleteError.message : "Failed to delete font");
+    } finally {
+      setDeletingFontName(null);
+    }
+  };
+
   const handleExportClip = async (clipId: string, fallbackFilename: string) => {
     if (!session?.user?.id || !task?.id) return;
 
@@ -1014,12 +1038,12 @@ export default function TaskPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {availableFonts.map((font) => (
-                          <SelectItem key={font.name} value={font.name}>
-                            <span className="flex items-center gap-2">
-                              <Type className="w-3 h-3" />
-                              {font.display_name}
-                            </span>
-                          </SelectItem>
+                          <FontSelectOption
+                            key={font.name}
+                            font={font}
+                            isDeleting={deletingFontName === font.name}
+                            onDelete={handleDeleteFont}
+                          />
                         ))}
                         {availableFonts.length === 0 && (
                           <SelectItem value="TikTokSans-Regular">TikTok Sans Regular</SelectItem>

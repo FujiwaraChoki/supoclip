@@ -23,6 +23,31 @@ def get_user_fonts_dir(user_id: str) -> Path:
     return USER_FONTS_DIR / sanitize_user_id_for_path(user_id)
 
 
+def find_user_font_path(font_name: str, user_id: str) -> Path | None:
+    """Resolve an exact font name inside one user's upload directory only."""
+    requested = font_name.strip()
+    if not requested or Path(requested).name != requested:
+        return None
+
+    user_fonts_dir = get_user_fonts_dir(user_id)
+    exact_file = user_fonts_dir / requested
+    if (
+        exact_file.is_file()
+        and exact_file.suffix.lower() in SUPPORTED_FONT_EXTENSIONS
+    ):
+        return exact_file
+
+    if Path(requested).suffix:
+        return None
+
+    for extension in SUPPORTED_FONT_EXTENSIONS:
+        candidate = user_fonts_dir / f"{requested}{extension}"
+        if candidate.is_file():
+            return candidate
+
+    return None
+
+
 def _collect_fonts_from_dir(font_dir: Path, scope: str) -> list[dict[str, Any]]:
     if not font_dir.exists():
         return []

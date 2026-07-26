@@ -19,6 +19,7 @@ from ...font_registry import (
     SUPPORTED_FONT_EXTENSIONS,
     build_user_font_stem,
     find_font_path,
+    find_user_font_path,
     get_available_fonts as list_available_fonts,
     get_user_fonts_dir,
     sanitize_font_stem,
@@ -178,6 +179,33 @@ async def upload_font(
     except Exception as e:
         logger.error(f"Error uploading font: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error uploading font: {str(e)}")
+
+
+@router.delete("/fonts/{font_name}")
+async def delete_font(
+    font_name: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Delete a custom font owned by the authenticated user."""
+    try:
+        user_id = await _get_authenticated_user_id(request, db)
+        font_path = find_user_font_path(font_name, user_id)
+
+        if font_path is None:
+            if find_font_path(font_name) is not None:
+                raise HTTPException(
+                    status_code=403, detail="Bundled system fonts cannot be deleted"
+                )
+            raise HTTPException(status_code=404, detail="Custom font not found")
+
+        deleted_name = font_path.stem
+        font_path.unlink(missing_ok=True)
+        logger.info("Deleted custom font %s for user %s", font_path.name, user_id)
+        return {"font_name": deleted_name, "message": "Font deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error deleting font %s: %s", font_name, e)
+        raise HTTPException(status_code=500, detail=f"Error deleting font: {str(e)}")
 
 
 @router.get("/transitions")
