@@ -376,6 +376,67 @@ class TaskRepository:
         return tasks
 
     @staticmethod
+    async def enable_sharing(
+        db: AsyncSession, task_id: str, share_token: str
+    ) -> Optional[str]:
+        """Enable public read-only sharing and return the task's stable token."""
+        result = await db.execute(
+            text(
+                """
+                UPDATE tasks
+                SET share_token = COALESCE(share_token, :share_token),
+                    share_enabled = TRUE,
+                    updated_at = NOW()
+                WHERE id = :task_id
+                RETURNING share_token
+                """
+            ),
+            {"task_id": task_id, "share_token": share_token},
+        )
+        await db.commit()
+        row = result.fetchone()
+        return str(row.share_token) if row else None
+
+    @staticmethod
+    async def disable_sharing(db: AsyncSession, task_id: str) -> bool:
+        """Disable an existing share URL without changing private task access."""
+        result = await db.execute(
+            text(
+                """
+                UPDATE tasks
+                SET share_enabled = FALSE,
+                    updated_at = NOW()
+                WHERE id = :task_id
+                RETURNING id
+                """
+            ),
+            {"task_id": task_id},
+        )
+        await db.commit()
+        return result.fetchone() is not None
+
+    @staticmethod
+    async def get_shared_task_id(
+        db: AsyncSession, share_token: str
+    ) -> Optional[str]:
+        """Resolve an enabled opaque share token to its task ID."""
+        result = await db.execute(
+            text(
+                """
+                SELECT id
+                FROM tasks
+                WHERE share_token = :share_token
+                  AND share_enabled = TRUE
+                  AND status = 'completed'
+                LIMIT 1
+                """
+            ),
+            {"share_token": share_token},
+        )
+        row = result.fetchone()
+        return str(row.id) if row else None
+
+    @staticmethod
     async def user_exists(db: AsyncSession, user_id: str) -> bool:
         """Check if a user exists in the database."""
         result = await db.execute(

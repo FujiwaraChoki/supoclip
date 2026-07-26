@@ -79,6 +79,8 @@ model Task {
   progress             Int?      @default(0)
   progress_message     String?
   completion_notification_sent_at DateTime? @db.Timestamptz
+  share_token          String?   @unique @db.VarChar(64)
+  share_enabled        Boolean   @default(false)
 
   // Font customization fields
   font_family          String?   @default("TikTokSans-Regular") @db.VarChar(100)

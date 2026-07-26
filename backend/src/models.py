@@ -175,6 +175,12 @@ class Task(Base):
     completion_notification_sent_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    share_token: Mapped[Optional[str]] = mapped_column(
+        String(64), nullable=True
+    )
+    share_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sql_text("'false'")
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -1,6 +1,8 @@
 import pytest
 
-from tests.fixtures.factories import create_source, create_task, create_user
+from sqlalchemy import text
+
+from tests.fixtures.factories import create_clip, create_source, create_task, create_user
 
 
 @pytest.mark.asyncio
@@ -78,6 +80,79 @@ async def test_legacy_public_clips_mount_is_not_available(client):
     response = await client.get("/clips/seeded.mp4")
 
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_completed_task_can_be_shared_without_exposing_private_fields(
+    client, db_session, auth_headers
+):
+    owner = await create_user(db_session, user_id="user-1", email="owner@example.com")
+    source = await create_source(db_session, title="Shareable source")
+    task = await create_task(
+        db_session, user_id=owner["id"], source_id=source["id"], status="completed"
+    )
+    clip = await create_clip(db_session, task_id=task["id"], text_value="Public transcript")
+
+    share_response = await client.post(
+        f"/tasks/{task['id']}/share", headers=auth_headers
+    )
+
+    assert share_response.status_code == 200
+    share_token = share_response.json()["share_token"]
+    assert share_response.json()["share_path"] == f"/share/{share_token}"
+
+    public_response = await client.get(f"/tasks/shared/{share_token}")
+    assert public_response.status_code == 200
+    payload = public_response.json()
+    assert payload["source_title"] == "Shareable source"
+    assert payload["clips"][0]["id"] == clip["id"]
+    assert payload["clips"][0]["text"] == "Public transcript"
+    assert payload["clips"][0]["video_url"].endswith(f"/{clip['id']}/file")
+    assert "user_id" not in payload
+    assert "source_url" not in payload
+    assert "file_path" not in payload["clips"][0]
+
+    unshare_response = await client.delete(
+        f"/tasks/{task['id']}/share", headers=auth_headers
+    )
+    assert unshare_response.status_code == 200
+    assert (await client.get(f"/tasks/shared/{share_token}")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_shared_clip_file_requires_an_enabled_share_token(
+    client, db_session, auth_headers, tmp_path
+):
+    owner = await create_user(db_session, user_id="user-1", email="owner@example.com")
+    source = await create_source(db_session, title="Shared video")
+    task = await create_task(
+        db_session, user_id=owner["id"], source_id=source["id"], status="completed"
+    )
+    clip = await create_clip(db_session, task_id=task["id"])
+    clip_path = tmp_path / "shared.mp4"
+    clip_path.write_bytes(b"shared-video-bytes")
+    await db_session.execute(
+        text("UPDATE generated_clips SET file_path = :path WHERE id = :clip_id"),
+        {"path": str(clip_path), "clip_id": clip["id"]},
+    )
+    await db_session.commit()
+
+    share_response = await client.post(
+        f"/tasks/{task['id']}/share", headers=auth_headers
+    )
+    share_token = share_response.json()["share_token"]
+
+    video_response = await client.get(
+        f"/tasks/shared/{share_token}/clips/{clip['id']}/file"
+    )
+    assert video_response.status_code == 200
+    assert video_response.content == b"shared-video-bytes"
+    assert video_response.headers["cache-control"] == "private, no-store"
+
+    invalid_response = await client.get(
+        f"/tasks/shared/not-a-token/clips/{clip['id']}/file"
+    )
+    assert invalid_response.status_code == 404
 
 
 @pytest.mark.asyncio

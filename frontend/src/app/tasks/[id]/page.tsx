@@ -133,6 +133,7 @@ export default function TaskPage() {
   const [captionPosition, setCaptionPosition] = useState("bottom");
   const [highlightWords, setHighlightWords] = useState("");
   const [exportPreset, setExportPreset] = useState("original");
+  const [shareState, setShareState] = useState<"idle" | "copying" | "copied">("idle");
 
   const [projectFontFamily, setProjectFontFamily] = useState("TikTokSans-Regular");
   const [projectFontSize, setProjectFontSize] = useState("24");
@@ -637,6 +638,40 @@ export default function TaskPage() {
     void handleExportClip(clip.id, clip.filename);
   };
 
+  const handleCopyShareLink = async () => {
+    if (!task?.id || shareState === "copying") return;
+
+    setShareState("copying");
+    try {
+      const response = await fetch(`${taskApiUrl}/${task.id}/share`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error(await buildSupportError(response, "Failed to create share link"));
+      }
+
+      const data = (await response.json()) as { share_path: string };
+      const shareUrl = new URL(data.share_path, window.location.origin).toString();
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const input = document.createElement("input");
+        input.value = shareUrl;
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand("copy");
+        input.remove();
+      }
+      setShareState("copied");
+      window.setTimeout(() => setShareState("idle"), 2500);
+    } catch (shareError) {
+      setShareState("idle");
+      alert(shareError instanceof Error ? shareError.message : "Failed to create share link");
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white p-4">
@@ -744,7 +779,7 @@ export default function TaskPage() {
                   </>
                 )}
               </div>
-              <div className="flex items-center gap-4 text-sm text-gray-600">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
                 <Badge variant="outline" className="capitalize">
                   {task.source_type}
                 </Badge>
@@ -794,6 +829,26 @@ export default function TaskPage() {
                       Open Editor
                     </Button>
                   </Link>
+                )}
+                {task.status === "completed" && clips.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCopyShareLink}
+                    disabled={shareState === "copying"}
+                    aria-live="polite"
+                  >
+                    {shareState === "copied" ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      <Share2 className="w-4 h-4" />
+                    )}
+                    {shareState === "copying"
+                      ? "Creating link…"
+                      : shareState === "copied"
+                        ? "Link copied"
+                        : "Copy share link"}
+                  </Button>
                 )}
                 {(task.status === "queued" || task.status === "processing") && (
                   <Button

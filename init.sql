@@ -70,6 +70,8 @@ CREATE TABLE tasks (
     error_code VARCHAR(80),
     stage_timings_json TEXT,
     completion_notification_sent_at TIMESTAMP WITH TIME ZONE,
+    share_token VARCHAR(64) UNIQUE,
+    share_enabled BOOLEAN NOT NULL DEFAULT false,
 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
