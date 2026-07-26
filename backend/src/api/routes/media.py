@@ -198,7 +198,7 @@ async def delete_font(
             raise HTTPException(status_code=404, detail="Custom font not found")
 
         deleted_name = font_path.stem
-        font_path.unlink()
+        font_path.unlink(missing_ok=True)
         logger.info("Deleted custom font %s for user %s", font_path.name, user_id)
         return {"font_name": deleted_name, "message": "Font deleted successfully"}
     except HTTPException:

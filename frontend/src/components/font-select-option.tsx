@@ -22,7 +22,7 @@ export function FontSelectOption({
   onDelete,
 }: FontSelectOptionProps) {
   return (
-    <div className="flex items-center gap-1" data-font-scope={font.scope}>
+    <div className="flex items-center gap-1">
       <SelectItem className="min-w-0 flex-1" value={font.name}>
         <span className="flex min-w-0 items-center gap-2">
           <Type className="h-3 w-3" />

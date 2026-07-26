@@ -64,21 +64,12 @@ export async function DELETE(_: Request, { params }: Params) {
   const encodedFontName = encodeURIComponent(fontName);
   const backendAuthHeaders = buildBackendAuthHeaders(session.user.id);
 
-  let upstream = await fetch(`${normalizedApiUrl}/fonts/${encodedFontName}`, {
+  const upstream = await fetch(`${normalizedApiUrl}/fonts/${encodedFontName}`, {
     method: "DELETE",
     headers: {
       ...backendAuthHeaders,
     },
   });
-
-  if (upstream.status === 404) {
-    upstream = await fetch(`${normalizedApiUrl}/api/fonts/${encodedFontName}`, {
-      method: "DELETE",
-      headers: {
-        ...backendAuthHeaders,
-      },
-    });
-  }
 
   const responseText = await upstream.text();
   return new NextResponse(responseText, {
