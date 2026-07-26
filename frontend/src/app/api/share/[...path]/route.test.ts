@@ -58,4 +58,14 @@ describe("/api/share/[...path]", () => {
       }),
     );
   });
+
+  it("rejects traversal segments without contacting the backend", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/share/%2e%2e/%2e%2e/api-keys"),
+      { params: Promise.resolve({ path: ["..", "..", "api-keys"] }) },
+    );
+
+    expect(response.status).toBe(404);
+    expect(fetchBackend).not.toHaveBeenCalled();
+  });
 });

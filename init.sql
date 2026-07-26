@@ -70,7 +70,7 @@ CREATE TABLE tasks (
     error_code VARCHAR(80),
     stage_timings_json TEXT,
     completion_notification_sent_at TIMESTAMP WITH TIME ZONE,
-    share_token VARCHAR(64) UNIQUE,
+    share_token VARCHAR(64),
     share_enabled BOOLEAN NOT NULL DEFAULT false,
 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -195,6 +195,7 @@ CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_created_at ON tasks(created_at);
 CREATE INDEX idx_tasks_processing_mode ON tasks(processing_mode);
 CREATE INDEX idx_tasks_completed_at ON tasks(completed_at);
+CREATE UNIQUE INDEX idx_tasks_share_token ON tasks(share_token) WHERE share_token IS NOT NULL;
 CREATE INDEX idx_sources_created_at ON sources(created_at);
 CREATE INDEX idx_processing_cache_source_url ON processing_cache(source_url);
 CREATE INDEX idx_generated_clips_task_id ON generated_clips(task_id);

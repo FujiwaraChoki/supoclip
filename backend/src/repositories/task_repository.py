@@ -379,12 +379,20 @@ class TaskRepository:
     async def enable_sharing(
         db: AsyncSession, task_id: str, share_token: str
     ) -> Optional[str]:
-        """Enable public read-only sharing and return the task's stable token."""
+        """Enable public sharing and return the token.
+
+        The token is stable while sharing stays enabled (repeat calls keep the
+        same URL), but rotates when re-enabling after a revoke so previously
+        leaked links stay dead.
+        """
         result = await db.execute(
             text(
                 """
                 UPDATE tasks
-                SET share_token = COALESCE(share_token, :share_token),
+                SET share_token = CASE
+                        WHEN share_enabled THEN COALESCE(share_token, :share_token)
+                        ELSE :share_token
+                    END,
                     share_enabled = TRUE,
                     updated_at = NOW()
                 WHERE id = :task_id

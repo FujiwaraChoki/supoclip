@@ -42,6 +42,7 @@ import {
   MessageSquare,
   TrendingUp,
   Share2,
+  Link2Off,
   Clock,
   Scissors,
   SplitSquareVertical,
@@ -102,6 +103,7 @@ interface TaskDetails {
   pause_threshold_ms?: number;
   remove_filler_words?: boolean;
   filtered_words?: string[];
+  share_enabled?: boolean;
 }
 
 interface FontOption {
@@ -134,6 +136,7 @@ export default function TaskPage() {
   const [highlightWords, setHighlightWords] = useState("");
   const [exportPreset, setExportPreset] = useState("original");
   const [shareState, setShareState] = useState<"idle" | "copying" | "copied">("idle");
+  const [isRevokingShare, setIsRevokingShare] = useState(false);
 
   const [projectFontFamily, setProjectFontFamily] = useState("TikTokSans-Regular");
   const [projectFontSize, setProjectFontSize] = useState("24");
@@ -664,11 +667,35 @@ export default function TaskPage() {
         document.execCommand("copy");
         input.remove();
       }
+      setTask((currentTask) =>
+        currentTask ? { ...currentTask, share_enabled: true } : currentTask,
+      );
       setShareState("copied");
       window.setTimeout(() => setShareState("idle"), 2500);
     } catch (shareError) {
       setShareState("idle");
       alert(shareError instanceof Error ? shareError.message : "Failed to create share link");
+    }
+  };
+
+  const handleRevokeShareLink = async () => {
+    if (!task?.id || isRevokingShare) return;
+
+    setIsRevokingShare(true);
+    try {
+      const response = await fetch(`${taskApiUrl}/${task.id}/share`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error(await buildSupportError(response, "Failed to disable share link"));
+      }
+      setTask((currentTask) =>
+        currentTask ? { ...currentTask, share_enabled: false } : currentTask,
+      );
+    } catch (revokeError) {
+      alert(revokeError instanceof Error ? revokeError.message : "Failed to disable share link");
+    } finally {
+      setIsRevokingShare(false);
     }
   };
 
@@ -848,6 +875,17 @@ export default function TaskPage() {
                       : shareState === "copied"
                         ? "Link copied"
                         : "Copy share link"}
+                  </Button>
+                )}
+                {task.status === "completed" && task.share_enabled && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRevokeShareLink}
+                    disabled={isRevokingShare}
+                  >
+                    <Link2Off className="w-4 h-4" />
+                    {isRevokingShare ? "Disabling…" : "Disable share link"}
                   </Button>
                 )}
                 {(task.status === "queued" || task.status === "processing") && (

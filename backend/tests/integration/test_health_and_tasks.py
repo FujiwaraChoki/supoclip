@@ -112,11 +112,24 @@ async def test_completed_task_can_be_shared_without_exposing_private_fields(
     assert "source_url" not in payload
     assert "file_path" not in payload["clips"][0]
 
+    repeat_response = await client.post(
+        f"/tasks/{task['id']}/share", headers=auth_headers
+    )
+    assert repeat_response.json()["share_token"] == share_token
+
     unshare_response = await client.delete(
         f"/tasks/{task['id']}/share", headers=auth_headers
     )
     assert unshare_response.status_code == 200
     assert (await client.get(f"/tasks/shared/{share_token}")).status_code == 404
+
+    reshare_response = await client.post(
+        f"/tasks/{task['id']}/share", headers=auth_headers
+    )
+    rotated_token = reshare_response.json()["share_token"]
+    assert rotated_token != share_token
+    assert (await client.get(f"/tasks/shared/{share_token}")).status_code == 404
+    assert (await client.get(f"/tasks/shared/{rotated_token}")).status_code == 200
 
 
 @pytest.mark.asyncio
