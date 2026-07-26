@@ -12,6 +12,7 @@ import logging
 from typing import Dict, Any
 import inspect
 import re
+import secrets
 
 from ...database import get_db
 from ...database import AsyncSessionLocal
@@ -142,6 +143,48 @@ async def _require_task_owner(
         raise HTTPException(status_code=403, detail="Not authorized for this task")
 
     return task
+
+
+PUBLIC_TASK_FIELDS = {
+    "source_title",
+    "source_type",
+    "status",
+    "clips_count",
+    "created_at",
+    "updated_at",
+}
+PUBLIC_CLIP_FIELDS = {
+    "id",
+    "filename",
+    "start_time",
+    "end_time",
+    "duration",
+    "text",
+    "relevance_score",
+    "reasoning",
+    "clip_order",
+    "created_at",
+    "virality_score",
+    "hook_score",
+    "engagement_score",
+    "value_score",
+    "shareability_score",
+    "hook_type",
+    "hook_title",
+}
+
+
+def _build_public_task(task: Dict[str, Any], share_token: str) -> Dict[str, Any]:
+    """Return only fields intended for anyone holding the share URL."""
+    public_task = {key: task.get(key) for key in PUBLIC_TASK_FIELDS}
+    public_task["clips"] = []
+    for clip in task.get("clips", []):
+        public_clip = {key: clip.get(key) for key in PUBLIC_CLIP_FIELDS}
+        public_clip["video_url"] = (
+            f"/tasks/shared/{share_token}/clips/{clip['id']}/file"
+        )
+        public_task["clips"].append(public_clip)
+    return public_task
 
 
 @router.get("/")
@@ -304,6 +347,48 @@ async def get_billing_summary(request: Request, db: AsyncSession = Depends(get_d
         )
 
 
+@router.get("/shared/{share_token}")
+async def get_shared_task(share_token: str, db: AsyncSession = Depends(get_db)):
+    """Get the read-only generation result associated with an opaque share token."""
+    task_service = TaskService(db)
+    task_id = await task_service.task_repo.get_shared_task_id(db, share_token)
+    if not task_id:
+        raise HTTPException(status_code=404, detail="Shared result not found")
+
+    task = await task_service.get_task_with_clips(task_id)
+    if not task or task.get("status") != "completed":
+        raise HTTPException(status_code=404, detail="Shared result not found")
+
+    return _build_public_task(task, share_token)
+
+
+@router.get("/shared/{share_token}/clips/{clip_id}/file")
+async def get_shared_clip_file(
+    share_token: str, clip_id: str, db: AsyncSession = Depends(get_db)
+):
+    """Serve one shared clip only when the bearer share token is enabled."""
+    task_service = TaskService(db)
+    task_id = await task_service.task_repo.get_shared_task_id(db, share_token)
+    if not task_id:
+        raise HTTPException(status_code=404, detail="Shared result not found")
+
+    clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
+    if not clip or clip.get("task_id") != task_id:
+        raise HTTPException(status_code=404, detail="Clip not found")
+
+    clip_path = Path(clip["file_path"])
+    if not clip_path.exists():
+        raise HTTPException(status_code=404, detail="Clip file not found")
+
+    return FileResponse(
+        path=str(clip_path),
+        media_type="video/mp4",
+        filename=clip["filename"],
+        content_disposition_type="inline",
+        headers={"Cache-Control": "private, no-store"},
+    )
+
+
 @router.get("/{task_id}")
 async def get_task(
     task_id: str, request: Request, db: AsyncSession = Depends(get_db)
@@ -350,6 +435,41 @@ async def get_task_clips(
     except Exception as e:
         logger.error(f"Error retrieving clips: {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving clips: {str(e)}")
+
+
+@router.post("/{task_id}/share")
+async def share_task(
+    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Create or re-enable a stable, read-only share URL for a completed task."""
+    task_service = TaskService(db)
+    task = await _require_task_owner(request, task_service, db, task_id)
+    if task.get("status") != "completed":
+        raise HTTPException(
+            status_code=409, detail="Only completed generations can be shared"
+        )
+
+    share_token = await task_service.task_repo.enable_sharing(
+        db, task_id, secrets.token_urlsafe(32)
+    )
+    if not share_token:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return {
+        "share_token": share_token,
+        "share_path": f"/share/{share_token}",
+    }
+
+
+@router.delete("/{task_id}/share")
+async def unshare_task(
+    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Disable the public URL while preserving the private generation result."""
+    task_service = TaskService(db)
+    await _require_task_owner(request, task_service, db, task_id)
+    await task_service.task_repo.disable_sharing(db, task_id)
+    return {"message": "Share link disabled"}
 
 
 @router.get("/{task_id}/progress")
