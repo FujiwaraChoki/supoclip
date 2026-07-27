@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/sheet";
 import { useSession } from "@/lib/auth-client";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
+import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import {
   ArrowLeft,
   Download,
@@ -94,11 +95,10 @@ interface TaskDetails {
   clips_count: number;
   created_at: string;
   updated_at: string;
-  font_family?: string;
-  font_size?: number;
-  font_color?: string;
+  font_family?: string | null;
+  font_size?: number | null;
+  font_color?: string | null;
   caption_template?: string;
-  include_broll?: boolean;
   cut_long_pauses?: boolean;
   pause_threshold_ms?: number;
   remove_filler_words?: boolean;
@@ -133,11 +133,11 @@ export default function TaskPage() {
   const [shareState, setShareState] = useState<"idle" | "copying" | "copied">("idle");
   const [isRevokingShare, setIsRevokingShare] = useState(false);
 
-  const [projectFontFamily, setProjectFontFamily] = useState("TikTokSans-Regular");
-  const [projectFontSize, setProjectFontSize] = useState("24");
-  const [projectFontColor, setProjectFontColor] = useState("#FFFFFF");
+  // null means "use the caption template's own value" — mirrors the create form's contract.
+  const [projectFontFamily, setProjectFontFamily] = useState<string | null>(null);
+  const [projectFontSize, setProjectFontSize] = useState<number | null>(null);
+  const [projectFontColor, setProjectFontColor] = useState<string | null>(null);
   const [projectCaptionTemplate, setProjectCaptionTemplate] = useState("default");
-  const [projectIncludeBroll, setProjectIncludeBroll] = useState(false);
   const [projectCutLongPauses, setProjectCutLongPauses] = useState(false);
   const [projectPauseThresholdMs, setProjectPauseThresholdMs] = useState("900");
   const [projectRemoveFillerWords, setProjectRemoveFillerWords] = useState(false);
@@ -193,11 +193,10 @@ export default function TaskPage() {
 
         const taskData = await taskResponse.json();
         setTask(taskData);
-        setProjectFontFamily(taskData.font_family || "TikTokSans-Regular");
-        setProjectFontSize(String(taskData.font_size || 24));
-        setProjectFontColor(taskData.font_color || "#FFFFFF");
+        setProjectFontFamily(taskData.font_family ?? null);
+        setProjectFontSize(typeof taskData.font_size === "number" ? taskData.font_size : null);
+        setProjectFontColor(taskData.font_color ?? null);
         setProjectCaptionTemplate(taskData.caption_template || "default");
-        setProjectIncludeBroll(Boolean(taskData.include_broll));
         setProjectCutLongPauses(Boolean(taskData.cut_long_pauses));
         setProjectPauseThresholdMs(String(taskData.pause_threshold_ms || 900));
         setProjectRemoveFillerWords(Boolean(taskData.remove_filler_words));
@@ -559,9 +558,7 @@ export default function TaskPage() {
 
   const handleApplyProjectSettings = async () => {
     if (!session?.user?.id || !params.id) return;
-    const parsedSize = Number(projectFontSize || "24");
-    const safeFontSize = Number.isFinite(parsedSize) ? Math.max(12, Math.min(72, Math.round(parsedSize))) : 24;
-    const normalizedColor = /^#[0-9A-Fa-f]{6}$/.test(projectFontColor) ? projectFontColor : "#FFFFFF";
+    const fontOptions = buildFontOptionsPayload(projectFontFamily, projectFontSize, projectFontColor);
     const parsedPauseThreshold = Number(projectPauseThresholdMs || "900");
     const safePauseThreshold = Number.isFinite(parsedPauseThreshold)
       ? Math.max(250, Math.min(3000, Math.round(parsedPauseThreshold)))
@@ -579,11 +576,8 @@ export default function TaskPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          font_family: projectFontFamily,
-          font_size: safeFontSize,
-          font_color: normalizedColor,
+          ...fontOptions,
           caption_template: projectCaptionTemplate,
-          include_broll: projectIncludeBroll,
           cut_long_pauses: projectCutLongPauses,
           pause_threshold_ms: safePauseThreshold,
           remove_filler_words: projectRemoveFillerWords,
@@ -617,10 +611,8 @@ export default function TaskPage() {
       const remainingFonts = availableFonts.filter((item) => item.name !== font.name);
       setAvailableFonts(remainingFonts);
       if (projectFontFamily === font.name) {
-        setProjectFontFamily(
-          remainingFonts.find((item) => item.scope === "system")?.name ||
-            "TikTokSans-Regular",
-        );
+        // The deleted font was in use — fall back to the caption template's own font.
+        setProjectFontFamily(null);
       }
     } catch (deleteError) {
       alert(deleteError instanceof Error ? deleteError.message : "Failed to delete font");
@@ -1118,18 +1110,24 @@ export default function TaskPage() {
                     Project Settings
                   </SheetTitle>
                   <SheetDescription>
-                    Configure font, caption, and B-roll settings for this task&apos;s clips.
+                    Configure font, caption, and cleanup settings for this task&apos;s clips.
                   </SheetDescription>
                 </SheetHeader>
 
                 <div className="space-y-5 px-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-gray-500">Font</label>
-                    <Select value={projectFontFamily} onValueChange={setProjectFontFamily}>
+                    <Select
+                      value={projectFontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE}
+                      onValueChange={(value) =>
+                        setProjectFontFamily(value === FONT_TEMPLATE_DEFAULT_VALUE ? null : value)
+                      }
+                    >
                       <SelectTrigger>
-                        <SelectValue placeholder="Font family" />
+                        <SelectValue placeholder="Template default" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
                         {availableFonts.map((font) => (
                           <FontSelectOption
                             key={font.name}
@@ -1138,38 +1136,56 @@ export default function TaskPage() {
                             onDelete={handleDeleteFont}
                           />
                         ))}
-                        {availableFonts.length === 0 && (
-                          <SelectItem value="TikTokSans-Regular">TikTok Sans Regular</SelectItem>
-                        )}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-gray-500">Size</label>
-                    <Input
-                      type="number"
-                      min={12}
-                      max={72}
-                      value={projectFontSize}
-                      onChange={(e) => setProjectFontSize(e.target.value)}
-                      placeholder="Font size"
-                    />
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {FONT_SIZE_OPTIONS.map((option) => (
+                        <button
+                          key={option.label}
+                          type="button"
+                          onClick={() => setProjectFontSize(option.value)}
+                          className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                            projectFontSize === option.value
+                              ? "bg-stone-900 text-white border-stone-900"
+                              : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-500">Color</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-medium text-gray-500">Color</label>
+                      <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={projectFontColor === null}
+                          onChange={(e) => setProjectFontColor(e.target.checked ? null : "#FFFFFF")}
+                          className="rounded"
+                        />
+                        Template default
+                      </label>
+                    </div>
                     <div className="flex items-center gap-2">
                       <input
                         type="color"
-                        value={projectFontColor}
+                        value={projectFontColor ?? "#FFFFFF"}
                         onChange={(e) => setProjectFontColor(e.target.value)}
-                        className="h-9 w-9 rounded border border-gray-300 cursor-pointer"
+                        disabled={projectFontColor === null}
+                        className="h-9 w-9 rounded border border-gray-300 cursor-pointer disabled:cursor-not-allowed"
                       />
                       <Input
-                        value={projectFontColor}
+                        value={projectFontColor ?? ""}
                         onChange={(e) => setProjectFontColor(e.target.value)}
-                        placeholder="#FFFFFF"
+                        disabled={projectFontColor === null}
+                        placeholder="Template default"
                       />
                     </div>
                   </div>
@@ -1195,16 +1211,6 @@ export default function TaskPage() {
                       </SelectContent>
                     </Select>
                   </div>
-
-                  <label className="flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={projectIncludeBroll}
-                      onChange={(e) => setProjectIncludeBroll(e.target.checked)}
-                      className="rounded"
-                    />
-                    Include B-roll
-                  </label>
 
                   <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
                     <div>

@@ -15,7 +15,7 @@ import { signOut, useSession } from "@/lib/auth-client";
 import { formatBillingPlanName, isPaidBillingPlan } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
-import { buildFontOptionsPayload } from "@/lib/font-options";
+import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor, Menu, X, LogOut, List, Shield, Settings } from "lucide-react";
@@ -54,19 +54,8 @@ type OutputFormat = "vertical" | "vertical_pan" | "vertical_split" | "original";
 
 const MAX_VIDEO_UPLOAD_BYTES = 1_000_000_000;
 
-// Sentinel Select value for "use the caption template's own font" (null in state/payload).
-const TEMPLATE_DEFAULT_VALUE = "__template_default__";
-
 // Only surface the font search box once the list is long enough to need it.
 const FONT_SEARCH_THRESHOLD = 8;
-
-// Font size is a simple segmented choice — null defers to the caption template's size.
-const FONT_SIZE_OPTIONS: Array<{ label: string; value: number | null }> = [
-  { label: "Template default", value: null },
-  { label: "Small", value: 18 },
-  { label: "Medium", value: 28 },
-  { label: "Large", value: 40 },
-];
 
 type DirectUploadAuthorization = {
   directUpload: true;
@@ -1169,15 +1158,15 @@ export default function Home() {
                           />
                         )}
                         <Select
-                          value={fontFamily ?? TEMPLATE_DEFAULT_VALUE}
-                          onValueChange={(value) => setFontFamily(value === TEMPLATE_DEFAULT_VALUE ? null : value)}
+                          value={fontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE}
+                          onValueChange={(value) => setFontFamily(value === FONT_TEMPLATE_DEFAULT_VALUE ? null : value)}
                           disabled={generationControlsDisabled}
                         >
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="Template default" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value={TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
+                            <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
                             {filteredFonts.map((font) => (
                               <SelectItem key={font.name} value={font.name}>
                                 <span style={{ fontFamily: `'${font.name}', system-ui, sans-serif` }}>
