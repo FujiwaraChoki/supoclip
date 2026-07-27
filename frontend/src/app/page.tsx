@@ -11,11 +11,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
 import { signOut, useSession } from "@/lib/auth-client";
 import { formatBillingPlanName, isPaidBillingPlan } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
+import { buildFontOptionsPayload } from "@/lib/font-options";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor, Menu, X, LogOut, List, Shield, Settings } from "lucide-react";
@@ -53,6 +53,20 @@ interface FontOption {
 type OutputFormat = "vertical" | "vertical_pan" | "vertical_split" | "original";
 
 const MAX_VIDEO_UPLOAD_BYTES = 1_000_000_000;
+
+// Sentinel Select value for "use the caption template's own font" (null in state/payload).
+const TEMPLATE_DEFAULT_VALUE = "__template_default__";
+
+// Only surface the font search box once the list is long enough to need it.
+const FONT_SEARCH_THRESHOLD = 8;
+
+// Font size is a simple segmented choice — null defers to the caption template's size.
+const FONT_SIZE_OPTIONS: Array<{ label: string; value: number | null }> = [
+  { label: "Template default", value: null },
+  { label: "Small", value: 18 },
+  { label: "Medium", value: 28 },
+  { label: "Large", value: 40 },
+];
 
 type DirectUploadAuthorization = {
   directUpload: true;
@@ -197,22 +211,20 @@ export default function Home() {
   const { data: session, isPending } = useSession();
   const isAdmin = Boolean((session?.user as { is_admin?: boolean } | undefined)?.is_admin);
 
-  // Font customization states
-  const [fontFamily, setFontFamily] = useState("THEBOLDFONT");
-  const [fontSize, setFontSize] = useState(24);
-  const [fontColor, setFontColor] = useState("#FFFFFF");
+  // Font customization states — null means "use the caption template's own value"
+  const [fontFamily, setFontFamily] = useState<string | null>(null);
+  const [fontSize, setFontSize] = useState<number | null>(null);
+  const [fontColor, setFontColor] = useState<string | null>(null);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState(true);
+  const [showCustomizeCaptions, setShowCustomizeCaptions] = useState(false);
   const [fontSearch, setFontSearch] = useState("");
   const [fontLoadError, setFontLoadError] = useState<string | null>(null);
   const [isUploadingFont, setIsUploadingFont] = useState(false);
   const fontUploadInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Caption template and B-roll states
+  // Caption template state
   const [captionTemplate, setCaptionTemplate] = useState("default");
   const [availableTemplates, setAvailableTemplates] = useState<Array<{ id: string, name: string, description: string, animation: string, font_family?: string, font_size?: number, font_color?: string }>>([]);
-  const [includeBroll, setIncludeBroll] = useState(false);
-  const [brollAvailable, setBrollAvailable] = useState(false);
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("vertical");
   const [addSubtitles, setAddSubtitles] = useState(true);
   const [cutLongPauses, setCutLongPauses] = useState(false);
@@ -275,7 +287,7 @@ export default function Home() {
     void refreshFonts();
   }, [refreshFonts]);
 
-  // Load caption templates and check B-roll availability
+  // Load caption templates
   useEffect(() => {
     const loadTemplates = async () => {
       try {
@@ -289,42 +301,8 @@ export default function Home() {
       }
     };
 
-    const checkBrollStatus = async () => {
-      try {
-        const response = await fetch(`${apiUrl}/broll/status`);
-        if (response.ok) {
-          const data = await response.json();
-          setBrollAvailable(data.configured || false);
-        }
-      } catch (error) {
-        console.error('Failed to check B-roll status:', error);
-      }
-    };
-
     loadTemplates();
-    checkBrollStatus();
   }, [apiUrl]);
-
-  // Load user preferences as defaults
-  useEffect(() => {
-    const loadUserPreferences = async () => {
-      if (!session?.user?.id) return;
-
-      try {
-        const response = await fetch('/api/preferences');
-        if (response.ok) {
-          const data = await response.json();
-          setFontFamily(data.fontFamily || "TikTokSans-Regular");
-          setFontSize(data.fontSize || 24);
-          setFontColor(data.fontColor || "#FFFFFF");
-        }
-      } catch (error) {
-        console.error('Failed to load user preferences:', error);
-      }
-    };
-
-    loadUserPreferences();
-  }, [session?.user?.id]);
 
   // Load latest task
   useEffect(() => {
@@ -387,21 +365,9 @@ export default function Home() {
 
   const handleTemplateChange = (templateId: string) => {
     setCaptionTemplate(templateId);
-
-    const selectedTemplate = availableTemplates.find((template) => template.id === templateId);
-    if (!selectedTemplate) {
-      return;
-    }
-
-    if (selectedTemplate.font_family) {
-      setFontFamily(selectedTemplate.font_family);
-    }
-    if (typeof selectedTemplate.font_size === "number") {
-      setFontSize(selectedTemplate.font_size);
-    }
-    if (selectedTemplate.font_color) {
-      setFontColor(selectedTemplate.font_color);
-    }
+    // Font family/size/color are left as-is: null stays null (meaning "use
+    // this template's own style"), and any explicit customization the user
+    // made carries over to the newly selected template.
   };
 
   const handleFontUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -459,6 +425,14 @@ export default function Home() {
   const canUploadCustomFonts =
     !billingSummary?.monetization_enabled ||
     (isPaidBillingPlan(billingSummary.plan) && ["active", "trialing"].includes(billingSummary.subscription_status));
+
+  // Effective values for the live preview only — falls back to the selected
+  // template's own style (or a sane default) whenever the user hasn't
+  // explicitly customized a field. The actual submitted payload keeps nulls.
+  const selectedTemplate = availableTemplates.find((template) => template.id === captionTemplate);
+  const previewFontFamily = fontFamily ?? selectedTemplate?.font_family ?? "TikTokSans-Regular";
+  const previewFontSize = fontSize ?? selectedTemplate?.font_size ?? 24;
+  const previewFontColor = fontColor ?? selectedTemplate?.font_color ?? "#FFFFFF";
   const generationRequiresUpgrade =
     Boolean(billingSummary?.monetization_enabled && !billingSummary.can_create_task);
   const generationGateMessage =
@@ -505,9 +479,7 @@ export default function Home() {
     setCurrentStep("");
     setSourceTitle(null);
 
-    const normalizedColor = /^#[0-9A-Fa-f]{6}$/.test(fontColor)
-      ? fontColor
-      : "#FFFFFF";
+    const fontOptions = buildFontOptionsPayload(fontFamily, fontSize, fontColor);
 
     try {
       let videoUrl = url;
@@ -537,13 +509,8 @@ export default function Home() {
             url: videoUrl,
             title: null
           },
-          font_options: {
-            font_family: fontFamily,
-            font_size: fontSize,
-            font_color: normalizedColor
-          },
+          font_options: fontOptions,
           caption_template: captionTemplate,
-          include_broll: includeBroll,
           processing_mode: "fast",
           output_format: outputFormat,
           add_subtitles: addSubtitles,
@@ -567,7 +534,6 @@ export default function Home() {
       track("task_created", {
         source_type: sourceType,
         caption_template: captionTemplate,
-        include_broll: includeBroll,
         output_format: outputFormat,
         add_subtitles: addSubtitles,
         cut_long_pauses: cutLongPauses,
@@ -997,7 +963,7 @@ export default function Home() {
                     Style & Captions
                   </div>
 
-                  {/* Caption Template Selector */}
+                  {/* Caption Template Selector — the main style choice */}
                   <div className="space-y-2">
                     <label className="text-sm text-stone-600">
                       Caption Style
@@ -1012,8 +978,25 @@ export default function Home() {
                         {availableTemplates.length > 0 ? (
                           availableTemplates.map((template) => (
                             <SelectItem key={template.id} value={template.id} className="py-3">
-                              <span className="font-medium">{template.name}</span>
-                              <span className="text-xs text-gray-500 ml-2">{template.description}</span>
+                              <span className="flex flex-col">
+                                <span>
+                                  <span className="font-medium">{template.name}</span>
+                                  <span className="text-xs text-gray-500 ml-2">{template.description}</span>
+                                </span>
+                                {(template.font_family || template.font_size || template.font_color) && (
+                                  <span className="flex items-center gap-1.5 text-[11px] text-stone-400 mt-0.5">
+                                    {template.font_color && (
+                                      <span
+                                        className="w-2.5 h-2.5 rounded-full border border-stone-300 shrink-0"
+                                        style={{ backgroundColor: template.font_color }}
+                                      />
+                                    )}
+                                    {[template.font_family, template.font_size ? `${template.font_size}px` : null]
+                                      .filter(Boolean)
+                                      .join(" · ")}
+                                  </span>
+                                )}
+                              </span>
                             </SelectItem>
                           ))
                         ) : (
@@ -1022,24 +1005,6 @@ export default function Home() {
                       </SelectContent>
                     </Select>
                   </div>
-
-                  {/* B-Roll Toggle */}
-                  {brollAvailable && (
-                    <div className="flex items-center justify-between p-3 border rounded-lg bg-stone-50">
-                      <div className="flex items-center gap-3">
-                        <Film className="w-4 h-4 text-purple-500" />
-                        <div>
-                          <h3 className="text-sm font-medium text-stone-900">AI B-Roll</h3>
-                          <p className="text-xs text-stone-500">Auto-add stock footage from Pexels</p>
-                        </div>
-                      </div>
-                      <Switch
-                        checked={includeBroll}
-                        onCheckedChange={setIncludeBroll}
-                        disabled={generationControlsDisabled}
-                      />
-                    </div>
-                  )}
 
                   {/* Output format */}
                   <div className="flex items-center justify-between gap-4 p-3 border rounded-lg bg-stone-50">
@@ -1140,7 +1105,7 @@ export default function Home() {
                 </CardContent>
               </Card>
 
-              {/* Font Customization Section */}
+              {/* Customize Captions Section — collapsed by default; template default applies unless changed */}
               <div
                 className={`transition-all duration-500 ease-in-out overflow-hidden ${
                   addSubtitles
@@ -1150,20 +1115,21 @@ export default function Home() {
               >
               <Card className="border-stone-200">
                 <CardContent className="px-4 pt-0 pb-2.5 space-y-2.5">
-                  <div
-                    className="flex items-center justify-between cursor-pointer"
-                    onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                  <button
+                    type="button"
+                    className="flex items-center justify-between w-full cursor-pointer"
+                    onClick={() => setShowCustomizeCaptions(!showCustomizeCaptions)}
                   >
                     <div className="flex items-center gap-2 text-sm font-medium text-stone-900">
                       <Paintbrush className="w-4 h-4" />
-                      Font Customization
+                      Customize captions
                     </div>
-                    <button type="button" className="text-xs text-stone-500 hover:text-stone-700 transition-colors">
-                      {showAdvancedOptions ? "Hide" : "Show"}
-                    </button>
-                  </div>
+                    <span className="text-xs text-stone-500 hover:text-stone-700 transition-colors">
+                      {showCustomizeCaptions ? "Hide" : "Show"}
+                    </span>
+                  </button>
 
-                  {showAdvancedOptions && (
+                  {showCustomizeCaptions && (
                     <div className="space-y-5 pt-1">
                       {/* Font Family Selector */}
                       <div className="space-y-2">
@@ -1193,18 +1159,25 @@ export default function Home() {
                         {!canUploadCustomFonts && (
                           <p className="text-xs text-amber-700">Custom font upload is available on paid plans.</p>
                         )}
-                        <Input
-                          type="text"
-                          value={fontSearch}
-                          onChange={(e) => setFontSearch(e.target.value)}
-                          placeholder="Search fonts"
+                        {availableFonts.length > FONT_SEARCH_THRESHOLD && (
+                          <Input
+                            type="text"
+                            value={fontSearch}
+                            onChange={(e) => setFontSearch(e.target.value)}
+                            placeholder="Search fonts"
+                            disabled={generationControlsDisabled}
+                          />
+                        )}
+                        <Select
+                          value={fontFamily ?? TEMPLATE_DEFAULT_VALUE}
+                          onValueChange={(value) => setFontFamily(value === TEMPLATE_DEFAULT_VALUE ? null : value)}
                           disabled={generationControlsDisabled}
-                        />
-                        <Select value={fontFamily} onValueChange={setFontFamily} disabled={generationControlsDisabled}>
+                        >
                           <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select font" />
+                            <SelectValue placeholder="Template default" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value={TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
                             {filteredFonts.map((font) => (
                               <SelectItem key={font.name} value={font.name}>
                                 <span style={{ fontFamily: `'${font.name}', system-ui, sans-serif` }}>
@@ -1212,9 +1185,6 @@ export default function Home() {
                                 </span>
                               </SelectItem>
                             ))}
-                            {availableFonts.length === 0 && (
-                              <SelectItem value="TikTokSans-Regular">TikTok Sans Regular</SelectItem>
-                            )}
                             {availableFonts.length > 0 && filteredFonts.length === 0 && (
                               <SelectItem value="__no_match__" disabled>
                                 No fonts match your search
@@ -1227,54 +1197,67 @@ export default function Home() {
                         )}
                       </div>
 
-                      {/* Font Size & Color Row */}
-                      <div className="grid grid-cols-2 gap-4">
-                        {/* Font Size Slider */}
-                        <div className="space-y-2">
-                          <label className="text-sm text-stone-600">
-                            Size: {fontSize}px
-                          </label>
-                          <div className="px-1">
-                            <Slider
-                              value={[fontSize]}
-                              onValueChange={(value) => setFontSize(value[0])}
-                              max={48}
-                              min={12}
-                              step={2}
+                      {/* Font Size */}
+                      <div className="space-y-2">
+                        <label className="text-sm text-stone-600">
+                          Size
+                        </label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {FONT_SIZE_OPTIONS.map((option) => (
+                            <button
+                              key={option.label}
+                              type="button"
+                              onClick={() => setFontSize(option.value)}
                               disabled={generationControlsDisabled}
-                              className="w-full"
-                            />
-                          </div>
-                          <div className="flex justify-between text-xs text-stone-400">
-                            <span>12px</span>
-                            <span>48px</span>
-                          </div>
+                              className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                                fontSize === option.value
+                                  ? "bg-stone-900 text-white border-stone-900"
+                                  : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
                         </div>
+                      </div>
 
-                        {/* Font Color Picker */}
-                        <div className="space-y-2">
+                      {/* Font Color Picker */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
                           <label className="text-sm text-stone-600 flex items-center gap-1.5">
                             <Palette className="w-3.5 h-3.5" />
                             Color
                           </label>
-                          <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-1.5 text-xs text-stone-500 cursor-pointer">
                             <input
-                              type="color"
-                              value={fontColor}
-                              onChange={(e) => setFontColor(e.target.value)}
+                              type="checkbox"
+                              checked={fontColor === null}
+                              onChange={(e) => setFontColor(e.target.checked ? null : "#FFFFFF")}
                               disabled={generationControlsDisabled}
-                              className="w-10 h-8 rounded border border-stone-300 cursor-pointer disabled:cursor-not-allowed"
+                              className="rounded border-stone-300"
                             />
-                            <Input
-                              type="text"
-                              value={fontColor}
-                              onChange={(e) => setFontColor(e.target.value)}
-                              disabled={generationControlsDisabled}
-                              placeholder="#FFFFFF"
-                              className="flex-1 h-8 text-xs"
-                              pattern="^#[0-9A-Fa-f]{6}$"
-                            />
-                          </div>
+                            Template default
+                          </label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={fontColor ?? "#FFFFFF"}
+                            onChange={(e) => setFontColor(e.target.value)}
+                            disabled={generationControlsDisabled || fontColor === null}
+                            className="w-10 h-8 rounded border border-stone-300 cursor-pointer disabled:cursor-not-allowed"
+                          />
+                          <Input
+                            type="text"
+                            value={fontColor ?? ""}
+                            onChange={(e) => setFontColor(e.target.value)}
+                            disabled={generationControlsDisabled || fontColor === null}
+                            placeholder="Template default"
+                            className="flex-1 h-8 text-xs"
+                            pattern="^#[0-9A-Fa-f]{6}$"
+                          />
+                        </div>
+                        {fontColor !== null && (
                           <div className="flex gap-1.5 mt-1">
                             {["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"].map((color) => (
                               <button
@@ -1288,7 +1271,7 @@ export default function Home() {
                               />
                             ))}
                           </div>
-                        </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1499,9 +1482,9 @@ export default function Home() {
                       <div className="mx-4">
                         <p
                           style={{
-                            color: fontColor,
-                            fontSize: `${Math.max(Math.min(fontSize * 0.6, 22), 11)}px`,
-                            fontFamily: `'${fontFamily}', system-ui, -apple-system, sans-serif`,
+                            color: previewFontColor,
+                            fontSize: `${Math.max(Math.min(previewFontSize * 0.6, 22), 11)}px`,
+                            fontFamily: `'${previewFontFamily}', system-ui, -apple-system, sans-serif`,
                             textAlign: 'center',
                             lineHeight: '1.5',
                             textShadow: '0 2px 8px rgba(0,0,0,0.8), 0 0px 2px rgba(0,0,0,0.9)',
@@ -1569,20 +1552,26 @@ export default function Home() {
                   <div className="flex items-center justify-between text-xs text-stone-500">
                     <span>Font</span>
                     <span className="text-stone-700 font-medium">
-                      {availableFonts.find(f => f.name === fontFamily)?.display_name || fontFamily}
+                      {fontFamily
+                        ? availableFonts.find(f => f.name === fontFamily)?.display_name || fontFamily
+                        : `${previewFontFamily} (template default)`}
                     </span>
                   </div>
                   <Separator />
                   <div className="flex items-center justify-between text-xs text-stone-500">
                     <span>Size</span>
-                    <span className="text-stone-700 font-medium">{fontSize}px</span>
+                    <span className="text-stone-700 font-medium">
+                      {fontSize ? `${fontSize}px` : `${previewFontSize}px (template default)`}
+                    </span>
                   </div>
                   <Separator />
                   <div className="flex items-center justify-between text-xs text-stone-500">
                     <span>Color</span>
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full border border-stone-300" style={{ backgroundColor: fontColor }} />
-                      <span className="text-stone-700 font-medium">{fontColor}</span>
+                      <div className="w-3 h-3 rounded-full border border-stone-300" style={{ backgroundColor: previewFontColor }} />
+                      <span className="text-stone-700 font-medium">
+                        {fontColor ? fontColor : `${previewFontColor} (template default)`}
+                      </span>
                     </div>
                   </div>
                   <Separator />
