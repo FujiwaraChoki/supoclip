@@ -339,22 +339,31 @@ def _caption_words_with_timings(
     if timed_words:
         source_count = len(timed_words)
         edited_count = len(words)
-        mapped: List[Dict[str, Any]] = []
-        for index, word in enumerate(words):
-            source_start = min(source_count - 1, (index * source_count) // edited_count)
-            source_end = min(
-                source_count - 1,
-                max(source_start, ((index + 1) * source_count - 1) // edited_count),
-            )
-            mapped.append(
+        if edited_count == source_count:
+            return [
                 {
                     "text": word,
-                    "start": float(timed_words[source_start]["start"]),
-                    "end": float(timed_words[source_end]["end"]),
-                    "confidence": timed_words[source_start].get("confidence", 1.0),
+                    "start": float(timed["start"]),
+                    "end": float(timed["end"]),
+                    "confidence": timed.get("confidence", 1.0),
                 }
-            )
-        return mapped
+                for word, timed in zip(words, timed_words)
+            ]
+
+        # Word counts differ: spread the edited words proportionally across the
+        # spoken span so timings stay strictly increasing (no stacked words).
+        span_start = float(timed_words[0]["start"])
+        span_end = max(float(timed_words[-1]["end"]), span_start + 0.05 * edited_count)
+        step = (span_end - span_start) / edited_count
+        return [
+            {
+                "text": word,
+                "start": span_start + index * step,
+                "end": span_start + (index + 1) * step,
+                "confidence": 1.0,
+            }
+            for index, word in enumerate(words)
+        ]
 
     word_duration = max(duration / max(len(words), 1), 0.1)
     return [

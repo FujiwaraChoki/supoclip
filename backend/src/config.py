@@ -155,7 +155,7 @@ class Config:
     @staticmethod
     def _normalize_apify_quality(value: str | None) -> str:
         normalized = (value or "").strip()
-        if normalized in {"360", "480", "720", "1080"}:
+        if normalized in {"360", "480", "720", "1080", "1440", "2160"}:
             return normalized
         return "1080"
 
