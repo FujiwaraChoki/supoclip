@@ -27,6 +27,8 @@ import {
   Zap,
   Menu,
   X,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
 import { getPublicBillingPlans } from "@/lib/billing-plans";
@@ -887,131 +889,224 @@ export default function LandingPage() {
 }
 
 /* ─── Hero Visual ─── */
+
+/**
+ * Real SupoClip output. Clips were generated from the source video below and
+ * trimmed to 15s previews for the landing page (see public/clips/).
+ */
+const DEMO_SOURCE = {
+  title: "Sam Altman — How to Start a Startup",
+  url: "https://www.youtube.com/watch?v=Vv3CEAS_w34",
+};
+
+const DEMO_CLIPS = [
+  {
+    src: "/clips/demo-2.mp4",
+    poster: "/clips/demo-2.jpg",
+    hook: "Why chaos management is not teachable",
+    range: "05:04 – 05:54",
+    duration: "0:50",
+  },
+  {
+    src: "/clips/demo-1.mp4",
+    poster: "/clips/demo-1.jpg",
+    hook: "Why your 10 week old startup is failing",
+    range: "00:14 – 00:39",
+    duration: "0:25",
+  },
+];
+
 function HeroVisual() {
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
+  const [active, setActive] = useState(0);
+  const [muted, setMuted] = useState(true);
+  const [playing, setPlaying] = useState(true);
+  const [progress, setProgress] = useState(0);
+
+  // Only the active clip plays; the others stay parked at frame zero.
+  useEffect(() => {
+    setProgress(0);
+    videoRefs.current.forEach((video, i) => {
+      if (!video) return;
+      if (i !== active) {
+        video.pause();
+        video.currentTime = 0;
+        return;
+      }
+      video.currentTime = 0;
+      video
+        .play()
+        .then(() => setPlaying(true))
+        .catch(() => setPlaying(false));
+    });
+  }, [active]);
+
+  // React can drop the `muted` attribute on hydration — set the property too.
+  useEffect(() => {
+    videoRefs.current.forEach((video) => {
+      if (video) video.muted = muted;
+    });
+  }, [muted]);
+
+  const togglePlay = () => {
+    const video = videoRefs.current[active];
+    if (!video) return;
+    if (video.paused) {
+      video
+        .play()
+        .then(() => setPlaying(true))
+        .catch(() => setPlaying(false));
+    } else {
+      video.pause();
+      setPlaying(false);
+    }
+  };
+
   return (
-    <div className="relative w-full max-w-md">
+    <div className="relative w-full max-w-[360px]">
       <Card className="py-0 gap-0 overflow-hidden shadow-xl border-border/60">
-        <CardContent className="p-5">
-          {/* Wide video frame */}
-          <div
-            className="relative w-full rounded-lg overflow-hidden mb-4 bg-muted"
-            style={{ aspectRatio: "16/9" }}
+        <CardContent className="p-4">
+          {/* Source video being clipped */}
+          <a
+            href={DEMO_SOURCE.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2.5 group"
           >
-            {/* Gradient simulating video content */}
-            <div
-              className="absolute inset-0 bg-gradient-to-br from-stone-200 via-stone-100 to-stone-200"
-            />
-
-            {/* Subtle grid overlay */}
-            <div
-              className="absolute inset-0 opacity-[0.06]"
-              style={{
-                backgroundImage:
-                  "linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)",
-                backgroundSize: "20px 20px",
-              }}
-            />
-
-            {/* Play button */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-12 h-12 rounded-full bg-background/80 backdrop-blur-sm flex items-center justify-center shadow-lg">
-                <Play className="w-5 h-5 text-foreground ml-0.5" />
-              </div>
+            <div className="w-8 h-8 rounded-md bg-red-500/10 flex items-center justify-center shrink-0">
+              <Youtube className="w-4 h-4 text-red-500" />
             </div>
-
-            {/* Scanning line */}
-            <div
-              className="absolute top-0 bottom-0 w-0.5 bg-foreground/50 landing-scan-line"
-              style={{
-                boxShadow: "0 0 12px rgba(0,0,0,0.15)",
-                animation: "landing-scan-line 3s ease-in-out infinite",
-              }}
-            />
-
-            {/* Detected clip regions */}
-            {[
-              { left: "8%", score: 92, delay: 0 },
-              { left: "38%", score: 87, delay: 0.15 },
-              { left: "68%", score: 78, delay: 0.3 },
-            ].map((clip, i) => (
-              <div
-                key={i}
-                className="absolute top-[8%] bottom-[8%] w-[22%] rounded-md border-2 bg-foreground/[0.03]"
-                style={{
-                  left: clip.left,
-                  animation: `landing-clip-pulse 2.5s ease-in-out ${clip.delay}s infinite`,
-                }}
-              >
-                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] px-1.5 py-0 h-5">
-                  {clip.score}%
-                </Badge>
-              </div>
-            ))}
-
-            {/* Timeline bar */}
-            <div className="absolute bottom-2 left-3 right-3 h-1 rounded-full overflow-hidden bg-foreground/10">
-              <div className="h-full w-[65%] rounded-full bg-foreground/20" />
-              {[15, 42, 73].map((pos, i) => (
-                <div
-                  key={i}
-                  className="absolute top-1/2 -translate-y-1/2 w-1 h-2.5 rounded-full bg-foreground/40"
-                  style={{ left: `${pos}%` }}
-                />
-              ))}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium truncate group-hover:underline">
+                {DEMO_SOURCE.title}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                youtube.com · long-form source
+              </p>
             </div>
-          </div>
+            <ExternalLink className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
+          </a>
 
           {/* Scissors divider */}
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 my-3.5">
             <div className="flex-1 h-px bg-border" />
-            <Scissors className="w-4 h-4 text-muted-foreground rotate-90" />
+            <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <Scissors className="w-3 h-3 rotate-90" />
+              {DEMO_CLIPS.length} clips found
+            </span>
             <div className="flex-1 h-px bg-border" />
           </div>
 
-          {/* Extracted vertical clips */}
-          <div className="flex gap-2.5 justify-center">
-            {[
-              {
-                bg: "linear-gradient(135deg, #e8e5e0, #d6d3cd)",
-                score: 92,
-                label: "Hook moment",
-              },
-              {
-                bg: "linear-gradient(135deg, #dfe0e4, #cdd0d6)",
-                score: 87,
-                label: "Key insight",
-              },
-              {
-                bg: "linear-gradient(135deg, #e4e2df, #d3d0cb)",
-                score: 78,
-                label: "CTA close",
-              },
-            ].map((clip, i) => (
-              <div
-                key={i}
-                className="relative flex-1 rounded-lg overflow-hidden border shadow-sm"
-                style={{
-                  aspectRatio: "9/16",
-                  background: clip.bg,
-                  animation: `landing-float ${2.5 + i * 0.3}s ease-in-out ${
-                    i * 0.2
-                  }s infinite`,
+          {/* Player */}
+          <div
+            className="relative mx-auto w-[214px] rounded-xl overflow-hidden bg-black ring-1 ring-border shadow-lg"
+            style={{ aspectRatio: "9/16" }}
+          >
+            {DEMO_CLIPS.map((clip, i) => (
+              <video
+                key={clip.src}
+                ref={(el) => {
+                  videoRefs.current[i] = el;
                 }}
+                src={clip.src}
+                poster={clip.poster}
+                muted
+                playsInline
+                autoPlay={i === 0}
+                preload={i === 0 ? "auto" : "metadata"}
+                aria-label={clip.hook}
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+                  i === active ? "opacity-100" : "opacity-0"
+                }`}
+                onTimeUpdate={(e) => {
+                  if (i !== active) return;
+                  const el = e.currentTarget;
+                  if (el.duration) setProgress(el.currentTime / el.duration);
+                }}
+                onEnded={() => setActive((prev) => (prev + 1) % DEMO_CLIPS.length)}
+              />
+            ))}
+
+            {/* Click-to-pause surface */}
+            <button
+              type="button"
+              onClick={togglePlay}
+              aria-label={playing ? "Pause clip" : "Play clip"}
+              className="absolute inset-0 flex items-center justify-center focus:outline-none"
+            >
+              <span
+                className={`w-11 h-11 rounded-full bg-background/85 backdrop-blur-sm flex items-center justify-center shadow-lg transition-opacity duration-200 ${
+                  playing ? "opacity-0" : "opacity-100"
+                }`}
               >
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-6 h-6 rounded-full bg-background/70 flex items-center justify-center shadow-sm">
-                    <Play className="w-3 h-3 text-foreground ml-px" />
-                  </div>
-                </div>
-                <div className="absolute bottom-1.5 left-1 right-1">
-                  <div className="text-[7px] text-center font-medium py-0.5 px-1 rounded bg-primary text-primary-foreground">
-                    {clip.label}
-                  </div>
-                </div>
-                <Badge className="absolute top-1 right-1 text-[8px] px-1 py-0 h-4">
-                  {clip.score}
-                </Badge>
+                <Play className="w-4.5 h-4.5 text-foreground ml-0.5" />
+              </span>
+            </button>
+
+            {/* Mute toggle */}
+            <button
+              type="button"
+              onClick={() => setMuted((m) => !m)}
+              aria-label={muted ? "Unmute clip" : "Mute clip"}
+              className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/65 transition-colors"
+            >
+              {muted ? (
+                <VolumeX className="w-3.5 h-3.5" />
+              ) : (
+                <Volume2 className="w-3.5 h-3.5" />
+              )}
+            </button>
+
+            {/* Timestamp + progress */}
+            <div className="absolute inset-x-0 bottom-0 pt-8 pb-2 px-2.5 bg-gradient-to-t from-black/70 to-transparent pointer-events-none">
+              <p className="text-[10px] font-medium text-white/85 mb-1.5 tabular-nums">
+                {DEMO_CLIPS[active].range}
+              </p>
+              <div className="h-0.5 rounded-full bg-white/25 overflow-hidden">
+                <div
+                  className="h-full bg-white/90"
+                  style={{ width: `${Math.min(progress * 100, 100)}%` }}
+                />
               </div>
+            </div>
+          </div>
+
+          {/* Clip list */}
+          <div className="mt-3.5 space-y-1.5">
+            {DEMO_CLIPS.map((clip, i) => (
+              <button
+                key={clip.src}
+                type="button"
+                onClick={() => setActive(i)}
+                aria-current={i === active}
+                className={`w-full flex items-center gap-2.5 p-1.5 rounded-lg text-left transition-colors ${
+                  i === active
+                    ? "bg-muted ring-1 ring-border"
+                    : "hover:bg-muted/60"
+                }`}
+              >
+                <Image
+                  src={clip.poster}
+                  alt=""
+                  width={30}
+                  height={53}
+                  className="rounded shrink-0 object-cover"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] font-medium leading-tight truncate">
+                    {clip.hook}
+                  </span>
+                  <span className="block text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+                    {clip.range} · {clip.duration}
+                  </span>
+                </span>
+                <Badge
+                  variant={i === active ? "default" : "secondary"}
+                  className="text-[9px] px-1.5 py-0 h-4 shrink-0"
+                >
+                  9:16
+                </Badge>
+              </button>
             ))}
           </div>
         </CardContent>
