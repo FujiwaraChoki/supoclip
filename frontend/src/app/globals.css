@@ -138,23 +138,6 @@
   }
 }
 
-@keyframes landing-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-
-@keyframes landing-scan-line {
-  0% { left: 5%; opacity: 0; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
-  100% { left: 90%; opacity: 0; }
-}
-
-@keyframes landing-clip-pulse {
-  0%, 100% { border-color: oklch(0.216 0.006 56.043 / 0.15); }
-  50% { border-color: oklch(0.216 0.006 56.043 / 0.45); }
-}
-
 /* Batch command bar */
 @keyframes command-bar-in {
   from {
