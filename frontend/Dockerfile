@@ -115,6 +115,14 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/src/generated/prisma ./src/generated/prisma
 COPY --from=builder /app/prisma ./prisma
 
+# The production Compose service bind-mounts /app/src for local-development
+# compatibility. Keep the native Prisma engine outside that mount and point
+# Prisma at the immutable copy so authentication cannot lose database access.
+COPY --from=builder --chown=nextjs:nodejs \
+    /app/src/generated/prisma/libquery_engine-debian-openssl-3.0.x.so.node \
+    /app/prisma-engine/libquery_engine-debian-openssl-3.0.x.so.node
+ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/prisma-engine/libquery_engine-debian-openssl-3.0.x.so.node
+
 USER nextjs
 
 EXPOSE 3107
