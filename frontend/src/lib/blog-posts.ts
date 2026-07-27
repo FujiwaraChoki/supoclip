@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import { getSiteUrl } from "@/lib/site";
 
-export const HOSTED_APP_URL = "https://supoclip.com";
+export { HOSTED_APP_URL, getSiteUrl } from "@/lib/site";
 
 export interface BlogPost {
   slug: string;
@@ -43,16 +44,6 @@ export const blogPosts: BlogPost[] = [
 
 export function getBlogPost(slug: string) {
   return blogPosts.find((post) => post.slug === slug);
-}
-
-export function getSiteUrl() {
-  const fallbackUrl = "http://localhost:3107";
-
-  try {
-    return new URL(process.env.NEXT_PUBLIC_APP_URL || fallbackUrl).origin;
-  } catch {
-    return fallbackUrl;
-  }
 }
 
 export function getBlogPostMetadata(post: BlogPost): Metadata {

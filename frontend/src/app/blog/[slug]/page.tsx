@@ -413,6 +413,23 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
             <Separator className="my-10" />
 
+            <section aria-labelledby="related-guides-heading">
+              <h2 id="related-guides-heading" className="text-xl font-semibold">Related SupoClip guides</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {[
+                  ["/ai-video-clipper", "AI video clipper"],
+                  ["/open-source-video-clipper", "Open-source video clipper"],
+                  ["/youtube-shorts-clipper", "YouTube Shorts clipper"],
+                ].map(([href, title]) => (
+                  <Link key={href} href={href} className="rounded-lg border p-4 text-sm font-medium hover:border-foreground/30">
+                    {title}
+                  </Link>
+                ))}
+              </div>
+            </section>
+
+            <Separator className="my-10" />
+
             <section className="text-sm leading-7 text-muted-foreground">
               <h2 className="text-base font-semibold text-foreground">Sources</h2>
               <p className="mt-2">

@@ -18,7 +18,7 @@ describe("/api/preferences", () => {
   it("returns 401 when no session exists", async () => {
     vi.mocked(getServerSession).mockResolvedValue(null);
 
-    const response = await GET(new Request("http://localhost/api/preferences") as never);
+    const response = await GET();
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
@@ -39,7 +39,7 @@ describe("/api/preferences", () => {
       },
     } as never);
 
-    const response = await GET(new Request("http://localhost/api/preferences") as never);
+    const response = await GET();
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({

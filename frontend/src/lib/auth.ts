@@ -37,6 +37,9 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
   user: {
+    deleteUser: {
+      enabled: true,
+    },
     additionalFields: {
       is_admin: {
         type: "boolean",

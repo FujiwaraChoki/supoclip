@@ -32,8 +32,7 @@ import {
 } from "lucide-react";
 import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
 import { getPublicBillingPlans } from "@/lib/billing-plans";
-
-const HOSTED_APP_URL = "https://supoclip.com";
+import { GITHUB_URL, HOSTED_APP_URL } from "@/lib/site";
 
 function ScrollReveal({
   children,
@@ -132,7 +131,7 @@ function getPlans() {
         "Full source code access",
       ],
       cta: "View on GitHub",
-      ctaHref: "https://github.com/FujiwaraChoki/supoclip",
+      ctaHref: GITHUB_URL,
       highlighted: false,
     },
     ...getPublicBillingPlans().map((plan) => ({
@@ -176,6 +175,33 @@ const STEPS = [
     description:
       "Get vertical, captioned, face-tracked clips ready for every platform.",
     icon: Share2,
+  },
+];
+
+const SEO_RESOURCES = [
+  {
+    href: "/ai-video-clipper",
+    eyebrow: "AI Video Clipping",
+    title: "AI video clipper for Shorts, Reels, and TikTok",
+    description: "See how SupoClip finds moments, scores candidates, reframes faces, and adds captions.",
+  },
+  {
+    href: "/open-source-video-clipper",
+    eyebrow: "Self-Hosting",
+    title: "Open-source video clipper you can control",
+    description: "Compare hosted-only workflows with SupoClip's inspectable, self-hosted pipeline.",
+  },
+  {
+    href: "/youtube-shorts-clipper",
+    eyebrow: "YouTube to Shorts",
+    title: "Repurpose long YouTube videos into Shorts",
+    description: "Follow a practical workflow for selecting, captioning, reframing, and reviewing clips.",
+  },
+  {
+    href: "/blog/best-free-opusclip-alternative",
+    eyebrow: "Comparison",
+    title: "Best free OpusClip alternative",
+    description: "Compare SupoClip's open-source approach with a managed, credit-based clipping tool.",
   },
 ];
 
@@ -245,6 +271,12 @@ export default function LandingPage() {
             >
               Open Source
             </a>
+            <Link
+              href="/blog"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Blog
+            </Link>
           </div>
 
           {/* Desktop auth buttons */}
@@ -314,6 +346,13 @@ export default function LandingPage() {
               >
                 Open Source
               </a>
+              <Link
+                href="/blog"
+                onClick={() => setMobileNavOpen(false)}
+                className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                Blog
+              </Link>
               <Separator className="my-2" />
               <div className="flex flex-col gap-2 px-3 pt-1">
                 {authEnabled ? (
@@ -374,9 +413,9 @@ export default function LandingPage() {
                   animation: "landing-fade-in-up 0.6s ease-out 0.1s both",
                 }}
               >
-                From long video
+                Open-source AI video clipper
                 <br />
-                to viral clips
+                for better shorts
               </h1>
 
               <p
@@ -385,9 +424,9 @@ export default function LandingPage() {
                   animation: "landing-fade-in-up 0.6s ease-out 0.2s both",
                 }}
               >
-                AI-powered clipping that transcribes, scores virality, crops for
-                vertical, adds word-synced captions, and exports platform-ready
-                shorts.
+                Turn long videos into captioned YouTube Shorts, TikToks, and Reels
+                with AI-assisted highlight detection, virality scoring, and
+                face-aware vertical crops.
               </p>
 
               <div
@@ -820,6 +859,45 @@ export default function LandingPage() {
 
       <Separator />
 
+      {/* ─── GUIDES ─── */}
+      <section id="guides" className="py-20 md:py-28">
+        <div className="mx-auto max-w-6xl px-6">
+          <ScrollReveal className="mb-12 text-center">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+              Guides & Comparisons
+            </p>
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              Learn the complete clipping workflow
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
+              Practical, source-backed pages for choosing a video clipper, self-hosting SupoClip,
+              and turning long recordings into short-form content.
+            </p>
+          </ScrollReveal>
+          <div className="grid gap-5 md:grid-cols-2">
+            {SEO_RESOURCES.map((resource, index) => (
+              <ScrollReveal key={resource.href} delay={index * 0.08}>
+                <Link
+                  href={resource.href}
+                  className="group block h-full rounded-lg border bg-card p-6 transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:shadow-md"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    {resource.eyebrow}
+                  </p>
+                  <h3 className="mt-3 text-xl font-bold tracking-tight">{resource.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-muted-foreground">{resource.description}</p>
+                  <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">
+                    Read guide <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </span>
+                </Link>
+              </ScrollReveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <Separator />
+
       {/* ─── FINAL CTA ─── */}
       <section className="py-20 md:py-28">
         <ScrollReveal className="max-w-2xl mx-auto px-6 text-center">
@@ -870,18 +948,23 @@ export default function LandingPage() {
               SupoClip
             </span>
           </div>
-          <div className="flex items-center gap-6 text-xs text-muted-foreground">
+          <nav aria-label="Footer navigation" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+            <Link href="/ai-video-clipper" className="hover:text-foreground transition-colors">AI clipper</Link>
+            <Link href="/open-source-video-clipper" className="hover:text-foreground transition-colors">Open source</Link>
+            <Link href="/youtube-shorts-clipper" className="hover:text-foreground transition-colors">YouTube Shorts</Link>
+            <Link href="/blog" className="hover:text-foreground transition-colors">Blog</Link>
+            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
             <a
-              href="https://github.com/FujiwaraChoki/supoclip"
+              href={GITHUB_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-foreground transition-colors"
             >
               GitHub
             </a>
-            <span>AGPL-3.0</span>
             <span>&copy; {new Date().getFullYear()}</span>
-          </div>
+          </nav>
         </div>
       </footer>
     </div>
@@ -1012,8 +1095,7 @@ function HeroVisual() {
                 poster={clip.poster}
                 muted
                 playsInline
-                autoPlay={i === 0}
-                preload={i === 0 ? "auto" : "metadata"}
+                preload={i === 0 ? "metadata" : "none"}
                 aria-label={clip.hook}
                 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
                   i === active ? "opacity-100" : "opacity-0"

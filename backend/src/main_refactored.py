@@ -16,6 +16,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import Config, get_config, set_config_override
@@ -136,7 +137,7 @@ def create_app(
         )
         return JSONResponse(
             status_code=exc.status_code,
-            content={"detail": exc.detail, "trace_id": trace_id},
+            content=jsonable_encoder({"detail": exc.detail, "trace_id": trace_id}),
             headers={TRACE_HEADER: trace_id},
         )
 

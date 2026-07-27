@@ -60,6 +60,26 @@ async def test_create_task_enqueues_a_job(client, db_session, auth_headers):
 
 
 @pytest.mark.asyncio
+async def test_create_task_returns_serializable_subscription_gate(
+    client, app, db_session, auth_headers
+):
+    app.state.config.monetization_enabled = True
+    await create_user(db_session, user_id="user-1", email="owner@example.com")
+
+    response = await client.post(
+        "/tasks/",
+        headers=auth_headers,
+        json={"source": {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"}},
+    )
+
+    assert response.status_code == 402
+    payload = response.json()["detail"]
+    assert payload["code"] == "SUBSCRIPTION_REQUIRED"
+    assert payload["billing"]["period_start"].startswith("20")
+    assert payload["billing"]["period_end"].startswith("20")
+
+
+@pytest.mark.asyncio
 async def test_create_task_rejects_non_upload_local_paths(client, db_session, auth_headers):
     await create_user(db_session, user_id="user-1", email="owner@example.com")
 

@@ -138,6 +138,24 @@ export default function BlogIndexPage() {
             </div>
           </div>
         </Link>
+
+        <section className="mt-14" aria-labelledby="product-guides-heading">
+          <h2 id="product-guides-heading" className="text-2xl font-bold tracking-tight">
+            Product guides
+          </h2>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            {[
+              ["/ai-video-clipper", "AI video clipper", "How automated highlight detection, captions, and exports fit together."],
+              ["/open-source-video-clipper", "Open-source video clipper", "What self-hosting changes about control, providers, and infrastructure."],
+              ["/youtube-shorts-clipper", "YouTube Shorts clipper", "A practical workflow for turning long YouTube videos into vertical clips."],
+            ].map(([href, title, description]) => (
+              <Link key={href} href={href} className="rounded-lg border p-5 transition-colors hover:border-foreground/30">
+                <h3 className="font-semibold">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
       </section>
     </main>
   );
