@@ -6,6 +6,16 @@ import pytest
 from src import video_utils
 
 
+def test_get_scaled_font_size_preserves_visible_ui_range():
+    sizes = [
+        video_utils.get_scaled_font_size(size, 1080)
+        for size in (12, 24, 32, 48, 72)
+    ]
+
+    assert sizes == [26, 46, 62, 93, 132]
+    assert sizes == sorted(sizes)
+
+
 def test_build_ass_subtitles_preserves_background_template(tmp_path):
     video_path = tmp_path / "source.mp4"
     video_path.with_suffix(".transcript_cache.json").write_text(

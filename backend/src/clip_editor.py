@@ -6,10 +6,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 import subprocess
 import tempfile
 import uuid
+
+from .caption_templates import get_template
+from .video_utils import (
+    ass_fonts_dir,
+    build_assemblyai_ass_subtitles,
+    get_words_for_keep_ranges,
+    get_words_in_range,
+    load_cached_transcript_data,
+)
 
 
 @dataclass
@@ -244,6 +253,13 @@ def overlay_custom_captions(
     caption_text: str,
     position: str,
     highlight_words: List[str],
+    *,
+    font_family: Optional[str] = None,
+    font_size: Optional[int] = None,
+    font_color: Optional[str] = None,
+    caption_template: str = "default",
+    transcript_video_path: Optional[Path] = None,
+    source_ranges: Optional[List[tuple[float, float]]] = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / _safe_name("caption")
@@ -254,46 +270,48 @@ def overlay_custom_captions(
 
     width, height = _ffprobe_size(input_path)
     duration = _ffprobe_duration(input_path)
-    y_position = {
-        "top": int(height * 0.18),
-        "middle": int(height * 0.52),
-        "bottom": int(height * 0.78),
-    }.get(position, int(height * 0.78))
-    highlighted = {word.strip().lower() for word in highlight_words if word.strip()}
-    word_duration = max(duration / max(len(words), 1), 0.1)
+    position_y = {
+        "top": 0.18,
+        "middle": 0.52,
+        "bottom": 0.78,
+    }.get(position, 0.78)
     ass_path = output_dir / f"captions_{uuid.uuid4().hex[:12]}.ass"
 
-    header = f"""[Script Info]
-ScriptType: v4.00+
-PlayResX: {width}
-PlayResY: {height}
-WrapStyle: 2
-ScaledBorderAndShadow: yes
+    transcript_path = transcript_video_path or input_path
+    transcript_data = load_cached_transcript_data(transcript_path)
+    timed_words: List[Dict[str, Any]] = []
+    if transcript_data and transcript_data.get("words"):
+        if source_ranges:
+            timed_words = get_words_for_keep_ranges(transcript_data, source_ranges)
+        else:
+            timed_words = get_words_in_range(transcript_data, 0.0, duration)
 
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,64,{_ass_color("#FFFFFF")},&H000000FF,&H00000000,&H99000000,1,0,0,0,100,100,0,0,1,2,0,5,60,60,60,1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
-    events = []
-    for idx, word in enumerate(words):
-        start = idx * word_duration
-        end = min(duration, start + word_duration)
-        color = (
-            _ass_color("#FFD700")
-            if word.lower().strip(".,!?;:") in highlighted
-            else _ass_color("#FFFFFF")
-        )
-        events.append(
-            "Dialogue: 0,"
-            f"{_ass_timestamp(start)},{_ass_timestamp(end)},Default,,0,0,0,,"
-            f"{{\\pos({width // 2},{y_position})\\c{color}}}{_escape_ass_text(word)}"
-        )
+    caption_words = _caption_words_with_timings(words, timed_words, duration)
+    if not build_assemblyai_ass_subtitles(
+        input_path,
+        clip_start=0.0,
+        clip_end=duration,
+        video_width=width,
+        video_height=height,
+        output_ass_path=ass_path,
+        font_family=font_family,
+        font_size=font_size,
+        font_color=font_color,
+        caption_template=caption_template,
+        caption_words=caption_words,
+        position_y_override=position_y,
+        highlight_words=highlight_words,
+    ):
+        raise RuntimeError("Failed to build edited captions")
 
     try:
-        ass_path.write_text(header + "\n".join(events) + "\n", encoding="utf-8")
+        effective_font_family = (
+            font_family or get_template(caption_template)["font_family"]
+        )
+        fonts_dir = ass_fonts_dir(effective_font_family)
+        subtitle_filter = f"subtitles=filename={_escape_filter_path(ass_path)}"
+        if fonts_dir:
+            subtitle_filter += f":fontsdir={_escape_filter_path(fonts_dir)}"
         _run(
             [
                 "ffmpeg",
@@ -301,7 +319,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 "-i",
                 str(input_path),
                 "-vf",
-                f"subtitles=filename={_escape_filter_path(ass_path)}",
+                subtitle_filter,
                 *_encode_args(),
                 str(output_path),
             ]
@@ -310,6 +328,44 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         ass_path.unlink(missing_ok=True)
 
     return output_path
+
+
+def _caption_words_with_timings(
+    words: List[str],
+    timed_words: List[Dict[str, Any]],
+    duration: float,
+) -> List[Dict[str, Any]]:
+    """Apply edited text to source timings, or evenly split when none exist."""
+    if timed_words:
+        source_count = len(timed_words)
+        edited_count = len(words)
+        mapped: List[Dict[str, Any]] = []
+        for index, word in enumerate(words):
+            source_start = min(source_count - 1, (index * source_count) // edited_count)
+            source_end = min(
+                source_count - 1,
+                max(source_start, ((index + 1) * source_count - 1) // edited_count),
+            )
+            mapped.append(
+                {
+                    "text": word,
+                    "start": float(timed_words[source_start]["start"]),
+                    "end": float(timed_words[source_end]["end"]),
+                    "confidence": timed_words[source_start].get("confidence", 1.0),
+                }
+            )
+        return mapped
+
+    word_duration = max(duration / max(len(words), 1), 0.1)
+    return [
+        {
+            "text": word,
+            "start": index * word_duration,
+            "end": min(duration, (index + 1) * word_duration),
+            "confidence": 1.0,
+        }
+        for index, word in enumerate(words)
+    ]
 
 
 def export_with_preset(input_path: Path, output_dir: Path, preset_name: str) -> Path:

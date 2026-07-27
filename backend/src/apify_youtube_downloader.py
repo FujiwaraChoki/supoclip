@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 APIFY_YOUTUBE_DOWNLOADER_ACTOR = "epctex/youtube-video-downloader"
 EUNIT_YOUTUBE_DOWNLOADER_ACTOR = "eunit/youtube-video-downloader"
 STREAMERS_YOUTUBE_DOWNLOADER_ACTOR = "streamers/youtube-video-downloader"
-ALLOWED_APIFY_QUALITIES = {"360", "480", "720", "1080"}
+ALLOWED_APIFY_QUALITIES = {"360", "480", "720", "1080", "1440", "2160"}
 
 
 class ApifyDownloadError(RuntimeError):

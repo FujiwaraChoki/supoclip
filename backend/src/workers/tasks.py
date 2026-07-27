@@ -3,7 +3,7 @@ Worker tasks - background jobs processed by arq workers.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import json
 
 from ..observability import configure_logging, set_trace_id
@@ -19,9 +19,9 @@ async def process_video_task(
     url: str,
     source_type: str,
     user_id: str,
-    font_family: str = "TikTokSans-Regular",
-    font_size: int = 24,
-    font_color: str = "#FFFFFF",
+    font_family: Optional[str] = None,
+    font_size: Optional[int] = None,
+    font_color: Optional[str] = None,
     caption_template: str = "default",
     processing_mode: str = "fast",
     output_format: str = "vertical",

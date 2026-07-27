@@ -413,14 +413,13 @@ def clamp_even(value: int, minimum: int, maximum: int) -> int:
 
 
 def get_scaled_font_size(base_font_size: int, video_width: int) -> int:
-    """Scale caption font size by output width with punchy, sensible bounds.
+    """Scale caption font size by output width while preserving user choices.
 
-    Tuned so even the small UI default (24) renders as a bold, readable caption
-    on a 1080-wide vertical clip, matching the larger short-form caption sizing
-    used by tools like OpusClip.
+    Template defaults remain readable on 1080-wide vertical clips, while the
+    full 12-72 UI range produces a meaningful, monotonic size change.
     """
-    scaled_size = int(base_font_size * (video_width / 560.0))
-    return max(42, min(82, scaled_size))
+    scaled_size = round(base_font_size * (video_width / 560.0))
+    return max(26, min(132, scaled_size))
 
 
 def get_subtitle_max_width(video_width: int) -> int:
@@ -1228,14 +1227,18 @@ def escape_ass_text(value: str) -> str:
     )
 
 
-def ass_font_name(font_family: str) -> str:
+def ass_font_name(font_family: Optional[str]) -> str:
+    if not font_family:
+        return "Arial"
     font_path = find_font_path(font_family, allow_all_user_fonts=True)
     if font_path:
         return get_font_family_name(Path(font_path)) or Path(font_path).stem
     return font_family or "Arial"
 
 
-def ass_fonts_dir(font_family: str) -> Optional[Path]:
+def ass_fonts_dir(font_family: Optional[str]) -> Optional[Path]:
+    if not font_family:
+        return FONTS_DIR if FONTS_DIR.exists() else None
     font_path = find_font_path(font_family, allow_all_user_fonts=True)
     if font_path:
         return font_path.parent
@@ -1418,14 +1421,17 @@ def build_assemblyai_ass_subtitles(
     video_width: int,
     video_height: int,
     output_ass_path: Path,
-    font_family: str = "THEBOLDFONT",
-    font_size: int = 24,
-    font_color: str = "#FFFFFF",
+    font_family: Optional[str] = None,
+    font_size: Optional[int] = None,
+    font_color: Optional[str] = None,
     caption_template: str = "default",
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
     caption_cues: Optional[List[Dict[str, Any]]] = None,
     hook_title: Optional[str] = None,
     include_captions: bool = True,
+    caption_words: Optional[List[Dict[str, Any]]] = None,
+    position_y_override: Optional[float] = None,
+    highlight_words: Optional[List[str]] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -1444,8 +1450,13 @@ def build_assemblyai_ass_subtitles(
     effective_font_color = font_color or template["font_color"]
     animation = template.get("animation", "karaoke")
 
-    relevant_words: List[Dict[str, Any]] = []
-    if include_captions and transcript_data and transcript_data.get("words"):
+    relevant_words: List[Dict[str, Any]] = list(caption_words or [])
+    if (
+        include_captions
+        and not relevant_words
+        and transcript_data
+        and transcript_data.get("words")
+    ):
         if keep_ranges:
             relevant_words = get_words_for_keep_ranges(transcript_data, keep_ranges)
         else:
@@ -1463,7 +1474,7 @@ def build_assemblyai_ass_subtitles(
     glow = bool(template.get("glow"))
     has_outline = template.get("stroke_color") is not None
     # Emphasis colouring only makes sense when something distinguishes words.
-    enable_emphasis = animation != "none"
+    enable_emphasis = animation != "none" or bool(highlight_words)
 
     primary = hex_to_ass_color(effective_font_color)
     highlight = hex_to_ass_color(template.get("highlight_color"), "#FFE000")
@@ -1479,14 +1490,26 @@ def build_assemblyai_ass_subtitles(
     font_px = get_scaled_font_size(effective_font_size, video_width)
     base_stroke = int(template.get("stroke_width", 3) or 0)
     # Scale the outline with the font so big captions keep a chunky, readable edge.
-    outline_px = max(base_stroke, round(font_px * base_stroke / 26)) if (has_outline and base_stroke) else 0
+    outline_px = (
+        max(base_stroke, round(font_px * base_stroke / 26))
+        if (has_outline and base_stroke)
+        else 0
+    )
     shadow_px = max(2, font_px // 20) if template.get("shadow") else 0
     box_bord = max(outline_px + 2, font_px // 5)
-    pos_y = float(template.get("position_y", 0.80))
+    pos_y = (
+        float(position_y_override)
+        if position_y_override is not None
+        else float(template.get("position_y", 0.80))
+    )
     est_text_height = int(font_px * 1.5)
     y_pos = get_safe_vertical_position(video_height, est_text_height, pos_y)
     font_name = ass_font_name(effective_font_family)
-    border_style = 3 if template.get("background") and template.get("background_color") else 1
+    border_style = (
+        3
+        if template.get("background") and template.get("background_color")
+        else 1
+    )
 
     hook_style_block = ""
     hook_events: List[str] = []
@@ -1516,6 +1539,16 @@ def build_assemblyai_ass_subtitles(
         caption_cues,
         enable_emoji=enable_emoji,
         enable_emphasis=enable_emphasis,
+    )
+    requested_highlights = {
+        normalize_token(word)
+        for word in (highlight_words or [])
+        if normalize_token(word)
+    }
+    emphasis_idx.update(
+        index
+        for index, word in enumerate(relevant_words)
+        if normalize_token(str(word.get("text", ""))) in requested_highlights
     )
 
     max_words = max(1, int(template.get("max_words_per_line", 4) or 4))
@@ -3111,9 +3144,9 @@ def create_optimized_clip(
     end_time: float,
     output_path: Path,
     add_subtitles: bool = True,
-    font_family: str = "THEBOLDFONT",
-    font_size: int = 24,
-    font_color: str = "#FFFFFF",
+    font_family: Optional[str] = None,
+    font_size: Optional[int] = None,
+    font_color: Optional[str] = None,
     caption_template: str = "default",
     output_format: str = "vertical",
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
@@ -3240,9 +3273,9 @@ def create_clips_from_segments(
     video_path: Path,
     segments: List[Dict[str, Any]],
     output_dir: Path,
-    font_family: str = "THEBOLDFONT",
-    font_size: int = 24,
-    font_color: str = "#FFFFFF",
+    font_family: Optional[str] = None,
+    font_size: Optional[int] = None,
+    font_color: Optional[str] = None,
     caption_template: str = "default",
     output_format: str = "vertical",
     add_subtitles: bool = True,
@@ -3464,9 +3497,9 @@ def create_clips_with_transitions(
     video_path: Path,
     segments: List[Dict[str, Any]],
     output_dir: Path,
-    font_family: str = "THEBOLDFONT",
-    font_size: int = 24,
-    font_color: str = "#FFFFFF",
+    font_family: Optional[str] = None,
+    font_size: Optional[int] = None,
+    font_color: Optional[str] = None,
     caption_template: str = "default",
     output_format: str = "vertical",
     add_subtitles: bool = True,

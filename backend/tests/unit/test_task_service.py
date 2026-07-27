@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import hashlib
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -101,6 +102,65 @@ def test_cache_key_includes_analysis_prompt_version():
     ).hexdigest()
 
     assert cache_key == expected
+
+
+@pytest.mark.asyncio
+async def test_update_clip_captions_passes_stored_task_style(monkeypatch, tmp_path):
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    service = TaskService(db=AsyncMock(), config=config)
+    input_path = tmp_path / "clip.mp4"
+    input_path.write_bytes(b"clip")
+    output_path = tmp_path / "clips" / "edited.mp4"
+    output_path.parent.mkdir()
+    clip = {
+        "id": "clip-1",
+        "task_id": "task-1",
+        "file_path": str(input_path),
+        "start_time": "00:10",
+        "end_time": "00:12",
+        "duration": 2.0,
+    }
+    service.clip_repo.get_clip_by_id = AsyncMock(
+        side_effect=[clip, {**clip, "file_path": str(output_path)}]
+    )
+    service.clip_repo.update_clip = AsyncMock()
+    service.task_repo.get_task_by_id = AsyncMock(
+        return_value={
+            "id": "task-1",
+            "source_url": "upload://source.mp4",
+            "source_type": "upload",
+            "processing_mode": "quality",
+            "font_family": "Inter",
+            "font_size": 48,
+            "font_color": "#123456",
+            "caption_template": "minimal",
+        }
+    )
+    service.cache_repo.get_cache = AsyncMock(
+        return_value={"video_path": str(tmp_path / "source.mp4")}
+    )
+    captured = {}
+
+    def fake_overlay(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return output_path
+
+    monkeypatch.setattr(task_service_module, "overlay_custom_captions", fake_overlay)
+
+    await service.update_clip_captions(
+        "task-1", "clip-1", "edited caption", "middle", ["edited"]
+    )
+
+    assert captured["kwargs"] == {
+        "font_family": "Inter",
+        "font_size": 48,
+        "font_color": "#123456",
+        "caption_template": "minimal",
+        "transcript_video_path": tmp_path / "source.mp4",
+        "source_ranges": [(10.0, 12.0)],
+    }
 
 
 @pytest.mark.asyncio

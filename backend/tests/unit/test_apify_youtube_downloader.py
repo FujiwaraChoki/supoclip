@@ -317,6 +317,8 @@ def test_download_video_via_apify_wraps_actor_exception(tmp_path, monkeypatch):
 
 def test_normalize_apify_quality_defaults_for_invalid_values():
     assert normalize_apify_quality("360") == "360"
+    assert normalize_apify_quality("1440") == "1440"
+    assert normalize_apify_quality("2160") == "2160"
     assert normalize_apify_quality("bad-value") == "1080"
     assert normalize_apify_quality("") == "1080"
     assert normalize_apify_quality(None) == "1080"

@@ -9,7 +9,7 @@ from sse_starlette.sse import EventSourceResponse
 from pathlib import Path
 import json
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import inspect
 import re
 import secrets
@@ -33,7 +33,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
-def _normalize_font_size(value: Any, default: int = 24) -> int:
+def _normalize_font_size(value: Any, default: int = 24) -> Optional[int]:
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
     try:
         parsed = int(value)
     except (TypeError, ValueError):
@@ -41,16 +43,18 @@ def _normalize_font_size(value: Any, default: int = 24) -> int:
     return max(12, min(72, parsed))
 
 
-def _normalize_font_color(value: Any, default: str = "#FFFFFF") -> str:
+def _normalize_font_color(value: Any, default: str = "#FFFFFF") -> Optional[str]:
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
     if isinstance(value, str) and re.match(r"^#[0-9A-Fa-f]{6}$", value):
         return value.upper()
     return default
 
 
-def _normalize_font_family(value: Any, default: str = "THEBOLDFONT") -> str:
+def _normalize_font_family(value: Any) -> Optional[str]:
     if isinstance(value, str) and value.strip():
         return value.strip()
-    return default
+    return None
 
 
 async def _get_user_id_from_headers(request: Request, db: AsyncSession) -> str:
@@ -220,11 +224,9 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
 
     # Get font options
     font_options = data.get("font_options", {})
-    font_family = _normalize_font_family(
-        font_options.get("font_family", "THEBOLDFONT")
-    )
-    font_size = _normalize_font_size(font_options.get("font_size", 24))
-    font_color = _normalize_font_color(font_options.get("font_color", "#FFFFFF"))
+    font_family = _normalize_font_family(font_options.get("font_family"))
+    font_size = _normalize_font_size(font_options.get("font_size"))
+    font_color = _normalize_font_color(font_options.get("font_color"))
     caption_template = data.get("caption_template", "default")
     include_broll = data.get("include_broll", False)
     runtime_config = get_config()
@@ -809,11 +811,9 @@ async def apply_task_settings(
     """Update task-level styling settings and optionally apply to all existing clips."""
     try:
         payload = await request.json()
-        font_family = _normalize_font_family(
-            payload.get("font_family", "THEBOLDFONT")
-        )
-        font_size = _normalize_font_size(payload.get("font_size", 24))
-        font_color = _normalize_font_color(payload.get("font_color", "#FFFFFF"))
+        font_family = _normalize_font_family(payload.get("font_family"))
+        font_size = _normalize_font_size(payload.get("font_size"))
+        font_color = _normalize_font_color(payload.get("font_color"))
         caption_template = payload.get("caption_template", "default")
         include_broll = bool(payload.get("include_broll", False))
         apply_to_existing = bool(payload.get("apply_to_existing", False))
@@ -829,7 +829,9 @@ async def apply_task_settings(
         task_record = await task_service.task_repo.get_task_by_id(db, task_id)
         if not task_record:
             raise HTTPException(status_code=404, detail="Task not found")
-        if not is_font_accessible(font_family, task_record["user_id"]):
+        if font_family is not None and not is_font_accessible(
+            font_family, task_record["user_id"]
+        ):
             raise HTTPException(
                 status_code=400, detail="Selected font is not available"
             )
@@ -1042,9 +1044,9 @@ async def resume_task(
             source_url,
             source_type,
             task["user_id"],
-            task.get("font_family") or "THEBOLDFONT",
-            task.get("font_size") or 24,
-            task.get("font_color") or "#FFFFFF",
+            task.get("font_family"),
+            task.get("font_size"),
+            task.get("font_color"),
             task.get("caption_template") or "default",
             processing_mode,
             output_format,

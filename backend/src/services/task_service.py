@@ -89,9 +89,9 @@ class TaskService:
         user_id: str,
         url: str,
         title: Optional[str] = None,
-        font_family: str = "TikTokSans-Regular",
-        font_size: int = 24,
-        font_color: str = "#FFFFFF",
+        font_family: Optional[str] = None,
+        font_size: Optional[int] = None,
+        font_color: Optional[str] = None,
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
@@ -141,9 +141,9 @@ class TaskService:
         task_id: str,
         url: str,
         source_type: str,
-        font_family: str = "TikTokSans-Regular",
-        font_size: int = 24,
-        font_color: str = "#FFFFFF",
+        font_family: Optional[str] = None,
+        font_size: Optional[int] = None,
+        font_color: Optional[str] = None,
         caption_template: str = "default",
         processing_mode: str = "fast",
         output_format: str = "vertical",
@@ -236,6 +236,7 @@ class TaskService:
                     cache_key=cache_key,
                     source_url=url,
                     source_type=source_type,
+                    video_path=result.get("video_path"),
                     transcript_text=result.get("transcript"),
                     analysis_json=None,
                 )
@@ -248,6 +249,7 @@ class TaskService:
                 cache_key=cache_key,
                 source_url=url,
                 source_type=source_type,
+                video_path=result.get("video_path"),
                 transcript_text=result.get("transcript"),
                 analysis_json=result.get("analysis_json"),
             )
@@ -513,9 +515,9 @@ class TaskService:
     async def update_task_settings(
         self,
         task_id: str,
-        font_family: str,
-        font_size: int,
-        font_color: str,
+        font_family: Optional[str],
+        font_size: Optional[int],
+        font_color: Optional[str],
         caption_template: str,
         include_broll: bool,
         apply_to_existing: bool,
@@ -547,9 +549,9 @@ class TaskService:
     async def regenerate_all_clips_for_task(
         self,
         task_id: str,
-        font_family: str,
-        font_size: int,
-        font_color: str,
+        font_family: Optional[str],
+        font_size: Optional[int],
+        font_color: Optional[str],
         caption_template: str,
         cleanup_settings: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -849,12 +851,44 @@ class TaskService:
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
+        task = await self.task_repo.get_task_by_id(self.db, task_id)
+        if not task:
+            raise ValueError("Task not found")
+
+        transcript_video_path: Optional[Path] = None
+        source_url = task.get("source_url")
+        source_type = task.get("source_type")
+        processing_mode = (
+            task.get("processing_mode") or self.config.default_processing_mode
+        )
+        if source_url and source_type:
+            cache_entry = await self.cache_repo.get_cache(
+                self.db,
+                self._build_cache_key(source_url, source_type, processing_mode),
+            )
+            cached_video_path = cache_entry.get("video_path") if cache_entry else None
+            if cached_video_path:
+                transcript_video_path = Path(cached_video_path)
+            elif source_type != "youtube":
+                try:
+                    transcript_video_path = self.video_service.resolve_local_video_path(
+                        source_url
+                    )
+                except ValueError:
+                    transcript_video_path = None
+
         output_path = overlay_custom_captions(
             input_path,
             Path(self.config.temp_dir) / "clips",
             caption_text,
             position,
             highlight_words,
+            font_family=task.get("font_family") or None,
+            font_size=task.get("font_size") or None,
+            font_color=task.get("font_color") or None,
+            caption_template=task.get("caption_template") or "default",
+            transcript_video_path=transcript_video_path,
+            source_ranges=self._get_clip_source_ranges(clip),
         )
         copy_clip_source_ranges(input_path, output_path)
 
