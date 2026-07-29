@@ -37,6 +37,11 @@ SETTING_METADATA = {
         "description": "Required for openai:* models.",
         "input_type": "password",
     },
+    "ATLASCLOUD_API_KEY": {
+        "label": "Atlas Cloud API key",
+        "description": "Required for atlascloud:* models.",
+        "input_type": "password",
+    },
     "GOOGLE_API_KEY": {
         "label": "Google API key",
         "description": "Required for google-gla:* models and fallback YouTube metadata.",

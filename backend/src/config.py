@@ -8,11 +8,13 @@ load_dotenv()
 _config_override = None
 LOCAL_OLLAMA_BASE_URL = "http://localhost:11434/v1"
 DOCKER_OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
+ATLASCLOUD_BASE_URL = "https://api.atlascloud.ai/v1"
 
 
 class Config:
     def __init__(self):
         self.openai_api_key = self._get_runtime_setting("OPENAI_API_KEY")
+        self.atlascloud_api_key = self._get_runtime_setting("ATLASCLOUD_API_KEY")
         self.anthropic_api_key = self._get_runtime_setting("ANTHROPIC_API_KEY")
         self.google_api_key = self._get_runtime_setting("GOOGLE_API_KEY")
         self.youtube_data_api_key = self._get_runtime_setting("YOUTUBE_DATA_API_KEY")
@@ -124,6 +126,7 @@ class Config:
             "ASSEMBLY_AI_API_KEY": self.assembly_ai_api_key,
             "LLM": self.llm,
             "OPENAI_API_KEY": self.openai_api_key,
+            "ATLASCLOUD_API_KEY": self.atlascloud_api_key,
             "GOOGLE_API_KEY": self.google_api_key,
             "ANTHROPIC_API_KEY": self.anthropic_api_key,
             "OLLAMA_BASE_URL": self.ollama_base_url,
@@ -196,6 +199,8 @@ class Config:
             return "openai:gpt-5.2"
         if self.anthropic_api_key:
             return "anthropic:claude-4-sonnet"
+        if self.atlascloud_api_key:
+            return "atlascloud:deepseek-ai/deepseek-v4-pro"
         return "google-gla:gemini-3-flash-preview"
 
 
