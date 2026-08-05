@@ -87,7 +87,9 @@ async def get_available_fonts_route(
 
 @router.get("/fonts/{font_name}")
 async def get_font_file(
-    font_name: str, request: Request, db: AsyncSession = Depends(get_db)
+    font_name: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """Serve a specific font file."""
     try:

@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "apify-client>=1.8.1",
-    "fastapi>=0.110.0",
+    "fastapi>=0.121.0",
     "uvicorn>=0.27.0",
     "openai-whisper>=20250625",
     "pydantic-ai>=1.89.1",

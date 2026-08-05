@@ -202,11 +202,11 @@ def create_app(
             await db.execute(text("SELECT 1"))
             return {"status": "healthy", "database": "connected"}
         except Exception as e:
-            return {
-                "status": "unhealthy",
-                "database": "disconnected",
-                "error": str(e),
-            }
+            logger.error("Database health check failed: %s", e)
+            return JSONResponse(
+                status_code=503,
+                content={"status": "unhealthy", "database": "disconnected"},
+            )
 
     @app.get("/health/redis")
     async def check_redis_health():
