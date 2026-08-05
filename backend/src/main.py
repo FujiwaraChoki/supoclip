@@ -214,11 +214,11 @@ async def start_task(request: Request):
             # Process video (same for both YouTube and uploaded videos)
             if video_path:
                 logger.info(
-                    "🎤 Starting transcript generation with AssemblyAI + SRT equalization"
+                    "🎤 Starting transcript generation"
                 )
                 transcript = get_video_transcript(video_path)
                 logger.info(
-                    f"✅ AssemblyAI transcript generated with 10-char line equalization (length: {len(transcript)} characters)"
+                    f"✅ Transcript generated (length: {len(transcript)} characters)"
                 )
 
                 logger.info(
