@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.models.openai import OpenAIChatModel
 
 from src.ai import (
     IDEAL_CLIP_MAX_SECONDS,
@@ -17,6 +18,7 @@ from src.ai import (
     build_transcript_analysis_prompt,
     transcript_analysis_system_prompt,
 )
+from src.config import Config
 
 
 def test_system_prompt_enforces_grounding_rules():
@@ -85,6 +87,33 @@ def test_ollama_llm_builds_native_ollama_model():
     assert model.base_url == "http://ollama.example/v1/"
 
 
+def test_atlascloud_llm_builds_openai_compatible_model():
+    runtime_config = SimpleNamespace(
+        llm="atlascloud:deepseek-ai/deepseek-v4-pro",
+        atlascloud_api_key="test-atlas-key",
+    )
+
+    model = _build_transcript_model(runtime_config)
+
+    assert isinstance(model, OpenAIChatModel)
+    assert model.model_name == "deepseek-ai/deepseek-v4-pro"
+    assert model.provider.base_url == "https://api.atlascloud.ai/v1/"
+
+
+def test_atlascloud_key_infers_default_when_other_provider_keys_are_missing():
+    runtime_config = SimpleNamespace(
+        google_api_key=None,
+        openai_api_key=None,
+        anthropic_api_key=None,
+        atlascloud_api_key="test-atlas-key",
+    )
+
+    assert (
+        Config._infer_default_llm(runtime_config)
+        == "atlascloud:deepseek-ai/deepseek-v4-pro"
+    )
+
+
 def test_parse_transcript_timestamp_supports_minute_and_hour_formats():
     assert _parse_transcript_timestamp_seconds("02:35") == 155
     assert _parse_transcript_timestamp_seconds("01:02:35") == 3755
@@ -125,6 +154,7 @@ def test_llm_validation_rejects_unsupported_or_incomplete_model_names():
     runtime_config = SimpleNamespace(
         google_api_key=None,
         openai_api_key=None,
+        atlascloud_api_key=None,
         anthropic_api_key=None,
     )
 
@@ -135,3 +165,6 @@ def test_llm_validation_rejects_unsupported_or_incomplete_model_names():
         "ollama:", runtime_config
     )
     assert _get_missing_llm_key_error("ollama:gpt-oss:20b", runtime_config) is None
+    assert "ATLASCLOUD_API_KEY" in _get_missing_llm_key_error(
+        "atlascloud:deepseek-ai/deepseek-v4-pro", runtime_config
+    )

@@ -11,10 +11,12 @@ import re
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
 from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.ollama import OllamaProvider
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
-from .config import Config, get_config
+from .config import ATLASCLOUD_BASE_URL, Config, get_config
 from .runtime_settings import apply_settings_to_process_env
 
 logger = logging.getLogger(__name__)
@@ -313,7 +315,14 @@ Find 2-5 compelling segments that would work well as standalone clips. Quality o
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
 _transcript_agent_signature: Optional[tuple[str | None, ...]] = None
 
-SUPPORTED_LLM_PROVIDERS = {"google", "google-gla", "openai", "anthropic", "ollama"}
+SUPPORTED_LLM_PROVIDERS = {
+    "google",
+    "google-gla",
+    "openai",
+    "atlascloud",
+    "anthropic",
+    "ollama",
+}
 
 
 def _split_llm_name(model_name: str) -> tuple[str, str | None]:
@@ -331,7 +340,7 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
     if provider not in SUPPORTED_LLM_PROVIDERS:
         return (
             f"Unsupported LLM provider '{provider}'. "
-            "Use google-gla:*, openai:*, anthropic:*, or ollama:*."
+            "Use google-gla:*, openai:*, atlascloud:*, anthropic:*, or ollama:*."
         )
 
     if not provider_model_name:
@@ -352,6 +361,12 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
             "Set OPENAI_API_KEY or choose another provider with a matching API key."
         )
 
+    if provider == "atlascloud" and not runtime_config.atlascloud_api_key:
+        return (
+            "Selected LLM provider is Atlas Cloud, but ATLASCLOUD_API_KEY is not set. "
+            "Set ATLASCLOUD_API_KEY or choose another provider with a matching API key."
+        )
+
     if provider == "anthropic" and not runtime_config.anthropic_api_key:
         return (
             "Selected LLM provider is Anthropic, but ANTHROPIC_API_KEY is not set. "
@@ -368,6 +383,20 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
 
 def _build_transcript_model(runtime_config: Config) -> Model | str:
     provider, provider_model_name = _split_llm_name(runtime_config.llm)
+    if provider == "atlascloud":
+        if not provider_model_name:
+            raise RuntimeError(
+                "Selected LLM provider is Atlas Cloud, but no model name was provided. "
+                "Use the format atlascloud:<model>."
+            )
+        return OpenAIChatModel(
+            provider_model_name,
+            provider=OpenAIProvider(
+                base_url=ATLASCLOUD_BASE_URL,
+                api_key=runtime_config.atlascloud_api_key,
+            ),
+        )
+
     if provider != "ollama":
         return runtime_config.llm
 
@@ -394,6 +423,7 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
     signature = (
         runtime_config.llm,
         runtime_config.openai_api_key,
+        runtime_config.atlascloud_api_key,
         runtime_config.google_api_key,
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
