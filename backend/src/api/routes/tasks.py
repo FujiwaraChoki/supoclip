@@ -366,7 +366,9 @@ async def get_shared_task(share_token: str, db: AsyncSession = Depends(get_db)):
 
 @router.get("/shared/{share_token}/clips/{clip_id}/file")
 async def get_shared_clip_file(
-    share_token: str, clip_id: str, db: AsyncSession = Depends(get_db)
+    share_token: str,
+    clip_id: str,
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """Serve one shared clip only when the bearer share token is enabled."""
     task_service = TaskService(db)
@@ -635,7 +637,10 @@ async def delete_clip(
 
 @router.get("/{task_id}/clips/{clip_id}/file")
 async def get_clip_file(
-    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+    task_id: str,
+    clip_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """Serve a clip file after verifying task ownership."""
     try:
@@ -879,7 +884,7 @@ async def export_clip(
     clip_id: str,
     request: Request,
     preset: str = "tiktok",
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """Export clip with a social platform preset."""
     try:

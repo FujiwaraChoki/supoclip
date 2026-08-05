@@ -1,7 +1,9 @@
 import pytest
 
+from fastapi.routing import APIRoute
 from sqlalchemy import text
 
+from src.database import get_db
 from tests.fixtures.factories import create_clip, create_source, create_task, create_user
 
 
@@ -18,6 +20,54 @@ async def test_health_endpoints_report_healthy(client):
     redis_response = await client.get("/health/redis")
     assert redis_response.status_code == 200
     assert redis_response.json()["status"] == "healthy"
+
+
+@pytest.mark.asyncio
+async def test_database_health_returns_503_when_the_database_is_unavailable(
+    app, client
+):
+    class UnavailableDatabaseSession:
+        async def execute(self, _statement):
+            raise RuntimeError("database unavailable")
+
+    async def unavailable_database():
+        yield UnavailableDatabaseSession()
+
+    app.dependency_overrides[get_db] = unavailable_database
+    try:
+        response = await client.get("/health/db")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "unhealthy",
+        "database": "disconnected",
+    }
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/tasks/shared/{share_token}/clips/{clip_id}/file",
+        "/tasks/{task_id}/clips/{clip_id}/file",
+        "/tasks/{task_id}/clips/{clip_id}/export",
+        "/fonts/{font_name}",
+    ],
+)
+def test_database_backed_file_routes_release_sessions_before_streaming(app, path):
+    route = next(
+        route
+        for route in app.routes
+        if isinstance(route, APIRoute) and route.path == path
+    )
+    database_dependency = next(
+        dependency
+        for dependency in route.dependant.dependencies
+        if dependency.call is get_db
+    )
+
+    assert database_dependency.scope == "function"
 
 
 @pytest.mark.asyncio
