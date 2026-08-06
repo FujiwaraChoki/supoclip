@@ -10,6 +10,8 @@
 
 SupoClip gives you AI-powered video clipping capabilities in an open-source package you can run yourself, customize, and inspect. Use the hosted version when you want the convenience of managed infrastructure, or self-host when you want full control.
 
+Beyond clipping, SupoClip includes prompt-guided and multimodal selection, brand kits, workspaces, translation/dubbing, editable B-roll variants, collections, channel auto-import, social publishing/scheduling, professional exports, and signed webhooks. See [Product workflows](docs/product-workflows.md) for setup.
+
 > For the hosted version, sign up for the waitlist here: [SupoClip Hosted](https://www.supoclip.com)
 
 ## Why SupoClip Exists

@@ -9,6 +9,7 @@ from sqlalchemy import text
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,9 @@ class TaskRepository:
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
+        generation_preferences: Optional[Dict[str, Any]] = None,
+        workspace_id: Optional[str] = None,
+        brand_kit_id: Optional[str] = None,
     ) -> str:
         """Create a new task and return its ID."""
         task_id = str(uuid4())
@@ -37,11 +41,13 @@ class TaskRepository:
                     INSERT INTO tasks (
                         id, user_id, source_id, status, font_family, font_size, font_color,
                         caption_template, include_broll, processing_mode,
+                        generation_preferences_json, analysis_mode, workspace_id, brand_kit_id,
                         created_at, updated_at
                     )
                     VALUES (
                         :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
                         :caption_template, :include_broll, :processing_mode,
+                        :generation_preferences_json, :analysis_mode, :workspace_id, :brand_kit_id,
                         NOW(), NOW()
                     )
                     RETURNING id
@@ -57,6 +63,14 @@ class TaskRepository:
                     "caption_template": caption_template,
                     "include_broll": include_broll,
                     "processing_mode": processing_mode,
+                    "generation_preferences_json": json.dumps(
+                        generation_preferences or {}, sort_keys=True
+                    ),
+                    "analysis_mode": (generation_preferences or {}).get(
+                        "analysis_mode", "transcript"
+                    ),
+                    "workspace_id": workspace_id,
+                    "brand_kit_id": brand_kit_id,
                 },
             )
         except Exception:
@@ -137,6 +151,12 @@ class TaskRepository:
             "caption_template": getattr(row, "caption_template", "default"),
             "include_broll": getattr(row, "include_broll", False),
             "processing_mode": getattr(row, "processing_mode", "fast"),
+            "generation_preferences": json.loads(
+                getattr(row, "generation_preferences_json", None) or "{}"
+            ),
+            "analysis_mode": getattr(row, "analysis_mode", "transcript"),
+            "workspace_id": getattr(row, "workspace_id", None),
+            "brand_kit_id": getattr(row, "brand_kit_id", None),
             "cache_hit": getattr(row, "cache_hit", False),
             "error_code": getattr(row, "error_code", None),
             "stage_timings_json": getattr(row, "stage_timings_json", None),
@@ -346,7 +366,11 @@ class TaskRepository:
                        (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count
                 FROM tasks t
                 LEFT JOIN sources s ON t.source_id = s.id
-                WHERE t.user_id = :user_id
+                WHERE t.user_id = :user_id OR EXISTS (
+                    SELECT 1 FROM workspace_members wm
+                    WHERE wm.workspace_id = t.workspace_id AND wm.user_id = :user_id
+                      AND wm.status = 'active'
+                )
                 ORDER BY t.created_at DESC
                 LIMIT :limit
             """),

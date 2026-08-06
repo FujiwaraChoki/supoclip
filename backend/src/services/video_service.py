@@ -24,6 +24,7 @@ from ..video_utils import (
     build_clip_keep_ranges,
     build_keep_ranges_from_source_ranges,
     build_clip_signal_summary,
+    build_multimodal_clip_signal_summary,
     extend_keep_ranges_to_sentence_boundary,
     seconds_to_mmss,
 )
@@ -33,6 +34,8 @@ from ..clip_source_map import (
 )
 from ..ai import get_most_relevant_parts_by_transcript
 from ..config import get_config
+from ..generation_preferences import normalize_generation_preferences
+from ..external_sources import async_download_external_video, is_supported_external_url
 
 logger = logging.getLogger(__name__)
 UPLOAD_URL_PREFIX = "upload://"
@@ -146,7 +149,11 @@ class VideoService:
         return transcript
 
     @staticmethod
-    async def analyze_transcript(transcript: str, clip_signals: Optional[str] = None) -> Any:
+    async def analyze_transcript(
+        transcript: str,
+        clip_signals: Optional[str] = None,
+        generation_preferences: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         """
         Analyze transcript with AI to find relevant segments.
         This is already async, no need to wrap.
@@ -155,6 +162,7 @@ class VideoService:
         relevant_parts = await get_most_relevant_parts_by_transcript(
             transcript,
             clip_signals=clip_signals,
+            generation_preferences=generation_preferences,
         )
         logger.info(
             f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"
@@ -333,7 +341,9 @@ class VideoService:
             return "youtube"
         if url.startswith(UPLOAD_URL_PREFIX):
             return "video_url"
-        raise ValueError("Only YouTube URLs or upload:// references are supported")
+        if is_supported_external_url(url):
+            return "external"
+        raise ValueError("Use YouTube, an uploaded file, or a supported Vimeo, Twitch, Drive, Dropbox, Loom, Zoom, or StreamYard URL")
 
     @staticmethod
     async def process_video_complete(
@@ -349,6 +359,7 @@ class VideoService:
         add_subtitles: bool = True,
         cached_transcript: Optional[str] = None,
         cached_analysis_json: Optional[str] = None,
+        generation_preferences: Optional[Dict[str, Any]] = None,
         progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]] = None,
         should_cancel: Optional[Callable[[], Awaitable[bool]]] = None,
     ) -> Dict[str, Any]:
@@ -361,6 +372,9 @@ class VideoService:
         """
         try:
             runtime_config = get_config()
+            normalized_preferences = normalize_generation_preferences(
+                generation_preferences
+            )
             # Step 1: Get video path (download or use existing)
             if should_cancel and await should_cancel():
                 raise Exception("Task cancelled")
@@ -382,6 +396,10 @@ class VideoService:
                 video_path = await VideoService.download_video(url, task_id=task_id)
                 if not video_path:
                     raise Exception("Failed to download video")
+            elif source_type == "external":
+                video_path = await async_download_external_video(url, task_id)
+                if not video_path:
+                    raise Exception("Failed to download external video")
             else:
                 video_path = VideoService.resolve_local_video_path(url)
                 if not video_path.exists():
@@ -449,8 +467,13 @@ class VideoService:
 
             if relevant_parts is None:
                 try:
+                    signal_builder = (
+                        build_multimodal_clip_signal_summary
+                        if normalized_preferences["analysis_mode"] == "multimodal"
+                        else build_clip_signal_summary
+                    )
                     clip_signals = await run_in_thread(
-                        build_clip_signal_summary,
+                        signal_builder,
                         video_path,
                         transcript,
                     )
@@ -460,6 +483,7 @@ class VideoService:
                 relevant_parts = await VideoService.analyze_transcript(
                     transcript,
                     clip_signals=clip_signals,
+                    generation_preferences=normalized_preferences,
                 )
 
             # Step 4: Create clips
@@ -511,8 +535,12 @@ class VideoService:
                         }
                     )
 
+            requested_clip_count = normalized_preferences["clip_count"]
             if processing_mode == "fast":
-                segments_json = segments_json[: runtime_config.fast_mode_max_clips]
+                requested_clip_count = min(
+                    requested_clip_count, runtime_config.fast_mode_max_clips
+                )
+            segments_json = segments_json[:requested_clip_count]
 
             if not segments_json:
                 logger.warning(
@@ -522,7 +550,11 @@ class VideoService:
                     VideoService._build_fallback_segment(
                         file_duration,
                         transcript,
-                        runtime_config.clip_duration,
+                        (
+                            normalized_preferences["clip_min_seconds"]
+                            if generation_preferences
+                            else runtime_config.clip_duration
+                        ),
                     )
                 ]
 

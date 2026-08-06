@@ -15,6 +15,10 @@ from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from .config import Config, get_config
+from .generation_preferences import (
+    generation_preferences_prompt,
+    normalize_generation_preferences,
+)
 from .runtime_settings import apply_settings_to_process_env
 
 logger = logging.getLogger(__name__)
@@ -419,7 +423,10 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
 
 
 def build_transcript_analysis_prompt(
-    transcript: str, include_broll: bool = False, clip_signals: str | None = None
+    transcript: str,
+    include_broll: bool = False,
+    clip_signals: str | None = None,
+    generation_preferences: dict[str, Any] | None = None,
 ) -> str:
     """Build the grounded task prompt for transcript analysis."""
     broll_instruction = ""
@@ -435,6 +442,8 @@ def build_transcript_analysis_prompt(
             "Use these as hints only. They should influence ranking, but every final segment "
             "must still be a coherent contiguous transcript range."
         )
+    preferences = normalize_generation_preferences(generation_preferences)
+    clip_brief = generation_preferences_prompt(preferences)
 
     return f"""Analyze this video transcript and identify the most engaging segments for short-form content.
 
@@ -449,12 +458,14 @@ Follow this workflow:
 4. For each chosen segment, use the earliest timestamp in the selected range as start_time and the latest timestamp in the selected range as end_time.{broll_instruction}
 
 Selection target:
-- Choose 2-5 segments total.
-- Most selected clips should be 25-50 seconds.
+- Choose up to {preferences['clip_count']} segments total.
+- Most selected clips should be {preferences['clip_min_seconds']}-{preferences['clip_max_seconds']} seconds.
 - Only choose a 15-24 second clip when it already contains a full setup and payoff.
 - If a strong moment is shorter than 25 seconds, first try expanding to nearby contiguous transcript lines that add useful context.
 - Skip weak standalone picks: intros, sponsor reads, CTAs, contextless quotes, repeated points, vague setup, and answer fragments that require prior context.
 - Before returning a segment, ask whether a viewer would understand and care without seeing the rest of the source video.
+
+{clip_brief}
 
 Critical accuracy requirements:
 - Do not fabricate or embellish content.
@@ -660,12 +671,17 @@ def _repair_segment_bounds(
 
 
 async def get_most_relevant_parts_by_transcript(
-    transcript: str, include_broll: bool = False, clip_signals: str | None = None
+    transcript: str,
+    include_broll: bool = False,
+    clip_signals: str | None = None,
+    generation_preferences: dict[str, Any] | None = None,
 ) -> TranscriptAnalysis:
     """Get the most relevant parts of a transcript with virality scoring and optional B-roll detection."""
     logger.info(
         f"Starting AI analysis of transcript ({len(transcript)} chars), include_broll={include_broll}"
     )
+
+    preferences = normalize_generation_preferences(generation_preferences)
 
     try:
         agent = get_transcript_agent()
@@ -675,6 +691,7 @@ async def get_most_relevant_parts_by_transcript(
                 transcript=transcript,
                 include_broll=include_broll,
                 clip_signals=clip_signals,
+                generation_preferences=preferences,
             )
         )
 
@@ -739,6 +756,28 @@ async def get_most_relevant_parts_by_transcript(
                     )
                     continue
 
+                if not (
+                    preferences["clip_min_seconds"]
+                    <= duration
+                    <= preferences["clip_max_seconds"]
+                ):
+                    logger.info(
+                        "Skipping segment outside requested duration: %ss not in %s-%ss",
+                        duration,
+                        preferences["clip_min_seconds"],
+                        preferences["clip_max_seconds"],
+                    )
+                    continue
+
+                timeframe_start = preferences["timeframe_start_seconds"]
+                timeframe_end = preferences["timeframe_end_seconds"]
+                if timeframe_start is not None and start_seconds < timeframe_start:
+                    logger.info("Skipping segment before requested timeframe")
+                    continue
+                if timeframe_end is not None and end_seconds > timeframe_end:
+                    logger.info("Skipping segment after requested timeframe")
+                    continue
+
                 # Validate virality scores
                 if segment.virality:
                     # Ensure total score is sum of subscores
@@ -780,6 +819,7 @@ async def get_most_relevant_parts_by_transcript(
             ),
             reverse=True,
         )
+        validated_segments = validated_segments[: preferences["clip_count"]]
 
         final_analysis = TranscriptAnalysis(
             most_relevant_segments=validated_segments,

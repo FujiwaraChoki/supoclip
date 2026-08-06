@@ -27,7 +27,6 @@ import { useSession } from "@/lib/auth-client";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import {
-  ArrowLeft,
   Clock,
   PlayCircle,
   AlertCircle,
@@ -39,6 +38,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { AppShell } from "@/components/app-shell";
 
 interface Task {
   id: string;
@@ -385,19 +385,10 @@ export default function ListPage() {
   /* ── Main render ──────────────────────────────────────────── */
 
   return (
-    <div className="min-h-screen bg-stone-50/50">
+    <AppShell className="bg-stone-50/50">
       {/* ── Page header ──────────────────────────────────────── */}
       <div className="border-b border-stone-200 bg-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
-          <div className="flex items-center gap-3 mb-4">
-            <Link href="/">
-              <Button variant="ghost" size="sm" className="text-stone-500 hover:text-stone-900">
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </Button>
-            </Link>
-          </div>
-
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h1 className="font-[var(--font-syne)] text-2xl font-bold tracking-tight text-stone-950">
@@ -744,6 +735,6 @@ export default function ListPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </AppShell>
   );
 }

@@ -68,7 +68,10 @@ class Config:
 
         self.self_host = self._get_bool_env("SELF_HOST", True)
         self.monetization_enabled = not self.self_host
-        self.backend_auth_secret = self._get_optional_env("BACKEND_AUTH_SECRET")
+        self.backend_auth_secret = (
+            self._get_optional_env("BACKEND_AUTH_SECRET")
+            or self._get_optional_env("BETTER_AUTH_SECRET")
+        )
         self.allow_unsigned_backend_auth = self._get_bool_env(
             "ALLOW_UNSIGNED_BACKEND_AUTH", False
         )
@@ -96,6 +99,15 @@ class Config:
         ).rstrip("/")
         self.discord_feedback_webhook_url = self._get_optional_env("DISCORD_FEEDBACK_WEBHOOK_URL")
         self.discord_sales_webhook_url = self._get_optional_env("DISCORD_SALES_WEBHOOK_URL")
+        self.backend_public_url = (
+            self._get_optional_env("BACKEND_PUBLIC_URL") or "http://localhost:8000"
+        ).rstrip("/")
+        self.google_oauth_client_id = self._get_optional_env("GOOGLE_OAUTH_CLIENT_ID")
+        self.google_oauth_client_secret = self._get_optional_env("GOOGLE_OAUTH_CLIENT_SECRET")
+        self.tiktok_client_key = self._get_optional_env("TIKTOK_CLIENT_KEY")
+        self.tiktok_client_secret = self._get_optional_env("TIKTOK_CLIENT_SECRET")
+        self.meta_app_id = self._get_optional_env("META_APP_ID")
+        self.meta_app_secret = self._get_optional_env("META_APP_SECRET")
         self.default_processing_mode = os.getenv("DEFAULT_PROCESSING_MODE", "fast")
         self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "4"))
         self.fast_mode_transcript_model = os.getenv(

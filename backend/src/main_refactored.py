@@ -171,11 +171,19 @@ def create_app(
     from .api.routes.feedback import router as feedback_router
     from .api.routes.billing import router as billing_router
     from .api.routes.api_keys import router as api_keys_router
+    from .api.routes.editor import router as editor_router
+    from .api.routes.workflows import router as workflows_router
+    from .api.routes.clip_workflows import router as clip_workflows_router
+    from .api.routes.social import router as social_router
 
     app.include_router(media_router)
     app.include_router(feedback_router)
     app.include_router(billing_router)
     app.include_router(api_keys_router)
+    app.include_router(editor_router)
+    app.include_router(workflows_router)
+    app.include_router(clip_workflows_router)
+    app.include_router(social_router)
 
     @app.get("/")
     def read_root():

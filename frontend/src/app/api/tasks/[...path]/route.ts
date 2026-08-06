@@ -15,9 +15,12 @@ async function proxyTaskRequest(
   const { path } = await params;
   const incomingUrl = new URL(request.url);
   const targetPath = `/tasks/${path.join("/")}${incomingUrl.search}`;
-  const body =
-    request.method === "GET" || request.method === "HEAD"
-      ? undefined
+  const contentType = request.headers.get("content-type") || "";
+  const isMultipart = contentType.toLowerCase().startsWith("multipart/form-data");
+  const body = request.method === "GET" || request.method === "HEAD"
+    ? undefined
+    : isMultipart
+      ? request.body
       : await request.text();
 
   const upstream = await fetchBackend(targetPath, {
@@ -38,6 +41,7 @@ async function proxyTaskRequest(
         : {}),
     },
     body,
+    ...(isMultipart ? { duplex: "half" as const } : {}),
     cache: "no-store",
   });
 
@@ -59,6 +63,13 @@ export async function POST(
 }
 
 export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ path: string[] }> }
+) {
+  return proxyTaskRequest(request, context);
+}
+
+export async function PUT(
   request: Request,
   context: { params: Promise<{ path: string[] }> }
 ) {
