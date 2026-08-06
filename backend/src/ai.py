@@ -16,6 +16,7 @@ from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from .config import Config, get_config
 from .runtime_settings import apply_settings_to_process_env
+from .prompt_manager import PromptManager
 
 logger = logging.getLogger(__name__)
 
@@ -177,40 +178,7 @@ class TranscriptAnalysis(BaseModel):
     )
 
 
-def _load_transcript_analysis_prompt() -> str:
-    """Load the transcript analysis system prompt from external file.
-
-    Looks for RELLS_ENGINE_v2.0_Documento_Oficial.md in backend/ directory.
-    Works in Docker and local environments using relative path resolution.
-
-    Raises:
-        FileNotFoundError: If prompt file is not found.
-
-    Returns:
-        The prompt content as a string.
-    """
-    prompt_file = Path(__file__).parent.parent / "RELLS_ENGINE_v2.0_Documento_Oficial.md"
-
-    if not prompt_file.exists():
-        raise FileNotFoundError(
-            f"Transcript analysis prompt file not found at: {prompt_file.resolve()}\n"
-            f"Expected location: backend/RELLS_ENGINE_v2.0_Documento_Oficial.md\n"
-            f"Please ensure the file exists in the backend directory."
-        )
-
-    try:
-        prompt_content = prompt_file.read_text(encoding="utf-8")
-        if not prompt_content.strip():
-            raise ValueError("Prompt file is empty")
-        logger.info(f"Loaded transcript analysis prompt from {prompt_file.name}")
-        return prompt_content
-    except Exception as e:
-        raise RuntimeError(
-            f"Failed to read transcript analysis prompt from {prompt_file}: {str(e)}"
-        ) from e
-
-
-transcript_analysis_system_prompt = _load_transcript_analysis_prompt()
+transcript_analysis_system_prompt = PromptManager.get("rells_engine")
 
 # Lazy-loaded agent to avoid import-time failures when API keys aren't set
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
@@ -348,12 +316,15 @@ Follow this workflow:
 4. For each chosen segment, use the earliest timestamp in the selected range as start_time and the latest timestamp in the selected range as end_time.{broll_instruction}
 
 Selection target:
-- Choose 2-5 segments total.
+- Extract at least 10 segments total for typical content.
+- For shorter content (5-10 minutes): minimum 5 segments.
+- For longer content (60+ minutes): aim for 20+ segments.
 - Most selected clips should be 25-50 seconds.
 - Only choose a 15-24 second clip when it already contains a full setup and payoff.
 - If a strong moment is shorter than 25 seconds, first try expanding to nearby contiguous transcript lines that add useful context.
 - Skip weak standalone picks: intros, sponsor reads, CTAs, contextless quotes, repeated points, vague setup, and answer fragments that require prior context.
 - Before returning a segment, ask whether a viewer would understand and care without seeing the rest of the source video.
+- Quality per segment matters, but quantity is also important for library building.
 
 Critical accuracy requirements:
 - Do not fabricate or embellish content.
