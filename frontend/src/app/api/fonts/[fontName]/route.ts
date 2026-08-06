@@ -10,9 +10,7 @@ interface Params {
 
 export async function GET(_: Request, { params }: Params) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = session?.user?.id || "local-user";
 
   const { fontName } = await params;
   const apiUrl =
@@ -21,7 +19,7 @@ export async function GET(_: Request, { params }: Params) {
     "http://localhost:8000";
   const normalizedApiUrl = apiUrl.replace(/\/$/, "");
   const encodedFontName = encodeURIComponent(fontName);
-  const backendAuthHeaders = buildBackendAuthHeaders(session.user.id);
+  const backendAuthHeaders = buildBackendAuthHeaders(userId);
 
   let upstream = await fetch(`${normalizedApiUrl}/fonts/${encodedFontName}`, {
     headers: {
@@ -51,9 +49,7 @@ export async function GET(_: Request, { params }: Params) {
 
 export async function DELETE(_: Request, { params }: Params) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = session?.user?.id || "local-user";
 
   const { fontName } = await params;
   const apiUrl =
@@ -62,7 +58,7 @@ export async function DELETE(_: Request, { params }: Params) {
     "http://localhost:8000";
   const normalizedApiUrl = apiUrl.replace(/\/$/, "");
   const encodedFontName = encodeURIComponent(fontName);
-  const backendAuthHeaders = buildBackendAuthHeaders(session.user.id);
+  const backendAuthHeaders = buildBackendAuthHeaders(userId);
 
   const upstream = await fetch(`${normalizedApiUrl}/fonts/${encodedFontName}`, {
     method: "DELETE",

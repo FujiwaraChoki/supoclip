@@ -6,9 +6,7 @@ import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = session?.user?.id || "local-user";
 
   const formData = await request.formData();
   const apiUrl =
@@ -16,7 +14,7 @@ export async function POST(request: Request) {
     process.env.NEXT_PUBLIC_API_URL ||
     "http://localhost:8000";
   const normalizedApiUrl = apiUrl.replace(/\/$/, "");
-  const backendAuthHeaders = buildBackendAuthHeaders(session.user.id);
+  const backendAuthHeaders = buildBackendAuthHeaders(userId);
 
   let upstream = await fetch(`${normalizedApiUrl}/fonts/upload`, {
     method: "POST",
