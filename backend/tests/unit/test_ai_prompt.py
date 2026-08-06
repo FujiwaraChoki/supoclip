@@ -12,6 +12,7 @@ from src.ai import (
     _extract_transcript_text,
     _format_transcript_timestamp,
     _get_missing_llm_key_error,
+    _load_transcript_analysis_prompt,
     _parse_transcript_spans,
     _parse_transcript_timestamp_seconds,
     build_transcript_analysis_prompt,
