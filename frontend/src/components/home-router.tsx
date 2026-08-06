@@ -2,20 +2,12 @@
 
 import dynamic from "next/dynamic";
 
-import LandingPage from "@/components/landing-page";
-import { useSession } from "@/lib/auth-client";
-import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
-
+// Load dashboard directly - no login required for self-hosted usage
 const HomeApp = dynamic(() => import("@/components/home-app"), {
   ssr: false,
 });
 
 export function HomeRouter() {
-  const { data: session, isPending } = useSession();
-
-  if (!isLandingOnlyModeEnabled && !isPending && session?.user) {
-    return <HomeApp />;
-  }
-
-  return <LandingPage />;
+  // Skip authentication, load dashboard directly
+  return <HomeApp />;
 }
