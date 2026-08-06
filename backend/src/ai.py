@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 IDEAL_CLIP_MIN_SECONDS = 25
 IDEAL_CLIP_MAX_SECONDS = 50
-MIN_ACCEPTED_CLIP_SECONDS = 15
-MAX_ACCEPTED_CLIP_SECONDS = 60
+MIN_ACCEPTED_CLIP_SECONDS = 10
+MAX_ACCEPTED_CLIP_SECONDS = 90
 TRANSCRIPT_ANALYSIS_CACHE_VERSION = "hook-titles-v4"
 HOOK_TITLE_MAX_CHARS = 64
 HOOK_TITLE_MAX_WORDS = 10
@@ -343,7 +343,7 @@ JSON-only output requirements:
 - Segment keys: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", "hook_title".
 - "hook_title" is a 3-9 word plain-text headline for the clip, grounded in the segment (no hashtags, emojis, or quotes).
 - Virality keys: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", "virality_reasoning".
-- Do not return segments shorter than {MIN_ACCEPTED_CLIP_SECONDS} seconds or longer than {MAX_ACCEPTED_CLIP_SECONDS} seconds.
+- Do not return segments shorter than 10 seconds or longer than 90 seconds.
 
 Transcript:
 {transcript}"""
