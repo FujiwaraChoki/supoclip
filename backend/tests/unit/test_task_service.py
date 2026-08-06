@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import hashlib
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -9,6 +10,7 @@ from src.config import Config
 from src.ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from src.services import task_service as task_service_module
 from src.services.task_service import TaskService
+from src.generation_preferences import normalize_generation_preferences
 
 
 @pytest.mark.asyncio
@@ -70,6 +72,9 @@ def build_task_service() -> TaskService:
     service.task_repo.update_task_runtime_metadata = AsyncMock()
     service.task_repo.update_task_status = AsyncMock()
     service.task_repo.update_task_clips = AsyncMock()
+    service.task_repo.get_task_by_id = AsyncMock(
+        return_value={"id": "task-1", "brand_kit_id": None}
+    )
     service.clip_repo.create_clip = AsyncMock(return_value="clip-1")
     service.video_service.create_single_clip = AsyncMock(return_value=build_clip_result())
     service.video_service.apply_single_transition = AsyncMock(
@@ -97,11 +102,22 @@ def test_cache_key_includes_analysis_prompt_version():
         "youtube",
         "fast",
     )
+    preferences = json.dumps(
+        normalize_generation_preferences(None),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     expected = hashlib.sha256(
-        f"youtube|fast|{TRANSCRIPT_ANALYSIS_CACHE_VERSION}|{url}".encode("utf-8")
+        (
+            f"youtube|fast|{TRANSCRIPT_ANALYSIS_CACHE_VERSION}|"
+            f"{url}|{preferences}"
+        ).encode("utf-8")
     ).hexdigest()
 
     assert cache_key == expected
+    assert cache_key != TaskService._build_cache_key(
+        url, "youtube", "fast", {"prompt": "Find pricing lessons"}
+    )
 
 
 @pytest.mark.asyncio

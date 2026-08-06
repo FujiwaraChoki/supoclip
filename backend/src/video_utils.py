@@ -2872,6 +2872,116 @@ def build_clip_signal_summary(video_path: Path, transcript: str) -> str:
     return "\n".join(summary_lines)
 
 
+def detect_visual_highlights(
+    video_path: Path, sample_seconds: float = 1.0, max_highlights: int = 12
+) -> List[Dict[str, Any]]:
+    """Return visual activity peaks using one inexpensive sequential decode.
+
+    The scores combine frame change, sustained motion, scene cuts, and visible
+    faces. They are deterministic hints for multimodal ranking, not final clip
+    decisions.
+    """
+    capture = cv2.VideoCapture(str(video_path))
+    if not capture.isOpened():
+        return []
+    fps = float(capture.get(cv2.CAP_PROP_FPS) or 0)
+    if fps <= 0:
+        capture.release()
+        return []
+    stride = max(1, int(round(fps * max(0.25, sample_seconds))))
+    face_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
+    samples: List[Dict[str, Any]] = []
+    previous_gray: Optional[np.ndarray] = None
+    frame_index = 0
+    try:
+        while True:
+            ok, frame = capture.read()
+            if not ok:
+                break
+            if frame_index % stride != 0:
+                frame_index += 1
+                continue
+            timestamp = frame_index / fps
+            height, width = frame.shape[:2]
+            target_width = 320
+            scale = min(1.0, target_width / max(1, width))
+            resized = cv2.resize(
+                frame,
+                (max(1, int(width * scale)), max(1, int(height * scale))),
+            )
+            gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+            change = (
+                float(np.mean(cv2.absdiff(gray, previous_gray)))
+                if previous_gray is not None
+                else 0.0
+            )
+            faces = face_cascade.detectMultiScale(
+                gray, scaleFactor=1.15, minNeighbors=4, minSize=(28, 28)
+            )
+            scene_cut = change >= 32.0
+            score = min(5.0, change / 12.0)
+            if scene_cut:
+                score += 2.0
+            if len(faces):
+                score += min(1.5, 0.5 * len(faces))
+            samples.append(
+                {
+                    "timestamp": timestamp,
+                    "score": round(score, 3),
+                    "frame_change": round(change, 2),
+                    "scene_cut": scene_cut,
+                    "faces": int(len(faces)),
+                }
+            )
+            previous_gray = gray
+            frame_index += 1
+    finally:
+        capture.release()
+
+    ranked = sorted(samples, key=lambda item: item["score"], reverse=True)
+    selected: List[Dict[str, Any]] = []
+    for candidate in ranked:
+        if candidate["score"] <= 0:
+            continue
+        if all(
+            abs(candidate["timestamp"] - item["timestamp"]) >= 4.0
+            for item in selected
+        ):
+            selected.append(candidate)
+        if len(selected) >= max_highlights:
+            break
+    return sorted(selected, key=lambda item: item["timestamp"])
+
+
+def build_multimodal_clip_signal_summary(video_path: Path, transcript: str) -> str:
+    """Combine transcript/audio heuristics with visual activity signals."""
+    sections = []
+    transcript_signals = build_clip_signal_summary(video_path, transcript)
+    if transcript_signals:
+        sections.append(transcript_signals)
+    visual_highlights = detect_visual_highlights(video_path)
+    if visual_highlights:
+        lines = [
+            "Visual highlight signals from scene, motion, and face analysis:",
+        ]
+        for item in visual_highlights:
+            reasons = []
+            if item["scene_cut"]:
+                reasons.append("scene cut")
+            if item["frame_change"] >= 12:
+                reasons.append("high motion")
+            if item["faces"]:
+                reasons.append(f"{item['faces']} face(s)")
+            lines.append(
+                f"- [{seconds_to_mmss(item['timestamp'])}] "
+                f"score={item['score']:.1f}: {', '.join(reasons) or 'visual activity'}"
+            )
+        sections.append("\n".join(lines))
+    return "\n\n".join(sections)
+
+
 def get_words_in_range(
     transcript_data: Dict, clip_start: float, clip_end: float
 ) -> List[Dict]:

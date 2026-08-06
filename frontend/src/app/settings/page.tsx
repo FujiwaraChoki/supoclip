@@ -4,18 +4,19 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { signOut, useSession } from "@/lib/auth-client";
+import { useSession } from "@/lib/auth-client";
 import { formatBillingPlanName, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight } from "lucide-react";
+import { AppShell } from "@/components/app-shell";
+import { Type, Palette, CheckCircle, AlertCircle, Settings, Mail, KeyRound, ChevronRight, PlugZap } from "lucide-react";
 
 interface UserPreferences {
   fontFamily: string;
@@ -48,7 +49,6 @@ export default function SettingsPage() {
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
   const [isBillingActionLoading, setIsBillingActionLoading] = useState(false);
   const { data: session, isPending } = useSession();
-  const isAdmin = Boolean((session?.user as { is_admin?: boolean } | undefined)?.is_admin);
 
   const paidPlans = getPublicBillingPlans();
 
@@ -62,11 +62,12 @@ export default function SettingsPage() {
           setAvailableFonts(data.fonts || []);
 
           // Dynamically load fonts using @font-face
-          const fontFaceStyles = data.fonts.map((font: { name: string }) => {
+          const fontFaceStyles = data.fonts.map((font: { name: string; format?: string }) => {
+            const format = font.format === "otf" ? "opentype" : "truetype";
             return `
               @font-face {
                 font-family: '${font.name}';
-                src: url('/api/fonts/${font.name}') format('truetype');
+                src: url('/api/fonts/${font.name}') format('${format}');
                 font-weight: normal;
                 font-style: normal;
               }
@@ -97,7 +98,10 @@ export default function SettingsPage() {
   // Load user preferences
   useEffect(() => {
     const loadPreferences = async () => {
-      if (!session?.user?.id) return;
+      if (!session?.user?.id) {
+        setIsFetching(false);
+        return;
+      }
 
       setIsFetching(true);
       try {
@@ -221,14 +225,9 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    window.location.href = "/sign-in";
-  };
-
   if (isPending || isFetching) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="space-y-4">
           <Skeleton className="h-4 w-32 mx-auto" />
           <Skeleton className="h-4 w-48 mx-auto" />
@@ -240,13 +239,13 @@ export default function SettingsPage() {
 
   if (!session?.user) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-background">
         <div className="max-w-4xl mx-auto px-4 py-24">
           <div className="text-center">
-            <h1 className="text-3xl font-bold text-black mb-4">
+            <h1 className="text-3xl font-bold text-foreground mb-4">
               Sign In Required
             </h1>
-            <p className="text-gray-600 mb-8">
+            <p className="text-muted-foreground mb-8">
               You need to sign in to access your settings
             </p>
             <Link href="/sign-in">
@@ -259,55 +258,18 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="border-b bg-white">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <Link href="/">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </Button>
-            </Link>
-
-            <div className="flex items-center gap-3">
-              {isAdmin && (
-                <Link href="/admin">
-                  <Button variant="outline" size="sm">
-                    Admin
-                  </Button>
-                </Link>
-              )}
-              <Button variant="outline" size="sm" onClick={handleSignOut}>
-                Sign Out
-              </Button>
-              <Avatar className="w-8 h-8">
-                <AvatarImage src={session.user.image || ""} />
-                <AvatarFallback className="bg-gray-100 text-black text-sm">
-                  {session.user.name?.charAt(0) || session.user.email?.charAt(0) || "U"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="hidden sm:block">
-                <p className="text-sm font-medium text-black">{session.user.name}</p>
-                <p className="text-xs text-gray-500">{session.user.email}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <AppShell>
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 py-16">
         <div className="max-w-xl mx-auto">
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-2">
-              <Settings className="w-6 h-6 text-black" />
-              <h2 className="text-2xl font-bold text-black">
+              <Settings className="w-6 h-6 text-foreground" />
+              <h1 className="text-2xl font-bold text-foreground">
                 Settings
-              </h2>
+              </h1>
             </div>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               Configure your default preferences for video clip generation
             </p>
           </div>
@@ -318,22 +280,22 @@ export default function SettingsPage() {
             {/* Font Preferences Section */}
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-black mb-1">
+                <h3 className="text-lg font-semibold text-foreground mb-1">
                   Default Font Settings
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   These settings will be applied to all new video processing tasks
                 </p>
               </div>
 
               {/* Font Family Selector */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-black flex items-center gap-2">
+                <Label htmlFor="font-family" className="text-sm font-medium text-foreground flex items-center gap-2">
                   <Type className="w-4 h-4" />
                   Font Family
                 </Label>
                 <Select value={fontFamily} onValueChange={setFontFamily} disabled={isLoading}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id="font-family" className="w-full">
                     <SelectValue placeholder="Select font" />
                   </SelectTrigger>
                   <SelectContent>
@@ -351,11 +313,12 @@ export default function SettingsPage() {
 
               {/* Font Size Slider */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-black">
+                <Label id="font-size-label" className="text-sm font-medium text-foreground">
                   Font Size: {fontSize}px
                 </Label>
                 <div className="px-2">
                   <Slider
+                    aria-labelledby="font-size-label"
                     value={[fontSize]}
                     onValueChange={(value) => setFontSize(value[0])}
                     max={48}
@@ -365,7 +328,7 @@ export default function SettingsPage() {
                     className="w-full"
                   />
                 </div>
-                <div className="flex justify-between text-xs text-gray-500">
+                <div className="flex justify-between text-xs text-muted-foreground">
                   <span>12px</span>
                   <span>48px</span>
                 </div>
@@ -373,20 +336,24 @@ export default function SettingsPage() {
 
               {/* Font Color Picker */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-black flex items-center gap-2">
+                <Label htmlFor="font-color-swatch" className="text-sm font-medium text-foreground flex items-center gap-2">
                   <Palette className="w-4 h-4" />
                   Font Color
                 </Label>
                 <div className="flex items-center gap-2">
                   <input
+                    id="font-color-swatch"
                     type="color"
+                    aria-label="Custom font color"
                     value={fontColor}
                     onChange={(e) => setFontColor(e.target.value)}
                     disabled={isLoading}
-                    className="w-12 h-10 rounded border border-gray-300 cursor-pointer disabled:cursor-not-allowed"
+                    className="w-12 h-10 rounded border border-border cursor-pointer disabled:cursor-not-allowed"
                   />
                   <Input
+                    id="font-color-hex"
                     type="text"
+                    aria-label="Font color hex code"
                     value={fontColor}
                     onChange={(e) => setFontColor(e.target.value)}
                     disabled={isLoading}
@@ -396,15 +363,29 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div className="flex gap-2 mt-2">
-                  {["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"].map((color) => (
+                  {[
+                    { hex: "#FFFFFF", name: "White" },
+                    { hex: "#000000", name: "Black" },
+                    { hex: "#FFD700", name: "Gold" },
+                    { hex: "#FF6B6B", name: "Coral" },
+                    { hex: "#4ECDC4", name: "Teal" },
+                    { hex: "#45B7D1", name: "Sky blue" },
+                  ].map(({ hex, name }) => (
                     <button
-                      key={color}
+                      key={hex}
                       type="button"
-                      onClick={() => setFontColor(color)}
+                      onClick={() => setFontColor(hex)}
                       disabled={isLoading}
-                      className="w-8 h-8 rounded border-2 border-gray-300 cursor-pointer hover:scale-110 transition-transform disabled:cursor-not-allowed"
-                      style={{ backgroundColor: color }}
-                      title={color}
+                      aria-label={`Use ${name} font color`}
+                      aria-pressed={fontColor.toLowerCase() === hex.toLowerCase()}
+                      className={cn(
+                        "w-8 h-8 rounded border-2 cursor-pointer hover:scale-110 transition-transform disabled:cursor-not-allowed",
+                        fontColor.toLowerCase() === hex.toLowerCase()
+                          ? "border-ring ring-2 ring-ring ring-offset-2 ring-offset-background"
+                          : "border-border",
+                      )}
+                      style={{ backgroundColor: hex }}
+                      title={name}
                     />
                   ))}
                 </div>
@@ -412,7 +393,7 @@ export default function SettingsPage() {
 
               {/* Preview */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-black">Preview</Label>
+                <Label className="text-sm font-medium text-foreground">Preview</Label>
                 <div className="p-6 bg-black rounded-lg flex items-center justify-center min-h-[100px]">
                   <p
                     style={{
@@ -433,19 +414,19 @@ export default function SettingsPage() {
             {/* Notifications Section */}
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-black mb-1">
+                <h3 className="text-lg font-semibold text-foreground mb-1">
                   Notifications
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Manage how you receive updates about your clips
                 </p>
               </div>
 
               <div className="flex items-center justify-between">
-                <Label htmlFor="completion-emails" className="flex items-center gap-2 text-sm font-medium text-black cursor-pointer">
+                <Label htmlFor="completion-emails" className="flex items-center gap-2 text-sm font-medium text-foreground cursor-pointer">
                   <Mail className="w-4 h-4" />
                   Completion emails
-                  <span className="text-gray-500 font-normal">— get notified when clips are ready</span>
+                  <span className="text-muted-foreground font-normal">— get notified when clips are ready</span>
                 </Label>
                 <Switch
                   id="completion-emails"
@@ -456,27 +437,40 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground mb-1">Workflows</h3>
+                <p className="text-sm text-muted-foreground">Publishing, teams, brand kits, imports, and automations</p>
+              </div>
+              <Link href="/settings/integrations" className="block">
+                <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted transition-colors">
+                  <div className="flex items-center gap-3"><PlugZap className="w-5 h-5 text-foreground" /><div><p className="text-sm font-medium text-foreground">Integrations & workflows</p><p className="text-xs text-muted-foreground">Connect channels and configure automation</p></div></div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </div>
+              </Link>
+            </div>
+
             {/* Developer Section */}
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-black mb-1">
+                <h3 className="text-lg font-semibold text-foreground mb-1">
                   Developer
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Programmatic access for tools like the SupoClip MCP server
                 </p>
               </div>
 
               <Link href="/settings/api-keys" className="block">
-                <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted transition-colors">
                   <div className="flex items-center gap-3">
-                    <KeyRound className="w-5 h-5 text-black" />
+                    <KeyRound className="w-5 h-5 text-foreground" />
                     <div>
-                      <p className="text-sm font-medium text-black">API Keys</p>
-                      <p className="text-xs text-gray-500">Create and manage API keys</p>
+                      <p className="text-sm font-medium text-foreground">API Keys</p>
+                      <p className="text-xs text-muted-foreground">Create and manage API keys</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 </div>
               </Link>
             </div>
@@ -504,27 +498,27 @@ export default function SettingsPage() {
 
             {/* Save Button */}
             {billingSummary?.monetization_enabled && (
-              <div className="border rounded-lg p-4 bg-gray-50 space-y-3">
+              <div className="border rounded-lg p-4 bg-muted space-y-3">
                 <div>
-                  <h3 className="text-lg font-semibold text-black">Billing</h3>
+                  <h3 className="text-lg font-semibold text-foreground">Billing</h3>
                   {!isPaidBillingPlan(billingSummary.plan) && (
-                    <p className="text-sm text-gray-600">Video processing requires a paid plan.</p>
+                    <p className="text-sm text-muted-foreground">Video processing requires a paid plan.</p>
                   )}
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     {billingSummary.upgrade_required
                       ? "Current plan cannot create generations."
                       : billingSummary.usage_limit === null
                       ? `${billingSummary.usage_count} generations in this billing period`
                       : `${billingSummary.usage_count}/${billingSummary.usage_limit} generations used this period`}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     Plan: {formatBillingPlanName(billingSummary.plan)} ({billingSummary.subscription_status})
                   </p>
                 </div>
 
                 {isPaidBillingPlan(billingSummary.plan) ? (
                   billingSummary.subscription_provider === "apple" ? (
-                    <p className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600">
+                    <p className="rounded-md border border-border bg-background px-3 py-2 text-sm text-muted-foreground">
                       Managed through the App Store
                     </p>
                   ) : (
@@ -570,6 +564,6 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

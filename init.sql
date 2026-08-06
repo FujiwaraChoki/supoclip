@@ -104,6 +104,29 @@ CREATE TABLE generated_clips (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Non-destructive editor state. Generated clips remain separate immutable inputs.
+CREATE TABLE editor_projects (
+    task_id VARCHAR(36) PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+    project JSONB NOT NULL DEFAULT '{}'::jsonb,
+    version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE editor_assets (
+    id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    task_id VARCHAR(36) NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    kind VARCHAR(16) NOT NULL CHECK (kind IN ('video', 'image', 'audio')),
+    mime_type VARCHAR(160) NOT NULL,
+    size_bytes BIGINT NOT NULL CHECK (size_bytes > 0),
+    file_path TEXT NOT NULL,
+    duration DOUBLE PRECISION,
+    width INTEGER,
+    height INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE processing_cache (
     cache_key VARCHAR(255) PRIMARY KEY,
     source_url TEXT NOT NULL,
@@ -201,6 +224,7 @@ CREATE INDEX idx_processing_cache_source_url ON processing_cache(source_url);
 CREATE INDEX idx_generated_clips_task_id ON generated_clips(task_id);
 CREATE INDEX idx_generated_clips_clip_order ON generated_clips(clip_order);
 CREATE INDEX idx_generated_clips_created_at ON generated_clips(created_at);
+CREATE INDEX editor_assets_task_id_idx ON editor_assets(task_id);
 CREATE INDEX idx_session_token ON session(token);
 CREATE INDEX idx_session_userId ON session("userId");
 CREATE INDEX idx_account_userId ON account("userId");
@@ -235,6 +259,7 @@ CREATE TRIGGER update_users_updatedAt BEFORE UPDATE ON users FOR EACH ROW EXECUT
 CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_sources_updated_at BEFORE UPDATE ON sources FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_generated_clips_updated_at BEFORE UPDATE ON generated_clips FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_editor_projects_updated_at BEFORE UPDATE ON editor_projects FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_app_settings_updated_at BEFORE UPDATE ON app_settings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Better Auth tables use camelCase "updatedAt"

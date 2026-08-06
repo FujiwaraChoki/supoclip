@@ -5,6 +5,7 @@ Task API routes using refactored architecture.
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 from sse_starlette.sse import EventSourceResponse
 from pathlib import Path
 import json
@@ -24,6 +25,7 @@ from ...workers.progress import ProgressTracker
 from ...config import get_config
 from ...font_registry import is_font_accessible
 from ...clip_cleanup import normalize_clip_cleanup_settings
+from ...generation_preferences import normalize_generation_preferences
 from ...video_utils import VALID_OUTPUT_FORMATS
 from ...admin_auth import require_admin_user
 import redis.asyncio as redis
@@ -116,6 +118,7 @@ def _merge_task_source_metadata(
     output_format: Any = None,
     add_subtitles: Any = None,
     cleanup_settings: Dict[str, Any] | None = None,
+    generation_preferences: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     merged = dict(existing or {})
 
@@ -129,14 +132,21 @@ def _merge_task_source_metadata(
         merged["add_subtitles"] = add_subtitles
     if cleanup_settings:
         merged.update(cleanup_settings)
+    if generation_preferences:
+        merged["generation_preferences"] = generation_preferences
 
     return merged
 
 
 async def _require_task_owner(
-    request: Request, task_service: TaskService, db: AsyncSession, task_id: str
+    request: Request,
+    task_service: TaskService,
+    db: AsyncSession,
+    task_id: str,
+    *,
+    require_write: bool = False,
 ):
-    """Ensure authenticated user owns the task."""
+    """Require owner/workspace access, enforcing read-only viewer roles."""
     user_id = await _get_user_id_from_headers(request, db)
 
     task = await task_service.task_repo.get_task_by_id(db, task_id)
@@ -144,7 +154,24 @@ async def _require_task_owner(
         raise HTTPException(status_code=404, detail="Task not found")
 
     if task.get("user_id") != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized for this task")
+        workspace_id = task.get("workspace_id")
+        if not workspace_id:
+            raise HTTPException(status_code=403, detail="Not authorized for this task")
+        member = await db.execute(
+            text(
+                """
+                SELECT role FROM workspace_members
+                WHERE workspace_id = :workspace_id AND user_id = :user_id
+                  AND status = 'active'
+                """
+            ),
+            {"workspace_id": workspace_id, "user_id": user_id},
+        )
+        role = member.scalar_one_or_none()
+        if not role:
+            raise HTTPException(status_code=403, detail="Not authorized for this task")
+        if require_write and role == "viewer":
+            raise HTTPException(status_code=403, detail="Viewer access is read-only")
 
     return task
 
@@ -247,6 +274,11 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
         data.get("remove_filler_words"),
         data.get("filtered_words"),
     )
+    generation_preferences = normalize_generation_preferences(
+        data.get("generation_preferences")
+    )
+    workspace_id = data.get("workspace_id") or None
+    brand_kit_id = data.get("brand_kit_id") or None
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
@@ -255,6 +287,39 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
         await billing_service.assert_can_create_task(user_id)
 
         task_service = TaskService(db)
+
+        if workspace_id:
+            workspace_access = await db.execute(
+                text(
+                    """
+                    SELECT 1 FROM workspaces w LEFT JOIN workspace_members wm ON wm.workspace_id = w.id
+                    WHERE w.id = :workspace_id AND (w.owner_id = :user_id OR
+                        (wm.user_id = :user_id AND wm.status = 'active' AND wm.role <> 'viewer')) LIMIT 1
+                    """
+                ),
+                {"workspace_id": workspace_id, "user_id": user_id},
+            )
+            if not workspace_access.scalar_one_or_none():
+                raise HTTPException(status_code=404, detail="Workspace not found")
+        if brand_kit_id:
+            kit_result = await db.execute(
+                text(
+                    """
+                    SELECT bk.settings_json FROM brand_kits bk
+                    LEFT JOIN workspace_members wm ON wm.workspace_id = bk.workspace_id
+                    WHERE bk.id = :brand_kit_id AND (bk.user_id = :user_id OR
+                        (wm.user_id = :user_id AND wm.status = 'active')) LIMIT 1
+                    """
+                ),
+                {"brand_kit_id": brand_kit_id, "user_id": user_id},
+            )
+            settings_json = kit_result.scalar_one_or_none()
+            if settings_json is None:
+                raise HTTPException(status_code=404, detail="Brand kit not found")
+            kit_settings = json.loads(settings_json or "{}")
+            font_family = font_family or kit_settings.get("font_family")
+            font_color = font_color or kit_settings.get("primary_color")
+            caption_template = kit_settings.get("caption_template") or caption_template
 
         # Create task
         task_id = await task_service.create_task_with_source(
@@ -267,6 +332,9 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             caption_template=caption_template,
             include_broll=include_broll,
             processing_mode=processing_mode,
+            generation_preferences=generation_preferences,
+            workspace_id=workspace_id,
+            brand_kit_id=brand_kit_id,
         )
 
         # Get source type for worker
@@ -291,6 +359,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             output_format,
             add_subtitles,
             cleanup_settings,
+            generation_preferences,
         )
 
         # Save source metadata for resume/retries in environments without sources.url column
@@ -303,6 +372,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                 output_format=output_format,
                 add_subtitles=add_subtitles,
                 cleanup_settings=cleanup_settings,
+                generation_preferences=generation_preferences,
             ),
         )
 
@@ -445,7 +515,7 @@ async def share_task(
 ):
     """Create or re-enable a stable, read-only share URL for a completed task."""
     task_service = TaskService(db)
-    task = await _require_task_owner(request, task_service, db, task_id)
+    task = await _require_task_owner(request, task_service, db, task_id, require_write=True)
     if task.get("status") != "completed":
         raise HTTPException(
             status_code=409, detail="Only completed generations can be shared"
@@ -469,7 +539,7 @@ async def unshare_task(
 ):
     """Disable the public URL while preserving the private generation result."""
     task_service = TaskService(db)
-    await _require_task_owner(request, task_service, db, task_id)
+    await _require_task_owner(request, task_service, db, task_id, require_write=True)
     await task_service.task_repo.disable_sharing(db, task_id)
     return {"message": "Share link disabled"}
 
@@ -557,7 +627,7 @@ async def update_task(
 
         task_service = TaskService(db)
 
-        task = await _require_task_owner(request, task_service, db, task_id)
+        task = await _require_task_owner(request, task_service, db, task_id, require_write=True)
 
         # Update source title
         await task_service.source_repo.update_source_title(db, task["source_id"], title)
@@ -677,7 +747,7 @@ async def trim_clip(
             raise HTTPException(status_code=400, detail="Offsets must be non-negative")
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        await _require_task_owner(request, task_service, db, task_id, require_write=True)
         updated_clip = await task_service.trim_clip(
             task_id, clip_id, start_offset, end_offset
         )
@@ -705,7 +775,7 @@ async def split_clip(
             )
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        await _require_task_owner(request, task_service, db, task_id, require_write=True)
         result = await task_service.split_clip(task_id, clip_id, split_time)
         return result
     except ValueError as e:
@@ -729,7 +799,7 @@ async def merge_clips(
             raise HTTPException(status_code=400, detail="clip_ids must be an array")
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        await _require_task_owner(request, task_service, db, task_id, require_write=True)
         result = await task_service.merge_clips(task_id, clip_ids)
         return result
     except ValueError as e:
@@ -757,7 +827,7 @@ async def update_clip_captions(
             )
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        await _require_task_owner(request, task_service, db, task_id, require_write=True)
         updated_clip = await task_service.update_clip_captions(
             task_id,
             clip_id,
@@ -788,7 +858,7 @@ async def regenerate_clip(
         end_offset = float(payload.get("end_offset", 0))
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        await _require_task_owner(request, task_service, db, task_id, require_write=True)
         updated_clip = await task_service.trim_clip(
             task_id, clip_id, start_offset, end_offset
         )
@@ -825,7 +895,7 @@ async def apply_task_settings(
         )
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        await _require_task_owner(request, task_service, db, task_id, require_write=True)
         task_record = await task_service.task_repo.get_task_by_id(db, task_id)
         if not task_record:
             raise HTTPException(status_code=404, detail="Task not found")
@@ -923,7 +993,7 @@ async def cancel_task(
     """Cancel an active queued or processing task."""
     try:
         task_service = TaskService(db)
-        task = await _require_task_owner(request, task_service, db, task_id)
+        task = await _require_task_owner(request, task_service, db, task_id, require_write=True)
 
         if task.get("status") in ["completed", "error", "cancelled"]:
             return {"message": f"Task already in terminal state: {task.get('status')}"}
@@ -979,7 +1049,7 @@ async def resume_task(
     """Resume a cancelled or errored task by enqueueing a new worker job."""
     try:
         task_service = TaskService(db)
-        task = await _require_task_owner(request, task_service, db, task_id)
+        task = await _require_task_owner(request, task_service, db, task_id, require_write=True)
 
         if task.get("status") not in ["cancelled", "error", "queued"]:
             raise HTTPException(
@@ -1008,6 +1078,10 @@ async def resume_task(
             metadata.get("pause_threshold_ms"),
             metadata.get("remove_filler_words"),
             metadata.get("filtered_words"),
+        )
+        generation_preferences = normalize_generation_preferences(
+            metadata.get("generation_preferences")
+            or task.get("generation_preferences")
         )
 
         if not source_url or not source_type:
@@ -1052,6 +1126,7 @@ async def resume_task(
             output_format,
             add_subtitles,
             cleanup_settings,
+            generation_preferences,
         )
 
         return {"message": "Task resumed", "job_id": job_id}

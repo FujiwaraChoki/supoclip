@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, KeyRound, Copy, Check, Trash2, AlertCircle, Plus } from "lucide-react";
+import { AppShell } from "@/components/app-shell";
+import { KeyRound, Copy, Check, Trash2, AlertCircle, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,19 +128,7 @@ export default function ApiKeysPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="border-b bg-white">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <Link href="/settings">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4" />
-              Settings
-            </Button>
-          </Link>
-        </div>
-      </div>
-
+    <AppShell breadcrumbs={[{ href: "/settings", label: "Settings" }, { label: "API Keys" }]} className="bg-white">
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 py-16">
         <div className="max-w-xl mx-auto">
@@ -249,6 +238,6 @@ export default function ApiKeysPage() {
           </div>
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

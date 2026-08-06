@@ -18,6 +18,7 @@ from ..repositories.source_repository import SourceRepository
 from ..repositories.clip_repository import ClipRepository
 from ..repositories.cache_repository import CacheRepository
 from .video_service import VideoService
+from .editor_service import EditorService
 from .task_completion_email_service import (
     TaskCompletionEmailService,
     TaskCompletionRecipient,
@@ -31,6 +32,7 @@ from ..clip_editor import (
 )
 from ..video_utils import VALID_OUTPUT_FORMATS, parse_timestamp_to_seconds
 from ..clip_cleanup import normalize_clip_cleanup_settings
+from ..generation_preferences import normalize_generation_preferences
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..clip_source_map import (
     copy_clip_source_ranges,
@@ -56,12 +58,23 @@ class TaskService:
         self.cache_repo = CacheRepository()
         self.video_service = VideoService()
         self.config = config or get_config()
+        self.editor_service = EditorService(self.db, self.config)
 
     @staticmethod
-    def _build_cache_key(url: str, source_type: str, processing_mode: str) -> str:
+    def _build_cache_key(
+        url: str,
+        source_type: str,
+        processing_mode: str,
+        generation_preferences: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        preference_payload = json.dumps(
+            normalize_generation_preferences(generation_preferences),
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         payload = (
             f"{source_type}|{processing_mode}|"
-            f"{TRANSCRIPT_ANALYSIS_CACHE_VERSION}|{url.strip()}"
+            f"{TRANSCRIPT_ANALYSIS_CACHE_VERSION}|{url.strip()}|{preference_payload}"
         )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -95,6 +108,9 @@ class TaskService:
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
+        generation_preferences: Optional[Dict[str, Any]] = None,
+        workspace_id: Optional[str] = None,
+        brand_kit_id: Optional[str] = None,
     ) -> str:
         """
         Create a new task with associated source.
@@ -131,6 +147,11 @@ class TaskService:
             caption_template=caption_template,
             include_broll=include_broll,
             processing_mode=processing_mode,
+            generation_preferences=normalize_generation_preferences(
+                generation_preferences
+            ),
+            workspace_id=workspace_id,
+            brand_kit_id=brand_kit_id,
         )
 
         logger.info(f"Created task {task_id} for user {user_id}")
@@ -152,6 +173,7 @@ class TaskService:
         should_cancel: Optional[Callable] = None,
         clip_ready_callback: Optional[Callable] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        generation_preferences: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -161,7 +183,15 @@ class TaskService:
             logger.info(f"Starting processing for task {task_id}")
             started_at = datetime.utcnow()
             stage_timings: Dict[str, float] = {}
-            cache_key = self._build_cache_key(url, source_type, processing_mode)
+            normalized_generation_preferences = normalize_generation_preferences(
+                generation_preferences
+            )
+            cache_key = self._build_cache_key(
+                url,
+                source_type,
+                processing_mode,
+                normalized_generation_preferences,
+            )
 
             cache_entry = await self.cache_repo.get_cache(self.db, cache_key)
             cached_transcript = (
@@ -217,6 +247,7 @@ class TaskService:
                 add_subtitles=add_subtitles,
                 cached_transcript=cached_transcript,
                 cached_analysis_json=cached_analysis_json,
+                generation_preferences=normalized_generation_preferences,
                 progress_callback=update_progress,
                 should_cancel=should_cancel,
             )
@@ -260,6 +291,24 @@ class TaskService:
             clips_output_dir.mkdir(parents=True, exist_ok=True)
 
             clip_ids = []
+            brand_assets: List[Dict[str, Any]] = []
+            brand_settings: Dict[str, Any] = {}
+            task_record = await self.task_repo.get_task_by_id(self.db, task_id)
+            selected_brand_kit_id = task_record.get("brand_kit_id") if task_record else None
+            if selected_brand_kit_id:
+                from sqlalchemy import text
+                kit_result = await self.db.execute(
+                    text("SELECT settings_json FROM brand_kits WHERE id = :id"),
+                    {"id": selected_brand_kit_id},
+                )
+                settings_json = kit_result.scalar_one_or_none()
+                if settings_json:
+                    brand_settings = json.loads(settings_json)
+                assets_result = await self.db.execute(
+                    text("SELECT asset_type, file_path FROM media_assets WHERE brand_kit_id = :id ORDER BY created_at"),
+                    {"id": selected_brand_kit_id},
+                )
+                brand_assets = [dict(row) for row in assets_result.mappings()]
             render_start = perf_counter()
 
             for i, segment in enumerate(segments_to_render):
@@ -292,6 +341,15 @@ class TaskService:
                 )
                 if clip_info is None:
                     continue  # Skip failed clip
+
+                if brand_assets:
+                    from .brand_service import apply_brand_kit_to_clip
+                    await run_in_thread(
+                        apply_brand_kit_to_clip,
+                        Path(clip_info["path"]),
+                        brand_assets,
+                        brand_settings,
+                    )
 
                 # Save to DB immediately
                 clip_id = await self.clip_repo.create_clip(
@@ -510,6 +568,10 @@ class TaskService:
         # Delete the task
         await self.task_repo.delete_task(self.db, task_id)
 
+        # Database rows cascade; remove the task-scoped media bytes only after
+        # the task deletion succeeds so failed deletes never orphan references.
+        await self.editor_service.delete_task_assets(task_id)
+
         logger.info(f"Deleted task {task_id} and all associated clips")
 
     async def update_task_settings(
@@ -600,6 +662,12 @@ class TaskService:
             downloaded = await self.video_service.download_video(source_url)
             if not downloaded:
                 raise ValueError("Failed to download source video for regeneration")
+            video_path = Path(downloaded)
+        elif source_type == "external":
+            from ..external_sources import async_download_external_video
+            downloaded = await async_download_external_video(source_url, task_id)
+            if not downloaded:
+                raise ValueError("Failed to download external source for regeneration")
             video_path = Path(downloaded)
         else:
             video_path = self.video_service.resolve_local_video_path(source_url)

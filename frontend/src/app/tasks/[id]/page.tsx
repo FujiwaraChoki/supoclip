@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
@@ -32,56 +34,30 @@ import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import {
   ArrowLeft,
-  Download,
-  Star,
   AlertCircle,
   Trash2,
   Edit2,
   X,
   Check,
-  Zap,
-  MessageSquare,
-  TrendingUp,
+  CheckSquare,
+  Loader2,
   Share2,
   Link2Off,
   Clock,
-  Scissors,
-  SplitSquareVertical,
   GitMerge,
   RefreshCw,
-  Subtitles,
   Settings2,
   Clapperboard,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
+import { AppShell } from "@/components/app-shell";
 import DynamicVideoPlayer from "@/components/dynamic-video-player";
-import { TranscriptPreview } from "@/components/transcript-preview";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
-
-interface Clip {
-  id: string;
-  filename: string;
-  file_path: string;
-  start_time: string;
-  end_time: string;
-  duration: number;
-  text: string;
-  relevance_score: number;
-  reasoning: string;
-  clip_order: number;
-  created_at: string;
-  video_url: string;
-  // Virality scores
-  virality_score: number;
-  hook_score: number;
-  engagement_score: number;
-  value_score: number;
-  shareability_score: number;
-  hook_type: string | null;
-  hook_title: string | null;
-}
+import { ClipCard } from "./_components/clip-card";
+import { DownloadSplitButton } from "./_components/download-split-button";
+import { PipelineProgress } from "./_components/pipeline-progress";
+import { Clip, formatDuration, getViralityBgColor } from "./_components/clip-format";
 
 interface TaskDetails {
   id: string;
@@ -95,6 +71,7 @@ interface TaskDetails {
   clips_count: number;
   created_at: string;
   updated_at: string;
+  output_format?: string | null;
   font_family?: string | null;
   font_size?: number | null;
   font_color?: string | null;
@@ -105,6 +82,8 @@ interface TaskDetails {
   filtered_words?: string[];
   share_enabled?: boolean;
 }
+
+const TERMINAL_STATUSES = ["completed", "error", "cancelled"];
 
 export default function TaskPage() {
   const params = useParams();
@@ -121,17 +100,19 @@ export default function TaskPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeletingClip, setIsDeletingClip] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
   const [selectedClipIds, setSelectedClipIds] = useState<string[]>([]);
-  const [editingClipId, setEditingClipId] = useState<string | null>(null);
-  const [startOffset, setStartOffset] = useState("0");
-  const [endOffset, setEndOffset] = useState("0");
-  const [splitTime, setSplitTime] = useState("5");
-  const [captionText, setCaptionText] = useState("");
-  const [captionPosition, setCaptionPosition] = useState("bottom");
-  const [highlightWords, setHighlightWords] = useState("");
-  const [exportPreset, setExportPreset] = useState("original");
+  const [isMerging, setIsMerging] = useState(false);
+  const [exportPresets, setExportPresets] = useState<Record<string, string>>({});
+  const [downloadingClipIds, setDownloadingClipIds] = useState<string[]>([]);
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [bulkPreset, setBulkPreset] = useState("original");
   const [shareState, setShareState] = useState<"idle" | "copying" | "copied">("idle");
   const [isRevokingShare, setIsRevokingShare] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isResuming, setIsResuming] = useState(false);
+  const [fontPendingDelete, setFontPendingDelete] = useState<FontOption | null>(null);
 
   // null means "use the caption template's own value" — mirrors the create form's contract.
   const [projectFontFamily, setProjectFontFamily] = useState<string | null>(null);
@@ -149,7 +130,8 @@ export default function TaskPage() {
   const [availableTemplates, setAvailableTemplates] = useState<
     Array<{ id: string; name: string; description: string; animation: string }>
   >([]);
-  const hasTriggeredAutoRefresh = useRef(false);
+  // Once a task has loaded, a failed refetch is transient — keep the view and toast instead.
+  const hasLoadedTaskRef = useRef(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const taskApiUrl = "/api/tasks";
@@ -161,16 +143,8 @@ export default function TaskPage() {
     return formatSupportMessage(parsed);
   }, []);
 
-  const triggerAutoRefresh = useCallback(() => {
-    if (hasTriggeredAutoRefresh.current) return;
-    hasTriggeredAutoRefresh.current = true;
-    setTimeout(() => {
-      window.location.reload();
-    }, 700);
-  }, []);
-
   const fetchTaskStatus = useCallback(
-    async (retryCount = 0, maxRetries = 5) => {
+    async (retryCount = 0, maxRetries = 5): Promise<boolean> => {
       if (!params.id) return false;
 
       try {
@@ -178,13 +152,14 @@ export default function TaskPage() {
           cache: "no-store",
         });
 
-        // Handle 404 with retry logic (task might not be persisted yet)
-        if (taskResponse.status === 404 && retryCount < maxRetries) {
-          console.log(
-            `Task not found yet, retrying in ${(retryCount + 1) * 500}ms... (${retryCount + 1}/${maxRetries})`,
-          );
-          await new Promise((resolve) => setTimeout(resolve, (retryCount + 1) * 500));
-          return fetchTaskStatus(retryCount + 1, maxRetries);
+        // A freshly created task may not be persisted yet — retry before giving up.
+        if (taskResponse.status === 404) {
+          if (retryCount < maxRetries) {
+            await new Promise((resolve) => setTimeout(resolve, (retryCount + 1) * 500));
+            return fetchTaskStatus(retryCount + 1, maxRetries);
+          }
+          setError("This generation could not be found. It may have been deleted.");
+          return false;
         }
 
         if (!taskResponse.ok) {
@@ -192,7 +167,15 @@ export default function TaskPage() {
         }
 
         const taskData = await taskResponse.json();
+        hasLoadedTaskRef.current = true;
+        setError(null);
         setTask(taskData);
+        if (typeof taskData.progress === "number") {
+          setProgress((prev) => Math.max(prev, taskData.progress));
+        }
+        if (taskData.progress_message) {
+          setProgressMessage(taskData.progress_message);
+        }
         setProjectFontFamily(taskData.font_family ?? null);
         setProjectFontSize(typeof taskData.font_size === "number" ? taskData.font_size : null);
         setProjectFontColor(taskData.font_color ?? null);
@@ -234,8 +217,12 @@ export default function TaskPage() {
 
         return true;
       } catch (err) {
-        console.error("Error fetching task data:", err);
-        setError(err instanceof Error ? err.message : "Failed to load task");
+        const message = err instanceof Error ? err.message : "Failed to load task";
+        if (hasLoadedTaskRef.current) {
+          toast.error(message);
+        } else {
+          setError(message);
+        }
         return false;
       }
     },
@@ -267,8 +254,8 @@ export default function TaskPage() {
         }
         const data = await response.json();
         setAvailableFonts(data.fonts || []);
-      } catch (loadError) {
-        console.error("Failed to load fonts:", loadError);
+      } catch {
+        // Font list is optional — the template default still works.
       }
     };
 
@@ -281,14 +268,14 @@ export default function TaskPage() {
           const data = await response.json();
           setAvailableTemplates(data.templates || []);
         }
-      } catch (error) {
-        console.error("Failed to load caption templates:", error);
+      } catch {
+        // Template list is optional — the default template still works.
       }
     };
     void loadTemplates();
   }, [apiUrl]);
 
-  // SSE effect - real-time progress updates
+  // SSE effect — real-time progress with reconnect + polling fallback
   useEffect(() => {
     const taskStatus = task?.status;
     if (!params.id || !taskStatus) return;
@@ -296,114 +283,138 @@ export default function TaskPage() {
     // Only connect to SSE if task is queued or processing
     if (taskStatus !== "queued" && taskStatus !== "processing") return;
 
-    const eventSource = new EventSource(`${taskApiUrl}/${params.id}/progress`);
+    let stopped = false;
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: number | undefined;
+    let pollTimer: number | undefined;
+    let attempt = 0;
 
-    console.log("📡 Connected to SSE for real-time progress");
-
-    eventSource.addEventListener("status", (e) => {
-      const data = JSON.parse(e.data);
-      console.log("📊 Status:", data);
-      setProgress(data.progress || 0);
-      setProgressMessage(data.message || "");
-
-      if (data.status === "completed") {
-        void fetchTaskStatus().then(() => triggerAutoRefresh());
+    const parseEvent = (raw: unknown): Record<string, unknown> | null => {
+      if (typeof raw !== "string" || raw.length === 0) return null;
+      try {
+        return JSON.parse(raw) as Record<string, unknown>;
+      } catch {
+        // A malformed frame must not take the stream down.
+        return null;
       }
-    });
+    };
 
-    eventSource.addEventListener("progress", (e) => {
-      const data = JSON.parse(e.data);
-      console.log("📈 Progress:", data);
-      setProgress(data.progress || 0);
-      setProgressMessage(data.message || "");
+    const stopPolling = () => {
+      if (pollTimer !== undefined) {
+        window.clearInterval(pollTimer);
+        pollTimer = undefined;
+      }
+    };
 
-      // Update task status if provided
-      if (data.status) {
-        setTask((currentTask) => (currentTask ? { ...currentTask, status: data.status } : currentTask));
+    const startPolling = () => {
+      if (pollTimer !== undefined || stopped) return;
+      pollTimer = window.setInterval(() => {
+        void fetchTaskStatus();
+      }, 5000);
+    };
 
-        if (data.status === "completed") {
-          void fetchTaskStatus().then(() => triggerAutoRefresh());
+    const teardown = () => {
+      stopped = true;
+      stopPolling();
+      if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+      eventSource?.close();
+      eventSource = null;
+    };
+
+    const applyProgress = (data: Record<string, unknown>) => {
+      if (typeof data.progress === "number") setProgress(data.progress);
+      if (typeof data.message === "string") setProgressMessage(data.message);
+    };
+
+    const finish = () => {
+      teardown();
+      void fetchTaskStatus();
+    };
+
+    const scheduleReconnect = () => {
+      if (stopped) return;
+      startPolling();
+      const delay = Math.min(15000, 1000 * 2 ** attempt);
+      attempt += 1;
+      reconnectTimer = window.setTimeout(connect, delay);
+    };
+
+    function connect() {
+      if (stopped) return;
+      const source = new EventSource(`${taskApiUrl}/${params.id}/progress`);
+      eventSource = source;
+
+      source.addEventListener("open", () => {
+        attempt = 0;
+        stopPolling();
+      });
+
+      source.addEventListener("status", (e) => {
+        const data = parseEvent((e as MessageEvent).data);
+        if (!data) return;
+        applyProgress(data);
+        if (typeof data.status === "string" && TERMINAL_STATUSES.includes(data.status)) {
+          finish();
         }
-      }
-    });
+      });
 
-    eventSource.addEventListener("clip_ready", (e) => {
-      const data = JSON.parse(e.data);
-      console.log("🎬 Clip ready:", data.clip_index + 1, "/", data.total_clips);
-      if (data.clip) {
+      source.addEventListener("progress", (e) => {
+        const data = parseEvent((e as MessageEvent).data);
+        if (!data) return;
+        applyProgress(data);
+
+        if (typeof data.status === "string") {
+          const nextStatus = data.status;
+          setTask((currentTask) => (currentTask ? { ...currentTask, status: nextStatus } : currentTask));
+          if (TERMINAL_STATUSES.includes(nextStatus)) {
+            finish();
+          }
+        }
+      });
+
+      source.addEventListener("clip_ready", (e) => {
+        const data = parseEvent((e as MessageEvent).data);
+        const incoming = data?.clip as Clip | undefined;
+        if (!incoming) return;
         setClips((prev) => {
-          const exists = prev.some((c: Clip) => c.id === data.clip.id);
-          if (exists) return prev;
-          return [...prev, data.clip].sort(
-            (a: Clip, b: Clip) => (a.clip_order ?? 0) - (b.clip_order ?? 0),
-          );
+          if (prev.some((c) => c.id === incoming.id)) return prev;
+          return [...prev, incoming].sort((a, b) => (a.clip_order ?? 0) - (b.clip_order ?? 0));
         });
-      }
-    });
+      });
 
-    eventSource.addEventListener("close", async (e) => {
-      const data = JSON.parse(e.data);
-      console.log("✅ Task completed:", data.status);
-      eventSource.close();
+      source.addEventListener("close", () => {
+        finish();
+      });
 
-      // Refresh task and clips
-      await fetchTaskStatus();
-      triggerAutoRefresh();
-    });
+      source.addEventListener("error", (e) => {
+        const data = parseEvent((e as MessageEvent<string>).data);
+        if (data) {
+          // Server-sent failure: surface it and stop retrying.
+          toast.error(typeof data.error === "string" ? data.error : "Processing failed");
+          finish();
+          return;
+        }
+        // Transport failure: back off, reconnect, and poll meanwhile.
+        source.close();
+        if (eventSource === source) eventSource = null;
+        scheduleReconnect();
+      });
+    }
 
-    eventSource.addEventListener("error", (e) => {
-      console.error("❌ SSE error:", e);
-      const maybeMessageEvent = e as MessageEvent<string>;
-      if (typeof maybeMessageEvent.data === "string" && maybeMessageEvent.data.length > 0) {
-        const data = JSON.parse(maybeMessageEvent.data);
-        setError(data.error || "Connection error");
-      }
-      eventSource.close();
-    });
+    connect();
 
-    return () => {
-      console.log("🔌 Disconnecting SSE");
-      eventSource.close();
-    };
-  }, [params.id, task?.status, fetchTaskStatus, taskApiUrl, triggerAutoRefresh]); // Re-run when task status changes
+    return teardown;
+  }, [params.id, task?.status, fetchTaskStatus, taskApiUrl]);
 
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const getScoreColor = (score: number) => {
-    if (score >= 0.8) return "bg-green-100 text-green-800";
-    if (score >= 0.6) return "bg-yellow-100 text-yellow-800";
-    return "bg-red-100 text-red-800";
-  };
-
-  const getViralityColor = (score: number) => {
-    if (score >= 80) return "text-green-600";
-    if (score >= 60) return "text-yellow-600";
-    if (score >= 40) return "text-orange-600";
-    return "text-red-600";
-  };
-
-  const getViralityBgColor = (score: number) => {
-    if (score >= 80) return "bg-green-500";
-    if (score >= 60) return "bg-yellow-500";
-    if (score >= 40) return "bg-orange-500";
-    return "bg-red-500";
-  };
-
-  const getHookTypeLabel = (hookType: string | null) => {
-    const labels: Record<string, string> = {
-      question: "Question Hook",
-      statement: "Bold Statement",
-      statistic: "Data/Stats",
-      story: "Story Hook",
-      contrast: "Contrast Hook",
-      none: "No Hook",
-    };
-    return labels[hookType || "none"] || hookType || "None";
-  };
+  const sortedClips = useMemo(
+    () =>
+      [...clips].sort(
+        (a, b) =>
+          (b.virality_score ?? 0) - (a.virality_score ?? 0) ||
+          (a.clip_order ?? 0) - (b.clip_order ?? 0),
+      ),
+    [clips],
+  );
 
   const handleEditTitle = async () => {
     if (!editedTitle.trim() || !session?.user?.id || !params.id) return;
@@ -420,12 +431,12 @@ export default function TaskPage() {
       if (response.ok) {
         setTask(task ? { ...task, source_title: editedTitle } : null);
         setIsEditing(false);
+        toast.success("Title updated");
       } else {
-        alert(await buildSupportError(response, "Failed to update title"));
+        toast.error(await buildSupportError(response, "Failed to update title"));
       }
     } catch (err) {
-      console.error("Error updating title:", err);
-      alert(err instanceof Error ? err.message : "Failed to update title");
+      toast.error(err instanceof Error ? err.message : "Failed to update title");
     }
   };
 
@@ -439,13 +450,13 @@ export default function TaskPage() {
       });
 
       if (response.ok) {
+        toast.success("Generation deleted");
         router.push("/list");
       } else {
-        alert(await buildSupportError(response, "Failed to delete task"));
+        toast.error(await buildSupportError(response, "Failed to delete task"));
       }
     } catch (err) {
-      console.error("Error deleting task:", err);
-      alert(err instanceof Error ? err.message : "Failed to delete task");
+      toast.error(err instanceof Error ? err.message : "Failed to delete task");
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
@@ -455,20 +466,24 @@ export default function TaskPage() {
   const handleDeleteClip = async (clipId: string) => {
     if (!session?.user?.id || !params.id) return;
 
+    setIsDeletingClip(true);
     try {
       const response = await fetch(`${taskApiUrl}/${params.id}/clips/${clipId}`, {
         method: "DELETE",
       });
 
       if (response.ok) {
-        setClips(clips.filter((clip) => clip.id !== clipId));
+        setClips((prev) => prev.filter((clip) => clip.id !== clipId));
+        setSelectedClipIds((prev) => prev.filter((id) => id !== clipId));
         setDeletingClipId(null);
+        toast.success("Clip deleted");
       } else {
-        alert(await buildSupportError(response, "Failed to delete clip"));
+        toast.error(await buildSupportError(response, "Failed to delete clip"));
       }
     } catch (err) {
-      console.error("Error deleting clip:", err);
-      alert(err instanceof Error ? err.message : "Failed to delete clip");
+      toast.error(err instanceof Error ? err.message : "Failed to delete clip");
+    } finally {
+      setIsDeletingClip(false);
     }
   };
 
@@ -481,79 +496,113 @@ export default function TaskPage() {
     });
   };
 
-  const handleTrimClip = async (clipId: string) => {
-    if (!session?.user?.id || !params.id) return;
-    const response = await fetch(`${taskApiUrl}/${params.id}/clips/${clipId}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        start_offset: Number(startOffset || "0"),
-        end_offset: Number(endOffset || "0"),
-      }),
+  const handleToggleSelectMode = () => {
+    setSelectMode((prev) => {
+      if (prev) setSelectedClipIds([]);
+      return !prev;
     });
-    if (!response.ok) {
-      alert(await buildSupportError(response, "Failed to trim clip"));
-      return;
-    }
-    await fetchTaskStatus();
   };
 
-  const handleSplitClip = async (clipId: string) => {
+  const handleTrimClip = async (clipId: string, startOffset: string, endOffset: string) => {
     if (!session?.user?.id || !params.id) return;
-    const response = await fetch(`${taskApiUrl}/${params.id}/clips/${clipId}/split`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ split_time: Number(splitTime || "5") }),
-    });
-    if (!response.ok) {
-      alert(await buildSupportError(response, "Failed to split clip"));
-      return;
+    try {
+      const response = await fetch(`${taskApiUrl}/${params.id}/clips/${clipId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          start_offset: Number(startOffset || "0"),
+          end_offset: Number(endOffset || "0"),
+        }),
+      });
+      if (!response.ok) {
+        toast.error(await buildSupportError(response, "Failed to trim clip"));
+        return;
+      }
+      toast.success("Clip trimmed");
+      await fetchTaskStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to trim clip");
     }
-    await fetchTaskStatus();
+  };
+
+  const handleSplitClip = async (clipId: string, splitTime: string) => {
+    if (!session?.user?.id || !params.id) return;
+    try {
+      const response = await fetch(`${taskApiUrl}/${params.id}/clips/${clipId}/split`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ split_time: Number(splitTime || "5") }),
+      });
+      if (!response.ok) {
+        toast.error(await buildSupportError(response, "Failed to split clip"));
+        return;
+      }
+      toast.success("Clip split");
+      await fetchTaskStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to split clip");
+    }
   };
 
   const handleMergeClips = async () => {
-    if (!session?.user?.id || !params.id || selectedClipIds.length < 2) return;
-    const response = await fetch(`${taskApiUrl}/${params.id}/clips/merge`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ clip_ids: selectedClipIds }),
-    });
-    if (!response.ok) {
-      alert(await buildSupportError(response, "Failed to merge clips"));
-      return;
+    if (!session?.user?.id || !params.id || selectedClipIds.length < 2 || isMerging) return;
+    setIsMerging(true);
+    try {
+      const response = await fetch(`${taskApiUrl}/${params.id}/clips/merge`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ clip_ids: selectedClipIds }),
+      });
+      if (!response.ok) {
+        toast.error(await buildSupportError(response, "Failed to merge clips"));
+        return;
+      }
+      setSelectedClipIds([]);
+      setSelectMode(false);
+      toast.success("Clips merged");
+      await fetchTaskStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to merge clips");
+    } finally {
+      setIsMerging(false);
     }
-    setSelectedClipIds([]);
-    await fetchTaskStatus();
   };
 
-  const handleUpdateCaptions = async (clipId: string) => {
+  const handleUpdateCaptions = async (
+    clipId: string,
+    values: { text: string; position: string; highlightWords: string },
+  ) => {
     if (!session?.user?.id || !params.id) return;
-    const response = await fetch(`${taskApiUrl}/${params.id}/clips/${clipId}/captions`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        caption_text: captionText,
-        position: captionPosition,
-        highlight_words: highlightWords
-          .split(",")
-          .map((w) => w.trim())
-          .filter(Boolean),
-      }),
-    });
-    if (!response.ok) {
-      alert(await buildSupportError(response, "Failed to update captions"));
-      return;
+    try {
+      const response = await fetch(`${taskApiUrl}/${params.id}/clips/${clipId}/captions`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          caption_text: values.text,
+          position: values.position,
+          highlight_words: values.highlightWords
+            .split(",")
+            .map((w) => w.trim())
+            .filter(Boolean),
+        }),
+      });
+      if (!response.ok) {
+        toast.error(await buildSupportError(response, "Failed to update captions"));
+        return;
+      }
+      toast.success("Captions updated");
+      await fetchTaskStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update captions");
     }
-    await fetchTaskStatus();
   };
 
   const handleApplyProjectSettings = async () => {
@@ -586,10 +635,13 @@ export default function TaskPage() {
         }),
       });
       if (!response.ok) {
-        alert(await buildSupportError(response, "Failed to apply settings"));
+        toast.error(await buildSupportError(response, "Failed to apply settings"));
         return;
       }
+      toast.success("Settings applied to all clips");
       await fetchTaskStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to apply settings");
     } finally {
       setIsApplyingSettings(false);
     }
@@ -597,7 +649,6 @@ export default function TaskPage() {
 
   const handleDeleteFont = async (font: FontOption) => {
     if (font.scope !== "user" || deletingFontName) return;
-    if (!window.confirm(`Delete ${font.display_name}? This cannot be undone.`)) return;
 
     setDeletingFontName(font.name);
     try {
@@ -614,47 +665,161 @@ export default function TaskPage() {
         // The deleted font was in use — fall back to the caption template's own font.
         setProjectFontFamily(null);
       }
+      toast.success(`Deleted ${font.display_name}`);
     } catch (deleteError) {
-      alert(deleteError instanceof Error ? deleteError.message : "Failed to delete font");
+      toast.error(deleteError instanceof Error ? deleteError.message : "Failed to delete font");
     } finally {
       setDeletingFontName(null);
+      setFontPendingDelete(null);
     }
   };
 
-  const handleExportClip = async (clipId: string, fallbackFilename: string) => {
-    if (!session?.user?.id || !task?.id) return;
-
-    const response = await fetch(`${taskApiUrl}/${task.id}/clips/${clipId}/export?preset=${exportPreset}`, {
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      alert(await buildSupportError(response, "Failed to export clip"));
-      return;
-    }
-
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
+  const triggerBrowserDownload = (href: string, filename: string) => {
     const link = document.createElement("a");
-    link.href = blobUrl;
-    link.download = `${fallbackFilename.replace(/\.mp4$/i, "")}_${exportPreset}.mp4`;
+    link.href = href;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(blobUrl);
   };
 
-  const handleDownloadClip = (clip: Clip) => {
-    if (exportPreset === "original") {
-      const link = document.createElement("a");
-      link.href = getClipUrl(clip.video_url);
-      link.download = clip.filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+  const exportPresetFor = useCallback(
+    (clipId: string) => exportPresets[clipId] ?? "original",
+    [exportPresets],
+  );
+
+  /** Returns null on success, or the failure message so callers can report accurately. */
+  const handleExportClip = async (
+    clip: Clip,
+    preset: string,
+    { notify = true }: { notify?: boolean } = {},
+  ): Promise<string | null> => {
+    if (!task?.id) return "No task loaded";
+
+    setDownloadingClipIds((prev) => [...prev, clip.id]);
+    try {
+      const response = await fetch(`${taskApiUrl}/${task.id}/clips/${clip.id}/export?preset=${preset}`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        const message = await buildSupportError(response, "Failed to export clip");
+        if (notify) toast.error(message);
+        return message;
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      triggerBrowserDownload(blobUrl, `${clip.filename.replace(/\.mp4$/i, "")}_${preset}.mp4`);
+      URL.revokeObjectURL(blobUrl);
+      return null;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to export clip";
+      if (notify) toast.error(message);
+      return message;
+    } finally {
+      setDownloadingClipIds((prev) => prev.filter((id) => id !== clip.id));
+    }
+  };
+
+  const handleDownloadClip = (clip: Clip, preset = exportPresetFor(clip.id)) => {
+    if (downloadingClipIds.includes(clip.id)) return;
+    if (preset === "original") {
+      triggerBrowserDownload(getClipUrl(clip.video_url), clip.filename);
       return;
     }
-    void handleExportClip(clip.id, clip.filename);
+    void handleExportClip(clip, preset);
+  };
+
+  const handleDownloadAll = async () => {
+    if (isDownloadingAll || sortedClips.length === 0 || !task?.id) return;
+
+    setIsDownloadingAll(true);
+    const toastId = toast.loading("Preparing download…");
+    try {
+      if (bulkPreset === "original") {
+        // The workflows export job bundles the originals into a single archive.
+        try {
+          const response = await fetch("/api/workflows/exports", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ task_id: task.id, export_type: "zip" }),
+          });
+          if (response.ok) {
+            const data = (await response.json()) as { file_url?: string };
+            if (data.file_url) {
+              const href = data.file_url.startsWith("/api/") ? data.file_url : `/api${data.file_url}`;
+              triggerBrowserDownload(href, `${task.source_title || "clips"}.zip`);
+              toast.success("Download started", { id: toastId });
+              return;
+            }
+          }
+        } catch {
+          // Fall through to per-clip downloads.
+        }
+      }
+
+      toast.loading(`Downloading ${sortedClips.length} clips…`, { id: toastId });
+      const failures: string[] = [];
+      for (const clip of sortedClips) {
+        if (bulkPreset === "original") {
+          triggerBrowserDownload(getClipUrl(clip.video_url), clip.filename);
+          await new Promise((resolve) => setTimeout(resolve, 600));
+        } else {
+          // Report once at the end rather than one toast per failed clip.
+          const failure = await handleExportClip(clip, bulkPreset, { notify: false });
+          if (failure) failures.push(failure);
+        }
+      }
+
+      const succeeded = sortedClips.length - failures.length;
+      if (failures.length > 0) {
+        toast.error(
+          `Downloaded ${succeeded} of ${sortedClips.length} clips — ${failures.length} failed`,
+          { id: toastId, description: failures[0] },
+        );
+      } else {
+        toast.success(`Downloaded ${succeeded} clips`, { id: toastId });
+      }
+    } finally {
+      setIsDownloadingAll(false);
+    }
+  };
+
+  const handleCancelTask = async () => {
+    if (!task?.id || isCancelling) return;
+    setIsCancelling(true);
+    try {
+      const response = await fetch(`${taskApiUrl}/${task.id}/cancel`, { method: "POST" });
+      if (!response.ok) {
+        toast.error(await buildSupportError(response, "Failed to cancel generation"));
+        return;
+      }
+      toast.success("Generation cancelled");
+      await fetchTaskStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to cancel generation");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleResumeTask = async () => {
+    if (!task?.id || isResuming) return;
+    setIsResuming(true);
+    try {
+      const response = await fetch(`${taskApiUrl}/${task.id}/resume`, { method: "POST" });
+      if (!response.ok) {
+        toast.error(await buildSupportError(response, "Failed to resume generation"));
+        return;
+      }
+      toast.success("Generation resumed");
+      await fetchTaskStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to resume generation");
+    } finally {
+      setIsResuming(false);
+    }
   };
 
   const handleCopyShareLink = async () => {
@@ -687,10 +852,11 @@ export default function TaskPage() {
         currentTask ? { ...currentTask, share_enabled: true } : currentTask,
       );
       setShareState("copied");
+      toast.success("Share link copied to clipboard");
       window.setTimeout(() => setShareState("idle"), 2500);
     } catch (shareError) {
       setShareState("idle");
-      alert(shareError instanceof Error ? shareError.message : "Failed to create share link");
+      toast.error(shareError instanceof Error ? shareError.message : "Failed to create share link");
     }
   };
 
@@ -708,8 +874,9 @@ export default function TaskPage() {
       setTask((currentTask) =>
         currentTask ? { ...currentTask, share_enabled: false } : currentTask,
       );
+      toast.success("Share link disabled");
     } catch (revokeError) {
-      alert(revokeError instanceof Error ? revokeError.message : "Failed to disable share link");
+      toast.error(revokeError instanceof Error ? revokeError.message : "Failed to disable share link");
     } finally {
       setIsRevokingShare(false);
     }
@@ -717,13 +884,13 @@ export default function TaskPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-white p-4">
-        <div className="max-w-6xl mx-auto">
+      <AppShell back={{ href: "/list", label: "My Clips" }}>
+        <div className="max-w-6xl mx-auto p-4">
           <div className="mb-6">
             <Skeleton className="h-8 w-48 mb-2" />
             <Skeleton className="h-4 w-96" />
           </div>
-          <div className="grid gap-6">
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
             {[1, 2, 3].map((i) => (
               <Card key={i}>
                 <CardContent className="p-6">
@@ -735,13 +902,13 @@ export default function TaskPage() {
             ))}
           </div>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
-  if (error) {
+  if (error && !task) {
     return (
-      <div className="min-h-screen bg-white p-4">
+      <div className="min-h-screen bg-background p-4">
         <div className="max-w-6xl mx-auto">
           <Alert>
             <AlertDescription>{error}</AlertDescription>
@@ -758,19 +925,10 @@ export default function TaskPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <AppShell back={{ href: "/list", label: "My Clips" }}>
       {/* Header */}
-      <div className="border-b bg-white">
+      <div className="border-b bg-background">
         <div className="max-w-6xl mx-auto px-4 py-6">
-          <div className="flex items-center gap-4 mb-4">
-            <Link href="/">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </Button>
-            </Link>
-          </div>
-
           {task && (
             <div>
               <div className="flex items-center gap-3 mb-2">
@@ -780,14 +938,16 @@ export default function TaskPage() {
                       value={editedTitle}
                       onChange={(e) => setEditedTitle(e.target.value)}
                       className="text-2xl font-bold h-auto py-1"
+                      aria-label="Generation title"
                       autoFocus
                     />
-                    <Button size="sm" onClick={handleEditTitle} disabled={!editedTitle.trim()}>
+                    <Button size="sm" onClick={handleEditTitle} disabled={!editedTitle.trim()} aria-label="Save title">
                       <Check className="w-4 h-4" />
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
+                      aria-label="Cancel editing title"
                       onClick={() => {
                         setIsEditing(false);
                         setEditedTitle(task.source_title);
@@ -798,31 +958,33 @@ export default function TaskPage() {
                   </div>
                 ) : (
                   <>
-                    <h1 className={`text-2xl font-bold text-black ${task.status === "processing" || task.status === "queued" ? "shimmer" : ""}`}>{task.source_title}</h1>
+                    <h1 className={`text-2xl font-bold text-foreground ${task.status === "processing" || task.status === "queued" ? "shimmer" : ""}`}>{task.source_title}</h1>
                     <div className="flex items-center gap-1">
                       <Button
                         size="sm"
                         variant="ghost"
+                        aria-label="Rename generation"
                         onClick={() => {
                           setIsEditing(true);
                           setEditedTitle(task.source_title);
                         }}
                       >
-                        <Edit2 className="w-4 h-4" />
+                        <Edit2 className="w-4 h-4" aria-hidden="true" />
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        aria-label="Delete generation"
+                        className="text-red-700 hover:text-red-800 hover:bg-red-50"
                         onClick={() => setShowDeleteDialog(true)}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
                       </Button>
                     </div>
                   </>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <Badge variant="outline" className="capitalize">
                   {task.source_type}
                 </Badge>
@@ -830,7 +992,7 @@ export default function TaskPage() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="flex items-center gap-1 cursor-default">
-                        <Clock className="w-4 h-4" />
+                        <Clock className="w-4 h-4" aria-hidden="true" />
                         {new Date(task.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
                       </span>
                     </TooltipTrigger>
@@ -852,14 +1014,18 @@ export default function TaskPage() {
                     {clips.length} {clips.length === 1 ? "clip" : "clips"} generated
                   </span>
                 ) : task.status === "processing" ? (
-                  <div className="relative group">
-                    <Badge className="bg-blue-100 text-blue-800 cursor-default shimmer">Processing</Badge>
-                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
-                      🔍&nbsp;&nbsp;We&apos;re currently processing your video. Check back in a couple minutes.
-                    </div>
-                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge className="bg-stone-800 text-white cursor-default shimmer">Processing</Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        We&apos;re currently processing your video. Check back in a couple minutes.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 ) : task.status === "queued" ? (
-                  <Badge className="bg-yellow-100 text-yellow-800">Queued</Badge>
+                  <Badge variant="outline">Queued</Badge>
                 ) : (
                   <Badge variant="outline" className="capitalize">
                     {task.status}
@@ -868,7 +1034,7 @@ export default function TaskPage() {
                 {task.status === "completed" && clips.length > 0 && (
                   <Link href={`/tasks/${task.id}/edit`}>
                     <Button size="sm" variant="outline">
-                      <Clapperboard className="w-4 h-4" />
+                      <Clapperboard className="w-4 h-4" aria-hidden="true" />
                       Open Editor
                     </Button>
                   </Link>
@@ -882,9 +1048,9 @@ export default function TaskPage() {
                     aria-live="polite"
                   >
                     {shareState === "copied" ? (
-                      <Check className="w-4 h-4" />
+                      <Check className="w-4 h-4" aria-hidden="true" />
                     ) : (
-                      <Share2 className="w-4 h-4" />
+                      <Share2 className="w-4 h-4" aria-hidden="true" />
                     )}
                     {shareState === "copying"
                       ? "Creating link…"
@@ -900,36 +1066,18 @@ export default function TaskPage() {
                     onClick={handleRevokeShareLink}
                     disabled={isRevokingShare}
                   >
-                    <Link2Off className="w-4 h-4" />
+                    <Link2Off className="w-4 h-4" aria-hidden="true" />
                     {isRevokingShare ? "Disabling…" : "Disable share link"}
                   </Button>
                 )}
-                {(task.status === "queued" || task.status === "processing") && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      await fetch(`${taskApiUrl}/${task.id}/cancel`, {
-                        method: "POST",
-                      });
-                      await fetchTaskStatus();
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                )}
                 {(task.status === "cancelled" || task.status === "error") && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      await fetch(`${taskApiUrl}/${task.id}/resume`, {
-                        method: "POST",
-                      });
-                      await fetchTaskStatus();
-                    }}
-                  >
-                    Resume
+                  <Button size="sm" variant="outline" onClick={handleResumeTask} disabled={isResuming}>
+                    {isResuming ? (
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                    )}
+                    {isResuming ? "Resuming…" : "Resume"}
                   </Button>
                 )}
               </div>
@@ -942,87 +1090,44 @@ export default function TaskPage() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         {task?.status === "processing" || task?.status === "queued" ? (
           <div className="space-y-8">
-            {/* Progress indicator */}
-            <div className="flex flex-col items-center py-8">
-              {/* Minimal animated dots */}
-              <div className="relative group flex items-center gap-1.5 mb-8 cursor-default">
-                <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_infinite]" />
-                <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
-                <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
-                <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
-                  ☕&nbsp;&nbsp;Grab a coffee, and come back to ready-to-post clips.
-                </div>
-              </div>
-
-              {/* Status message */}
-              <p className="shimmer text-neutral-600/60 text-sm tracking-wide mb-8">
-                {progressMessage || (task.status === "queued" ? "Waiting in queue" : "Processing")}
-              </p>
-
-              {/* Minimal progress bar */}
-              {progress > 0 && (
-                <div className="w-48">
-                  <div className="h-px bg-neutral-200 w-full relative overflow-hidden">
-                    <div
-                      className="absolute inset-y-0 left-0 bg-neutral-800 transition-all duration-700 ease-out"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                  <p className="text-[11px] text-neutral-400 text-center mt-3 tabular-nums">{progress}%</p>
-                </div>
-              )}
-            </div>
+            <PipelineProgress
+              status={task.status}
+              progress={progress}
+              message={progressMessage}
+              clipsReady={clips.length}
+              onCancel={handleCancelTask}
+              isCancelling={isCancelling}
+            />
 
             {/* Live clips grid — shows clips as they render */}
             {clips.length > 0 && (
-              <div className="grid gap-6">
-                <p className="text-sm text-neutral-500 text-center">
-                  {clips.length} clip{clips.length !== 1 ? "s" : ""} ready
-                </p>
-                {clips.map((clip) => (
-                  <Card key={clip.id} className="overflow-hidden">
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                {sortedClips.map((clip) => (
+                  <Card key={clip.id} className="overflow-hidden py-0 gap-0">
                     <CardContent className="p-0">
-                      <div className="flex flex-col lg:flex-row">
-                        <div className="relative flex-shrink-0 bg-black rounded-lg overflow-hidden m-3">
-                          <DynamicVideoPlayer src={getClipUrl(clip.video_url)} poster="/placeholder-video.jpg" />
-                        </div>
-                        <div className="p-6 flex-1">
-                          <div className="flex items-start justify-between mb-4">
-                            <div>
-                              <h3 className="font-semibold text-lg text-black mb-1">
-                                {clip.hook_title || `Clip ${clip.clip_order}`}
-                              </h3>
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <span>Clip {clip.clip_order}</span>
-                                <span>•</span>
-                                <span>{clip.start_time} - {clip.end_time}</span>
-                                <span>•</span>
-                                <span>{formatDuration(clip.duration)}</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {clip.virality_score > 0 && (
-                                <Badge className={`${getViralityBgColor(clip.virality_score)} text-white`}>
-                                  <Zap className="w-3 h-3 mr-1" />
-                                  {clip.virality_score}
-                                </Badge>
-                              )}
-                              <Badge className={getScoreColor(clip.relevance_score)}>
-                                <Star className="w-3 h-3 mr-1" />
-                                {(clip.relevance_score * 100).toFixed(0)}%
-                              </Badge>
-                            </div>
-                          </div>
-                          {clip.text && (
-                            <TranscriptPreview text={clip.text} clipTitle={`Clip ${clip.clip_order}`} />
-                          )}
-                          <Button size="sm" variant="outline" asChild>
-                            <a href={getClipUrl(clip.video_url)} download={clip.filename}>
-                              <Download className="w-4 h-4" />
-                              Download
-                            </a>
-                          </Button>
-                        </div>
+                      <div className="relative bg-black">
+                        <DynamicVideoPlayer
+                          src={getClipUrl(clip.video_url)}
+                          poster="/placeholder-video.jpg"
+                          outputFormat={task.output_format}
+                          sizing="fill"
+                          className="rounded-none"
+                        />
+                        {clip.virality_score > 0 && (
+                          <Badge
+                            className={`absolute top-2 right-2 ${getViralityBgColor(clip.virality_score)} text-white`}
+                          >
+                            {clip.virality_score}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <h3 className="font-semibold text-foreground line-clamp-2">
+                          {clip.hook_title || `Clip ${clip.clip_order}`}
+                        </h3>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatDuration(clip.duration)}
+                        </p>
                       </div>
                     </CardContent>
                   </Card>
@@ -1032,56 +1137,67 @@ export default function TaskPage() {
           </div>
         ) : !task ? (
           <div className="flex flex-col items-center justify-center min-h-[50vh] py-16">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-neutral-300 rounded-full animate-[pulse_1.4s_ease-in-out_infinite]" />
-              <span className="w-2 h-2 bg-neutral-300 rounded-full animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
-              <span className="w-2 h-2 bg-neutral-300 rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
-            </div>
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" aria-label="Loading generation" />
           </div>
-        ) : task?.status === "error" ? (
+        ) : task.status === "error" || task.status === "cancelled" ? (
           <Card>
             <CardContent className="p-8 text-center">
-              <div className="text-red-600 mb-4">
-                <AlertCircle className="w-12 h-12 mx-auto mb-2" />
-                <h2 className="text-xl font-semibold">Processing Failed</h2>
+              <div className="text-amber-700 mb-4">
+                <AlertCircle className="w-12 h-12 mx-auto mb-2" aria-hidden="true" />
+                <h2 className="text-xl font-semibold">
+                  {task.status === "cancelled" ? "Generation cancelled" : "Processing failed"}
+                </h2>
               </div>
-              <p className="text-gray-600 mb-4">There was an error processing your video. Please try again.</p>
-              <Link href="/">
-                <Button>
-                  <ArrowLeft className="w-4 h-4" />
-                  Back to Home
+              <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
+                {task.progress_message ||
+                  (task.status === "cancelled"
+                    ? "This generation was cancelled before it finished."
+                    : "There was an error processing your video. Please try again.")}
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                <Button onClick={handleResumeTask} disabled={isResuming}>
+                  {isResuming ? (
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                  )}
+                  {isResuming ? "Retrying…" : "Retry generation"}
                 </Button>
-              </Link>
+                <Link href="/">
+                  <Button variant="outline">
+                    <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+                    Back to Home
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
         ) : clips.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
-              {task?.status === "completed" ? (
+              {task.status === "completed" ? (
                 <>
-                  <div className="text-yellow-600 mb-4">
-                    <AlertCircle className="w-12 h-12 mx-auto mb-2" />
-                    <h2 className="text-xl font-semibold">No Clips Generated</h2>
+                  <div className="text-amber-700 mb-4">
+                    <AlertCircle className="w-12 h-12 mx-auto mb-2" aria-hidden="true" />
+                    <h2 className="text-xl font-semibold">No clips generated</h2>
                   </div>
-                  <p className="text-gray-600 mb-4">
+                  <p className="text-muted-foreground mb-4">
                     The task completed but no clips were generated. The video may not have had suitable content for
                     clipping.
                   </p>
                   <Link href="/">
                     <Button>
-                      <ArrowLeft className="w-4 h-4" />
+                      <ArrowLeft className="w-4 h-4" aria-hidden="true" />
                       Try Another Video
                     </Button>
                   </Link>
                 </>
               ) : (
                 <>
-                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Clock className="w-8 h-8 text-blue-500 animate-pulse" />
-                  </div>
-                  <h2 className="text-xl font-semibold text-black mb-2">Still Generating...</h2>
-                  <p className="text-gray-600">
-                    Your clips are being generated. This page will refresh automatically when they&apos;re ready.
+                  <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin text-muted-foreground" aria-hidden="true" />
+                  <h2 className="text-xl font-semibold text-foreground mb-2">Still generating…</h2>
+                  <p className="text-muted-foreground">
+                    Your clips are being generated. They&apos;ll appear here as soon as they&apos;re ready.
                   </p>
                 </>
               )}
@@ -1089,24 +1205,44 @@ export default function TaskPage() {
           </Card>
         ) : (
           <div className="grid gap-6">
-            <div className="flex items-center justify-between">
-              <Button variant="outline" size="sm" onClick={() => setSettingsSheetOpen(true)}>
-                <Settings2 className="w-4 h-4" />
-                Project Settings
-              </Button>
-              {selectedClipIds.length >= 2 && (
-                <Button variant="outline" size="sm" onClick={handleMergeClips}>
-                  <GitMerge className="w-4 h-4" />
-                  Merge Selected ({selectedClipIds.length})
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" onClick={() => setSettingsSheetOpen(true)}>
+                  <Settings2 className="w-4 h-4" aria-hidden="true" />
+                  Project Settings
                 </Button>
-              )}
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/tasks/${params.id}/workflows`}>
+                    <Share2 className="w-4 h-4" aria-hidden="true" />
+                    Workflows
+                  </Link>
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant={selectMode ? "default" : "outline"}
+                  size="sm"
+                  aria-pressed={selectMode}
+                  onClick={handleToggleSelectMode}
+                >
+                  <CheckSquare className="w-4 h-4" aria-hidden="true" />
+                  {selectMode ? "Done selecting" : "Select clips"}
+                </Button>
+                <DownloadSplitButton
+                  preset={bulkPreset}
+                  onPresetChange={setBulkPreset}
+                  onDownload={handleDownloadAll}
+                  isPending={isDownloadingAll}
+                  targetLabel={`all ${sortedClips.length} clips`}
+                />
+              </div>
             </div>
 
             <Sheet open={settingsSheetOpen} onOpenChange={setSettingsSheetOpen}>
               <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
                 <SheetHeader>
                   <SheetTitle className="flex items-center gap-2">
-                    <Settings2 className="w-4 h-4" />
+                    <Settings2 className="w-4 h-4" aria-hidden="true" />
                     Project Settings
                   </SheetTitle>
                   <SheetDescription>
@@ -1116,14 +1252,16 @@ export default function TaskPage() {
 
                 <div className="space-y-5 px-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-500">Font</label>
+                    <label htmlFor="project-font" className="text-xs font-medium text-muted-foreground">
+                      Font
+                    </label>
                     <Select
                       value={projectFontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE}
                       onValueChange={(value) =>
                         setProjectFontFamily(value === FONT_TEMPLATE_DEFAULT_VALUE ? null : value)
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="project-font">
                         <SelectValue placeholder="Template default" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1133,7 +1271,7 @@ export default function TaskPage() {
                             key={font.name}
                             font={font}
                             isDeleting={deletingFontName === font.name}
-                            onDelete={handleDeleteFont}
+                            onDelete={setFontPendingDelete}
                           />
                         ))}
                       </SelectContent>
@@ -1141,17 +1279,20 @@ export default function TaskPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-500">Size</label>
-                    <div className="grid grid-cols-4 gap-1.5">
+                    <span className="text-xs font-medium text-muted-foreground" id="project-font-size-label">
+                      Size
+                    </span>
+                    <div className="grid grid-cols-4 gap-1.5" role="group" aria-labelledby="project-font-size-label">
                       {FONT_SIZE_OPTIONS.map((option) => (
                         <button
                           key={option.label}
                           type="button"
+                          aria-pressed={projectFontSize === option.value}
                           onClick={() => setProjectFontSize(option.value)}
                           className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
                             projectFontSize === option.value
                               ? "bg-stone-900 text-white border-stone-900"
-                              : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                              : "bg-background text-stone-600 border-stone-300 hover:bg-stone-50"
                           }`}
                         >
                           {option.label}
@@ -1162,38 +1303,48 @@ export default function TaskPage() {
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-medium text-gray-500">Color</label>
-                      <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={projectFontColor === null}
-                          onChange={(e) => setProjectFontColor(e.target.checked ? null : "#FFFFFF")}
-                          className="rounded"
-                        />
-                        Template default
+                      <label htmlFor="project-font-color" className="text-xs font-medium text-muted-foreground">
+                        Color
                       </label>
+                      <div className="flex items-center gap-1.5">
+                        <Checkbox
+                          id="project-font-color-default"
+                          checked={projectFontColor === null}
+                          onCheckedChange={(checked) => setProjectFontColor(checked === true ? null : "#FFFFFF")}
+                        />
+                        <label
+                          htmlFor="project-font-color-default"
+                          className="text-xs text-muted-foreground cursor-pointer"
+                        >
+                          Template default
+                        </label>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <input
+                        id="project-font-color"
                         type="color"
                         value={projectFontColor ?? "#FFFFFF"}
                         onChange={(e) => setProjectFontColor(e.target.value)}
                         disabled={projectFontColor === null}
-                        className="h-9 w-9 rounded border border-gray-300 cursor-pointer disabled:cursor-not-allowed"
+                        className="h-9 w-9 rounded border border-input cursor-pointer disabled:cursor-not-allowed"
                       />
                       <Input
                         value={projectFontColor ?? ""}
                         onChange={(e) => setProjectFontColor(e.target.value)}
                         disabled={projectFontColor === null}
+                        aria-label="Font color hex value"
                         placeholder="Template default"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-500">Caption Template</label>
+                    <label htmlFor="project-caption-template" className="text-xs font-medium text-muted-foreground">
+                      Caption Template
+                    </label>
                     <Select value={projectCaptionTemplate} onValueChange={setProjectCaptionTemplate}>
-                      <SelectTrigger>
+                      <SelectTrigger id="project-caption-template">
                         <SelectValue>
                           {availableTemplates.find((t) => t.id === projectCaptionTemplate)?.name || "Select style"}
                         </SelectValue>
@@ -1203,7 +1354,7 @@ export default function TaskPage() {
                           <SelectItem key={template.id} value={template.id}>
                             <div>
                               <div className="font-medium">{template.name}</div>
-                              <div className="text-xs text-gray-500">{template.description}</div>
+                              <div className="text-xs text-muted-foreground">{template.description}</div>
                             </div>
                           </SelectItem>
                         ))}
@@ -1212,25 +1363,31 @@ export default function TaskPage() {
                     </Select>
                   </div>
 
-                  <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
+                  <div className="rounded-lg border border-border bg-muted/40 p-3 space-y-3">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">Clip cleanup</div>
-                      <div className="text-xs text-gray-500">Apply silence and filler-word cuts to regenerated clips.</div>
+                      <div className="text-sm font-medium text-foreground">Clip cleanup</div>
+                      <div className="text-xs text-muted-foreground">
+                        Apply silence and filler-word cuts to regenerated clips.
+                      </div>
                     </div>
 
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="project-cut-pauses"
                         checked={projectCutLongPauses}
-                        onChange={(e) => setProjectCutLongPauses(e.target.checked)}
-                        className="rounded"
+                        onCheckedChange={(checked) => setProjectCutLongPauses(checked === true)}
                       />
-                      Cut long pauses
-                    </label>
+                      <label htmlFor="project-cut-pauses" className="text-sm text-foreground cursor-pointer">
+                        Cut long pauses
+                      </label>
+                    </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-gray-500">Pause threshold (ms)</label>
+                      <label htmlFor="project-pause-threshold" className="text-xs font-medium text-muted-foreground">
+                        Pause threshold (ms)
+                      </label>
                       <Input
+                        id="project-pause-threshold"
                         type="number"
                         min={250}
                         max={3000}
@@ -1241,19 +1398,23 @@ export default function TaskPage() {
                       />
                     </div>
 
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="project-remove-fillers"
                         checked={projectRemoveFillerWords}
-                        onChange={(e) => setProjectRemoveFillerWords(e.target.checked)}
-                        className="rounded"
+                        onCheckedChange={(checked) => setProjectRemoveFillerWords(checked === true)}
                       />
-                      Remove filler words
-                    </label>
+                      <label htmlFor="project-remove-fillers" className="text-sm text-foreground cursor-pointer">
+                        Remove filler words
+                      </label>
+                    </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-gray-500">Extra filtered words or phrases</label>
+                      <label htmlFor="project-filtered-words" className="text-xs font-medium text-muted-foreground">
+                        Extra filtered words or phrases
+                      </label>
                       <Input
+                        id="project-filtered-words"
                         value={projectFilteredWords}
                         onChange={(e) => setProjectFilteredWords(e.target.value)}
                         placeholder="basically, literally, to be honest"
@@ -1277,248 +1438,54 @@ export default function TaskPage() {
               </SheetContent>
             </Sheet>
 
-            {clips.map((clip) => (
-              <Card key={clip.id} className="overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="flex flex-col lg:flex-row">
-                    {/* Video Player */}
-                    <div className="relative flex-shrink-0 bg-black rounded-lg overflow-hidden m-3">
-                      <DynamicVideoPlayer src={getClipUrl(clip.video_url)} poster="/placeholder-video.jpg" />
-                    </div>
+            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+              {sortedClips.map((clip) => (
+                <ClipCard
+                  key={clip.id}
+                  clip={clip}
+                  src={getClipUrl(clip.video_url)}
+                  outputFormat={task.output_format}
+                  selectMode={selectMode}
+                  isSelected={selectedClipIds.includes(clip.id)}
+                  onToggleSelect={handleToggleClipSelection}
+                  exportPreset={exportPresetFor(clip.id)}
+                  onExportPresetChange={(clipId, preset) =>
+                    setExportPresets((prev) => ({ ...prev, [clipId]: preset }))
+                  }
+                  onDownload={handleDownloadClip}
+                  isDownloading={downloadingClipIds.includes(clip.id)}
+                  onDelete={setDeletingClipId}
+                  onTrim={handleTrimClip}
+                  onSplit={handleSplitClip}
+                  onUpdateCaptions={handleUpdateCaptions}
+                />
+              ))}
+            </div>
 
-                    {/* Clip Details */}
-                    <div className="p-6 flex-1">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <label className="flex items-center gap-2 text-xs text-gray-600 mb-2">
-                            <input
-                              type="checkbox"
-                              checked={selectedClipIds.includes(clip.id)}
-                              onChange={() => handleToggleClipSelection(clip.id)}
-                            />
-                            Select for merge
-                          </label>
-                          <h3 className="font-semibold text-lg text-black mb-1">
-                            {clip.hook_title || `Clip ${clip.clip_order}`}
-                          </h3>
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <span>Clip {clip.clip_order}</span>
-                            <span>•</span>
-                            <span>
-                              {clip.start_time} - {clip.end_time}
-                            </span>
-                            <span>•</span>
-                            <span>{formatDuration(clip.duration)}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {/* Virality Score Badge */}
-                          {clip.virality_score > 0 && (
-                            <Badge className={`${getViralityBgColor(clip.virality_score)} text-white`}>
-                              <Zap className="w-3 h-3 mr-1" />
-                              {clip.virality_score}
-                            </Badge>
-                          )}
-                          <Badge className={getScoreColor(clip.relevance_score)}>
-                            <Star className="w-3 h-3 mr-1" />
-                            {(clip.relevance_score * 100).toFixed(0)}%
-                          </Badge>
-                        </div>
-                      </div>
-
-                      {/* Virality Score Breakdown */}
-                      {clip.virality_score > 0 && (
-                        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center justify-between mb-3">
-                            <h4 className="font-medium text-black text-sm flex items-center gap-2">
-                              <Zap className="w-4 h-4" />
-                              Virality Score
-                            </h4>
-                            <span className={`text-lg font-bold ${getViralityColor(clip.virality_score)}`}>
-                              {clip.virality_score}/100
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3 text-xs">
-                            {/* Hook Score */}
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-gray-600">
-                                  <MessageSquare className="w-3 h-3" />
-                                  Hook
-                                </span>
-                                <span className="font-medium">{clip.hook_score}/25</span>
-                              </div>
-                              <Progress value={(clip.hook_score / 25) * 100} className="h-1.5" />
-                            </div>
-
-                            {/* Engagement Score */}
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-gray-600">
-                                  <TrendingUp className="w-3 h-3" />
-                                  Engagement
-                                </span>
-                                <span className="font-medium">{clip.engagement_score}/25</span>
-                              </div>
-                              <Progress value={(clip.engagement_score / 25) * 100} className="h-1.5" />
-                            </div>
-
-                            {/* Value Score */}
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-gray-600">
-                                  <Star className="w-3 h-3" />
-                                  Value
-                                </span>
-                                <span className="font-medium">{clip.value_score}/25</span>
-                              </div>
-                              <Progress value={(clip.value_score / 25) * 100} className="h-1.5" />
-                            </div>
-
-                            {/* Shareability Score */}
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-gray-600">
-                                  <Share2 className="w-3 h-3" />
-                                  Shareability
-                                </span>
-                                <span className="font-medium">{clip.shareability_score}/25</span>
-                              </div>
-                              <Progress value={(clip.shareability_score / 25) * 100} className="h-1.5" />
-                            </div>
-                          </div>
-
-                          {clip.hook_type && clip.hook_type !== "none" && (
-                            <div className="mt-3 pt-2 border-t">
-                              <Badge variant="outline" className="text-xs">
-                                {getHookTypeLabel(clip.hook_type)}
-                              </Badge>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {clip.text && (
-                        <TranscriptPreview text={clip.text} clipTitle={`Clip ${clip.clip_order}`} />
-                      )}
-
-                      <div className="flex items-center gap-2">
-                        <div className="inline-flex items-stretch h-8 rounded-md border border-input bg-background shadow-xs overflow-hidden">
-                          <button
-                            type="button"
-                            onClick={() => handleDownloadClip(clip)}
-                            className="inline-flex items-center gap-1.5 px-3 text-sm font-medium hover:bg-accent transition-colors focus-visible:outline-none focus-visible:bg-accent"
-                          >
-                            <Download className="w-4 h-4" />
-                            Download
-                          </button>
-                          <Select value={exportPreset} onValueChange={setExportPreset}>
-                            <SelectTrigger
-                              size="sm"
-                              aria-label="Download format"
-                              className="h-8 min-w-[112px] rounded-none border-0 border-l border-input shadow-none focus-visible:ring-0 focus-visible:border-input bg-transparent"
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent align="end">
-                              <SelectItem value="original">Original</SelectItem>
-                              <SelectItem value="tiktok">TikTok</SelectItem>
-                              <SelectItem value="reels">Reels</SelectItem>
-                              <SelectItem value="shorts">Shorts</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setEditingClipId(editingClipId === clip.id ? null : clip.id);
-                            setCaptionText(clip.text || "");
-                          }}
-                        >
-                          <Scissors className="w-4 h-4" />
-                          Edit
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          aria-label="Delete clip"
-                          className="ml-auto text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => setDeletingClipId(clip.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-
-                      {editingClipId === clip.id && (
-                        <div className="mt-4 p-3 border rounded-lg space-y-3 bg-gray-50">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                            <Input
-                              value={startOffset}
-                              onChange={(e) => setStartOffset(e.target.value)}
-                              placeholder="Start trim (sec)"
-                            />
-                            <Input
-                              value={endOffset}
-                              onChange={(e) => setEndOffset(e.target.value)}
-                              placeholder="End trim (sec)"
-                            />
-                            <Button size="sm" onClick={() => handleTrimClip(clip.id)}>
-                              <Scissors className="w-4 h-4" />
-                              Trim
-                            </Button>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                            <Input
-                              value={splitTime}
-                              onChange={(e) => setSplitTime(e.target.value)}
-                              placeholder="Split at (sec)"
-                            />
-                            <Button size="sm" variant="outline" onClick={() => handleSplitClip(clip.id)}>
-                              <SplitSquareVertical className="w-4 h-4" />
-                              Split
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => handleTrimClip(clip.id)}>
-                              <RefreshCw className="w-4 h-4" />
-                              Regenerate
-                            </Button>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                            <Input
-                              value={captionText}
-                              onChange={(e) => setCaptionText(e.target.value)}
-                              placeholder="Caption text"
-                            />
-                            <Select value={captionPosition} onValueChange={setCaptionPosition}>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Caption position" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="top">Top</SelectItem>
-                                <SelectItem value="middle">Middle</SelectItem>
-                                <SelectItem value="bottom">Bottom</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <Input
-                              value={highlightWords}
-                              onChange={(e) => setHighlightWords(e.target.value)}
-                              placeholder="Highlights: word1, word2"
-                            />
-                          </div>
-                          <Button size="sm" variant="outline" onClick={() => handleUpdateCaptions(clip.id)}>
-                            <Subtitles className="w-4 h-4" />
-                            Update Captions
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {selectMode && (
+              <div className="sticky bottom-4 z-10 flex justify-center">
+                <div className="flex items-center gap-3 rounded-full border border-border bg-background px-4 py-2 shadow-lg">
+                  <span className="text-sm text-muted-foreground" aria-live="polite">
+                    {selectedClipIds.length} selected
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={handleMergeClips}
+                    disabled={selectedClipIds.length < 2 || isMerging}
+                  >
+                    {isMerging ? (
+                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <GitMerge className="w-4 h-4" aria-hidden="true" />
+                    )}
+                    {isMerging ? "Merging…" : "Merge selected"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleToggleSelectMode}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1535,7 +1502,7 @@ export default function TaskPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteTask} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction onClick={handleDeleteTask} disabled={isDeleting} className="bg-red-700 hover:bg-red-800">
               {isDeleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1552,16 +1519,42 @@ export default function TaskPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeletingClip}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deletingClipId && handleDeleteClip(deletingClipId)}
-              className="bg-red-600 hover:bg-red-700"
+              disabled={isDeletingClip}
+              className="bg-red-700 hover:bg-red-800"
             >
-              Delete
+              {isDeletingClip ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+
+      {/* Delete Font Confirmation Dialog */}
+      <AlertDialog
+        open={!!fontPendingDelete}
+        onOpenChange={(open) => !open && setFontPendingDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete font</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete {fontPendingDelete?.display_name}? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingFontName}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => fontPendingDelete && handleDeleteFont(fontPendingDelete)}
+              disabled={!!deletingFontName}
+              className="bg-red-700 hover:bg-red-800"
+            >
+              {deletingFontName ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </AppShell>
   );
 }

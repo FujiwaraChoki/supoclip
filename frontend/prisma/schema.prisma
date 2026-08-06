@@ -17,90 +17,372 @@ datasource db {
 
 // Better Auth User model with backend compatibility
 model User {
-  id            String    @id @default(uuid())
+  id            String   @id @default(uuid())
   name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
+  email         String   @unique
+  emailVerified Boolean  @default(false)
   image         String?
-  createdAt     DateTime  @default(now()) @db.Timestamptz
-  updatedAt     DateTime  @updatedAt @db.Timestamptz
+  createdAt     DateTime @default(now()) @db.Timestamptz
+  updatedAt     DateTime @updatedAt @db.Timestamptz
 
   // Additional fields for backend compatibility
-  first_name    String?   @db.VarChar(100)
-  last_name     String?   @db.VarChar(100)
-  password_hash String?   @db.VarChar(255)
+  first_name    String? @db.VarChar(100)
+  last_name     String? @db.VarChar(100)
+  password_hash String? @db.VarChar(255)
 
   // Default font preferences
-  default_font_family String?   @default("TikTokSans-Regular") @db.VarChar(100)
-  default_font_size   Int?      @default(24)
-  default_font_color  String?   @default("#FFFFFF") @db.VarChar(7)
-  notify_on_completion Boolean  @default(true)
+  default_font_family  String? @default("TikTokSans-Regular") @db.VarChar(100)
+  default_font_size    Int?    @default(24)
+  default_font_color   String? @default("#FFFFFF") @db.VarChar(7)
+  notify_on_completion Boolean @default(true)
 
   // Monetization and billing
-  plan                 String    @default("free") @db.VarChar(20)
-  subscription_status  String    @default("inactive") @db.VarChar(20)
-  subscription_provider String?   @db.VarChar(20)
-  is_admin             Boolean   @default(false)
-  stripe_customer_id   String?   @unique @db.VarChar(255)
-  stripe_subscription_id String? @unique @db.VarChar(255)
-  billing_period_start DateTime? @db.Timestamptz
-  billing_period_end   DateTime? @db.Timestamptz
-  trial_ends_at        DateTime? @db.Timestamptz
+  plan                   String    @default("free") @db.VarChar(20)
+  subscription_status    String    @default("inactive") @db.VarChar(20)
+  subscription_provider  String?   @db.VarChar(20)
+  is_admin               Boolean   @default(false)
+  stripe_customer_id     String?   @unique @db.VarChar(255)
+  stripe_subscription_id String?   @unique @db.VarChar(255)
+  billing_period_start   DateTime? @db.Timestamptz
+  billing_period_end     DateTime? @db.Timestamptz
+  trial_ends_at          DateTime? @db.Timestamptz
 
   // Relationships
-  tasks         Task[]
-  sessions      Session[]
-  accounts      Account[]
-  app_settings  AppSetting[]
+  tasks        Task[]
+  sessions     Session[]
+  accounts     Account[]
+  app_settings AppSetting[]
 
   @@map("users")
 }
 
 model AppSetting {
-  setting_key     String   @id @db.VarChar(100)
-  encrypted_value String
-  prefer_admin_value Boolean @default(false)
-  updated_by      String?  @db.VarChar(36)
-  created_at      DateTime @default(now()) @db.Timestamptz
-  updated_at      DateTime @default(now()) @updatedAt @db.Timestamptz
+  setting_key        String   @id @db.VarChar(100)
+  encrypted_value    String
+  prefer_admin_value Boolean  @default(false)
+  updated_by         String?  @db.VarChar(36)
+  created_at         DateTime @default(now()) @db.Timestamptz
+  updated_at         DateTime @default(now()) @updatedAt @db.Timestamptz
 
-  user            User?    @relation(fields: [updated_by], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [updated_by], references: [id], onDelete: SetNull)
 
   @@index([updated_by])
   @@map("app_settings")
 }
 
 model Task {
-  id                   String    @id @default(uuid())
-  user_id              String
-  source_id            String?
-  generated_clips_ids  String[]
-  status               String    @default("pending") @db.VarChar(20)
-  progress             Int?      @default(0)
-  progress_message     String?
+  id                              String    @id @default(uuid())
+  user_id                         String
+  source_id                       String?
+  generated_clips_ids             String[]
+  status                          String    @default("pending") @db.VarChar(20)
+  progress                        Int?      @default(0)
+  progress_message                String?
   completion_notification_sent_at DateTime? @db.Timestamptz
-  share_token          String?   @unique @db.VarChar(64)
-  share_enabled        Boolean   @default(false)
+  share_token                     String?   @unique @db.VarChar(64)
+  share_enabled                   Boolean   @default(false)
 
   // Font customization fields
-  font_family          String?   @default("TikTokSans-Regular") @db.VarChar(100)
-  font_size            Int?      @default(24)
-  font_color           String?   @default("#FFFFFF") @db.VarChar(7)
-  caption_template     String?   @default("default") @db.VarChar(50)
-  include_broll        Boolean?  @default(false)
+  font_family                 String?  @default("TikTokSans-Regular") @db.VarChar(100)
+  font_size                   Int?     @default(24)
+  font_color                  String?  @default("#FFFFFF") @db.VarChar(7)
+  caption_template            String?  @default("default") @db.VarChar(50)
+  include_broll               Boolean? @default(false)
+  workspace_id                String?  @db.VarChar(36)
+  brand_kit_id                String?  @db.VarChar(36)
+  generation_preferences_json String?
+  target_language             String?  @db.VarChar(32)
+  analysis_mode               String   @default("transcript") @db.VarChar(24)
 
-  created_at           DateTime  @default(now()) @db.Timestamptz
-  updated_at           DateTime  @default(now()) @updatedAt @db.Timestamptz
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
 
   // Relationships
-  user                 User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  source               Source?   @relation(fields: [source_id], references: [id], onDelete: SetNull)
+  user           User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  source         Source?        @relation(fields: [source_id], references: [id], onDelete: SetNull)
+  editor_project EditorProject?
+  editor_assets  EditorAsset[]
 
   @@index([user_id])
   @@index([source_id])
   @@index([created_at])
   @@index([status])
   @@map("tasks")
+}
+
+model EditorProject {
+  task_id    String   @id @db.VarChar(36)
+  project    Json     @default("{}") @db.JsonB
+  version    Int      @default(1)
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  task Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
+
+  @@map("editor_projects")
+}
+
+model EditorAsset {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  task_id    String   @db.VarChar(36)
+  name       String   @db.VarChar(255)
+  kind       String   @db.VarChar(16)
+  mime_type  String   @db.VarChar(160)
+  size_bytes BigInt
+  file_path  String
+  duration   Float?
+  width      Int?
+  height     Int?
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  task Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
+
+  @@index([task_id])
+  @@map("editor_assets")
+}
+
+model Workspace {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  owner_id   String   @db.VarChar(36)
+  name       String   @db.VarChar(160)
+  slug       String   @unique @db.VarChar(180)
+  logo_url   String?
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([owner_id])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id           String    @id @default(uuid()) @db.VarChar(36)
+  workspace_id String    @db.VarChar(36)
+  user_id      String?   @db.VarChar(36)
+  email        String    @db.VarChar(255)
+  role         String    @default("member") @db.VarChar(24)
+  status       String    @default("invited") @db.VarChar(24)
+  invite_token String?   @unique @db.VarChar(64)
+  invited_by   String?   @db.VarChar(36)
+  joined_at    DateTime? @db.Timestamptz
+  created_at   DateTime  @default(now()) @db.Timestamptz
+  updated_at   DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([workspace_id, email])
+  @@index([user_id])
+  @@map("workspace_members")
+}
+
+model BrandKit {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  workspace_id  String?  @db.VarChar(36)
+  user_id       String   @db.VarChar(36)
+  name          String   @db.VarChar(160)
+  is_default    Boolean  @default(false)
+  settings_json String   @default("{}")
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([user_id])
+  @@map("brand_kits")
+}
+
+model MediaAsset {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  workspace_id  String?  @db.VarChar(36)
+  user_id       String   @db.VarChar(36)
+  brand_kit_id  String?  @db.VarChar(36)
+  asset_type    String   @db.VarChar(32)
+  name          String   @db.VarChar(255)
+  file_path     String
+  mime_type     String?  @db.VarChar(160)
+  size_bytes    BigInt   @default(0)
+  metadata_json String   @default("{}")
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([user_id])
+  @@map("media_assets")
+}
+
+model SocialAccount {
+  id                      String    @id @default(uuid()) @db.VarChar(36)
+  workspace_id            String?   @db.VarChar(36)
+  user_id                 String    @db.VarChar(36)
+  platform                String    @db.VarChar(32)
+  external_account_id     String    @db.VarChar(255)
+  display_name            String    @db.VarChar(255)
+  access_token_encrypted  String
+  refresh_token_encrypted String?
+  token_expires_at        DateTime? @db.Timestamptz
+  scopes                  String?
+  status                  String    @default("active") @db.VarChar(24)
+  metadata_json           String    @default("{}")
+  created_at              DateTime  @default(now()) @db.Timestamptz
+  updated_at              DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([workspace_id, platform, external_account_id])
+  @@index([user_id])
+  @@map("social_accounts")
+}
+
+model SocialPost {
+  id                String    @id @default(uuid()) @db.VarChar(36)
+  workspace_id      String?   @db.VarChar(36)
+  user_id           String    @db.VarChar(36)
+  task_id           String?   @db.VarChar(36)
+  clip_id           String?   @db.VarChar(36)
+  social_account_id String    @db.VarChar(36)
+  platform          String    @db.VarChar(32)
+  title             String?
+  description       String?
+  hashtags          String?
+  thumbnail_path    String?
+  scheduled_for     DateTime? @db.Timestamptz
+  published_at      DateTime? @db.Timestamptz
+  status            String    @default("draft") @db.VarChar(24)
+  external_post_id  String?   @db.VarChar(255)
+  attempt_count     Int       @default(0)
+  last_error        String?
+  metadata_json     String    @default("{}")
+  created_at        DateTime  @default(now()) @db.Timestamptz
+  updated_at        DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([status, scheduled_for])
+  @@index([user_id])
+  @@map("social_posts")
+}
+
+model SourceSubscription {
+  id                 String    @id @default(uuid()) @db.VarChar(36)
+  workspace_id       String?   @db.VarChar(36)
+  user_id            String    @db.VarChar(36)
+  provider           String    @db.VarChar(32)
+  external_source_id String    @db.VarChar(255)
+  source_url         String
+  display_name       String    @db.VarChar(255)
+  enabled            Boolean   @default(true)
+  last_seen_item_id  String?   @db.VarChar(255)
+  last_checked_at    DateTime? @db.Timestamptz
+  settings_json      String    @default("{}")
+  created_at         DateTime  @default(now()) @db.Timestamptz
+  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@unique([user_id, provider, external_source_id])
+  @@index([enabled, last_checked_at])
+  @@map("source_subscriptions")
+}
+
+model ClipCollection {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  workspace_id String?  @db.VarChar(36)
+  user_id      String   @db.VarChar(36)
+  name         String   @db.VarChar(160)
+  description  String?
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([user_id])
+  @@map("collections")
+}
+
+model CollectionClip {
+  collection_id String   @db.VarChar(36)
+  clip_id       String   @db.VarChar(36)
+  added_by      String?  @db.VarChar(36)
+  created_at    DateTime @default(now()) @db.Timestamptz
+
+  @@id([collection_id, clip_id])
+  @@map("collection_clips")
+}
+
+model ClipVariant {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  clip_id         String   @db.VarChar(36)
+  user_id         String   @db.VarChar(36)
+  variant_type    String   @db.VarChar(32)
+  language        String?  @db.VarChar(32)
+  voice           String?  @db.VarChar(120)
+  status          String   @default("queued") @db.VarChar(24)
+  file_path       String?
+  transcript_text String?
+  metadata_json   String   @default("{}")
+  error           String?
+  created_at      DateTime @default(now()) @db.Timestamptz
+  updated_at      DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([clip_id])
+  @@map("clip_variants")
+}
+
+model ClipBrollItem {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  clip_id       String   @db.VarChar(36)
+  user_id       String   @db.VarChar(36)
+  asset_id      String?  @db.VarChar(36)
+  provider      String   @default("pexels") @db.VarChar(32)
+  media_type    String   @default("stock_video") @db.VarChar(24)
+  prompt        String?
+  source_url    String?
+  file_path     String?
+  start_seconds Float    @default(0)
+  end_seconds   Float    @default(0)
+  crop_json     String   @default("{}")
+  sort_order    Int      @default(0)
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([clip_id])
+  @@map("clip_broll_items")
+}
+
+model ExportJob {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  workspace_id  String?  @db.VarChar(36)
+  user_id       String   @db.VarChar(36)
+  task_id       String?  @db.VarChar(36)
+  collection_id String?  @db.VarChar(36)
+  export_type   String   @db.VarChar(32)
+  status        String   @default("queued") @db.VarChar(24)
+  file_path     String?
+  settings_json String   @default("{}")
+  error         String?
+  created_at    DateTime @default(now()) @db.Timestamptz
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([user_id])
+  @@map("export_jobs")
+}
+
+model WebhookEndpoint {
+  id               String   @id @default(uuid()) @db.VarChar(36)
+  workspace_id     String?  @db.VarChar(36)
+  user_id          String   @db.VarChar(36)
+  url              String
+  secret_encrypted String
+  events           String
+  enabled          Boolean  @default(true)
+  created_at       DateTime @default(now()) @db.Timestamptz
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([user_id])
+  @@map("webhook_endpoints")
+}
+
+model WebhookDelivery {
+  id              String    @id @default(uuid()) @db.VarChar(36)
+  endpoint_id     String    @db.VarChar(36)
+  event_type      String    @db.VarChar(80)
+  payload_json    String
+  status          String    @default("queued") @db.VarChar(24)
+  response_status Int?
+  attempt_count   Int       @default(0)
+  next_attempt_at DateTime? @db.Timestamptz
+  last_error      String?
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  updated_at      DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  @@index([status, next_attempt_at])
+  @@map("webhook_deliveries")
 }
 
 model Source {
@@ -112,7 +394,7 @@ model Source {
   updated_at DateTime @default(now()) @updatedAt @db.Timestamptz
 
   // Relationships
-  tasks      Task[]
+  tasks Task[]
 
   @@index([created_at])
   @@map("sources")

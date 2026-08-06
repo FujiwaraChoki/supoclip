@@ -71,6 +71,26 @@ def test_build_transcript_analysis_prompt_mentions_broll_only_when_enabled():
     assert "B-roll opportunities" in with_broll
 
 
+def test_build_transcript_analysis_prompt_applies_clip_brief():
+    prompt = build_transcript_analysis_prompt(
+        transcript="[01:00 - 01:30] A surprising pricing lesson",
+        generation_preferences={
+            "prompt": "Find pricing mistakes",
+            "keywords": ["pricing"],
+            "clip_count": 2,
+            "clip_min_seconds": 20,
+            "clip_max_seconds": 45,
+            "timeframe_start": "01:00",
+            "timeframe_end": "05:00",
+        },
+    )
+
+    assert "Choose up to 2 segments total" in prompt
+    assert "20-45 seconds" in prompt
+    assert "Find pricing mistakes" in prompt
+    assert "Prioritize these topics: pricing" in prompt
+
+
 def test_ollama_llm_builds_native_ollama_model():
     runtime_config = SimpleNamespace(
         llm="ollama:gpt-oss:20b",

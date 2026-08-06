@@ -120,8 +120,6 @@
   }
   body {
     @apply bg-background text-foreground font-sans;
-    -webkit-user-select: none;
-    user-select: none;
   }
 }
 

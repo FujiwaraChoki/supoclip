@@ -1,7 +1,9 @@
 import crypto from "crypto";
 
 export function getBackendAuthSecret(): string | null {
-  const secret = process.env.BACKEND_AUTH_SECRET?.trim();
+  const secret = (
+    process.env.BACKEND_AUTH_SECRET || process.env.BETTER_AUTH_SECRET
+  )?.trim();
   return secret || null;
 }
 

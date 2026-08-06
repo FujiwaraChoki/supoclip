@@ -30,6 +30,7 @@ export async function fetchBackend(
   init: RequestInit & {
     userId?: string;
     extraHeaders?: HeadersInit;
+    duplex?: "half";
   } = {},
 ) {
   const { userId, extraHeaders, headers, ...rest } = init;

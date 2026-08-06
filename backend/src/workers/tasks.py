@@ -5,6 +5,7 @@ Worker tasks - background jobs processed by arq workers.
 import logging
 from typing import Dict, Any, Optional
 import json
+from arq import cron
 
 from ..observability import configure_logging, set_trace_id
 
@@ -27,6 +28,7 @@ async def process_video_task(
     output_format: str = "vertical",
     add_subtitles: bool = True,
     cleanup_settings: Dict[str, Any] | None = None,
+    generation_preferences: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """
     Background worker task to process a video.
@@ -92,7 +94,19 @@ async def process_video_task(
                 should_cancel=should_cancel,
                 clip_ready_callback=clip_ready_callback,
                 cleanup_settings=cleanup_settings,
+                generation_preferences=generation_preferences,
             )
+
+            from ..services.webhook_service import emit_webhook_event
+            try:
+                await emit_webhook_event(
+                    db,
+                    user_id=user_id,
+                    event_type="task.completed",
+                    payload={"task_id": task_id, "result": result},
+                )
+            except Exception:
+                logger.exception("Unable to emit task.completed webhooks for %s", task_id)
 
             logger.info(f"Task {task_id} completed successfully")
             return result
@@ -118,6 +132,59 @@ async def process_video_task(
             # Error will be caught by arq and task status will be updated
             raise
 
+
+async def poll_sources_task(
+    ctx: Dict[str, Any], user_id: str | None = None
+) -> Dict[str, Any]:
+    from ..database import AsyncSessionLocal
+    from ..services.source_import_service import poll_source_subscriptions
+
+    async with AsyncSessionLocal() as db:
+        return await poll_source_subscriptions(db, ctx["redis"], user_id)
+
+
+async def publish_scheduled_posts_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    from sqlalchemy import text
+    from ..api.routes.social import publish_social_post, reconcile_tiktok_posts
+    from ..database import AsyncSessionLocal
+
+    published, processing, failed = [], [], []
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            text(
+                """
+                SELECT id FROM social_posts
+                WHERE (status = 'scheduled' AND scheduled_for <= NOW())
+                   OR (status = 'failed' AND attempt_count < 3
+                       AND updated_at < NOW() - INTERVAL '5 minutes')
+                ORDER BY COALESCE(scheduled_for, updated_at) LIMIT 20
+                FOR UPDATE SKIP LOCKED
+                """
+            )
+        )
+        ids = [str(row.id) for row in result]
+        for post_id in ids:
+            try:
+                outcome = await publish_social_post(db, post_id)
+                (processing if outcome["status"] == "publishing" else published).append(outcome)
+            except Exception as exc:
+                failed.append({"id": post_id, "error": str(exc)})
+        reconciliation = await reconcile_tiktok_posts(db)
+    return {
+        "published": published,
+        "processing": processing,
+        "failed": failed,
+        "reconciliation": reconciliation,
+    }
+
+
+async def retry_webhooks_task(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    from ..database import AsyncSessionLocal
+    from ..services.webhook_service import retry_webhook_deliveries
+
+    async with AsyncSessionLocal() as db:
+        return await retry_webhook_deliveries(db)
+
 # Worker configuration for arq
 class WorkerSettings:
     """Configuration for arq worker."""
@@ -128,7 +195,7 @@ class WorkerSettings:
     config = Config()
 
     # Functions to run
-    functions = [process_video_task]
+    functions = [process_video_task, poll_sources_task, publish_scheduled_posts_task, retry_webhooks_task]
     queue_name = "supoclip_tasks"
 
     # Redis settings from environment
@@ -142,4 +209,8 @@ class WorkerSettings:
 
     # Worker pool settings
     max_jobs = 4  # Process up to 4 jobs simultaneously
-    cron_jobs = []
+    cron_jobs = [
+        cron(poll_sources_task, minute={0, 10, 20, 30, 40, 50}),
+        cron(publish_scheduled_posts_task, minute=set(range(60))),
+        cron(retry_webhooks_task, minute={2, 7, 12, 17, 22, 27, 32, 37, 42, 47, 52, 57}),
+    ]

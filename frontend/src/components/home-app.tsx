@@ -1,25 +1,27 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { signOut, useSession } from "@/lib/auth-client";
-import { formatBillingPlanName, isPaidBillingPlan } from "@/lib/billing-plans";
+import { useSession } from "@/lib/auth-client";
+import { isPaidBillingPlan } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
+import { cn } from "@/lib/utils";
+import { ClipPhonePreview, type FontOption } from "@/components/clip-phone-preview";
+import { CollapsibleSection } from "@/components/collapsible-section";
+import { AppShell } from "@/components/app-shell";
 import Link from "next/link";
-import Image from "next/image";
-import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor, Menu, X, LogOut, List, Shield, Settings } from "lucide-react";
+import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Film, Upload, Link2, Smartphone, User, Columns2, Monitor } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 interface LatestTask {
   id: string;
@@ -42,11 +44,7 @@ interface BillingSummary {
   reason: string | null;
 }
 
-interface FontOption {
-  name: string;
-  display_name: string;
-  format?: string;
-}
+type SourceType = "youtube" | "external" | "upload";
 
 type OutputFormat = "vertical" | "vertical_pan" | "vertical_split" | "original";
 
@@ -54,6 +52,31 @@ const MAX_VIDEO_UPLOAD_BYTES = 1_000_000_000;
 
 // Only surface the font search box once the list is long enough to need it.
 const FONT_SEARCH_THRESHOLD = 8;
+
+// Mirrors backend/src/generation_preferences.py, which clamps rather than rejects —
+// validating here keeps the user's numbers from being silently rewritten.
+const MIN_CLIP_COUNT = 1;
+const MAX_CLIP_COUNT = 10;
+const MIN_CLIP_SECONDS = 15;
+const MAX_CLIP_SECONDS = 60;
+
+// Plain seconds, MM:SS or HH:MM:SS — the three shapes the backend parser accepts.
+const TIMEFRAME_PATTERN = /^(\d+|\d{1,3}:[0-5]\d|\d{1,3}:[0-5]\d:[0-5]\d)$/;
+
+const SOURCE_TABS: Array<{ id: SourceType; label: string; icon: typeof Youtube }> = [
+  { id: "youtube", label: "YouTube URL", icon: Youtube },
+  { id: "external", label: "Other source", icon: Link2 },
+  { id: "upload", label: "Upload Video", icon: Upload },
+];
+
+const COLOR_SWATCHES: Array<{ value: string; label: string }> = [
+  { value: "#FFFFFF", label: "White" },
+  { value: "#000000", label: "Black" },
+  { value: "#FFD700", label: "Gold" },
+  { value: "#FF6B6B", label: "Coral red" },
+  { value: "#4ECDC4", label: "Turquoise" },
+  { value: "#45B7D1", label: "Sky blue" },
+];
 
 type DirectUploadAuthorization = {
   directUpload: true;
@@ -103,6 +126,14 @@ const extractYouTubeVideoId = (value: string): string | null => {
 const getYouTubeThumbnailUrl = (value: string): string | null => {
   const videoId = extractYouTubeVideoId(value);
   return videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null;
+};
+
+const isVideoFile = (file: File): boolean =>
+  file.type.startsWith("video/") || /\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(file.name);
+
+const isValidTimeframe = (value: string): boolean => {
+  const trimmed = value.trim();
+  return !trimmed || TIMEFRAME_PATTERN.test(trimmed);
 };
 
 async function requestUploadAuthorization(): Promise<UploadAuthorization> {
@@ -184,26 +215,162 @@ async function uploadVideoFileViaProxy(file: File): Promise<string> {
   return uploadResult.video_path;
 }
 
+const CLIP_COUNT_OPTIONS = [3, 4, 5, 7, 10];
+
+// Beyond this many templates the caption chips scroll sideways inside their own
+// container rather than growing the card.
+const CAPTION_CHIP_SCROLL_THRESHOLD = 8;
+
+const FRAMING_OPTIONS: Array<{ value: OutputFormat; label: string; icon: typeof Monitor }> = [
+  { value: "vertical", label: "Auto 9:16", icon: Smartphone },
+  { value: "vertical_pan", label: "Speaker pan", icon: User },
+  { value: "vertical_split", label: "Split-screen", icon: Columns2 },
+  { value: "original", label: "Original", icon: Monitor },
+];
+
+// Presets write straight into the min/max state the payload already reads.
+const CLIP_LENGTH_PRESETS: Array<{ id: string; label: string; min: string; max: string }> = [
+  { id: "auto", label: "Auto", min: "15", max: "60" },
+  { id: "under-30", label: "Under 30s", min: "15", max: "30" },
+  { id: "30-45", label: "30\u201345s", min: "30", max: "45" },
+  { id: "45-60", label: "45\u201360s", min: "45", max: "60" },
+];
+
+function chipClassName(selected: boolean, emphasis: "solid" | "outline" = "solid") {
+  return cn(
+    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-900 focus-visible:ring-offset-2",
+    "disabled:cursor-not-allowed disabled:opacity-50",
+    selected && emphasis === "solid" && "border-stone-900 bg-stone-900 text-white",
+    // Outline keeps a light background so a template's own colors stay readable.
+    selected && emphasis === "outline" && "border-stone-900 bg-stone-50 text-stone-900 ring-2 ring-stone-900 ring-offset-1",
+    !selected && "border-stone-300 bg-background text-stone-600 hover:bg-stone-50",
+  );
+}
+
+function SettingsGroup({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="min-w-0 space-y-1.5">
+      <div className="space-y-0.5">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-900">{title}</h3>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <div className="min-w-0 rounded-lg border divide-y">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * One setting per row. Compact controls (a switch, a short segmented group) sit
+ * to the right of the label; anything text-flexible passes `stacked` and drops
+ * to a full-width line underneath, which is what keeps rows from forcing the
+ * card wider than its container.
+ * Pass `htmlFor` when a single control owns the label, `labelId` when the row
+ * holds a group of controls that reference it with aria-labelledby.
+ */
+function SettingsRow({
+  label,
+  description,
+  htmlFor,
+  labelId,
+  stacked = false,
+  children,
+}: {
+  label: string;
+  description?: string;
+  htmlFor?: string;
+  labelId?: string;
+  stacked?: boolean;
+  children: ReactNode;
+}) {
+  const labelNode = htmlFor ? (
+    <label htmlFor={htmlFor} className="text-sm font-medium text-stone-900">
+      {label}
+    </label>
+  ) : (
+    <span id={labelId} className="block text-sm font-medium text-stone-900">
+      {label}
+    </span>
+  );
+
+  const heading = (
+    <div className="min-w-0">
+      {labelNode}
+      {description && <p className="text-xs text-muted-foreground">{description}</p>}
+    </div>
+  );
+
+  if (stacked) {
+    return (
+      <div className="min-w-0 space-y-2 px-3 py-2.5">
+        {heading}
+        <div className="min-w-0">{children}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2.5">
+      {heading}
+      <div className="flex min-w-0 flex-wrap items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
+function SegmentedOption({
+  selected,
+  onSelect,
+  disabled,
+  icon,
+  children,
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  disabled?: boolean;
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      disabled={disabled}
+      aria-pressed={selected}
+      className={chipClassName(selected)}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
 export default function HomeApp() {
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [statusMessage, setStatusMessage] = useState("");
-  const [currentStep, setCurrentStep] = useState("");
-  const [sourceType, setSourceType] = useState<"youtube" | "upload">("youtube");
+  const [sourceType, setSourceType] = useState<SourceType>("youtube");
   const [fileName, setFileName] = useState<string | null>(null);
+  const [isDragActive, setIsDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sourceTitle, setSourceTitle] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { data: session, isPending } = useSession();
-  const isAdmin = Boolean((session?.user as { is_admin?: boolean } | undefined)?.is_admin);
 
   // Font customization states — null means "use the caption template's own value"
   const [fontFamily, setFontFamily] = useState<string | null>(null);
   const [fontSize, setFontSize] = useState<number | null>(null);
   const [fontColor, setFontColor] = useState<string | null>(null);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
-  const [showCustomizeCaptions, setShowCustomizeCaptions] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  // Presentation only: forces the custom min/max inputs open even when the
+  // current values happen to match a preset.
+  const [useCustomClipLength, setUseCustomClipLength] = useState(false);
   const [fontSearch, setFontSearch] = useState("");
   const [fontLoadError, setFontLoadError] = useState<string | null>(null);
   const [isUploadingFont, setIsUploadingFont] = useState(false);
@@ -218,12 +385,23 @@ export default function HomeApp() {
   const [pauseThresholdMs, setPauseThresholdMs] = useState("900");
   const [removeFillerWords, setRemoveFillerWords] = useState(false);
   const [filteredWords, setFilteredWords] = useState("");
+  const [clipBrief, setClipBrief] = useState("");
+  const [clipKeywords, setClipKeywords] = useState("");
+  const [clipCount, setClipCount] = useState("4");
+  const [clipMinSeconds, setClipMinSeconds] = useState("25");
+  const [clipMaxSeconds, setClipMaxSeconds] = useState("50");
+  const [timeframeStart, setTimeframeStart] = useState("");
+  const [timeframeEnd, setTimeframeEnd] = useState("");
+  const [analysisMode, setAnalysisMode] = useState<"transcript" | "multimodal">("transcript");
+  const [workspaceId, setWorkspaceId] = useState("personal");
+  const [brandKitId, setBrandKitId] = useState("none");
+  const [workspaces, setWorkspaces] = useState<Array<{ id: string; name: string }>>([]);
+  const [brandKits, setBrandKits] = useState<Array<{ id: string; name: string; is_default: boolean }>>([]);
 
   // Latest task state
   const [latestTask, setLatestTask] = useState<LatestTask | null>(null);
   const [isLoadingLatest, setIsLoadingLatest] = useState(false);
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   const taskApiUrl = "/api/tasks";
   const youtubeThumbnailUrl = sourceType === "youtube" ? getYouTubeThumbnailUrl(url) : null;
@@ -273,6 +451,20 @@ export default function HomeApp() {
   useEffect(() => {
     void refreshFonts();
   }, [refreshFonts]);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    Promise.all([
+      fetch("/api/workflows/workspaces", { cache: "no-store" }).then((response) => response.ok ? response.json() : { workspaces: [] }),
+      fetch("/api/workflows/brand-kits", { cache: "no-store" }).then((response) => response.ok ? response.json() : { brand_kits: [] }),
+    ]).then(([workspaceData, kitData]) => {
+      setWorkspaces(workspaceData.workspaces || []);
+      const kits = kitData.brand_kits || [];
+      setBrandKits(kits);
+      const defaultKit = kits.find((kit: { is_default: boolean }) => kit.is_default);
+      if (defaultKit) setBrandKitId(defaultKit.id);
+    }).catch(() => undefined);
+  }, [session?.user?.id]);
 
   // Load caption templates
   useEffect(() => {
@@ -344,10 +536,49 @@ export default function HomeApp() {
   // Always treat file input as uncontrolled, and store file in a ref
   const fileRef = useRef<File | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
+  const clearSelectedFile = () => {
+    fileRef.current = null;
+    setFileName(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // Shared by the file picker and the dropzone so both validate identically.
+  const acceptSelectedFile = (file: File | null) => {
+    if (!file) {
+      clearSelectedFile();
+      return;
+    }
+
+    // A rejected file must also drop whatever was selected before it, or the
+    // form stays submittable and would upload the stale file.
+    if (!isVideoFile(file)) {
+      clearSelectedFile();
+      setError("That file isn't a video. Please choose an MP4, MOV, or AVI file.");
+      return;
+    }
+
+    if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
+      clearSelectedFile();
+      setError("Uploaded file is too large. Please upload a video under 1 GB.");
+      return;
+    }
+
+    setError(null);
     fileRef.current = file;
-    setFileName(file ? file.name : null);
+    setFileName(file.name);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    acceptSelectedFile(e.target.files?.[0] || null);
+  };
+
+  const handleSourceTypeChange = (nextSourceType: SourceType) => {
+    setSourceType(nextSourceType);
+    if (nextSourceType !== "upload") {
+      clearSelectedFile();
+    }
   };
 
   const handleTemplateChange = (templateId: string) => {
@@ -426,45 +657,77 @@ export default function HomeApp() {
     billingSummary?.reason || "Choose a paid plan to process videos.";
   const generationControlsDisabled = isLoading || generationRequiresUpgrade;
 
-  const handleSignOut = async () => {
-    await signOut();
-    window.location.href = "/sign-in";
+  const handleDragOver = (event: React.DragEvent<HTMLElement>) => {
+    if (generationControlsDisabled) return;
+    event.preventDefault();
+    setIsDragActive(true);
   };
 
-  const getStepIcon = (step: string) => {
-    const iconMap: Record<string, React.ReactElement> = {
-      validation: <Loader2 className="w-4 h-4 animate-spin text-blue-500" />,
-      user_check: <Loader2 className="w-4 h-4 animate-spin text-blue-500" />,
-      source_analysis: <Loader2 className="w-4 h-4 animate-spin text-blue-500" />,
-      youtube_info: <Youtube className="w-4 h-4 text-red-500" />,
-      database_save: <Loader2 className="w-4 h-4 animate-spin text-blue-500" />,
-      download: <Loader2 className="w-4 h-4 animate-spin text-green-500" />,
-      transcript: <Loader2 className="w-4 h-4 animate-spin text-purple-500" />,
-      ai_analysis: <Loader2 className="w-4 h-4 animate-spin text-orange-500" />,
-      clip_generation: <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />,
-      save_clips: <Loader2 className="w-4 h-4 animate-spin text-pink-500" />,
-      complete: <CheckCircle className="w-4 h-4 text-green-500" />,
-    };
-    return iconMap[step] || <Loader2 className="w-4 h-4 animate-spin text-gray-500" />;
+  const handleDragLeave = (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    setIsDragActive(false);
   };
+
+  const handleDrop = (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    setIsDragActive(false);
+    if (generationControlsDisabled) return;
+    acceptSelectedFile(event.dataTransfer.files?.[0] || null);
+  };
+
+  // Inline validation for the advanced numbers — the backend clamps silently,
+  // so anything out of range would otherwise be rewritten without telling anyone.
+  const parsedClipCount = Number(clipCount);
+  const parsedClipMinSeconds = Number(clipMinSeconds);
+  const parsedClipMaxSeconds = Number(clipMaxSeconds);
+
+  const clipCountError =
+    !Number.isInteger(parsedClipCount) || parsedClipCount < MIN_CLIP_COUNT || parsedClipCount > MAX_CLIP_COUNT
+      ? `Pick between ${MIN_CLIP_COUNT} and ${MAX_CLIP_COUNT} clips.`
+      : null;
+  const clipMinSecondsError =
+    !Number.isFinite(parsedClipMinSeconds) || parsedClipMinSeconds < MIN_CLIP_SECONDS || parsedClipMinSeconds > MAX_CLIP_SECONDS
+      ? `Must be ${MIN_CLIP_SECONDS}–${MAX_CLIP_SECONDS} seconds.`
+      : null;
+  const clipMaxSecondsError =
+    !Number.isFinite(parsedClipMaxSeconds) || parsedClipMaxSeconds < MIN_CLIP_SECONDS || parsedClipMaxSeconds > MAX_CLIP_SECONDS
+      ? `Must be ${MIN_CLIP_SECONDS}–${MAX_CLIP_SECONDS} seconds.`
+      : !clipMinSecondsError && parsedClipMaxSeconds < parsedClipMinSeconds
+        ? "Must be at least the minimum length."
+        : null;
+  const timeframeStartError = isValidTimeframe(timeframeStart) ? null : "Use MM:SS or HH:MM:SS.";
+  const timeframeEndError = isValidTimeframe(timeframeEnd) ? null : "Use MM:SS or HH:MM:SS.";
+
+  const hasAdvancedErrors = Boolean(
+    clipCountError || clipMinSecondsError || clipMaxSecondsError || timeframeStartError || timeframeEndError,
+  );
+
+  const activeClipLengthPreset = CLIP_LENGTH_PRESETS.find(
+    (preset) => preset.min === clipMinSeconds.trim() && preset.max === clipMaxSeconds.trim(),
+  );
+  // No matching preset means the user is already on custom values.
+  const clipLengthIsCustom = useCustomClipLength || !activeClipLengthPreset;
+
+  const hasSource = sourceType === "upload" ? Boolean(fileName) : Boolean(url.trim());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (sourceType === "upload" && !fileRef.current) return;
-    if (sourceType === "youtube" && !url.trim()) return;
+    if (sourceType !== "upload" && !url.trim()) return;
     if (!session?.user?.id) return;
     if (generationRequiresUpgrade) {
       setError(generationGateMessage);
       return;
     }
+    if (hasAdvancedErrors) {
+      setShowAdvanced(true);
+      setError("Some advanced settings are out of range. Fix the highlighted fields and try again.");
+      return;
+    }
 
     setIsLoading(true);
-    setProgress(0);
     setError(null);
-    setStatusMessage("");
-    setCurrentStep("");
-    setSourceTitle(null);
 
     const fontOptions = buildFontOptionsPayload(fontFamily, fontSize, fontColor);
 
@@ -477,11 +740,22 @@ export default function HomeApp() {
         .split(",")
         .map((word) => word.trim().toLowerCase())
         .filter(Boolean);
+      const generationPreferences = {
+        prompt: clipBrief.trim(),
+        keywords: clipKeywords
+          .split(",")
+          .map((keyword) => keyword.trim())
+          .filter(Boolean),
+        clip_count: Math.max(1, Math.min(10, Number(clipCount) || 4)),
+        clip_min_seconds: Math.max(15, Math.min(60, Number(clipMinSeconds) || 25)),
+        clip_max_seconds: Math.max(15, Math.min(60, Number(clipMaxSeconds) || 50)),
+        timeframe_start: timeframeStart.trim() || null,
+        timeframe_end: timeframeEnd.trim() || null,
+        analysis_mode: analysisMode,
+      };
 
       // If uploading file, upload it first
       if (sourceType === "upload" && fileRef.current) {
-        setStatusMessage("Uploading video file...");
-        setProgress(5);
         videoUrl = await uploadVideoFile(fileRef.current);
       }
 
@@ -505,6 +779,9 @@ export default function HomeApp() {
           pause_threshold_ms: normalizedPauseThreshold,
           remove_filler_words: removeFillerWords,
           filtered_words: normalizedFilteredWords,
+          generation_preferences: generationPreferences,
+          workspace_id: workspaceId === "personal" ? null : workspaceId,
+          brand_kit_id: brandKitId === "none" ? null : brandKitId,
         }),
       });
 
@@ -527,25 +804,22 @@ export default function HomeApp() {
         pause_threshold_ms: normalizedPauseThreshold,
         remove_filler_words: removeFillerWords,
         filtered_words: normalizedFilteredWords,
+        has_clip_brief: Boolean(generationPreferences.prompt),
+        clip_count: generationPreferences.clip_count,
+        clip_duration: `${generationPreferences.clip_min_seconds}-${generationPreferences.clip_max_seconds}`,
         processing_mode: "fast",
       });
+
+      // Only clear the source on success — a failed submit keeps what was typed.
+      setUrl("");
+      clearSelectedFile();
+
       // Redirect immediately to the task page
       window.location.href = `/tasks/${taskIdFromStart}`;
-
     } catch (error) {
       console.error('Error processing video:', error);
       setError(error instanceof Error ? error.message : 'Failed to process video. Please try again.');
-    } finally {
       setIsLoading(false);
-      setProgress(0);
-      setStatusMessage("");
-      setCurrentStep("");
-      setFileName(null);
-      fileRef.current = null;
-      setUrl("");
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     }
   };
 
@@ -562,221 +836,7 @@ export default function HomeApp() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="border-b bg-white relative">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <Image
-                src="/logo.png"
-                alt="SupoClip"
-                width={24}
-                height={24}
-                className="rounded-lg"
-              />
-              <h1 className="text-xl font-bold text-black">SupoClip</h1>
-            </div>
-
-            {/* Desktop nav */}
-            <div className="hidden md:flex items-center gap-2">
-              {billingSummary?.monetization_enabled && (
-                <div className="flex items-center gap-2 mr-1">
-                  <Badge
-                    className={`text-[10px] px-1.5 py-0 h-5 ${
-                      isPaidBillingPlan(billingSummary.plan) && !billingSummary.upgrade_required
-                        ? "bg-stone-900 text-white"
-                        : "bg-amber-100 text-amber-800 border border-amber-200"
-                    }`}
-                  >
-                    {isPaidBillingPlan(billingSummary.plan) && !billingSummary.upgrade_required
-                      ? formatBillingPlanName(billingSummary.plan)
-                      : "Upgrade required"}
-                  </Badge>
-                  {!billingSummary.upgrade_required && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-16 h-1.5 bg-stone-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          billingSummary.usage_limit &&
-                          billingSummary.usage_count / billingSummary.usage_limit > 0.8
-                            ? "bg-red-500"
-                            : "bg-stone-900"
-                        }`}
-                        style={{
-                          width: billingSummary.usage_limit
-                            ? `${Math.min((billingSummary.usage_count / billingSummary.usage_limit) * 100, 100)}%`
-                            : "0%",
-                        }}
-                      />
-                    </div>
-                    <span className="text-[11px] text-stone-500 tabular-nums whitespace-nowrap">
-                      {billingSummary.usage_limit
-                        ? `${billingSummary.usage_count}/${billingSummary.usage_limit}`
-                        : `${billingSummary.usage_count}`}
-                    </span>
-                  </div>
-                  )}
-                </div>
-              )}
-              <Link href="/list">
-                <Button variant="outline" size="sm">
-                  All Generations
-                </Button>
-              </Link>
-              {isAdmin && (
-                <Link href="/admin">
-                  <Button variant="outline" size="sm">
-                    Admin
-                  </Button>
-                </Link>
-              )}
-              <Button variant="outline" size="sm" onClick={handleSignOut}>
-                Sign Out
-              </Button>
-              <Link href="/settings" className="flex items-center gap-3 hover:bg-gray-50 rounded-lg px-3 py-2 transition-colors cursor-pointer">
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src={session.user.image || ""} />
-                  <AvatarFallback className="bg-gray-100 text-black text-sm">
-                    {session.user.name?.charAt(0) || session.user.email?.charAt(0) || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="hidden sm:block">
-                  <p className="text-sm font-medium text-black">{session.user.name}</p>
-                  <p className="text-xs text-gray-500">{session.user.email}</p>
-                </div>
-              </Link>
-            </div>
-
-            {/* Mobile hamburger */}
-            <div className="flex items-center gap-2 md:hidden">
-              {billingSummary?.monetization_enabled && (
-                <Badge
-                  className={`text-[10px] px-1.5 py-0 h-5 ${
-                    isPaidBillingPlan(billingSummary.plan) && !billingSummary.upgrade_required
-                      ? "bg-stone-900 text-white"
-                      : "bg-amber-100 text-amber-800 border border-amber-200"
-                  }`}
-                >
-                  {isPaidBillingPlan(billingSummary.plan) && !billingSummary.upgrade_required
-                    ? formatBillingPlanName(billingSummary.plan)
-                    : "Upgrade required"}
-                </Badge>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2"
-                aria-label="Toggle menu"
-              >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile menu dropdown */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t bg-white absolute left-0 right-0 z-50 shadow-lg">
-            <div className="px-4 py-3 space-y-1">
-              {/* User info */}
-              <Link
-                href="/settings"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-gray-50 transition-colors"
-              >
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src={session.user.image || ""} />
-                  <AvatarFallback className="bg-gray-100 text-black text-sm">
-                    {session.user.name?.charAt(0) || session.user.email?.charAt(0) || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-black truncate">{session.user.name}</p>
-                  <p className="text-xs text-gray-500 truncate">{session.user.email}</p>
-                </div>
-              </Link>
-
-              <Separator />
-
-              {/* Usage bar (mobile) */}
-              {billingSummary?.monetization_enabled && (
-                billingSummary.upgrade_required ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-                  <p className="text-xs font-medium text-amber-900">Choose a paid plan to process videos.</p>
-                </div>
-                ) : (
-                <div className="flex items-center gap-2 px-3 py-2">
-                  <div className="flex-1 h-1.5 bg-stone-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        billingSummary.usage_limit &&
-                        billingSummary.usage_count / billingSummary.usage_limit > 0.8
-                          ? "bg-red-500"
-                          : "bg-stone-900"
-                      }`}
-                      style={{
-                        width: billingSummary.usage_limit
-                          ? `${Math.min((billingSummary.usage_count / billingSummary.usage_limit) * 100, 100)}%`
-                          : "0%",
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs text-stone-500 tabular-nums whitespace-nowrap">
-                    {billingSummary.usage_limit
-                      ? `${billingSummary.usage_count}/${billingSummary.usage_limit}`
-                    : `${billingSummary.usage_count}`}
-                  </span>
-                </div>
-                )
-              )}
-
-              {/* Nav links */}
-              <Link
-                href="/list"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-stone-700 hover:bg-gray-50 transition-colors"
-              >
-                <List className="w-4 h-4 text-stone-400" />
-                All Generations
-              </Link>
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-stone-700 hover:bg-gray-50 transition-colors"
-                >
-                  <Shield className="w-4 h-4 text-stone-400" />
-                  Admin
-                </Link>
-              )}
-              <Link
-                href="/settings"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-stone-700 hover:bg-gray-50 transition-colors"
-              >
-                <Settings className="w-4 h-4 text-stone-400" />
-                Settings
-              </Link>
-
-              <Separator />
-
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  handleSignOut();
-                }}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left"
-              >
-                <LogOut className="w-4 h-4" />
-                Sign Out
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
+    <AppShell billingSummary={billingSummary} className="bg-white">
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-6 py-10">
         {/* Latest Generation Banner */}
@@ -834,13 +894,16 @@ export default function HomeApp() {
 
         {/* Two Column Layout */}
         <div className="flex flex-col lg:flex-row gap-10 items-start">
-          {/* Left Column — Form */}
-          <div className="flex-1 min-w-0">
+          {/* Left Column — Form.
+              w-full matters: items-start makes this a fit-content flex item in the
+              stacked layout, so without it the column sizes to its widest
+              nowrap content (chips) and scrolls the whole page sideways. */}
+          <div className="w-full min-w-0 flex-1 lg:w-auto">
             <div className="mb-8">
-              <h2 className="text-2xl font-bold text-stone-900 mb-2">
+              <h1 className="text-2xl font-bold text-stone-900 mb-2">
                 Create New Clip
-              </h2>
-              <p className="text-stone-500">
+              </h1>
+              <p className="text-muted-foreground">
                 {generationRequiresUpgrade
                   ? "Video processing is available on paid plans."
                   : "Paste a YouTube link or upload a video — AI handles the rest."}
@@ -863,48 +926,44 @@ export default function HomeApp() {
 
               {/* Source Type Tabs */}
               <div className="space-y-3">
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSourceType("youtube");
-                      setFileName(null);
-                      fileRef.current = null;
-                      if (fileInputRef.current) fileInputRef.current.value = "";
-                    }}
-                    disabled={generationControlsDisabled}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      sourceType === "youtube"
-                        ? "bg-stone-900 text-white shadow-sm"
-                        : "bg-stone-100 text-stone-600 hover:bg-stone-200"
-                    }`}
-                  >
-                    <Youtube className="w-4 h-4" />
-                    YouTube URL
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSourceType("upload")}
-                    disabled={generationControlsDisabled}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      sourceType === "upload"
-                        ? "bg-stone-900 text-white shadow-sm"
-                        : "bg-stone-100 text-stone-600 hover:bg-stone-200"
-                    }`}
-                  >
-                    <Upload className="w-4 h-4" />
-                    Upload Video
-                  </button>
+                <div className="flex flex-wrap gap-2">
+                  {SOURCE_TABS.map((tab) => {
+                    const TabIcon = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => handleSourceTypeChange(tab.id)}
+                        disabled={generationControlsDisabled}
+                        aria-pressed={sourceType === tab.id}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          sourceType === tab.id
+                            ? "bg-stone-900 text-white shadow-sm"
+                            : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                        }`}
+                      >
+                        <TabIcon className="w-4 h-4" />
+                        {tab.label}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* URL / Upload Input */}
-                {sourceType === "youtube" ? (
+                {sourceType !== "upload" ? (
                   <div className="relative">
-                    <Youtube className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
+                    <label htmlFor="source-url" className="sr-only">
+                      {sourceType === "youtube" ? "YouTube video URL" : "Video URL"}
+                    </label>
+                    {sourceType === "youtube" ? (
+                      <Youtube className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
+                    ) : (
+                      <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
+                    )}
                     <Input
-                      id="youtube-url"
+                      id="source-url"
                       type="url"
-                      placeholder="https://www.youtube.com/watch?v=..."
+                      placeholder={sourceType === "youtube" ? "https://www.youtube.com/watch?v=..." : "Vimeo, Twitch, Drive, Dropbox, Loom, Zoom, or StreamYard URL"}
                       value={url}
                       onChange={(e) => setUrl(e.target.value)}
                       disabled={generationControlsDisabled}
@@ -912,10 +971,7 @@ export default function HomeApp() {
                     />
                   </div>
                 ) : (
-                  <div
-                    className="relative border-2 border-dashed border-stone-300 rounded-xl p-8 text-center hover:border-stone-400 transition-colors cursor-pointer"
-                    onClick={() => !generationControlsDisabled && fileInputRef.current?.click()}
-                  >
+                  <div>
                     <input
                       id="video-upload"
                       type="file"
@@ -925,395 +981,591 @@ export default function HomeApp() {
                       disabled={generationControlsDisabled}
                       className="hidden"
                     />
-                    <Upload className="w-8 h-8 text-stone-400 mx-auto mb-3" />
-                    {fileName ? (
-                      <p className="text-sm font-medium text-stone-900">{fileName}</p>
-                    ) : (
-                      <>
-                        <p className="text-sm font-medium text-stone-700">Drop a video file here or click to browse</p>
-                        <p className="text-xs text-stone-400 mt-1">MP4, MOV, AVI up to 500MB</p>
-                      </>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={generationControlsDisabled}
+                      onDragOver={handleDragOver}
+                      onDragEnter={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={`relative w-full border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${
+                        isDragActive
+                          ? "border-stone-900 bg-stone-100"
+                          : "border-stone-300 hover:border-stone-400"
+                      }`}
+                    >
+                      {/* Children ignore pointer events so dragging over them
+                          doesn't fire dragleave on the dropzone itself. */}
+                      <span className="block pointer-events-none">
+                        <Upload className="w-8 h-8 text-stone-400 mx-auto mb-3" />
+                        {fileName ? (
+                          <>
+                            <span className="block text-sm font-medium text-stone-900">{fileName}</span>
+                            <span className="block text-xs text-muted-foreground mt-1">Click or drop another file to replace it</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="block text-sm font-medium text-stone-700">
+                              {isDragActive ? "Drop the video to upload" : "Drop a video file here or click to browse"}
+                            </span>
+                            <span className="block text-xs text-muted-foreground mt-1">MP4, MOV, AVI up to 1 GB</span>
+                          </>
+                        )}
+                      </span>
+                    </button>
                   </div>
                 )}
               </div>
 
-              {/* Caption & Style Section */}
+              {/* Workspace / brand kit — only rendered when the account has any */}
+              {(workspaces.length > 0 || brandKits.length > 0) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border bg-stone-50 p-3">
+                  <div className="space-y-1.5">
+                    <label htmlFor="workspace-select" className="text-xs font-medium text-muted-foreground">Workspace</label>
+                    <Select value={workspaceId} onValueChange={setWorkspaceId} disabled={generationControlsDisabled}>
+                      <SelectTrigger id="workspace-select" className="bg-white w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="personal">Personal</SelectItem>
+                        {workspaces.map((workspace) => <SelectItem key={workspace.id} value={workspace.id}>{workspace.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="brand-kit-select" className="text-xs font-medium text-muted-foreground">Brand kit</label>
+                    <Select value={brandKitId} onValueChange={setBrandKitId} disabled={generationControlsDisabled}>
+                      <SelectTrigger id="brand-kit-select" className="bg-white w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No brand kit</SelectItem>
+                        {brandKits.map((kit) => <SelectItem key={kit.id} value={kit.id}>{kit.name}{kit.is_default ? " · Default" : ""}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {/* Caption style — the one style choice on the primary path */}
               <Card className="border-stone-200">
-                <CardContent className="px-4 pt-0 pb-2.5 space-y-2.5">
-                  <div className="flex items-center gap-2 text-sm font-medium text-stone-900">
-                    <Sparkles className="w-4 h-4" />
-                    Style & Captions
+                <CardContent className="px-4 pt-0 pb-4 space-y-2">
+                  <span id="caption-style-label" className="block text-sm font-medium text-stone-900">
+                    Caption Style
+                  </span>
+                  <div
+                    role="group"
+                    aria-labelledby="caption-style-label"
+                    className={cn(
+                      "flex gap-1.5",
+                      availableTemplates.length > CAPTION_CHIP_SCROLL_THRESHOLD
+                        ? "overflow-x-auto pb-1"
+                        : "flex-wrap",
+                    )}
+                  >
+                    {availableTemplates.length > 0 ? (
+                      availableTemplates.map((template) => {
+                        const selected = captionTemplate === template.id;
+                        return (
+                          <button
+                            key={template.id}
+                            type="button"
+                            onClick={() => handleTemplateChange(template.id)}
+                            disabled={generationControlsDisabled}
+                            aria-pressed={selected}
+                            title={template.description}
+                            className={chipClassName(selected, "outline")}
+                          >
+                            {template.font_color && (
+                              <span
+                                aria-hidden="true"
+                                className="h-2.5 w-2.5 shrink-0 rounded-full border border-stone-300"
+                                style={{ backgroundColor: template.font_color }}
+                              />
+                            )}
+                            <span
+                              style={{
+                                fontFamily: template.font_family
+                                  ? `'${template.font_family}', system-ui, sans-serif`
+                                  : undefined,
+                              }}
+                            >
+                              {template.name}
+                            </span>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleTemplateChange("default")}
+                        disabled={generationControlsDisabled}
+                        aria-pressed={captionTemplate === "default"}
+                        className={chipClassName(captionTemplate === "default", "outline")}
+                      >
+                        Default
+                      </button>
+                    )}
                   </div>
+                </CardContent>
+              </Card>
 
-                  {/* Caption Template Selector — the main style choice */}
-                  <div className="space-y-2">
-                    <label className="text-sm text-stone-600">
-                      Caption Style
-                    </label>
-                    <Select value={captionTemplate} onValueChange={handleTemplateChange} disabled={generationControlsDisabled}>
-                      <SelectTrigger className="w-full h-11">
-                        <SelectValue>
-                          {availableTemplates.find(t => t.id === captionTemplate)?.name || "Select style"}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableTemplates.length > 0 ? (
-                          availableTemplates.map((template) => (
-                            <SelectItem key={template.id} value={template.id} className="py-3">
-                              <span className="flex flex-col">
-                                <span>
-                                  <span className="font-medium">{template.name}</span>
-                                  <span className="text-xs text-gray-500 ml-2">{template.description}</span>
-                                </span>
-                                {(template.font_family || template.font_size || template.font_color) && (
-                                  <span className="flex items-center gap-1.5 text-[11px] text-stone-400 mt-0.5">
-                                    {template.font_color && (
-                                      <span
-                                        className="w-2.5 h-2.5 rounded-full border border-stone-300 shrink-0"
-                                        style={{ backgroundColor: template.font_color }}
-                                      />
-                                    )}
-                                    {[template.font_family, template.font_size ? `${template.font_size}px` : null]
-                                      .filter(Boolean)
-                                      .join(" · ")}
-                                  </span>
-                                )}
-                              </span>
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="default">Default</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Output format */}
-                  <div className="flex items-center justify-between gap-4 p-3 border rounded-lg bg-stone-50">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Monitor className="w-4 h-4 text-blue-500" />
-                      <div>
-                        <h3 className="text-sm font-medium text-stone-900">Framing</h3>
-                        <p className="text-xs text-stone-500">Choose how clips are reframed for social video</p>
-                      </div>
-                    </div>
-                    <Select
-                      value={outputFormat}
-                      onValueChange={(value) => setOutputFormat(value as OutputFormat)}
-                      disabled={generationControlsDisabled}
+              {/* Everything else — sensible defaults, so it stays collapsed */}
+              <CollapsibleSection
+                id="advanced-settings"
+                title="Advanced settings"
+                summary="Content, clip shape, captions and cleanup — the defaults work well."
+                open={showAdvanced}
+                onOpenChange={setShowAdvanced}
+              >
+                {/* More air between groups than between rows, so each group reads as a unit. */}
+                <div className="min-w-0 space-y-6">
+                  <SettingsGroup title="Content" description="What the AI looks for.">
+                    <SettingsRow
+                      stacked
+                      htmlFor="clip-brief"
+                      label="What should we look for?"
+                      description="Steers which moments get picked."
                     >
-                      <SelectTrigger className="w-[180px] bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="vertical">Auto 9:16</SelectItem>
-                        <SelectItem value="vertical_pan">Speaker pan</SelectItem>
-                        <SelectItem value="vertical_split">Split-screen</SelectItem>
-                        <SelectItem value="original">Original</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      <Textarea
+                        id="clip-brief"
+                        value={clipBrief}
+                        onChange={(event) => setClipBrief(event.target.value)}
+                        disabled={generationControlsDisabled}
+                        maxLength={2000}
+                        placeholder="Example: tactical pricing mistakes with a surprising lesson. Skip intros and sponsor reads."
+                        className="min-h-20 bg-background"
+                      />
+                    </SettingsRow>
 
-                  {/* Add subtitles */}
-                  <div className="flex items-center justify-between p-3 border rounded-lg bg-stone-50">
-                    <div className="flex items-center gap-3">
-                      <Type className="w-4 h-4 text-emerald-500" />
-                      <div>
-                        <h3 className="text-sm font-medium text-stone-900">Add subtitles</h3>
-                        <p className="text-xs text-stone-500">Burn captions onto clips (disable for faster processing)</p>
+                    <SettingsRow
+                      stacked
+                      htmlFor="clip-keywords"
+                      label="Must-include topics"
+                      description="Comma separated."
+                    >
+                      <Input
+                        id="clip-keywords"
+                        value={clipKeywords}
+                        onChange={(event) => setClipKeywords(event.target.value)}
+                        disabled={generationControlsDisabled}
+                        placeholder="pricing, churn, onboarding"
+                        className="bg-background"
+                      />
+                    </SettingsRow>
+
+                    <SettingsRow
+                      stacked
+                      labelId="analysis-depth-label"
+                      label="Analysis depth"
+                      description="With visuals also ranks scene changes, motion and reactions."
+                    >
+                      <div role="group" aria-labelledby="analysis-depth-label" className="flex flex-wrap gap-1.5">
+                        <SegmentedOption
+                          selected={analysisMode === "transcript"}
+                          onSelect={() => setAnalysisMode("transcript")}
+                          disabled={generationControlsDisabled}
+                        >
+                          Transcript only
+                        </SegmentedOption>
+                        <SegmentedOption
+                          selected={analysisMode === "multimodal"}
+                          onSelect={() => setAnalysisMode("multimodal")}
+                          disabled={generationControlsDisabled}
+                        >
+                          With visuals
+                        </SegmentedOption>
                       </div>
-                    </div>
-                    <Switch
-                      checked={addSubtitles}
-                      onCheckedChange={setAddSubtitles}
-                      disabled={generationControlsDisabled}
-                    />
-                  </div>
+                    </SettingsRow>
 
-                  <div className="rounded-lg border bg-stone-50 p-3 space-y-3">
-                    <div>
-                      <h3 className="text-sm font-medium text-stone-900">Clip cleanup</h3>
-                      <p className="text-xs text-stone-500">Remove dead air and common filler phrases while rendering.</p>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-medium text-stone-900">Cut long pauses</div>
-                        <div className="text-xs text-stone-500">Split out silence gaps longer than your threshold.</div>
+                    <SettingsRow
+                      stacked
+                      labelId="timeframe-label"
+                      label="Analyze only part of the video"
+                      description="Leave empty for the whole video."
+                    >
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2" role="group" aria-labelledby="timeframe-label">
+                          <label htmlFor="timeframe-start" className="text-xs text-muted-foreground">From</label>
+                          <Input
+                            id="timeframe-start"
+                            value={timeframeStart}
+                            onChange={(event) => setTimeframeStart(event.target.value)}
+                            disabled={generationControlsDisabled}
+                            placeholder="12:30"
+                            aria-invalid={Boolean(timeframeStartError)}
+                            aria-describedby={timeframeStartError ? "timeframe-start-error" : undefined}
+                            className="w-24 bg-background"
+                          />
+                          <label htmlFor="timeframe-end" className="text-xs text-muted-foreground">to</label>
+                          <Input
+                            id="timeframe-end"
+                            value={timeframeEnd}
+                            onChange={(event) => setTimeframeEnd(event.target.value)}
+                            disabled={generationControlsDisabled}
+                            placeholder="24:00"
+                            aria-invalid={Boolean(timeframeEndError)}
+                            aria-describedby={timeframeEndError ? "timeframe-end-error" : undefined}
+                            className="w-24 bg-background"
+                          />
+                        </div>
+                        {timeframeStartError && <p id="timeframe-start-error" className="text-xs text-red-600">Start: {timeframeStartError}</p>}
+                        {timeframeEndError && <p id="timeframe-end-error" className="text-xs text-red-600">End: {timeframeEndError}</p>}
                       </div>
+                    </SettingsRow>
+                  </SettingsGroup>
+
+                  <SettingsGroup title="Clips" description="How many clips and what shape.">
+                    <SettingsRow
+                      labelId="clip-count-label"
+                      label="Number of clips"
+                      description="Up to this many."
+                    >
+                      <div className="space-y-1">
+                        <div role="group" aria-labelledby="clip-count-label" className="flex flex-wrap gap-1.5">
+                          {CLIP_COUNT_OPTIONS.map((option) => (
+                            <SegmentedOption
+                              key={option}
+                              selected={Number(clipCount) === option}
+                              onSelect={() => setClipCount(String(option))}
+                              disabled={generationControlsDisabled}
+                            >
+                              {option === MAX_CLIP_COUNT ? `${option} max` : option}
+                            </SegmentedOption>
+                          ))}
+                        </div>
+                        {clipCountError && <p id="clip-count-error" className="text-xs text-red-600">{clipCountError}</p>}
+                      </div>
+                    </SettingsRow>
+
+                    <SettingsRow
+                      stacked
+                      labelId="clip-length-label"
+                      label="Clip length"
+                      description={`${MIN_CLIP_SECONDS}\u2013${MAX_CLIP_SECONDS} seconds.`}
+                    >
+                      <div className="space-y-2">
+                        <div role="group" aria-labelledby="clip-length-label" className="flex flex-wrap gap-1.5">
+                          {CLIP_LENGTH_PRESETS.map((preset) => (
+                            <SegmentedOption
+                              key={preset.id}
+                              selected={!useCustomClipLength && activeClipLengthPreset?.id === preset.id}
+                              onSelect={() => {
+                                setClipMinSeconds(preset.min);
+                                setClipMaxSeconds(preset.max);
+                                setUseCustomClipLength(false);
+                              }}
+                              disabled={generationControlsDisabled}
+                            >
+                              {preset.label}
+                            </SegmentedOption>
+                          ))}
+                          <SegmentedOption
+                            selected={clipLengthIsCustom}
+                            onSelect={() => setUseCustomClipLength(true)}
+                            disabled={generationControlsDisabled}
+                          >
+                            Custom
+                          </SegmentedOption>
+                        </div>
+
+                        {clipLengthIsCustom && (
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <label htmlFor="clip-min-seconds" className="sr-only">Minimum clip length in seconds</label>
+                              <Input
+                                id="clip-min-seconds"
+                                type="number"
+                                min={MIN_CLIP_SECONDS}
+                                max={MAX_CLIP_SECONDS}
+                                value={clipMinSeconds}
+                                onChange={(event) => setClipMinSeconds(event.target.value)}
+                                disabled={generationControlsDisabled}
+                                aria-invalid={Boolean(clipMinSecondsError)}
+                                aria-describedby={clipMinSecondsError ? "clip-min-seconds-error" : undefined}
+                                className="w-20 bg-background"
+                              />
+                              <span aria-hidden="true" className="text-muted-foreground">&ndash;</span>
+                              <label htmlFor="clip-max-seconds" className="sr-only">Maximum clip length in seconds</label>
+                              <Input
+                                id="clip-max-seconds"
+                                type="number"
+                                min={MIN_CLIP_SECONDS}
+                                max={MAX_CLIP_SECONDS}
+                                value={clipMaxSeconds}
+                                onChange={(event) => setClipMaxSeconds(event.target.value)}
+                                disabled={generationControlsDisabled}
+                                aria-invalid={Boolean(clipMaxSecondsError)}
+                                aria-describedby={clipMaxSecondsError ? "clip-max-seconds-error" : undefined}
+                                className="w-20 bg-background"
+                              />
+                              <span className="text-sm text-muted-foreground">seconds</span>
+                            </div>
+                            {clipMinSecondsError && <p id="clip-min-seconds-error" className="text-xs text-red-600">Minimum: {clipMinSecondsError}</p>}
+                            {clipMaxSecondsError && <p id="clip-max-seconds-error" className="text-xs text-red-600">Maximum: {clipMaxSecondsError}</p>}
+                          </div>
+                        )}
+                      </div>
+                    </SettingsRow>
+
+                    <SettingsRow
+                      stacked
+                      labelId="framing-label"
+                      label="Framing"
+                      description="How clips are reframed for social video."
+                    >
+                      <div role="group" aria-labelledby="framing-label" className="flex flex-wrap gap-1.5">
+                        {FRAMING_OPTIONS.map((option) => {
+                          const FramingIcon = option.icon;
+                          return (
+                            <SegmentedOption
+                              key={option.value}
+                              selected={outputFormat === option.value}
+                              onSelect={() => setOutputFormat(option.value)}
+                              disabled={generationControlsDisabled}
+                              icon={<FramingIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
+                            >
+                              {option.label}
+                            </SegmentedOption>
+                          );
+                        })}
+                      </div>
+                    </SettingsRow>
+                  </SettingsGroup>
+
+                  <SettingsGroup title="Captions" description="Burned-in subtitles and how they look.">
+                    <SettingsRow
+                      htmlFor="add-subtitles"
+                      label="Burn in subtitles"
+                      description="Style is chosen above in Caption Style."
+                    >
                       <Switch
+                        id="add-subtitles"
+                        checked={addSubtitles}
+                        onCheckedChange={setAddSubtitles}
+                        disabled={generationControlsDisabled}
+                      />
+                    </SettingsRow>
+
+                    {addSubtitles && (
+                      <>
+                        <SettingsRow
+                          stacked
+                          htmlFor="font-family-select"
+                          label="Font"
+                          description={`${availableFonts.length} available. Template default follows your caption style.`}
+                        >
+                          <div className="space-y-2">
+                            {availableFonts.length > FONT_SEARCH_THRESHOLD && (
+                              <>
+                                <label htmlFor="font-search" className="sr-only">Search fonts</label>
+                                <Input
+                                  id="font-search"
+                                  type="text"
+                                  value={fontSearch}
+                                  onChange={(e) => setFontSearch(e.target.value)}
+                                  placeholder="Search fonts"
+                                  disabled={generationControlsDisabled}
+                                  className="bg-background"
+                                />
+                              </>
+                            )}
+                            <div className="flex min-w-0 items-center gap-2">
+                              <Select
+                                value={fontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE}
+                                onValueChange={(value) => setFontFamily(value === FONT_TEMPLATE_DEFAULT_VALUE ? null : value)}
+                                disabled={generationControlsDisabled}
+                              >
+                                <SelectTrigger id="font-family-select" className="min-w-0 flex-1 bg-background">
+                                  <SelectValue placeholder="Template default" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
+                                  {filteredFonts.map((font) => (
+                                    <SelectItem key={font.name} value={font.name}>
+                                      <span style={{ fontFamily: `'${font.name}', system-ui, sans-serif` }}>
+                                        {font.display_name}
+                                      </span>
+                                    </SelectItem>
+                                  ))}
+                                  {availableFonts.length > 0 && filteredFonts.length === 0 && (
+                                    <SelectItem value="__no_match__" disabled>
+                                      No fonts match your search
+                                    </SelectItem>
+                                  )}
+                                </SelectContent>
+                              </Select>
+                              <input
+                                ref={fontUploadInputRef}
+                                type="file"
+                                accept=".ttf,.otf"
+                                onChange={handleFontUpload}
+                                className="hidden"
+                                aria-label="Upload a custom font file"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="shrink-0"
+                                disabled={generationControlsDisabled || isUploadingFont || !canUploadCustomFonts}
+                                onClick={() => fontUploadInputRef.current?.click()}
+                              >
+                                {isUploadingFont ? "Uploading..." : "Upload"}
+                              </Button>
+                            </div>
+                            {!canUploadCustomFonts && (
+                              <p className="text-xs text-amber-700">Custom font upload is available on paid plans.</p>
+                            )}
+                            {fontLoadError && <p className="text-xs text-amber-700">{fontLoadError}</p>}
+                          </div>
+                        </SettingsRow>
+
+                        <SettingsRow stacked labelId="font-size-label" label="Size" description="Relative to the caption template.">
+                          <div role="group" aria-labelledby="font-size-label" className="flex flex-wrap gap-1.5">
+                            {FONT_SIZE_OPTIONS.map((option) => (
+                              <SegmentedOption
+                                key={option.label}
+                                selected={fontSize === option.value}
+                                onSelect={() => setFontSize(option.value)}
+                                disabled={generationControlsDisabled}
+                              >
+                                {option.label}
+                              </SegmentedOption>
+                            ))}
+                          </div>
+                        </SettingsRow>
+
+                        <SettingsRow
+                          stacked
+                          labelId="font-color-label"
+                          label="Color"
+                          description="Template default inherits the caption style."
+                        >
+                          <div className="space-y-2" role="group" aria-labelledby="font-color-label">
+                            <div className="flex items-center gap-1.5">
+                              <Checkbox
+                                id="font-color-template-default"
+                                checked={fontColor === null}
+                                onCheckedChange={(checked) => setFontColor(checked === true ? null : "#FFFFFF")}
+                                disabled={generationControlsDisabled}
+                              />
+                              <label htmlFor="font-color-template-default" className="text-xs text-muted-foreground cursor-pointer">
+                                Use template default
+                              </label>
+                            </div>
+                            {fontColor !== null && (
+                              <>
+                                <div className="flex min-w-0 items-center gap-2">
+                                  <label htmlFor="font-color-picker" className="sr-only">Caption color</label>
+                                  <input
+                                    id="font-color-picker"
+                                    type="color"
+                                    value={fontColor}
+                                    onChange={(e) => setFontColor(e.target.value)}
+                                    disabled={generationControlsDisabled}
+                                    className="h-8 w-10 shrink-0 rounded border border-stone-300 cursor-pointer disabled:cursor-not-allowed"
+                                  />
+                                  <label htmlFor="font-color-hex" className="sr-only">Caption color hex value</label>
+                                  <Input
+                                    id="font-color-hex"
+                                    type="text"
+                                    value={fontColor}
+                                    onChange={(e) => setFontColor(e.target.value)}
+                                    disabled={generationControlsDisabled}
+                                    className="h-8 min-w-0 flex-1 text-xs bg-background"
+                                    pattern="^#[0-9A-Fa-f]{6}$"
+                                  />
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {COLOR_SWATCHES.map((swatch) => (
+                                    <button
+                                      key={swatch.value}
+                                      type="button"
+                                      onClick={() => setFontColor(swatch.value)}
+                                      disabled={generationControlsDisabled}
+                                      aria-label={`${swatch.label} (${swatch.value})`}
+                                      aria-pressed={fontColor?.toUpperCase() === swatch.value}
+                                      className={cn(
+                                        "h-5 w-5 shrink-0 rounded border-2 border-stone-300 cursor-pointer hover:scale-110 transition-transform disabled:cursor-not-allowed",
+                                        fontColor?.toUpperCase() === swatch.value && "ring-2 ring-stone-900 ring-offset-2",
+                                      )}
+                                      style={{ backgroundColor: swatch.value }}
+                                    />
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </SettingsRow>
+                      </>
+                    )}
+                  </SettingsGroup>
+
+                  <SettingsGroup title="Cleanup" description="Tighten the audio while rendering.">
+                    <SettingsRow
+                      htmlFor="cut-long-pauses"
+                      label="Cut long pauses"
+                      description="Drops dead air between sentences."
+                    >
+                      <Switch
+                        id="cut-long-pauses"
                         checked={cutLongPauses}
                         onCheckedChange={setCutLongPauses}
                         disabled={generationControlsDisabled}
                       />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-stone-500">Pause threshold (ms)</label>
-                      <Input
-                        type="number"
-                        min={250}
-                        max={3000}
-                        step={50}
-                        value={pauseThresholdMs}
-                        onChange={(e) => setPauseThresholdMs(e.target.value)}
-                        disabled={generationControlsDisabled || !cutLongPauses}
-                        placeholder="900"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-medium text-stone-900">Remove filler words</div>
-                        <div className="text-xs text-stone-500">Uses a safe default list like “um”, “uh”, and “you know”.</div>
+                    </SettingsRow>
+                    {cutLongPauses && (
+                      <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
+                        <label htmlFor="pause-threshold" className="text-sm text-stone-700">Silences longer than</label>
+                        <Input
+                          id="pause-threshold"
+                          type="number"
+                          min={250}
+                          max={3000}
+                          step={50}
+                          value={pauseThresholdMs}
+                          onChange={(e) => setPauseThresholdMs(e.target.value)}
+                          disabled={generationControlsDisabled}
+                          placeholder="900"
+                          className="w-24 bg-background"
+                        />
+                        <span className="text-sm text-muted-foreground">ms</span>
                       </div>
+                    )}
+
+                    <SettingsRow
+                      htmlFor="remove-filler-words"
+                      label="Remove filler words"
+                      description="Default list: &ldquo;um&rdquo;, &ldquo;uh&rdquo;, &ldquo;you know&rdquo;."
+                    >
                       <Switch
+                        id="remove-filler-words"
                         checked={removeFillerWords}
                         onCheckedChange={setRemoveFillerWords}
                         disabled={generationControlsDisabled}
                       />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-stone-500">Extra filtered words or phrases</label>
-                      <Input
-                        value={filteredWords}
-                        onChange={(e) => setFilteredWords(e.target.value)}
-                        disabled={generationControlsDisabled}
-                        placeholder="basically, literally, to be honest"
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Customize Captions Section — collapsed by default; template default applies unless changed */}
-              <div
-                className={`transition-all duration-500 ease-in-out overflow-hidden ${
-                  addSubtitles
-                    ? "max-h-[800px] opacity-100"
-                    : "max-h-0 opacity-0 pointer-events-none"
-                }`}
-              >
-              <Card className="border-stone-200">
-                <CardContent className="px-4 pt-0 pb-2.5 space-y-2.5">
-                  <button
-                    type="button"
-                    className="flex items-center justify-between w-full cursor-pointer"
-                    onClick={() => setShowCustomizeCaptions(!showCustomizeCaptions)}
-                  >
-                    <div className="flex items-center gap-2 text-sm font-medium text-stone-900">
-                      <Paintbrush className="w-4 h-4" />
-                      Customize captions
-                    </div>
-                    <span className="text-xs text-stone-500 hover:text-stone-700 transition-colors">
-                      {showCustomizeCaptions ? "Hide" : "Show"}
-                    </span>
-                  </button>
-
-                  {showCustomizeCaptions && (
-                    <div className="space-y-5 pt-1">
-                      {/* Font Family Selector */}
-                      <div className="space-y-2">
-                        <label className="text-sm text-stone-600 flex items-center gap-2">
-                          <Type className="w-3.5 h-3.5" />
-                          Font Family
-                        </label>
-                        <div className="flex items-center justify-between gap-3 text-xs text-stone-500">
-                          <span>{availableFonts.length} font{availableFonts.length === 1 ? "" : "s"} available</span>
-                          <input
-                            ref={fontUploadInputRef}
-                            type="file"
-                            accept=".ttf,.otf"
-                            onChange={handleFontUpload}
-                            className="hidden"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={generationControlsDisabled || isUploadingFont || !canUploadCustomFonts}
-                            onClick={() => fontUploadInputRef.current?.click()}
-                          >
-                            {isUploadingFont ? "Uploading..." : "Upload Font"}
-                          </Button>
-                        </div>
-                        {!canUploadCustomFonts && (
-                          <p className="text-xs text-amber-700">Custom font upload is available on paid plans.</p>
-                        )}
-                        {availableFonts.length > FONT_SEARCH_THRESHOLD && (
-                          <Input
-                            type="text"
-                            value={fontSearch}
-                            onChange={(e) => setFontSearch(e.target.value)}
-                            placeholder="Search fonts"
-                            disabled={generationControlsDisabled}
-                          />
-                        )}
-                        <Select
-                          value={fontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE}
-                          onValueChange={(value) => setFontFamily(value === FONT_TEMPLATE_DEFAULT_VALUE ? null : value)}
+                    </SettingsRow>
+                    {removeFillerWords && (
+                      <div className="min-w-0 space-y-1.5 px-3 py-2.5">
+                        <label htmlFor="filtered-words" className="text-xs text-muted-foreground">Also remove</label>
+                        <Input
+                          id="filtered-words"
+                          value={filteredWords}
+                          onChange={(e) => setFilteredWords(e.target.value)}
                           disabled={generationControlsDisabled}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Template default" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
-                            {filteredFonts.map((font) => (
-                              <SelectItem key={font.name} value={font.name}>
-                                <span style={{ fontFamily: `'${font.name}', system-ui, sans-serif` }}>
-                                  {font.display_name}
-                                </span>
-                              </SelectItem>
-                            ))}
-                            {availableFonts.length > 0 && filteredFonts.length === 0 && (
-                              <SelectItem value="__no_match__" disabled>
-                                No fonts match your search
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        {fontLoadError && (
-                          <p className="text-xs text-amber-700">{fontLoadError}</p>
-                        )}
+                          placeholder="basically, literally, to be honest"
+                          className="bg-background"
+                        />
                       </div>
+                    )}
+                  </SettingsGroup>
 
-                      {/* Font Size */}
-                      <div className="space-y-2">
-                        <label className="text-sm text-stone-600">
-                          Size
-                        </label>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {FONT_SIZE_OPTIONS.map((option) => (
-                            <button
-                              key={option.label}
-                              type="button"
-                              onClick={() => setFontSize(option.value)}
-                              disabled={generationControlsDisabled}
-                              className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                                fontSize === option.value
-                                  ? "bg-stone-900 text-white border-stone-900"
-                                  : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
-                              }`}
-                            >
-                              {option.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Font Color Picker */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label className="text-sm text-stone-600 flex items-center gap-1.5">
-                            <Palette className="w-3.5 h-3.5" />
-                            Color
-                          </label>
-                          <label className="flex items-center gap-1.5 text-xs text-stone-500 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={fontColor === null}
-                              onChange={(e) => setFontColor(e.target.checked ? null : "#FFFFFF")}
-                              disabled={generationControlsDisabled}
-                              className="rounded border-stone-300"
-                            />
-                            Template default
-                          </label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={fontColor ?? "#FFFFFF"}
-                            onChange={(e) => setFontColor(e.target.value)}
-                            disabled={generationControlsDisabled || fontColor === null}
-                            className="w-10 h-8 rounded border border-stone-300 cursor-pointer disabled:cursor-not-allowed"
-                          />
-                          <Input
-                            type="text"
-                            value={fontColor ?? ""}
-                            onChange={(e) => setFontColor(e.target.value)}
-                            disabled={generationControlsDisabled || fontColor === null}
-                            placeholder="Template default"
-                            className="flex-1 h-8 text-xs"
-                            pattern="^#[0-9A-Fa-f]{6}$"
-                          />
-                        </div>
-                        {fontColor !== null && (
-                          <div className="flex gap-1.5 mt-1">
-                            {["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"].map((color) => (
-                              <button
-                                key={color}
-                                type="button"
-                                onClick={() => setFontColor(color)}
-                                disabled={generationControlsDisabled}
-                                className="w-5 h-5 rounded border-2 border-stone-300 cursor-pointer hover:scale-110 transition-transform disabled:cursor-not-allowed"
-                                style={{ backgroundColor: color }}
-                                title={color}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-              </div>
-
-              {isLoading && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-stone-600">Processing</span>
-                      <span className="text-stone-900 font-medium">{progress}%</span>
-                    </div>
-                    <Progress value={progress} className="h-2" />
-                  </div>
-
-                  {currentStep && statusMessage && (
-                    <div className="bg-stone-50 rounded-xl p-4 space-y-3 border border-stone-200">
-                      <div className="flex items-center gap-3">
-                        {getStepIcon(currentStep)}
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-stone-900">{statusMessage}</p>
-                          {sourceTitle && (
-                            <p className="text-xs text-stone-500 mt-1">Processing: {sourceTitle}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${currentStep === 'validation' || currentStep === 'user_check' ? 'bg-blue-100' : progress > 15 ? 'bg-green-100' : 'bg-stone-100'}`}>
-                          <CheckCircle className={`w-3 h-3 ${progress > 15 ? 'text-green-500' : 'text-stone-400'}`} />
-                          <span className={progress > 15 ? 'text-green-700' : 'text-stone-600'}>Validation</span>
-                        </div>
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${currentStep === 'download' || currentStep === 'youtube_info' ? 'bg-green-100' : progress > 30 ? 'bg-green-100' : 'bg-stone-100'}`}>
-                          <CheckCircle className={`w-3 h-3 ${progress > 30 ? 'text-green-500' : 'text-stone-400'}`} />
-                          <span className={progress > 30 ? 'text-green-700' : 'text-stone-600'}>Download</span>
-                        </div>
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${currentStep === 'transcript' ? 'bg-purple-100' : progress > 45 ? 'bg-green-100' : 'bg-stone-100'}`}>
-                          <CheckCircle className={`w-3 h-3 ${progress > 45 ? 'text-green-500' : 'text-stone-400'}`} />
-                          <span className={progress > 45 ? 'text-green-700' : 'text-stone-600'}>Transcript</span>
-                        </div>
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${currentStep === 'ai_analysis' ? 'bg-orange-100' : progress > 60 ? 'bg-green-100' : 'bg-stone-100'}`}>
-                          <CheckCircle className={`w-3 h-3 ${progress > 60 ? 'text-green-500' : 'text-stone-400'}`} />
-                          <span className={progress > 60 ? 'text-green-700' : 'text-stone-600'}>AI Analysis</span>
-                        </div>
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${currentStep === 'clip_generation' ? 'bg-indigo-100' : progress > 75 ? 'bg-green-100' : 'bg-stone-100'}`}>
-                          <CheckCircle className={`w-3 h-3 ${progress > 75 ? 'text-green-500' : 'text-stone-400'}`} />
-                          <span className={progress > 75 ? 'text-green-700' : 'text-stone-600'}>Create Clips</span>
-                        </div>
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${currentStep === 'complete' ? 'bg-green-100' : progress >= 100 ? 'bg-green-100' : 'bg-stone-100'}`}>
-                          <CheckCircle className={`w-3 h-3 ${progress >= 100 ? 'text-green-500' : 'text-stone-400'}`} />
-                          <span className={progress >= 100 ? 'text-green-700' : 'text-stone-600'}>Complete</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Completion emails use your user preference in{" "}
+                    <Link href="/settings" className="font-medium text-stone-700 underline underline-offset-2">
+                      Settings
+                    </Link>.
+                  </p>
                 </div>
-              )}
+              </CollapsibleSection>
 
               {error && (
                 <Alert className="border-red-200 bg-red-50">
@@ -1324,253 +1576,40 @@ export default function HomeApp() {
                 </Alert>
               )}
 
-              <p className="text-xs text-stone-500">
-                Completion emails use your user preference in{" "}
-                <Link href="/settings" className="font-medium text-stone-700 underline underline-offset-2">
-                  Settings
-                </Link>.
-              </p>
-
               <Button
                 type="submit"
                 className="w-full h-12 text-base rounded-xl"
-                disabled={
-                  (sourceType === "youtube" && !url.trim()) ||
-                  (sourceType === "upload" && !fileRef.current) ||
-                  generationRequiresUpgrade ||
-                  isLoading
-                }
+                disabled={!hasSource || generationRequiresUpgrade || isLoading}
               >
-                {isLoading ? "Processing..." : generationRequiresUpgrade ? "Choose a Paid Plan" : "Process Video"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {sourceType === "upload" ? "Uploading video..." : "Processing..."}
+                  </>
+                ) : generationRequiresUpgrade ? (
+                  "Choose a Paid Plan"
+                ) : (
+                  "Process Video"
+                )}
               </Button>
             </form>
           </div>
 
           {/* Right Column — Phone Preview */}
-          <div
-            className={`hidden lg:block flex-shrink-0 overflow-hidden transition-all duration-500 ease-in-out ${
-              sourceType === "upload"
-                ? "w-0 opacity-0"
-                : "w-[340px] opacity-100"
-            }`}
-          >
-            <div
-              className={`w-[340px] transition-all duration-500 ease-in-out ${
-                sourceType === "upload"
-                  ? "translate-x-6 scale-[0.97] opacity-0"
-                  : "translate-x-0 scale-100 opacity-100"
-              }`}
-            >
-            <div className="lg:sticky lg:top-8">
-              <div className="flex items-center justify-center gap-2 mb-5 text-sm text-stone-400">
-                <Monitor className="w-4 h-4" />
-                <span>Live Preview</span>
-              </div>
-
-              {/* Phone Frame — realistic iPhone style */}
-              <div className="mx-auto" style={{ maxWidth: "300px" }}>
-                <div
-                  className="relative bg-stone-950"
-                  style={{ borderRadius: "3rem", padding: "12px" }}
-                >
-                  {/* Screen with inner radius */}
-                  <div
-                    className="relative overflow-hidden bg-black"
-                    style={{ borderRadius: "2.25rem", height: "580px" }}
-                  >
-                    {/* Status bar */}
-                    <div className="absolute top-0 left-0 right-0 z-20 px-6 pt-3 flex justify-between items-center">
-                      <span className="text-white text-xs font-semibold">9:41</span>
-                      {/* Dynamic Island */}
-                      <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-24 h-7 bg-black rounded-full" />
-                      <div className="flex items-center gap-1">
-                        {/* Signal */}
-                        <svg width="16" height="12" viewBox="0 0 16 12" className="text-white">
-                          <rect x="0" y="8" width="3" height="4" rx="0.5" fill="currentColor" />
-                          <rect x="4.5" y="5" width="3" height="7" rx="0.5" fill="currentColor" />
-                          <rect x="9" y="2" width="3" height="10" rx="0.5" fill="currentColor" />
-                          <rect x="13.5" y="0" width="3" height="12" rx="0.5" fill="currentColor" opacity="0.3" />
-                        </svg>
-                        {/* WiFi */}
-                        <svg width="14" height="12" viewBox="0 0 14 12" className="text-white ml-0.5">
-                          <path d="M7 10.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" fill="currentColor" />
-                          <path d="M3.5 8.5a5 5 0 017 0" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                          <path d="M1 5.5a8.5 8.5 0 0112 0" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                        </svg>
-                        {/* Battery */}
-                        <svg width="26" height="12" viewBox="0 0 26 12" className="text-white ml-0.5">
-                          <rect x="0" y="1" width="22" height="10" rx="2" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <rect x="2" y="3" width="16" height="6" rx="1" fill="currentColor" />
-                          <rect x="23" y="4" width="2" height="4" rx="0.5" fill="currentColor" opacity="0.4" />
-                        </svg>
-                      </div>
-                    </div>
-
-                    {/* Video background */}
-                    {youtubeThumbnailUrl ? (
-                      <div
-                        className="absolute inset-0 bg-cover bg-center scale-105 blur-sm"
-                        style={{ backgroundImage: `url(${youtubeThumbnailUrl})` }}
-                      />
-                    ) : (
-                      <div className="absolute inset-0 bg-gradient-to-b from-stone-600 via-stone-500 to-stone-700" />
-                    )}
-                    <div className="absolute inset-0 bg-black/20" />
-                    {/* Bottom gradient for readability over lower UI */}
-                    <div className="absolute inset-x-0 bottom-0 h-60 bg-gradient-to-t from-black/70 via-black/30 to-transparent z-[1]" />
-
-                    {/* TikTok-style top navigation */}
-                    <div className="absolute top-12 left-0 right-0 z-10 flex justify-center items-center gap-5">
-                      <span className="text-white/50 text-xs font-medium">Following</span>
-                      <span className="text-white text-xs font-semibold relative">
-                        For You
-                        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-white rounded-full" />
-                      </span>
-                    </div>
-
-                    {/* Right side action buttons — TikTok style */}
-                    <div className="absolute right-3 space-y-5 z-10" style={{ bottom: "260px" }}>
-                      {/* Profile */}
-                      <div className="flex flex-col items-center gap-1">
-                        <div className="w-9 h-9 rounded-full bg-white/20 border-2 border-white/40" />
-                        <div className="w-4 h-4 rounded-full bg-red-500 -mt-3 border border-black flex items-center justify-center">
-                          <span className="text-white text-[7px] font-bold">+</span>
-                        </div>
-                      </div>
-                      {/* Heart */}
-                      <div className="flex flex-col items-center gap-0.5">
-                        <svg width="26" height="26" viewBox="0 0 24 24" fill="white" className="opacity-90">
-                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                        </svg>
-                        <span className="text-white text-[10px] font-semibold">24.5K</span>
-                      </div>
-                      {/* Comment */}
-                      <div className="flex flex-col items-center gap-0.5">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="white" className="opacity-90">
-                          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
-                        </svg>
-                        <span className="text-white text-[10px] font-semibold">482</span>
-                      </div>
-                      {/* Share */}
-                      <div className="flex flex-col items-center gap-0.5">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="white" className="opacity-90">
-                          <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
-                        </svg>
-                        <span className="text-white text-[10px] font-semibold">Share</span>
-                      </div>
-                    </div>
-
-                    {/* Subtitle area — positioned above creator info */}
-                    <div className="absolute left-0 right-0 z-10" style={{ bottom: "195px" }}>
-                      <div className="mx-4">
-                        <p
-                          style={{
-                            color: previewFontColor,
-                            fontSize: `${Math.max(Math.min(previewFontSize * 0.6, 22), 11)}px`,
-                            fontFamily: `'${previewFontFamily}', system-ui, -apple-system, sans-serif`,
-                            textAlign: 'center',
-                            lineHeight: '1.5',
-                            textShadow: '0 2px 8px rgba(0,0,0,0.8), 0 0px 2px rgba(0,0,0,0.9)',
-                          }}
-                          className="font-bold"
-                        >
-                          Your subtitle will look like this
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Bottom left — creator info */}
-                    <div className="absolute left-3 z-10 max-w-[60%]" style={{ bottom: "110px" }}>
-                      <p className="text-white text-xs font-bold mb-1">@creator_name</p>
-                      <p className="text-white/80 text-[10px] leading-snug">
-                        Check out this amazing clip generated by AI
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-2">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="white" className="opacity-70">
-                          <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-                        </svg>
-                        <span className="text-white/70 text-[9px]">Original Sound - creator_name</span>
-                      </div>
-                    </div>
-
-                    {/* Bottom nav bar */}
-                    <div className="absolute bottom-0 left-0 right-0 z-20 bg-black px-2 pt-2 pb-5">
-                      <div className="flex items-center justify-around">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
-                            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-                          </svg>
-                          <span className="text-white text-[8px]">Home</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-0.5">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="white" opacity="0.5">
-                            <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5z"/>
-                          </svg>
-                          <span className="text-white/50 text-[8px]">Discover</span>
-                        </div>
-                        <div className="relative -mt-3">
-                          <div className="w-10 h-7 rounded-lg bg-white flex items-center justify-center">
-                            <span className="text-black text-lg font-bold leading-none">+</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-center gap-0.5">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="white" opacity="0.5">
-                            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
-                          </svg>
-                          <span className="text-white/50 text-[8px]">Inbox</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-0.5">
-                          <div className="w-5 h-5 rounded-full bg-white/30" />
-                          <span className="text-white/50 text-[8px]">Me</span>
-                        </div>
-                      </div>
-                      {/* Home indicator */}
-                      <div className="w-28 h-1 bg-white/40 rounded-full mx-auto mt-2" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Caption info below phone */}
-                <div className="mt-6 space-y-3 px-2">
-                  <div className="flex items-center justify-between text-xs text-stone-500">
-                    <span>Font</span>
-                    <span className="text-stone-700 font-medium">
-                      {fontFamily
-                        ? availableFonts.find(f => f.name === fontFamily)?.display_name || fontFamily
-                        : `${previewFontFamily} (template default)`}
-                    </span>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between text-xs text-stone-500">
-                    <span>Size</span>
-                    <span className="text-stone-700 font-medium">
-                      {fontSize ? `${fontSize}px` : `${previewFontSize}px (template default)`}
-                    </span>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between text-xs text-stone-500">
-                    <span>Color</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full border border-stone-300" style={{ backgroundColor: previewFontColor }} />
-                      <span className="text-stone-700 font-medium">
-                        {fontColor ? fontColor : `${previewFontColor} (template default)`}
-                      </span>
-                    </div>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between text-xs text-stone-500">
-                    <span>Template</span>
-                    <span className="text-stone-700 font-medium">
-                      {availableTemplates.find(t => t.id === captionTemplate)?.name || "Default"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            </div>
-          </div>
+          <ClipPhonePreview
+            collapsed={sourceType === "upload"}
+            thumbnailUrl={youtubeThumbnailUrl}
+            fontFamily={fontFamily}
+            fontSize={fontSize}
+            fontColor={fontColor}
+            previewFontFamily={previewFontFamily}
+            previewFontSize={previewFontSize}
+            previewFontColor={previewFontColor}
+            availableFonts={availableFonts}
+            templateName={selectedTemplate?.name || "Default"}
+          />
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

@@ -5,14 +5,17 @@ from sqlalchemy import (
     String,
     DateTime,
     ForeignKey,
+    Index,
     CheckConstraint,
     ARRAY,
     Boolean,
+    BigInteger,
     Float,
     Integer,
     Text,
     text as sql_text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 import uuid
@@ -181,6 +184,15 @@ class Task(Base):
     share_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sql_text("'false'")
     )
+    workspace_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    brand_kit_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    generation_preferences_json: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )
+    target_language: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    analysis_mode: Mapped[str] = mapped_column(
+        String(24), nullable=False, server_default=sql_text("'transcript'")
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -194,6 +206,15 @@ class Task(Base):
     source: Mapped[Optional["Source"]] = relationship("Source", back_populates="tasks")
     generated_clips: Mapped[List["GeneratedClip"]] = relationship(
         "GeneratedClip", back_populates="task", cascade="all, delete-orphan"
+    )
+    editor_project: Mapped[Optional["EditorProject"]] = relationship(
+        "EditorProject",
+        back_populates="task",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+    editor_assets: Mapped[List["EditorAsset"]] = relationship(
+        "EditorAsset", back_populates="task", cascade="all, delete-orphan"
     )
 
 
@@ -215,7 +236,7 @@ class Source(Base):
 
     # Add check constraint for type enum
     __table_args__ = (
-        CheckConstraint("type IN ('youtube', 'video_url')", name="check_source_type"),
+        CheckConstraint("type IN ('youtube', 'video_url', 'external')", name="check_source_type"),
     )
 
     # Relationships - Source can have multiple tasks
@@ -283,6 +304,76 @@ class GeneratedClip(Base):
 
     # Relationships
     task: Mapped["Task"] = relationship("Task", back_populates="generated_clips")
+
+
+class EditorProject(Base):
+    """Versioned, non-destructive editor document for one task."""
+
+    __tablename__ = "editor_projects"
+
+    task_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    project: Mapped[dict] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        server_default=sql_text("'{}'::jsonb"),
+    )
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=sql_text("'1'")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    task: Mapped["Task"] = relationship("Task", back_populates="editor_project")
+
+    __table_args__ = (
+        CheckConstraint("version >= 1", name="check_editor_project_version"),
+    )
+
+
+class EditorAsset(Base):
+    """User-uploaded media scoped to one task's editor."""
+
+    __tablename__ = "editor_assets"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=generate_uuid_string
+    )
+    task_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("tasks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(160), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    file_path: Mapped[str] = mapped_column(Text, nullable=False)
+    duration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    width: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    height: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    task: Mapped["Task"] = relationship("Task", back_populates="editor_assets")
+
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('video', 'image', 'audio')",
+            name="check_editor_asset_kind",
+        ),
+        CheckConstraint("size_bytes > 0", name="check_editor_asset_size"),
+        Index("editor_assets_task_id_idx", "task_id"),
+    )
 
 
 class ProcessingCache(Base):

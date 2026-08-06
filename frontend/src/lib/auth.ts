@@ -28,6 +28,9 @@ const trustedOrigins = Array.from(
       "http://localhost:3107",
       "http://sp.localhost:3107",
       "http://supoclip.localhost:3107",
+      "http://localhost:3001",
+      "http://sp.localhost:3001",
+      "http://supoclip.localhost:3001",
     ].filter((origin): origin is string => Boolean(origin))
   )
 );
