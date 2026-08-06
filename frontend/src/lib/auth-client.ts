@@ -17,19 +17,24 @@ const MOCK_USER = {
   email: "user@localhost",
   image: null,
   emailVerified: true,
-  createdAt: new Date(),
-  updatedAt: new Date(),
+  createdAt: new Date("2024-01-01"),
+  updatedAt: new Date("2024-01-01"),
 };
 
 // Wrapper hook that returns mock user when not authenticated
 export function useSession() {
   const session = useSessionOriginal();
 
-  // If no real session, return mock user
+  // If loading, return pending state
+  if (session?.isPending) {
+    return session;
+  }
+
+  // If no real user, return mock user
   if (!session?.data?.user) {
     return {
-      data: session?.data ? { user: MOCK_USER } : null,
-      isPending: session?.isPending ?? false,
+      data: { user: MOCK_USER },
+      isPending: false,
     };
   }
 

@@ -6,9 +6,7 @@ import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 
 export async function POST(request: Request) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = session?.user?.id || "local-user";
 
   const payload = await request.text();
   const apiUrl =
@@ -19,7 +17,7 @@ export async function POST(request: Request) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...buildBackendAuthHeaders(session.user.id),
+      ...buildBackendAuthHeaders(userId),
     },
     body: payload,
   });

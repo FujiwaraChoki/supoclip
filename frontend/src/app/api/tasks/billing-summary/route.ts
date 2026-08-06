@@ -6,9 +6,7 @@ import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = session?.user?.id || "local-user";
 
   const apiUrl =
     process.env.BACKEND_INTERNAL_URL ||
@@ -16,7 +14,7 @@ export async function GET() {
     "http://localhost:8000";
   const upstream = await fetch(`${apiUrl}/tasks/billing/summary`, {
     method: "GET",
-    headers: buildBackendAuthHeaders(session.user.id),
+    headers: buildBackendAuthHeaders(userId),
     cache: "no-store",
   });
 

@@ -5,13 +5,12 @@ import { getServerSession } from "@/server/session";
 
 export async function GET() {
   const session = await getServerSession();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  // For self-hosted mode, use mock user if no real session exists
+  const userId = session?.user?.id || "local-user";
 
   const upstream = await fetchBackend("/tasks/", {
     method: "GET",
-    userId: session.user.id,
+    userId,
     cache: "no-store",
   });
 
