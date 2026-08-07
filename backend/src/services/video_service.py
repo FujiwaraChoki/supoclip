@@ -511,14 +511,8 @@ class VideoService:
                         }
                     )
 
-            logger.info(f"[TRACING] Segmentos ANTES de truncamento: {len(segments_json)}")
-            logger.info(f"[TRACING] Processing mode: {processing_mode}")
-            logger.info(f"[TRACING] fast_mode_max_clips: {runtime_config.fast_mode_max_clips}")
-
             if processing_mode == "fast":
-                logger.info(f"[TRUNCAMENTO] Truncando de {len(segments_json)} para {runtime_config.fast_mode_max_clips} segmentos (FAST MODE)")
                 segments_json = segments_json[: runtime_config.fast_mode_max_clips]
-                logger.info(f"[TRUNCAMENTO] Segmentos APÓS truncamento: {len(segments_json)}")
 
             if not segments_json:
                 logger.warning(
