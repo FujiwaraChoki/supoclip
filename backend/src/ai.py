@@ -20,6 +20,34 @@ from .prompt_manager import PromptManager
 
 logger = logging.getLogger(__name__)
 
+
+async def _retry_with_backoff(async_fn, max_retries: int = 3, backoff_delays: List[int] = None):
+    """
+    Retry async function with exponential backoff for HTTP 429 and 503 errors.
+    backoff_delays: list of delays in seconds [5, 10, 20] for each retry
+    """
+    if backoff_delays is None:
+        backoff_delays = [5, 10, 20]
+
+    from pydantic_ai.exceptions import ModelHTTPError
+
+    for attempt in range(max_retries):
+        try:
+            return await async_fn()
+        except ModelHTTPError as e:
+            if e.status_code not in (429, 503):
+                raise
+
+            if attempt < max_retries - 1:
+                delay = backoff_delays[attempt] if attempt < len(backoff_delays) else backoff_delays[-1]
+                logger.warning(
+                    f"HTTP {e.status_code} from LLM. Retrying in {delay}s (attempt {attempt + 1}/{max_retries - 1})"
+                )
+                await asyncio.sleep(delay)
+            else:
+                logger.error(f"HTTP {e.status_code} from LLM after {max_retries} attempts. Giving up.")
+                raise
+
 IDEAL_CLIP_MIN_SECONDS = 25
 IDEAL_CLIP_MAX_SECONDS = 50
 MIN_ACCEPTED_CLIP_SECONDS = 10
@@ -540,14 +568,16 @@ async def get_most_relevant_parts_by_transcript(
     try:
         agent = get_transcript_agent()
 
-        result = await agent.run(
-            build_transcript_analysis_prompt(
-                transcript=transcript,
-                include_broll=include_broll,
-                clip_signals=clip_signals,
+        async def run_analysis():
+            return await agent.run(
+                build_transcript_analysis_prompt(
+                    transcript=transcript,
+                    include_broll=include_broll,
+                    clip_signals=clip_signals,
+                )
             )
-        )
 
+        result = await _retry_with_backoff(run_analysis, max_retries=3, backoff_delays=[5, 10, 20])
         analysis = result.output
         logger.info(
             f"AI analysis found {len(analysis.most_relevant_segments)} segments"
