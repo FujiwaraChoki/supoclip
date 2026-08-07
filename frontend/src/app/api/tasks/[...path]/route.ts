@@ -8,9 +8,7 @@ async function proxyTaskRequest(
   { params }: { params: Promise<{ path: string[] }> }
 ) {
   const session = await getServerSession();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const userId = session?.user?.id || "local-user";
 
   const { path } = await params;
   const incomingUrl = new URL(request.url);
@@ -22,7 +20,7 @@ async function proxyTaskRequest(
 
   const upstream = await fetchBackend(targetPath, {
     method: request.method,
-    userId: session.user.id,
+    userId,
     extraHeaders: {
       ...(body && request.headers.get("content-type")
         ? { "Content-Type": request.headers.get("content-type") as string }

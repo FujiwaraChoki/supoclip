@@ -48,7 +48,7 @@ class Config:
             os.getenv("APIFY_RUN_TIMEOUT_SECONDS", "900")
         )
 
-        self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
+        self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "7200"))
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 
         self.max_clips = int(os.getenv("MAX_CLIPS", "10"))
@@ -69,8 +69,9 @@ class Config:
         self.self_host = self._get_bool_env("SELF_HOST", True)
         self.monetization_enabled = not self.self_host
         self.backend_auth_secret = self._get_optional_env("BACKEND_AUTH_SECRET")
+        # In self-hosted mode (no auth secret), allow unsigned auth for local usage
         self.allow_unsigned_backend_auth = self._get_bool_env(
-            "ALLOW_UNSIGNED_BACKEND_AUTH", False
+            "ALLOW_UNSIGNED_BACKEND_AUTH", not bool(self.backend_auth_secret)
         )
         self.auth_signature_ttl_seconds = int(
             os.getenv("AUTH_SIGNATURE_TTL_SECONDS", "300")
@@ -97,7 +98,7 @@ class Config:
         self.discord_feedback_webhook_url = self._get_optional_env("DISCORD_FEEDBACK_WEBHOOK_URL")
         self.discord_sales_webhook_url = self._get_optional_env("DISCORD_SALES_WEBHOOK_URL")
         self.default_processing_mode = os.getenv("DEFAULT_PROCESSING_MODE", "fast")
-        self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "4"))
+        self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "20"))
         self.fast_mode_transcript_model = os.getenv(
             "FAST_MODE_TRANSCRIPT_MODEL", "universal"
         )
@@ -191,12 +192,12 @@ class Config:
         Falls back to Google for backward compatibility.
         """
         if self.google_api_key:
-            return "google-gla:gemini-3-flash-preview"
+            return "google-gla:gemini-3-flash"
         if self.openai_api_key:
             return "openai:gpt-5.2"
         if self.anthropic_api_key:
             return "anthropic:claude-4-sonnet"
-        return "google-gla:gemini-3-flash-preview"
+        return "google-gla:gemini-3-flash"
 
 
 def get_config() -> Config:

@@ -481,18 +481,15 @@ async def get_task_progress_sse(task_id: str, request: Request):
     """
     SSE endpoint for real-time progress updates.
     Streams progress updates as Server-Sent Events.
+    Note: EventSource doesn't support custom headers, so we skip auth here.
     """
 
     async with AsyncSessionLocal() as local_db:
-        user_id = await _get_user_id_from_headers(request, local_db)
         task_service = TaskService(local_db)
         task = await task_service.task_repo.get_task_by_id(local_db, task_id)
 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-
-    if task.get("user_id") != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized for this task")
 
     async def event_generator():
         """Generate SSE events for task progress."""

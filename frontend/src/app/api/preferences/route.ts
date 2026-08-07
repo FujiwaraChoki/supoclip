@@ -6,17 +6,11 @@ import { getServerSession } from "@/server/session";
 export async function GET() {
   try {
     const session = await getServerSession();
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const userId = session?.user?.id || "local-user";
 
     const prisma = getPrismaClient();
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: {
         default_font_family: true,
         default_font_size: true,
@@ -51,13 +45,7 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession();
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const userId = session?.user?.id || "local-user";
 
     const body = await request.json();
     const { fontFamily, fontSize, fontColor, notifyOnCompletion } = body;
@@ -96,7 +84,7 @@ export async function PATCH(request: NextRequest) {
 
     const prisma = getPrismaClient();
     const updatedUser = await prisma.user.update({
-      where: { id: session.user.id },
+      where: { id: userId },
       data: {
         ...(fontFamily !== undefined && { default_font_family: fontFamily }),
         ...(fontSize !== undefined && { default_font_size: fontSize }),

@@ -1,10 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-
-import LandingPage from "@/components/landing-page";
 import { useSession } from "@/lib/auth-client";
-import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
 
 const HomeApp = dynamic(() => import("@/components/home-app"), {
   ssr: false,
@@ -13,9 +10,11 @@ const HomeApp = dynamic(() => import("@/components/home-app"), {
 export function HomeRouter() {
   const { data: session, isPending } = useSession();
 
-  if (!isLandingOnlyModeEnabled && !isPending && session?.user) {
+  // For self-hosted usage without login, always show dashboard
+  // The useSession hook returns mock user if no real session exists
+  if (!isPending) {
     return <HomeApp />;
   }
 
-  return <LandingPage />;
+  return null;
 }

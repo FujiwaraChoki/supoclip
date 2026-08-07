@@ -33,11 +33,13 @@ export async function fetchBackend(
   } = {},
 ) {
   const { userId, extraHeaders, headers, ...rest } = init;
+  // Use local-user as default for self-hosted instances without auth
+  const effectiveUserId = userId || "local-user";
 
   return fetch(buildBackendUrl(path), {
     ...rest,
     headers: {
-      ...(userId ? buildBackendAuthHeaders(userId) : {}),
+      ...(effectiveUserId ? buildBackendAuthHeaders(effectiveUserId) : {}),
       ...(headers ?? {}),
       ...(extraHeaders ?? {}),
     },
