@@ -582,6 +582,8 @@ async def get_most_relevant_parts_by_transcript(
         logger.info(
             f"AI analysis found {len(analysis.most_relevant_segments)} segments"
         )
+        logger.info(f"[GEMINI DEBUG] Gemini retornou {len(analysis.most_relevant_segments)} segmentos")
+        logger.info(f"[GEMINI DEBUG] Primeiros segmentos: {[s.start_time + '-' + s.end_time for s in analysis.most_relevant_segments[:5]]}")
 
         # Validation with virality data handling
         validated_segments = []
