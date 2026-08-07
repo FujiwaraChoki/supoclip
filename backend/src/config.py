@@ -48,7 +48,7 @@ class Config:
             os.getenv("APIFY_RUN_TIMEOUT_SECONDS", "900")
         )
 
-        self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
+        self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "7200"))
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 
         self.max_clips = int(os.getenv("MAX_CLIPS", "10"))
