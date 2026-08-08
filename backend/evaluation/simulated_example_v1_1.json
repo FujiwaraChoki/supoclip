@@ -1,0 +1,43 @@
+{
+  "most_relevant_segments": [
+    {
+      "start_time": "01:17",
+      "end_time": "02:02",
+      "text": "AI will augment human capabilities.",
+      "relevance_score": 82,
+      "reasoning": "Shows AI augmentation",
+      "virality": {
+        "hook_score": 20,
+        "engagement_score": 19,
+        "value_score": 22,
+        "shareability_score": 20,
+        "total_score": 81,
+        "hook_type": "statement",
+        "virality_reasoning": "Good hook"
+      },
+      "hook_title": "AI enhances human work"
+    },
+    {
+      "start_time": "03:02",
+      "end_time": "04:02",
+      "text": "Historically, new technologies create new work.",
+      "relevance_score": 80,
+      "reasoning": "Job transformation",
+      "virality": {
+        "hook_score": 19,
+        "engagement_score": 21,
+        "value_score": 20,
+        "shareability_score": 19,
+        "total_score": 79,
+        "hook_type": "contrast",
+        "virality_reasoning": "Addresses concerns"
+      },
+      "hook_title": "Technology creates jobs"
+    }
+  ],
+  "summary": "AI augmentation discussion",
+  "key_topics": [
+    "AI",
+    "Jobs"
+  ]
+}

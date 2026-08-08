@@ -1,0 +1,82 @@
+{
+  "test_id": "example_001",
+  "most_relevant_segments": [
+    {
+      "start_time": "01:15",
+      "end_time": "02:00",
+      "text": "AI will augment human capabilities. Think about a doctor using AI to analyze medical imaging. The AI doesn't replace the doctor, it makes the doctor better.",
+      "relevance_score": 85,
+      "reasoning": "Clear explanation of AI augmentation with concrete healthcare example. Self-contained and compelling.",
+      "virality": {
+        "hook_score": 22,
+        "engagement_score": 20,
+        "value_score": 23,
+        "shareability_score": 21,
+        "total_score": 86,
+        "hook_type": "statement",
+        "virality_reasoning": "Strong hook about augmentation, concrete example (doctor + medical imaging), actionable insight about partnership not replacement."
+      },
+      "hook_title": "AI makes doctors better, not jobless"
+    },
+    {
+      "start_time": "03:00",
+      "end_time": "04:00",
+      "text": "That's a valid concern, but historically, when new technologies emerge, they create new categories of work. We saw this with the internet, with electricity. Yes, some jobs will disappear. But new ones emerge that we can't even imagine today.",
+      "relevance_score": 82,
+      "reasoning": "Addresses job displacement directly with historical examples. Compelling narrative arc (concern → evidence → optimism).",
+      "virality": {
+        "hook_score": 20,
+        "engagement_score": 22,
+        "value_score": 21,
+        "shareability_score": 20,
+        "total_score": 83,
+        "hook_type": "contrast",
+        "virality_reasoning": "Before/after contrast (jobs disappear vs jobs emerge), historical grounding (internet, electricity), hopeful conclusion for worriers."
+      },
+      "hook_title": "New tech always creates new jobs"
+    },
+    {
+      "start_time": "04:15",
+      "end_time": "05:00",
+      "text": "Sure. Ten years ago, nobody had the job title 'machine learning engineer'. Now it's one of the fastest growing roles. Social media manager didn't exist. Data scientist is new.",
+      "relevance_score": 88,
+      "reasoning": "Concrete examples of jobs that didn't exist. High specificity and relevance. Validates previous claim with evidence.",
+      "virality": {
+        "hook_score": 23,
+        "engagement_score": 21,
+        "value_score": 24,
+        "shareability_score": 22,
+        "total_score": 90,
+        "hook_type": "statistic",
+        "virality_reasoning": "Specific job titles with timeline (10 years), relatable examples (ML engineer, social media manager), demonstrates rapid job market evolution."
+      },
+      "hook_title": "Jobs didn't exist 10 years ago"
+    },
+    {
+      "start_time": "05:15",
+      "end_time": "06:00",
+      "text": "I'm cautiously optimistic. It depends on how we manage the transition. If we invest in education, reskilling programs, and social safety nets, we can make this work.",
+      "relevance_score": 79,
+      "reasoning": "Clear conditions for positive outcome. Actionable policy framework (education, reskilling, safety nets).",
+      "virality": {
+        "hook_score": 18,
+        "engagement_score": 19,
+        "value_score": 22,
+        "shareability_score": 19,
+        "total_score": 78,
+        "hook_type": "statement",
+        "virality_reasoning": "Hedged optimism, practical solutions (education, reskilling), appeals to policymakers and concerned workers."
+      },
+      "hook_title": "AI works if we invest in people"
+    }
+  ],
+  "summary": "Leading AI researcher explains how artificial intelligence will augment rather than replace human work, drawing on historical technology transitions (electricity, internet) and citing new job categories (ML engineer, data scientist) as evidence. Emphasizes that positive outcomes depend on investment in education and social safety nets.",
+  "key_topics": [
+    "AI augmentation vs replacement",
+    "Job market transformation",
+    "Historical technology cycles",
+    "Emerging job categories",
+    "Education and reskilling",
+    "Economic transition management"
+  ]
+}

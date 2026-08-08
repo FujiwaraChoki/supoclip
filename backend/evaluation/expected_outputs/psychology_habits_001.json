@@ -1,0 +1,81 @@
+{
+  "test_id": "psychology_habits_001",
+  "most_relevant_segments": [
+    {
+      "start_time": "00:20",
+      "end_time": "01:30",
+      "text": "Most people think willpower is the answer. It's not. Willpower is a limited resource that depletes. The research is clear on this. Instead, you need to design your environment.",
+      "relevance_score": 86,
+      "reasoning": "Debunks common myth with research backing. Sets up entire framework for habit formation.",
+      "virality": {
+        "hook_score": 23,
+        "engagement_score": 20,
+        "value_score": 24,
+        "shareability_score": 22,
+        "total_score": 89,
+        "hook_type": "statement",
+        "virality_reasoning": "Challenges widely-believed myth, backed by research, provides hope (solution exists), highly shareable wisdom."
+      },
+      "hook_title": "Willpower is overrated for habits"
+    },
+    {
+      "start_time": "01:45",
+      "end_time": "03:15",
+      "text": "Your environment shapes behavior far more than willpower. If you want to eat healthier, don't rely on willpower to say no to junk food. Instead, don't buy it. Remove it from your home. Make healthy choices the path of least resistance.",
+      "relevance_score": 88,
+      "reasoning": "Provides specific, actionable framework with concrete example. Immediately applicable.",
+      "virality": {
+        "hook_score": 22,
+        "engagement_score": 22,
+        "value_score": 25,
+        "shareability_score": 23,
+        "total_score": 92,
+        "hook_type": "statement",
+        "virality_reasoning": "Practical framework, specific example (junk food), memorable principle (least resistance), solves real problem everyone faces."
+      },
+      "hook_title": "Make good choices the easy choice"
+    },
+    {
+      "start_time": "03:30",
+      "end_time": "04:45",
+      "text": "Here's what works: put your gym bag in your car the night before. Join a gym close to your home. Schedule it like a meeting. You're not relying on motivation. You're relying on friction.",
+      "relevance_score": 87,
+      "reasoning": "Three concrete tactics with clear principle. High utility for habit building.",
+      "virality": {
+        "hook_score": 21,
+        "engagement_score": 21,
+        "value_score": 24,
+        "shareability_score": 22,
+        "total_score": 88,
+        "hook_type": "statement",
+        "virality_reasoning": "Multiple specific tactics, memorable 'friction' concept, reframes challenge from willpower to system design, immediately actionable."
+      },
+      "hook_title": "Remove friction from good habits"
+    },
+    {
+      "start_time": "05:30",
+      "end_time": "06:40",
+      "text": "Same principle in reverse. Increase friction. Want to stop scrolling on your phone? Put it in another room. Want to drink less? Don't stock alcohol at home. Want to quit smoking? Tell your friends and family.",
+      "relevance_score": 85,
+      "reasoning": "Applies framework to bad habits with multiple examples. Complete mental model.",
+      "virality": {
+        "hook_score": 20,
+        "engagement_score": 21,
+        "value_score": 22,
+        "shareability_score": 21,
+        "total_score": 84,
+        "hook_type": "statement",
+        "virality_reasoning": "Teaches people to flip the framework, multiple relatable examples (phone, alcohol, smoking), social element adds credibility."
+      },
+      "hook_title": "Increase friction for bad habits"
+    }
+  ],
+  "summary": "Behavioral psychologist challenges willpower-based habit formation and explains how environment design through friction reduction/increase is the science-backed approach to building lasting habits, with specific tactical examples for both building good habits and breaking bad ones.",
+  "key_topics": [
+    "Habit formation",
+    "Environmental design",
+    "Friction principle",
+    "Behavior psychology",
+    "Motivation myths"
+  ]
+}

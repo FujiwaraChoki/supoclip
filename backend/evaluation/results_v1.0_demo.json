@@ -1,0 +1,57 @@
+{
+  "prompt_version": "v1.0",
+  "timestamp": "1786048751.0410368",
+  "results": [
+    {
+      "test_name": "example_001",
+      "transcript_length_chars": 2119,
+      "segments_generated": 4,
+      "contract_metrics": {
+        "valid_json_ratio": 1.0,
+        "required_fields_ratio": 1.0,
+        "segment_count_matches": 1.0,
+        "virality_breakdown_valid": 1.0,
+        "timestamp_range_valid": 1.0,
+        "duration_within_bounds": 1.0,
+        "issues_found": []
+      },
+      "timestamp_metrics": {
+        "mean_error_seconds": 0.0,
+        "max_error_seconds": 0.0,
+        "precision_within_2s": 1.0,
+        "precision_within_5s": 1.0,
+        "segments_evaluated": 4
+      },
+      "virality_metrics": {
+        "mean_absolute_error": 0.0,
+        "correlation_with_expected": 1.0,
+        "hook_score_accuracy": 1.0,
+        "engagement_score_accuracy": 1.0,
+        "value_score_accuracy": 1.0,
+        "shareability_score_accuracy": 1.0,
+        "hook_type_recall": {
+          "statement": 2,
+          "contrast": 1,
+          "statistic": 1
+        }
+      },
+      "grounding_metrics": {
+        "hallucination_rate": 0.0,
+        "timestamp_outside_transcript": 0.0,
+        "text_not_in_transcript": 0.0,
+        "fabricated_quotes": 0,
+        "grounding_violations": []
+      },
+      "performance_metrics": {
+        "execution_time_seconds": 0.0,
+        "time_per_segment_ms": 0.0,
+        "tokens_used_estimated": 0,
+        "cost_usd_estimated": 0.0,
+        "model_used": "unknown",
+        "timestamp": "2026-08-06 17:39:11.040953"
+      },
+      "overall_quality_score": 100.0,
+      "errors": []
+    }
+  ]
+}

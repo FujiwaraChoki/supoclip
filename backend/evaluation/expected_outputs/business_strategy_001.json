@@ -1,0 +1,64 @@
+{
+  "test_id": "business_strategy_001",
+  "most_relevant_segments": [
+    {
+      "start_time": "00:15",
+      "end_time": "01:30",
+      "text": "I think there are three critical phases. First, product-market fit. You must solve a real problem that people want to pay for. Second, repeatable growth. Once you find what works, you scale it. Third, organizational excellence.",
+      "relevance_score": 85,
+      "reasoning": "Clear framework for startup growth with three distinct phases. Self-contained strategic overview.",
+      "virality": {
+        "hook_score": 20,
+        "engagement_score": 19,
+        "value_score": 24,
+        "shareability_score": 20,
+        "total_score": 83,
+        "hook_type": "statement",
+        "virality_reasoning": "Actionable framework useful for entrepreneurs, clear structure, immediately applicable."
+      },
+      "hook_title": "Three phases every startup needs"
+    },
+    {
+      "start_time": "01:45",
+      "end_time": "02:50",
+      "text": "Talk to customers obsessively. Most founders build what they think customers want. That's wrong. You should spend 80% of your time talking to potential users. Ask what problems they face.",
+      "relevance_score": 87,
+      "reasoning": "Concrete, contrarian advice with specific percentages. High value for founders.",
+      "virality": {
+        "hook_score": 22,
+        "engagement_score": 21,
+        "value_score": 25,
+        "shareability_score": 21,
+        "total_score": 89,
+        "hook_type": "contrast",
+        "virality_reasoning": "Challenges conventional wisdom (build first), provides specific actionable metric (80%), directly addresses founder pain point."
+      },
+      "hook_title": "Spend 80% time with customers"
+    },
+    {
+      "start_time": "04:45",
+      "end_time": "06:00",
+      "text": "Competition is actually a good sign. It means there's a market. Worry when you have zero competition. That usually means the problem isn't worth solving. Your job isn't to avoid competition. It's to be better or different.",
+      "relevance_score": 81,
+      "reasoning": "Counterintuitive perspective on competition that resonates with founders.",
+      "virality": {
+        "hook_score": 21,
+        "engagement_score": 20,
+        "value_score": 21,
+        "shareability_score": 21,
+        "total_score": 83,
+        "hook_type": "statement",
+        "virality_reasoning": "Reframes common anxiety (competition) as positive signal, provides clear mindset shift for entrepreneurs."
+      },
+      "hook_title": "Zero competition is bad sign"
+    }
+  ],
+  "summary": "Startup investor outlines three critical phases of company building (product-market fit, repeatable growth, organizational excellence) and emphasizes customer obsession, validated learning over assumed needs, and viewing competition as market validation rather than threat.",
+  "key_topics": [
+    "Product-market fit",
+    "Customer validation",
+    "Startup scaling",
+    "Competitive strategy",
+    "Founder mindset"
+  ]
+}

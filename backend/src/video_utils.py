@@ -195,12 +195,18 @@ def _submit_and_wait_for_assemblyai_transcript(
 
 
 def _assemblyai_speech_model_value(speech_model: str):
-    normalized = (speech_model or "universal").strip().lower()
-    if normalized in {"nano", "best", "universal", "universal-2", "universal-3-pro"}:
-        return aai.SpeechModel.universal
+    normalized = (speech_model or "").strip().lower()
+
+    if normalized in {"nano", "best", "universal", "universal-2", ""}:
+        return "universal-2"
+
+    if normalized in {"pro", "universal-3-pro", "universal-3-5-pro"}:
+        return "universal-3-5-pro"
+
     if normalized in {"slam-1", "slam_1"}:
-        return aai.SpeechModel.slam_1
-    return aai.SpeechModel.universal
+        return "slam-1"
+
+    return "universal-2"
 
 
 def get_video_transcript(video_path: Path, speech_model: str = "universal") -> str:
@@ -220,7 +226,7 @@ def get_video_transcript(video_path: Path, speech_model: str = "universal") -> s
         speaker_labels=True,
         punctuate=True,
         format_text=True,
-        speech_model=speech_model_value,
+        speech_models=[speech_model_value],
     )
 
     try:

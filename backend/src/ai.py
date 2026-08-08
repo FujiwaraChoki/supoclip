@@ -580,25 +580,39 @@ async def get_most_relevant_parts_by_transcript(
         result = await _retry_with_backoff(run_analysis, max_retries=3, backoff_delays=[5, 10, 20])
         analysis = result.output
         logger.info(
-            f"AI analysis found {len(analysis.most_relevant_segments)} segments"
+            f"🔍 [GEMINI_RETURNED] AI analysis returned {len(analysis.most_relevant_segments)} raw segments from LLM"
         )
+        for idx, seg in enumerate(analysis.most_relevant_segments):
+            logger.info(
+                f"  ├─ Segment {idx}: {seg.start_time} → {seg.end_time} | "
+                f"Text: {seg.text[:40]}... | Score: {getattr(seg.virality, 'total_score', 'N/A') if seg.virality else 'N/A'}"
+            )
 
         # Validation with virality data handling
         validated_segments = []
         transcript_spans = _parse_transcript_spans(transcript)
-        for segment in analysis.most_relevant_segments:
+        skipped_insufficient_content = 0
+        skipped_identical_timestamps = 0
+        skipped_invalid_duration = 0
+        skipped_too_short = 0
+        skipped_too_long = 0
+        skipped_bad_timestamps = 0
+
+        for idx, segment in enumerate(analysis.most_relevant_segments):
             # Validate text content
             if not segment.text.strip() or len(segment.text.split()) < 3:
-                logger.warning(
-                    f"Skipping segment with insufficient content: '{segment.text[:50]}...'"
+                logger.debug(
+                    f"Skipping segment {idx} with insufficient content: '{segment.text[:50]}...'"
                 )
+                skipped_insufficient_content += 1
                 continue
 
             # Validate timestamps - CRITICAL: start and end must be different
             if segment.start_time == segment.end_time:
-                logger.warning(
-                    f"Skipping segment with identical start/end times: {segment.start_time}"
+                logger.debug(
+                    f"Skipping segment {idx} with identical start/end times: {segment.start_time}"
                 )
+                skipped_identical_timestamps += 1
                 continue
 
             # Parse timestamps to validate duration
@@ -622,21 +636,24 @@ async def get_most_relevant_parts_by_transcript(
                         duration = end_seconds - start_seconds
 
                 if duration <= 0:
-                    logger.warning(
-                        f"Skipping segment with invalid duration: {segment.start_time} to {segment.end_time} = {duration}s"
+                    logger.debug(
+                        f"Skipping segment {idx} with invalid duration: {segment.start_time} to {segment.end_time} = {duration}s"
                     )
+                    skipped_invalid_duration += 1
                     continue
 
                 if duration < MIN_ACCEPTED_CLIP_SECONDS:
-                    logger.warning(
-                        f"Skipping segment too short: {duration}s (min {MIN_ACCEPTED_CLIP_SECONDS}s required)"
+                    logger.debug(
+                        f"Skipping segment {idx} too short: {duration}s (min {MIN_ACCEPTED_CLIP_SECONDS}s required)"
                     )
+                    skipped_too_short += 1
                     continue
 
                 if duration > MAX_ACCEPTED_CLIP_SECONDS:
-                    logger.warning(
-                        f"Skipping segment too long: {duration}s (max {MAX_ACCEPTED_CLIP_SECONDS}s allowed)"
+                    logger.debug(
+                        f"Skipping segment {idx} too long: {duration}s (max {MAX_ACCEPTED_CLIP_SECONDS}s allowed)"
                     )
+                    skipped_too_long += 1
                     continue
 
                 # Validate virality scores
@@ -667,9 +684,10 @@ async def get_most_relevant_parts_by_transcript(
                 )
 
             except (ValueError, IndexError) as e:
-                logger.warning(
-                    f"Skipping segment with invalid timestamp format: {segment.start_time}-{segment.end_time}: {e}"
+                logger.debug(
+                    f"Skipping segment {idx} with invalid timestamp format: {segment.start_time}-{segment.end_time}: {e}"
                 )
+                skipped_bad_timestamps += 1
                 continue
 
         # Sort by virality score (primary) then relevance (secondary)
@@ -688,7 +706,19 @@ async def get_most_relevant_parts_by_transcript(
             broll_opportunities=analysis.broll_opportunities if include_broll else None,
         )
 
-        logger.info(f"Selected {len(validated_segments)} segments for processing")
+        logger.info(
+            f"🔍 [VALIDATION_COMPLETE] Gemini returned {len(analysis.most_relevant_segments)} → "
+            f"Validated {len(validated_segments)} segments "
+            f"(skipped: {skipped_insufficient_content} content, {skipped_identical_timestamps} identical_ts, "
+            f"{skipped_invalid_duration} invalid_dur, {skipped_too_short} too_short, "
+            f"{skipped_too_long} too_long, {skipped_bad_timestamps} bad_ts)"
+        )
+        for idx, seg in enumerate(validated_segments):
+            logger.info(
+                f"  ├─ Validated Segment {idx}: {seg.start_time} → {seg.end_time} | "
+                f"Virality: {seg.virality.total_score if seg.virality else 0}"
+            )
+        logger.info(f"📋 [AFTER_VALIDATION] {len(validated_segments)} segments ready for processing")
         if validated_segments:
             top = validated_segments[0]
             logger.info(

@@ -161,6 +161,10 @@ class TaskService:
             logger.info(f"Starting processing for task {task_id}")
             started_at = datetime.utcnow()
             stage_timings: Dict[str, float] = {}
+
+            # Clean up any previous clips before processing
+            await self.clip_repo.delete_clips_by_task(self.db, task_id)
+
             cache_key = self._build_cache_key(url, source_type, processing_mode)
 
             cache_entry = await self.cache_repo.get_cache(self.db, cache_key)
@@ -230,6 +234,8 @@ class TaskService:
 
             # Render clips incrementally: render, save, notify one at a time
             segments_to_render = result.get("segments_to_render", [])
+            logger.info(f"[RENDER_START] {len(segments_to_render)} segments ready for rendering")
+
             if not segments_to_render:
                 await self.cache_repo.upsert_cache(
                     self.db,
@@ -261,6 +267,7 @@ class TaskService:
 
             clip_ids = []
             render_start = perf_counter()
+            failed_clips = []
 
             for i, segment in enumerate(segments_to_render):
                 # Check cancellation
@@ -291,6 +298,8 @@ class TaskService:
                     normalized_cleanup_settings,
                 )
                 if clip_info is None:
+                    logger.warning(f"Clip {i + 1} failed to render")
+                    failed_clips.append(i)
                     continue  # Skip failed clip
 
                 # Save to DB immediately
@@ -315,6 +324,10 @@ class TaskService:
                     hook_title=clip_info.get("hook_title"),
                 )
                 await self.db.commit()
+                logger.info(
+                    f"💾 [CLIP_SAVED] Clip {i+1}/{total_clips} saved to DB | ID: {clip_id} | "
+                    f"{clip_info['start_time']} → {clip_info['end_time']} | Virality: {clip_info.get('virality_score', 0)}"
+                )
                 clip_ids.append(clip_id)
 
                 # Update task's clip IDs array
@@ -331,6 +344,12 @@ class TaskService:
             stage_timings["render_seconds"] = round(
                 perf_counter() - render_start, 3
             )
+
+            logger.info(
+                f"[CLIPS_GENERATED] {len(clip_ids)} clips successfully generated and saved"
+            )
+            if failed_clips:
+                logger.warning(f"{len(failed_clips)} clips failed to render")
 
             # Mark as completed
             await self.task_repo.update_task_status(

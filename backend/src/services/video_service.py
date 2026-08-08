@@ -215,6 +215,7 @@ class VideoService:
         cleanup_settings: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Render a single clip in the thread pool and return clip_info dict, or None on failure."""
+        trace_id = segment.get('_trace_id', f'seg_{clip_index:02d}')
         try:
             provided_keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
             source_ranges = normalize_source_ranges(segment.get("source_ranges"))
@@ -277,7 +278,7 @@ class VideoService:
             )
 
             if not success:
-                logger.error(f"Failed to create clip {clip_index + 1}")
+                logger.error(f"Failed to create clip {clip_index + 1}: rendering failed")
                 return None
 
             save_clip_source_ranges(clip_path, keep_ranges)
@@ -512,7 +513,13 @@ class VideoService:
                     )
 
             if processing_mode == "fast":
+                before_truncate = len(segments_json)
                 segments_json = segments_json[: runtime_config.fast_mode_max_clips]
+                after_truncate = len(segments_json)
+                logger.info(
+                    f"[FAST_MODE] Truncated {before_truncate} segments → {after_truncate} segments "
+                    f"(fast_mode_max_clips={runtime_config.fast_mode_max_clips})"
+                )
 
             if not segments_json:
                 logger.warning(

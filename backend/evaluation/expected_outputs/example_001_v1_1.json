@@ -1,0 +1,203 @@
+{
+  "test_id": "example_001_v1_1",
+  "most_relevant_segments": [
+    {
+      "start_time": "00:00",
+      "end_time": "00:30",
+      "text": "Welcome to today's episode. We're talking about AI and the future of work. Our guest is a leading AI researcher.",
+      "relevance_score": 75,
+      "reasoning": "Establishes topic and introduces expert.",
+      "virality": {
+        "hook_score": 18,
+        "engagement_score": 16,
+        "value_score": 15,
+        "shareability_score": 14,
+        "total_score": 63,
+        "hook_type": "statement",
+        "virality_reasoning": "Good intro but not highly viral."
+      },
+      "hook_title": "AI future of work discussion"
+    },
+    {
+      "start_time": "00:30",
+      "end_time": "01:15",
+      "text": "Thanks for having me. I think AI is going to fundamentally change how we work. The real opportunity is in augmentation, not replacement.",
+      "relevance_score": 85,
+      "reasoning": "Clear thesis about AI augmentation vs replacement.",
+      "virality": {
+        "hook_score": 22,
+        "engagement_score": 20,
+        "value_score": 23,
+        "shareability_score": 21,
+        "total_score": 86,
+        "hook_type": "statement",
+        "virality_reasoning": "Strong hook, directly addresses concerns, optimistic frame."
+      },
+      "hook_title": "AI augments humans, doesn't replace"
+    },
+    {
+      "start_time": "01:15",
+      "end_time": "02:00",
+      "text": "Think about a doctor using AI to analyze medical imaging. The AI doesn't replace the doctor, it makes the doctor better.",
+      "relevance_score": 87,
+      "reasoning": "Concrete healthcare example showing augmentation.",
+      "virality": {
+        "hook_score": 23,
+        "engagement_score": 21,
+        "value_score": 24,
+        "shareability_score": 22,
+        "total_score": 90,
+        "hook_type": "statement",
+        "virality_reasoning": "Relatable example, clear benefit, aspirational outcome."
+      },
+      "hook_title": "Doctors + AI = better outcomes"
+    },
+    {
+      "start_time": "02:00",
+      "end_time": "02:45",
+      "text": "That's an interesting perspective. The real opportunity is in augmentation, not replacement. What about jobs? People are worried about job displacement.",
+      "relevance_score": 80,
+      "reasoning": "Transitions to job market concerns.",
+      "virality": {
+        "hook_score": 20,
+        "engagement_score": 19,
+        "value_score": 21,
+        "shareability_score": 20,
+        "total_score": 80,
+        "hook_type": "contrast",
+        "virality_reasoning": "Addresses real anxiety, optimistic reframe."
+      },
+      "hook_title": "Reframing AI job displacement fears"
+    },
+    {
+      "start_time": "02:45",
+      "end_time": "03:45",
+      "text": "That's a valid concern, but historically, when new technologies emerge, they create new categories of work. We saw this with the internet, with electricity.",
+      "relevance_score": 83,
+      "reasoning": "Historical evidence of technology creating jobs.",
+      "virality": {
+        "hook_score": 21,
+        "engagement_score": 20,
+        "value_score": 22,
+        "shareability_score": 21,
+        "total_score": 84,
+        "hook_type": "statement",
+        "virality_reasoning": "Draws historical parallels, data-backed optimism."
+      },
+      "hook_title": "Technology always creates new jobs"
+    },
+    {
+      "start_time": "03:45",
+      "end_time": "04:30",
+      "text": "Yes, some jobs will disappear. But new ones emerge that we can't even imagine today.",
+      "relevance_score": 82,
+      "reasoning": "Emphasizes unknowable future opportunities.",
+      "virality": {
+        "hook_score": 20,
+        "engagement_score": 21,
+        "value_score": 21,
+        "shareability_score": 20,
+        "total_score": 82,
+        "hook_type": "statement",
+        "virality_reasoning": "Hope-focused, future-oriented, inspiring."
+      },
+      "hook_title": "New jobs we can't imagine yet"
+    },
+    {
+      "start_time": "04:15",
+      "end_time": "05:00",
+      "text": "Ten years ago, nobody had the job title 'machine learning engineer'. Now it's one of the fastest growing roles. Social media manager didn't exist. Data scientist is new.",
+      "relevance_score": 88,
+      "reasoning": "Concrete recent examples of job creation.",
+      "virality": {
+        "hook_score": 23,
+        "engagement_score": 22,
+        "value_score": 25,
+        "shareability_score": 23,
+        "total_score": 93,
+        "hook_type": "statistic",
+        "virality_reasoning": "Specific examples, recent timeline, proves point clearly."
+      },
+      "hook_title": "Jobs that didn't exist 10 years ago"
+    },
+    {
+      "start_time": "05:00",
+      "end_time": "05:45",
+      "text": "I'm cautiously optimistic. It depends on how we manage the transition. If we invest in education, reskilling programs, and social safety nets, we can make this work.",
+      "relevance_score": 81,
+      "reasoning": "Conditions for positive outcomes in job transition.",
+      "virality": {
+        "hook_score": 19,
+        "engagement_score": 20,
+        "value_score": 22,
+        "shareability_score": 20,
+        "total_score": 81,
+        "hook_type": "statement",
+        "virality_reasoning": "Practical solutions, policy-relevant, hopeful but realistic."
+      },
+      "hook_title": "Education key to managing AI transition"
+    },
+    {
+      "start_time": "05:45",
+      "end_time": "06:30",
+      "text": "The pace of change is accelerating. We're seeing breakthroughs in large language models, in computer vision, in robotics. I think we'll see significant impact in the next 5-10 years.",
+      "relevance_score": 83,
+      "reasoning": "Timeline and scope of AI advancement.",
+      "virality": {
+        "hook_score": 21,
+        "engagement_score": 22,
+        "value_score": 23,
+        "shareability_score": 21,
+        "total_score": 87,
+        "hook_type": "statement",
+        "virality_reasoning": "Specific breakthroughs, concrete timeline, sense of urgency."
+      },
+      "hook_title": "Major AI impact coming 5-10 years"
+    },
+    {
+      "start_time": "06:30",
+      "end_time": "07:15",
+      "text": "Start learning about AI. Understand how it works. It's not magic, it's just math and algorithms. Don't be intimidated by it.",
+      "relevance_score": 84,
+      "reasoning": "Actionable advice for audience preparation.",
+      "virality": {
+        "hook_score": 22,
+        "engagement_score": 21,
+        "value_score": 23,
+        "shareability_score": 22,
+        "total_score": 88,
+        "hook_type": "statement",
+        "virality_reasoning": "Empowering, practical, demystifies AI, motivational."
+      },
+      "hook_title": "Learn AI now, it's just math"
+    },
+    {
+      "start_time": "07:15",
+      "end_time": "08:15",
+      "text": "AI is a tool. Like any tool, it can be used well or poorly. What matters is how we choose to build and deploy these systems. Ethics, fairness, transparency—these will define the next decade of AI.",
+      "relevance_score": 86,
+      "reasoning": "Philosophical framework for responsible AI development.",
+      "virality": {
+        "hook_score": 21,
+        "engagement_score": 20,
+        "value_score": 24,
+        "shareability_score": 23,
+        "total_score": 88,
+        "hook_type": "statement",
+        "virality_reasoning": "Big picture, ethics-focused, calls for responsibility, future-oriented."
+      },
+      "hook_title": "Ethics and fairness define AI future"
+    }
+  ],
+  "summary": "AI researcher discusses how artificial intelligence will augment rather than replace human work, drawing on historical precedent (electricity, internet) and contemporary examples (ML engineers, data scientists) to argue that new job categories emerge with technological disruption. Success depends on proactive investment in education, reskilling, and social safety nets, with ethics and fairness critical to responsible development.",
+  "key_topics": [
+    "AI augmentation",
+    "Job market evolution",
+    "Technology disruption",
+    "Education and reskilling",
+    "Ethical AI development",
+    "Future of work",
+    "Historical precedent",
+    "Career adaptation"
+  ]
+}
