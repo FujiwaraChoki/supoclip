@@ -84,7 +84,9 @@ These settings affect clip generation speed, throughput, and defaults.
 | `FAST_MODE_TRANSCRIPT_MODEL` | `nano` | Lightweight transcript path for fast mode |
 | `WHISPER_MODEL_SIZE` | `medium` in `.env.example` | Whisper model size when Whisper is used locally |
 | `QUEUED_TASK_TIMEOUT_SECONDS` | `180` | Marks stale queued tasks as failed instead of leaving them stuck forever |
-| `MAX_VIDEO_DURATION` | `5400` | Maximum accepted input video length in seconds |
+| `MAX_VIDEO_DURATION` | `5400` | Maximum accepted upload length and baseline YouTube length in seconds |
+| `PRO_YOUTUBE_MAX_VIDEO_DURATION` | `5400` | Maximum YouTube length for active or trialing Pro subscriptions, in seconds |
+| `SCALE_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum YouTube length for active or trialing Scale subscriptions, in seconds |
 | `MAX_CLIPS` | `10` | Upper bound used by backend logic |
 | `CLIP_DURATION` | `30` | Default clip duration target in seconds |
 

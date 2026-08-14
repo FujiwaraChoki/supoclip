@@ -347,6 +347,7 @@ class VideoService:
         processing_mode: str = "fast",
         output_format: str = "vertical",
         add_subtitles: bool = True,
+        max_video_duration: Optional[int] = None,
         cached_transcript: Optional[str] = None,
         cached_analysis_json: Optional[str] = None,
         progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]] = None,
@@ -361,6 +362,11 @@ class VideoService:
         """
         try:
             runtime_config = get_config()
+            duration_limit = (
+                runtime_config.max_video_duration
+                if max_video_duration is None
+                else max_video_duration
+            )
             # Step 1: Get video path (download or use existing)
             if should_cancel and await should_cancel():
                 raise Exception("Task cancelled")
@@ -372,8 +378,8 @@ class VideoService:
                 video_info = await async_get_youtube_video_info(url, task_id=task_id)
                 if video_info:
                     duration = video_info.get("duration", 0)
-                    if duration and duration > runtime_config.max_video_duration:
-                        mins = runtime_config.max_video_duration // 60
+                    if duration and duration > duration_limit:
+                        mins = duration_limit // 60
                         raise Exception(
                             f"Video is too long ({duration // 60} min). "
                             f"Maximum allowed duration is {mins} minutes."
@@ -389,8 +395,8 @@ class VideoService:
 
             # Post-download duration guard (catches cases where preflight info was unavailable)
             file_duration = VideoService._get_file_duration(video_path)
-            if file_duration and file_duration > runtime_config.max_video_duration:
-                mins = runtime_config.max_video_duration // 60
+            if file_duration and file_duration > duration_limit:
+                mins = duration_limit // 60
                 raise Exception(
                     f"Video is too long ({int(file_duration) // 60} min). "
                     f"Maximum allowed duration is {mins} minutes."

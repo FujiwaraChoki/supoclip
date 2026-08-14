@@ -18,6 +18,7 @@ from ..repositories.source_repository import SourceRepository
 from ..repositories.clip_repository import ClipRepository
 from ..repositories.cache_repository import CacheRepository
 from .video_service import VideoService
+from .billing_service import BillingService
 from .task_completion_email_service import (
     TaskCompletionEmailService,
     TaskCompletionRecipient,
@@ -141,6 +142,7 @@ class TaskService:
         task_id: str,
         url: str,
         source_type: str,
+        user_id: Optional[str] = None,
         font_family: Optional[str] = None,
         font_size: Optional[int] = None,
         font_color: Optional[str] = None,
@@ -203,6 +205,15 @@ class TaskService:
                     await progress_callback(progress, message, status)
 
             # Process video with progress updates
+            max_video_duration = self.config.max_video_duration
+            if source_type == "youtube" and user_id:
+                billing = await BillingService(self.db, self.config).get_usage_summary(
+                    user_id
+                )
+                max_video_duration = self.config.max_youtube_video_duration_for_plan(
+                    billing.get("plan"), billing.get("subscription_status")
+                )
+
             pipeline_start = perf_counter()
             result = await self.video_service.process_video_complete(
                 url=url,
@@ -215,6 +226,7 @@ class TaskService:
                 processing_mode=processing_mode,
                 output_format=output_format,
                 add_subtitles=add_subtitles,
+                max_video_duration=max_video_duration,
                 cached_transcript=cached_transcript,
                 cached_analysis_json=cached_analysis_json,
                 progress_callback=update_progress,

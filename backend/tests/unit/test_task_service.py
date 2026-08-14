@@ -70,6 +70,7 @@ def build_task_service() -> TaskService:
     service.task_repo.update_task_runtime_metadata = AsyncMock()
     service.task_repo.update_task_status = AsyncMock()
     service.task_repo.update_task_clips = AsyncMock()
+    service.task_repo.get_task_notification_context = AsyncMock(return_value=None)
     service.clip_repo.create_clip = AsyncMock(return_value="clip-1")
     service.video_service.create_single_clip = AsyncMock(return_value=build_clip_result())
     service.video_service.apply_single_transition = AsyncMock(
@@ -196,6 +197,36 @@ async def test_process_task_fails_when_no_clip_segments_are_selected():
         progress_message="No usable clip segments were selected for this video.",
     )
     service.clip_repo.create_clip.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_process_task_uses_scale_youtube_duration_allowance(monkeypatch):
+    service = build_task_service()
+    service.config.max_video_duration = 5400
+    service.config.scale_youtube_max_video_duration = 10800
+
+    class FakeBillingService:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def get_usage_summary(self, _user_id):
+            return {"plan": "scale", "subscription_status": "active"}
+
+    monkeypatch.setattr(task_service_module, "BillingService", FakeBillingService)
+
+    await service.process_task(
+        task_id="task-1",
+        url="https://www.youtube.com/watch?v=demo",
+        source_type="youtube",
+        user_id="scale-user",
+    )
+
+    assert (
+        service.video_service.process_video_complete.await_args.kwargs[
+            "max_video_duration"
+        ]
+        == 10800
+    )
 
 
 @pytest.mark.asyncio

@@ -81,6 +81,7 @@ async def process_video_task(
                 task_id=task_id,
                 url=url,
                 source_type=source_type,
+                user_id=user_id,
                 font_family=font_family,
                 font_size=font_size,
                 font_color=font_color,

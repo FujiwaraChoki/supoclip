@@ -49,6 +49,14 @@ class Config:
         )
 
         self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
+        # YouTube sources can be longer on paid tiers. Uploads continue to use
+        # max_video_duration regardless of plan.
+        self.pro_youtube_max_video_duration = int(
+            os.getenv("PRO_YOUTUBE_MAX_VIDEO_DURATION", str(self.max_video_duration))
+        )
+        self.scale_youtube_max_video_duration = int(
+            os.getenv("SCALE_YOUTUBE_MAX_VIDEO_DURATION", "10800")
+        )
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 
         self.max_clips = int(os.getenv("MAX_CLIPS", "10"))
@@ -101,6 +109,19 @@ class Config:
         self.fast_mode_transcript_model = os.getenv(
             "FAST_MODE_TRANSCRIPT_MODEL", "universal"
         )
+
+    def max_youtube_video_duration_for_plan(
+        self, plan: str | None, subscription_status: str | None
+    ) -> int:
+        """Return the YouTube duration cap granted by an active entitlement."""
+        if (subscription_status or "").lower() not in {"active", "trialing"}:
+            return self.max_video_duration
+
+        if (plan or "").lower() == "scale":
+            return self.scale_youtube_max_video_duration
+        if (plan or "").lower() == "pro":
+            return self.pro_youtube_max_video_duration
+        return self.max_video_duration
 
     @staticmethod
     def _get_optional_env(name: str):
