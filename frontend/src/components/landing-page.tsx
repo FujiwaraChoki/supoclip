@@ -145,7 +145,11 @@ function getPlans() {
         "B-Roll overlays",
         "Caption templates",
         "Platform export presets",
-        ...(plan.id === "scale" ? ["Priority processing"] : ["Early access to new features"]),
+        ...(
+          plan.id === "scale"
+            ? ["YouTube videos up to 3 hours", "Priority processing"]
+            : ["Early access to new features"]
+        ),
       ],
       cta: plan.cta,
       ctaHref: "",
