@@ -42,7 +42,7 @@ importers:
         specifier: ^1.2.6
         version: 1.2.6(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       better-auth:
-        specifier: ^1.5.0
+        specifier: 1.6.9
         version: 1.6.9(@prisma/client@6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3))(next@15.4.8(@babel/core@7.29.0)(@playwright/test@1.59.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(vitest@3.2.4(@types/node@20.19.39)(jiti@2.6.1)(jsdom@27.4.0(@noble/hashes@2.2.0))(lightningcss@1.32.0)(msw@2.14.2(@types/node@20.19.39)(typescript@5.9.3)))
       class-variance-authority:
         specifier: ^0.7.1

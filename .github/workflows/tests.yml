@@ -59,13 +59,18 @@ jobs:
       BETTER_AUTH_SECRET: supoclip_better_auth_test_secret
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install frontend dependencies
-        run: cd frontend && npm install
+        run: cd frontend && pnpm install --frozen-lockfile
       - name: Run frontend unit tests
-        run: cd frontend && npm run test:coverage
+        run: cd frontend && pnpm run test:coverage
 
   e2e:
     runs-on: ubuntu-latest
@@ -109,17 +114,22 @@ jobs:
         with:
           python-version: "3.11"
       - uses: astral-sh/setup-uv@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install backend dependencies
         run: cd backend && uv sync --all-groups
       - name: Install frontend dependencies
-        run: cd frontend && npm install
+        run: cd frontend && pnpm install --frozen-lockfile
       - name: Install Playwright browsers
-        run: cd frontend && npx playwright install --with-deps
+        run: cd frontend && pnpm exec playwright install --with-deps
       - name: Run Playwright smoke tests
-        run: cd frontend && npm run test:e2e
+        run: cd frontend && pnpm run test:e2e
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
