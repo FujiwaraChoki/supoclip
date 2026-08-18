@@ -45,7 +45,7 @@ LLM=openai:gpt-4
 # LLM=ollama:gpt-oss:20b
 # OLLAMA_BASE_URL=http://localhost:11434/v1
 
-# Optional: Amazon SES for waitlist + subscription lifecycle emails
+# Optional: Amazon SES for subscription lifecycle emails
 # Required if you want hosted billing emails when SELF_HOST=false
 # AWS_REGION=us-east-1
 # AWS_ACCESS_KEY_ID=your_aws_access_key_id
@@ -102,9 +102,9 @@ docker-compose up -d --build
 | `ANTHROPIC_API_KEY` | - | For Claude models |
 | `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | For local/self-hosted Ollama endpoint |
 | `OLLAMA_API_KEY` | - | Optional, required for Ollama Cloud |
-| `AWS_REGION` | `us-east-1` | Optional in self-host mode, required for hosted billing/waitlist emails |
-| `AWS_ACCESS_KEY_ID` | - | Optional in self-host mode, required for hosted billing/waitlist emails |
-| `AWS_SECRET_ACCESS_KEY` | - | Optional in self-host mode, required for hosted billing/waitlist emails |
+| `AWS_REGION` | `us-east-1` | Optional in self-host mode, required for hosted billing emails |
+| `AWS_ACCESS_KEY_ID` | - | Optional in self-host mode, required for hosted billing emails |
+| `AWS_SECRET_ACCESS_KEY` | - | Optional in self-host mode, required for hosted billing emails |
 | `SES_FROM_EMAIL` | `SupoClip <onboarding@example.com>` | Verified sender for backend subscription emails |
 
 ### Hosted Billing Email Setup

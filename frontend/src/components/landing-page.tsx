@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
 import { getPublicBillingPlans } from "@/lib/billing-plans";
-import { GITHUB_URL, HOSTED_APP_URL } from "@/lib/site";
+import { APP_STORE_URL, GITHUB_URL, HOSTED_APP_URL } from "@/lib/site";
 
 function ScrollReveal({
   children,
@@ -463,6 +463,21 @@ export default function LandingPage() {
                     <Github className="w-4 h-4" />
                     View Source
                   </Button>
+                </a>
+                <a
+                  href={APP_STORE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Download SupoClip on the App Store"
+                  className="flex items-center"
+                >
+                  <Image
+                    src="/app-store-badge.svg"
+                    alt="Download on the App Store"
+                    width={135}
+                    height={40}
+                    className="h-12 w-auto"
+                  />
                 </a>
               </div>
 
@@ -966,6 +981,14 @@ export default function LandingPage() {
               className="hover:text-foreground transition-colors"
             >
               GitHub
+            </a>
+            <a
+              href={APP_STORE_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground transition-colors"
+            >
+              iOS App
             </a>
             <span>&copy; {new Date().getFullYear()}</span>
           </nav>

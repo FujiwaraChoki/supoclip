@@ -122,7 +122,7 @@ After the stack is up:
 5. Wait for clip generation to finish.
 6. Open the clips list and verify playback and download work.
 7. If DataFast is enabled, open browser devtools and confirm `/js/script.js` and `/api/events` load from your own domain.
-8. Trigger one successful action such as sign-up, sign-in, task creation, feedback submission, or waitlist submission and verify the goal arrives in DataFast.
+8. Trigger one successful action such as sign-up, sign-in, task creation, or feedback submission and verify the goal arrives in DataFast.
 
 ## Local Development Without Docker
 

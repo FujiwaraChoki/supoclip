@@ -10,7 +10,19 @@
 
 SupoClip gives you AI-powered video clipping capabilities in an open-source package you can run yourself, customize, and inspect. Use the hosted version when you want the convenience of managed infrastructure, or self-host when you want full control.
 
-> For the hosted version, sign up for the waitlist here: [SupoClip Hosted](https://www.supoclip.com)
+> Want it without the setup? Use the hosted version at [www.supoclip.com](https://www.supoclip.com) or grab the iOS app.
+
+<a href="https://apps.apple.com/us/app/supoclip/id6784760040">
+  <img src="frontend/public/app-store-badge.svg" alt="Download SupoClip on the App Store" height="40" />
+</a>
+
+## Ways to Use SupoClip
+
+- **Hosted web app** — [www.supoclip.com](https://www.supoclip.com), no infrastructure to run
+- **iOS app** — [SupoClip on the App Store](https://apps.apple.com/us/app/supoclip/id6784760040), clip from your iPhone with the same hosted pipeline
+- **Self-host** — Docker Compose setup below, AGPL-3.0, unlimited usage on your own hardware
+- **MCP server** — [`mcp/`](mcp/) exposes SupoClip to Claude, Cursor, and other MCP clients
+- **REST API** — API keys from `/settings/api-keys` authenticate the backend directly
 
 ## Why SupoClip Exists
 
@@ -95,7 +107,7 @@ BETTER_AUTH_SECRET=change_this_in_production
 # NEXT_PUBLIC_DATAFAST_DOMAIN=your-domain.com
 # NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST=false
 
-# Optional: Amazon SES for waitlist confirmation emails
+# Optional: Amazon SES for subscription lifecycle emails (hosted/monetized mode)
 # AWS_REGION=us-east-1
 # AWS_ACCESS_KEY_ID=your_aws_access_key_id
 # AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
@@ -137,7 +149,7 @@ Open http://localhost:3000 in your browser, create an account, and start clippin
 If you enable DataFast, also verify that:
 - `/js/script.js` loads from your own app domain
 - `/api/events` requests are proxied through your app domain
-- custom goals appear after successful sign-up, sign-in, task creation, billing, feedback, or waitlist actions
+- custom goals appear after successful sign-up, sign-in, task creation, billing, or feedback actions
 
 ### Troubleshooting
 

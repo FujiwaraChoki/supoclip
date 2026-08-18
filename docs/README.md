@@ -60,8 +60,6 @@ The current repository snapshot includes:
 - `backend/`: the FastAPI API and ARQ worker code
 - Root-level infrastructure files such as `docker-compose.yml`, `init.sql`, `.env.example`, and `start.sh`
 
-Repository guidance still mentions a separate `waitlist/` app, but that directory is not present in this checkout. The documentation in this folder reflects the repository as it exists now.
-
 ## Recommended Reading Paths
 
 For operators:

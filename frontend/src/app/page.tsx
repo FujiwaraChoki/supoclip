@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { HomeRouter } from "@/components/home-router";
-import { getSiteUrl } from "@/lib/site";
+import { APP_STORE_URL, getSiteUrl } from "@/lib/site";
 
 const siteUrl = getSiteUrl();
 
@@ -44,7 +44,7 @@ const structuredData = [
     name: "SupoClip",
     url: siteUrl,
     logo: `${siteUrl}/logo.png`,
-    sameAs: ["https://github.com/FujiwaraChoki/supoclip"],
+    sameAs: ["https://github.com/FujiwaraChoki/supoclip", APP_STORE_URL],
   },
   {
     "@context": "https://schema.org",
@@ -67,6 +67,22 @@ const structuredData = [
       price: "0",
       priceCurrency: "USD",
       category: "Self-hosted open-source edition",
+    },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "MobileApplication",
+    name: "SupoClip",
+    applicationCategory: "MultimediaApplication",
+    operatingSystem: "iOS",
+    url: APP_STORE_URL,
+    installUrl: APP_STORE_URL,
+    description:
+      "The SupoClip iOS app: clip long videos into captioned vertical shorts from your iPhone.",
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "USD",
     },
   },
   {

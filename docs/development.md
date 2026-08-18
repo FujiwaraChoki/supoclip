@@ -19,8 +19,6 @@ Current repository structure:
   - `.env.example`
   - `start.sh`
 
-Note: older repo guidance references a `waitlist/` app, but it is not present in this checkout.
-
 ## Main Commands
 
 ## Full stack with Docker
