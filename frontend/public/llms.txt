@@ -2,12 +2,13 @@
 
 > SupoClip is an open-source AI video clipper that turns long videos into captioned, vertical short-form clips for YouTube Shorts, TikTok, Instagram Reels, and similar platforms.
 
-SupoClip can be used as a hosted web application or self-hosted from its AGPL-3.0 source code. The workflow accepts YouTube URLs and uploaded video files, transcribes the source, proposes promising segments, scores candidate clips, creates face-aware vertical crops, adds word-synced captions, and exports platform-ready videos.
+SupoClip can be used as a hosted web application, as a native iOS app, or self-hosted from its AGPL-3.0 source code. The workflow accepts YouTube URLs and uploaded video files, transcribes the source, proposes promising segments, scores candidate clips, creates face-aware vertical crops, adds word-synced captions, and exports platform-ready videos.
 
 ## Canonical website
 
 - [SupoClip](https://www.supoclip.com/): Product overview, features, pricing, and hosted application access.
 - [GitHub repository](https://github.com/FujiwaraChoki/supoclip): Source code, setup instructions, architecture, license, and contribution history.
+- [SupoClip for iOS](https://apps.apple.com/us/app/supoclip/id6784760040): Native iPhone app on the App Store, backed by the hosted service.
 
 ## Product pages
 
@@ -27,7 +28,7 @@ SupoClip can be used as a hosted web application or self-hosted from its AGPL-3.
 - Face-aware 9:16 vertical reframing.
 - Word-synced animated captions and caption templates.
 - Export presets for YouTube Shorts, TikTok, and Instagram Reels.
-- Hosted usage or AGPL-3.0 self-hosting.
+- Hosted web usage, an iOS app, or AGPL-3.0 self-hosting.
 - Support for configured hosted language-model providers or Ollama.
 
 ## Important qualifications

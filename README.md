@@ -12,6 +12,18 @@ SupoClip gives you AI-powered video clipping capabilities in an open-source pack
 
 > For the hosted version, sign up for the waitlist here: [SupoClip Hosted](https://www.supoclip.com)
 
+<a href="https://apps.apple.com/us/app/supoclip/id6784760040">
+  <img src="frontend/public/app-store-badge.svg" alt="Download SupoClip on the App Store" height="40" />
+</a>
+
+## Ways to Use SupoClip
+
+- **Hosted web app** — [www.supoclip.com](https://www.supoclip.com), no infrastructure to run
+- **iOS app** — [SupoClip on the App Store](https://apps.apple.com/us/app/supoclip/id6784760040), clip from your iPhone with the same hosted pipeline
+- **Self-host** — Docker Compose setup below, AGPL-3.0, unlimited usage on your own hardware
+- **MCP server** — [`mcp/`](mcp/) exposes SupoClip to Claude, Cursor, and other MCP clients
+- **REST API** — API keys from `/settings/api-keys` authenticate the backend directly
+
 ## Why SupoClip Exists
 
 ### The OpusClip Problem

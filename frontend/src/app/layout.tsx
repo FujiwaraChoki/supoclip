@@ -6,7 +6,7 @@ import { DataFastIdentity } from "@/components/datafast-identity";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FeedbackButton } from "@/components/feedback-button";
-import { getSiteUrl } from "@/lib/site";
+import { APP_STORE_ID, getSiteUrl } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -44,6 +44,9 @@ export const metadata: Metadata = {
   category: "video software",
   icons: {
     icon: "/icon.png",
+  },
+  itunes: {
+    appId: APP_STORE_ID,
   },
   openGraph: {
     title: "SupoClip – Open-Source AI Video Clipper",

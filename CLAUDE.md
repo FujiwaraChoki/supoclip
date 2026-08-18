@@ -215,6 +215,17 @@ Edit `backend/src/ai.py`: `simplified_system_prompt` controls selection criteria
 - Each segment gets an AI-written `hook_title` (3-9 words) burned into the top safe area for the first ~4s (`build_hook_title_ass` in `video_utils.py`), persisted on `generated_clips.hook_title`
 - Static talking-head crops get a slow ~5% Ken Burns punch-in (`kenburns_zoom_fragment`); tracked pans and split screens keep their own motion
 
+## iOS App
+
+A native iOS app ships on the App Store
+(https://apps.apple.com/us/app/supoclip/id6784760040, app id `6784760040`). Its
+source lives outside this repo. It talks to the hosted API and bills through
+RevenueCat, which is what `frontend/src/app/api/billing/revenuecat-webhook/`
+serves; App Store subscribers are blocked from Stripe checkout/portal by the
+"managed through the App Store" guard in the billing routes. The www references
+the app via `APP_STORE_ID`/`APP_STORE_URL` in `frontend/src/lib/site.ts`
+(Smart App Banner meta, JSON-LD `MobileApplication`, hero badge, footer link).
+
 ## MCP Server
 
 `mcp/` is a standalone [MCP](https://modelcontextprotocol.io) server
