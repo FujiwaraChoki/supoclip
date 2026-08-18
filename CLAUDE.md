@@ -46,14 +46,6 @@ pnpm run build        # Prisma generate + Next.js build
 pnpm run lint
 ```
 
-### Waitlist
-
-```bash
-cd waitlist
-pnpm install
-pnpm run dev
-```
-
 ### No tests
 
 The project currently has no test files.

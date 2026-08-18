@@ -119,8 +119,6 @@ Current top-level layout:
 - `.env.example`
 - `start.sh`
 
-This repository snapshot does not currently include the separate `waitlist/` app referenced in older project guidance.
-
 ## Backend Architecture
 
 The backend follows a layered pattern.

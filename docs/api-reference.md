@@ -65,13 +65,6 @@ These routes generally attach session context and then proxy or orchestrate back
 - `GET /admin`
   - Admin dashboard page
 
-### Waitlist
-
-- `POST /api/waitlist`
-  - Waitlist submission endpoint
-
-The route exists in the frontend, even though the separate `waitlist/` application mentioned in older docs is not present in this repository snapshot.
-
 ## Backend Route Groups
 
 ## Task Routes

@@ -71,7 +71,6 @@ SupoClip can send pageviews and custom product events to DataFast from the `fron
   - `billing_portal_opened`
   - `preferences_saved`
   - `feedback_submitted`
-  - `waitlist_submitted`
 
 ## Processing Settings
 
