@@ -61,48 +61,96 @@ TRANSCRIPT_SPAN_RE = re.compile(
 )
 
 
+RELLS_CATEGORIES = Literal[
+    "familia", "pais", "filhos", "casamento", "dor", "esperanca",
+    "testemunho", "confronto", "ensino", "politica",
+    "guerra_espiritual", "perdao", "salvacao"
+]
+
+RELLS_AUDIENCES = Literal[
+    "pais", "maes", "casais", "jovens", "lideres",
+    "empresarios", "ansiosos", "enfermos"
+]
+
+RELLS_CLASSIFICATIONS = Literal["S++", "S+", "S", "A", "B", "Arquivar"]
+
+
 class ViralityAnalysis(BaseModel):
-    """Detailed virality breakdown for a segment."""
+    """RELLS Engine v2.0 scoring breakdown (0-100 points total)."""
 
     hook_score: int = Field(
-        default=15,
-        description="How strong is the opening hook (0-25)",
+        default=5,
+        description="Força do gancho (0-10)",
         ge=0,
-        le=25,
+        le=10,
     )
-    engagement_score: int = Field(
-        default=15,
-        description="How engaging/entertaining is the content (0-25)",
+    retention_score: int = Field(
+        default=5,
+        description="Potencial de retenção (0-10)",
         ge=0,
-        le=25,
+        le=10,
     )
-    value_score: int = Field(
-        default=15,
-        description="Educational/informational value (0-25)",
+    emotion_score: int = Field(
+        default=5,
+        description="Impacto emocional (0-10)",
         ge=0,
-        le=25,
+        le=10,
+    )
+    identification_score: int = Field(
+        default=5,
+        description="Potencial de identificação (0-10)",
+        ge=0,
+        le=10,
     )
     shareability_score: int = Field(
-        default=15,
-        description="Likelihood of being shared (0-25)",
+        default=5,
+        description="Potencial de compartilhamento (0-10)",
         ge=0,
-        le=25,
+        le=10,
+    )
+    comment_score: int = Field(
+        default=5,
+        description="Potencial de gerar comentários (0-10)",
+        ge=0,
+        le=10,
+    )
+    save_score: int = Field(
+        default=5,
+        description="Potencial de ser salvo (0-10)",
+        ge=0,
+        le=10,
+    )
+    emotional_curve_score: int = Field(
+        default=5,
+        description="Curva emocional completa (0-10)",
+        ge=0,
+        le=10,
+    )
+    profile_compatibility_score: int = Field(
+        default=10,
+        description="Compatibilidade com o perfil (0-20)",
+        ge=0,
+        le=20,
+    )
+    sermon_fidelity_score: int = Field(
+        default=5,
+        description="Fidelidade ao sermão/mensagem (0-10)",
+        ge=0,
+        le=10,
     )
     total_score: int = Field(
-        default=60,
-        description="Combined virality score (0-100)",
+        default=50,
+        description="Pontuação total (0-100)",
         ge=0,
         le=100,
     )
-    hook_type: Optional[
-        Literal["question", "statement", "statistic", "story", "contrast", "none"]
-    ] = Field(
-        default="none",
-        description="Type of hook: question, statement, statistic, story, contrast, or none",
+    classification: RELLS_CLASSIFICATIONS = Field(
+        default="B",
+        description="Classificação: S++ (98-100), S+ (95-97), S (90-94), A (85-89), B (80-84), Arquivar (<80)",
     )
-    virality_reasoning: str = Field(
-        default="The model did not provide a detailed virality breakdown.",
-        description="Explanation of the virality score",
+    reasoning: str = Field(
+        default="Análise não fornecida pelo modelo.",
+        description="Justificativa da pontuação",
     )
 
 
@@ -111,7 +159,7 @@ def _default_virality_analysis() -> ViralityAnalysis:
 
 
 class TranscriptSegment(BaseModel):
-    """Represents a relevant segment of transcript with precise timing and virality analysis."""
+    """Represents a relevant segment of transcript with RELLS Engine v2.0 analysis."""
 
     start_time: str = Field(description="Start timestamp in MM:SS format")
     end_time: str = Field(description="End timestamp in MM:SS format")
@@ -135,7 +183,7 @@ class TranscriptSegment(BaseModel):
     )
     virality: ViralityAnalysis = Field(
         default_factory=_default_virality_analysis,
-        description="Detailed virality score breakdown",
+        description="RELLS Engine v2.0 scoring breakdown",
     )
     hook_title: Optional[str] = Field(
         default=None,
@@ -144,6 +192,40 @@ class TranscriptSegment(BaseModel):
             "Short punchy on-screen title for the clip (3-9 words). Grounded in "
             "the segment content, no hashtags, no emojis, no surrounding quotes."
         ),
+    )
+    category: Optional[RELLS_CATEGORIES] = Field(
+        default=None,
+        validation_alias=AliasChoices("category", "categoria"),
+        description=(
+            "Categoria do trecho: familia, pais, filhos, casamento, dor, esperanca, "
+            "testemunho, confronto, ensino, politica, guerra_espiritual, perdao, salvação"
+        ),
+    )
+    audience: Optional[RELLS_AUDIENCES] = Field(
+        default=None,
+        validation_alias=AliasChoices("audience", "publico"),
+        description=(
+            "Público-alvo: pais, maes, casais, jovens, lideres, "
+            "empresarios, ansiosos, enfermos"
+        ),
+    )
+    cover_title: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("cover_title", "capa"),
+        description=(
+            "Título para capa/thumbnail (até 6 palavras). "
+            "Curioso, emocional e fiel ao conteúdo."
+        ),
+    )
+    memorable_quotes: Optional[List[str]] = Field(
+        default=None,
+        validation_alias=AliasChoices("memorable_quotes", "frases"),
+        description="Frases memoráveis que possam virar artes e capas",
+    )
+    series_part: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("series_part", "parte"),
+        description="Se o trecho faz parte de uma série (Parte 1, 2, 3...)",
     )
 
     @field_validator("relevance_score", mode="before")
@@ -316,64 +398,93 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
 def build_transcript_analysis_prompt(
     transcript: str, include_broll: bool = False, clip_signals: str | None = None
 ) -> str:
-    """Build the grounded task prompt for transcript analysis."""
+    """Build the RELLS Engine v2.0 task prompt for transcript analysis."""
     broll_instruction = ""
     if include_broll:
         broll_instruction = (
-            "\n5. Also identify B-roll opportunities for each chosen segment where stock footage could enhance the visual appeal."
+            "\n5. Identifique oportunidades de B-roll para cada segmento escolhido, "
+            "onde imagens de stock poderiam melhorar o apelo visual."
         )
     signal_section = ""
     if clip_signals:
         signal_section = (
-            "\n\nAdditional deterministic signals from transcript/audio analysis:\n"
+            "\n\nSinais determinísticos adicionais da análise de transcrição/áudio:\n"
             f"{clip_signals}\n\n"
-            "Use these as hints only. They should influence ranking, but every final segment "
-            "must still be a coherent contiguous transcript range."
+            "Use apenas como dicas. Eles devem influenciar o ranqueamento, mas todo segmento final "
+            "deve ser um intervalo contíguo e coerente da transcrição."
         )
 
-    return f"""Analyze this video transcript and identify the most engaging segments for short-form content.
+    return f"""Analise esta transcrição de vídeo e identifique os trechos mais envolventes para conteúdo de formato curto.
 
-The transcript is formatted as one line per timestamped span, for example:
-[00:12 - 00:21] Spoken text here
-[00:21 - 00:35] More spoken text here
+A transcrição é formatada como uma linha por intervalo com timestamp, por exemplo:
+[00:12 - 00:21] Texto falado aqui
+[00:21 - 00:35] Mais texto falado aqui
 
-Follow this workflow:
-1. Read the transcript as a sequence of timestamped spans.
-2. Select only contiguous ranges that already exist in the transcript.
-3. Prefer moments with a strong hook, clear payoff, emotional charge, or concrete value.
-4. For each chosen segment, use the earliest timestamp in the selected range as start_time and the latest timestamp in the selected range as end_time.{broll_instruction}
+Siga este fluxo de trabalho:
+1. Leia a transcrição como uma sequência de intervalos com timestamps.
+2. Selecione apenas intervalos contíguos que já existem na transcrição.
+3. Priorize momentos com gancho forte, resultado claro, carga emocional ou valor concreto.
+4. Para cada segmento escolhido, use o timestamp mais cedo no intervalo selecionado como start_time e o mais tarde como end_time.
+5. Classifique cada trecho por categorias (familia, pais, filhos, casamento, dor, esperanca, testemunho, confronto, ensino, politica, guerra_espiritual, perdao, salvação).
+6. Identifique o público-alvo principal (pais, maes, casais, jovens, lideres, empresarios, ansiosos, enfermos).
+7. Gere um título de capa de até 6 palavras.{broll_instruction}
 
-Selection target:
-- Extract at least 10 segments total for typical content.
-- For shorter content (5-10 minutes): minimum 5 segments.
-- For longer content (60+ minutes): aim for 20+ segments.
-- Most selected clips should be 25-50 seconds.
-- Only choose a 15-24 second clip when it already contains a full setup and payoff.
-- If a strong moment is shorter than 25 seconds, first try expanding to nearby contiguous transcript lines that add useful context.
-- Skip weak standalone picks: intros, sponsor reads, CTAs, contextless quotes, repeated points, vague setup, and answer fragments that require prior context.
-- Before returning a segment, ask whether a viewer would understand and care without seeing the rest of the source video.
-- Quality per segment matters, but quantity is also important for library building.
+Alvo de seleção:
+- Extraia pelo menos 10 segmentos no total para conteúdo típico.
+- Para conteúdo mais curto (5-10 minutos): mínimo 5 segmentos.
+- Para conteúdo mais longo (60+ minutos): mira em 20+ segmentos.
+- A maioria dos clipes deve ter 25-50 segundos.
+- Só escolha um clipe de 15-24 segundos quando já contiver setup e resultado completos.
+- Se um momento forte tiver menos de 25 segundos, primeiro tente expandir para linhas adjacentes da transcrição que adicionam contexto útil.
+- Pule seleções fracas: intros, leituras de patrocinadores, CTAs, citações sem contexto, pontos repetidos, setup vago e fragmentos de respostas que precisam de contexto anterior.
+- Antes de retornar um segmento, pergunte se o espectador entenderia e se importaria sem ver o resto do vídeo original.
+- Qualidade por segmento importa, mas quantidade também é importante para construção de biblioteca.
 
-Critical accuracy requirements:
-- Do not fabricate or embellish content.
-- Do not use timestamps that are not present in the transcript.
-- Do not merge separate non-contiguous moments into one segment.
-- segment.text must reflect only the spoken content inside the selected time range.
-- If a span lacks enough context to stand alone, expand to nearby contiguous lines rather than guessing.
-- If there is a tradeoff between "viral" and "accurate", choose accuracy.
-- Do not reject or penalize a segment simply because of the subject matter; stay content-neutral and assess clip quality only.
+Requisitos de fidelidade:
+- Nunca altere o sentido da mensagem.
+- Nunca invente falas.
+- O impacto nunca pode comprometer a verdade.
+- Não invente ou embeleze conteúdo.
+- Não use timestamps que não estejam na transcrição.
+- Não junte momentos separados não contíguos em um único segmento.
+- O texto do segmento deve refletir apenas o conteúdo falado dentro do intervalo de tempo selecionado.
+- Se um intervalo não tiver contexto suficiente para ser autônomo, expanda para linhas adjacentes contíguas em vez de adivinhar.
+- Se houver um tradeoff entre "viral" e "fiel", escolha fidelidade.
+- Não rejeite ou penalize um segmento apenas por causa do tema; avalie apenas a qualidade do clipe.
 {signal_section}
 
-JSON-only output requirements:
-- Return one valid JSON object and nothing else.
-- No Markdown, headings, bullets, code fences, or explanatory text outside JSON.
-- Top-level keys: "most_relevant_segments", "summary", "key_topics"{', "broll_opportunities"' if include_broll else ''}.
-- Segment keys: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", "hook_title".
-- "hook_title" is a 3-9 word plain-text headline for the clip, grounded in the segment (no hashtags, emojis, or quotes).
-- Virality keys: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", "virality_reasoning".
-- Do not return segments shorter than 10 seconds or longer than 90 seconds.
+Regras de pontuação RELLS Engine (0-100 pontos):
+| Critério | Pontos |
+|----------|--------|
+| Gancho | 10 |
+| Retenção | 10 |
+| Emoção | 10 |
+| Identificação | 10 |
+| Compartilhamento | 10 |
+| Comentários | 10 |
+| Salvamentos | 10 |
+| Curva emocional | 10 |
+| Compatibilidade com o perfil | 20 |
+| Fidelidade ao sermão | 10 |
 
-Transcript:
+Classificação: S++ (98-100), S+ (95-97), S (90-94), A (85-89), B (80-84), Arquivar (<80)
+
+Curva emocional obrigatória em cada corte:
+Curiosidade → Identificação → Confronto → Esperança → Fechamento
+
+Pergunta obrigatória: "Alguém enviaria este vídeo para outra pessoa?"
+
+Requisitos de saída JSON apenas:
+- Retorne um único objeto JSON válido e nada mais.
+- Sem Markdown, títulos, listas, cercas de código ou texto explicativo fora do JSON.
+- Chaves de nível superior: "most_relevant_segments", "summary", "key_topics"{', "broll_opportunities"' if include_broll else ''}.
+- Chaves do segmento: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", "hook_title", "category", "audience", "cover_title".
+- "hook_title": Título de 3-9 palavras para overlay no clipe (sem hashtags, emojis ou aspas).
+- "cover_title": Título de até 6 palavras para capa/thumbnail.
+- Chaves da virality: "hook_score", "retention_score", "emotion_score", "identification_score", "shareability_score", "comment_score", "save_score", "emotional_curve_score", "profile_compatibility_score", "sermon_fidelity_score", "total_score", "classification", "reasoning".
+- Cada segmento deve ter 15-90 segundos (ideal: 25-50 segundos).
+
+Transcrição:
 {transcript}"""
 
 
@@ -658,18 +769,38 @@ async def get_most_relevant_parts_by_transcript(
 
                 # Validate virality scores
                 if segment.virality:
-                    # Ensure total score is sum of subscores
+                    # Ensure total score is sum of subscores (RELLS Engine v2.0)
                     calculated_total = (
                         segment.virality.hook_score
-                        + segment.virality.engagement_score
-                        + segment.virality.value_score
+                        + segment.virality.retention_score
+                        + segment.virality.emotion_score
+                        + segment.virality.identification_score
                         + segment.virality.shareability_score
+                        + segment.virality.comment_score
+                        + segment.virality.save_score
+                        + segment.virality.emotional_curve_score
+                        + segment.virality.profile_compatibility_score
+                        + segment.virality.sermon_fidelity_score
                     )
                     if segment.virality.total_score != calculated_total:
                         logger.warning(
                             f"Correcting virality total: {segment.virality.total_score} -> {calculated_total}"
                         )
                         segment.virality.total_score = calculated_total
+
+                    # Auto-classify based on score
+                    if segment.virality.total_score >= 98:
+                        segment.virality.classification = "S++"
+                    elif segment.virality.total_score >= 95:
+                        segment.virality.classification = "S+"
+                    elif segment.virality.total_score >= 90:
+                        segment.virality.classification = "S"
+                    elif segment.virality.total_score >= 85:
+                        segment.virality.classification = "A"
+                    elif segment.virality.total_score >= 80:
+                        segment.virality.classification = "B"
+                    else:
+                        segment.virality.classification = "Arquivar"
 
                 segment.hook_title = sanitize_hook_title(segment.hook_title)
 

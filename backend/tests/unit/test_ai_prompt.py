@@ -12,7 +12,6 @@ from src.ai import (
     _extract_transcript_text,
     _format_transcript_timestamp,
     _get_missing_llm_key_error,
-    _load_transcript_analysis_prompt,
     _parse_transcript_spans,
     _parse_transcript_timestamp_seconds,
     build_transcript_analysis_prompt,
@@ -20,56 +19,116 @@ from src.ai import (
 )
 
 
-def test_system_prompt_enforces_grounding_rules():
-    assert "extraction and ranking, not creative rewriting" in (
-        transcript_analysis_system_prompt
-    )
-    assert "Never invent facts, tone, context, or transitions" in (
-        transcript_analysis_system_prompt
-    )
-    assert "Each selected segment must map to one contiguous range" in (
-        transcript_analysis_system_prompt
-    )
-    assert "Do not judge, moralize, or downgrade a segment" in (
-        transcript_analysis_system_prompt
-    )
-    assert f"{IDEAL_CLIP_MIN_SECONDS}-{IDEAL_CLIP_MAX_SECONDS} seconds" in (
-        transcript_analysis_system_prompt
-    )
-    assert "Bad picks include intros" in transcript_analysis_system_prompt
-    assert "Return valid JSON only" in transcript_analysis_system_prompt
-    assert "Do not use \"segment\" as an output field. Use \"text\"." in (
-        transcript_analysis_system_prompt
-    )
+def test_system_prompt_enforces_rells_engine_pillars():
+    assert "Fidelidade" in transcript_analysis_system_prompt
+    assert "DNA do Perfil" in transcript_analysis_system_prompt
+    assert "Leitura Total" in transcript_analysis_system_prompt
+    assert "Mapeamento" in transcript_analysis_system_prompt
+    assert "Público" in transcript_analysis_system_prompt
+    assert "Retenção" in transcript_analysis_system_prompt
+    assert "Curva Emocional" in transcript_analysis_system_prompt
+    assert "Compartilhamento" in transcript_analysis_system_prompt
+    assert "Comentários" in transcript_analysis_system_prompt
+    assert "Salvamentos" in transcript_analysis_system_prompt
+
+
+def test_system_prompt_contains_rells_scoring():
+    assert "Gancho" in transcript_analysis_system_prompt
+    assert "Retenção" in transcript_analysis_system_prompt
+    assert "Emoção" in transcript_analysis_system_prompt
+    assert "Identificação" in transcript_analysis_system_prompt
+    assert "Compartilhamento" in transcript_analysis_system_prompt
+    assert "Comentários" in transcript_analysis_system_prompt
+    assert "Salvamentos" in transcript_analysis_system_prompt
+    assert "Curva emocional" in transcript_analysis_system_prompt
+    assert "Compatibilidade com o perfil" in transcript_analysis_system_prompt
+    assert "Fidelidade ao sermão" in transcript_analysis_system_prompt
+
+
+def test_system_prompt_contains_classifications():
+    assert "S++" in transcript_analysis_system_prompt
+    assert "S+" in transcript_analysis_system_prompt
+    assert "98-100" in transcript_analysis_system_prompt
+    assert "95-97" in transcript_analysis_system_prompt
+    assert "90-94" in transcript_analysis_system_prompt
+    assert "85-89" in transcript_analysis_system_prompt
+    assert "80-84" in transcript_analysis_system_prompt
+    assert "Arquivar" in transcript_analysis_system_prompt
+
+
+def test_system_prompt_contains_categories():
+    assert "Família" in transcript_analysis_system_prompt
+    assert "Dor" in transcript_analysis_system_prompt
+    assert "Esperança" in transcript_analysis_system_prompt
+    assert "Testemunho" in transcript_analysis_system_prompt
+    assert "Confronto" in transcript_analysis_system_prompt
+    assert "Salvação" in transcript_analysis_system_prompt
+
+
+def test_system_prompt_contains_audiences():
+    assert "Pais" in transcript_analysis_system_prompt
+    assert "Mães" in transcript_analysis_system_prompt
+    assert "Casais" in transcript_analysis_system_prompt
+    assert "Jovens" in transcript_analysis_system_prompt
+    assert "Líderes" in transcript_analysis_system_prompt
+    assert "Empresários" in transcript_analysis_system_prompt
 
 
 def test_build_transcript_analysis_prompt_requires_transcript_fidelity():
     prompt = build_transcript_analysis_prompt(
-        transcript="[00:12 - 00:21] A strong opening line"
+        transcript="[00:12 - 00:21] Uma linha de abertura forte"
     )
 
-    assert "Do not fabricate or embellish content." in prompt
-    assert "Do not merge separate non-contiguous moments into one segment." in prompt
-    assert "If there is a tradeoff between \"viral\" and \"accurate\", choose accuracy." in prompt
-    assert "Do not reject or penalize a segment simply because of the subject matter" in prompt
-    assert f"Most selected clips should be {IDEAL_CLIP_MIN_SECONDS}-{IDEAL_CLIP_MAX_SECONDS} seconds." in prompt
-    assert "viewer would understand and care without seeing the rest" in prompt
-    assert "Return one valid JSON object and nothing else." in prompt
-    assert "No Markdown, headings, bullets, code fences" in prompt
-    assert "[00:12 - 00:21] A strong opening line" in prompt
+    assert "Nunca altere o sentido da mensagem." in prompt
+    assert "Nunca invente falas." in prompt
+    assert "O impacto nunca pode comprometer a verdade." in prompt
+    assert "Não junte momentos separados não contíguos" in prompt
+    assert "fidelidade" in prompt.lower()
+    assert f"{IDEAL_CLIP_MIN_SECONDS}-{IDEAL_CLIP_MAX_SECONDS}" in prompt
+    assert "espectador entenderia e se importaria" in prompt
+    assert "Retorne um único objeto JSON válido" in prompt
+    assert "[00:12 - 00:21] Uma linha de abertura forte" in prompt
 
 
 def test_build_transcript_analysis_prompt_mentions_broll_only_when_enabled():
     without_broll = build_transcript_analysis_prompt(
-        transcript="[00:12 - 00:21] A strong opening line"
+        transcript="[00:12 - 00:21] Uma linha de abertura forte"
     )
     with_broll = build_transcript_analysis_prompt(
-        transcript="[00:12 - 00:21] A strong opening line",
+        transcript="[00:12 - 00:21] Uma linha de abertura forte",
         include_broll=True,
     )
 
-    assert "B-roll opportunities" not in without_broll
-    assert "B-roll opportunities" in with_broll
+    assert "B-roll" not in without_broll
+    assert "B-roll" in with_broll
+
+
+def test_build_transcript_analysis_prompt_includes_rells_scoring():
+    prompt = build_transcript_analysis_prompt(
+        transcript="[00:12 - 00:21] Uma linha de abertura forte"
+    )
+
+    assert "Gancho" in prompt
+    assert "Retenção" in prompt
+    assert "Emoção" in prompt
+    assert "Identificação" in prompt
+    assert "Compartilhamento" in prompt
+    assert "Comentários" in prompt
+    assert "Salvamentos" in prompt
+    assert "Curva emocional" in prompt
+    assert "Compatibilidade com o perfil" in prompt
+    assert "Fidelidade ao sermão" in prompt
+
+
+def test_build_transcript_analysis_prompt_includes_new_output_fields():
+    prompt = build_transcript_analysis_prompt(
+        transcript="[00:12 - 00:21] Uma linha de abertura forte"
+    )
+
+    assert "category" in prompt
+    assert "audience" in prompt
+    assert "cover_title" in prompt
+    assert "hook_title" in prompt
 
 
 def test_ollama_llm_builds_native_ollama_model():
@@ -99,14 +158,14 @@ def test_transcript_span_helpers_repair_near_miss_durations():
         "\n".join(
             [
                 "[00:00 - 00:10] Setup",
-                "[00:10 - 00:24] Short highlight",
-                "[00:24 - 00:36] Payoff",
-                "[00:36 - 01:20] Too much background",
+                "[00:10 - 00:24] Destaque curto",
+                "[00:24 - 00:36] Resultado",
+                "[00:36 - 01:20] Muito contexto",
             ]
         )
     )
 
-    assert _extract_transcript_text(spans, 10, 36) == "Short highlight Payoff"
+    assert _extract_transcript_text(spans, 10, 36) == "Destaque curto Resultado"
     assert _choose_repaired_bounds(spans, 10, 24) == (10, 36)
     assert _choose_repaired_bounds(spans, 0, 80) == (0, 36)
 
@@ -115,7 +174,7 @@ def test_transcript_segment_normalizes_percent_relevance_score():
     segment = TranscriptSegment(
         start_time="00:00",
         end_time="00:30",
-        text="A complete standalone moment with useful context.",
+        text="Um momento completo e autônomo com contexto útil.",
         relevance_score=100,
     )
 
