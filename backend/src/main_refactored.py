@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import Config, get_config, set_config_override
@@ -37,6 +38,29 @@ from .observability import (
 configure_logging()
 
 logger = logging.getLogger(__name__)
+
+LOCAL_USER_ID = "local-user"
+
+
+async def _ensure_selfhost_local_user() -> None:
+    """Ensure the shared local user exists for self-hosted, auth-less setups."""
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            text(
+                """
+                INSERT INTO users (id, name, email)
+                VALUES (:id, :name, :email)
+                ON CONFLICT DO NOTHING
+                """
+            ),
+            {
+                "id": LOCAL_USER_ID,
+                "name": "Local User",
+                "email": "local-user@supoclip.local",
+            },
+        )
+        await db.commit()
+        logger.info("✅ Self-host local user '%s' ensured", LOCAL_USER_ID)
 def create_app(
     *,
     config: Config | None = None,
@@ -68,6 +92,12 @@ def create_app(
 
             await queue_adapter.get_pool()
             logger.info("✅ Job queue initialized")
+
+            if runtime_config.self_host:
+                try:
+                    await _ensure_selfhost_local_user()
+                except Exception:
+                    logger.exception("Failed to ensure self-host local user")
 
             yield
         finally:
