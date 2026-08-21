@@ -273,6 +273,8 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: supoclip-postgres
+    ports:
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_DB: supoclip
       POSTGRES_USER: supoclip
