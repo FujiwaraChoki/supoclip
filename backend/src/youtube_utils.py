@@ -76,6 +76,10 @@ class YouTubeDownloader:
             "nocheckcertificate": True,
             "prefer_insecure": False,
             "age_limit": None,
+            # Use remote JS challenge solver (EJS) to fix "n challenge" failures
+            "remote_components": ["ejs:github"],
+            # deno is used inside Docker; enable node for local Windows runs
+            "js_runtimes": {"deno": {}, "node": {}},
         }
 
         return opts
