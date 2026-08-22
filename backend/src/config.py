@@ -19,9 +19,16 @@ class Config:
         self.ollama_base_url = self._get_runtime_setting("OLLAMA_BASE_URL")
         self.ollama_api_key = self._get_runtime_setting("OLLAMA_API_KEY")
 
-        self.whisper_model = os.getenv("WHISPER_MODEL", "base")
         self.transcription_provider = self._normalize_transcription_provider(
-            os.getenv("TRANSCRIPTION_PROVIDER", "assemblyai")
+            self._get_runtime_setting("TRANSCRIPTION_PROVIDER") or "auto"
+        )
+        self.transcription_fallback_chain = self._normalize_fallback_chain(
+            self._get_runtime_setting("TRANSCRIPTION_FALLBACK_CHAIN")
+        )
+        self.whisper_model = (
+            self._get_runtime_setting("WHISPER_MODEL_SIZE")
+            or self._get_runtime_setting("WHISPER_MODEL")
+            or "small"
         )
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
@@ -154,6 +161,9 @@ class Config:
 
     def as_runtime_settings(self) -> dict[str, str | None]:
         return {
+            "TRANSCRIPTION_PROVIDER": self.transcription_provider,
+            "TRANSCRIPTION_FALLBACK_CHAIN": ",".join(self.transcription_fallback_chain),
+            "WHISPER_MODEL_SIZE": self.whisper_model,
             "ASSEMBLY_AI_API_KEY": self.assembly_ai_api_key,
             "LLM": self.llm,
             "OPENAI_API_KEY": self.openai_api_key,
@@ -193,13 +203,6 @@ class Config:
         return "1080"
 
     @staticmethod
-    def _normalize_transcription_provider(value: str | None) -> str:
-        normalized = (value or "").strip().lower().replace("-", "_")
-        if normalized in ("whisper", "youtube_captions"):
-            return normalized
-        return "assemblyai"
-
-    @staticmethod
     def _normalize_youtube_metadata_provider(value: str | None) -> str:
         normalized = (value or "").strip().lower()
         if normalized == "youtube_data_api":
@@ -212,6 +215,26 @@ class Config:
         if normalized == "apify":
             return "apify"
         return "yt_dlp"
+
+    @staticmethod
+    def _normalize_transcription_provider(value: str | None) -> str:
+        normalized = (value or "").strip().lower().replace("-", "_")
+        if normalized in {"whisper", "assemblyai", "faster_whisper", "whisperx", "youtube_captions", "auto"}:
+            return normalized
+        return "auto"
+
+    @staticmethod
+    def _normalize_fallback_chain(value: str | None) -> list[str]:
+        default_chain = ["faster_whisper", "whisperx", "whisper"]
+        if not value or not value.strip():
+            return default_chain
+        items = [
+            Config._normalize_transcription_provider(item)
+            for item in value.split(",")
+            if item.strip()
+        ]
+        chain = [item for item in items if item != "auto"]
+        return chain if chain else default_chain
 
     def resolve_youtube_data_api_key(self) -> str | None:
         return self.youtube_data_api_key or self.google_api_key

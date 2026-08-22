@@ -292,6 +292,7 @@ class TaskRepository:
         status: str,
         progress: Optional[int] = None,
         progress_message: Optional[str] = None,
+        stage_progress: Optional[int] = None,
     ) -> None:
         """Update task status and optional progress."""
         params = {
@@ -299,6 +300,7 @@ class TaskRepository:
             "status": status,
             "progress": progress,
             "progress_message": progress_message,
+            "stage_progress": stage_progress,
         }
 
         # Build dynamic query based on what's provided
@@ -306,6 +308,9 @@ class TaskRepository:
 
         if progress is not None:
             set_parts.append("progress = :progress")
+
+        if stage_progress is not None:
+            set_parts.append("stage_progress = :stage_progress")
 
         if progress_message is not None:
             set_parts.append("progress_message = :progress_message")

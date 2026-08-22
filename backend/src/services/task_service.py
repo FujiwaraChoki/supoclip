@@ -253,7 +253,7 @@ class TaskService:
 
             # Progress callback wrapper
             async def update_progress(
-                progress: int, message: str, status: str = "processing"
+                progress: int, message: str, status: str = "processing", stage_progress: int = 0
             ):
                 await self.task_repo.update_task_status(
                     self.db,
@@ -261,9 +261,36 @@ class TaskService:
                     status,
                     progress=progress,
                     progress_message=message,
+                    stage_progress=stage_progress,
                 )
                 if progress_callback:
-                    await progress_callback(progress, message, status)
+                    await progress_callback(progress, message, status, stage_progress)
+
+            # Stage-wise cache persistence callback
+            async def stage_cache_callback(
+                stage: str,
+                video_path: Optional[str] = None,
+                transcript_text: Optional[str] = None,
+                analysis_json: Optional[str] = None,
+            ):
+                try:
+                    await self.cache_repo.upsert_cache(
+                        self.db,
+                        cache_key=cache_key,
+                        source_url=url,
+                        source_type=source_type,
+                        video_path=video_path,
+                        transcript_text=transcript_text,
+                        analysis_json=analysis_json,
+                    )
+                    logger.info(
+                        "Stage cache saved for stage '%s' (task %s, cache_key: %s)",
+                        stage,
+                        task_id,
+                        cache_key,
+                    )
+                except Exception as exc:
+                    logger.warning("Failed saving stage cache for '%s': %s", stage, exc)
 
             # Process video with progress updates
             max_video_duration = self.config.max_video_duration
@@ -292,6 +319,7 @@ class TaskService:
                 cached_analysis_json=cached_analysis_json,
                 progress_callback=update_progress,
                 should_cancel=should_cancel,
+                stage_cache_callback=stage_cache_callback,
             )
             stage_timings["pipeline_seconds"] = round(
                 perf_counter() - pipeline_start, 3
@@ -349,9 +377,13 @@ class TaskService:
                 clip_progress = 70 + int(
                     ((i + 1) / total_clips) * 25
                 ) if total_clips > 0 else 95
+                
+                stage_progress = int((i / total_clips) * 100) if total_clips > 0 else 100
+                
                 await update_progress(
                     clip_progress,
                     f"Creating clip {i + 1}/{total_clips}...",
+                    stage_progress=stage_progress
                 )
 
                 # Render single clip in thread pool

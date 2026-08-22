@@ -4,7 +4,8 @@ Optimized for ffmpeg, AssemblyAI integration, and high-quality output.
 """
 
 from pathlib import Path
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple, Optional, Callable
+import asyncio
 import logging
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
@@ -359,110 +360,375 @@ def transcribe_with_youtube_captions(video_url: str) -> Optional[str]:
                     pass
 
 
-def get_video_transcript(
-    video_path: Path,
-    speech_model: str = "universal",
-    source_url: Optional[str] = None,
-) -> str:
-    """Get a video transcript using the configured provider.
-
-    Dispatches to AssemblyAI, local Whisper, or YouTube captions based on
-    ``TRANSCRIPTION_PROVIDER``. ``source_url`` enables the youtube_captions
-    provider, which needs the original URL rather than a local file path.
-    """
-    logger.info(f"Getting transcript for: {video_path}")
-    runtime_config = get_config()
-    provider = runtime_config.transcription_provider
-
-    if provider == "whisper":
-        return _get_transcript_with_whisper(video_path, runtime_config)
-    if provider == "youtube_captions":
-        if not source_url:
-            raise ValueError(
-                "youtube_captions provider requires a YouTube URL. "
-                "Pass source_url to get_video_transcript()."
-            )
-        return _get_transcript_with_youtube_captions(source_url)
-    return _get_transcript_with_assemblyai(video_path, speech_model, runtime_config)
+class WhisperWord:
+    def __init__(
+        self,
+        text: str,
+        start: int,
+        end: int,
+        confidence: float = 1.0,
+        speaker: str | None = None,
+    ):
+        self.text = text
+        self.start = start
+        self.end = end
+        self.confidence = confidence
+        self.speaker = speaker
 
 
-def _get_transcript_with_assemblyai(
-    video_path: Path, speech_model: str, runtime_config
-) -> str:
-    """Get transcript using AssemblyAI with word-level timing for precise subtitles."""
-    aai.settings.api_key = runtime_config.assembly_ai_api_key
-    aai.settings.http_timeout = runtime_config.assembly_ai_http_timeout_seconds
-    transcriber = aai.Transcriber()
+class WhisperUtterance:
+    def __init__(
+        self,
+        text: str,
+        start: int,
+        end: int,
+        words: list = None,
+        speaker: str | None = None,
+    ):
+        self.text = text
+        self.start = start
+        self.end = end
+        self.words = words or []
+        self.speaker = speaker
 
-    # AssemblyAI now requires the plural `speech_models` list; the singular
-    # `best`/`nano`/`universal` values were deprecated server-side.
-    speech_models_value = _assemblyai_speech_models_value(speech_model)
 
-    config_obj = aai.TranscriptionConfig(
-        speaker_labels=True,
-        punctuate=True,
-        format_text=True,
-        speech_models=speech_models_value,
+class WhisperTranscriptResult:
+    def __init__(self, text: str, words: list, utterances: list = None):
+        self.text = text
+        self.words = words
+        self.utterances = utterances or []
+        self.status = "completed"
+
+
+def get_video_transcript_whisper(video_path: Path, model_name: str = "base") -> str:
+    """Get transcript using local Whisper model with word-level timing."""
+    logger.info(
+        f"Starting Whisper transcription for: {video_path} using model '{model_name}'"
     )
+    try:
+        import whisper
+    except ImportError:
+        logger.error("openai-whisper package is not installed.")
+        raise RuntimeError(
+            "Whisper is not installed. Install openai-whisper or use AssemblyAI."
+        )
+
+    transcription_media_path = _prepare_audio_for_transcription(video_path)
+
+    logger.info(f"Loading Whisper model '{model_name}'...")
+    model = whisper.load_model(model_name)
+
+    logger.info("Transcribing audio with Whisper (word_timestamps=True)...")
+    result = model.transcribe(str(transcription_media_path), word_timestamps=True)
+
+    all_words = []
+    all_utterances = []
+
+    segments = result.get("segments", [])
+    for seg in segments:
+        seg_text = seg.get("text", "").strip()
+        seg_start_ms = int(round(seg.get("start", 0) * 1000))
+        seg_end_ms = int(round(seg.get("end", 0) * 1000))
+
+        seg_words = []
+        words_in_seg = seg.get("words", [])
+        if words_in_seg:
+            for w in words_in_seg:
+                w_text = w.get("word", "").strip()
+                if not w_text:
+                    continue
+                w_start_ms = int(round(w.get("start", 0) * 1000))
+                w_end_ms = int(round(w.get("end", 0) * 1000))
+                w_prob = float(w.get("probability", 1.0))
+                word_obj = WhisperWord(
+                    text=w_text, start=w_start_ms, end=w_end_ms, confidence=w_prob
+                )
+                seg_words.append(word_obj)
+                all_words.append(word_obj)
+        else:
+            word_list = seg_text.split()
+            if word_list:
+                duration_ms = max(1, seg_end_ms - seg_start_ms)
+                word_dur_ms = duration_ms // len(word_list)
+                for idx, wt in enumerate(word_list):
+                    w_start = seg_start_ms + (idx * word_dur_ms)
+                    w_end = (
+                        w_start + word_dur_ms
+                        if idx < len(word_list) - 1
+                        else seg_end_ms
+                    )
+                    word_obj = WhisperWord(text=wt, start=w_start, end=w_end)
+                    seg_words.append(word_obj)
+                    all_words.append(word_obj)
+
+        utterance_obj = WhisperUtterance(
+            text=seg_text, start=seg_start_ms, end=seg_end_ms, words=seg_words
+        )
+        all_utterances.append(utterance_obj)
+
+    full_text = result.get("text", "").strip()
+    transcript_result = WhisperTranscriptResult(
+        text=full_text, words=all_words, utterances=all_utterances
+    )
+
+    formatted_lines = format_transcript_for_analysis(transcript_result)
+    cache_transcript_data(video_path, transcript_result)
+
+    result_str = "\n".join(formatted_lines)
+    logger.info(
+        f"Whisper transcript formatted: {len(formatted_lines)} segments, {len(result_str)} chars"
+    )
+    return result_str
+
+
+def get_video_transcript_faster_whisper(
+    video_path: Path, model_name: str = "base",
+    progress_callback: Optional[Callable] = None,
+    loop: Optional[Any] = None,
+) -> str:
+    """Get transcript using faster-whisper with word-level timing."""
+    logger.info(
+        f"Starting faster-whisper transcription for: {video_path} using model '{model_name}'"
+    )
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        logger.error("faster-whisper package is not installed.")
+        raise RuntimeError(
+            "faster-whisper is not installed. Run `pip install faster-whisper` or select another provider."
+        )
+
+    transcription_media_path = _prepare_audio_for_transcription(video_path)
+
+    logger.info(f"Loading faster-whisper model '{model_name}'...")
+    try:
+        model = WhisperModel(model_name, device="auto", compute_type="default")
+    except Exception:
+        model = WhisperModel(model_name, device="cpu", compute_type="int8")
+
+    logger.info("Transcribing audio with faster-whisper (word_timestamps=True)...")
+    try:
+        segments, info = model.transcribe(
+            str(transcription_media_path), word_timestamps=True
+        )
+    except Exception as e:
+        err_msg = str(e).lower()
+        if "libcublas" in err_msg or "cuda" in err_msg or "cudnn" in err_msg:
+            logger.warning(f"faster-whisper GPU execution failed ({e}), falling back to CPU...")
+            model = WhisperModel(model_name, device="cpu", compute_type="int8")
+            segments, info = model.transcribe(
+                str(transcription_media_path), word_timestamps=True
+            )
+        else:
+            raise
+    total_duration = info.duration
+
+    all_words = []
+    all_utterances = []
+    full_text_parts = []
+
+    for seg in segments:
+        seg_text = (seg.text or "").strip()
+        if seg_text:
+            full_text_parts.append(seg_text)
+            
+        if progress_callback and loop and total_duration > 0:
+            percent = int((seg.end / total_duration) * 100)
+            
+            # Only update if percentage changed by at least 2% to avoid DB spam
+            if not hasattr(progress_callback, "_last_percent"):
+                progress_callback._last_percent = -1
+                
+            if percent - progress_callback._last_percent >= 2 or percent == 100:
+                progress_callback._last_percent = percent
+                
+                future = asyncio.run_coroutine_threadsafe(
+                    progress_callback(20, f"Transcribing audio... {percent}%", "processing", percent),
+                    loop
+                )
+                # Block to prevent concurrent DB session usage
+                try:
+                    future.result(timeout=2.0)
+                except Exception as e:
+                    logger.debug(f"Progress callback timeout/error: {e}")
+
+        seg_start_ms = int(round(seg.start * 1000))
+        seg_end_ms = int(round(seg.end * 1000))
+
+        seg_words = []
+        words_in_seg = getattr(seg, "words", None) or []
+        if words_in_seg:
+            for w in words_in_seg:
+                w_text = (w.word or "").strip()
+                if not w_text:
+                    continue
+                w_start_ms = int(round(w.start * 1000))
+                w_end_ms = int(round(w.end * 1000))
+                w_prob = float(getattr(w, "probability", 1.0))
+                word_obj = WhisperWord(
+                    text=w_text, start=w_start_ms, end=w_end_ms, confidence=w_prob
+                )
+                seg_words.append(word_obj)
+                all_words.append(word_obj)
+        else:
+            word_list = seg_text.split()
+            if word_list:
+                duration_ms = max(1, seg_end_ms - seg_start_ms)
+                word_dur_ms = duration_ms // len(word_list)
+                for idx, wt in enumerate(word_list):
+                    w_start = seg_start_ms + (idx * word_dur_ms)
+                    w_end = (
+                        w_start + word_dur_ms
+                        if idx < len(word_list) - 1
+                        else seg_end_ms
+                    )
+                    word_obj = WhisperWord(text=wt, start=w_start, end=w_end)
+                    seg_words.append(word_obj)
+                    all_words.append(word_obj)
+
+        utterance_obj = WhisperUtterance(
+            text=seg_text, start=seg_start_ms, end=seg_end_ms, words=seg_words
+        )
+        all_utterances.append(utterance_obj)
+
+    full_text = " ".join(full_text_parts)
+    transcript_result = WhisperTranscriptResult(
+        text=full_text, words=all_words, utterances=all_utterances
+    )
+
+    formatted_lines = format_transcript_for_analysis(transcript_result)
+    cache_transcript_data(video_path, transcript_result)
+
+    result_str = "\n".join(formatted_lines)
+    logger.info(
+        f"faster-whisper transcript formatted: {len(formatted_lines)} segments, {len(result_str)} chars"
+    )
+    return result_str
+
+
+def get_video_transcript_whisperx(
+    video_path: Path, model_name: str = "base",
+    progress_callback: Optional[Callable] = None,
+    loop: Optional[Any] = None,
+) -> str:
+    """Get transcript using WhisperX with word-level timing & phoneme alignment."""
+    logger.info(
+        f"Starting WhisperX transcription for: {video_path} using model '{model_name}'"
+    )
+    try:
+        import whisperx
+    except ImportError:
+        logger.error("whisperx package is not installed.")
+        raise RuntimeError(
+            "whisperx is not installed. Install whisperx or select another provider."
+        )
+
+    transcription_media_path = _prepare_audio_for_transcription(video_path)
 
     try:
-        logger.info("Starting AssemblyAI transcription")
-        transcription_media_path = _prepare_audio_for_transcription(video_path)
-        transcript = None
-        for attempt in range(1, 4):
-            try:
-                transcript = _submit_and_wait_for_assemblyai_transcript(
-                    transcriber,
-                    transcription_media_path,
-                    config_obj,
-                    runtime_config.assembly_ai_http_timeout_seconds,
-                )
-                break
-            except (httpx.TimeoutException, TimeoutError):
-                logger.warning(
-                    "AssemblyAI transcription timed out on attempt %s/3",
-                    attempt,
-                )
-                if attempt == 3:
-                    raise
+        import torch
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    except Exception:
+        device = "cpu"
+    compute_type = "float16" if device == "cuda" else "int8"
 
-        if transcript is None:
-            raise RuntimeError("AssemblyAI transcription did not return a transcript")
+    logger.info(f"Loading WhisperX model '{model_name}' on {device}...")
+    model = whisperx.load_model(model_name, device, compute_type=compute_type)
 
-        if transcript.status == aai.TranscriptStatus.error:
-            logger.error(f"AssemblyAI transcription failed: {transcript.error}")
-            raise Exception(f"Transcription failed: {transcript.error}")
+    audio = whisperx.load_audio(str(transcription_media_path))
+    result = model.transcribe(audio, batch_size=16)
 
-        formatted_lines = format_transcript_for_analysis(transcript)
-        cache_transcript_data(video_path, transcript)
-
-        result = "\n".join(formatted_lines)
-        logger.info(
-            f"Transcript formatted: {len(formatted_lines)} segments, {len(result)} chars"
+    # Forced alignment for precise word timestamps
+    language = result.get("language", "en")
+    try:
+        model_a, metadata = whisperx.load_align_model(
+            language_code=language, device=device
         )
-        return result
-
+        result = whisperx.align(
+            result["segments"],
+            model_a,
+            metadata,
+            audio,
+            device,
+            return_char_alignments=False,
+        )
     except Exception as e:
-        logger.error(f"Error in AssemblyAI transcription: {e}")
-        raise
+        logger.warning(f"WhisperX alignment failed: {e}. Using raw segment transcript.")
 
+    all_words = []
+    all_utterances = []
+    full_text_parts = []
 
-def _get_transcript_with_whisper(video_path: Path, runtime_config) -> str:
-    """Get transcript using local Whisper with word-level timestamps."""
-    model_name = runtime_config.whisper_model
-    logger.info("Starting Whisper transcription with model: %s", model_name)
-    whisper_result = transcribe_with_whisper(video_path, model_name)
+    segments = result.get("segments", [])
+    for seg in segments:
+        seg_text = seg.get("text", "").strip()
+        if seg_text:
+            full_text_parts.append(seg_text)
 
-    formatted_lines = format_transcript_for_analysis(whisper_result)
-    cache_transcript_data(video_path, whisper_result)
+        seg_start_ms = int(round(seg.get("start", 0) * 1000))
+        seg_end_ms = int(round(seg.get("end", 0) * 1000))
+        speaker = seg.get("speaker")
 
-    result = "\n".join(formatted_lines)
-    logger.info(
-        "Whisper transcript formatted: %d segments, %d chars",
-        len(formatted_lines),
-        len(result),
+        seg_words = []
+        words_in_seg = seg.get("words", [])
+        if words_in_seg:
+            for w in words_in_seg:
+                w_text = w.get("word", "").strip()
+                if not w_text:
+                    continue
+                w_start_ms = int(round(w.get("start", seg.get("start", 0)) * 1000))
+                w_end_ms = int(round(w.get("end", seg.get("end", 0)) * 1000))
+                w_score = float(w.get("score", 1.0))
+                w_speaker = w.get("speaker", speaker)
+                word_obj = WhisperWord(
+                    text=w_text,
+                    start=w_start_ms,
+                    end=w_end_ms,
+                    confidence=w_score,
+                    speaker=w_speaker,
+                )
+                seg_words.append(word_obj)
+                all_words.append(word_obj)
+        else:
+            word_list = seg_text.split()
+            if word_list:
+                duration_ms = max(1, seg_end_ms - seg_start_ms)
+                word_dur_ms = duration_ms // len(word_list)
+                for idx, wt in enumerate(word_list):
+                    w_start = seg_start_ms + (idx * word_dur_ms)
+                    w_end = (
+                        w_start + word_dur_ms
+                        if idx < len(word_list) - 1
+                        else seg_end_ms
+                    )
+                    word_obj = WhisperWord(
+                        text=wt, start=w_start, end=w_end, speaker=speaker
+                    )
+                    seg_words.append(word_obj)
+                    all_words.append(word_obj)
+
+        utterance_obj = WhisperUtterance(
+            text=seg_text,
+            start=seg_start_ms,
+            end=seg_end_ms,
+            words=seg_words,
+            speaker=speaker,
+        )
+        all_utterances.append(utterance_obj)
+
+    full_text = " ".join(full_text_parts)
+    transcript_result = WhisperTranscriptResult(
+        text=full_text, words=all_words, utterances=all_utterances
     )
-    return result
+
+    formatted_lines = format_transcript_for_analysis(transcript_result)
+    cache_transcript_data(video_path, transcript_result)
+
+    result_str = "\n".join(formatted_lines)
+    logger.info(
+        f"WhisperX transcript formatted: {len(formatted_lines)} segments, {len(result_str)} chars"
+    )
+    return result_str
 
 
 def _get_transcript_with_youtube_captions(source_url: str) -> str:
@@ -476,6 +742,138 @@ def _get_transcript_with_youtube_captions(source_url: str) -> str:
         )
     logger.info("YouTube caption transcript: %d chars", len(transcript))
     return transcript
+
+
+def run_transcription_fallback_chain(
+    video_path: Path,
+    chain: list[str] | None = None,
+    speech_model: str = "universal",
+    source_url: Optional[str] = None,
+    progress_callback: Optional[Callable] = None,
+    loop: Optional[Any] = None,
+) -> str:
+    """Run transcription attempting each provider in the configured fallback chain in order."""
+    runtime_config = get_config()
+    fallback_chain = chain or runtime_config.transcription_fallback_chain
+    model_name = runtime_config.whisper_model
+
+    errors = []
+    for provider in fallback_chain:
+        logger.info(f"Attempting fallback provider '{provider}' in chain...")
+        try:
+            if provider == "faster_whisper":
+                return get_video_transcript_faster_whisper(
+                    video_path, model_name=model_name, progress_callback=progress_callback, loop=loop
+                )
+            elif provider == "whisperx":
+                return get_video_transcript_whisperx(
+                    video_path, model_name=model_name, progress_callback=progress_callback, loop=loop
+                )
+            elif provider == "whisper":
+                return get_video_transcript_whisper(
+                    video_path, model_name=model_name
+                )
+            elif provider == "youtube_captions":
+                if not source_url:
+                    raise ValueError("youtube_captions requires source_url")
+                return _get_transcript_with_youtube_captions(source_url)
+            elif provider == "assemblyai":
+                if not runtime_config.assembly_ai_api_key:
+                    raise ValueError("ASSEMBLY_AI_API_KEY is not set")
+                return get_video_transcript_assemblyai(
+                    video_path, speech_model=speech_model
+                )
+            else:
+                logger.warning(f"Unknown provider '{provider}' in fallback chain, skipping.")
+        except Exception as e:
+            logger.warning(
+                f"Provider '{provider}' failed in fallback chain: {e}. Trying next provider..."
+            )
+            errors.append(f"{provider}: {e}")
+
+    raise RuntimeError(
+        f"All transcription providers in fallback chain ({', '.join(fallback_chain)}) failed: {'; '.join(errors)}"
+    )
+
+
+def get_video_transcript(
+    video_path: Path,
+    speech_model: str = "universal",
+    source_url: Optional[str] = None,
+    progress_callback: Optional[Callable] = None,
+    loop: Optional[Any] = None,
+) -> str:
+    """Get transcript using AssemblyAI, Whisper, faster-whisper, WhisperX, or YouTube captions depending on configuration."""
+    runtime_config = get_config()
+    provider = runtime_config.transcription_provider
+
+    if provider == "whisper":
+        logger.info(
+            f"Using Whisper provider explicitly (model={runtime_config.whisper_model})"
+        )
+        return get_video_transcript_whisper(
+            video_path, model_name=runtime_config.whisper_model
+        )
+
+    if provider == "faster_whisper":
+        logger.info(
+            f"Using faster-whisper provider explicitly (model={runtime_config.whisper_model})"
+        )
+        return get_video_transcript_faster_whisper(
+            video_path, model_name=runtime_config.whisper_model, progress_callback=progress_callback, loop=loop
+        )
+
+    if provider == "whisperx":
+        logger.info(
+            f"Using WhisperX provider explicitly (model={runtime_config.whisper_model})"
+        )
+        return get_video_transcript_whisperx(
+            video_path, model_name=runtime_config.whisper_model, progress_callback=progress_callback, loop=loop
+        )
+
+    if provider == "youtube_captions":
+        if not source_url:
+            raise ValueError(
+                "youtube_captions provider requires a YouTube URL. "
+                "Pass source_url to get_video_transcript()."
+            )
+        return _get_transcript_with_youtube_captions(source_url)
+
+    if provider == "assemblyai":
+        logger.info("Using AssemblyAI provider explicitly")
+        return get_video_transcript_assemblyai(
+            video_path, speech_model=speech_model
+        )
+
+    # Provider == "auto"
+    if runtime_config.assembly_ai_api_key:
+        logger.info("Auto provider: ASSEMBLY_AI_API_KEY found, trying AssemblyAI first")
+        try:
+            return get_video_transcript_assemblyai(
+                video_path, speech_model=speech_model
+            )
+        except Exception as e:
+            logger.warning(
+                f"AssemblyAI failed in auto mode: {e}. Executing fallback chain ({runtime_config.transcription_fallback_chain})..."
+            )
+            return run_transcription_fallback_chain(
+                video_path,
+                speech_model=speech_model,
+                source_url=source_url,
+                progress_callback=progress_callback,
+                loop=loop,
+            )
+    else:
+        logger.info(
+            f"Auto provider: No ASSEMBLY_AI_API_KEY found. Executing fallback chain ({runtime_config.transcription_fallback_chain})..."
+        )
+        return run_transcription_fallback_chain(
+            video_path,
+            speech_model=speech_model,
+            source_url=source_url,
+            progress_callback=progress_callback,
+            loop=loop,
+        )
 
 
 def cache_transcript_data(video_path: Path, transcript) -> None:
@@ -583,6 +981,12 @@ def _join_transcript_tokens(tokens: List[str]) -> str:
     return text.strip()
 
 
+def _get_item_attr(item: Any, attr: str, default: Any = None) -> Any:
+    if isinstance(item, dict):
+        return item.get(attr, default)
+    return getattr(item, attr, default)
+
+
 def _format_words_for_analysis(
     words: List[Any],
     speaker: Optional[str] = None,
@@ -602,9 +1006,11 @@ def _format_words_for_analysis(
         nonlocal current_words, current_start
         if not current_words:
             return
-        start_time = format_ms_to_timestamp(current_words[0].start)
-        end_time = format_ms_to_timestamp(current_words[-1].end)
-        text = _join_transcript_tokens([word.text for word in current_words])
+        w_first_start = _get_item_attr(current_words[0], "start", 0)
+        w_last_end = _get_item_attr(current_words[-1], "end", 0)
+        start_time = format_ms_to_timestamp(int(w_first_start))
+        end_time = format_ms_to_timestamp(int(w_last_end))
+        text = _join_transcript_tokens([str(_get_item_attr(word, "text", "")) for word in current_words])
         if text:
             speaker_prefix = f"Speaker {speaker}: " if speaker else ""
             formatted_lines.append(f"[{start_time} - {end_time}] {speaker_prefix}{text}")
@@ -612,13 +1018,16 @@ def _format_words_for_analysis(
         current_start = None
 
     for word in words:
+        w_start = int(_get_item_attr(word, "start", 0))
+        w_end = int(_get_item_attr(word, "end", 0))
+        w_text = str(_get_item_attr(word, "text", ""))
         if current_start is None:
-            current_start = word.start
+            current_start = w_start
 
         current_words.append(word)
-        duration_ms = word.end - current_start
+        duration_ms = w_end - current_start
         segment_word_count = len(current_words)
-        ends_sentence = str(word.text).endswith((".", "!", "?"))
+        ends_sentence = w_text.endswith((".", "!", "?"))
 
         should_flush = False
         if segment_word_count >= max_words_per_segment:
@@ -645,11 +1054,12 @@ def format_transcript_for_analysis(transcript) -> List[str]:
     """Format transcripts into readable timestamped segments for AI analysis.
 
     Handles both AssemblyAI transcript objects (utterances/words with ms
-    timings) and Whisper result dicts (segments with second-based timings).
+    timings), Whisper result dicts (segments with second-based timings), and
+    cached transcript dictionaries.
     """
     # Whisper result dict: treat each segment as an utterance, converting the
     # second-based timings to milliseconds to match the timestamp formatter.
-    if isinstance(transcript, dict):
+    if isinstance(transcript, dict) and "segments" in transcript:
         formatted_lines = []
         for segment in transcript.get("segments") or []:
             start_ms = int(segment.get("start", 0) * 1000)
@@ -660,37 +1070,40 @@ def format_transcript_for_analysis(transcript) -> List[str]:
             )
         return formatted_lines
 
-    utterances = getattr(transcript, "utterances", None) or []
+    utterances = _get_item_attr(transcript, "utterances", None) or []
     if utterances:
         formatted_lines = []
         for utterance in utterances:
-            utterance_words = list(getattr(utterance, "words", []) or [])
-            utterance_duration = max(0, int(utterance.end) - int(utterance.start))
-            if utterance_words and (
+            u_words = list(_get_item_attr(utterance, "words", []) or [])
+            u_start = int(_get_item_attr(utterance, "start", 0))
+            u_end = int(_get_item_attr(utterance, "end", 0))
+            u_text = str(_get_item_attr(utterance, "text", ""))
+            u_speaker = _get_item_attr(utterance, "speaker", None)
+            utterance_duration = max(0, u_end - u_start)
+            if u_words and (
                 utterance_duration > ANALYSIS_UTTERANCE_SPLIT_THRESHOLD_MS
-                or len(utterance_words) > ANALYSIS_UTTERANCE_SPLIT_THRESHOLD_WORDS
+                or len(u_words) > ANALYSIS_UTTERANCE_SPLIT_THRESHOLD_WORDS
             ):
                 formatted_lines.extend(
                     _format_words_for_analysis(
-                        utterance_words,
-                        getattr(utterance, "speaker", None),
+                        u_words,
+                        u_speaker,
                         max_words_per_segment=ANALYSIS_LONG_UTTERANCE_MAX_WORDS,
                         max_duration_ms=ANALYSIS_LONG_UTTERANCE_MAX_DURATION_MS,
                     )
                 )
                 continue
 
-            start_time = format_ms_to_timestamp(utterance.start)
-            end_time = format_ms_to_timestamp(utterance.end)
-            speaker = getattr(utterance, "speaker", None)
-            speaker_prefix = f"Speaker {speaker}: " if speaker else ""
+            start_time = format_ms_to_timestamp(u_start)
+            end_time = format_ms_to_timestamp(u_end)
+            speaker_prefix = f"Speaker {u_speaker}: " if u_speaker else ""
             formatted_lines.append(
-                f"[{start_time} - {end_time}] {speaker_prefix}{utterance.text}"
+                f"[{start_time} - {end_time}] {speaker_prefix}{u_text}"
             )
         return formatted_lines
 
     formatted_lines = []
-    words = getattr(transcript, "words", None) or []
+    words = _get_item_attr(transcript, "words", None) or []
     if not words:
         return formatted_lines
 
