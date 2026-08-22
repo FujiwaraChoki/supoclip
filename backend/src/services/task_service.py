@@ -266,6 +266,32 @@ class TaskService:
                 if progress_callback:
                     await progress_callback(progress, message, status, stage_progress)
 
+            # Stage-wise cache persistence callback
+            async def stage_cache_callback(
+                stage: str,
+                video_path: Optional[str] = None,
+                transcript_text: Optional[str] = None,
+                analysis_json: Optional[str] = None,
+            ):
+                try:
+                    await self.cache_repo.upsert_cache(
+                        self.db,
+                        cache_key=cache_key,
+                        source_url=url,
+                        source_type=source_type,
+                        video_path=video_path,
+                        transcript_text=transcript_text,
+                        analysis_json=analysis_json,
+                    )
+                    logger.info(
+                        "Stage cache saved for stage '%s' (task %s, cache_key: %s)",
+                        stage,
+                        task_id,
+                        cache_key,
+                    )
+                except Exception as exc:
+                    logger.warning("Failed saving stage cache for '%s': %s", stage, exc)
+
             # Process video with progress updates
             max_video_duration = self.config.max_video_duration
             if source_type == "youtube" and user_id:
@@ -293,6 +319,7 @@ class TaskService:
                 cached_analysis_json=cached_analysis_json,
                 progress_callback=update_progress,
                 should_cancel=should_cancel,
+                stage_cache_callback=stage_cache_callback,
             )
             stage_timings["pipeline_seconds"] = round(
                 perf_counter() - pipeline_start, 3

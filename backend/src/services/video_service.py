@@ -402,6 +402,7 @@ class VideoService:
         cached_analysis_json: Optional[str] = None,
         progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]] = None,
         should_cancel: Optional[Callable[[], Awaitable[bool]]] = None,
+        stage_cache_callback: Optional[Callable[..., Awaitable[None]]] = None,
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.
@@ -409,6 +410,7 @@ class VideoService:
 
         progress_callback: Optional function to call with progress updates
                           Signature: async def callback(progress: int, message: str, status: str)
+        stage_cache_callback: Optional async function to persist stage outputs incrementally
         """
         try:
             runtime_config = get_config()
@@ -452,6 +454,10 @@ class VideoService:
                     f"Maximum allowed duration is {mins} minutes."
                 )
 
+            # Persist Step 1 cache immediately
+            if stage_cache_callback:
+                await stage_cache_callback("download", video_path=str(video_path))
+
             # Step 2: Generate transcript
             if should_cancel and await should_cancel():
                 raise Exception("Task cancelled")
@@ -461,6 +467,19 @@ class VideoService:
 
             transcript = cached_transcript
             if not transcript:
+                # Check on-disk transcript cache fallback
+                cached_disk_transcript = load_cached_transcript_data(video_path)
+                if cached_disk_transcript and cached_disk_transcript.get("text"):
+                    logger.info("Reusing on-disk transcript cache for %s", video_path.name)
+                    from ..video_utils import format_transcript_for_analysis
+                    class _CachedTranscriptObj:
+                        def __init__(self, data):
+                            self.text = data.get("text", "")
+                            self.utterances = data.get("utterances", [])
+                            self.words = data.get("words", [])
+                    transcript = "\n".join(format_transcript_for_analysis(_CachedTranscriptObj(cached_disk_transcript)))
+
+            if not transcript:
                 loop = asyncio.get_running_loop()
                 transcript = await VideoService.generate_transcript(
                     video_path,
@@ -468,6 +487,14 @@ class VideoService:
                     source_url=url if source_type == "youtube" else None,
                     progress_callback=progress_callback,
                     loop=loop,
+                )
+
+            # Persist Step 2 transcript cache immediately
+            if stage_cache_callback and transcript:
+                await stage_cache_callback(
+                    "transcript",
+                    video_path=str(video_path),
+                    transcript_text=transcript,
                 )
 
             # Step 3: AI analysis
@@ -480,6 +507,13 @@ class VideoService:
                 )
 
             relevant_parts = None
+            analysis_cache_path = video_path.with_suffix(".analysis_cache.json")
+            if not cached_analysis_json and analysis_cache_path.exists():
+                try:
+                    cached_analysis_json = analysis_cache_path.read_text(encoding="utf-8")
+                except Exception as exc:
+                    logger.debug("Failed reading on-disk analysis cache: %s", exc)
+
             if cached_analysis_json:
                 try:
                     cached_analysis = json.loads(cached_analysis_json)
@@ -523,14 +557,7 @@ class VideoService:
                     clip_signals=clip_signals,
                 )
 
-            # Step 4: Create clips
-            if should_cancel and await should_cancel():
-                raise Exception("Task cancelled")
-
-            if progress_callback:
-                await progress_callback(70, "Creating video clips...", "processing")
-
-            raw_segments = relevant_parts.most_relevant_segments
+            raw_segments = relevant_parts.most_relevant_segments if relevant_parts else []
             segments_json: List[Dict[str, Any]] = []
             transcript_data = load_cached_transcript_data(video_path)
             for segment in raw_segments:
@@ -590,6 +617,36 @@ class VideoService:
                     )
                 ]
 
+            serialized_analysis = json.dumps(
+                {
+                    "summary": relevant_parts.summary if relevant_parts else None,
+                    "key_topics": relevant_parts.key_topics if relevant_parts else [],
+                    "most_relevant_segments": segments_json,
+                }
+            )
+
+            # Write on-disk analysis cache
+            try:
+                analysis_cache_path.write_text(serialized_analysis, encoding="utf-8")
+            except Exception as exc:
+                logger.debug("Failed saving on-disk analysis cache: %s", exc)
+
+            # Persist Step 3 AI analysis cache immediately
+            if stage_cache_callback:
+                await stage_cache_callback(
+                    "analysis",
+                    video_path=str(video_path),
+                    transcript_text=transcript,
+                    analysis_json=serialized_analysis,
+                )
+
+            # Step 4: Create clips
+            if should_cancel and await should_cancel():
+                raise Exception("Task cancelled")
+
+            if progress_callback:
+                await progress_callback(70, "Creating video clips...", "processing")
+
             return {
                 "segments": segments_json,
                 "segments_to_render": segments_json,
@@ -598,15 +655,7 @@ class VideoService:
                 "summary": relevant_parts.summary if relevant_parts else None,
                 "key_topics": relevant_parts.key_topics if relevant_parts else None,
                 "transcript": transcript,
-                "analysis_json": json.dumps(
-                    {
-                        "summary": relevant_parts.summary if relevant_parts else None,
-                        "key_topics": relevant_parts.key_topics
-                        if relevant_parts
-                        else [],
-                        "most_relevant_segments": segments_json,
-                    }
-                ),
+                "analysis_json": serialized_analysis,
             }
 
         except Exception as e:
