@@ -162,7 +162,6 @@ class VideoUtilsDiarizationTests(unittest.TestCase):
         self.assertIsNotNone(payload)
         self.assertEqual(payload["words"][0]["text"], "legacy")
 
-<<<<<<< HEAD
     def test_assemblyai_speech_models_value_maps_legacy_aliases(self):
         # AssemblyAI deprecated the singular speech_model; the plural list must
         # only contain universal-3-pro and universal-2.
@@ -289,7 +288,6 @@ class VideoUtilsDiarizationTests(unittest.TestCase):
         self.assertEqual(payload["words"][0]["end"], 400)
         self.assertEqual(payload["utterances"][0]["text"], "Hello there.")
         self.assertIsNone(payload["utterances"][0]["speaker"])
-=======
     def test_format_transcript_for_analysis_splits_long_diarized_utterances(self):
         words = []
         for index, token in enumerate(
@@ -353,7 +351,6 @@ class VideoUtilsDiarizationTests(unittest.TestCase):
         text = video_utils.get_transcript_text_in_range(transcript_data, 0.0, 0.95)
 
         self.assertEqual(text, "Hello world. Again")
->>>>>>> ce494c7 (fix(backend): ground clip transcripts to real spans)
 
 
 if __name__ == "__main__":
