@@ -17,7 +17,7 @@ class ProgressTracker:
         self.task_id = task_id
         self.key = f"progress:{task_id}"
 
-    async def update(self, progress: int, message: str, status: str = "processing"):
+    async def update(self, progress: int, message: str, status: str = "processing", stage_progress: int = 0):
         """
         Update progress in Redis.
 
@@ -25,10 +25,12 @@ class ProgressTracker:
             progress: Progress percentage (0-100)
             message: Human-readable progress message
             status: Task status (queued, processing, completed, error)
+            stage_progress: Progress of the current stage (0-100)
         """
         data = {
             "task_id": self.task_id,
             "progress": progress,
+            "stage_progress": stage_progress,
             "message": message,
             "status": status
         }

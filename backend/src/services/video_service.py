@@ -8,6 +8,7 @@ import logging
 import json
 import subprocess
 import uuid
+import asyncio
 
 from ..utils.async_helpers import run_in_thread
 from ..youtube_utils import (
@@ -127,12 +128,12 @@ class VideoService:
         raise ValueError("Only upload:// references are allowed for local video sources")
 
     @staticmethod
-    async def download_video(url: str, task_id: Optional[str] = None) -> Optional[Path]:
+    async def download_video(url: str, task_id: Optional[str] = None, progress_callback: Optional[Callable] = None) -> Optional[Path]:
         """
         Download a YouTube video asynchronously.
         """
         logger.info(f"Starting video download: {url}")
-        video_path = await async_download_youtube_video(url, 3, task_id)
+        video_path = await async_download_youtube_video(url, 3, task_id, progress_callback)
 
         if not video_path:
             logger.error(f"Failed to download video: {url}")
@@ -159,10 +160,12 @@ class VideoService:
         video_path: Path,
         processing_mode: str = "balanced",
         source_url: Optional[str] = None,
+        progress_callback: Optional[Callable] = None,
+        loop: Optional[Any] = None,
     ) -> str:
         """
         Generate transcript from video using the configured provider
-        (assemblyai, whisper, or youtube_captions).
+        (assemblyai, whisper, faster_whisper, whisperx, or youtube_captions).
         Runs in thread pool to avoid blocking.
         """
         logger.info(f"Generating transcript for: {video_path}")
@@ -173,8 +176,21 @@ class VideoService:
         if processing_mode == "fast" and runtime_config.transcription_provider == "assemblyai":
             speech_model = runtime_config.fast_mode_transcript_model
 
+        async def _progress_callback(percent: int, message: str, status: str = "processing", stage_progress: Optional[int] = None):
+            if progress_callback:
+                # Transcription stage goes from 30% to 50% overall
+                # Use stage_progress if available, else fallback to percent
+                p = stage_progress if stage_progress is not None else percent
+                overall = 30 + int((p / 100.0) * 20)
+                await progress_callback(
+                    overall,
+                    message,
+                    status,
+                    p
+                )
+
         transcript = await run_in_thread(
-            get_video_transcript, video_path, speech_model, source_url
+            get_video_transcript, video_path, speech_model, source_url, _progress_callback, loop
         )
         logger.info(f"Transcript generated: {len(transcript)} characters")
         return transcript
@@ -419,7 +435,7 @@ class VideoService:
                             f"Maximum allowed duration is {mins} minutes."
                         )
 
-                video_path = await VideoService.download_video(url, task_id=task_id)
+                video_path = await VideoService.download_video(url, task_id=task_id, progress_callback=progress_callback)
                 if not video_path:
                     raise Exception("Failed to download video")
             else:
@@ -445,10 +461,13 @@ class VideoService:
 
             transcript = cached_transcript
             if not transcript:
+                loop = asyncio.get_running_loop()
                 transcript = await VideoService.generate_transcript(
                     video_path,
                     processing_mode=processing_mode,
                     source_url=url if source_type == "youtube" else None,
+                    progress_callback=progress_callback,
+                    loop=loop,
                 )
 
             # Step 3: AI analysis

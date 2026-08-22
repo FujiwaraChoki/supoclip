@@ -253,7 +253,7 @@ class TaskService:
 
             # Progress callback wrapper
             async def update_progress(
-                progress: int, message: str, status: str = "processing"
+                progress: int, message: str, status: str = "processing", stage_progress: int = 0
             ):
                 await self.task_repo.update_task_status(
                     self.db,
@@ -261,9 +261,10 @@ class TaskService:
                     status,
                     progress=progress,
                     progress_message=message,
+                    stage_progress=stage_progress,
                 )
                 if progress_callback:
-                    await progress_callback(progress, message, status)
+                    await progress_callback(progress, message, status, stage_progress)
 
             # Process video with progress updates
             max_video_duration = self.config.max_video_duration
@@ -349,9 +350,13 @@ class TaskService:
                 clip_progress = 70 + int(
                     ((i + 1) / total_clips) * 25
                 ) if total_clips > 0 else 95
+                
+                stage_progress = int((i / total_clips) * 100) if total_clips > 0 else 100
+                
                 await update_progress(
                     clip_progress,
                     f"Creating clip {i + 1}/{total_clips}...",
+                    stage_progress=stage_progress
                 )
 
                 # Render single clip in thread pool
