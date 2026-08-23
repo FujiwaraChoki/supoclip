@@ -77,6 +77,7 @@ model Task {
   generated_clips_ids  String[]
   status               String    @default("pending") @db.VarChar(20)
   progress             Int?      @default(0)
+  stage_progress       Int?      @default(0)
   progress_message     String?
   completion_notification_sent_at DateTime? @db.Timestamptz
   share_token          String?   @unique @db.VarChar(64)

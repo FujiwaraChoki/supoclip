@@ -115,6 +115,7 @@ export default function TaskPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  const [stageProgress, setStageProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
@@ -304,6 +305,7 @@ export default function TaskPage() {
       const data = JSON.parse(e.data);
       console.log("📊 Status:", data);
       setProgress(data.progress || 0);
+      setStageProgress(data.stage_progress || 0);
       setProgressMessage(data.message || "");
 
       if (data.status === "completed") {
@@ -315,6 +317,7 @@ export default function TaskPage() {
       const data = JSON.parse(e.data);
       console.log("📈 Progress:", data);
       setProgress(data.progress || 0);
+      setStageProgress(data.stage_progress || 0);
       setProgressMessage(data.message || "");
 
       // Update task status if provided
@@ -961,14 +964,29 @@ export default function TaskPage() {
 
               {/* Minimal progress bar */}
               {progress > 0 && (
-                <div className="w-48">
+                <div className="w-48 flex flex-col items-center">
                   <div className="h-px bg-neutral-200 w-full relative overflow-hidden">
                     <div
                       className="absolute inset-y-0 left-0 bg-neutral-800 transition-all duration-700 ease-out"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
-                  <p className="text-[11px] text-neutral-400 text-center mt-3 tabular-nums">{progress}%</p>
+                  
+                  {stageProgress > 0 && (
+                    <div className="h-px bg-neutral-100 w-full relative overflow-hidden mt-1 opacity-70">
+                      <div
+                        className="absolute inset-y-0 left-0 bg-neutral-500 transition-all duration-700 ease-out"
+                        style={{ width: `${stageProgress}%` }}
+                      />
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-between w-full mt-3 px-1">
+                    <p className="text-[11px] text-neutral-400 tabular-nums">Total: {progress}%</p>
+                    {stageProgress > 0 && (
+                      <p className="text-[11px] text-neutral-400 tabular-nums">Stage: {stageProgress}%</p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

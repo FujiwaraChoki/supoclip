@@ -62,9 +62,9 @@ async def process_video_task(
         try:
             # Progress callback
             async def update_progress(
-                percent: int, message: str, status: str = "processing"
+                percent: int, message: str, status: str = "processing", stage_progress: Optional[int] = None
             ):
-                await progress.update(percent, message, status)
+                await progress.update(percent, message, status, stage_progress or 0)
                 logger.info(f"Task {task_id}: {percent}% - {message}")
 
             async def should_cancel() -> bool:

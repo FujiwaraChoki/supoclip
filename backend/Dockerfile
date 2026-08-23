@@ -1,12 +1,23 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim
+# Use NVIDIA CUDA 12 base image for GPU support
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
 
-# Install system dependencies including ffmpeg and unzip (for deno).
-# fonts-noto-color-emoji lets libass render colour emojis in burned captions.
-RUN apt-get update && apt-get install -y \
+# Avoid tzdata interactive prompt during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies, add Python 3.11 PPA, and install required tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa -y \
+    && apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    python3.11-dev \
+    python3-pip \
     ffmpeg \
     curl \
     unzip \
+    git \
+    libsndfile1 \
     fonts-noto-color-emoji \
     fontconfig \
     && fc-cache -f \
@@ -17,8 +28,9 @@ RUN curl -fsSL https://deno.land/install.sh | sh
 ENV DENO_DIR=/root/.deno
 ENV PATH="/root/.deno/bin:${PATH}"
 
-# Install uv package manager
-RUN pip install uv
+# Install uv using the official installer script
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:${PATH}"
 
 # Set working directory
 WORKDIR /app
@@ -27,7 +39,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock* ./
 
 # Create virtual environment and install dependencies using uv sync
-RUN uv venv .venv && uv sync
+RUN uv venv --python 3.11 .venv && uv sync
 
 # Force update yt-dlp to the absolute latest version to handle YouTube API changes
 # Also install from git to get the very latest commits

@@ -53,6 +53,7 @@ CREATE TABLE tasks (
 
     -- Progress tracking fields
     progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+    stage_progress INTEGER DEFAULT 0 CHECK (stage_progress >= 0 AND stage_progress <= 100),
     progress_message TEXT,
 
     -- Font customization fields

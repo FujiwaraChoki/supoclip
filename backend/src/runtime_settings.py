@@ -13,6 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 RUNTIME_SETTING_KEYS: tuple[str, ...] = (
+    "TRANSCRIPTION_PROVIDER",
+    "TRANSCRIPTION_FALLBACK_CHAIN",
+    "WHISPER_MODEL_SIZE",
     "ASSEMBLY_AI_API_KEY",
     "LLM",
     "OPENAI_API_KEY",

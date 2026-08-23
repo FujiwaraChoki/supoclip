@@ -10,7 +10,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -465,6 +465,8 @@ def _download_youtube_video_with_ytdlp(
     url: str,
     max_retries: int = 3,
     task_id: Optional[str] = None,
+    progress_callback: Optional[Callable] = None,
+    loop: Optional[Any] = None,
 ) -> Optional[Path]:
     """
     Download YouTube video with optimized settings and retry logic.
@@ -499,6 +501,31 @@ def _download_youtube_video_with_ytdlp(
             logger.info("Download attempt %s/%s", attempt + 1, max_retries)
 
             ydl_opts = downloader.get_optimal_download_options(video_id)
+
+            if progress_callback and loop:
+                last_percent = [-1]  # Use list for mutability in closure
+                
+                def progress_hook(d):
+                    if d['status'] == 'downloading':
+                        total = d.get('total_bytes') or d.get('total_bytes_estimate')
+                        if total:
+                            percent = int((d.get('downloaded_bytes', 0) / total) * 100)
+                            
+                            # Only update if percentage changed by at least 2% to avoid spamming DB
+                            if percent - last_percent[0] >= 2 or percent == 100:
+                                last_percent[0] = percent
+                                
+                                async def async_call():
+                                    await progress_callback(10, f"Downloading video... {percent}%", "processing", percent)
+                                
+                                # Block to prevent concurrent DB session usage
+                                future = asyncio.run_coroutine_threadsafe(async_call(), loop)
+                                try:
+                                    future.result(timeout=2.0)
+                                except Exception as e:
+                                    logger.debug(f"Progress hook timeout/error: {e}")
+
+                ydl_opts['progress_hooks'] = [progress_hook]
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
@@ -567,6 +594,8 @@ def download_youtube_video(
     url: str,
     max_retries: int = 3,
     task_id: Optional[str] = None,
+    progress_callback: Optional[Callable] = None,
+    loop: Optional[Any] = None,
 ) -> Optional[Path]:
     """
     Download YouTube video using the configured provider.
@@ -578,9 +607,32 @@ def download_youtube_video(
     if not video_id:
         logger.error("Could not extract video ID from URL: %s", url)
         return None
-
     downloader = YouTubeDownloader()
-    _remove_cached_downloads(downloader.temp_dir, video_id)
+    
+    # Check if we already have this video cached
+    cached_files = [
+        file_path
+        for file_path in downloader.temp_dir.glob(f"{video_id}.*")
+        if file_path.is_file()
+        and file_path.suffix.lower() in [".mp4", ".mkv", ".webm", ".mov", ".m4v"]
+    ]
+    if cached_files:
+        # If there are multiple parts or versions, pick the largest one
+        best_cached_file = max(cached_files, key=lambda p: p.stat().st_size)
+        logger.info(f"Using cached video file for {video_id}: {best_cached_file.name}")
+        # Call progress callback if provided to immediately advance progress
+        if progress_callback and loop:
+            async def async_call():
+                await progress_callback(10, f"Found cached video: {best_cached_file.name}", "processing", 100)
+            
+            # Block until the callback completes to avoid concurrent database session usage
+            future = asyncio.run_coroutine_threadsafe(async_call(), loop)
+            try:
+                future.result(timeout=5.0)
+            except Exception as e:
+                logger.error(f"Error waiting for progress callback: {e}")
+                
+        return best_cached_file
 
     config = get_config()
     primary_provider = config.youtube_download_provider
@@ -596,6 +648,8 @@ def download_youtube_video(
                 url,
                 max_retries,
                 task_id,
+                progress_callback,
+                loop,
             )
             if downloaded_path:
                 return downloaded_path
@@ -632,9 +686,11 @@ async def async_download_youtube_video(
     url: str,
     max_retries: int = 3,
     task_id: Optional[str] = None,
+    progress_callback: Optional[Callable] = None,
 ) -> Optional[Path]:
     logger.info(f"Starting async YouTube download: {url}")
-    return await asyncio.to_thread(download_youtube_video, url, max_retries, task_id)
+    loop = asyncio.get_running_loop()
+    return await asyncio.to_thread(download_youtube_video, url, max_retries, task_id, progress_callback, loop)
 
 
 def get_video_duration(url: str) -> Optional[int]:
