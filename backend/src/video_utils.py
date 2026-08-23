@@ -227,7 +227,6 @@ def _assemblyai_speech_models_value(speech_model: str) -> List[str]:
     return ["universal-3-pro", "universal-2"]
 
 
-<<<<<<< HEAD
 _WHISPER_MODEL_CACHE: Dict[str, Any] = {}
 
 
@@ -361,19 +360,6 @@ def transcribe_with_youtube_captions(video_url: str) -> Optional[str]:
                     pass
 
 
-def get_video_transcript(
-    video_path: Path,
-    speech_model: str = "universal",
-    source_url: Optional[str] = None,
-) -> str:
-    """Get a video transcript using the configured provider.
-
-    Dispatches to AssemblyAI, local Whisper, or YouTube captions based on
-    ``TRANSCRIPTION_PROVIDER``. ``source_url`` enables the youtube_captions
-    provider, which needs the original URL rather than a local file path.
-    """
-    logger.info(f"Getting transcript for: {video_path}")
-=======
 class WhisperWord:
     def __init__(
         self,
@@ -995,6 +981,12 @@ def _join_transcript_tokens(tokens: List[str]) -> str:
     return text.strip()
 
 
+def _get_item_attr(item: Any, attr: str, default: Any = None) -> Any:
+    if isinstance(item, dict):
+        return item.get(attr, default)
+    return getattr(item, attr, default)
+
+
 def _format_words_for_analysis(
     words: List[Any],
     speaker: Optional[str] = None,
@@ -1014,9 +1006,11 @@ def _format_words_for_analysis(
         nonlocal current_words, current_start
         if not current_words:
             return
-        start_time = format_ms_to_timestamp(current_words[0].start)
-        end_time = format_ms_to_timestamp(current_words[-1].end)
-        text = _join_transcript_tokens([word.text for word in current_words])
+        w_first_start = _get_item_attr(current_words[0], "start", 0)
+        w_last_end = _get_item_attr(current_words[-1], "end", 0)
+        start_time = format_ms_to_timestamp(int(w_first_start))
+        end_time = format_ms_to_timestamp(int(w_last_end))
+        text = _join_transcript_tokens([str(_get_item_attr(word, "text", "")) for word in current_words])
         if text:
             speaker_prefix = f"Speaker {speaker}: " if speaker else ""
             formatted_lines.append(f"[{start_time} - {end_time}] {speaker_prefix}{text}")
@@ -1024,13 +1018,16 @@ def _format_words_for_analysis(
         current_start = None
 
     for word in words:
+        w_start = int(_get_item_attr(word, "start", 0))
+        w_end = int(_get_item_attr(word, "end", 0))
+        w_text = str(_get_item_attr(word, "text", ""))
         if current_start is None:
-            current_start = word.start
+            current_start = w_start
 
         current_words.append(word)
-        duration_ms = word.end - current_start
+        duration_ms = w_end - current_start
         segment_word_count = len(current_words)
-        ends_sentence = str(word.text).endswith((".", "!", "?"))
+        ends_sentence = w_text.endswith((".", "!", "?"))
 
         should_flush = False
         if segment_word_count >= max_words_per_segment:
@@ -1057,11 +1054,12 @@ def format_transcript_for_analysis(transcript) -> List[str]:
     """Format transcripts into readable timestamped segments for AI analysis.
 
     Handles both AssemblyAI transcript objects (utterances/words with ms
-    timings) and Whisper result dicts (segments with second-based timings).
+    timings), Whisper result dicts (segments with second-based timings), and
+    cached transcript dictionaries.
     """
     # Whisper result dict: treat each segment as an utterance, converting the
     # second-based timings to milliseconds to match the timestamp formatter.
-    if isinstance(transcript, dict):
+    if isinstance(transcript, dict) and "segments" in transcript:
         formatted_lines = []
         for segment in transcript.get("segments") or []:
             start_ms = int(segment.get("start", 0) * 1000)
@@ -1072,37 +1070,40 @@ def format_transcript_for_analysis(transcript) -> List[str]:
             )
         return formatted_lines
 
-    utterances = getattr(transcript, "utterances", None) or []
+    utterances = _get_item_attr(transcript, "utterances", None) or []
     if utterances:
         formatted_lines = []
         for utterance in utterances:
-            utterance_words = list(getattr(utterance, "words", []) or [])
-            utterance_duration = max(0, int(utterance.end) - int(utterance.start))
-            if utterance_words and (
+            u_words = list(_get_item_attr(utterance, "words", []) or [])
+            u_start = int(_get_item_attr(utterance, "start", 0))
+            u_end = int(_get_item_attr(utterance, "end", 0))
+            u_text = str(_get_item_attr(utterance, "text", ""))
+            u_speaker = _get_item_attr(utterance, "speaker", None)
+            utterance_duration = max(0, u_end - u_start)
+            if u_words and (
                 utterance_duration > ANALYSIS_UTTERANCE_SPLIT_THRESHOLD_MS
-                or len(utterance_words) > ANALYSIS_UTTERANCE_SPLIT_THRESHOLD_WORDS
+                or len(u_words) > ANALYSIS_UTTERANCE_SPLIT_THRESHOLD_WORDS
             ):
                 formatted_lines.extend(
                     _format_words_for_analysis(
-                        utterance_words,
-                        getattr(utterance, "speaker", None),
+                        u_words,
+                        u_speaker,
                         max_words_per_segment=ANALYSIS_LONG_UTTERANCE_MAX_WORDS,
                         max_duration_ms=ANALYSIS_LONG_UTTERANCE_MAX_DURATION_MS,
                     )
                 )
                 continue
 
-            start_time = format_ms_to_timestamp(utterance.start)
-            end_time = format_ms_to_timestamp(utterance.end)
-            speaker = getattr(utterance, "speaker", None)
-            speaker_prefix = f"Speaker {speaker}: " if speaker else ""
+            start_time = format_ms_to_timestamp(u_start)
+            end_time = format_ms_to_timestamp(u_end)
+            speaker_prefix = f"Speaker {u_speaker}: " if u_speaker else ""
             formatted_lines.append(
-                f"[{start_time} - {end_time}] {speaker_prefix}{utterance.text}"
+                f"[{start_time} - {end_time}] {speaker_prefix}{u_text}"
             )
         return formatted_lines
 
     formatted_lines = []
-    words = getattr(transcript, "words", None) or []
+    words = _get_item_attr(transcript, "words", None) or []
     if not words:
         return formatted_lines
 
