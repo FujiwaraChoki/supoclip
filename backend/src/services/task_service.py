@@ -30,10 +30,18 @@ from ..clip_editor import (
     merge_clip_files,
     overlay_custom_captions,
 )
-from ..video_utils import VALID_OUTPUT_FORMATS, parse_timestamp_to_seconds
+from ..video_utils import (
+    VALID_OUTPUT_FORMATS,
+    parse_timestamp_to_seconds,
+    load_cached_transcript_data,
+    ffprobe_duration,
+)
 from ..youtube_utils import cleanup_downloaded_files, extract_video_id
 from ..clip_cleanup import normalize_clip_cleanup_settings
-from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
+from ..ai import (
+    TRANSCRIPT_ANALYSIS_CACHE_VERSION,
+    compute_available_clip_capacity,
+)
 from ..clip_source_map import (
     copy_clip_source_ranges,
     load_clip_source_ranges,
@@ -126,8 +134,8 @@ class TaskService:
             try:
                 video_id = extract_video_id(url)
                 if video_id:
-                    cleanup_downloaded_files(video_id)
-                    logger.info("Cleaned up YouTube source artifacts for %s", video_id)
+                    cleanup_downloaded_files(video_id, keep_main_video=True)
+                    logger.info("Cleaned up temporary YouTube artifacts for %s (source video retained)", video_id)
                     return
             except Exception as e:
                 logger.warning("Failed YouTube source cleanup: %s", e)
@@ -513,6 +521,318 @@ class TaskService:
                 error_code=error_code,
             )
             raise
+
+    async def generate_more_clips(
+        self,
+        task_id: str,
+        count: int = 3,
+        allow_overlap: bool = False,
+        min_clip_duration: int = 15,
+        progress_callback: Optional[Callable] = None,
+        should_cancel: Optional[Callable] = None,
+        clip_ready_callback: Optional[Callable] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate additional clips for an existing completed task.
+        Reuses cached transcript and video.
+        Supports intelligent capacity calculation, non-overlapping exclusions, and failsafes.
+        """
+        logger.info(
+            "Generating %d more clips for task %s (allow_overlap=%s, min_clip_duration=%ds)",
+            count,
+            task_id,
+            allow_overlap,
+            min_clip_duration,
+        )
+        task = await self.task_repo.get_task_by_id(self.db, task_id)
+        if not task:
+            raise ValueError(f"Task not found: {task_id}")
+
+        # Get existing clips
+        existing_clips = await self.clip_repo.get_clips_by_task(self.db, task_id)
+        existing_ranges = [
+            (c.get("start_time"), c.get("end_time"))
+            for c in existing_clips
+            if c.get("start_time") and c.get("end_time")
+        ]
+        logger.info(
+            "Found %d existing clips with time ranges: %s",
+            len(existing_clips),
+            existing_ranges,
+        )
+
+        url = task.get("source_url")
+        source_type = task.get("source_type")
+        processing_mode = task.get("processing_mode") or self.config.default_processing_mode
+        cache_key = self._build_cache_key(url, source_type, processing_mode)
+
+        # Progress wrapper
+        async def update_progress(
+            progress: int, message: str, status: str = "processing", stage_progress: int = 0
+        ):
+            await self.task_repo.update_task_status(
+                self.db,
+                task_id,
+                status,
+                progress=progress,
+                progress_message=message,
+                stage_progress=stage_progress,
+            )
+            if progress_callback:
+                await progress_callback(progress, message, status, stage_progress)
+
+        await update_progress(10, "Loading video and transcript...", "processing")
+
+        # 1. Retrieve cached transcript & video
+        cache_entry = await self.cache_repo.get_cache(self.db, cache_key)
+        transcript = cache_entry.get("transcript_text") if cache_entry else None
+        video_path_str = cache_entry.get("video_path") if cache_entry else None
+
+        if not transcript and task.get("video_path"):
+            cached_disk = load_cached_transcript_data(Path(task["video_path"]))
+            if cached_disk and cached_disk.get("text"):
+                transcript = cached_disk.get("text")
+
+        video_path = Path(video_path_str) if video_path_str else None
+        if not video_path or not video_path.exists():
+            if task.get("video_path") and Path(task["video_path"]).exists():
+                video_path = Path(task["video_path"])
+            else:
+                video_id = extract_video_id(url) if source_type == "youtube" else None
+                if video_id:
+                    possible_path = Path(get_config().temp_dir) / f"{video_id}.mp4"
+                    if possible_path.exists():
+                        video_path = possible_path
+
+                if not video_path or not video_path.exists():
+                    await update_progress(20, "Retrieving source video...", "processing")
+                    download_path = await self.video_service.download_video(url, task_id=task_id)
+                    if not download_path or not Path(download_path).exists():
+                        raise RuntimeError(f"Failed to retrieve or download source video from {url}")
+                    video_path = Path(download_path)
+
+        if not transcript:
+            await update_progress(30, "Generating transcript...", "processing")
+            transcript = await self.video_service.generate_transcript(video_path, source_url=url)
+
+        # 2. Estimate total video duration for remaining capacity calculation
+        total_duration = 0.0
+        if video_path and video_path.exists():
+            try:
+                total_duration = ffprobe_duration(video_path)
+            except Exception:
+                pass
+        if total_duration <= 0 and transcript:
+            import re
+            for line in transcript.splitlines():
+                m = re.search(r"\[.*?-\s*([0-9:]+)\]", line)
+                if m:
+                    total_duration = max(total_duration, parse_timestamp_to_seconds(m.group(1)))
+
+        # 3. Capacity calculation and graceful failsafe checks
+        if not allow_overlap:
+            capacity = compute_available_clip_capacity(
+                total_duration_sec=total_duration,
+                excluded_ranges=existing_ranges,
+                min_clip_duration=float(min_clip_duration),
+            )
+            max_possible_clips = capacity["max_possible_clips"]
+            unallocated_sec = capacity["usable_unallocated_seconds"]
+
+            logger.info(
+                "Task %s capacity check: total_duration=%.1fs, unallocated=%.1fs, max_possible_clips=%d",
+                task_id,
+                total_duration,
+                unallocated_sec,
+                max_possible_clips,
+            )
+
+            # FAILSAFE 1: Insufficient remaining video length
+            if max_possible_clips == 0 or (total_duration > 0 and unallocated_sec < min_clip_duration):
+                msg = (
+                    f"Insufficient unclipped video remaining ({int(unallocated_sec)}s unclipped vs {min_clip_duration}s minimum clip length). "
+                    "Enable 'Allow Overlap' to generate more clips from already clipped segments."
+                )
+                logger.warning("Task %s capacity exhausted: %s", task_id, msg)
+                await update_progress(100, msg, "completed")
+                return {
+                    "task_id": task_id,
+                    "new_clips_count": 0,
+                    "total_clips": len(existing_clips),
+                    "clips": existing_clips,
+                    "message": msg,
+                    "exhausted": True,
+                }
+
+            # FAILSAFE 2: Requested count exceeds available capacity -> permute/clamp
+            if count > max_possible_clips:
+                logger.info(
+                    "Task %s: Requested %d clips, but only %d non-overlapping clips of min %ds can fit in %ds remaining video. Clamping to %d.",
+                    task_id,
+                    count,
+                    max_possible_clips,
+                    min_clip_duration,
+                    int(unallocated_sec),
+                    max_possible_clips,
+                )
+                effective_count = max_possible_clips
+            else:
+                effective_count = count
+
+            effective_excluded_ranges = existing_ranges
+        else:
+            effective_count = count
+            effective_excluded_ranges = None
+
+        # 4. Analyze transcript with AI
+        await update_progress(50, f"Finding {effective_count} new viral moments...", "processing")
+        analysis = await self.video_service.analyze_transcript(
+            transcript,
+            excluded_ranges=effective_excluded_ranges,
+            target_clip_count=effective_count,
+            min_clip_duration=min_clip_duration,
+        )
+
+        segments_to_render = []
+        for segment in getattr(analysis, "most_relevant_segments", []):
+            virality = getattr(segment, "virality", None) or {}
+            if hasattr(virality, "model_dump"):
+                virality = virality.model_dump()
+            elif not isinstance(virality, dict):
+                virality = {}
+
+            segments_to_render.append({
+                "start_time": segment.start_time,
+                "end_time": segment.end_time,
+                "text": segment.text,
+                "relevance_score": getattr(segment, "relevance_score", 0.8),
+                "reasoning": getattr(segment, "reasoning", ""),
+                "virality_score": virality.get("total_score", 0),
+                "hook_score": virality.get("hook_score", 0),
+                "engagement_score": virality.get("engagement_score", 0),
+                "value_score": virality.get("value_score", 0),
+                "shareability_score": virality.get("shareability_score", 0),
+                "hook_type": virality.get("hook_type"),
+                "hook_title": getattr(segment, "hook_title", None),
+            })
+
+        if not segments_to_render:
+            msg = "No additional distinct viral moments found in the selected range."
+            logger.warning("Task %s: %s", task_id, msg)
+            await self.task_repo.update_task_status(
+                self.db,
+                task_id,
+                "completed",
+                progress=100,
+                progress_message=msg,
+            )
+            return {
+                "task_id": task_id,
+                "new_clips_count": 0,
+                "total_clips": len(existing_clips),
+                "clips": existing_clips,
+                "message": msg,
+            }
+
+        # 5. Render only the new clips
+        total_new = len(segments_to_render)
+        clips_output_dir = Path(self.config.temp_dir) / "clips"
+        clips_output_dir.mkdir(parents=True, exist_ok=True)
+
+        existing_clip_ids = [c["id"] for c in existing_clips]
+        new_clip_ids = []
+        all_clip_ids = list(existing_clip_ids)
+        start_order = len(existing_clips)
+
+        font_family = task.get("font_family")
+        font_size = task.get("font_size")
+        font_color = task.get("font_color")
+        caption_template = task.get("caption_template") or "default"
+        output_format = task.get("output_format") or "vertical"
+        add_subtitles = task.get("add_subtitles", True)
+        cleanup_settings = normalize_clip_cleanup_settings(
+            cut_long_pauses=task.get("cut_long_pauses", False),
+            pause_threshold_ms=task.get("pause_threshold_ms", 900),
+            remove_filler_words=task.get("remove_filler_words", False),
+            filtered_words=task.get("filtered_words"),
+        )
+
+        for i, segment in enumerate(segments_to_render):
+            if should_cancel and await should_cancel():
+                raise Exception("Task cancelled")
+
+            clip_order = start_order + i + 1
+            clip_progress = 60 + int(((i + 1) / total_new) * 35)
+            stage_progress = int((i / total_new) * 100)
+
+            await update_progress(
+                clip_progress,
+                f"Creating clip {clip_order}...",
+                stage_progress=stage_progress,
+            )
+
+            clip_info = await self.video_service.create_single_clip(
+                video_path,
+                segment,
+                clip_order - 1,
+                clips_output_dir,
+                font_family,
+                font_size,
+                font_color,
+                caption_template,
+                output_format,
+                add_subtitles,
+                cleanup_settings,
+            )
+            if clip_info is None:
+                continue
+
+            clip_id = await self.clip_repo.create_clip(
+                self.db,
+                task_id=task_id,
+                filename=clip_info["filename"],
+                file_path=clip_info["path"],
+                start_time=clip_info["start_time"],
+                end_time=clip_info["end_time"],
+                duration=clip_info["duration"],
+                text=clip_info.get("text", ""),
+                relevance_score=clip_info.get("relevance_score", 0.0),
+                reasoning=clip_info.get("reasoning", ""),
+                clip_order=clip_order,
+                virality_score=clip_info.get("virality_score", 0),
+                hook_score=clip_info.get("hook_score", 0),
+                engagement_score=clip_info.get("engagement_score", 0),
+                value_score=clip_info.get("value_score", 0),
+                shareability_score=clip_info.get("shareability_score", 0),
+                hook_type=clip_info.get("hook_type"),
+                hook_title=clip_info.get("hook_title"),
+            )
+            await self.db.commit()
+            new_clip_ids.append(clip_id)
+            all_clip_ids.append(clip_id)
+
+            await self.task_repo.append_task_clip(self.db, task_id, clip_id)
+
+            if clip_ready_callback:
+                clip_record = await self.clip_repo.get_clip_by_id(self.db, clip_id)
+                if clip_record:
+                    await clip_ready_callback(start_order + i, start_order + total_new, clip_record)
+
+        await self.task_repo.update_task_status(
+            self.db,
+            task_id,
+            "completed",
+            progress=100,
+            progress_message=f"Added {len(new_clip_ids)} new clips",
+        )
+
+        all_clips = await self.clip_repo.get_clips_by_task(self.db, task_id)
+        return {
+            "task_id": task_id,
+            "new_clips_count": len(new_clip_ids),
+            "total_clips": len(all_clips),
+            "clips": all_clips,
+        }
 
     async def _send_completion_notification_if_needed(
         self, *, task_id: str, clips_count: int

@@ -3,15 +3,17 @@ AI-related functions for transcript analysis with enhanced precision and viralit
 """
 
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Literal
+from typing import List, Dict, Any, Optional, Literal, Tuple
 import asyncio
 import logging
 import re
 
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
+from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.providers.ollama import OllamaProvider
+from pydantic_ai.settings import ModelSettings
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from .config import Config, get_config
@@ -27,10 +29,12 @@ TRANSCRIPT_ANALYSIS_CACHE_VERSION = "hook-titles-v5-grounded"
 HOOK_TITLE_MAX_CHARS = 64
 HOOK_TITLE_MAX_WORDS = 10
 TRANSCRIPT_SPAN_RE = re.compile(
-    r"^\[(?P<start>\d{1,2}:\d{2}(?::\d{2})?)\s*-\s*"
-    r"(?P<end>\d{1,2}:\d{2}(?::\d{2})?)\]\s*(?P<text>.*)$"
+    r"^\[(?P<start>\d{1,4}:\d{2}(?::\d{2})?)\s*-\s*"
+    r"(?P<end>\d{1,4}:\d{2}(?::\d{2})?)\]\s*(?P<text>.*)$"
 )
-TRANSCRIPT_LINE_PATTERN = re.compile(r"^\[(\d{2}:\d{2}) - (\d{2}:\d{2})\]\s*(.*)$")
+TRANSCRIPT_LINE_PATTERN = re.compile(
+    r"^\[(\d{1,4}:\d{2}(?::\d{2})?)\s*-\s*(\d{1,4}:\d{2}(?::\d{2})?)\]\s*(.*)$"
+)
 SPEAKER_PREFIX_PATTERN = re.compile(r"^Speaker [^:]+:\s*")
 
 
@@ -60,21 +64,30 @@ def _extract_transcript_text_for_segment(
     start_time: str,
     end_time: str,
 ) -> Optional[str]:
+    target_start_sec = parse_timestamp_to_seconds(start_time)
+    target_end_sec = parse_timestamp_to_seconds(end_time)
+
     for start_index, line in enumerate(transcript_lines):
-        if line["start_time"] != start_time:
+        line_start_sec = parse_timestamp_to_seconds(line["start_time"])
+        # Match either exact string or within 1.0s timestamp tolerance
+        if line["start_time"] != start_time and abs(line_start_sec - target_start_sec) > 1.0:
             continue
 
         collected_parts = [line["text"]] if line["text"] else []
-        if line["end_time"] == end_time:
+        line_end_sec = parse_timestamp_to_seconds(line["end_time"])
+        if line["end_time"] == end_time or abs(line_end_sec - target_end_sec) <= 1.0:
             return " ".join(part for part in collected_parts if part).strip()
 
         for next_line in transcript_lines[start_index + 1 :]:
             if next_line["text"]:
                 collected_parts.append(next_line["text"])
-            if next_line["end_time"] == end_time:
+            n_end_sec = parse_timestamp_to_seconds(next_line["end_time"])
+            if next_line["end_time"] == end_time or abs(n_end_sec - target_end_sec) <= 1.0:
                 return " ".join(part for part in collected_parts if part).strip()
 
-        return None
+        return " ".join(part for part in collected_parts if part).strip() or None
+
+    return None
 
     return None
 
@@ -413,10 +426,33 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
     return None
 
 
-def _build_transcript_model(runtime_config: Config) -> Model | str:
-    provider, provider_model_name = _split_llm_name(runtime_config.llm)
+def _parse_thinking_level(level_val: Any) -> Any:
+    """Parse configured thinking level into Pydantic AI ThinkingLevel or integer budget."""
+    if level_val is None:
+        return "high"
+    if isinstance(level_val, bool):
+        return level_val
+    level_s = str(level_val).strip().lower()
+    if level_s in {"off", "false", "none", "0", "disabled"}:
+        return False
+    if level_s in {"minimal", "low", "medium", "high", "xhigh"}:
+        return level_s
+    try:
+        return int(level_s)
+    except ValueError:
+        return "high"
+
+
+def _resolve_single_model(raw_name: str | None, runtime_config: Config) -> Model | str | None:
+    """Resolve a provider-prefixed model string into a Pydantic AI model identifier."""
+    if not raw_name or str(raw_name).strip().lower() in {"none", "false", "disabled", "null", ""}:
+        return None
+
+    provider, provider_model_name = _split_llm_name(raw_name)
+    if provider == "google-gla":
+        return f"google:{provider_model_name}"
     if provider != "ollama":
-        return runtime_config.llm
+        return raw_name
 
     if not provider_model_name:
         raise RuntimeError(
@@ -433,13 +469,39 @@ def _build_transcript_model(runtime_config: Config) -> Model | str:
     )
 
 
+def _build_transcript_model(runtime_config: Config) -> Model | str:
+    """
+    Build transcript model with automatic fallback chaining.
+    If the primary model is busy/unavailable (503/429/errors), FallbackModel
+    automatically fails over to the backup model.
+    """
+    primary = _resolve_single_model(runtime_config.llm, runtime_config)
+    if not primary:
+        primary = "google:gemini-3-flash-preview"
+
+    fallback = _resolve_single_model(runtime_config.fallback_llm, runtime_config)
+
+    if fallback and fallback != primary:
+        logger.info(
+            "Configured LLM with Fallback Chaining: primary=%s -> backup=%s",
+            primary,
+            fallback,
+        )
+        return FallbackModel(primary, fallback)
+
+    return primary
+
+
 def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
-    """Get or create the transcript analysis agent (lazy initialization)."""
+    """Get or create the transcript analysis agent with thinking level and fallback chaining."""
     global _transcript_agent, _transcript_agent_signature
     runtime_config = get_config()
     provider, _ = _split_llm_name(runtime_config.llm)
+    thinking_level = _parse_thinking_level(runtime_config.llm_thinking_level)
     signature = (
         runtime_config.llm,
+        runtime_config.fallback_llm,
+        str(thinking_level),
         runtime_config.openai_api_key,
         runtime_config.google_api_key,
         runtime_config.anthropic_api_key,
@@ -452,21 +514,160 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
         if config_error:
             raise RuntimeError(config_error)
 
+        model_settings = ModelSettings(thinking=thinking_level)
+
         _transcript_agent = Agent[None, TranscriptAnalysis](
             model=_build_transcript_model(runtime_config),
             output_type=TranscriptAnalysis,
             system_prompt=transcript_analysis_system_prompt,
+            model_settings=model_settings,
             # Some local Ollama/OpenAI-compatible endpoints can return formatted
             # prose before settling on schema-valid JSON. Keep retries limited
             # while still allowing enough repair attempts for local models.
-            output_retries=2 if provider == "ollama" else 2,
+            retries=2 if provider == "ollama" else 2,
         )
         _transcript_agent_signature = signature
     return _transcript_agent
 
 
+def parse_timestamp_to_seconds(ts: str) -> float:
+    """Parse 'MM:SS' or 'HH:MM:SS' or float string to seconds."""
+    if not ts:
+        return 0.0
+    ts = str(ts).strip()
+    try:
+        parts = [float(p) for p in ts.split(":")]
+        if len(parts) == 3:
+            return parts[0] * 3600 + parts[1] * 60 + parts[2]
+        elif len(parts) == 2:
+            return parts[0] * 60 + parts[1]
+        elif len(parts) == 1:
+            return parts[0]
+    except Exception:
+        pass
+    return 0.0
+
+
+def compute_available_clip_capacity(
+    total_duration_sec: float,
+    excluded_ranges: Optional[List[Tuple[str, str]]] = None,
+    min_clip_duration: float = 15.0,
+) -> Dict[str, Any]:
+    """
+    Calculate untouched gap durations across the video, determining
+    how much unallocated time remains and the maximum number of
+    non-overlapping clips that can be created.
+    """
+    if total_duration_sec <= 0:
+        return {
+            "total_unallocated_seconds": 0.0,
+            "usable_unallocated_seconds": 0.0,
+            "max_possible_clips": 0,
+            "available_intervals": [],
+        }
+
+    # 1. Parse and merge excluded intervals
+    parsed_intervals = []
+    for start, end in (excluded_ranges or []):
+        s_sec = parse_timestamp_to_seconds(start)
+        e_sec = parse_timestamp_to_seconds(end)
+        if e_sec > s_sec:
+            parsed_intervals.append([max(0.0, s_sec), min(total_duration_sec, e_sec)])
+
+    parsed_intervals.sort(key=lambda x: x[0])
+    merged_exclusions = []
+    for interval in parsed_intervals:
+        if not merged_exclusions:
+            merged_exclusions.append(interval)
+        else:
+            prev = merged_exclusions[-1]
+            if interval[0] <= prev[1]:
+                prev[1] = max(prev[1], interval[1])
+            else:
+                merged_exclusions.append(interval)
+
+    # 2. Extract untouched complement gaps
+    available_gaps = []
+    curr = 0.0
+    for ex_start, ex_end in merged_exclusions:
+        if ex_start > curr:
+            available_gaps.append((curr, ex_start))
+        curr = max(curr, ex_end)
+    if curr < total_duration_sec:
+        available_gaps.append((curr, total_duration_sec))
+
+    # 3. Calculate metrics for gaps that can fit at least min_clip_duration
+    valid_gaps = []
+    total_unallocated_sec = 0.0
+    max_possible_clips = 0
+    for gap_start, gap_end in available_gaps:
+        gap_dur = gap_end - gap_start
+        total_unallocated_sec += gap_dur
+        if gap_dur >= min_clip_duration:
+            valid_gaps.append((gap_start, gap_end))
+            max_possible_clips += int(gap_dur // min_clip_duration)
+
+    return {
+        "total_unallocated_seconds": round(total_unallocated_sec, 2),
+        "usable_unallocated_seconds": round(sum(g[1] - g[0] for g in valid_gaps), 2),
+        "max_possible_clips": max_possible_clips,
+        "available_intervals": valid_gaps,
+    }
+
+
+def _filter_overlapping_segments(
+    segments: List[Any],
+    excluded_ranges: Optional[List[Tuple[str, str]]],
+    min_overlap_sec: float = 2.0,
+    min_clip_duration: float = 10.0,
+) -> List[Any]:
+    """Filter out segments that overlap with previously generated clip time ranges or are too short."""
+    valid_segments = []
+    parsed_exclusions = [
+        (parse_timestamp_to_seconds(start), parse_timestamp_to_seconds(end))
+        for start, end in (excluded_ranges or [])
+    ]
+
+    for segment in segments:
+        start_time = getattr(segment, "start_time", None) if not isinstance(segment, dict) else segment.get("start_time")
+        end_time = getattr(segment, "end_time", None) if not isinstance(segment, dict) else segment.get("end_time")
+        if not start_time or not end_time:
+            continue
+
+        seg_start = parse_timestamp_to_seconds(start_time)
+        seg_end = parse_timestamp_to_seconds(end_time)
+        if seg_end - seg_start < min_clip_duration:
+            logger.info("Filtered segment [%s - %s] shorter than min duration %.1fs", start_time, end_time, min_clip_duration)
+            continue
+
+        overlaps = False
+        for ex_start, ex_end in parsed_exclusions:
+            overlap = min(seg_end, ex_end) - max(seg_start, ex_start)
+            if overlap > min_overlap_sec:
+                overlaps = True
+                logger.info(
+                    "Filtered overlapping segment [%s - %s] (overlaps with [%.1fs - %.1fs] by %.1fs)",
+                    start_time,
+                    end_time,
+                    ex_start,
+                    ex_end,
+                    overlap,
+                )
+                break
+
+        if not overlaps:
+            valid_segments.append(segment)
+
+    return valid_segments
+
+
 def build_transcript_analysis_prompt(
-    transcript: str, include_broll: bool = False, clip_signals: str | None = None
+    transcript: str,
+    include_broll: bool = False,
+    clip_signals: str | None = None,
+    excluded_ranges: Optional[List[Tuple[str, str]]] = None,
+    target_clip_count: Optional[int] = None,
+    min_clip_duration: Optional[int] = None,
 ) -> str:
     """Build the grounded task prompt for transcript analysis."""
     broll_instruction = ""
@@ -483,6 +684,32 @@ def build_transcript_analysis_prompt(
             "must still be a coherent contiguous transcript range."
         )
 
+    exclusion_section = ""
+    if excluded_ranges:
+        ranges_formatted = "\n".join(f"- [{start} - {end}]" for start, end in excluded_ranges)
+        exclusion_section = (
+            "\n\nCRITICAL EXCLUSIONS — PREVIOUSLY GENERATED CLIPS:\n"
+            "The following timestamp ranges have ALREADY been clipped into videos. "
+            "You MUST NOT select any segment that overlaps with these timestamp spans:\n"
+            f"{ranges_formatted}\n"
+            "Pick entirely new moments from other parts of the video transcript.\n"
+        )
+
+    count_target = (
+        f"Choose exactly {target_clip_count} segments total."
+        if target_clip_count
+        else "Choose 2-5 segments total."
+    )
+
+    eff_min_dur = int(min_clip_duration or MIN_ACCEPTED_CLIP_SECONDS)
+    eff_max_dur = max(MAX_ACCEPTED_CLIP_SECONDS, eff_min_dur + 35)
+
+    min_dur_target = (
+        f"- Each chosen clip MUST be between {eff_min_dur} and {eff_max_dur} seconds in duration."
+        if min_clip_duration
+        else f"- Most selected clips should be {IDEAL_CLIP_MIN_SECONDS}-{IDEAL_CLIP_MAX_SECONDS} seconds."
+    )
+
     return f"""Analyze this video transcript and identify the most engaging segments for short-form content.
 
 The transcript is formatted as one line per timestamped span, for example:
@@ -496,10 +723,10 @@ Follow this workflow:
 4. For each chosen segment, use the earliest timestamp in the selected range as start_time and the latest timestamp in the selected range as end_time.{broll_instruction}
 
 Selection target:
-- Choose 2-5 segments total.
-- Most selected clips should be 25-50 seconds.
-- Only choose a 15-24 second clip when it already contains a full setup and payoff.
-- If a strong moment is shorter than 25 seconds, first try expanding to nearby contiguous transcript lines that add useful context.
+- {count_target}
+{min_dur_target}
+- Only choose a shorter clip when it already contains a full setup and payoff.
+- If a strong moment is shorter than {eff_min_dur} seconds, first try expanding to nearby contiguous transcript lines that add useful context.
 - Skip weak standalone picks: intros, sponsor reads, CTAs, contextless quotes, repeated points, vague setup, and answer fragments that require prior context.
 - Before returning a segment, ask whether a viewer would understand and care without seeing the rest of the source video.
 
@@ -511,7 +738,7 @@ Critical accuracy requirements:
 - If a span lacks enough context to stand alone, expand to nearby contiguous lines rather than guessing.
 - If there is a tradeoff between "viral" and "accurate", choose accuracy.
 - Do not reject or penalize a segment simply because of the subject matter; stay content-neutral and assess clip quality only.
-{signal_section}
+{signal_section}{exclusion_section}
 
 JSON-only output requirements:
 - Return one valid JSON object and nothing else.
@@ -520,7 +747,7 @@ JSON-only output requirements:
 - Segment keys: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", "hook_title".
 - "hook_title" is a 3-9 word plain-text headline for the clip, grounded in the segment (no hashtags, emojis, or quotes).
 - Virality keys: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", "virality_reasoning".
-- Do not return segments shorter than {MIN_ACCEPTED_CLIP_SECONDS} seconds or longer than {MAX_ACCEPTED_CLIP_SECONDS} seconds.
+- Do not return segments shorter than {eff_min_dur} seconds or longer than {eff_max_dur} seconds.
 
 Transcript:
 {transcript}"""
@@ -618,7 +845,11 @@ def _extract_transcript_text(
 
 
 def _choose_repaired_bounds(
-    transcript_spans: list[dict[str, Any]], start_seconds: int, end_seconds: int
+    transcript_spans: list[dict[str, Any]],
+    start_seconds: int,
+    end_seconds: int,
+    min_duration: int = MIN_ACCEPTED_CLIP_SECONDS,
+    max_duration: int = MAX_ACCEPTED_CLIP_SECONDS,
 ) -> tuple[int, int] | None:
     """Repair model-selected bounds to the nearest acceptable contiguous range."""
     if not transcript_spans:
@@ -628,22 +859,22 @@ def _choose_repaired_bounds(
     ends = sorted({span["end"] for span in transcript_spans})
     current_duration = end_seconds - start_seconds
 
-    if current_duration > MAX_ACCEPTED_CLIP_SECONDS:
-        target_end = start_seconds + IDEAL_CLIP_MAX_SECONDS
+    if current_duration > max_duration:
+        target_end = start_seconds + max_duration
         candidate_ends = [
             candidate
             for candidate in ends
-            if start_seconds + MIN_ACCEPTED_CLIP_SECONDS
+            if start_seconds + min_duration
             <= candidate
             <= min(target_end, end_seconds)
         ]
         if candidate_ends:
             return start_seconds, max(candidate_ends)
-        if start_seconds + MIN_ACCEPTED_CLIP_SECONDS <= target_end:
+        if start_seconds + min_duration <= target_end:
             return start_seconds, target_end
         return None
 
-    if current_duration < MIN_ACCEPTED_CLIP_SECONDS:
+    if current_duration < min_duration:
         candidate_ranges: list[tuple[int, int, int]] = []
         for candidate_start in starts:
             if candidate_start > start_seconds:
@@ -652,17 +883,12 @@ def _choose_repaired_bounds(
                 if candidate_end < end_seconds:
                     continue
                 duration = candidate_end - candidate_start
-                if MIN_ACCEPTED_CLIP_SECONDS <= duration <= MAX_ACCEPTED_CLIP_SECONDS:
+                if min_duration <= duration <= max_duration:
                     extra_context = (start_seconds - candidate_start) + (
                         candidate_end - end_seconds
                     )
-                    ideal_penalty = 0
-                    if duration < IDEAL_CLIP_MIN_SECONDS:
-                        ideal_penalty = IDEAL_CLIP_MIN_SECONDS - duration
-                    elif duration > IDEAL_CLIP_MAX_SECONDS:
-                        ideal_penalty = duration - IDEAL_CLIP_MAX_SECONDS
                     candidate_ranges.append(
-                        (ideal_penalty * 1000 + extra_context, candidate_start, candidate_end)
+                        (extra_context, candidate_start, candidate_end)
                     )
         if candidate_ranges:
             _, repaired_start, repaired_end = min(candidate_ranges)
@@ -676,12 +902,16 @@ def _repair_segment_bounds(
     transcript_spans: list[dict[str, Any]],
     start_seconds: int,
     end_seconds: int,
+    min_duration: int = MIN_ACCEPTED_CLIP_SECONDS,
+    max_duration: int = MAX_ACCEPTED_CLIP_SECONDS,
 ) -> tuple[int, int] | None:
     """Adjust near-miss model ranges to usable transcript-aligned bounds."""
     repaired_bounds = _choose_repaired_bounds(
         transcript_spans,
         start_seconds,
         end_seconds,
+        min_duration=min_duration,
+        max_duration=max_duration,
     )
     if not repaired_bounds:
         return None
@@ -707,11 +937,19 @@ def _repair_segment_bounds(
 
 
 async def get_most_relevant_parts_by_transcript(
-    transcript: str, include_broll: bool = False, clip_signals: str | None = None
+    transcript: str,
+    include_broll: bool = False,
+    clip_signals: str | None = None,
+    excluded_ranges: Optional[List[Tuple[str, str]]] = None,
+    target_clip_count: Optional[int] = None,
+    min_clip_duration: Optional[int] = None,
 ) -> TranscriptAnalysis:
-    """Get the most relevant parts of a transcript with virality scoring and optional B-roll detection."""
+    """Get the most relevant parts of a transcript with virality scoring, optional B-roll detection, and exclusion filters."""
+    eff_min_dur = int(min_clip_duration or MIN_ACCEPTED_CLIP_SECONDS)
+    eff_max_dur = max(MAX_ACCEPTED_CLIP_SECONDS, eff_min_dur + 35)
+
     logger.info(
-        f"Starting AI analysis of transcript ({len(transcript)} chars), include_broll={include_broll}"
+        f"Starting AI analysis of transcript ({len(transcript)} chars), include_broll={include_broll}, excluded_ranges={len(excluded_ranges or [])}, min_clip_duration={min_clip_duration} (eff_window: {eff_min_dur}s-{eff_max_dur}s)"
     )
 
     try:
@@ -723,6 +961,9 @@ async def get_most_relevant_parts_by_transcript(
                 transcript=transcript,
                 include_broll=include_broll,
                 clip_signals=clip_signals,
+                excluded_ranges=excluded_ranges,
+                target_clip_count=target_clip_count,
+                min_clip_duration=min_clip_duration,
             )
         )
 
@@ -758,12 +999,14 @@ async def get_most_relevant_parts_by_transcript(
 
                 duration = end_seconds - start_seconds
 
-                if duration < MIN_ACCEPTED_CLIP_SECONDS or duration > MAX_ACCEPTED_CLIP_SECONDS:
+                if duration < eff_min_dur or duration > eff_max_dur:
                     repaired_bounds = _repair_segment_bounds(
                         segment,
                         transcript_spans,
                         start_seconds,
                         end_seconds,
+                        min_duration=eff_min_dur,
+                        max_duration=eff_max_dur,
                     )
                     if repaired_bounds:
                         start_seconds, end_seconds = repaired_bounds
@@ -771,19 +1014,7 @@ async def get_most_relevant_parts_by_transcript(
 
                 if duration <= 0:
                     logger.warning(
-                        f"Skipping segment with invalid duration: {segment.start_time} to {segment.end_time} = {duration}s"
-                    )
-                    continue
-
-                if duration < MIN_ACCEPTED_CLIP_SECONDS:
-                    logger.warning(
-                        f"Skipping segment too short: {duration}s (min {MIN_ACCEPTED_CLIP_SECONDS}s required)"
-                    )
-                    continue
-
-                if duration > MAX_ACCEPTED_CLIP_SECONDS:
-                    logger.warning(
-                        f"Skipping segment too long: {duration}s (max {MAX_ACCEPTED_CLIP_SECONDS}s allowed)"
+                        f"Skipping segment with non-positive duration: {segment.start_time}-{segment.end_time}"
                     )
                     continue
 
@@ -792,13 +1023,18 @@ async def get_most_relevant_parts_by_transcript(
                     segment.start_time,
                     segment.end_time,
                 )
-                if grounded_text is None:
+                if not grounded_text:
+                    grounded_text = _extract_transcript_text(
+                        transcript_spans,
+                        start_seconds,
+                        end_seconds,
+                    )
+                if not grounded_text:
                     logger.warning(
-                        "Skipping segment with timestamps not aligned to transcript lines: %s-%s",
-                        segment.start_time,
-                        segment.end_time,
+                        f"Skipping segment with no grounded text: {segment.start_time}-{segment.end_time}"
                     )
                     continue
+
                 if _normalize_transcript_text(segment.text) != _normalize_transcript_text(
                     grounded_text
                 ):
@@ -842,6 +1078,13 @@ async def get_most_relevant_parts_by_transcript(
                 )
                 continue
 
+        # Deterministically filter out any segments overlapping with excluded ranges or too short
+        validated_segments = _filter_overlapping_segments(
+            validated_segments,
+            excluded_ranges,
+            min_clip_duration=float(min_clip_duration or MIN_ACCEPTED_CLIP_SECONDS),
+        )
+
         # Sort by virality score (primary) then relevance (secondary)
         validated_segments.sort(
             key=lambda x: (
@@ -850,6 +1093,9 @@ async def get_most_relevant_parts_by_transcript(
             ),
             reverse=True,
         )
+
+        if target_clip_count and len(validated_segments) > target_clip_count:
+            validated_segments = validated_segments[:target_clip_count]
 
         final_analysis = TranscriptAnalysis(
             most_relevant_segments=validated_segments,

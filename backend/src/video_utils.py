@@ -162,28 +162,113 @@ def _prepare_audio_for_transcription(video_path: Path) -> Path:
     return audio_path
 
 
+def _save_assemblyai_job_checkpoint(
+    media_path: Path, transcript_id: str, speech_model: str
+) -> None:
+    checkpoint_path = media_path.with_suffix(".assemblyai_job.json")
+    try:
+        data = {
+            "transcript_id": transcript_id,
+            "speech_model": speech_model,
+            "created_at": time.time(),
+        }
+        checkpoint_path.write_text(json.dumps(data), encoding="utf-8")
+        logger.info("Saved AssemblyAI job checkpoint: %s -> %s", media_path.name, transcript_id)
+    except Exception as exc:
+        logger.warning("Failed to save AssemblyAI job checkpoint: %s", exc)
+
+
+def _load_assemblyai_job_checkpoint(media_path: Path) -> Optional[Dict[str, Any]]:
+    checkpoint_path = media_path.with_suffix(".assemblyai_job.json")
+    if not checkpoint_path.exists():
+        return None
+    try:
+        data = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+        if time.time() - data.get("created_at", 0) < 86400:
+            return data
+    except Exception as exc:
+        logger.warning("Failed to load AssemblyAI job checkpoint: %s", exc)
+    return None
+
+
+def _clear_assemblyai_job_checkpoint(media_path: Path) -> None:
+    checkpoint_path = media_path.with_suffix(".assemblyai_job.json")
+    try:
+        if checkpoint_path.exists():
+            checkpoint_path.unlink()
+    except Exception as exc:
+        logger.debug("Failed to clear AssemblyAI job checkpoint: %s", exc)
+
+
 def _submit_and_wait_for_assemblyai_transcript(
     transcriber,
     media_path: Path,
     config_obj,
     timeout_seconds: int,
+    speech_model: str = "universal",
 ):
-    """Submit a transcript job and poll with a total timeout."""
-    submitted = transcriber.submit(str(media_path), config=config_obj)
-    if not submitted.id:
-        raise RuntimeError("AssemblyAI did not return a transcript ID")
+    """Submit or resume an AssemblyAI transcript job and poll with a total timeout."""
+    checkpoint = _load_assemblyai_job_checkpoint(media_path)
+    transcript_id = checkpoint.get("transcript_id") if checkpoint else None
+    client = transcriber._client  # noqa: SLF001
 
-    logger.info("AssemblyAI transcript submitted: %s", submitted.id)
+    if transcript_id:
+        logger.info(
+            "Found existing AssemblyAI job checkpoint %s for %s. Attempting to resume...",
+            transcript_id,
+            media_path.name,
+        )
+        try:
+            response = aai.api.get_transcript(client.http_client, transcript_id)
+            transcript = aai.Transcript.from_response(client=client, response=response)
+            if transcript.status == aai.TranscriptStatus.completed:
+                logger.info(
+                    "Resumed AssemblyAI transcript %s is already completed! Bypassing re-upload.",
+                    transcript_id,
+                )
+                _clear_assemblyai_job_checkpoint(media_path)
+                return transcript
+            elif transcript.status not in (aai.TranscriptStatus.error, None):
+                logger.info(
+                    "Resumed AssemblyAI transcript %s is currently in status '%s'. Resuming polling...",
+                    transcript_id,
+                    transcript.status,
+                )
+            else:
+                logger.info(
+                    "AssemblyAI transcript %s was in error/invalid state (%s); restarting fresh job.",
+                    transcript_id,
+                    transcript.status,
+                )
+                transcript_id = None
+                _clear_assemblyai_job_checkpoint(media_path)
+        except Exception as exc:
+            logger.warning(
+                "Failed querying existing AssemblyAI transcript %s (%s); submitting fresh job.",
+                transcript_id,
+                exc,
+            )
+            transcript_id = None
+            _clear_assemblyai_job_checkpoint(media_path)
+
+    if not transcript_id:
+        submitted = transcriber.submit(str(media_path), config=config_obj)
+        if not submitted.id:
+            raise RuntimeError("AssemblyAI did not return a transcript ID")
+        transcript_id = submitted.id
+        logger.info("AssemblyAI transcript submitted: %s", transcript_id)
+        _save_assemblyai_job_checkpoint(media_path, transcript_id, speech_model)
+
     deadline = time.monotonic() + timeout_seconds
     next_log_at = 0.0
 
     while True:
         response = aai.api.get_transcript(
-            submitted._client.http_client,  # noqa: SLF001 - AssemblyAI exposes no timeout-aware poller.
-            submitted.id,
+            client.http_client,  # noqa: SLF001 - AssemblyAI exposes no timeout-aware poller.
+            transcript_id,
         )
         transcript = aai.Transcript.from_response(
-            client=submitted._client,  # noqa: SLF001
+            client=client,  # noqa: SLF001
             response=response,
         )
 
@@ -191,23 +276,66 @@ def _submit_and_wait_for_assemblyai_transcript(
             aai.TranscriptStatus.completed,
             aai.TranscriptStatus.error,
         ):
+            if transcript.status == aai.TranscriptStatus.completed:
+                _clear_assemblyai_job_checkpoint(media_path)
             return transcript
 
         now = time.monotonic()
         if now >= deadline:
             raise TimeoutError(
-                f"AssemblyAI transcript {submitted.id} did not complete within {timeout_seconds}s"
+                f"AssemblyAI transcript {transcript_id} did not complete within {timeout_seconds}s"
             )
 
         if now >= next_log_at:
             logger.info(
                 "AssemblyAI transcript %s still %s",
-                submitted.id,
+                transcript_id,
                 transcript.status,
             )
             next_log_at = now + 30
 
         time.sleep(aai.settings.polling_interval)
+
+
+def get_video_transcript_assemblyai(
+    video_path: Path,
+    speech_model: str = "universal",
+    progress_callback: Optional[Callable] = None,
+    loop: Optional[Any] = None,
+) -> str:
+    """Get transcript using AssemblyAI with speaker diarization and word-level timestamps."""
+    logger.info(
+        f"Starting AssemblyAI transcription for: {video_path} (speech_model={speech_model})"
+    )
+    runtime_config = get_config()
+    if not runtime_config.assembly_ai_api_key:
+        raise ValueError("ASSEMBLY_AI_API_KEY is not set")
+
+    aai.settings.api_key = runtime_config.assembly_ai_api_key
+    audio_path = _prepare_audio_for_transcription(video_path)
+
+    config = aai.TranscriptionConfig(
+        speaker_labels=True,
+        speech_models=_assemblyai_speech_models_value(speech_model),
+    )
+    transcriber = aai.Transcriber()
+    transcript = _submit_and_wait_for_assemblyai_transcript(
+        transcriber,
+        audio_path,
+        config,
+        runtime_config.assembly_ai_http_timeout_seconds,
+        speech_model=speech_model,
+    )
+    if transcript.status == aai.TranscriptStatus.error:
+        raise RuntimeError(f"AssemblyAI transcription failed: {transcript.error}")
+
+    cache_transcript_data(video_path, transcript)
+    formatted_lines = format_transcript_for_analysis(transcript)
+    result_str = "\n".join(formatted_lines)
+    logger.info(
+        f"AssemblyAI transcript formatted: {len(formatted_lines)} segments, {len(result_str)} chars"
+    )
+    return result_str
 
 
 def _assemblyai_speech_models_value(speech_model: str) -> List[str]:
@@ -481,12 +609,65 @@ def get_video_transcript_whisper(video_path: Path, model_name: str = "base") -> 
     return result_str
 
 
+def _save_transcript_checkpoint(
+    video_path: Path,
+    words: List[Any],
+    utterances: List[Any],
+    full_text_parts: List[str],
+    last_end_seconds: float,
+) -> None:
+    checkpoint_path = video_path.with_suffix(".transcript_checkpoint.json")
+    try:
+        checkpoint_data = {
+            "version": TRANSCRIPT_CACHE_SCHEMA_VERSION,
+            "words": [_serialize_transcript_word(w) for w in words],
+            "utterances": [
+                {
+                    "text": getattr(u, "text", "") if not isinstance(u, dict) else u.get("text", ""),
+                    "start": getattr(u, "start", 0) if not isinstance(u, dict) else u.get("start", 0),
+                    "end": getattr(u, "end", 0) if not isinstance(u, dict) else u.get("end", 0),
+                    "speaker": getattr(u, "speaker", None) if not isinstance(u, dict) else u.get("speaker"),
+                    "words": [
+                        _serialize_transcript_word(w)
+                        for w in (getattr(u, "words", []) if not isinstance(u, dict) else u.get("words", []))
+                    ],
+                }
+                for u in utterances
+            ],
+            "full_text_parts": full_text_parts,
+            "last_end_seconds": float(last_end_seconds),
+        }
+        checkpoint_path.write_text(json.dumps(checkpoint_data), encoding="utf-8")
+    except Exception as exc:
+        logger.debug("Failed to write transcript checkpoint: %s", exc)
+
+
+def _load_transcript_checkpoint(video_path: Path) -> Optional[Dict[str, Any]]:
+    checkpoint_path = video_path.with_suffix(".transcript_checkpoint.json")
+    if not checkpoint_path.exists():
+        return None
+    try:
+        return json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Failed to load transcript checkpoint: %s", exc)
+        return None
+
+
+def _clear_transcript_checkpoint(video_path: Path) -> None:
+    checkpoint_path = video_path.with_suffix(".transcript_checkpoint.json")
+    try:
+        if checkpoint_path.exists():
+            checkpoint_path.unlink()
+    except Exception as exc:
+        logger.debug("Failed to clear transcript checkpoint: %s", exc)
+
+
 def get_video_transcript_faster_whisper(
     video_path: Path, model_name: str = "base",
     progress_callback: Optional[Callable] = None,
     loop: Optional[Any] = None,
 ) -> str:
-    """Get transcript using faster-whisper with word-level timing."""
+    """Get transcript using faster-whisper with word-level timing, segment checkpointing, and resume support."""
     logger.info(
         f"Starting faster-whisper transcription for: {video_path} using model '{model_name}'"
     )
@@ -506,104 +687,206 @@ def get_video_transcript_faster_whisper(
     except Exception:
         model = WhisperModel(model_name, device="cpu", compute_type="int8")
 
+    # Check for incomplete transcription checkpoint
+    checkpoint = _load_transcript_checkpoint(video_path)
+    resume_offset_sec = 0.0
+    all_words: List[WhisperWord] = []
+    all_utterances: List[WhisperUtterance] = []
+    full_text_parts: List[str] = []
+    temp_slice_path: Optional[Path] = None
+
+    if checkpoint and float(checkpoint.get("last_end_seconds", 0.0)) > 5.0:
+        resume_offset_sec = float(checkpoint["last_end_seconds"])
+        logger.info(
+            "Found incomplete transcription checkpoint at %.2fs for %s. Resuming from offset...",
+            resume_offset_sec,
+            video_path.name,
+        )
+        for w in checkpoint.get("words", []):
+            all_words.append(
+                WhisperWord(
+                    text=w["text"],
+                    start=w["start"],
+                    end=w["end"],
+                    confidence=w.get("confidence", 1.0),
+                    speaker=w.get("speaker"),
+                )
+            )
+        for u in checkpoint.get("utterances", []):
+            u_words = [
+                WhisperWord(
+                    text=w["text"],
+                    start=w["start"],
+                    end=w["end"],
+                    confidence=w.get("confidence", 1.0),
+                    speaker=w.get("speaker"),
+                )
+                for w in u.get("words", [])
+            ]
+            all_utterances.append(
+                WhisperUtterance(
+                    text=u["text"],
+                    start=u["start"],
+                    end=u["end"],
+                    words=u_words,
+                    speaker=u.get("speaker"),
+                )
+            )
+        full_text_parts.extend(checkpoint.get("full_text_parts", []))
+
+    # If resuming, slice audio from resume_offset_sec
+    active_media_path = transcription_media_path
+    if resume_offset_sec > 0.0:
+        temp_slice_path = video_path.with_name(
+            f"{video_path.stem}.resume_slice_{int(resume_offset_sec)}.mp3"
+        )
+        slice_cmd = [
+            "ffmpeg",
+            "-y",
+            "-ss",
+            str(resume_offset_sec),
+            "-i",
+            str(transcription_media_path),
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-b:a",
+            "64k",
+            str(temp_slice_path),
+        ]
+        try:
+            res = run_ffmpeg_command(slice_cmd, timeout=300)
+            if res.returncode == 0 and temp_slice_path.exists() and temp_slice_path.stat().st_size > 0:
+                active_media_path = temp_slice_path
+            else:
+                logger.warning("Failed to slice audio for resumption; transcribing from start")
+                resume_offset_sec = 0.0
+                all_words = []
+                all_utterances = []
+                full_text_parts = []
+        except Exception as exc:
+            logger.warning("Audio slice failed (%s); transcribing from start", exc)
+            resume_offset_sec = 0.0
+            all_words = []
+            all_utterances = []
+            full_text_parts = []
+
     logger.info("Transcribing audio with faster-whisper (word_timestamps=True)...")
     try:
-        segments, info = model.transcribe(
-            str(transcription_media_path), word_timestamps=True
-        )
-    except Exception as e:
-        err_msg = str(e).lower()
-        if "libcublas" in err_msg or "cuda" in err_msg or "cudnn" in err_msg:
-            logger.warning(f"faster-whisper GPU execution failed ({e}), falling back to CPU...")
-            model = WhisperModel(model_name, device="cpu", compute_type="int8")
+        try:
             segments, info = model.transcribe(
-                str(transcription_media_path), word_timestamps=True
+                str(active_media_path), word_timestamps=True
             )
-        else:
-            raise
-    total_duration = info.duration
-
-    all_words = []
-    all_utterances = []
-    full_text_parts = []
-
-    for seg in segments:
-        seg_text = (seg.text or "").strip()
-        if seg_text:
-            full_text_parts.append(seg_text)
-            
-        if progress_callback and loop and total_duration > 0:
-            percent = int((seg.end / total_duration) * 100)
-            
-            # Only update if percentage changed by at least 2% to avoid DB spam
-            if not hasattr(progress_callback, "_last_percent"):
-                progress_callback._last_percent = -1
-                
-            if percent - progress_callback._last_percent >= 2 or percent == 100:
-                progress_callback._last_percent = percent
-                
-                future = asyncio.run_coroutine_threadsafe(
-                    progress_callback(20, f"Transcribing audio... {percent}%", "processing", percent),
-                    loop
+        except Exception as e:
+            err_msg = str(e).lower()
+            if "libcublas" in err_msg or "cuda" in err_msg or "cudnn" in err_msg:
+                logger.warning(f"faster-whisper GPU execution failed ({e}), falling back to CPU...")
+                model = WhisperModel(model_name, device="cpu", compute_type="int8")
+                segments, info = model.transcribe(
+                    str(active_media_path), word_timestamps=True
                 )
-                # Block to prevent concurrent DB session usage
-                try:
-                    future.result(timeout=2.0)
-                except Exception as e:
-                    logger.debug(f"Progress callback timeout/error: {e}")
+            else:
+                raise
 
-        seg_start_ms = int(round(seg.start * 1000))
-        seg_end_ms = int(round(seg.end * 1000))
+        total_duration = info.duration + resume_offset_sec
+        offset_ms = int(round(resume_offset_sec * 1000))
+        last_checkpoint_time = time.monotonic()
 
-        seg_words = []
-        words_in_seg = getattr(seg, "words", None) or []
-        if words_in_seg:
-            for w in words_in_seg:
-                w_text = (w.word or "").strip()
-                if not w_text:
-                    continue
-                w_start_ms = int(round(w.start * 1000))
-                w_end_ms = int(round(w.end * 1000))
-                w_prob = float(getattr(w, "probability", 1.0))
-                word_obj = WhisperWord(
-                    text=w_text, start=w_start_ms, end=w_end_ms, confidence=w_prob
-                )
-                seg_words.append(word_obj)
-                all_words.append(word_obj)
-        else:
-            word_list = seg_text.split()
-            if word_list:
-                duration_ms = max(1, seg_end_ms - seg_start_ms)
-                word_dur_ms = duration_ms // len(word_list)
-                for idx, wt in enumerate(word_list):
-                    w_start = seg_start_ms + (idx * word_dur_ms)
-                    w_end = (
-                        w_start + word_dur_ms
-                        if idx < len(word_list) - 1
-                        else seg_end_ms
+        for seg in segments:
+            seg_text = (seg.text or "").strip()
+            if seg_text:
+                full_text_parts.append(seg_text)
+
+            current_seg_end = seg.end + resume_offset_sec
+            if progress_callback and loop and total_duration > 0:
+                percent = int((current_seg_end / total_duration) * 100)
+                if not hasattr(progress_callback, "_last_percent"):
+                    progress_callback._last_percent = -1
+
+                if percent - progress_callback._last_percent >= 2 or percent == 100:
+                    progress_callback._last_percent = percent
+                    future = asyncio.run_coroutine_threadsafe(
+                        progress_callback(20, f"Transcribing audio... {percent}%", "processing", percent),
+                        loop
                     )
-                    word_obj = WhisperWord(text=wt, start=w_start, end=w_end)
+                    try:
+                        future.result(timeout=2.0)
+                    except Exception as e:
+                        logger.debug(f"Progress callback timeout/error: {e}")
+
+            seg_start_ms = int(round(seg.start * 1000)) + offset_ms
+            seg_end_ms = int(round(seg.end * 1000)) + offset_ms
+
+            seg_words = []
+            words_in_seg = getattr(seg, "words", None) or []
+            if words_in_seg:
+                for w in words_in_seg:
+                    w_text = (w.word or "").strip()
+                    if not w_text:
+                        continue
+                    w_start_ms = int(round(w.start * 1000)) + offset_ms
+                    w_end_ms = int(round(w.end * 1000)) + offset_ms
+                    w_prob = float(getattr(w, "probability", 1.0))
+                    word_obj = WhisperWord(
+                        text=w_text, start=w_start_ms, end=w_end_ms, confidence=w_prob
+                    )
                     seg_words.append(word_obj)
                     all_words.append(word_obj)
+            else:
+                word_list = seg_text.split()
+                if word_list:
+                    duration_ms = max(1, seg_end_ms - seg_start_ms)
+                    word_dur_ms = duration_ms // len(word_list)
+                    for idx, wt in enumerate(word_list):
+                        w_start = seg_start_ms + (idx * word_dur_ms)
+                        w_end = (
+                            w_start + word_dur_ms
+                            if idx < len(word_list) - 1
+                            else seg_end_ms
+                        )
+                        word_obj = WhisperWord(text=wt, start=w_start, end=w_end)
+                        seg_words.append(word_obj)
+                        all_words.append(word_obj)
 
-        utterance_obj = WhisperUtterance(
-            text=seg_text, start=seg_start_ms, end=seg_end_ms, words=seg_words
+            utterance_obj = WhisperUtterance(
+                text=seg_text, start=seg_start_ms, end=seg_end_ms, words=seg_words
+            )
+            all_utterances.append(utterance_obj)
+
+            # Checkpoint every 10 seconds of processing time or upon end
+            now = time.monotonic()
+            if now - last_checkpoint_time >= 10.0:
+                _save_transcript_checkpoint(
+                    video_path,
+                    all_words,
+                    all_utterances,
+                    full_text_parts,
+                    current_seg_end,
+                )
+                last_checkpoint_time = now
+
+        full_text = " ".join(full_text_parts)
+        transcript_result = WhisperTranscriptResult(
+            text=full_text, words=all_words, utterances=all_utterances
         )
-        all_utterances.append(utterance_obj)
 
-    full_text = " ".join(full_text_parts)
-    transcript_result = WhisperTranscriptResult(
-        text=full_text, words=all_words, utterances=all_utterances
-    )
+        formatted_lines = format_transcript_for_analysis(transcript_result)
+        cache_transcript_data(video_path, transcript_result)
+        _clear_transcript_checkpoint(video_path)
 
-    formatted_lines = format_transcript_for_analysis(transcript_result)
-    cache_transcript_data(video_path, transcript_result)
-
-    result_str = "\n".join(formatted_lines)
-    logger.info(
-        f"faster-whisper transcript formatted: {len(formatted_lines)} segments, {len(result_str)} chars"
-    )
-    return result_str
+        result_str = "\n".join(formatted_lines)
+        logger.info(
+            f"faster-whisper transcript formatted: {len(formatted_lines)} segments, {len(result_str)} chars"
+        )
+        return result_str
+    finally:
+        if temp_slice_path and temp_slice_path.exists():
+            try:
+                temp_slice_path.unlink()
+            except Exception:
+                pass
 
 
 def get_video_transcript_whisperx(
@@ -2709,17 +2992,61 @@ def compute_vertical_crop_dims(
 
 
 
+def _get_or_download_mediapipe_model() -> Optional[str]:
+    """Ensure the BlazeFace Short Range model asset exists locally."""
+    try:
+        models_dir = Path("/app/models")
+        if not models_dir.exists():
+            models_dir = Path("/tmp/models")
+        models_dir.mkdir(parents=True, exist_ok=True)
+        model_path = models_dir / "blaze_face_short_range.tflite"
+        if not model_path.exists() or model_path.stat().st_size < 1000:
+            import urllib.request
+            url = "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
+            logger.info("Downloading BlazeFace model for MediaPipe FaceDetector...")
+            urllib.request.urlretrieve(url, str(model_path))
+        return str(model_path)
+    except Exception as e:
+        logger.warning("Could not prepare MediaPipe model asset: %s", e)
+        return None
+
+
 def _open_face_detectors():
-    """Initialise the MediaPipe (preferred) + Haar (fallback) face detectors."""
+    """Initialise the MediaPipe Tasks (preferred) + Solutions / Haar (fallback) face detectors."""
     mp_face = None
+    # 1. Try modern MediaPipe Tasks Vision API
     try:
         import mediapipe as mp
+        from mediapipe.tasks.python import BaseOptions
+        from mediapipe.tasks.python.vision import FaceDetector, FaceDetectorOptions
 
-        mp_face = mp.solutions.face_detection.FaceDetection(
-            model_selection=1, min_detection_confidence=0.5
-        )
+        model_asset = _get_or_download_mediapipe_model()
+        if model_asset:
+            options = FaceDetectorOptions(
+                base_options=BaseOptions(model_asset_path=model_asset),
+                min_detection_confidence=0.5,
+            )
+            mp_face = ("tasks", FaceDetector.create_from_options(options), mp)
+            logger.info("Initialized MediaPipe Tasks FaceDetector successfully")
     except Exception as exc:
-        logger.info("MediaPipe unavailable (%s); using Haar", exc)
+        logger.debug("MediaPipe Tasks FaceDetector unavailable: %s", exc)
+
+    # 2. Try legacy MediaPipe solutions API if Tasks wasn't initialized
+    if mp_face is None:
+        try:
+            import mediapipe as mp
+            if hasattr(mp, "solutions") and hasattr(mp.solutions, "face_detection"):
+                legacy_detector = mp.solutions.face_detection.FaceDetection(
+                    model_selection=1, min_detection_confidence=0.5
+                )
+                mp_face = ("solutions", legacy_detector, mp)
+                logger.info("Initialized MediaPipe Solutions FaceDetection successfully")
+        except Exception as exc:
+            logger.debug("MediaPipe solutions unavailable: %s", exc)
+
+    if mp_face is None:
+        logger.info("MediaPipe unavailable; using Haar cascades for face detection")
+
     haar = cv2.CascadeClassifier(
         cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
     )
@@ -2734,17 +3061,35 @@ def _detect_dominant_face(frame_bgr, mp_face, haar) -> Optional[Tuple[float, flo
 
     if mp_face is not None:
         try:
-            results = mp_face.process(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
-            if results.detections:
-                for det in results.detections:
-                    box = det.location_data.relative_bounding_box
-                    bw = max(0.0, box.width) * w
-                    bh = max(0.0, box.height) * h
-                    conf = float(det.score[0]) if det.score else 0.5
-                    cx = (box.xmin + box.width / 2) * w
-                    score = bw * bh * conf
-                    if bw > 10 and bh > 10 and (best is None or score > best[0]):
-                        best = (score, cx, (bw * bh) / frame_area)
+            kind, detector, mp_mod = mp_face
+            if kind == "tasks":
+                mp_image = mp_mod.Image(
+                    image_format=mp_mod.ImageFormat.SRGB,
+                    data=cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB),
+                )
+                results = detector.detect(mp_image)
+                if results and results.detections:
+                    for det in results.detections:
+                        bb = det.bounding_box
+                        bw = max(0.0, float(bb.width))
+                        bh = max(0.0, float(bb.height))
+                        conf = float(det.categories[0].score) if det.categories else 0.5
+                        cx = float(bb.origin_x) + (bw / 2.0)
+                        score = bw * bh * conf
+                        if bw > 10 and bh > 10 and (best is None or score > best[0]):
+                            best = (score, cx, (bw * bh) / frame_area)
+            elif kind == "solutions":
+                results = detector.process(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+                if results and results.detections:
+                    for det in results.detections:
+                        box = det.location_data.relative_bounding_box
+                        bw = max(0.0, box.width) * w
+                        bh = max(0.0, box.height) * h
+                        conf = float(det.score[0]) if det.score else 0.5
+                        cx = (box.xmin + box.width / 2) * w
+                        score = bw * bh * conf
+                        if bw > 10 and bh > 10 and (best is None or score > best[0]):
+                            best = (score, cx, (bw * bh) / frame_area)
         except Exception:
             pass
 

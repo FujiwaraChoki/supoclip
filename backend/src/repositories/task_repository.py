@@ -98,7 +98,8 @@ class TaskRepository:
         try:
             result = await db.execute(
                 text("""
-                    SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url
+                    SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url,
+                           (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count
                     FROM tasks t
                     LEFT JOIN sources s ON t.source_id = s.id
                     WHERE t.id = :task_id
@@ -109,7 +110,8 @@ class TaskRepository:
             await db.rollback()
             result = await db.execute(
                 text("""
-                    SELECT t.*, s.title as source_title, s.type as source_type
+                    SELECT t.*, s.title as source_title, s.type as source_type,
+                           (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count
                     FROM tasks t
                     LEFT JOIN sources s ON t.source_id = s.id
                     WHERE t.id = :task_id
@@ -130,7 +132,8 @@ class TaskRepository:
             "status": row.status,
             "progress": getattr(row, "progress", None),
             "progress_message": getattr(row, "progress_message", None),
-            "generated_clips_ids": row.generated_clips_ids,
+            "generated_clips_ids": row.generated_clips_ids or [],
+            "clips_count": int(getattr(row, "clips_count", 0) or 0),
             "font_family": row.font_family,
             "font_size": row.font_size,
             "font_color": row.font_color,
@@ -339,6 +342,44 @@ class TaskRepository:
         )
         await db.commit()
         logger.info(f"Updated task {task_id} with {len(clip_ids)} clips")
+
+    @staticmethod
+    async def append_task_clip(
+        db: AsyncSession, task_id: str, clip_id: str
+    ) -> None:
+        """Atomically append a single clip ID to task's generated_clips_ids array."""
+        await db.execute(
+            text(
+                """
+                UPDATE tasks
+                SET generated_clips_ids = array_append(COALESCE(generated_clips_ids, ARRAY[]::text[]), :clip_id),
+                    updated_at = NOW()
+                WHERE id = :task_id
+                """
+            ),
+            {"clip_id": clip_id, "task_id": task_id},
+        )
+        await db.commit()
+
+    @staticmethod
+    async def append_task_clips(
+        db: AsyncSession, task_id: str, clip_ids: List[str]
+    ) -> None:
+        """Atomically concatenate new clip IDs to task's generated_clips_ids array."""
+        if not clip_ids:
+            return
+        await db.execute(
+            text(
+                """
+                UPDATE tasks
+                SET generated_clips_ids = array_cat(COALESCE(generated_clips_ids, ARRAY[]::text[]), :clip_ids),
+                    updated_at = NOW()
+                WHERE id = :task_id
+                """
+            ),
+            {"clip_ids": clip_ids, "task_id": task_id},
+        )
+        await db.commit()
 
     @staticmethod
     async def get_user_tasks(

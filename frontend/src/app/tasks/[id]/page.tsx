@@ -20,6 +20,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -52,8 +60,11 @@ import {
   Subtitles,
   Settings2,
   Clapperboard,
+  Sparkles,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { toast } from "sonner";
+import { playClipReadyChime, playTaskCompleteChime } from "@/lib/sound";
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import DynamicVideoPlayer from "@/components/dynamic-video-player";
@@ -145,6 +156,11 @@ export default function TaskPage() {
   const [projectFilteredWords, setProjectFilteredWords] = useState("");
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
+  const [generateMoreOpen, setGenerateMoreOpen] = useState(false);
+  const [moreClipsCount, setMoreClipsCount] = useState(3);
+  const [allowOverlap, setAllowOverlap] = useState(false);
+  const [minClipDuration, setMinClipDuration] = useState(15);
+  const [isGeneratingMore, setIsGeneratingMore] = useState(false);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
   const [deletingFontName, setDeletingFontName] = useState<string | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<
@@ -203,34 +219,34 @@ export default function TaskPage() {
         setProjectRemoveFillerWords(Boolean(taskData.remove_filler_words));
         setProjectFilteredWords((taskData.filtered_words || []).join(", "));
 
-        // Fetch clips if task is completed or processing (incremental clips)
-        if (taskData.status === "completed" || taskData.status === "processing") {
+        // Fetch clips for the task regardless of status so cancelled/errored states still display existing clips
+        try {
           const clipsResponse = await fetch(`${taskApiUrl}/${params.id}/clips`, {
             cache: "no-store",
           });
 
-          if (!clipsResponse.ok) {
-            throw new Error(await buildSupportError(clipsResponse, `Failed to fetch clips: ${clipsResponse.status}`));
+          if (clipsResponse.ok) {
+            const clipsData = await clipsResponse.json();
+            const nextClips = clipsData.clips || [];
+            setClips((prev) => {
+              if (taskData.status === "completed" || taskData.status === "cancelled" || taskData.status === "error") {
+                return nextClips;
+              }
+
+              const merged = new Map<string, Clip>();
+              for (const clip of prev) {
+                merged.set(clip.id, clip);
+              }
+              for (const clip of nextClips) {
+                merged.set(clip.id, clip);
+              }
+              return Array.from(merged.values()).sort(
+                (a, b) => (a.clip_order ?? 0) - (b.clip_order ?? 0),
+              );
+            });
           }
-
-          const clipsData = await clipsResponse.json();
-          const nextClips = clipsData.clips || [];
-          setClips((prev) => {
-            if (taskData.status === "completed") {
-              return nextClips;
-            }
-
-            const merged = new Map<string, Clip>();
-            for (const clip of prev) {
-              merged.set(clip.id, clip);
-            }
-            for (const clip of nextClips) {
-              merged.set(clip.id, clip);
-            }
-            return Array.from(merged.values()).sort(
-              (a, b) => (a.clip_order ?? 0) - (b.clip_order ?? 0),
-            );
-          });
+        } catch (clipFetchErr) {
+          console.warn("Failed fetching clips:", clipFetchErr);
         }
 
         return true;
@@ -337,6 +353,11 @@ export default function TaskPage() {
         setClips((prev) => {
           const exists = prev.some((c: Clip) => c.id === data.clip.id);
           if (exists) return prev;
+          playClipReadyChime();
+          const title = data.clip.hook_title ? `"${data.clip.hook_title}"` : `Clip ${data.clip.clip_order || ""}`;
+          toast.success(`Clip Ready: ${title}`, {
+            description: `${data.clip.start_time} - ${data.clip.end_time} • Virality ${data.clip.virality_score || 0}/100`,
+          });
           return [...prev, data.clip].sort(
             (a: Clip, b: Clip) => (a.clip_order ?? 0) - (b.clip_order ?? 0),
           );
@@ -348,6 +369,11 @@ export default function TaskPage() {
       const data = JSON.parse(e.data);
       console.log("✅ Task completed:", data.status);
       eventSource.close();
+
+      playTaskCompleteChime();
+      toast.success("Generation Complete!", {
+        description: "All viral clips have been rendered and are ready to preview and download.",
+      });
 
       // Refresh task and clips
       await fetchTaskStatus();
@@ -369,6 +395,18 @@ export default function TaskPage() {
       eventSource.close();
     };
   }, [params.id, task?.status, fetchTaskStatus, taskApiUrl, triggerAutoRefresh]); // Re-run when task status changes
+
+  // Heartbeat polling fallback while task is processing or queued
+  useEffect(() => {
+    const taskStatus = task?.status;
+    if (taskStatus !== "queued" && taskStatus !== "processing") return;
+
+    const intervalId = setInterval(() => {
+      void fetchTaskStatus();
+    }, 2500);
+
+    return () => clearInterval(intervalId);
+  }, [task?.status, fetchTaskStatus]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -595,6 +633,47 @@ export default function TaskPage() {
       await fetchTaskStatus();
     } finally {
       setIsApplyingSettings(false);
+    }
+  };
+
+  const handleGenerateMoreClips = async () => {
+    if (!session?.user?.id || !params.id) return;
+    setIsGeneratingMore(true);
+    try {
+      const response = await fetch(`${taskApiUrl}/${params.id}/generate-more`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          count: moreClipsCount,
+          allow_overlap: allowOverlap,
+          min_clip_duration: minClipDuration,
+        }),
+      });
+      if (!response.ok) {
+        alert(await buildSupportError(response, "Failed to start generating more clips"));
+        setIsGeneratingMore(false);
+        return;
+      }
+      setGenerateMoreOpen(false);
+      setTask((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: "processing",
+              progress: 5,
+              progress_message: `Finding ${moreClipsCount} more viral clips...`,
+            }
+          : prev,
+      );
+      setProgress(5);
+      setProgressMessage(`Finding ${moreClipsCount} more viral clips...`);
+    } catch (err) {
+      console.error("Error generating more clips:", err);
+      alert("Failed to start generating more clips");
+    } finally {
+      setIsGeneratingMore(false);
     }
   };
 
@@ -1056,26 +1135,49 @@ export default function TaskPage() {
               <span className="w-2 h-2 bg-neutral-300 rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
             </div>
           </div>
-        ) : task?.status === "error" ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <div className="text-red-600 mb-4">
-                <AlertCircle className="w-12 h-12 mx-auto mb-2" />
-                <h2 className="text-xl font-semibold">Processing Failed</h2>
-              </div>
-              <p className="text-gray-600 mb-4">There was an error processing your video. Please try again.</p>
-              <Link href="/">
-                <Button>
-                  <ArrowLeft className="w-4 h-4" />
-                  Back to Home
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
         ) : clips.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
-              {task?.status === "completed" ? (
+              {task?.status === "error" ? (
+                <>
+                  <div className="text-red-600 mb-4">
+                    <AlertCircle className="w-12 h-12 mx-auto mb-2" />
+                    <h2 className="text-xl font-semibold">Processing Failed</h2>
+                  </div>
+                  <p className="text-gray-600 mb-4">There was an error processing your video. Please try again.</p>
+                  <Link href="/">
+                    <Button>
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      Back to Home
+                    </Button>
+                  </Link>
+                </>
+              ) : task?.status === "cancelled" ? (
+                <>
+                  <div className="text-stone-500 mb-4">
+                    <AlertCircle className="w-12 h-12 mx-auto mb-2" />
+                    <h2 className="text-xl font-semibold">Task Cancelled</h2>
+                  </div>
+                  <p className="text-gray-600 mb-4">This task was cancelled by the user.</p>
+                  <div className="flex justify-center gap-3">
+                    <Link href="/">
+                      <Button variant="outline">
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Back to Home
+                      </Button>
+                    </Link>
+                    <Button
+                      onClick={async () => {
+                        await fetch(`${taskApiUrl}/${task.id}/resume`, { method: "POST" });
+                        await fetchTaskStatus();
+                      }}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Resume Task
+                    </Button>
+                  </div>
+                </>
+              ) : task?.status === "completed" ? (
                 <>
                   <div className="text-yellow-600 mb-4">
                     <AlertCircle className="w-12 h-12 mx-auto mb-2" />
@@ -1087,7 +1189,7 @@ export default function TaskPage() {
                   </p>
                   <Link href="/">
                     <Button>
-                      <ArrowLeft className="w-4 h-4" />
+                      <ArrowLeft className="w-4 h-4 mr-2" />
                       Try Another Video
                     </Button>
                   </Link>
@@ -1107,18 +1209,169 @@ export default function TaskPage() {
           </Card>
         ) : (
           <div className="grid gap-6">
-            <div className="flex items-center justify-between">
-              <Button variant="outline" size="sm" onClick={() => setSettingsSheetOpen(true)}>
-                <Settings2 className="w-4 h-4" />
-                Project Settings
-              </Button>
+            {task?.status === "cancelled" && (
+              <Alert className="border-amber-200 bg-amber-50 text-amber-900">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-xs">
+                  Additional clip generation was cancelled. Your <strong>{clips.length}</strong> previously generated clip{clips.length !== 1 ? "s are" : " is"} ready below.
+                </AlertDescription>
+              </Alert>
+            )}
+            {task?.status === "error" && (
+              <Alert className="border-red-200 bg-red-50 text-red-900">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <AlertDescription className="text-xs">
+                  An error occurred during additional processing. Your <strong>{clips.length}</strong> previously generated clip{clips.length !== 1 ? "s are" : " is"} preserved below.
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setGenerateMoreOpen(true)}
+                  disabled={task?.status === "processing" || isGeneratingMore}
+                  className="bg-stone-900 hover:bg-stone-800 text-white shadow-sm transition-all"
+                >
+                  <Sparkles className="w-4 h-4 mr-1.5 text-amber-400" />
+                  Generate More Clips
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setSettingsSheetOpen(true)}>
+                  <Settings2 className="w-4 h-4 mr-1.5" />
+                  Project Settings
+                </Button>
+              </div>
               {selectedClipIds.length >= 2 && (
                 <Button variant="outline" size="sm" onClick={handleMergeClips}>
-                  <GitMerge className="w-4 h-4" />
+                  <GitMerge className="w-4 h-4 mr-1.5" />
                   Merge Selected ({selectedClipIds.length})
                 </Button>
               )}
             </div>
+
+            <Dialog open={generateMoreOpen} onOpenChange={setGenerateMoreOpen}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-stone-900">
+                    <Sparkles className="w-5 h-5 text-amber-500" />
+                    Generate More Clips
+                  </DialogTitle>
+                  <DialogDescription className="text-stone-500">
+                    {allowOverlap
+                      ? `AI will search across the entire video (including existing clip spans) to find ${moreClipsCount} new viral angles.`
+                      : `AI will scan untouched parts of the video transcript to find ${moreClipsCount} new viral moments without overlapping your existing ${clips.length} clip${clips.length !== 1 ? "s" : ""}.`}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-3">
+                  {/* Number of Clips */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                      Number of Additional Clips
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[1, 2, 3, 5].map((count) => (
+                        <button
+                          key={count}
+                          type="button"
+                          onClick={() => setMoreClipsCount(count)}
+                          className={`flex flex-col items-center justify-center p-3 rounded-lg border text-sm font-medium transition-all ${
+                            moreClipsCount === count
+                              ? "bg-stone-900 text-white border-stone-900 shadow-sm"
+                              : "bg-white text-stone-700 border-stone-200 hover:bg-stone-50 hover:border-stone-300"
+                          }`}
+                        >
+                          <span className="text-lg font-bold">+{count}</span>
+                          <span className="text-[11px] opacity-80">{count === 1 ? "Clip" : "Clips"}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Minimum Clip Duration */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-stone-600 uppercase tracking-wider">
+                      Minimum Clip Length
+                    </label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[15, 30, 45, 60].map((dur) => (
+                        <button
+                          key={dur}
+                          type="button"
+                          onClick={() => setMinClipDuration(dur)}
+                          className={`flex items-center justify-center py-2 px-3 rounded-lg border text-xs font-medium transition-all ${
+                            minClipDuration === dur
+                              ? "bg-stone-900 text-white border-stone-900 shadow-sm"
+                              : "bg-white text-stone-700 border-stone-200 hover:bg-stone-50 hover:border-stone-300"
+                          }`}
+                        >
+                          {dur}s+
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Allow Overlap Toggle */}
+                  <div className="flex items-center justify-between p-3 bg-stone-50 rounded-lg border border-stone-200/80">
+                    <div className="space-y-0.5 pr-3">
+                      <label htmlFor="allow-overlap-toggle" className="text-xs font-semibold text-stone-800 cursor-pointer">
+                        Allow Overlapping Clips
+                      </label>
+                      <p className="text-[11px] text-stone-500">
+                        Permit AI to reuse timestamp ranges from previously generated clips
+                      </p>
+                    </div>
+                    <input
+                      id="allow-overlap-toggle"
+                      type="checkbox"
+                      checked={allowOverlap}
+                      onChange={(e) => setAllowOverlap(e.target.checked)}
+                      className="h-4 w-4 rounded border-stone-300 text-stone-900 focus:ring-stone-900 cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Contextual Hint */}
+                  <div className="p-3 bg-stone-50 rounded-lg border border-stone-200/60 flex items-start gap-2.5 text-xs text-stone-600">
+                    <Zap className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                    <span>
+                      {allowOverlap ? (
+                        <>
+                          <strong>Overlap enabled:</strong> AI has full freedom to re-scan the entire video source to uncover new perspectives and different hook angles.
+                        </>
+                      ) : (
+                        <>
+                          <strong>Zero overlap guaranteed:</strong> The {clips.length} existing clip timestamps are strictly excluded from AI selection, ensuring every new clip is 100% unique.
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="outline" onClick={() => setGenerateMoreOpen(false)} disabled={isGeneratingMore}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleGenerateMoreClips}
+                    disabled={isGeneratingMore}
+                    className="bg-stone-900 hover:bg-stone-800 text-white font-medium"
+                  >
+                    {isGeneratingMore ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Starting...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2 text-amber-400" />
+                        Generate {moreClipsCount} {moreClipsCount === 1 ? "Clip" : "Clips"}
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             <Sheet open={settingsSheetOpen} onOpenChange={setSettingsSheetOpen}>
               <SheetContent side="right" className="sm:max-w-md overflow-y-auto">

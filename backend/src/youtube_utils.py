@@ -61,6 +61,12 @@ class YouTubeDownloader:
             "quiet": True,
             "no_warnings": False,  # Show warnings but not info
             "ignoreerrors": False,
+            # Avoid 403 Forbidden by using mobile & web player client fallback
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "ios", "web"],
+                }
+            },
             # Enhanced headers to avoid 403 errors
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -88,6 +94,11 @@ def _build_info_options() -> Dict[str, Any]:
         "extractaudio": False,
         "skip_download": True,
         "socket_timeout": 30,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "ios", "web"],
+            }
+        },
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -724,12 +735,14 @@ def is_video_suitable_for_processing(
     return True
 
 
-def cleanup_downloaded_files(video_id: str):
-    """Clean up downloaded files for a specific video ID."""
+def cleanup_downloaded_files(video_id: str, keep_main_video: bool = True):
+    """Clean up downloaded files for a specific video ID, optionally retaining the main video."""
     temp_dir = Path(get_config().temp_dir)
 
     for file_path in temp_dir.glob(f"{video_id}.*"):
         try:
+            if keep_main_video and file_path.suffix.lower() in {".mp4", ".mkv", ".webm", ".mov"}:
+                continue
             if file_path.is_file():
                 file_path.unlink()
                 logger.info(f"Cleaned up: {file_path.name}")

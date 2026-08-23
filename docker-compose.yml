@@ -17,6 +17,7 @@ services:
         - NEXT_PUBLIC_DATAFAST_DOMAIN=${NEXT_PUBLIC_DATAFAST_DOMAIN:-}
         - NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST=${NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST:-false}
     container_name: supoclip-frontend
+    image: supoclip-frontend:latest
     ports:
       - "127.0.0.1:3001:3107"
     volumes:
@@ -76,6 +77,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: supoclip-backend:latest
     container_name: supoclip-backend
     platform: linux/amd64
     command: [".venv/bin/uvicorn", "src.main_refactored:app", "--host", "0.0.0.0", "--port", "8000"]
@@ -105,6 +107,8 @@ services:
       - YOUTUBE_METADATA_PROVIDER=${YOUTUBE_METADATA_PROVIDER:-yt_dlp}
       - YOUTUBE_DOWNLOAD_PROVIDER=${YOUTUBE_DOWNLOAD_PROVIDER:-yt_dlp}
       - LLM=${LLM:-}
+      - FALLBACK_LLM=${FALLBACK_LLM:-}
+      - LLM_THINKING_LEVEL=${LLM_THINKING_LEVEL:-high}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
@@ -154,6 +158,7 @@ services:
     build:
       context: ./mcp
       dockerfile: Dockerfile
+    image: supoclip-mcp:latest
     container_name: supoclip-mcp
     ports:
       - "127.0.0.1:${SUPOCLIP_MCP_PORT:-9100}:9100"
@@ -184,6 +189,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: supoclip-backend:latest
     container_name: supoclip-worker
     platform: linux/amd64
     command: [".venv/bin/arq", "src.workers.tasks.WorkerSettings"]
@@ -211,6 +217,8 @@ services:
       - YOUTUBE_METADATA_PROVIDER=${YOUTUBE_METADATA_PROVIDER:-yt_dlp}
       - YOUTUBE_DOWNLOAD_PROVIDER=${YOUTUBE_DOWNLOAD_PROVIDER:-yt_dlp}
       - LLM=${LLM:-}
+      - FALLBACK_LLM=${FALLBACK_LLM:-}
+      - LLM_THINKING_LEVEL=${LLM_THINKING_LEVEL:-high}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}

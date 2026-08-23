@@ -3,7 +3,7 @@ Video service - handles video processing business logic.
 """
 
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Callable, Awaitable
+from typing import List, Dict, Any, Optional, Callable, Awaitable, Tuple
 import logging
 import json
 import subprocess
@@ -196,15 +196,29 @@ class VideoService:
         return transcript
 
     @staticmethod
-    async def analyze_transcript(transcript: str, clip_signals: Optional[str] = None) -> Any:
+    async def analyze_transcript(
+        transcript: str,
+        clip_signals: Optional[str] = None,
+        excluded_ranges: Optional[List[Tuple[str, str]]] = None,
+        target_clip_count: Optional[int] = None,
+        min_clip_duration: Optional[int] = None,
+    ) -> Any:
         """
         Analyze transcript with AI to find relevant segments.
         This is already async, no need to wrap.
         """
-        logger.info("Starting AI analysis of transcript")
+        logger.info(
+            "Starting AI analysis of transcript (excluded_ranges=%d, target_clip_count=%s, min_clip_duration=%s)",
+            len(excluded_ranges or []),
+            target_clip_count,
+            min_clip_duration,
+        )
         relevant_parts = await get_most_relevant_parts_by_transcript(
             transcript,
             clip_signals=clip_signals,
+            excluded_ranges=excluded_ranges,
+            target_clip_count=target_clip_count,
+            min_clip_duration=min_clip_duration,
         )
         logger.info(
             f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"

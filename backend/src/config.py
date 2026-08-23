@@ -31,6 +31,16 @@ class Config:
             or "small"
         )
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
+        self.fallback_llm = (
+            self._get_runtime_setting("FALLBACK_LLM")
+            or self._get_runtime_setting("LLM_FALLBACK")
+            or self._infer_default_fallback_llm()
+        )
+        self.llm_thinking_level = (
+            self._get_runtime_setting("LLM_THINKING_LEVEL")
+            or self._get_runtime_setting("THINKING_LEVEL")
+            or "high"
+        )
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
         self.assembly_ai_http_timeout_seconds = int(
             os.getenv("ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS", "900")
@@ -166,6 +176,8 @@ class Config:
             "WHISPER_MODEL_SIZE": self.whisper_model,
             "ASSEMBLY_AI_API_KEY": self.assembly_ai_api_key,
             "LLM": self.llm,
+            "FALLBACK_LLM": self.fallback_llm,
+            "LLM_THINKING_LEVEL": self.llm_thinking_level,
             "OPENAI_API_KEY": self.openai_api_key,
             "GOOGLE_API_KEY": self.google_api_key,
             "ANTHROPIC_API_KEY": self.anthropic_api_key,
@@ -260,6 +272,14 @@ class Config:
         if self.anthropic_api_key:
             return "anthropic:claude-4-sonnet"
         return "google-gla:gemini-3-flash-preview"
+
+    def _infer_default_fallback_llm(self) -> str | None:
+        """
+        Infer a fallback model when the primary LLM is unavailable or fails.
+        """
+        if self.google_api_key:
+            return "google-gla:gemini-2.5-flash-lite"
+        return None
 
 
 def get_config() -> Config:

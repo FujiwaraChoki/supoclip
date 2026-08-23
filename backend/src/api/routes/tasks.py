@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional
 import inspect
 import re
 import secrets
+from pydantic import BaseModel, Field
 
 from ...database import get_db
 from ...database import AsyncSessionLocal
@@ -1078,6 +1079,78 @@ async def resume_task(
     except Exception as e:
         logger.error(f"Error resuming task: {e}")
         raise HTTPException(status_code=500, detail=f"Error resuming task: {str(e)}")
+
+
+class GenerateMoreClipsRequest(BaseModel):
+    count: int = Field(default=3, ge=1, le=10, description="Number of additional clips to generate (1-10)")
+    allow_overlap: bool = Field(default=False, description="Allow new clips to overlap with previously generated clips")
+    min_clip_duration: int = Field(default=15, ge=10, le=90, description="Minimum clip duration in seconds")
+
+
+@router.post("/{task_id}/generate-more")
+async def generate_more_clips_endpoint(
+    task_id: str,
+    payload: GenerateMoreClipsRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate additional clips for an existing completed task.
+    """
+    try:
+        task_service = TaskService(db)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        if task.get("status") == "processing":
+            raise HTTPException(
+                status_code=400,
+                detail="Task is currently processing. Please wait for current generation to complete.",
+            )
+
+        # Clear any cancellation token
+        runtime_config = get_config()
+        redis_client = redis.Redis(
+            host=runtime_config.redis_host,
+            port=runtime_config.redis_port,
+            password=runtime_config.redis_password,
+            decode_responses=True,
+        )
+        try:
+            await redis_client.delete(f"task_cancel:{task_id}")
+            await redis_client.delete(f"tasks:{task_id}:cancelled")
+        finally:
+            await redis_client.close()
+
+        # Update task status to processing
+        await task_service.task_repo.update_task_status(
+            db,
+            task_id,
+            "processing",
+            progress=5,
+            progress_message=f"Queued for {payload.count} additional clips...",
+        )
+
+        job_id = await JobQueue.enqueue_generate_more_clips_job(
+            task_id=task_id,
+            count=payload.count,
+            allow_overlap=payload.allow_overlap,
+            min_clip_duration=payload.min_clip_duration,
+        )
+        return {
+            "message": f"Queued {payload.count} additional clips for generation",
+            "job_id": job_id,
+            "task_id": task_id,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error initiating generate-more clips: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error initiating generate-more clips: {str(e)}",
+        )
 
 
 @router.get("/dead-letter/list")

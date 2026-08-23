@@ -6,14 +6,15 @@ FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
-RUN npm install -g pnpm@10.27.0
+# Install openssl (for Prisma) and curl (for healthchecks) once in base using APT cache
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends openssl curl ca-certificates && \
+    corepack enable && corepack prepare pnpm@10.27.0 --activate
 
 # Dependencies stage
 FROM base AS deps
 WORKDIR /app
-
-# Install OpenSSL for Prisma postinstall
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency manifests only so app/schema changes don't invalidate deps
 COPY package.json pnpm-lock.yaml ./
@@ -23,9 +24,6 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # Development stage
 FROM base AS development
 WORKDIR /app
-
-# Install OpenSSL (required for Prisma) and curl for healthchecks
-RUN apt-get update && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
@@ -44,15 +42,11 @@ ENV HOSTNAME="0.0.0.0"
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Start development server with hot-reload
-# Run prisma generate first to handle volume mount scenarios where node_modules is overwritten
 CMD ["sh", "-c", "pnpm exec prisma generate && pnpm run dev"]
 
 # Builder stage (for production)
 FROM base AS builder
 WORKDIR /app
-
-# Install OpenSSL (required for Prisma)
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -89,18 +83,16 @@ ENV NEXT_PUBLIC_DATAFAST_WEBSITE_ID=${NEXT_PUBLIC_DATAFAST_WEBSITE_ID}
 ENV NEXT_PUBLIC_DATAFAST_DOMAIN=${NEXT_PUBLIC_DATAFAST_DOMAIN}
 ENV NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST=${NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST}
 
-RUN pnpm run build
+RUN --mount=type=cache,id=next_cache,target=/app/.next/cache \
+    pnpm run build
 
 # Runner stage (for production)
-# Next's standalone output is a Node server, so production only needs Node.
-FROM node:22-bookworm-slim AS runner
+# Next's standalone output is a Node server, so production only needs Node + openssl/curl from base.
+FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-
-# Install OpenSSL (required for Prisma) and curl for healthchecks
-RUN apt-get update && apt-get install -y openssl curl && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user
 RUN groupadd --system --gid 1001 nodejs
@@ -132,3 +124,4 @@ ENV HOSTNAME="0.0.0.0"
 
 # Start the application
 CMD ["node", "server.js"]
+

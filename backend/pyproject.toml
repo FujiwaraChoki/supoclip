@@ -17,7 +17,6 @@ dependencies = [
     "alembic>=1.13.0",
     "python-dotenv>=1.0.0",
     "yt-dlp>=2025.7.21",
-    "whisper>=1.1.10",
     "greenlet>=2.0.0",
     "opencv-python>=4.8.0",
     "srt-equalizer>=0.1.10",
@@ -46,7 +45,7 @@ dev = [
 ]
 
 [tool.uv]
-package = true
+package = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -177,6 +177,9 @@ class ClipRepository:
 
         return clips
 
+    # Alias for backwards compatibility
+    get_clips_by_task_id = get_clips_by_task
+
     @staticmethod
     async def get_clips_count(db: AsyncSession, task_id: str) -> int:
         """Get the count of clips for a task."""

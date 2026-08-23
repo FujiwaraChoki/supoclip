@@ -96,6 +96,7 @@ async def process_video_task(
             )
 
             logger.info(f"Task {task_id} completed successfully")
+            await progress.complete(f"Completed with {result.get('clips_count', len(result.get('clips', [])))} clips")
             return result
 
         except Exception as e:
@@ -119,6 +120,72 @@ async def process_video_task(
             # Error will be caught by arq and task status will be updated
             raise
 
+
+async def process_generate_more_clips_task(
+    ctx: Dict[str, Any],
+    task_id: str,
+    count: int = 3,
+    allow_overlap: bool = False,
+    min_clip_duration: int = 15,
+):
+    """
+    Worker task to generate additional clips for an existing task.
+    """
+    from ..database import AsyncSessionLocal
+    from ..runtime_settings import load_runtime_settings_cache
+    from ..services.task_service import TaskService
+    from ..workers.progress import ProgressTracker
+
+    set_trace_id(f"task-{task_id}-more")
+    logger.info(
+        "Worker starting generate more clips: task %s, count %d, allow_overlap=%s, min_clip_duration=%ds",
+        task_id,
+        count,
+        allow_overlap,
+        min_clip_duration,
+    )
+    progress = ProgressTracker(ctx["redis"], task_id)
+
+    async with AsyncSessionLocal() as db:
+        await load_runtime_settings_cache(db)
+        task_service = TaskService(db)
+
+        try:
+            async def should_cancel() -> bool:
+                cancelled = await ctx["redis"].get(f"task_cancel:{task_id}")
+                return bool(cancelled)
+
+            async def update_progress(
+                percent: int, message: str, status: str = "processing", stage_progress: Optional[int] = None
+            ):
+                await progress.update(percent, message, status, stage_progress or 0)
+                logger.info(f"Task {task_id}: {percent}% - {message}")
+
+            async def clip_ready_callback(
+                clip_index: int, total_clips: int, clip_data: dict
+            ):
+                await progress.clip_ready(clip_index, total_clips, clip_data)
+
+            result = await task_service.generate_more_clips(
+                task_id=task_id,
+                count=count,
+                allow_overlap=allow_overlap,
+                min_clip_duration=min_clip_duration,
+                progress_callback=update_progress,
+                should_cancel=should_cancel,
+                clip_ready_callback=clip_ready_callback,
+            )
+
+            logger.info("Generate more clips completed for task %s", task_id)
+            await progress.complete(f"Added {result.get('new_clips_count', 0)} new clips")
+            return result
+
+        except Exception as e:
+            logger.error("Generate more clips task %s failed: %s", task_id, e, exc_info=True)
+            await progress.error(str(e))
+            raise
+
+
 # Worker configuration for arq
 class WorkerSettings:
     """Configuration for arq worker."""
@@ -129,7 +196,7 @@ class WorkerSettings:
     config = Config()
 
     # Functions to run
-    functions = [process_video_task]
+    functions = [process_video_task, process_generate_more_clips_task]
     queue_name = "supoclip_tasks"
 
     # Redis settings from environment

@@ -83,6 +83,24 @@ class JobQueue:
         )
 
     @classmethod
+    async def enqueue_generate_more_clips_job(
+        cls,
+        task_id: str,
+        count: int = 3,
+        allow_overlap: bool = False,
+        min_clip_duration: int = 15,
+    ) -> str:
+        """Enqueue an incremental clip generation job."""
+        return await cls.enqueue_job(
+            "process_generate_more_clips_task",
+            task_id,
+            count,
+            allow_overlap,
+            min_clip_duration,
+            _queue_name=DEFAULT_QUEUE_NAME,
+        )
+
+    @classmethod
     async def get_job_result(cls, job_id: str):
         """Get the result of a completed job."""
         pool = await cls.get_pool()
