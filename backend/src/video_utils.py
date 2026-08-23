@@ -21,6 +21,7 @@ import cv2
 
 import assemblyai as aai
 import httpx
+import requests
 import srt
 from datetime import timedelta
 
@@ -1014,6 +1015,217 @@ def get_video_transcript_whisperx(
     return result_str
 
 
+def get_video_transcript_openai_compatible(
+    video_path: Path,
+    base_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+    model_name: Optional[str] = None,
+    progress_callback: Optional[Callable] = None,
+    loop: Optional[Any] = None,
+) -> str:
+    """
+    Transcribe audio via an OpenAI-compatible audio API endpoint (e.g. Remote Faster-Whisper,
+    vLLM, Parakeet server, Speaches, LocalAI, Groq Whisper, or OpenAI official API).
+    Uses the standard POST /v1/audio/transcriptions endpoint with multipart/form-data.
+    """
+    runtime_config = get_config()
+    raw_base_url = base_url or runtime_config.openai_whisper_base_url or "https://api.openai.com/v1"
+    resolved_api_key = api_key or runtime_config.openai_whisper_api_key or runtime_config.openai_api_key or "none"
+    resolved_model = model_name or runtime_config.openai_whisper_model or "whisper-1"
+    timeout_sec = runtime_config.openai_whisper_timeout_seconds or 900
+
+    clean_base = raw_base_url.rstrip("/")
+    if not clean_base.endswith("/audio/transcriptions"):
+        if clean_base.endswith("/v1"):
+            endpoint_url = f"{clean_base}/audio/transcriptions"
+        else:
+            endpoint_url = f"{clean_base}/v1/audio/transcriptions" if "/v1" not in clean_base else f"{clean_base}/audio/transcriptions"
+    else:
+        endpoint_url = clean_base
+
+    logger.info(
+        "Transcribing audio via OpenAI-compatible endpoint: url=%s, model=%s",
+        endpoint_url,
+        resolved_model,
+    )
+
+    if progress_callback and loop:
+        future = asyncio.run_coroutine_threadsafe(
+            progress_callback(20, "Extracting audio for remote transcription...", "processing", 10),
+            loop,
+        )
+        try:
+            future.result(timeout=2.0)
+        except Exception:
+            pass
+
+    transcription_media_path = _prepare_audio_for_transcription(video_path)
+
+    if progress_callback and loop:
+        future = asyncio.run_coroutine_threadsafe(
+            progress_callback(20, "Sending audio to remote GPU transcription server...", "processing", 30),
+            loop,
+        )
+        try:
+            future.result(timeout=2.0)
+        except Exception:
+            pass
+
+    headers = {}
+    if resolved_api_key and resolved_api_key.lower() not in {"none", "false", "disabled", "not-needed", ""}:
+        headers["Authorization"] = f"Bearer {resolved_api_key}"
+
+    with open(transcription_media_path, "rb") as audio_f:
+        files = {
+            "file": (transcription_media_path.name, audio_f, "audio/mpeg"),
+        }
+        data = {
+            "model": resolved_model,
+            "response_format": "verbose_json",
+            "timestamp_granularities[]": "segment",
+        }
+
+        try:
+            response = requests.post(
+                endpoint_url,
+                headers=headers,
+                files=files,
+                data=data,
+                timeout=timeout_sec,
+            )
+            response.raise_for_status()
+            resp_data = response.json()
+        except requests.exceptions.HTTPError as http_err:
+            if response.status_code in {400, 422} and "verbose_json" in response.text:
+                logger.warning("Remote server rejected verbose_json; retrying with standard json response format...")
+                audio_f.seek(0)
+                data["response_format"] = "json"
+                response = requests.post(
+                    endpoint_url,
+                    headers=headers,
+                    files=files,
+                    data=data,
+                    timeout=timeout_sec,
+                )
+                response.raise_for_status()
+                resp_data = response.json()
+            else:
+                raise RuntimeError(f"OpenAI-compatible transcription request failed ({response.status_code}): {response.text}") from http_err
+        except Exception as req_err:
+            raise RuntimeError(f"Failed to connect to OpenAI-compatible transcription endpoint '{endpoint_url}': {req_err}") from req_err
+
+    if progress_callback and loop:
+        future = asyncio.run_coroutine_threadsafe(
+            progress_callback(20, "Processing transcribed segments...", "processing", 85),
+            loop,
+        )
+        try:
+            future.result(timeout=2.0)
+        except Exception:
+            pass
+
+    all_words: List[WhisperWord] = []
+    all_utterances: List[WhisperUtterance] = []
+    full_text_parts: List[str] = []
+
+    segments = resp_data.get("segments") or []
+    words_list = resp_data.get("words") or []
+    full_text = resp_data.get("text", "").strip()
+
+    if words_list:
+        for w in words_list:
+            all_words.append(
+                WhisperWord(
+                    text=w.get("word", "").strip(),
+                    start=int(float(w.get("start", 0)) * 1000),
+                    end=int(float(w.get("end", 0)) * 1000),
+                )
+            )
+
+    if segments:
+        for seg in segments:
+            seg_start_ms = int(float(seg.get("start", 0)) * 1000)
+            seg_end_ms = int(float(seg.get("end", 0)) * 1000)
+            seg_text = seg.get("text", "").strip()
+            if not seg_text:
+                continue
+            full_text_parts.append(seg_text)
+
+            seg_words = []
+            if seg.get("words"):
+                for w in seg["words"]:
+                    word_obj = WhisperWord(
+                        text=w.get("word", "").strip(),
+                        start=int(float(w.get("start", 0)) * 1000),
+                        end=int(float(w.get("end", 0)) * 1000),
+                    )
+                    seg_words.append(word_obj)
+                    if not words_list:
+                        all_words.append(word_obj)
+            else:
+                word_list = seg_text.split()
+                if word_list:
+                    word_dur_ms = max(1, (seg_end_ms - seg_start_ms) // len(word_list))
+                    for idx, wt in enumerate(word_list):
+                        w_start = seg_start_ms + (idx * word_dur_ms)
+                        w_end = w_start + word_dur_ms if idx < len(word_list) - 1 else seg_end_ms
+                        word_obj = WhisperWord(text=wt, start=w_start, end=w_end)
+                        seg_words.append(word_obj)
+                        if not words_list:
+                            all_words.append(word_obj)
+
+            utterance_obj = WhisperUtterance(
+                text=seg_text,
+                start=seg_start_ms,
+                end=seg_end_ms,
+                words=seg_words,
+            )
+            all_utterances.append(utterance_obj)
+    elif full_text:
+        full_text_parts.append(full_text)
+        word_list = full_text.split()
+        total_dur_ms = int(float(resp_data.get("duration", 30)) * 1000)
+        word_dur_ms = max(1, total_dur_ms // max(1, len(word_list)))
+        for idx, wt in enumerate(word_list):
+            w_start = idx * word_dur_ms
+            w_end = (idx + 1) * word_dur_ms
+            word_obj = WhisperWord(text=wt, start=w_start, end=w_end)
+            all_words.append(word_obj)
+        all_utterances.append(
+            WhisperUtterance(text=full_text, start=0, end=total_dur_ms, words=all_words)
+        )
+
+    if not full_text:
+        full_text = " ".join(full_text_parts).strip()
+
+    transcript_result = WhisperTranscriptResult(
+        text=full_text,
+        words=all_words,
+        utterances=all_utterances,
+    )
+
+    formatted_lines = format_transcript_for_analysis(transcript_result)
+    cache_transcript_data(video_path, transcript_result)
+
+    if progress_callback and loop:
+        future = asyncio.run_coroutine_threadsafe(
+            progress_callback(20, "Remote transcription complete!", "processing", 100),
+            loop,
+        )
+        try:
+            future.result(timeout=2.0)
+        except Exception:
+            pass
+
+    result_str = "\n".join(formatted_lines)
+    logger.info(
+        "OpenAI-compatible transcript formatted: %d segments, %d chars",
+        len(formatted_lines),
+        len(result_str),
+    )
+    return result_str
+
+
 def _get_transcript_with_youtube_captions(source_url: str) -> str:
     """Get transcript from YouTube captions (plain text, no word timings)."""
     logger.info("Extracting YouTube captions for: %s", source_url)
@@ -1052,6 +1264,10 @@ def run_transcription_fallback_chain(
                 return get_video_transcript_whisperx(
                     video_path, model_name=model_name, progress_callback=progress_callback, loop=loop
                 )
+            elif provider == "openai_compatible":
+                return get_video_transcript_openai_compatible(
+                    video_path, progress_callback=progress_callback, loop=loop
+                )
             elif provider == "whisper":
                 return get_video_transcript_whisper(
                     video_path, model_name=model_name
@@ -1086,7 +1302,7 @@ def get_video_transcript(
     progress_callback: Optional[Callable] = None,
     loop: Optional[Any] = None,
 ) -> str:
-    """Get transcript using AssemblyAI, Whisper, faster-whisper, WhisperX, or YouTube captions depending on configuration."""
+    """Get transcript using AssemblyAI, Whisper, faster-whisper, WhisperX, OpenAI-compatible remote GPU, or YouTube captions."""
     runtime_config = get_config()
     provider = runtime_config.transcription_provider
 
@@ -1096,6 +1312,16 @@ def get_video_transcript(
         )
         return get_video_transcript_whisper(
             video_path, model_name=runtime_config.whisper_model
+        )
+
+    if provider == "openai_compatible":
+        logger.info(
+            "Using OpenAI-compatible remote transcription provider explicitly (url=%s, model=%s)",
+            runtime_config.openai_whisper_base_url,
+            runtime_config.openai_whisper_model,
+        )
+        return get_video_transcript_openai_compatible(
+            video_path, progress_callback=progress_callback, loop=loop
         )
 
     if provider == "faster_whisper":

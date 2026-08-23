@@ -45,6 +45,24 @@ class Config:
         self.assembly_ai_http_timeout_seconds = int(
             os.getenv("ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS", "900")
         )
+        self.openai_whisper_base_url = (
+            self._get_runtime_setting("OPENAI_WHISPER_BASE_URL")
+            or self._get_runtime_setting("CUSTOM_WHISPER_BASE_URL")
+            or self._get_runtime_setting("TRANSCRIPTION_API_BASE_URL")
+        )
+        self.openai_whisper_api_key = (
+            self._get_runtime_setting("OPENAI_WHISPER_API_KEY")
+            or self._get_runtime_setting("CUSTOM_WHISPER_API_KEY")
+            or self.openai_api_key
+        )
+        self.openai_whisper_model = (
+            self._get_runtime_setting("OPENAI_WHISPER_MODEL")
+            or self._get_runtime_setting("CUSTOM_WHISPER_MODEL")
+            or "whisper-1"
+        )
+        self.openai_whisper_timeout_seconds = int(
+            self._get_runtime_setting("OPENAI_WHISPER_TIMEOUT_SECONDS") or "900"
+        )
         self.pexels_api_key = self._get_runtime_setting("PEXELS_API_KEY")
         self.apify_api_token = self._get_runtime_setting("APIFY_API_TOKEN")
         self.youtube_download_provider = self._normalize_youtube_download_provider(
@@ -174,6 +192,10 @@ class Config:
             "TRANSCRIPTION_PROVIDER": self.transcription_provider,
             "TRANSCRIPTION_FALLBACK_CHAIN": ",".join(self.transcription_fallback_chain),
             "WHISPER_MODEL_SIZE": self.whisper_model,
+            "OPENAI_WHISPER_BASE_URL": self.openai_whisper_base_url,
+            "OPENAI_WHISPER_API_KEY": self.openai_whisper_api_key,
+            "OPENAI_WHISPER_MODEL": self.openai_whisper_model,
+            "OPENAI_WHISPER_TIMEOUT_SECONDS": str(self.openai_whisper_timeout_seconds),
             "ASSEMBLY_AI_API_KEY": self.assembly_ai_api_key,
             "LLM": self.llm,
             "FALLBACK_LLM": self.fallback_llm,
@@ -231,7 +253,20 @@ class Config:
     @staticmethod
     def _normalize_transcription_provider(value: str | None) -> str:
         normalized = (value or "").strip().lower().replace("-", "_")
-        if normalized in {"whisper", "assemblyai", "faster_whisper", "whisperx", "youtube_captions", "auto"}:
+        if normalized in {
+            "whisper",
+            "assemblyai",
+            "faster_whisper",
+            "whisperx",
+            "youtube_captions",
+            "openai_compatible",
+            "openai_whisper",
+            "remote_whisper",
+            "custom_whisper",
+            "auto",
+        }:
+            if normalized in {"openai_whisper", "remote_whisper", "custom_whisper"}:
+                return "openai_compatible"
             return normalized
         return "auto"
 
