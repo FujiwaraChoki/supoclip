@@ -16,7 +16,8 @@ dependencies = [
     "sqlalchemy>=2.0.25",
     "alembic>=1.13.0",
     "python-dotenv>=1.0.0",
-    "yt-dlp>=2025.7.21",
+    "yt-dlp>=2026.8.19",
+    "yt-dlp-ejs>=0.8.0",
     "greenlet>=2.0.0",
     "opencv-python>=4.8.0",
     "srt-equalizer>=0.1.10",
@@ -34,6 +35,7 @@ dependencies = [
     "nvidia-cublas-cu12>=12.1.0",
     "nvidia-cudnn-cu12>=9.0.0",
     "whisperx>=3.1.1",
+    "anyascii>=0.3.2",
 ]
 
 [dependency-groups]

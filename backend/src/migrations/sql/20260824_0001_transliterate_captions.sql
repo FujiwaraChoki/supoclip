@@ -1,0 +1,5 @@
+ALTER TABLE tasks
+ADD COLUMN IF NOT EXISTS detected_language VARCHAR(20);
+
+ALTER TABLE tasks
+ADD COLUMN IF NOT EXISTS transliterate_captions BOOLEAN DEFAULT false;

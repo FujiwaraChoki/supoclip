@@ -9,6 +9,16 @@ USER_FONTS_DIR = FONTS_DIR / "users"
 TTF_NAME_ID_FONT_FAMILY = 1
 TTF_NAME_ID_FULL_NAME = 4
 
+LANGUAGE_DEFAULT_FONTS: dict[str, str] = {
+    "hi": "NotoSansDevanagari-Bold",
+    "mr": "NotoSansDevanagari-Bold",
+    "ne": "NotoSansDevanagari-Bold",
+    "ja": "NotoSansJP-Bold",
+    "ar": "NotoSansArabic-Bold",
+    "ur": "NotoSansArabic-Bold",
+    "fa": "NotoSansArabic-Bold",
+}
+
 
 def _display_name(font_stem: str) -> str:
     return font_stem.replace("-", " ").replace("_", " ").strip().title()

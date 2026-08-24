@@ -91,7 +91,7 @@ POWER_WORDS: Set[str] = {
     "million", "billion", "thousand", "percent", "double", "triple", "ten",
 }
 
-_NORMALIZE_RE = re.compile(r"[^a-z0-9%]+")
+_NORMALIZE_RE = re.compile(r"[^\w%]+", re.UNICODE)
 _NUMBER_RE = re.compile(r"\d")
 
 

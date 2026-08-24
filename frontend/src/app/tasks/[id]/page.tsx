@@ -61,6 +61,7 @@ import {
   Settings2,
   Clapperboard,
   Sparkles,
+  HardDrive,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
@@ -94,6 +95,13 @@ interface Clip {
   hook_title: string | null;
 }
 
+interface CacheInfo {
+  has_cached_video: boolean;
+  file_count: number;
+  total_size_bytes: number;
+  files?: string[];
+}
+
 interface TaskDetails {
   id: string;
   user_id: string;
@@ -115,6 +123,9 @@ interface TaskDetails {
   remove_filler_words?: boolean;
   filtered_words?: string[];
   share_enabled?: boolean;
+  detected_language?: string | null;
+  transliterate_captions?: boolean | null;
+  cache_info?: CacheInfo;
 }
 
 export default function TaskPage() {
@@ -123,6 +134,9 @@ export default function TaskPage() {
   const { data: session } = useSession();
   const [task, setTask] = useState<TaskDetails | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
+  const [cacheInfo, setCacheInfo] = useState<CacheInfo | null>(null);
+  const [showClearCacheDialog, setShowClearCacheDialog] = useState(false);
+  const [isClearingCache, setIsClearingCache] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -210,6 +224,9 @@ export default function TaskPage() {
 
         const taskData = await taskResponse.json();
         setTask(taskData);
+        if (taskData.cache_info) {
+          setCacheInfo(taskData.cache_info);
+        }
         setProjectFontFamily(taskData.font_family ?? null);
         setProjectFontSize(typeof taskData.font_size === "number" ? taskData.font_size : null);
         setProjectFontColor(taskData.font_color ?? null);
@@ -490,6 +507,44 @@ export default function TaskPage() {
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
+    }
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (!bytes || bytes <= 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  };
+
+  const handleClearCache = async () => {
+    if (!session?.user?.id || !params.id) return;
+    setIsClearingCache(true);
+    try {
+      const response = await fetch(`${taskApiUrl}/${params.id}/cache`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const freed = formatBytes(data.freed_bytes || 0);
+        toast.success(`Cleared ${freed} of cached video files`);
+        setCacheInfo({
+          has_cached_video: false,
+          file_count: 0,
+          total_size_bytes: 0,
+          files: [],
+        });
+        setShowClearCacheDialog(false);
+      } else {
+        toast.error(await buildSupportError(response, "Failed to clear video cache"));
+      }
+    } catch (err) {
+      console.error("Error clearing video cache:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to clear video cache");
+    } finally {
+      setIsClearingCache(false);
     }
   };
 
@@ -947,6 +1002,11 @@ export default function TaskPage() {
                     {task.status}
                   </Badge>
                 )}
+                {task.transliterate_captions && (
+                  <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 font-medium">
+                    Transliterated ({task.detected_language ? task.detected_language.toUpperCase() : "Non-EN"} → Latin)
+                  </Badge>
+                )}
                 {task.status === "completed" && clips.length > 0 && (
                   <Link href={`/tasks/${task.id}/edit`}>
                     <Button size="sm" variant="outline">
@@ -984,6 +1044,18 @@ export default function TaskPage() {
                   >
                     <Link2Off className="w-4 h-4" />
                     {isRevokingShare ? "Disabling…" : "Disable share link"}
+                  </Button>
+                )}
+                {cacheInfo?.has_cached_video && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowClearCacheDialog(true)}
+                    className="text-stone-600 hover:text-stone-900 border-stone-200"
+                    title="Clear cached source video to free disk space"
+                  >
+                    <HardDrive className="w-4 h-4 mr-1.5 text-stone-500" />
+                    Clear Cache ({formatBytes(cacheInfo.total_size_bytes)})
                   </Button>
                 )}
                 {(task.status === "queued" || task.status === "processing") && (
@@ -1531,6 +1603,40 @@ export default function TaskPage() {
                       />
                     </div>
                   </div>
+
+                  <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900 flex items-center justify-between">
+                        <span>Storage & Cache</span>
+                        {cacheInfo?.has_cached_video && (
+                          <Badge variant="outline" className="text-xs bg-white font-medium">
+                            {formatBytes(cacheInfo.total_size_bytes)}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {cacheInfo?.has_cached_video
+                          ? "Raw source video and temporary processing files are currently cached on the server."
+                          : "No source video cache is currently stored on disk."}
+                      </div>
+                    </div>
+
+                    {cacheInfo?.has_cached_video && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                        onClick={() => {
+                          setSettingsSheetOpen(false);
+                          setShowClearCacheDialog(true);
+                        }}
+                      >
+                        <HardDrive className="w-4 h-4 mr-1.5" />
+                        Clear Video Cache ({formatBytes(cacheInfo.total_size_bytes)})
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 <SheetFooter>
@@ -1793,6 +1899,37 @@ export default function TaskPage() {
           </div>
         )}
       </div>
+
+      {/* Clear Video Cache Confirmation Dialog */}
+      <AlertDialog open={showClearCacheDialog} onOpenChange={setShowClearCacheDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <HardDrive className="w-5 h-5 text-stone-700" />
+              Clear Cached Video & Temporary Files
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 text-stone-600 text-left">
+              <span>
+                This will delete the raw downloaded source video and temporary processing files (
+                <strong>{formatBytes(cacheInfo?.total_size_bytes || 0)}</strong>) from the server to free up storage space.
+              </span>
+              <span className="block text-xs text-stone-500 pt-1">
+                <strong>Note:</strong> Your generated clips are permanently saved in output storage and will not be affected. If you trim, regenerate, or generate more clips later, the video will automatically be re-downloaded on demand.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isClearingCache}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearCache}
+              disabled={isClearingCache}
+              className="bg-stone-900 hover:bg-stone-800 text-white"
+            >
+              {isClearingCache ? "Clearing..." : "Clear Cache"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Task Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

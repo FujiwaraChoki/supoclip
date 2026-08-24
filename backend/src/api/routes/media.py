@@ -9,6 +9,8 @@ from typing import Any, cast
 import logging
 import uuid
 import aiofiles
+import asyncio
+from pydantic import BaseModel
 
 from ...config import get_config
 from ...database import get_db
@@ -318,3 +320,96 @@ async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error(f"❌ Error uploading video: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
+
+
+class DetectLanguageRequest(BaseModel):
+    url: str
+    source_type: str = "youtube"
+
+
+@router.post("/detect-language")
+async def detect_media_language(
+    payload: DetectLanguageRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Detect language of a video/audio source using a fast snippet probe."""
+    try:
+        await _get_authenticated_user_id(request, db)
+        from ...video_utils import probe_audio_snippet_language
+
+        loop = asyncio.get_running_loop()
+        result = await loop.run_in_executor(
+            None,
+            probe_audio_snippet_language,
+            payload.url,
+            payload.source_type,
+        )
+        return result
+    except Exception as e:
+        logger.warning(f"Error detecting language for {payload.url}: {e}")
+        return {
+            "language_code": "en",
+            "language_name": "English",
+            "is_english": True,
+            "confidence": 1.0,
+            "default_native_font": None,
+        }
+
+
+@router.post("/detect-language-upload")
+async def detect_uploaded_snippet_language(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Detect language from an uploaded small video/audio slice (e.g. 5-8MB chunk)."""
+    try:
+        await _get_authenticated_user_id(request, db)
+        config = get_config()
+        form_data = await request.form()
+        snippet_file = cast(Any, form_data.get("file"))
+        if not getattr(snippet_file, "filename", None) or not hasattr(snippet_file, "read"):
+            return {
+                "language_code": "en",
+                "language_name": "English",
+                "is_english": True,
+                "confidence": 1.0,
+                "default_native_font": None,
+            }
+
+        temp_dir = Path(config.temp_dir)
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        temp_snippet_path = temp_dir / f"slice_{uuid.uuid4().hex[:8]}.mp4"
+
+        try:
+            content = await snippet_file.read()
+            async with aiofiles.open(temp_snippet_path, "wb") as f:
+                await f.write(content)
+
+            from ...video_utils import probe_audio_snippet_language
+
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(
+                None,
+                probe_audio_snippet_language,
+                str(temp_snippet_path),
+                "upload",
+            )
+            return result
+        finally:
+            if temp_snippet_path.exists():
+                try:
+                    temp_snippet_path.unlink()
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.warning(f"Error detecting language for uploaded slice: {e}")
+        return {
+            "language_code": "en",
+            "language_name": "English",
+            "is_english": True,
+            "confidence": 1.0,
+            "default_native_font": None,
+        }
+
+

@@ -128,6 +128,85 @@ class VideoService:
         raise ValueError("Only upload:// references are allowed for local video sources")
 
     @staticmethod
+    def get_cached_source_files(
+        source_url: str, source_type: Optional[str] = None
+    ) -> List[Path]:
+        """Find cached raw video and intermediate temp files for a source."""
+        if not source_url:
+            return []
+
+        temp_dir = Path(get_config().temp_dir)
+        matching_files: set[Path] = set()
+
+        if source_url.startswith(UPLOAD_URL_PREFIX) or source_type == "upload":
+            filename = Path(source_url.removeprefix(UPLOAD_URL_PREFIX)).name
+            if filename and len(filename) >= 3:
+                stem = Path(filename).stem
+                uploads_dir = temp_dir / "uploads"
+                if uploads_dir.exists():
+                    exact_upload = uploads_dir / filename
+                    if exact_upload.is_file():
+                        matching_files.add(exact_upload)
+                    for f in uploads_dir.glob(f"{stem}*"):
+                        if f.is_file():
+                            matching_files.add(f)
+                if temp_dir.exists():
+                    for f in temp_dir.glob(f"{stem}*"):
+                        if f.is_file():
+                            matching_files.add(f)
+        else:
+            video_id = get_youtube_video_id(source_url)
+            if video_id and len(video_id) >= 3 and temp_dir.exists():
+                for f in temp_dir.glob(f"{video_id}.*"):
+                    if f.is_file():
+                        matching_files.add(f)
+                for f in temp_dir.glob(f"{video_id}*"):
+                    if f.is_file():
+                        matching_files.add(f)
+
+        return sorted(list(matching_files))
+
+    @staticmethod
+    def get_cached_source_info(
+        source_url: str, source_type: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Get cache statistics for a source."""
+        files = VideoService.get_cached_source_files(source_url, source_type)
+        total_size = sum(f.stat().st_size for f in files if f.exists())
+        return {
+            "has_cached_video": len(files) > 0,
+            "file_count": len(files),
+            "total_size_bytes": total_size,
+            "files": [f.name for f in files],
+        }
+
+    @staticmethod
+    def clear_cached_source_files(
+        source_url: str, source_type: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Delete cached raw video and intermediate temp files for a source."""
+        files = VideoService.get_cached_source_files(source_url, source_type)
+        freed_bytes = 0
+        cleared_count = 0
+
+        for f in files:
+            try:
+                if f.exists() and f.is_file():
+                    freed_bytes += f.stat().st_size
+                    f.unlink()
+                    cleared_count += 1
+                    logger.info("Deleted cached file %s (%s bytes)", f.name, freed_bytes)
+            except Exception as e:
+                logger.warning("Failed to delete cached file %s: %s", f, e)
+
+        return {
+            "message": "Cached video and temporary files cleared successfully",
+            "cleared_files_count": cleared_count,
+            "freed_bytes": freed_bytes,
+            "has_cached_video": False,
+        }
+
+    @staticmethod
     async def download_video(url: str, task_id: Optional[str] = None, progress_callback: Optional[Callable] = None) -> Optional[Path]:
         """
         Download a YouTube video asynchronously.
@@ -277,6 +356,7 @@ class VideoService:
         output_format: str = "vertical",
         add_subtitles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        transliterate_captions: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """Render a single clip in the thread pool and return clip_info dict, or None on failure."""
         try:
@@ -338,6 +418,7 @@ class VideoService:
                 output_format,
                 keep_ranges,
                 segment.get("hook_title"),
+                transliterate_captions,
             )
 
             if not success:

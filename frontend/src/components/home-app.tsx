@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -18,7 +18,7 @@ import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor, Menu, X, LogOut, List, Shield, Settings } from "lucide-react";
+import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor, Menu, X, LogOut, List, Shield, Settings, Languages, Globe } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 interface LatestTask {
@@ -219,6 +219,19 @@ export default function HomeApp() {
   const [removeFillerWords, setRemoveFillerWords] = useState(false);
   const [filteredWords, setFilteredWords] = useState("");
 
+  // Language detection & script selection state
+  const [detectedLanguageInfo, setDetectedLanguageInfo] = useState<{
+    language_code: string;
+    language_name: string;
+    is_english: boolean;
+    confidence?: number;
+    default_native_font?: string | null;
+  } | null>(null);
+  const [isProbingLanguage, setIsProbingLanguage] = useState(false);
+  const [languageMode, setLanguageMode] = useState<"transliterate" | "native">("transliterate");
+  const [nativeFontFamily, setNativeFontFamily] = useState<string | null>(null);
+  const probeRequestIdRef = useRef<number>(0);
+
   // Latest task state
   const [latestTask, setLatestTask] = useState<LatestTask | null>(null);
   const [isLoadingLatest, setIsLoadingLatest] = useState(false);
@@ -344,10 +357,103 @@ export default function HomeApp() {
   // Always treat file input as uncontrolled, and store file in a ref
   const fileRef = useRef<File | null>(null);
 
+  const probeFileSnippet = async (file: File) => {
+    const reqId = ++probeRequestIdRef.current;
+    setIsProbingLanguage(true);
+    setDetectedLanguageInfo(null);
+    try {
+      const slice = file.slice(0, 8 * 1024 * 1024);
+      const formData = new FormData();
+      formData.append("file", slice, file.name);
+
+      const response = await fetch("/api/media/detect-language-upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (reqId !== probeRequestIdRef.current) return;
+      if (response.ok) {
+        const data = await response.json();
+        setDetectedLanguageInfo(data);
+        if (!data.is_english) {
+          setLanguageMode("transliterate");
+          if (data.default_native_font) {
+            setNativeFontFamily(data.default_native_font);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("File language probe failed:", err);
+    } finally {
+      if (reqId === probeRequestIdRef.current) {
+        setIsProbingLanguage(false);
+      }
+    }
+  };
+
+  const probeYouTubeUrl = async (youtubeUrl: string) => {
+    const reqId = ++probeRequestIdRef.current;
+    setIsProbingLanguage(true);
+    setDetectedLanguageInfo(null);
+    try {
+      const response = await fetch("/api/media/detect-language", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: youtubeUrl, source_type: "youtube" }),
+      });
+      if (reqId !== probeRequestIdRef.current) return;
+      if (response.ok) {
+        const data = await response.json();
+        setDetectedLanguageInfo(data);
+        if (!data.is_english) {
+          setLanguageMode("transliterate");
+          if (data.default_native_font) {
+            setNativeFontFamily(data.default_native_font);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("YouTube language probe failed:", err);
+    } finally {
+      if (reqId === probeRequestIdRef.current) {
+        setIsProbingLanguage(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (sourceType !== "youtube" || !url.trim()) {
+      if (sourceType !== "upload") {
+        setDetectedLanguageInfo(null);
+        setIsProbingLanguage(false);
+      }
+      return;
+    }
+
+    const isYouTubeUrl =
+      url.includes("youtube.com/watch") ||
+      url.includes("youtu.be/") ||
+      url.includes("youtube.com/shorts") ||
+      url.includes("youtube.com/live");
+
+    if (!isYouTubeUrl) return;
+
+    const timer = setTimeout(() => {
+      probeYouTubeUrl(url.trim());
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [url, sourceType]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     fileRef.current = file;
     setFileName(file ? file.name : null);
+    if (file) {
+      probeFileSnippet(file);
+    } else {
+      setDetectedLanguageInfo(null);
+      setIsProbingLanguage(false);
+    }
   };
 
   const handleTemplateChange = (templateId: string) => {
@@ -390,6 +496,7 @@ export default function HomeApp() {
       const data = await response.json();
       if (data?.font?.name) {
         setFontFamily(data.font.name);
+        setNativeFontFamily(data.font.name);
       }
       await refreshFonts();
     } catch (uploadError) {
@@ -400,14 +507,29 @@ export default function HomeApp() {
     }
   };
 
-  const filteredFonts = availableFonts.filter((font) => {
+  const filteredFonts = useMemo(() => {
+    const recommendedFontName = detectedLanguageInfo?.default_native_font;
     const keyword = fontSearch.toLowerCase().trim();
-    if (!keyword) {
-      return true;
+    let fonts = availableFonts;
+
+    if (keyword) {
+      fonts = fonts.filter(
+        (font) =>
+          font.display_name.toLowerCase().includes(keyword) ||
+          font.name.toLowerCase().includes(keyword)
+      );
     }
 
-    return font.display_name.toLowerCase().includes(keyword) || font.name.toLowerCase().includes(keyword);
-  });
+    if (recommendedFontName) {
+      return [...fonts].sort((a, b) => {
+        if (a.name === recommendedFontName) return -1;
+        if (b.name === recommendedFontName) return 1;
+        return a.display_name.localeCompare(b.display_name);
+      });
+    }
+
+    return fonts;
+  }, [availableFonts, fontSearch, detectedLanguageInfo]);
 
   const canUploadCustomFonts =
     !billingSummary?.monetization_enabled ||
@@ -417,7 +539,10 @@ export default function HomeApp() {
   // template's own style (or a sane default) whenever the user hasn't
   // explicitly customized a field. The actual submitted payload keeps nulls.
   const selectedTemplate = availableTemplates.find((template) => template.id === captionTemplate);
-  const previewFontFamily = fontFamily ?? selectedTemplate?.font_family ?? "TikTokSans-Regular";
+  const previewFontFamily =
+    languageMode === "native" && nativeFontFamily
+      ? nativeFontFamily
+      : (fontFamily ?? selectedTemplate?.font_family ?? "TikTokSans-Regular");
   const previewFontSize = fontSize ?? selectedTemplate?.font_size ?? 24;
   const previewFontColor = fontColor ?? selectedTemplate?.font_color ?? "#FFFFFF";
   const generationRequiresUpgrade =
@@ -466,7 +591,22 @@ export default function HomeApp() {
     setCurrentStep("");
     setSourceTitle(null);
 
-    const fontOptions = buildFontOptionsPayload(fontFamily, fontSize, fontColor);
+    // If probing is currently in-flight, wait briefly (up to 1.8s) for it to complete
+    if (isProbingLanguage) {
+      setStatusMessage("Checking audio language...");
+      setProgress(10);
+      const startWait = Date.now();
+      while (isProbingLanguage && Date.now() - startWait < 1800) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+    }
+
+    const effectiveFontFamily =
+      languageMode === "native" && nativeFontFamily
+        ? nativeFontFamily
+        : fontFamily;
+
+    const fontOptions = buildFontOptionsPayload(effectiveFontFamily, fontSize, fontColor);
 
     try {
       let videoUrl = url;
@@ -485,7 +625,51 @@ export default function HomeApp() {
         videoUrl = await uploadVideoFile(fileRef.current);
       }
 
-      // Step 1: Start the task (using new refactored endpoint)
+      const shouldTransliterate = detectedLanguageInfo
+        ? !detectedLanguageInfo.is_english && languageMode === "transliterate"
+        : false;
+
+      await submitTaskToBackend({
+        videoUrl,
+        fontOptions,
+        captionTemplate,
+        outputFormat,
+        addSubtitles,
+        cutLongPauses,
+        pauseThresholdMs: normalizedPauseThreshold,
+        removeFillerWords,
+        filteredWords: normalizedFilteredWords,
+        sourceType,
+        transliterate_captions: shouldTransliterate,
+        detected_language: detectedLanguageInfo?.language_code || null,
+      });
+    } catch (error) {
+      console.error('Error processing video:', error);
+      setError(error instanceof Error ? error.message : 'Failed to process video. Please try again.');
+      setIsLoading(false);
+      setProgress(0);
+      setStatusMessage("");
+      setCurrentStep("");
+    }
+  };
+
+  const submitTaskToBackend = async (payload: {
+    videoUrl: string;
+    fontOptions: any;
+    captionTemplate: string;
+    outputFormat: OutputFormat;
+    addSubtitles: boolean;
+    cutLongPauses: boolean;
+    pauseThresholdMs: number;
+    removeFillerWords: boolean;
+    filteredWords: string[];
+    sourceType: string;
+    transliterate_captions?: boolean;
+    detected_language?: string;
+  }) => {
+    setIsLoading(true);
+    setStatusMessage("Creating task...");
+    try {
       const startResponse = await fetch("/api/tasks/create", {
         method: 'POST',
         headers: {
@@ -493,18 +677,20 @@ export default function HomeApp() {
         },
         body: JSON.stringify({
           source: {
-            url: videoUrl,
-            title: null
+            url: payload.videoUrl,
+            title: null,
           },
-          font_options: fontOptions,
-          caption_template: captionTemplate,
+          font_options: payload.fontOptions,
+          caption_template: payload.captionTemplate,
           processing_mode: "fast",
-          output_format: outputFormat,
-          add_subtitles: addSubtitles,
-          cut_long_pauses: cutLongPauses,
-          pause_threshold_ms: normalizedPauseThreshold,
-          remove_filler_words: removeFillerWords,
-          filtered_words: normalizedFilteredWords,
+          output_format: payload.outputFormat,
+          add_subtitles: payload.addSubtitles,
+          cut_long_pauses: payload.cutLongPauses,
+          pause_threshold_ms: payload.pauseThresholdMs,
+          remove_filler_words: payload.removeFillerWords,
+          filtered_words: payload.filteredWords,
+          transliterate_captions: payload.transliterate_captions || false,
+          detected_language: payload.detected_language || null,
         }),
       });
 
@@ -519,33 +705,36 @@ export default function HomeApp() {
       const startResult = await startResponse.json();
       const taskIdFromStart = startResult.task_id;
       track("task_created", {
-        source_type: sourceType,
-        caption_template: captionTemplate,
-        output_format: outputFormat,
-        add_subtitles: addSubtitles,
-        cut_long_pauses: cutLongPauses,
-        pause_threshold_ms: normalizedPauseThreshold,
-        remove_filler_words: removeFillerWords,
-        filtered_words: normalizedFilteredWords,
+        source_type: payload.sourceType,
+        caption_template: payload.captionTemplate,
+        output_format: payload.outputFormat,
+        add_subtitles: payload.addSubtitles,
+        cut_long_pauses: payload.cutLongPauses,
+        pause_threshold_ms: payload.pauseThresholdMs,
+        remove_filler_words: payload.removeFillerWords,
+        filtered_words: payload.filteredWords,
         processing_mode: "fast",
+        transliterate_captions: payload.transliterate_captions || false,
+        detected_language: payload.detected_language || null,
       });
-      // Redirect immediately to the task page
-      window.location.href = `/tasks/${taskIdFromStart}`;
 
-    } catch (error) {
-      console.error('Error processing video:', error);
-      setError(error instanceof Error ? error.message : 'Failed to process video. Please try again.');
-    } finally {
-      setIsLoading(false);
-      setProgress(0);
-      setStatusMessage("");
-      setCurrentStep("");
+      // Clear input state
       setFileName(null);
       fileRef.current = null;
       setUrl("");
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+
+      // Redirect immediately to the task page
+      window.location.href = `/tasks/${taskIdFromStart}`;
+    } catch (error) {
+      console.error('Error processing video:', error);
+      setError(error instanceof Error ? error.message : 'Failed to process video. Please try again.');
+      setIsLoading(false);
+      setProgress(0);
+      setStatusMessage("");
+      setCurrentStep("");
     }
   };
 
@@ -938,6 +1127,149 @@ export default function HomeApp() {
                 )}
               </div>
 
+              {/* Language Detection Status & Options */}
+              {isProbingLanguage && (
+                <div className="flex items-center gap-2 px-3.5 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-600 animate-pulse">
+                  <Loader2 className="w-4 h-4 animate-spin text-stone-500" />
+                  <span>Detecting spoken audio language...</span>
+                </div>
+              )}
+
+              {detectedLanguageInfo && detectedLanguageInfo.is_english && !isProbingLanguage && (
+                <div className="flex items-center gap-2 px-3.5 py-2 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs text-emerald-800">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>English audio detected — full subtitle styling & animation supported</span>
+                </div>
+              )}
+
+              {detectedLanguageInfo && !detectedLanguageInfo.is_english && !isProbingLanguage && (
+                <div className="p-4 rounded-xl border-2 border-amber-200 bg-amber-50/60 space-y-3.5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-800 shrink-0">
+                        <Languages className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wide">Audio Language</h4>
+                          <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 font-medium text-[10px] px-1.5 py-0">
+                            Non-English
+                          </Badge>
+                        </div>
+                        <p className="text-sm font-semibold text-amber-950">
+                          {detectedLanguageInfo.language_name} ({detectedLanguageInfo.language_code})
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-stone-600 leading-relaxed">
+                    Choose how captions should appear on your rendered clips:
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Option 1: Transliterate */}
+                    <button
+                      type="button"
+                      onClick={() => setLanguageMode("transliterate")}
+                      className={`text-left p-3 rounded-lg border transition-all ${
+                        languageMode === "transliterate"
+                          ? "bg-white border-stone-900 shadow-sm ring-2 ring-stone-900"
+                          : "bg-white/70 border-stone-200 hover:bg-white text-stone-600"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          Transliterated (Latin)
+                        </span>
+                        <span className="text-[10px] bg-amber-100 text-amber-800 font-semibold px-1.5 py-0.5 rounded">
+                          Recommended
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 leading-normal">
+                        Phonetically written in English letters (e.g. <em>Namaste Doston</em>). Compatible with all template styles & karaoke highlights.
+                      </p>
+                    </button>
+
+                    {/* Option 2: Native Script */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLanguageMode("native");
+                        if (detectedLanguageInfo.default_native_font) {
+                          setNativeFontFamily(detectedLanguageInfo.default_native_font);
+                        }
+                      }}
+                      className={`text-left p-3 rounded-lg border transition-all ${
+                        languageMode === "native"
+                          ? "bg-white border-stone-900 shadow-sm ring-2 ring-stone-900"
+                          : "bg-white/70 border-stone-200 hover:bg-white text-stone-600"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                          <Type className="w-3.5 h-3.5 text-stone-700 shrink-0" />
+                          Native Script
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-stone-500 leading-normal">
+                        Keep original script (e.g. <em>नमस्ते</em>). Uses a native Unicode font ({detectedLanguageInfo.default_native_font ? detectedLanguageInfo.default_native_font.replace("-Bold", "") : "custom font"}).
+                      </p>
+                    </button>
+                  </div>
+
+                  {languageMode === "native" && (
+                    <div className="p-3.5 bg-white rounded-xl border border-amber-200/80 space-y-2.5 shadow-sm">
+                      {detectedLanguageInfo.default_native_font && (
+                        <div className="flex items-center justify-between p-2.5 bg-amber-50 rounded-lg border border-amber-200 text-xs">
+                          <div className="flex items-center gap-2 text-amber-900">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                            <span>
+                              Recommended font: <strong className="font-semibold">{availableFonts.find(f => f.name === detectedLanguageInfo.default_native_font)?.display_name || detectedLanguageInfo.default_native_font}</strong>
+                            </span>
+                          </div>
+                          <span className="text-[10px] bg-amber-200/80 text-amber-900 font-semibold px-2 py-0.5 rounded-full">
+                            Auto-selected
+                          </span>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="text-xs font-medium text-stone-700 block mb-1.5">
+                          Select Font for Native Script
+                        </label>
+                        <Select
+                          value={nativeFontFamily || detectedLanguageInfo.default_native_font || "NotoSansDevanagari-Bold"}
+                          onValueChange={(val) => {
+                            setNativeFontFamily(val);
+                            setFontFamily(val);
+                          }}
+                        >
+                          <SelectTrigger className="w-full h-10 text-xs bg-stone-50 border-stone-200">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {filteredFonts.map((f) => (
+                              <SelectItem key={f.name} value={f.name} className="text-xs py-2">
+                                <span className="flex items-center justify-between w-full gap-2">
+                                  <span>{f.display_name}</span>
+                                  {f.name === detectedLanguageInfo.default_native_font && (
+                                    <span className="text-[10px] bg-amber-100 text-amber-800 font-semibold px-1.5 py-0.5 rounded ml-auto">
+                                      ⭐ Recommended
+                                    </span>
+                                  )}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Caption & Style Section */}
               <Card className="border-stone-200">
                 <CardContent className="px-4 pt-0 pb-2.5 space-y-2.5">
@@ -1163,8 +1495,13 @@ export default function HomeApp() {
                             <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
                             {filteredFonts.map((font) => (
                               <SelectItem key={font.name} value={font.name}>
-                                <span style={{ fontFamily: `'${font.name}', system-ui, sans-serif` }}>
-                                  {font.display_name}
+                                <span className="flex items-center justify-between w-full gap-2" style={{ fontFamily: `'${font.name}', system-ui, sans-serif` }}>
+                                  <span>{font.display_name}</span>
+                                  {font.name === detectedLanguageInfo?.default_native_font && (
+                                    <span className="text-[10px] bg-amber-100 text-amber-800 font-semibold px-1.5 py-0.5 rounded ml-2">
+                                      ⭐ Recommended
+                                    </span>
+                                  )}
                                 </span>
                               </SelectItem>
                             ))}
@@ -1472,9 +1809,22 @@ export default function HomeApp() {
                             lineHeight: '1.5',
                             textShadow: '0 2px 8px rgba(0,0,0,0.8), 0 0px 2px rgba(0,0,0,0.9)',
                           }}
-                          className="font-bold"
+                          className="font-bold transition-all duration-200"
                         >
-                          Your subtitle will look like this
+                          {detectedLanguageInfo && !detectedLanguageInfo.is_english ? (
+                            languageMode === "transliterate" ? (
+                              detectedLanguageInfo.language_code === "hi" ? "Namaste doston, ye video AI se bana hai" :
+                              detectedLanguageInfo.language_code === "es" ? "Hola a todos, este video fue creado con IA" :
+                              "Subtitles transliterated in Latin script"
+                            ) : (
+                              detectedLanguageInfo.language_code === "hi" ? "नमस्ते दोस्तों, यह वीडियो AI से बना है" :
+                              detectedLanguageInfo.language_code === "ja" ? "こんにちは、この動画はAIで作成されました" :
+                              detectedLanguageInfo.language_code === "ar" ? "مرحبا بالجميع، هذا الفيديو بالذكاء الاصطناعي" :
+                              "Native script subtitles"
+                            )
+                          ) : (
+                            "Your subtitle will look like this"
+                          )}
                         </p>
                       </div>
                     </div>

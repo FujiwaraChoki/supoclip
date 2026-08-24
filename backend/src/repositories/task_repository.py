@@ -28,10 +28,45 @@ class TaskRepository:
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
+        detected_language: Optional[str] = None,
+        transliterate_captions: bool = False,
     ) -> str:
         """Create a new task and return its ID."""
         task_id = str(uuid4())
         try:
+            result = await db.execute(
+                text("""
+                    INSERT INTO tasks (
+                        id, user_id, source_id, status, font_family, font_size, font_color,
+                        caption_template, include_broll, processing_mode,
+                        detected_language, transliterate_captions,
+                        created_at, updated_at
+                    )
+                    VALUES (
+                        :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
+                        :caption_template, :include_broll, :processing_mode,
+                        :detected_language, :transliterate_captions,
+                        NOW(), NOW()
+                    )
+                    RETURNING id
+                """),
+                {
+                    "task_id": task_id,
+                    "user_id": user_id,
+                    "source_id": source_id,
+                    "status": status,
+                    "font_family": font_family,
+                    "font_size": font_size,
+                    "font_color": font_color,
+                    "caption_template": caption_template,
+                    "include_broll": include_broll,
+                    "processing_mode": processing_mode,
+                    "detected_language": detected_language,
+                    "transliterate_captions": transliterate_captions,
+                },
+            )
+        except Exception:
+            await db.rollback()
             result = await db.execute(
                 text("""
                     INSERT INTO tasks (
@@ -148,6 +183,8 @@ class TaskRepository:
             "completion_notification_sent_at": getattr(
                 row, "completion_notification_sent_at", None
             ),
+            "detected_language": getattr(row, "detected_language", None),
+            "transliterate_captions": getattr(row, "transliterate_captions", False),
             "source_url": getattr(row, "source_url", None),
             "created_at": row.created_at,
             "updated_at": row.updated_at,
@@ -162,6 +199,7 @@ class TaskRepository:
         stage_timings_json: Optional[str] = None,
         started_at: Optional[datetime] = None,
         completed_at: Optional[datetime] = None,
+        detected_language: Optional[str] = None,
     ) -> None:
         params: Dict[str, Any] = {"task_id": task_id}
         set_parts = []
@@ -185,6 +223,10 @@ class TaskRepository:
         if completed_at is not None:
             set_parts.append("completed_at = :completed_at")
             params["completed_at"] = completed_at
+
+        if detected_language is not None:
+            set_parts.append("detected_language = :detected_language")
+            params["detected_language"] = detected_language
 
         if not set_parts:
             return

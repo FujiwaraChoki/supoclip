@@ -161,6 +161,8 @@ class TaskService:
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
+        detected_language: Optional[str] = None,
+        transliterate_captions: bool = False,
     ) -> str:
         """
         Create a new task with associated source.
@@ -197,6 +199,8 @@ class TaskService:
             caption_template=caption_template,
             include_broll=include_broll,
             processing_mode=processing_mode,
+            detected_language=detected_language,
+            transliterate_captions=transliterate_captions,
         )
 
         logger.info(f"Created task {task_id} for user {user_id}")
@@ -219,6 +223,7 @@ class TaskService:
         should_cancel: Optional[Callable] = None,
         clip_ready_callback: Optional[Callable] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        transliterate_captions: bool = False,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -407,6 +412,7 @@ class TaskService:
                     output_format,
                     add_subtitles,
                     normalized_cleanup_settings,
+                    transliterate_captions,
                 )
                 if clip_info is None:
                     continue  # Skip failed clip
@@ -946,7 +952,46 @@ class TaskService:
         task["clips_count"] = len(clips)
         task.update(await self._load_task_source_settings(task_id))
 
+        source_url = task.get("source_url")
+        source_type = task.get("source_type")
+        if source_url:
+            task["cache_info"] = self.video_service.get_cached_source_info(
+                source_url, source_type
+            )
+
         return task
+
+    async def get_task_cache_info(self, task_id: str) -> Dict[str, Any]:
+        """Get cache statistics for a task's source video."""
+        task = await self.task_repo.get_task_by_id(self.db, task_id)
+        if not task:
+            raise ValueError(f"Task {task_id} not found")
+        source_url = task.get("source_url")
+        source_type = task.get("source_type")
+        if not source_url:
+            return {
+                "has_cached_video": False,
+                "file_count": 0,
+                "total_size_bytes": 0,
+                "files": [],
+            }
+        return self.video_service.get_cached_source_info(source_url, source_type)
+
+    async def clear_task_cache(self, task_id: str) -> Dict[str, Any]:
+        """Clear cached video and temp files for a task."""
+        task = await self.task_repo.get_task_by_id(self.db, task_id)
+        if not task:
+            raise ValueError(f"Task {task_id} not found")
+        source_url = task.get("source_url")
+        source_type = task.get("source_type")
+        if not source_url:
+            return {
+                "message": "No source URL found for this task",
+                "cleared_files_count": 0,
+                "freed_bytes": 0,
+                "has_cached_video": False,
+            }
+        return self.video_service.clear_cached_source_files(source_url, source_type)
 
     async def get_user_tasks(
         self, user_id: str, limit: int = 50

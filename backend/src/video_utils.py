@@ -41,7 +41,28 @@ from .clip_source_map import (
 )
 from .caption_templates import get_template, CAPTION_TEMPLATES
 from .emoji_captions import POWER_WORDS, annotate_caption_words, normalize_token
-from .font_registry import FONTS_DIR, find_font_path, get_font_family_name
+from .font_registry import FONTS_DIR, find_font_path, get_font_family_name, LANGUAGE_DEFAULT_FONTS
+
+try:
+    import anyascii
+
+    _ANYASCII_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    anyascii = None
+    _ANYASCII_AVAILABLE = False
+
+
+def transliterate_text(text: str) -> str:
+    """Phonetically transliterate Unicode text to Latin/ASCII script."""
+    if not text:
+        return ""
+    if _ANYASCII_AVAILABLE and anyascii is not None:
+        try:
+            return anyascii.anyascii(text)
+        except Exception:
+            return text
+    return text
+
 
 logger = logging.getLogger(__name__)
 TRANSCRIPT_CACHE_SCHEMA_VERSION = 2
@@ -318,6 +339,7 @@ def get_video_transcript_assemblyai(
     config = aai.TranscriptionConfig(
         speaker_labels=True,
         speech_models=_assemblyai_speech_models_value(speech_model),
+        language_detection=True,
     )
     transcriber = aai.Transcriber()
     transcript = _submit_and_wait_for_assemblyai_transcript(
@@ -371,12 +393,285 @@ def _get_whisper_model(model_name: str = "base"):
     return _WHISPER_MODEL_CACHE[model_name]
 
 
-def transcribe_with_whisper(video_path: Path, model_name: str = "base") -> Dict[str, Any]:
+def transcribe_with_whisper(
+    video_path: Path, model_name: str = "base", language: Optional[str] = None
+) -> Dict[str, Any]:
     """Transcribe video using local Whisper with word-level timestamps."""
     audio_path = _prepare_audio_for_transcription(video_path)
     model = _get_whisper_model(model_name)
     logger.info("Starting Whisper transcription with model: %s", model_name)
-    return model.transcribe(str(audio_path), word_timestamps=True, language=None)
+    return model.transcribe(str(audio_path), word_timestamps=True, language=language)
+
+
+LANGUAGE_NAMES: Dict[str, str] = {
+    "en": "English",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+    "it": "Italian",
+    "pt": "Portuguese",
+    "hi": "Hindi",
+    "ja": "Japanese",
+    "zh": "Chinese",
+    "ko": "Korean",
+    "ar": "Arabic",
+    "ru": "Russian",
+    "nl": "Dutch",
+    "tr": "Turkish",
+    "pl": "Polish",
+    "sv": "Swedish",
+    "vi": "Vietnamese",
+    "th": "Thai",
+    "id": "Indonesian",
+    "uk": "Ukrainian",
+    "el": "Greek",
+    "cs": "Czech",
+    "ro": "Romanian",
+    "da": "Danish",
+    "fi": "Finnish",
+    "he": "Hebrew",
+    "bn": "Bengali",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "ur": "Urdu",
+    "fa": "Persian",
+    "mr": "Marathi",
+    "gu": "Gujarati",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+    "pa": "Punjabi",
+}
+
+
+def probe_audio_snippet_language(
+    media_path_or_url: str,
+    source_type: str = "youtube",
+) -> Dict[str, Any]:
+    """Extract a 15-20s audio snippet and detect the spoken language.
+
+    Returns:
+        {
+            "language_code": "hi",
+            "language_name": "Hindi",
+            "is_english": False,
+            "confidence": 0.95,
+            "default_native_font": "NotoSansDevanagari-Bold"
+        }
+    """
+    if not media_path_or_url:
+        return {
+            "language_code": "en",
+            "language_name": "English",
+            "is_english": True,
+            "confidence": 1.0,
+            "default_native_font": None,
+        }
+
+    # Check Redis cache for YouTube URLs
+    is_youtube = (
+        source_type == "youtube"
+        or "youtube.com" in media_path_or_url
+        or "youtu.be" in media_path_or_url
+    )
+    redis_cache_key = None
+    if is_youtube:
+        import hashlib
+
+        url_hash = hashlib.sha256(media_path_or_url.encode("utf-8")).hexdigest()[:16]
+        redis_cache_key = f"probe_lang:yt_{url_hash}"
+        try:
+            runtime_config = get_config()
+            r = redis.Redis(
+                host=runtime_config.redis_host,
+                port=runtime_config.redis_port,
+                password=runtime_config.redis_password,
+                decode_responses=True,
+            )
+            cached_val = r.get(redis_cache_key)
+            if cached_val:
+                r.close()
+                return json.loads(cached_val)
+            r.close()
+        except Exception:
+            pass
+
+    temp_dir = Path(get_config().temp_dir)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    snippet_path: Optional[Path] = None
+
+    try:
+        if is_youtube:
+            import yt_dlp
+
+            opts = {
+                "quiet": True,
+                "no_warnings": True,
+                "skip_download": True,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["ios", "android", "web", "mweb"],
+                    }
+                },
+                "http_headers": {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                },
+                "nocheckcertificate": True,
+            }
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(media_path_or_url, download=False)
+
+            formats = info.get("formats", [])
+            audio_formats = [f for f in formats if f.get("acodec") != "none" and f.get("url")]
+            best_audio = audio_formats[0] if audio_formats else None
+
+            if best_audio and best_audio.get("url"):
+                stream_url = best_audio["url"]
+                headers_dict = best_audio.get("http_headers", {})
+                headers_str = "".join([f"{k}: {v}\r\n" for k, v in headers_dict.items()])
+                candidate_mp3 = temp_dir / f"probe_{uuid.uuid4().hex[:8]}.mp3"
+                cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-headers",
+                    headers_str,
+                    "-ss",
+                    "00:00:00",
+                    "-t",
+                    "20",
+                    "-i",
+                    stream_url,
+                    "-vn",
+                    "-acodec",
+                    "libmp3lame",
+                    "-ar",
+                    "16000",
+                    "-ac",
+                    "1",
+                    str(candidate_mp3),
+                ]
+                subprocess.run(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=True,
+                )
+                if candidate_mp3.exists() and candidate_mp3.stat().st_size > 1000:
+                    snippet_path = candidate_mp3
+        else:
+            local_path = (
+                Path(media_path_or_url.replace("upload://", str(temp_dir / "uploads/")))
+                if media_path_or_url.startswith("upload://")
+                else Path(media_path_or_url)
+            )
+            if local_path.exists():
+                snippet_path = temp_dir / f"probe_{uuid.uuid4().hex[:8]}.mp3"
+                cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-probesize",
+                    "10M",
+                    "-analyzeduration",
+                    "10M",
+                    "-err_detect",
+                    "ignore_err",
+                    "-ss",
+                    "00:00:00",
+                    "-t",
+                    "20",
+                    "-i",
+                    str(local_path),
+                    "-vn",
+                    "-acodec",
+                    "libmp3lame",
+                    "-ar",
+                    "16000",
+                    "-ac",
+                    "1",
+                    str(snippet_path),
+                ]
+                subprocess.run(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=True,
+                )
+
+        if snippet_path and snippet_path.exists() and snippet_path.stat().st_size > 1000:
+            result = None
+            if _WHISPER_AVAILABLE and _whisper is not None:
+                model_name = (
+                    "tiny"
+                    if "tiny" in getattr(_whisper, "_MODELS", {})
+                    else "base"
+                )
+                model = _get_whisper_model(model_name)
+                audio = _whisper.load_audio(str(snippet_path))
+                audio = _whisper.pad_or_trim(audio)
+                mel = _whisper.log_mel_spectrogram(audio).to(model.device)
+                _, probs = model.detect_language(mel)
+                detected_code = max(probs, key=probs.get)
+                confidence = float(probs[detected_code])
+                result = {
+                    "language_code": detected_code,
+                    "language_name": LANGUAGE_NAMES.get(
+                        detected_code, detected_code.upper()
+                    ),
+                    "is_english": detected_code == "en",
+                    "confidence": round(confidence, 3),
+                    "default_native_font": LANGUAGE_DEFAULT_FONTS.get(detected_code),
+                }
+
+            # Fallback to AssemblyAI language detection if API key is present
+            if not result:
+                runtime_config = get_config()
+                if runtime_config.assembly_ai_api_key:
+                    aai.settings.api_key = runtime_config.assembly_ai_api_key
+                    transcriber = aai.Transcriber()
+                    config = aai.TranscriptionConfig(language_detection=True)
+                    transcript = transcriber.transcribe(str(snippet_path), config=config)
+                    detected_code = getattr(transcript, "language_code", "en") or "en"
+                    confidence = getattr(transcript, "confidence", 1.0) or 1.0
+                    result = {
+                        "language_code": detected_code,
+                        "language_name": LANGUAGE_NAMES.get(
+                            detected_code, detected_code.upper()
+                        ),
+                        "is_english": detected_code == "en",
+                        "confidence": round(float(confidence), 3),
+                        "default_native_font": LANGUAGE_DEFAULT_FONTS.get(detected_code),
+                    }
+
+            if result:
+                if redis_cache_key:
+                    try:
+                        runtime_config = get_config()
+                        r = redis.Redis(
+                            host=runtime_config.redis_host,
+                            port=runtime_config.redis_port,
+                            password=runtime_config.redis_password,
+                            decode_responses=True,
+                        )
+                        r.set(redis_cache_key, json.dumps(result), ex=60 * 60 * 24)
+                        r.close()
+                    except Exception:
+                        pass
+                return result
+    except Exception as e:
+        logger.warning("Audio language probe encountered an issue: %s", e)
+    finally:
+        if snippet_path and snippet_path.exists():
+            try:
+                snippet_path.unlink()
+            except Exception:
+                pass
+
+    return {
+        "language_code": "en",
+        "language_name": "English",
+        "is_english": True,
+        "confidence": 1.0,
+        "default_native_font": None,
+    }
 
 
 def _whisper_result_to_transcript_data(whisper_result: Dict[str, Any]) -> Dict[str, Any]:
@@ -2570,6 +2865,7 @@ def build_hook_title_ass(
     output_duration: float,
     font_name: str,
     caption_font_px: int,
+    transliterate: bool = False,
 ) -> Tuple[str, List[str]]:
     """Build the (style_line, dialogue_events) for a burned-in hook title.
 
@@ -2578,6 +2874,14 @@ def build_hook_title_ass(
     outline/backing for contrast, power words and numbers in the template's
     highlight colour, and a quick fade+pop entrance.
     """
+    if transliterate:
+        raw_title = transliterate_text(hook_title)
+        try:
+            from .ai import sync_verify_transliteration
+
+            hook_title = sync_verify_transliteration(hook_title, raw_title)
+        except Exception:
+            hook_title = raw_title
     uppercase = bool(template.get("uppercase"))
     title_text = hook_title.upper() if uppercase else hook_title
 
@@ -2660,6 +2964,7 @@ def build_assemblyai_ass_subtitles(
     caption_words: Optional[List[Dict[str, Any]]] = None,
     position_y_override: Optional[float] = None,
     highlight_words: Optional[List[str]] = None,
+    transliterate_captions: bool = False,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -2758,6 +3063,7 @@ def build_assemblyai_ass_subtitles(
             output_duration,
             font_name,
             font_px,
+            transliterate=transliterate_captions,
         )
         hook_style_block = f"{hook_style_line}\n"
 
@@ -2803,8 +3109,76 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     # can never leak into the following word.
     font_tag = f"\\fn{font_name}"
 
+    transliterated_words_map: Dict[int, str] = {}
+    if transliterate_captions and relevant_words:
+        chunks: List[List[Tuple[int, Dict[str, Any]]]] = []
+        current_chunk: List[Tuple[int, Dict[str, Any]]] = []
+        for idx, word in enumerate(relevant_words):
+            current_chunk.append((idx, word))
+            w_text = str(word.get("text", ""))
+            if len(current_chunk) >= 12 or (w_text and w_text[-1] in ".?!।"):
+                chunks.append(current_chunk)
+                current_chunk = []
+        if current_chunk:
+            chunks.append(current_chunk)
+
+        batch_items = []
+        for chunk_idx, chunk in enumerate(chunks):
+            native_sentence = " ".join(str(w[1].get("text", "")).strip() for w in chunk)
+            raw_sentence = " ".join(
+                transliterate_text(str(w[1].get("text", "")).strip()) for w in chunk
+            )
+            batch_items.append(
+                {
+                    "id": chunk_idx,
+                    "native": native_sentence,
+                    "raw": raw_sentence,
+                }
+            )
+
+        try:
+            from .ai import batch_verify_transliterations_with_llm
+            import asyncio
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    import concurrent.futures
+
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        verified_sentences = pool.submit(
+                            asyncio.run,
+                            batch_verify_transliterations_with_llm(batch_items),
+                        ).result(timeout=15.0)
+                else:
+                    verified_sentences = asyncio.run(
+                        batch_verify_transliterations_with_llm(batch_items)
+                    )
+            except Exception:
+                verified_sentences = [item["raw"] for item in batch_items]
+        except Exception:
+            verified_sentences = [item["raw"] for item in batch_items]
+
+        for chunk_idx, chunk in enumerate(chunks):
+            v_sentence = (
+                verified_sentences[chunk_idx]
+                if chunk_idx < len(verified_sentences)
+                else batch_items[chunk_idx]["raw"]
+            )
+            v_words = v_sentence.strip().split()
+            if len(v_words) == len(chunk):
+                for w_idx, (global_w_idx, word_dict) in enumerate(chunk):
+                    transliterated_words_map[global_w_idx] = v_words[w_idx]
+            else:
+                for global_w_idx, word_dict in chunk:
+                    transliterated_words_map[global_w_idx] = transliterate_text(
+                        str(word_dict.get("text", ""))
+                    )
+
     def render_text(global_idx: int, word: Dict[str, Any]) -> str:
         text = str(word.get("text", ""))
+        if transliterate_captions:
+            text = transliterated_words_map.get(global_idx, transliterate_text(text))
         if uppercase:
             text = text.upper()
         disp = escape_ass_text(text)
@@ -4451,6 +4825,7 @@ def create_optimized_clip(
     output_format: str = "vertical",
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
     hook_title: Optional[str] = None,
+    transliterate_captions: bool = False,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size)."""
     try:
@@ -4544,6 +4919,7 @@ def create_optimized_clip(
                 effective_keep_ranges,
                 hook_title=hook_title,
                 include_captions=add_subtitles,
+                transliterate_captions=transliterate_captions,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
@@ -4580,6 +4956,7 @@ def create_clips_from_segments(
     output_format: str = "vertical",
     add_subtitles: bool = True,
     cleanup_settings: Optional[Dict[str, Any]] = None,
+    transliterate_captions: bool = False,
 ) -> List[Dict[str, Any]]:
     """Create optimized video clips from segments with template support."""
     logger.info(
@@ -4652,6 +5029,7 @@ def create_clips_from_segments(
                 output_format,
                 keep_ranges,
                 hook_title=segment.get("hook_title"),
+                transliterate_captions=transliterate_captions,
             )
 
             if success:

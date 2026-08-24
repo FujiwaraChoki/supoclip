@@ -181,6 +181,12 @@ class Task(Base):
     share_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sql_text("'false'")
     )
+    detected_language: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True
+    )
+    transliterate_captions: Mapped[Optional[bool]] = mapped_column(
+        Boolean, nullable=True, server_default=sql_text("'false'")
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

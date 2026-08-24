@@ -260,6 +260,7 @@ def overlay_custom_captions(
     caption_template: str = "default",
     transcript_video_path: Optional[Path] = None,
     source_ranges: Optional[List[tuple[float, float]]] = None,
+    transliterate_captions: bool = False,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / _safe_name("caption")
@@ -301,6 +302,7 @@ def overlay_custom_captions(
         caption_words=caption_words,
         position_y_override=position_y,
         highlight_words=highlight_words,
+        transliterate_captions=transliterate_captions,
     ):
         raise RuntimeError("Failed to build edited captions")
 

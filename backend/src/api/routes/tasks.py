@@ -117,6 +117,7 @@ def _merge_task_source_metadata(
     output_format: Any = None,
     add_subtitles: Any = None,
     cleanup_settings: Dict[str, Any] | None = None,
+    transliterate_captions: Any = None,
 ) -> Dict[str, Any]:
     merged = dict(existing or {})
 
@@ -128,6 +129,8 @@ def _merge_task_source_metadata(
         merged["output_format"] = output_format
     if isinstance(add_subtitles, bool):
         merged["add_subtitles"] = add_subtitles
+    if isinstance(transliterate_captions, bool):
+        merged["transliterate_captions"] = transliterate_captions
     if cleanup_settings:
         merged.update(cleanup_settings)
 
@@ -248,6 +251,8 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
         data.get("remove_filler_words"),
         data.get("filtered_words"),
     )
+    transliterate_captions = bool(data.get("transliterate_captions", False))
+    detected_language = data.get("detected_language")
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
@@ -268,6 +273,8 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             caption_template=caption_template,
             include_broll=include_broll,
             processing_mode=processing_mode,
+            detected_language=detected_language,
+            transliterate_captions=transliterate_captions,
         )
 
         # Get source type for worker
@@ -292,6 +299,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             output_format,
             add_subtitles,
             cleanup_settings,
+            transliterate_captions,
         )
 
         # Save source metadata for resume/retries in environments without sources.url column
@@ -304,6 +312,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                 output_format=output_format,
                 add_subtitles=add_subtitles,
                 cleanup_settings=cleanup_settings,
+                transliterate_captions=transliterate_captions,
             ),
         )
 
@@ -414,6 +423,54 @@ async def get_task(
     except Exception as e:
         logger.error(f"Error retrieving task: {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving task: {str(e)}")
+
+
+@router.get("/{task_id}/cache")
+async def get_task_cache(
+    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Get cache status and disk footprint for the task source video."""
+    try:
+        task_service = TaskService(db)
+        await _require_task_owner(request, task_service, db, task_id)
+        return await task_service.get_task_cache_info(task_id)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error retrieving task cache info: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error retrieving cache info: {str(e)}"
+        )
+
+
+@router.delete("/{task_id}/cache")
+async def clear_task_cache(
+    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Clear downloaded raw source video and temporary processing files for this task."""
+    try:
+        task_service = TaskService(db)
+        await _require_task_owner(request, task_service, db, task_id)
+        return await task_service.clear_task_cache(task_id)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error clearing task cache: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error clearing task cache: {str(e)}"
+        )
+
+
+@router.post("/{task_id}/clear-cache")
+async def clear_task_cache_post_alias(
+    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Alias for DELETE /{task_id}/cache."""
+    return await clear_task_cache(task_id, request, db)
 
 
 @router.get("/{task_id}/clips")
