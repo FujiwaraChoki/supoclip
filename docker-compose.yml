@@ -103,6 +103,10 @@ services:
       - APIFY_YOUTUBE_DOWNLOADER_ACTOR=${APIFY_YOUTUBE_DOWNLOADER_ACTOR:-epctex/youtube-video-downloader}
       - APIFY_YOUTUBE_DEFAULT_QUALITY=${APIFY_YOUTUBE_DEFAULT_QUALITY:-1080}
       - APIFY_RUN_TIMEOUT_SECONDS=${APIFY_RUN_TIMEOUT_SECONDS:-900}
+      - BGUTIL_POT_PROVIDER_URL=${BGUTIL_POT_PROVIDER_URL:-http://bgutil-provider:4416}
+      - YOUTUBE_PO_TOKEN=${YOUTUBE_PO_TOKEN}
+      - YOUTUBE_VISITOR_DATA=${YOUTUBE_VISITOR_DATA}
+      - YOUTUBE_COOKIES_PATH=${YOUTUBE_COOKIES_PATH}
       - YOUTUBE_DATA_API_KEY=${YOUTUBE_DATA_API_KEY}
       - YOUTUBE_METADATA_PROVIDER=${YOUTUBE_METADATA_PROVIDER:-yt_dlp}
       - YOUTUBE_DOWNLOAD_PROVIDER=${YOUTUBE_DOWNLOAD_PROVIDER:-yt_dlp}
@@ -218,6 +222,10 @@ services:
       - APIFY_YOUTUBE_DOWNLOADER_ACTOR=${APIFY_YOUTUBE_DOWNLOADER_ACTOR:-epctex/youtube-video-downloader}
       - APIFY_YOUTUBE_DEFAULT_QUALITY=${APIFY_YOUTUBE_DEFAULT_QUALITY:-1080}
       - APIFY_RUN_TIMEOUT_SECONDS=${APIFY_RUN_TIMEOUT_SECONDS:-900}
+      - BGUTIL_POT_PROVIDER_URL=${BGUTIL_POT_PROVIDER_URL:-http://bgutil-provider:4416}
+      - YOUTUBE_PO_TOKEN=${YOUTUBE_PO_TOKEN}
+      - YOUTUBE_VISITOR_DATA=${YOUTUBE_VISITOR_DATA}
+      - YOUTUBE_COOKIES_PATH=${YOUTUBE_COOKIES_PATH}
       - YOUTUBE_DATA_API_KEY=${YOUTUBE_DATA_API_KEY}
       - YOUTUBE_METADATA_PROVIDER=${YOUTUBE_METADATA_PROVIDER:-yt_dlp}
       - YOUTUBE_DOWNLOAD_PROVIDER=${YOUTUBE_DOWNLOAD_PROVIDER:-yt_dlp}
@@ -310,7 +318,13 @@ services:
       test: ["CMD-SHELL", "pg_isready -U supoclip -d supoclip"]
       interval: 30s
       timeout: 10s
-      retries: 3
+  # Proof of Origin (PO) Token provider for yt-dlp to solve BotGuard challenges
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    container_name: supoclip-pot-provider
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4416:4416"
 
 volumes:
   uploads:

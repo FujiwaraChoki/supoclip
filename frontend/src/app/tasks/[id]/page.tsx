@@ -62,7 +62,14 @@ import {
   Clapperboard,
   Sparkles,
   HardDrive,
+  Video,
+  Mic,
+  Users,
+  FileText,
+  CheckSquare,
+  Square,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { playClipReadyChime, playTaskCompleteChime } from "@/lib/sound";
@@ -95,10 +102,22 @@ interface Clip {
   hook_title: string | null;
 }
 
-interface CacheInfo {
-  has_cached_video: boolean;
+interface CacheCategoryInfo {
+  key: string;
+  label: string;
+  description: string;
   file_count: number;
   total_size_bytes: number;
+  has_cache: boolean;
+  files?: string[];
+}
+
+interface CacheInfo {
+  has_cached_video: boolean;
+  has_cache?: boolean;
+  file_count: number;
+  total_size_bytes: number;
+  categories?: Record<string, CacheCategoryInfo>;
   files?: string[];
 }
 
@@ -136,6 +155,12 @@ export default function TaskPage() {
   const [clips, setClips] = useState<Clip[]>([]);
   const [cacheInfo, setCacheInfo] = useState<CacheInfo | null>(null);
   const [showClearCacheDialog, setShowClearCacheDialog] = useState(false);
+  const [selectedCacheCategories, setSelectedCacheCategories] = useState<string[]>([
+    "video",
+    "transcript",
+    "analysis",
+    "temp_renders",
+  ]);
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -520,29 +545,41 @@ export default function TaskPage() {
 
   const handleClearCache = async () => {
     if (!session?.user?.id || !params.id) return;
+    if (selectedCacheCategories.length === 0) {
+      toast.error("Please select at least one cache category to clear");
+      return;
+    }
     setIsClearingCache(true);
     try {
       const response = await fetch(`${taskApiUrl}/${params.id}/cache`, {
         method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categories: selectedCacheCategories }),
       });
 
       if (response.ok) {
         const data = await response.json();
         const freed = formatBytes(data.freed_bytes || 0);
-        toast.success(`Cleared ${freed} of cached video files`);
-        setCacheInfo({
-          has_cached_video: false,
-          file_count: 0,
-          total_size_bytes: 0,
-          files: [],
-        });
+        toast.success(`Cleared ${freed} of cached files`);
+        if (data.remaining_cache) {
+          setCacheInfo(data.remaining_cache);
+        } else {
+          setCacheInfo({
+            has_cached_video: false,
+            has_cache: false,
+            file_count: 0,
+            total_size_bytes: 0,
+            categories: {},
+            files: [],
+          });
+        }
         setShowClearCacheDialog(false);
       } else {
-        toast.error(await buildSupportError(response, "Failed to clear video cache"));
+        toast.error(await buildSupportError(response, "Failed to clear cache"));
       }
     } catch (err) {
-      console.error("Error clearing video cache:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to clear video cache");
+      console.error("Error clearing cache:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to clear cache");
     } finally {
       setIsClearingCache(false);
     }
@@ -1046,16 +1083,37 @@ export default function TaskPage() {
                     {isRevokingShare ? "Disabling…" : "Disable share link"}
                   </Button>
                 )}
-                {cacheInfo?.has_cached_video && (
+                {(cacheInfo?.has_cached_video || cacheInfo?.has_cache || (cacheInfo?.total_size_bytes ?? 0) > 0) && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setShowClearCacheDialog(true)}
+                    onClick={() => {
+                      if (cacheInfo?.categories) {
+                        const activeKeys = Object.keys(cacheInfo.categories).filter(
+                          (k) =>
+                            cacheInfo.categories![k].total_size_bytes > 0 ||
+                            cacheInfo.categories![k].file_count > 0
+                        );
+                        setSelectedCacheCategories(
+                          activeKeys.length > 0
+                            ? activeKeys
+                            : ["video", "transcript", "analysis", "temp_renders"]
+                        );
+                      } else {
+                        setSelectedCacheCategories([
+                          "video",
+                          "transcript",
+                          "analysis",
+                          "temp_renders",
+                        ]);
+                      }
+                      setShowClearCacheDialog(true);
+                    }}
                     className="text-stone-600 hover:text-stone-900 border-stone-200"
-                    title="Clear cached source video to free disk space"
+                    title="Manage and clear cached files to free disk space"
                   >
                     <HardDrive className="w-4 h-4 mr-1.5 text-stone-500" />
-                    Clear Cache ({formatBytes(cacheInfo.total_size_bytes)})
+                    Clear Cache ({formatBytes(cacheInfo?.total_size_bytes || 0)})
                   </Button>
                 )}
                 {(task.status === "queued" || task.status === "processing") && (
@@ -1604,24 +1662,49 @@ export default function TaskPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
+                  <div className="rounded-lg border bg-gray-50 p-3.5 space-y-3">
                     <div>
                       <div className="text-sm font-medium text-gray-900 flex items-center justify-between">
                         <span>Storage & Cache</span>
-                        {cacheInfo?.has_cached_video && (
+                        {(cacheInfo?.total_size_bytes ?? 0) > 0 && (
                           <Badge variant="outline" className="text-xs bg-white font-medium">
-                            {formatBytes(cacheInfo.total_size_bytes)}
+                            {formatBytes(cacheInfo?.total_size_bytes || 0)}
                           </Badge>
                         )}
                       </div>
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        {cacheInfo?.has_cached_video
-                          ? "Raw source video and temporary processing files are currently cached on the server."
-                          : "No source video cache is currently stored on disk."}
+                      <div className="text-xs text-gray-500 mt-1">
+                        {(cacheInfo?.total_size_bytes ?? 0) > 0
+                          ? "Source video and stage processing caches are currently stored on disk."
+                          : "No cache files are currently stored on disk."}
                       </div>
                     </div>
 
-                    {cacheInfo?.has_cached_video && (
+                    {cacheInfo?.categories &&
+                      Object.values(cacheInfo.categories).some(
+                        (c) => c.file_count > 0 || c.total_size_bytes > 0
+                      ) && (
+                        <div className="grid grid-cols-2 gap-1.5 pt-1">
+                          {Object.values(cacheInfo.categories)
+                            .filter((c) => c.file_count > 0 || c.total_size_bytes > 0)
+                            .map((cat) => (
+                              <div
+                                key={cat.key}
+                                className="bg-white px-2.5 py-1.5 rounded border text-xs flex justify-between items-center"
+                              >
+                                <span className="text-stone-600 font-medium truncate pr-1">
+                                  {cat.label.split(" ")[0]}
+                                </span>
+                                <span className="text-stone-500 font-mono">
+                                  {formatBytes(cat.total_size_bytes)}
+                                </span>
+                              </div>
+                            ))}
+                        </div>
+                      )}
+
+                    {(cacheInfo?.has_cached_video ||
+                      cacheInfo?.has_cache ||
+                      (cacheInfo?.total_size_bytes ?? 0) > 0) && (
                       <Button
                         type="button"
                         variant="outline"
@@ -1629,11 +1712,30 @@ export default function TaskPage() {
                         className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                         onClick={() => {
                           setSettingsSheetOpen(false);
+                          if (cacheInfo?.categories) {
+                            const activeKeys = Object.keys(cacheInfo.categories).filter(
+                              (k) =>
+                                cacheInfo.categories![k].total_size_bytes > 0 ||
+                                cacheInfo.categories![k].file_count > 0
+                            );
+                            setSelectedCacheCategories(
+                              activeKeys.length > 0
+                                ? activeKeys
+                                : ["video", "transcript", "analysis", "temp_renders"]
+                            );
+                          } else {
+                            setSelectedCacheCategories([
+                              "video",
+                              "transcript",
+                              "analysis",
+                              "temp_renders",
+                            ]);
+                          }
                           setShowClearCacheDialog(true);
                         }}
                       >
                         <HardDrive className="w-4 h-4 mr-1.5" />
-                        Clear Video Cache ({formatBytes(cacheInfo.total_size_bytes)})
+                        Manage & Clear Cache ({formatBytes(cacheInfo?.total_size_bytes || 0)})
                       </Button>
                     )}
                   </div>
@@ -1901,35 +2003,169 @@ export default function TaskPage() {
       </div>
 
       {/* Clear Video Cache Confirmation Dialog */}
-      <AlertDialog open={showClearCacheDialog} onOpenChange={setShowClearCacheDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
+      <Dialog open={showClearCacheDialog} onOpenChange={setShowClearCacheDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-stone-900">
               <HardDrive className="w-5 h-5 text-stone-700" />
-              Clear Cached Video & Temporary Files
-            </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2 text-stone-600 text-left">
-              <span>
-                This will delete the raw downloaded source video and temporary processing files (
-                <strong>{formatBytes(cacheInfo?.total_size_bytes || 0)}</strong>) from the server to free up storage space.
+              Manage & Clear Cache
+            </DialogTitle>
+            <DialogDescription className="text-stone-600 text-sm">
+              Select which cached intermediate files you want to remove to free up storage space.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">
+                Cache Categories ({cacheInfo?.file_count || 0} files &bull; {formatBytes(cacheInfo?.total_size_bytes || 0)})
               </span>
-              <span className="block text-xs text-stone-500 pt-1">
-                <strong>Note:</strong> Your generated clips are permanently saved in output storage and will not be affected. If you trim, regenerate, or generate more clips later, the video will automatically be re-downloaded on demand.
-              </span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isClearingCache}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleClearCache}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (cacheInfo?.categories) {
+                      setSelectedCacheCategories(
+                        Object.keys(cacheInfo.categories).filter(
+                          (k) =>
+                            cacheInfo.categories![k].total_size_bytes > 0 ||
+                            cacheInfo.categories![k].file_count > 0
+                        )
+                      );
+                    } else {
+                      setSelectedCacheCategories(["video", "transcript", "analysis", "temp_renders"]);
+                    }
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-700 font-medium cursor-pointer"
+                >
+                  Select all
+                </button>
+                <span className="text-stone-300">|</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCacheCategories([])}
+                  className="text-xs text-stone-500 hover:text-stone-700 font-medium cursor-pointer"
+                >
+                  Deselect all
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {[
+                {
+                  key: "video",
+                  label: "Source Video",
+                  desc: "Original downloaded/uploaded video file",
+                  icon: Video,
+                },
+                {
+                  key: "transcript",
+                  label: "Audio & Transcripts",
+                  desc: "Extracted audio, speech recognition data & checkpoints",
+                  icon: Mic,
+                },
+                {
+                  key: "analysis",
+                  label: "Diarization & Tracking",
+                  desc: "Speaker diarization, face detection & camera cuts",
+                  icon: Users,
+                },
+                {
+                  key: "temp_renders",
+                  label: "Temporary Subtitles & Renders",
+                  desc: "Intermediate ASS subtitles, audio slices and render artifacts",
+                  icon: FileText,
+                },
+              ].map((item) => {
+                const catData = cacheInfo?.categories?.[item.key];
+                const size = catData?.total_size_bytes ?? 0;
+                const fileCount = catData?.file_count ?? 0;
+                const isSelected = selectedCacheCategories.includes(item.key);
+                const isDisabled = fileCount === 0 && size === 0;
+
+                const IconComponent = item.icon;
+
+                return (
+                  <div
+                    key={item.key}
+                    onClick={() => {
+                      if (isDisabled) return;
+                      setSelectedCacheCategories((prev) =>
+                        prev.includes(item.key)
+                          ? prev.filter((k) => k !== item.key)
+                          : [...prev, item.key]
+                      );
+                    }}
+                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors cursor-pointer select-none ${
+                      isDisabled
+                        ? "opacity-45 bg-gray-50 border-gray-100 cursor-not-allowed"
+                        : isSelected
+                        ? "bg-stone-50/90 border-stone-400 shadow-xs"
+                        : "bg-white border-stone-200 hover:border-stone-300"
+                    }`}
+                  >
+                    <Checkbox
+                      id={`cache-cat-${item.key}`}
+                      checked={isSelected}
+                      disabled={isDisabled}
+                      onCheckedChange={() => {
+                        if (isDisabled) return;
+                        setSelectedCacheCategories((prev) =>
+                          prev.includes(item.key)
+                            ? prev.filter((k) => k !== item.key)
+                            : [...prev, item.key]
+                        );
+                      }}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium text-stone-900 flex items-center gap-1.5">
+                          <IconComponent className="w-3.5 h-3.5 text-stone-500" />
+                          {item.label}
+                        </span>
+                        <span className="text-xs font-mono font-medium text-stone-600">
+                          {formatBytes(size)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-500 mt-0.5 line-clamp-1">{item.desc}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="rounded-md bg-stone-100/70 p-2.5 text-xs text-stone-600">
+              <strong>Note:</strong> Your final generated clips are permanently saved in output storage and will not be affected. If you trim or generate more clips later, missing source assets will automatically be re-downloaded on demand.
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowClearCacheDialog(false)}
               disabled={isClearingCache}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleClearCache}
+              disabled={isClearingCache || selectedCacheCategories.length === 0}
               className="bg-stone-900 hover:bg-stone-800 text-white"
             >
-              {isClearingCache ? "Clearing..." : "Clear Cache"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              {isClearingCache
+                ? "Clearing..."
+                : `Clear Selected (${formatBytes(
+                    selectedCacheCategories.reduce(
+                      (acc, k) => acc + (cacheInfo?.categories?.[k]?.total_size_bytes || 0),
+                      0
+                    )
+                  )})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Task Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

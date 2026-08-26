@@ -10,7 +10,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Callable
+from typing import Any, Dict, Optional, Callable, List
 from urllib.parse import parse_qs, urlparse
 
 import requests
@@ -28,8 +28,40 @@ YOUTUBE_DOWNLOAD_PROVIDER_APIFY = "apify"
 YOUTUBE_DATA_API_URL = "https://www.googleapis.com/youtube/v3/videos"
 
 
+def _build_youtube_extractor_args(
+    player_clients: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Build extractor arguments with PO Token Provider and YouTube client settings."""
+    config = get_config()
+    clients = player_clients or ["web", "mweb", "android"]
+    youtube_args: Dict[str, Any] = {
+        "player_client": clients,
+    }
+
+    if config.youtube_po_token:
+        po_token = config.youtube_po_token.strip()
+        if "+" not in po_token and not po_token.startswith("web+"):
+            po_token = f"web+{po_token}"
+        youtube_args["po_token"] = [po_token]
+
+    if config.youtube_visitor_data:
+        youtube_args["visitor_data"] = [config.youtube_visitor_data.strip()]
+
+    extractor_args: Dict[str, Any] = {
+        "youtube": youtube_args,
+    }
+
+    pot_url = (config.bgutil_pot_provider_url or "").strip()
+    if pot_url and pot_url.lower() not in {"none", "disabled", "false"}:
+        extractor_args["youtubepot-bgutilhttp"] = {
+            "base_url": [pot_url],
+        }
+
+    return extractor_args
+
+
 class YouTubeDownloader:
-    """Enhanced YouTube downloader with optimized settings."""
+    """Enhanced YouTube downloader with optimized settings and PO Token support."""
 
     def __init__(self):
         self.temp_dir = Path(get_config().temp_dir)
@@ -38,9 +70,11 @@ class YouTubeDownloader:
     def get_optimal_download_options(
         self,
         video_id: str,
+        player_clients: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """Get optimal yt-dlp options for high-quality downloads."""
+        """Get optimal yt-dlp options for high-quality downloads with PO token support."""
         output_path = self.temp_dir / f"{video_id}.%(ext)s"
+        config = get_config()
 
         opts = {
             "outtmpl": str(output_path),
@@ -62,12 +96,7 @@ class YouTubeDownloader:
             "no_warnings": False,
             "ignoreerrors": False,
             "remote_components": ["ejs:github", "ejs:npm"],
-            # Prioritize web with ejs:github solver for HD formats (1080p/720p), fallback to mweb/android
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["web", "mweb", "android"],
-                }
-            },
+            "extractor_args": _build_youtube_extractor_args(player_clients),
             # Enhanced headers to avoid 403 errors
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -85,10 +114,14 @@ class YouTubeDownloader:
             "age_limit": None,
         }
 
+        if config.youtube_cookies_path and Path(config.youtube_cookies_path).exists():
+            opts["cookiefile"] = str(config.youtube_cookies_path)
+
         return opts
 
 
-def _build_info_options() -> Dict[str, Any]:
+def _build_info_options(player_clients: Optional[List[str]] = None) -> Dict[str, Any]:
+    config = get_config()
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
@@ -96,11 +129,7 @@ def _build_info_options() -> Dict[str, Any]:
         "skip_download": True,
         "socket_timeout": 30,
         "remote_components": ["ejs:github", "ejs:npm"],
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["web", "mweb", "android"],
-            }
-        },
+        "extractor_args": _build_youtube_extractor_args(player_clients),
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -109,6 +138,8 @@ def _build_info_options() -> Dict[str, Any]:
         },
         "nocheckcertificate": True,
     }
+    if config.youtube_cookies_path and Path(config.youtube_cookies_path).exists():
+        ydl_opts["cookiefile"] = str(config.youtube_cookies_path)
     return ydl_opts
 
 
@@ -509,11 +540,25 @@ def _download_youtube_video_with_ytdlp(
 
     last_error: Optional[str] = None
 
+    client_cascade = [
+        ["web", "mweb", "android"],
+        ["mweb", "android", "tv", "ios"],
+        ["tv", "ios", "mweb"],
+    ]
+
     for attempt in range(max_retries):
         try:
-            logger.info("Download attempt %s/%s", attempt + 1, max_retries)
+            current_clients = client_cascade[min(attempt, len(client_cascade) - 1)]
+            logger.info(
+                "Download attempt %s/%s (player_clients=%s)",
+                attempt + 1,
+                max_retries,
+                current_clients,
+            )
 
-            ydl_opts = downloader.get_optimal_download_options(video_id)
+            ydl_opts = downloader.get_optimal_download_options(
+                video_id, player_clients=current_clients
+            )
 
             if progress_callback and loop:
                 last_percent = [-1]  # Use list for mutability in closure

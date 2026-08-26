@@ -121,3 +121,76 @@ async def test_task_service_clear_task_cache(tmp_path):
         assert not video_file.exists()
     finally:
         set_config_override(None)
+
+
+def test_video_service_selective_cache_clearing(tmp_path):
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    set_config_override(config)
+    try:
+        video_id = "selective_vid_123"
+        main_video = tmp_path / f"{video_id}.mp4"
+        audio_file = tmp_path / f"{video_id}.transcription.mp3"
+        transcript_json = tmp_path / f"{video_id}.transcript_cache.json"
+        diarization_json = tmp_path / f"{video_id}.diarization.json"
+        subtitles_ass = tmp_path / f"{video_id}.ass"
+
+        main_video.write_bytes(b"V" * 5000)
+        audio_file.write_bytes(b"A" * 1000)
+        transcript_json.write_bytes(b"T" * 200)
+        diarization_json.write_bytes(b"D" * 300)
+        subtitles_ass.write_bytes(b"S" * 150)
+
+        source_url = f"https://www.youtube.com/watch?v={video_id}"
+        info = VideoService.get_cached_source_info(source_url, "youtube")
+
+        assert info["has_cached_video"] is True
+        assert info["file_count"] == 5
+        assert info["total_size_bytes"] == 6650
+
+        cats = info["categories"]
+        assert cats["video"]["file_count"] == 1
+        assert cats["video"]["total_size_bytes"] == 5000
+        assert cats["transcript"]["file_count"] == 2
+        assert cats["transcript"]["total_size_bytes"] == 1200
+        assert cats["analysis"]["file_count"] == 1
+        assert cats["analysis"]["total_size_bytes"] == 300
+        assert cats["temp_renders"]["file_count"] == 1
+        assert cats["temp_renders"]["total_size_bytes"] == 150
+
+        # 1. Clear ONLY the raw video
+        res_video = VideoService.clear_cached_source_files(
+            source_url, "youtube", categories=["video"]
+        )
+        assert res_video["cleared_files_count"] == 1
+        assert res_video["freed_bytes"] == 5000
+        assert not main_video.exists()
+        assert audio_file.exists()
+        assert transcript_json.exists()
+        assert diarization_json.exists()
+        assert subtitles_ass.exists()
+
+        # 2. Clear ONLY the transcript
+        res_transcript = VideoService.clear_cached_source_files(
+            source_url, "youtube", categories=["transcript"]
+        )
+        assert res_transcript["cleared_files_count"] == 2
+        assert res_transcript["freed_bytes"] == 1200
+        assert not audio_file.exists()
+        assert not transcript_json.exists()
+        assert diarization_json.exists()
+        assert subtitles_ass.exists()
+
+        # 3. Clear all remaining
+        res_rest = VideoService.clear_cached_source_files(source_url, "youtube")
+        assert res_rest["cleared_files_count"] == 2
+        assert res_rest["freed_bytes"] == 450
+        assert not diarization_json.exists()
+        assert not subtitles_ass.exists()
+
+        info_final = VideoService.get_cached_source_info(source_url, "youtube")
+        assert info_final["has_cached_video"] is False
+        assert info_final["file_count"] == 0
+        assert info_final["total_size_bytes"] == 0
+    finally:
+        set_config_override(None)

@@ -85,6 +85,22 @@ class Config:
         self.apify_run_timeout_seconds = int(
             os.getenv("APIFY_RUN_TIMEOUT_SECONDS", "900")
         )
+        self.bgutil_pot_provider_url = (
+            self._get_runtime_setting("BGUTIL_POT_PROVIDER_URL")
+            or os.getenv("BGUTIL_POT_PROVIDER_URL", "http://bgutil-provider:4416")
+        ).strip()
+        self.youtube_po_token = (
+            self._get_runtime_setting("YOUTUBE_PO_TOKEN")
+            or os.getenv("YOUTUBE_PO_TOKEN")
+        )
+        self.youtube_visitor_data = (
+            self._get_runtime_setting("YOUTUBE_VISITOR_DATA")
+            or os.getenv("YOUTUBE_VISITOR_DATA")
+        )
+        self.youtube_cookies_path = (
+            self._get_runtime_setting("YOUTUBE_COOKIES_PATH")
+            or os.getenv("YOUTUBE_COOKIES_PATH")
+        )
 
         self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
         # YouTube sources can be longer on paid tiers. Uploads continue to use

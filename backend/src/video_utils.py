@@ -509,7 +509,7 @@ def probe_audio_snippet_language(
                 "skip_download": True,
                 "extractor_args": {
                     "youtube": {
-                        "player_client": ["ios", "android", "web", "mweb"],
+                        "player_client": ["tv","ios", "android", "web", "mweb"],
                     }
                 },
                 "http_headers": {

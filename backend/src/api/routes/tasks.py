@@ -2,14 +2,14 @@
 Task API routes using refactored architecture.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 from pathlib import Path
 import json
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import inspect
 import re
 import secrets
@@ -445,15 +445,34 @@ async def get_task_cache(
         )
 
 
+class ClearCachePayload(BaseModel):
+    categories: Optional[List[str]] = None
+
+
 @router.delete("/{task_id}/cache")
 async def clear_task_cache(
-    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+    task_id: str,
+    request: Request,
+    category: Optional[List[str]] = Query(None),
+    db: AsyncSession = Depends(get_db),
 ):
     """Clear downloaded raw source video and temporary processing files for this task."""
     try:
         task_service = TaskService(db)
         await _require_task_owner(request, task_service, db, task_id)
-        return await task_service.clear_task_cache(task_id)
+
+        selected_categories: Optional[List[str]] = None
+        if category:
+            selected_categories = category
+        else:
+            try:
+                body = await request.json()
+                if isinstance(body, dict) and "categories" in body and isinstance(body["categories"], list):
+                    selected_categories = body["categories"]
+            except Exception:
+                pass
+
+        return await task_service.clear_task_cache(task_id, categories=selected_categories)
     except HTTPException:
         raise
     except ValueError as e:
@@ -467,10 +486,40 @@ async def clear_task_cache(
 
 @router.post("/{task_id}/clear-cache")
 async def clear_task_cache_post_alias(
-    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+    task_id: str,
+    request: Request,
+    payload: Optional[ClearCachePayload] = None,
+    category: Optional[List[str]] = Query(None),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Alias for DELETE /{task_id}/cache."""
-    return await clear_task_cache(task_id, request, db)
+    """Alias for DELETE /{task_id}/cache with optional category list payload."""
+    try:
+        task_service = TaskService(db)
+        await _require_task_owner(request, task_service, db, task_id)
+
+        selected_categories: Optional[List[str]] = None
+        if category:
+            selected_categories = category
+        elif payload and payload.categories:
+            selected_categories = payload.categories
+        else:
+            try:
+                body = await request.json()
+                if isinstance(body, dict) and "categories" in body and isinstance(body["categories"], list):
+                    selected_categories = body["categories"]
+            except Exception:
+                pass
+
+        return await task_service.clear_task_cache(task_id, categories=selected_categories)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error clearing task cache: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error clearing task cache: {str(e)}"
+        )
 
 
 @router.get("/{task_id}/clips")

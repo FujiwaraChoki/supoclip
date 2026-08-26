@@ -3,7 +3,7 @@ Task service - orchestrates task creation and processing workflow.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Any, Optional, Callable
+from typing import Dict, Any, Optional, Callable, List
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -977,8 +977,10 @@ class TaskService:
             }
         return self.video_service.get_cached_source_info(source_url, source_type)
 
-    async def clear_task_cache(self, task_id: str) -> Dict[str, Any]:
-        """Clear cached video and temp files for a task."""
+    async def clear_task_cache(
+        self, task_id: str, categories: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """Clear cached video and temp files for a task, optionally filtered by category."""
         task = await self.task_repo.get_task_by_id(self.db, task_id)
         if not task:
             raise ValueError(f"Task {task_id} not found")
@@ -991,7 +993,9 @@ class TaskService:
                 "freed_bytes": 0,
                 "has_cached_video": False,
             }
-        return self.video_service.clear_cached_source_files(source_url, source_type)
+        return self.video_service.clear_cached_source_files(
+            source_url, source_type, categories=categories
+        )
 
     async def get_user_tasks(
         self, user_id: str, limit: int = 50

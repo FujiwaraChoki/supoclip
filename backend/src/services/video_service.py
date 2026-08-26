@@ -128,10 +128,47 @@ class VideoService:
         raise ValueError("Only upload:// references are allowed for local video sources")
 
     @staticmethod
+    def classify_cache_file(file_path: Path) -> str:
+        """Classify a cache file into one of four categories: video, transcript, analysis, temp_renders."""
+        name = file_path.name.lower()
+        ext = file_path.suffix.lower()
+
+        if "probe_" in name or "resume_slice_" in name or ".tmp." in name or name.startswith("temp_"):
+            return "temp_renders"
+        if ext in {".ass", ".srt", ".part"}:
+            return "temp_renders"
+
+        if (
+            ".transcript" in name
+            or ".assemblyai_job" in name
+            or ".transcription" in name
+            or name.endswith(".transcription.mp3")
+            or name.endswith(".transcription_media.mp3")
+            or ext in {".wav", ".mp3", ".m4a", ".aac"}
+        ):
+            return "transcript"
+
+        if (
+            ".diarization" in name
+            or ".speakers" in name
+            or ".faces" in name
+            or ".camera_cuts" in name
+            or ".crops" in name
+        ):
+            return "analysis"
+
+        if ext in {".mp4", ".mkv", ".webm", ".mov", ".m4v", ".avi", ".flv"}:
+            return "video"
+
+        return "temp_renders"
+
+    @staticmethod
     def get_cached_source_files(
-        source_url: str, source_type: Optional[str] = None
+        source_url: str,
+        source_type: Optional[str] = None,
+        categories: Optional[List[str]] = None,
     ) -> List[Path]:
-        """Find cached raw video and intermediate temp files for a source."""
+        """Find cached raw video and intermediate temp files for a source, optionally filtered by category."""
         if not source_url:
             return []
 
@@ -164,46 +201,98 @@ class VideoService:
                     if f.is_file():
                         matching_files.add(f)
 
-        return sorted(list(matching_files))
+        all_files = sorted(list(matching_files))
+        if categories and "all" not in categories:
+            cat_set = set(categories)
+            return [f for f in all_files if VideoService.classify_cache_file(f) in cat_set]
+
+        return all_files
 
     @staticmethod
     def get_cached_source_info(
         source_url: str, source_type: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Get cache statistics for a source."""
+        """Get categorized cache statistics for a source."""
         files = VideoService.get_cached_source_files(source_url, source_type)
         total_size = sum(f.stat().st_size for f in files if f.exists())
+
+        category_meta = {
+            "video": {
+                "label": "Source Video",
+                "description": "Original raw video file (can be re-downloaded/re-uploaded on demand)",
+            },
+            "transcript": {
+                "label": "Audio & Transcripts",
+                "description": "Extracted audio, speech recognition data & checkpoints",
+            },
+            "analysis": {
+                "label": "Diarization & Tracking",
+                "description": "Speaker diarization, face detection & camera cuts",
+            },
+            "temp_renders": {
+                "label": "Temporary Subtitle & Render Files",
+                "description": "Intermediate ASS subtitles, audio slices and render artifacts",
+            },
+        }
+
+        categories: Dict[str, Any] = {}
+        for cat_key, meta in category_meta.items():
+            cat_files = [f for f in files if VideoService.classify_cache_file(f) == cat_key]
+            cat_size = sum(f.stat().st_size for f in cat_files if f.exists())
+            categories[cat_key] = {
+                "key": cat_key,
+                "label": meta["label"],
+                "description": meta["description"],
+                "file_count": len(cat_files),
+                "total_size_bytes": cat_size,
+                "has_cache": len(cat_files) > 0,
+                "files": [f.name for f in cat_files],
+            }
+
+        video_files = categories.get("video", {}).get("file_count", 0)
+
         return {
-            "has_cached_video": len(files) > 0,
+            "has_cached_video": video_files > 0,
+            "has_cache": len(files) > 0,
             "file_count": len(files),
             "total_size_bytes": total_size,
+            "categories": categories,
             "files": [f.name for f in files],
         }
 
     @staticmethod
     def clear_cached_source_files(
-        source_url: str, source_type: Optional[str] = None
+        source_url: str,
+        source_type: Optional[str] = None,
+        categories: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """Delete cached raw video and intermediate temp files for a source."""
-        files = VideoService.get_cached_source_files(source_url, source_type)
+        """Delete cached raw video and intermediate temp files for a source, optionally filtered by category."""
+        files = VideoService.get_cached_source_files(
+            source_url, source_type, categories=categories
+        )
         freed_bytes = 0
         cleared_count = 0
 
         for f in files:
             try:
                 if f.exists() and f.is_file():
-                    freed_bytes += f.stat().st_size
+                    size = f.stat().st_size
                     f.unlink()
+                    freed_bytes += size
                     cleared_count += 1
-                    logger.info("Deleted cached file %s (%s bytes)", f.name, freed_bytes)
+                    logger.info("Deleted cached file %s (%s bytes)", f.name, size)
             except Exception as e:
                 logger.warning("Failed to delete cached file %s: %s", f, e)
 
+        # Refresh cache stats after partial or full deletion
+        remaining_info = VideoService.get_cached_source_info(source_url, source_type)
+
         return {
-            "message": "Cached video and temporary files cleared successfully",
+            "message": "Cached files cleared successfully",
             "cleared_files_count": cleared_count,
             "freed_bytes": freed_bytes,
-            "has_cached_video": False,
+            "has_cached_video": remaining_info["has_cached_video"],
+            "remaining_cache": remaining_info,
         }
 
     @staticmethod
