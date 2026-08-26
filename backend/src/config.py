@@ -18,6 +18,7 @@ class Config:
         self.youtube_data_api_key = self._get_runtime_setting("YOUTUBE_DATA_API_KEY")
         self.ollama_base_url = self._get_runtime_setting("OLLAMA_BASE_URL")
         self.ollama_api_key = self._get_runtime_setting("OLLAMA_API_KEY")
+        self.openai_base_url = self._get_runtime_setting("OPENAI_BASE_URL")
 
         self.whisper_model = os.getenv("WHISPER_MODEL", "base")
         self.transcription_provider = self._normalize_transcription_provider(
@@ -84,6 +85,12 @@ class Config:
         # a legitimately long job is never falsely swept into "error".
         self.processing_task_timeout_seconds = int(
             os.getenv("PROCESSING_TASK_TIMEOUT_SECONDS", "14400")
+        )
+
+        # Bound the single LLM analysis call so a stalled provider does not
+        # freeze the task at 50% with no progress (#58).
+        self.llm_analysis_timeout_seconds = int(
+            os.getenv("LLM_ANALYSIS_TIMEOUT_SECONDS", "1800")
         )
 
         self.self_host = self._get_bool_env("SELF_HOST", True)

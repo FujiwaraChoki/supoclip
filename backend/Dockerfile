@@ -27,7 +27,8 @@ WORKDIR /app
 COPY pyproject.toml uv.lock* ./
 
 # Create virtual environment and install dependencies using uv sync
-RUN uv venv .venv && uv sync
+# CPU-only torch: skips the multi-GB nvidia/cuda wheels that hang arm64 builds (#75)
+RUN uv venv .venv && UV_TORCH_BACKEND=cpu uv sync
 
 # Force update yt-dlp to the absolute latest version to handle YouTube API changes
 # Also install from git to get the very latest commits

@@ -12,6 +12,8 @@ from pydantic_ai import Agent
 from pydantic_ai.models import Model
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.providers.ollama import OllamaProvider
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from .config import Config, get_config
@@ -415,6 +417,15 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
 
 def _build_transcript_model(runtime_config: Config) -> Model | str:
     provider, provider_model_name = _split_llm_name(runtime_config.llm)
+    if provider == "openai" and provider_model_name and runtime_config.openai_base_url:
+        # OpenAI-compatible endpoints (DeepSeek, vLLM, etc.) via OPENAI_BASE_URL.
+        return OpenAIChatModel(
+            provider_model_name,
+            provider=OpenAIProvider(
+                base_url=runtime_config.openai_base_url,
+                api_key=runtime_config.openai_api_key,
+            ),
+        )
     if provider != "ollama":
         return runtime_config.llm
 
@@ -445,6 +456,7 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
         runtime_config.ollama_api_key,
+        runtime_config.openai_base_url,
     )
     if _transcript_agent is None or _transcript_agent_signature != signature:
         apply_settings_to_process_env(runtime_config.as_runtime_settings())
@@ -718,12 +730,15 @@ async def get_most_relevant_parts_by_transcript(
         agent = get_transcript_agent()
         transcript_lines = _parse_transcript_lines(transcript)
 
-        result = await agent.run(
-            build_transcript_analysis_prompt(
-                transcript=transcript,
-                include_broll=include_broll,
-                clip_signals=clip_signals,
-            )
+        result = await asyncio.wait_for(
+            agent.run(
+                build_transcript_analysis_prompt(
+                    transcript=transcript,
+                    include_broll=include_broll,
+                    clip_signals=clip_signals,
+                )
+            ),
+            timeout=get_config().llm_analysis_timeout_seconds,
         )
 
         analysis = result.output
