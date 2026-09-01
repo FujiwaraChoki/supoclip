@@ -691,10 +691,12 @@ def build_transcript_analysis_prompt(
     include_broll: bool = False,
     clip_signals: str | None = None,
     window: tuple[int, int] | None = None,
+    performance_context: str | None = None,
 ) -> str:
     """Build the grounded task prompt for transcript analysis.
 
     ``window`` marks the prompt as one (start, end) slice of a longer source.
+    ``performance_context`` is the creator's measured audience history, if any.
     """
     segment_target = ANALYSIS_WINDOW_SEGMENT_TARGET if window else "2-5"
     window_note = ""
@@ -703,6 +705,16 @@ def build_transcript_analysis_prompt(
             f"\nThis transcript is one window ({_format_minutes_label(window[0])} - "
             f"{_format_minutes_label(window[1])}) of a longer video. Other windows are "
             "analysed separately, so pick the best clips that exist inside this window only.\n"
+        )
+    performance_section = ""
+    if performance_context:
+        performance_section = (
+            "\n\nCreator performance history (real audience data from clips this creator "
+            "already published):\n"
+            f"{performance_context}\n\n"
+            "Use this history to break ties and to bias hook_type, clip length and hook "
+            "style toward what has demonstrably worked for this creator. It never justifies "
+            "fabricating content, stretching timestamps, or picking a weak moment."
         )
     broll_instruction = ""
     if include_broll:
@@ -746,7 +758,7 @@ Critical accuracy requirements:
 - If a span lacks enough context to stand alone, expand to nearby contiguous lines rather than guessing.
 - If there is a tradeoff between "viral" and "accurate", choose accuracy.
 - Do not reject or penalize a segment simply because of the subject matter; stay content-neutral and assess clip quality only.
-{signal_section}
+{signal_section}{performance_section}
 
 JSON-only output requirements:
 - Return one valid JSON object and nothing else.
@@ -1283,6 +1295,7 @@ async def _analyze_transcript_windows(
     windows: List[Dict[str, Any]],
     include_broll: bool,
     clip_signals: Optional[str],
+    performance_context: Optional[str] = None,
 ) -> List[TranscriptAnalysis]:
     """Analyse windows with bounded concurrency, tolerating some failures.
 
@@ -1299,6 +1312,7 @@ async def _analyze_transcript_windows(
                     clip_signals, window["start"], window["end"]
                 ),
                 window=(window["start"], window["end"]),
+                performance_context=performance_context,
             )
             result = await _run_transcript_analysis(agent, prompt)
             return result.output
@@ -1508,7 +1522,10 @@ def _merge_key_topics(analyses: List[TranscriptAnalysis], limit: int = 12) -> Li
 
 
 async def get_most_relevant_parts_by_transcript(
-    transcript: str, include_broll: bool = False, clip_signals: str | None = None
+    transcript: str,
+    include_broll: bool = False,
+    clip_signals: str | None = None,
+    performance_context: str | None = None,
 ) -> TranscriptAnalysis:
     """Get the most relevant parts of a transcript with virality scoring and optional B-roll detection.
 
@@ -1533,13 +1550,14 @@ async def get_most_relevant_parts_by_transcript(
                     transcript=transcript,
                     include_broll=include_broll,
                     clip_signals=clip_signals,
+                    performance_context=performance_context,
                 )
             )
             analyses = [result.output]
         else:
             logger.info("Analysing transcript in %d overlapping windows", len(windows))
             analyses = await _analyze_transcript_windows(
-                agent, windows, include_broll, clip_signals
+                agent, windows, include_broll, clip_signals, performance_context
             )
 
         candidates: List[TranscriptSegment] = []
