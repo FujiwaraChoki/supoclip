@@ -56,6 +56,8 @@ SupoClip gives you the same core pipeline without the leash:
 - **Hook titles** — an AI-written headline burned into the top of each clip's opening seconds
 - **B-roll & transitions** — optional Pexels stock footage overlays and transition effects
 - **Built-in editor** — trim, split, and merge clips, then export with platform presets (TikTok, Reels, Shorts)
+- **Direct publishing** — connect your own YouTube, TikTok and Instagram accounts, then post or schedule clips from the task page
+- **Performance loop** — views, likes, comments and shares flow back from each platform and steer future clip selection toward what works for your audience
 - **Real-time progress** — live pipeline updates streamed to the browser while your video processes
 
 ## Quick Start

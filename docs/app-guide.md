@@ -117,6 +117,15 @@ Users can:
 
 The page also loads billing summary data so the user can see plan and usage information.
 
+### Social Accounts: `/settings/social`
+
+Users connect their own YouTube, TikTok and Instagram accounts here. The page
+shows which platforms the server has configured, the connected accounts (with a
+reconnect prompt when a token stops working), and the performance loop:
+views, likes, comments and shares per platform, per hook type and per clip
+length, plus the top-performing clips. Once enough posts have metrics, clip
+selection for new tasks is personalized with that history.
+
 ### Auth Screens
 
 - `/sign-in`
@@ -189,6 +198,15 @@ If monetization is enabled:
 - Free and paid-plan limits can affect whether task creation is allowed
 - The homepage and settings page surface billing state
 - Users can open checkout or the customer portal from the frontend
+
+### 6. Publish clips
+
+On a completed task, every clip has a **Publish** button. The publish sheet lets
+the user pick a connected account, edit the title, caption and hashtags, choose
+visibility, and either post immediately or schedule a time. Posts appear under
+the clip with their status, a link to the live post, and metrics once they are
+pulled back (hourly, or on demand with the refresh button). Failed posts can be
+retried; scheduled ones can be cancelled.
 
 ## Supported Inputs
 

@@ -116,6 +116,46 @@ class Config:
         ).rstrip("/")
         self.discord_feedback_webhook_url = self._get_optional_env("DISCORD_FEEDBACK_WEBHOOK_URL")
         self.discord_sales_webhook_url = self._get_optional_env("DISCORD_SALES_WEBHOOK_URL")
+
+        # Social publishing. Each provider needs an OAuth app registered by the
+        # operator; users then connect their own accounts through that app.
+        self.youtube_oauth_client_id = self._get_optional_env(
+            "YOUTUBE_OAUTH_CLIENT_ID"
+        ) or self._get_optional_env("GOOGLE_OAUTH_CLIENT_ID")
+        self.youtube_oauth_client_secret = self._get_optional_env(
+            "YOUTUBE_OAUTH_CLIENT_SECRET"
+        ) or self._get_optional_env("GOOGLE_OAUTH_CLIENT_SECRET")
+        self.tiktok_client_key = self._get_optional_env("TIKTOK_CLIENT_KEY")
+        self.tiktok_client_secret = self._get_optional_env("TIKTOK_CLIENT_SECRET")
+        self.instagram_app_id = self._get_optional_env(
+            "INSTAGRAM_APP_ID"
+        ) or self._get_optional_env("META_APP_ID")
+        self.instagram_app_secret = self._get_optional_env(
+            "INSTAGRAM_APP_SECRET"
+        ) or self._get_optional_env("META_APP_SECRET")
+        # OAuth callbacks and public media fetches (Instagram pulls the video
+        # from a URL) both go through the frontend, so they default to the
+        # public app URL.
+        self.social_oauth_redirect_base_url = (
+            self._get_optional_env("SOCIAL_OAUTH_REDIRECT_BASE_URL")
+            or self.app_base_url
+        ).rstrip("/")
+        self.social_public_media_base_url = (
+            self._get_optional_env("SOCIAL_PUBLIC_MEDIA_BASE_URL")
+            or self.app_base_url
+        ).rstrip("/")
+        self.social_metrics_refresh_hours = float(
+            os.getenv("SOCIAL_METRICS_REFRESH_HOURS", "6")
+        )
+        self.social_metrics_max_post_age_days = int(
+            os.getenv("SOCIAL_METRICS_MAX_POST_AGE_DAYS", "60")
+        )
+        self.social_performance_min_posts = int(
+            os.getenv("SOCIAL_PERFORMANCE_MIN_POSTS", "3")
+        )
+        self.social_publish_max_attempts = int(
+            os.getenv("SOCIAL_PUBLISH_MAX_ATTEMPTS", "3")
+        )
         self.default_processing_mode = os.getenv("DEFAULT_PROCESSING_MODE", "fast")
         self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "4"))
         self.fast_mode_transcript_model = os.getenv(

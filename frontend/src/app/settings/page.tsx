@@ -15,7 +15,7 @@ import { signOut, useSession } from "@/lib/auth-client";
 import { formatBillingPlanName, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight } from "lucide-react";
+import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight, Share2 } from "lucide-react";
 
 interface UserPreferences {
   fontFamily: string;
@@ -474,6 +474,18 @@ export default function SettingsPage() {
                     <div>
                       <p className="text-sm font-medium text-black">API Keys</p>
                       <p className="text-xs text-gray-500">Create and manage API keys</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                </div>
+              </Link>
+              <Link href="/settings/social" className="block mt-3">
+                <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Share2 className="w-5 h-5 text-black" />
+                    <div>
+                      <p className="text-sm font-medium text-black">Social Accounts</p>
+                      <p className="text-xs text-gray-500">Connect YouTube, TikTok and Instagram to publish clips and track performance</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-400" />

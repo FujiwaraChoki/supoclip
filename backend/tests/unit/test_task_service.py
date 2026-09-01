@@ -65,6 +65,7 @@ def build_task_service() -> TaskService:
     config.aws_secret_access_key = "secret-test"
     config.ses_from_email = "SupoClip <noreply@example.com>"
     service = TaskService(db=AsyncMock(), config=config)
+    service._load_performance_context = AsyncMock(return_value=None)
     service.cache_repo.get_cache = AsyncMock(return_value=None)
     service.cache_repo.upsert_cache = AsyncMock()
     service.task_repo.update_task_runtime_metadata = AsyncMock()
