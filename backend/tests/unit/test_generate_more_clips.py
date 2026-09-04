@@ -50,7 +50,7 @@ def test_build_transcript_analysis_prompt_with_exclusions_and_min_duration():
     assert "CRITICAL EXCLUSIONS" in prompt
     assert "[00:00 - 00:10]" in prompt
     assert "Choose exactly 3 segments total" in prompt
-    assert "Each chosen clip MUST be at least 30 seconds" in prompt
+    assert "Each chosen clip MUST be between 30 and 65 seconds" in prompt
 
 
 def test_compute_available_clip_capacity():

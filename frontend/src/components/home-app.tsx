@@ -15,10 +15,10 @@ import { signOut, useSession } from "@/lib/auth-client";
 import { formatBillingPlanName, isPaidBillingPlan } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
-import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
+import { buildFontOptionsPayload, type FontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor, Menu, X, LogOut, List, Shield, Settings, Languages, Globe } from "lucide-react";
+import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor, Menu, X, LogOut, List, Shield, Settings, Languages } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 interface LatestTask {
@@ -655,7 +655,7 @@ export default function HomeApp() {
 
   const submitTaskToBackend = async (payload: {
     videoUrl: string;
-    fontOptions: any;
+    fontOptions: FontOptionsPayload;
     captionTemplate: string;
     outputFormat: OutputFormat;
     addSubtitles: boolean;

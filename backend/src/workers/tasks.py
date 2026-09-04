@@ -184,6 +184,23 @@ async def process_generate_more_clips_task(
 
         except Exception as e:
             logger.error("Generate more clips task %s failed: %s", task_id, e, exc_info=True)
+            try:
+                job_try = int(ctx.get("job_try", 1))
+                max_tries = int(getattr(WorkerSettings, "max_tries", 3))
+                if job_try >= max_tries:
+                    payload = {
+                        "task_id": task_id,
+                        "error": str(e),
+                        "tries": job_try,
+                        "action": "generate_more_clips",
+                    }
+                    await ctx["redis"].set(
+                        f"dead_letter:{task_id}", json.dumps(payload)
+                    )
+                    await ctx["redis"].sadd("tasks:dead_letter", task_id)
+                    await progress.error("Generate more clips failed permanently after retries")
+            except Exception:
+                logger.exception("Failed to persist dead-letter payload for generate_more_clips")
             await progress.error(str(e))
             raise
 

@@ -205,8 +205,12 @@ def _load_assemblyai_job_checkpoint(media_path: Path) -> Optional[Dict[str, Any]
     if not checkpoint_path.exists():
         return None
     try:
+        # Discard checkpoints older than 2 hours to avoid reusing stale or interleaved data
+        if time.time() - checkpoint_path.stat().st_mtime > 7200:
+            checkpoint_path.unlink()
+            return None
         data = json.loads(checkpoint_path.read_text(encoding="utf-8"))
-        if time.time() - data.get("created_at", 0) < 86400:
+        if time.time() - data.get("created_at", 0) < 7200:
             return data
     except Exception as exc:
         logger.warning("Failed to load AssemblyAI job checkpoint: %s", exc)
@@ -334,6 +338,7 @@ def get_video_transcript_assemblyai(
         raise ValueError("ASSEMBLY_AI_API_KEY is not set")
 
     aai.settings.api_key = runtime_config.assembly_ai_api_key
+    aai.settings.http_timeout = runtime_config.assembly_ai_http_timeout_seconds
     audio_path = _prepare_audio_for_transcription(video_path)
 
     config = aai.TranscriptionConfig(
@@ -342,13 +347,29 @@ def get_video_transcript_assemblyai(
         language_detection=True,
     )
     transcriber = aai.Transcriber()
-    transcript = _submit_and_wait_for_assemblyai_transcript(
-        transcriber,
-        audio_path,
-        config,
-        runtime_config.assembly_ai_http_timeout_seconds,
-        speech_model=speech_model,
-    )
+
+    transcript = None
+    for attempt in range(1, 4):
+        try:
+            transcript = _submit_and_wait_for_assemblyai_transcript(
+                transcriber,
+                audio_path,
+                config,
+                runtime_config.assembly_ai_http_timeout_seconds,
+                speech_model=speech_model,
+            )
+            break
+        except (httpx.TimeoutException, TimeoutError):
+            logger.warning(
+                "AssemblyAI transcription timed out on attempt %s/3",
+                attempt,
+            )
+            if attempt == 3:
+                raise
+
+    if transcript is None:
+        raise RuntimeError("AssemblyAI transcription did not return a transcript")
+
     if transcript.status == aai.TranscriptStatus.error:
         raise RuntimeError(f"AssemblyAI transcription failed: {transcript.error}")
 
@@ -943,6 +964,10 @@ def _load_transcript_checkpoint(video_path: Path) -> Optional[Dict[str, Any]]:
     if not checkpoint_path.exists():
         return None
     try:
+        # Discard checkpoints older than 2 hours to avoid reusing stale or interleaved data
+        if time.time() - checkpoint_path.stat().st_mtime > 7200:
+            checkpoint_path.unlink()
+            return None
         return json.loads(checkpoint_path.read_text(encoding="utf-8"))
     except Exception as exc:
         logger.warning("Failed to load transcript checkpoint: %s", exc)
@@ -1086,7 +1111,7 @@ def get_video_transcript_faster_whisper(
             else:
                 raise
 
-        total_duration = info.duration + resume_offset_sec
+        total_duration = (getattr(info, "duration", 0.0) or 0.0) + resume_offset_sec
         offset_ms = int(round(resume_offset_sec * 1000))
         last_checkpoint_time = time.monotonic()
 
@@ -3802,7 +3827,9 @@ def analyze_vertical_clip(
         proc.wait()
         if mp_face is not None:
             try:
-                mp_face.close()
+                _kind, detector, _mp_mod = mp_face
+                if hasattr(detector, "close"):
+                    detector.close()
             except Exception:
                 pass
 

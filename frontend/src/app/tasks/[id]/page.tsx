@@ -66,8 +66,6 @@ import {
   Mic,
   Users,
   FileText,
-  CheckSquare,
-  Square,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
@@ -392,18 +390,24 @@ export default function TaskPage() {
       const data = JSON.parse(e.data);
       console.log("🎬 Clip ready:", data.clip_index + 1, "/", data.total_clips);
       if (data.clip) {
+        let isNewClip = false;
         setClips((prev) => {
           const exists = prev.some((c: Clip) => c.id === data.clip.id);
           if (exists) return prev;
+          isNewClip = true;
+          return [...prev, data.clip].sort(
+            (a: Clip, b: Clip) => (a.clip_order ?? 0) - (b.clip_order ?? 0),
+          );
+        });
+
+        // Perform side effects outside the state updater to avoid duplicate execution in React StrictMode
+        if (isNewClip) {
           playClipReadyChime();
           const title = data.clip.hook_title ? `"${data.clip.hook_title}"` : `Clip ${data.clip.clip_order || ""}`;
           toast.success(`Clip Ready: ${title}`, {
             description: `${data.clip.start_time} - ${data.clip.end_time} • Virality ${data.clip.virality_score || 0}/100`,
           });
-          return [...prev, data.clip].sort(
-            (a: Clip, b: Clip) => (a.clip_order ?? 0) - (b.clip_order ?? 0),
-          );
-        });
+        }
       }
     });
 
@@ -438,14 +442,14 @@ export default function TaskPage() {
     };
   }, [params.id, task?.status, fetchTaskStatus, taskApiUrl, triggerAutoRefresh]); // Re-run when task status changes
 
-  // Heartbeat polling fallback while task is processing or queued
+  // Passive fallback polling while task is processing or queued (in case SSE disconnects)
   useEffect(() => {
     const taskStatus = task?.status;
     if (taskStatus !== "queued" && taskStatus !== "processing") return;
 
     const intervalId = setInterval(() => {
       void fetchTaskStatus();
-    }, 2500);
+    }, 10000);
 
     return () => clearInterval(intervalId);
   }, [task?.status, fetchTaskStatus]);

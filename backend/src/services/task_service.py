@@ -741,104 +741,124 @@ class TaskService:
             }
 
         # 5. Render only the new clips
-        total_new = len(segments_to_render)
-        clips_output_dir = Path(self.config.temp_dir) / "clips"
-        clips_output_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            total_new = len(segments_to_render)
+            clips_output_dir = Path(self.config.temp_dir) / "clips"
+            clips_output_dir.mkdir(parents=True, exist_ok=True)
+            existing_clip_ids = [c["id"] for c in existing_clips]
+            new_clip_ids = []
+            all_clip_ids = list(existing_clip_ids)
+            max_order = max(
+                [int(c.get("clip_order", 0)) for c in existing_clips], default=-1
+            )
+            start_order = max_order + 1
 
-        existing_clip_ids = [c["id"] for c in existing_clips]
-        new_clip_ids = []
-        all_clip_ids = list(existing_clip_ids)
-        start_order = len(existing_clips)
-
-        font_family = task.get("font_family")
-        font_size = task.get("font_size")
-        font_color = task.get("font_color")
-        caption_template = task.get("caption_template") or "default"
-        output_format = task.get("output_format") or "vertical"
-        add_subtitles = task.get("add_subtitles", True)
-        cleanup_settings = normalize_clip_cleanup_settings(
-            cut_long_pauses=task.get("cut_long_pauses", False),
-            pause_threshold_ms=task.get("pause_threshold_ms", 900),
-            remove_filler_words=task.get("remove_filler_words", False),
-            filtered_words=task.get("filtered_words"),
-        )
-
-        for i, segment in enumerate(segments_to_render):
-            if should_cancel and await should_cancel():
-                raise Exception("Task cancelled")
-
-            clip_order = start_order + i + 1
-            clip_progress = 60 + int(((i + 1) / total_new) * 35)
-            stage_progress = int((i / total_new) * 100)
-
-            await update_progress(
-                clip_progress,
-                f"Creating clip {clip_order}...",
-                stage_progress=stage_progress,
+            font_family = task.get("font_family")
+            font_size = task.get("font_size")
+            font_color = task.get("font_color")
+            caption_template = task.get("caption_template") or "default"
+            output_format = task.get("output_format") or "vertical"
+            add_subtitles = task.get("add_subtitles", True)
+            cleanup_settings = normalize_clip_cleanup_settings(
+                cut_long_pauses=task.get("cut_long_pauses", False),
+                pause_threshold_ms=task.get("pause_threshold_ms", 900),
+                remove_filler_words=task.get("remove_filler_words", False),
+                filtered_words=task.get("filtered_words"),
             )
 
-            clip_info = await self.video_service.create_single_clip(
-                video_path,
-                segment,
-                clip_order - 1,
-                clips_output_dir,
-                font_family,
-                font_size,
-                font_color,
-                caption_template,
-                output_format,
-                add_subtitles,
-                cleanup_settings,
-            )
-            if clip_info is None:
-                continue
+            for i, segment in enumerate(segments_to_render):
+                if should_cancel and await should_cancel():
+                    raise Exception("Task cancelled during additional clip generation")
 
-            clip_id = await self.clip_repo.create_clip(
+                clip_order = start_order + i
+                pct = 60 + int((i / total_new) * 35)
+                await update_progress(
+                    pct,
+                    f"Rendering additional clip {i + 1}/{total_new}...",
+                    "processing",
+                )
+
+                clip_info = await self.video_service.create_single_clip(
+                    video_path,
+                    segment,
+                    clip_order,
+                    clips_output_dir,
+                    font_family,
+                    font_size,
+                    font_color,
+                    caption_template,
+                    output_format,
+                    add_subtitles,
+                    cleanup_settings,
+                )
+                if clip_info is None:
+                    continue
+
+                clip_id = await self.clip_repo.create_clip(
+                    self.db,
+                    task_id=task_id,
+                    filename=clip_info["filename"],
+                    file_path=clip_info["path"],
+                    start_time=clip_info["start_time"],
+                    end_time=clip_info["end_time"],
+                    duration=clip_info["duration"],
+                    text=clip_info.get("text", ""),
+                    relevance_score=clip_info.get("relevance_score", 0.0),
+                    reasoning=clip_info.get("reasoning", ""),
+                    clip_order=clip_order,
+                    virality_score=clip_info.get("virality_score", 0),
+                    hook_score=clip_info.get("hook_score", 0),
+                    engagement_score=clip_info.get("engagement_score", 0),
+                    value_score=clip_info.get("value_score", 0),
+                    shareability_score=clip_info.get("shareability_score", 0),
+                    hook_type=clip_info.get("hook_type"),
+                    hook_title=clip_info.get("hook_title"),
+                )
+                await self.db.commit()
+                new_clip_ids.append(clip_id)
+                all_clip_ids.append(clip_id)
+
+                await self.task_repo.append_task_clip(self.db, task_id, clip_id)
+
+                if clip_ready_callback:
+                    clip_record = await self.clip_repo.get_clip_by_id(self.db, clip_id)
+                    if clip_record:
+                        await clip_ready_callback(
+                            start_order + i, start_order + total_new, clip_record
+                        )
+
+            await self.task_repo.update_task_status(
                 self.db,
-                task_id=task_id,
-                filename=clip_info["filename"],
-                file_path=clip_info["path"],
-                start_time=clip_info["start_time"],
-                end_time=clip_info["end_time"],
-                duration=clip_info["duration"],
-                text=clip_info.get("text", ""),
-                relevance_score=clip_info.get("relevance_score", 0.0),
-                reasoning=clip_info.get("reasoning", ""),
-                clip_order=clip_order,
-                virality_score=clip_info.get("virality_score", 0),
-                hook_score=clip_info.get("hook_score", 0),
-                engagement_score=clip_info.get("engagement_score", 0),
-                value_score=clip_info.get("value_score", 0),
-                shareability_score=clip_info.get("shareability_score", 0),
-                hook_type=clip_info.get("hook_type"),
-                hook_title=clip_info.get("hook_title"),
+                task_id,
+                "completed",
+                progress=100,
+                progress_message=f"Added {len(new_clip_ids)} new clips",
             )
-            await self.db.commit()
-            new_clip_ids.append(clip_id)
-            all_clip_ids.append(clip_id)
 
-            await self.task_repo.append_task_clip(self.db, task_id, clip_id)
-
-            if clip_ready_callback:
-                clip_record = await self.clip_repo.get_clip_by_id(self.db, clip_id)
-                if clip_record:
-                    await clip_ready_callback(start_order + i, start_order + total_new, clip_record)
-
-        await self.task_repo.update_task_status(
-            self.db,
-            task_id,
-            "completed",
-            progress=100,
-            progress_message=f"Added {len(new_clip_ids)} new clips",
-        )
-
-        all_clips = await self.clip_repo.get_clips_by_task(self.db, task_id)
-        return {
-            "task_id": task_id,
-            "new_clips_count": len(new_clip_ids),
-            "total_clips": len(all_clips),
-            "clips": all_clips,
-        }
+            all_clips = await self.clip_repo.get_clips_by_task(self.db, task_id)
+            return {
+                "task_id": task_id,
+                "new_clips_count": len(new_clip_ids),
+                "total_clips": len(all_clips),
+                "clips": all_clips,
+            }
+        except Exception as e:
+            logger.error(
+                "Failed to generate more clips for task %s: %s",
+                task_id,
+                e,
+                exc_info=True,
+            )
+            has_clips = bool(existing_clips) if "existing_clips" in locals() else False
+            recovery_status = "completed" if has_clips else "error"
+            await self.task_repo.update_task_status(
+                self.db,
+                task_id,
+                recovery_status,
+                progress=100 if has_clips else 0,
+                progress_message=f"Failed to generate more clips: {str(e)}",
+            )
+            raise
 
     async def _send_completion_notification_if_needed(
         self, *, task_id: str, clips_count: int

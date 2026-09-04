@@ -1215,6 +1215,9 @@ async def generate_more_clips_endpoint(
                 detail="Task is currently processing. Please wait for current generation to complete.",
             )
 
+        billing_service = BillingService(db)
+        await billing_service.assert_can_create_task(task["user_id"])
+
         # Clear any cancellation token
         runtime_config = get_config()
         redis_client = redis.Redis(
@@ -1249,6 +1252,8 @@ async def generate_more_clips_endpoint(
             "job_id": job_id,
             "task_id": task_id,
         }
+    except BillingLimitExceeded as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:

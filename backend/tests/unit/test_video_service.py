@@ -38,7 +38,7 @@ async def test_process_video_complete_uses_fallback_when_ai_selects_no_segments(
     )
 
     async def fake_generate_transcript(
-        _video_path, processing_mode="balanced", source_url=None
+        _video_path, processing_mode="balanced", source_url=None, **_kwargs
     ):
         return "[00:00 - 00:01] hello"
 

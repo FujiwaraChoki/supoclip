@@ -460,20 +460,27 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
 
 
 def _parse_thinking_level(level_val: Any) -> Any:
-    """Parse configured thinking level into Pydantic AI ThinkingLevel or integer budget."""
+    """Parse configured thinking level into Pydantic AI ThinkingLevel or integer budget.
+    Returns None if unset, disabled, or unrecognized to prevent breaking non-reasoning models.
+    """
     if level_val is None:
-        return "high"
+        return None
     if isinstance(level_val, bool):
-        return level_val
+        return level_val if level_val else None
     level_s = str(level_val).strip().lower()
-    if level_s in {"off", "false", "none", "0", "disabled"}:
-        return False
-    if level_s in {"minimal", "low", "medium", "high", "xhigh"}:
+    if level_s in {"off", "false", "none", "0", "disabled", ""}:
+        return None
+    if level_s in {"low", "medium", "high"}:
         return level_s
-    try:
-        return int(level_s)
-    except ValueError:
+    if level_s == "minimal":
+        return "low"
+    if level_s == "xhigh":
         return "high"
+    try:
+        val = int(level_s)
+        return val if val > 0 else None
+    except ValueError:
+        return None
 
 
 def _resolve_single_model(raw_name: str | None, runtime_config: Config) -> Model | str | None:
@@ -512,7 +519,9 @@ def _build_transcript_model(runtime_config: Config) -> Model | str:
     if not primary:
         primary = "google:gemini-3-flash-preview"
 
-    fallback = _resolve_single_model(runtime_config.fallback_llm, runtime_config)
+    fallback = _resolve_single_model(
+        getattr(runtime_config, "fallback_llm", None), runtime_config
+    )
 
     if fallback and fallback != primary:
         logger.info(
@@ -547,7 +556,11 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
         if config_error:
             raise RuntimeError(config_error)
 
-        model_settings = ModelSettings(thinking=thinking_level)
+        model_settings = (
+            ModelSettings(thinking=thinking_level)
+            if thinking_level is not None
+            else None
+        )
 
         _transcript_agent = Agent[None, TranscriptAnalysis](
             model=_build_transcript_model(runtime_config),
@@ -893,7 +906,7 @@ def _choose_repaired_bounds(
     current_duration = end_seconds - start_seconds
 
     if current_duration > max_duration:
-        target_end = start_seconds + max_duration
+        target_end = start_seconds + IDEAL_CLIP_MAX_SECONDS
         candidate_ends = [
             candidate
             for candidate in ends
@@ -920,8 +933,13 @@ def _choose_repaired_bounds(
                     extra_context = (start_seconds - candidate_start) + (
                         candidate_end - end_seconds
                     )
+                    ideal_penalty = 0
+                    if duration < IDEAL_CLIP_MIN_SECONDS:
+                        ideal_penalty = IDEAL_CLIP_MIN_SECONDS - duration
+                    elif duration > IDEAL_CLIP_MAX_SECONDS:
+                        ideal_penalty = duration - IDEAL_CLIP_MAX_SECONDS
                     candidate_ranges.append(
-                        (extra_context, candidate_start, candidate_end)
+                        (ideal_penalty * 1000 + extra_context, candidate_start, candidate_end)
                     )
         if candidate_ranges:
             _, repaired_start, repaired_end = min(candidate_ranges)
