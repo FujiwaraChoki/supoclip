@@ -30,6 +30,9 @@ import {
 import { useSession } from "@/lib/auth-client";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
+import { DEFAULT_HOOK_STYLE, hookStylePayload, type HookAnimation, type HookPosition, type HookStyle } from "@/lib/hook-style";
+import { HookTitlePreview } from "@/components/hook-title-preview";
+import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft,
   Download,
@@ -142,6 +145,10 @@ export default function TaskPage() {
   const [projectPauseThresholdMs, setProjectPauseThresholdMs] = useState("900");
   const [projectRemoveFillerWords, setProjectRemoveFillerWords] = useState(false);
   const [projectFilteredWords, setProjectFilteredWords] = useState("");
+  const [projectHookStyle, setProjectHookStyle] = useState<HookStyle>(DEFAULT_HOOK_STYLE);
+  const updateProjectHookStyle = useCallback(<K extends keyof HookStyle>(key: K, value: HookStyle[K]) => {
+    setProjectHookStyle((current) => ({ ...current, [key]: value }));
+  }, []);
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
@@ -201,6 +208,7 @@ export default function TaskPage() {
         setProjectPauseThresholdMs(String(taskData.pause_threshold_ms || 900));
         setProjectRemoveFillerWords(Boolean(taskData.remove_filler_words));
         setProjectFilteredWords((taskData.filtered_words || []).join(", "));
+        setProjectHookStyle({ ...DEFAULT_HOOK_STYLE, ...(taskData.hook_style || {}) });
 
         // Fetch clips if task is completed or processing (incremental clips)
         if (taskData.status === "completed" || taskData.status === "processing") {
@@ -582,6 +590,7 @@ export default function TaskPage() {
           pause_threshold_ms: safePauseThreshold,
           remove_filler_words: projectRemoveFillerWords,
           filtered_words: normalizedFilteredWords,
+          hook_style: hookStylePayload(projectHookStyle),
           apply_to_existing: true,
         }),
       });
@@ -1210,6 +1219,90 @@ export default function TaskPage() {
                         {availableTemplates.length === 0 && <SelectItem value="default">Default</SelectItem>}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">Hook title</div>
+                      <div className="text-xs text-gray-500">Style of the AI-written headline burned in for the first few seconds.</div>
+                    </div>
+
+                    <HookTitlePreview style={projectHookStyle} captionTemplate={projectCaptionTemplate} availableTemplates={availableTemplates} />
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-gray-500">Text color</label>
+                        <input
+                          type="color"
+                          value={projectHookStyle.hook_font_color ?? "#FFFFFF"}
+                          onChange={(e) => updateProjectHookStyle("hook_font_color", e.target.value)}
+                          className="w-full h-8 rounded border border-gray-300 cursor-pointer"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium text-gray-500">Background</label>
+                        <input
+                          type="color"
+                          value={(projectHookStyle.hook_background_color ?? "#00000080").slice(0, 7)}
+                          onChange={(e) => updateProjectHookStyle("hook_background_color", `${e.target.value}80`)}
+                          className="w-full h-8 rounded border border-gray-300 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-gray-500">Position</label>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {(["top", "center", "bottom"] as HookPosition[]).map((position) => (
+                          <button
+                            key={position}
+                            type="button"
+                            onClick={() => updateProjectHookStyle("hook_position", position)}
+                            className={`px-2 py-1.5 rounded-md text-xs font-medium border capitalize transition-colors ${
+                              (projectHookStyle.hook_position ?? "top") === position
+                                ? "bg-gray-900 text-white border-gray-900"
+                                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                            }`}
+                          >
+                            {position}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-gray-500">Animation</label>
+                      <Select
+                        value={projectHookStyle.hook_animation ?? "fade_pop"}
+                        onValueChange={(value) => updateProjectHookStyle("hook_animation", value as HookAnimation)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fade_pop">Fade + Pop</SelectItem>
+                          <SelectItem value="fade">Fade</SelectItem>
+                          <SelectItem value="slide_down">Slide Down</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <label className="flex items-center justify-between text-sm text-gray-700">
+                      Drop shadow
+                      <Switch
+                        checked={projectHookStyle.hook_shadow ?? true}
+                        onCheckedChange={(checked) => updateProjectHookStyle("hook_shadow", checked)}
+                      />
+                    </label>
+
+                    <button
+                      type="button"
+                      className="text-xs text-gray-500 hover:text-gray-700 underline"
+                      onClick={() => setProjectHookStyle(DEFAULT_HOOK_STYLE)}
+                    >
+                      Reset hook styling to template default
+                    </button>
                   </div>
 
                   <div className="rounded-lg border bg-gray-50 p-3 space-y-3">

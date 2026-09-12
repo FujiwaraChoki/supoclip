@@ -10,7 +10,8 @@ export type RuntimeSetting = {
   key: string;
   label: string;
   description: string;
-  input_type: "password" | "text";
+  input_type: "password" | "text" | "select";
+  options?: string[] | null;
   source: "environment" | "admin" | "unset";
   configured: boolean;
   has_admin_value: boolean;
@@ -129,21 +130,43 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
             </div>
 
             <div>
-              <input
-                type={setting.input_type}
-                value={values[setting.key] ?? ""}
-                onChange={(event) =>
-                  setValues((current) => ({
-                    ...current,
-                    [setting.key]: event.target.value,
-                  }))
-                }
-                placeholder={
-                  setting.configured ? "Configured value is hidden" : "Add value"
-                }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-black outline-none focus:border-black"
-                autoComplete="off"
-              />
+              {setting.input_type === "select" ? (
+                <select
+                  value={values[setting.key] ?? ""}
+                  onChange={(event) =>
+                    setValues((current) => ({
+                      ...current,
+                      [setting.key]: event.target.value,
+                    }))
+                  }
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-black outline-none focus:border-black"
+                >
+                  <option value="">
+                    {setting.configured ? "Keep configured value" : "Select a value"}
+                  </option>
+                  {(setting.options ?? []).map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type={setting.input_type}
+                  value={values[setting.key] ?? ""}
+                  onChange={(event) =>
+                    setValues((current) => ({
+                      ...current,
+                      [setting.key]: event.target.value,
+                    }))
+                  }
+                  placeholder={
+                    setting.configured ? "Configured value is hidden" : "Add value"
+                  }
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-black outline-none focus:border-black"
+                  autoComplete="off"
+                />
+              )}
               <p className="mt-1 text-xs text-gray-600">{setting.description}</p>
               {setting.overridden_by_env && (
                 <p className="mt-1 text-xs text-amber-700">

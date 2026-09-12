@@ -16,6 +16,17 @@ import { formatBillingPlanName, isPaidBillingPlan } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
+import { DEFAULT_HOOK_STYLE, hookStylePayload, type HookAnimation, type HookPosition, type HookStyle } from "@/lib/hook-style";
+import { HookTitlePreview } from "@/components/hook-title-preview";
+import {
+  deletePreset,
+  listPresets,
+  loadLastSettings,
+  savePreset,
+  saveLastSettings,
+  type TaskGenerationSettings,
+  type TaskPreset,
+} from "@/lib/task-presets";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor, Menu, X, LogOut, List, Shield, Settings } from "lucide-react";
@@ -219,6 +230,56 @@ export default function HomeApp() {
   const [removeFillerWords, setRemoveFillerWords] = useState(false);
   const [filteredWords, setFilteredWords] = useState("");
 
+  // Hook title customization — null fields mean "use the caption template's own value"
+  const [showCustomizeHook, setShowCustomizeHook] = useState(false);
+  const [hookStyle, setHookStyle] = useState<HookStyle>(DEFAULT_HOOK_STYLE);
+  const updateHookStyle = useCallback(<K extends keyof HookStyle>(key: K, value: HookStyle[K]) => {
+    setHookStyle((current) => ({ ...current, [key]: value }));
+  }, []);
+
+  // Presets + remembered settings (client-side only; see lib/task-presets.ts)
+  const [presets, setPresets] = useState<TaskPreset[]>([]);
+  const [presetName, setPresetName] = useState("");
+  const [selectedPreset, setSelectedPreset] = useState("");
+  const hasRestoredSettings = useRef(false);
+
+  const applyGenerationSettings = useCallback((settings: TaskGenerationSettings) => {
+    setFontFamily(settings.fontFamily);
+    setFontSize(settings.fontSize);
+    setFontColor(settings.fontColor);
+    setCaptionTemplate(settings.captionTemplate);
+    setOutputFormat(settings.outputFormat as OutputFormat);
+    setAddSubtitles(settings.addSubtitles);
+    setCutLongPauses(settings.cutLongPauses);
+    setPauseThresholdMs(settings.pauseThresholdMs);
+    setRemoveFillerWords(settings.removeFillerWords);
+    setFilteredWords(settings.filteredWords);
+    setHookStyle({ ...DEFAULT_HOOK_STYLE, ...settings.hookStyle });
+  }, []);
+
+  const currentGenerationSettings = useCallback((): TaskGenerationSettings => ({
+    fontFamily,
+    fontSize,
+    fontColor,
+    captionTemplate,
+    outputFormat,
+    addSubtitles,
+    cutLongPauses,
+    pauseThresholdMs,
+    removeFillerWords,
+    filteredWords,
+    hookStyle,
+  }), [fontFamily, fontSize, fontColor, captionTemplate, outputFormat, addSubtitles, cutLongPauses, pauseThresholdMs, removeFillerWords, filteredWords, hookStyle]);
+
+  // Remember last-used settings across visits (private-browsing safe no-op if storage is unavailable).
+  useEffect(() => {
+    if (hasRestoredSettings.current) return;
+    hasRestoredSettings.current = true;
+    const last = loadLastSettings();
+    if (last) applyGenerationSettings(last);
+    setPresets(listPresets());
+  }, [applyGenerationSettings]);
+
   // Latest task state
   const [latestTask, setLatestTask] = useState<LatestTask | null>(null);
   const [isLoadingLatest, setIsLoadingLatest] = useState(false);
@@ -344,10 +405,34 @@ export default function HomeApp() {
   // Always treat file input as uncontrolled, and store file in a ref
   const fileRef = useRef<File | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
+  const handleFileSelected = (file: File | null) => {
     fileRef.current = file;
     setFileName(file ? file.name : null);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleFileSelected(e.target.files?.[0] || null);
+  };
+
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (generationControlsDisabled) return;
+    setIsDraggingFile(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    if (generationControlsDisabled) return;
+    const file = e.dataTransfer.files?.[0] || null;
+    if (file) handleFileSelected(file);
   };
 
   const handleTemplateChange = (templateId: string) => {
@@ -505,6 +590,7 @@ export default function HomeApp() {
           pause_threshold_ms: normalizedPauseThreshold,
           remove_filler_words: removeFillerWords,
           filtered_words: normalizedFilteredWords,
+          hook_style: hookStylePayload(hookStyle),
         }),
       });
 
@@ -529,6 +615,7 @@ export default function HomeApp() {
         filtered_words: normalizedFilteredWords,
         processing_mode: "fast",
       });
+      saveLastSettings(currentGenerationSettings());
       // Redirect immediately to the task page
       window.location.href = `/tasks/${taskIdFromStart}`;
 
@@ -913,8 +1000,13 @@ export default function HomeApp() {
                   </div>
                 ) : (
                   <div
-                    className="relative border-2 border-dashed border-stone-300 rounded-xl p-8 text-center hover:border-stone-400 transition-colors cursor-pointer"
+                    className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+                      isDraggingFile ? "border-stone-500 bg-stone-50" : "border-stone-300 hover:border-stone-400"
+                    }`}
                     onClick={() => !generationControlsDisabled && fileInputRef.current?.click()}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
                   >
                     <input
                       id="video-upload"
@@ -937,6 +1029,74 @@ export default function HomeApp() {
                   </div>
                 )}
               </div>
+
+              {/* Presets — save/load the full set of generation settings below */}
+              <Card className="border-stone-200">
+                <CardContent className="px-4 py-3 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium text-stone-900">
+                    <Settings className="w-4 h-4" />
+                    Presets
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select
+                      value={selectedPreset || "__none__"}
+                      onValueChange={(value) => {
+                        setSelectedPreset(value === "__none__" ? "" : value);
+                        const preset = presets.find((p) => p.name === value);
+                        if (preset) applyGenerationSettings(preset.settings);
+                      }}
+                      disabled={generationControlsDisabled || presets.length === 0}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder={presets.length === 0 ? "No saved presets" : "Load a preset"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {presets.map((preset) => (
+                          <SelectItem key={preset.name} value={preset.name}>
+                            {preset.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={!selectedPreset}
+                      onClick={() => {
+                        deletePreset(selectedPreset);
+                        setPresets(listPresets());
+                        setSelectedPreset("");
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={presetName}
+                      onChange={(e) => setPresetName(e.target.value)}
+                      placeholder="Preset name"
+                      disabled={generationControlsDisabled}
+                      className="flex-1 h-8 text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={generationControlsDisabled || !presetName.trim()}
+                      onClick={() => {
+                        savePreset(presetName.trim(), currentGenerationSettings());
+                        setPresets(listPresets());
+                        setSelectedPreset(presetName.trim());
+                        setPresetName("");
+                      }}
+                    >
+                      Save current as...
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Caption & Style Section */}
               <Card className="border-stone-200">
@@ -1261,6 +1421,231 @@ export default function HomeApp() {
                 </CardContent>
               </Card>
               </div>
+
+              {/* Customize Hook Title Section — the AI-written headline burned in for the first few seconds */}
+              <Card className="border-stone-200">
+                <CardContent className="px-4 pt-0 pb-2.5 space-y-2.5">
+                  <button
+                    type="button"
+                    className="flex items-center justify-between w-full cursor-pointer"
+                    onClick={() => setShowCustomizeHook(!showCustomizeHook)}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium text-stone-900">
+                      <Sparkles className="w-4 h-4" />
+                      Customize hook title
+                    </div>
+                    <span className="text-xs text-stone-500 hover:text-stone-700 transition-colors">
+                      {showCustomizeHook ? "Hide" : "Show"}
+                    </span>
+                  </button>
+
+                  {showCustomizeHook && (
+                    <div className="space-y-5 pt-1">
+                      <HookTitlePreview style={hookStyle} captionTemplate={captionTemplate} availableTemplates={availableTemplates} />
+
+                      {/* Font family */}
+                      <div className="space-y-2">
+                        <label className="text-sm text-stone-600 flex items-center gap-2">
+                          <Type className="w-3.5 h-3.5" />
+                          Font Family
+                        </label>
+                        <Select
+                          value={hookStyle.hook_font_family ?? FONT_TEMPLATE_DEFAULT_VALUE}
+                          onValueChange={(value) =>
+                            updateHookStyle("hook_font_family", value === FONT_TEMPLATE_DEFAULT_VALUE ? null : value)
+                          }
+                          disabled={generationControlsDisabled}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Template default" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
+                            {availableFonts.map((font) => (
+                              <SelectItem key={font.name} value={font.name}>
+                                <span style={{ fontFamily: `'${font.name}', system-ui, sans-serif` }}>
+                                  {font.display_name}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Font size scale */}
+                      <div className="space-y-2">
+                        <label className="text-sm text-stone-600">Size</label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {[
+                            { label: "Small", value: 0.65 },
+                            { label: "Default", value: null },
+                            { label: "Large", value: 1.0 },
+                            { label: "XL", value: 1.3 },
+                          ].map((option) => (
+                            <button
+                              key={option.label}
+                              type="button"
+                              onClick={() => updateHookStyle("hook_font_size_scale", option.value)}
+                              disabled={generationControlsDisabled}
+                              className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                                hookStyle.hook_font_size_scale === option.value
+                                  ? "bg-stone-900 text-white border-stone-900"
+                                  : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Font + background color */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <label className="text-sm text-stone-600 flex items-center gap-1.5">
+                            <Palette className="w-3.5 h-3.5" />
+                            Text color
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={hookStyle.hook_font_color ?? "#FFFFFF"}
+                              onChange={(e) => updateHookStyle("hook_font_color", e.target.value)}
+                              disabled={generationControlsDisabled}
+                              className="w-10 h-8 rounded border border-stone-300 cursor-pointer"
+                            />
+                            <button
+                              type="button"
+                              className="text-xs text-stone-500 hover:text-stone-700"
+                              onClick={() => updateHookStyle("hook_font_color", null)}
+                            >
+                              Reset
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm text-stone-600">Background</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              value={(hookStyle.hook_background_color ?? "#00000080").slice(0, 7)}
+                              onChange={(e) => updateHookStyle("hook_background_color", `${e.target.value}80`)}
+                              disabled={generationControlsDisabled}
+                              className="w-10 h-8 rounded border border-stone-300 cursor-pointer"
+                            />
+                            <button
+                              type="button"
+                              className="text-xs text-stone-500 hover:text-stone-700"
+                              onClick={() => updateHookStyle("hook_background_color", null)}
+                            >
+                              Reset
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Outline color */}
+                      <div className="space-y-2">
+                        <label className="text-sm text-stone-600">Outline</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={hookStyle.hook_stroke_color ?? "#000000"}
+                            onChange={(e) => updateHookStyle("hook_stroke_color", e.target.value)}
+                            disabled={generationControlsDisabled}
+                            className="w-10 h-8 rounded border border-stone-300 cursor-pointer"
+                          />
+                          <button
+                            type="button"
+                            className="text-xs text-stone-500 hover:text-stone-700"
+                            onClick={() => updateHookStyle("hook_stroke_color", null)}
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Position */}
+                      <div className="space-y-2">
+                        <label className="text-sm text-stone-600">Position</label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {(["top", "center", "bottom"] as HookPosition[]).map((position) => (
+                            <button
+                              key={position}
+                              type="button"
+                              onClick={() => updateHookStyle("hook_position", position)}
+                              disabled={generationControlsDisabled}
+                              className={`px-2 py-1.5 rounded-md text-xs font-medium border capitalize transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                                (hookStyle.hook_position ?? "top") === position
+                                  ? "bg-stone-900 text-white border-stone-900"
+                                  : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                              }`}
+                            >
+                              {position}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Duration */}
+                      <div className="space-y-2">
+                        <label className="text-sm text-stone-600 flex items-center justify-between">
+                          <span>Duration</span>
+                          <span className="text-stone-400">{(hookStyle.hook_duration_seconds ?? 4).toFixed(1)}s</span>
+                        </label>
+                        <input
+                          type="range"
+                          min={1.5}
+                          max={8}
+                          step={0.5}
+                          value={hookStyle.hook_duration_seconds ?? 4}
+                          onChange={(e) => updateHookStyle("hook_duration_seconds", Number(e.target.value))}
+                          disabled={generationControlsDisabled}
+                          className="w-full"
+                        />
+                      </div>
+
+                      {/* Animation */}
+                      <div className="space-y-2">
+                        <label className="text-sm text-stone-600">Animation</label>
+                        <Select
+                          value={hookStyle.hook_animation ?? "fade_pop"}
+                          onValueChange={(value) => updateHookStyle("hook_animation", value as HookAnimation)}
+                          disabled={generationControlsDisabled}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="fade_pop">Fade + Pop</SelectItem>
+                            <SelectItem value="fade">Fade</SelectItem>
+                            <SelectItem value="slide_down">Slide Down</SelectItem>
+                            <SelectItem value="none">None</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Shadow */}
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm text-stone-600">Drop shadow</label>
+                        <Switch
+                          checked={hookStyle.hook_shadow ?? true}
+                          onCheckedChange={(checked) => updateHookStyle("hook_shadow", checked)}
+                          disabled={generationControlsDisabled}
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        className="text-xs text-stone-500 hover:text-stone-700 underline"
+                        onClick={() => setHookStyle(DEFAULT_HOOK_STYLE)}
+                      >
+                        Reset all hook styling to template default
+                      </button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
               {isLoading && (
                 <div className="space-y-4">

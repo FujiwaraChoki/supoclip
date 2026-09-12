@@ -25,6 +25,7 @@ from ...config import get_config
 from ...font_registry import is_font_accessible
 from ...clip_cleanup import normalize_clip_cleanup_settings
 from ...video_utils import VALID_OUTPUT_FORMATS
+from ...caption_templates import HOOK_POSITIONS, HOOK_ANIMATIONS
 from ...admin_auth import require_admin_user
 import redis.asyncio as redis
 from ...clip_editor import export_with_preset, EXPORT_PRESETS
@@ -55,6 +56,63 @@ def _normalize_font_family(value: Any) -> Optional[str]:
     if isinstance(value, str) and value.strip():
         return value.strip()
     return None
+
+
+_HOOK_HEX_RE = re.compile(r"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$")
+
+
+def _normalize_hook_hex_color(value: Any) -> Optional[str]:
+    if isinstance(value, str) and _HOOK_HEX_RE.match(value.strip()):
+        return value.strip().upper()
+    return None
+
+
+def _normalize_hook_style(value: Any) -> Optional[Dict[str, Any]]:
+    """Whitelist and clamp a per-task hook-title styling payload.
+
+    Unknown keys are dropped and invalid values fall back to None (meaning
+    "inherit from the caption template"), so a malformed request can never
+    produce a broken or unexpected style rather than erroring out.
+    """
+    if not isinstance(value, dict):
+        return None
+
+    style: Dict[str, Any] = {}
+
+    hook_font_family = _normalize_font_family(value.get("hook_font_family"))
+    if hook_font_family:
+        style["hook_font_family"] = hook_font_family
+
+    font_size_scale = value.get("hook_font_size_scale")
+    if isinstance(font_size_scale, (int, float)):
+        style["hook_font_size_scale"] = max(0.4, min(1.5, float(font_size_scale)))
+
+    for key in ("hook_font_color", "hook_background_color", "hook_stroke_color"):
+        color = _normalize_hook_hex_color(value.get(key))
+        if color:
+            style[key] = color
+
+    stroke_width = value.get("hook_stroke_width")
+    if isinstance(stroke_width, (int, float)):
+        style["hook_stroke_width"] = max(0, min(10, int(stroke_width)))
+
+    position = value.get("hook_position")
+    if isinstance(position, str) and position.strip().lower() in HOOK_POSITIONS:
+        style["hook_position"] = position.strip().lower()
+
+    duration = value.get("hook_duration_seconds")
+    if isinstance(duration, (int, float)):
+        style["hook_duration_seconds"] = max(1.5, min(8.0, float(duration)))
+
+    animation = value.get("hook_animation")
+    if isinstance(animation, str) and animation.strip().lower() in HOOK_ANIMATIONS:
+        style["hook_animation"] = animation.strip().lower()
+
+    shadow = value.get("hook_shadow")
+    if isinstance(shadow, bool):
+        style["hook_shadow"] = shadow
+
+    return style or None
 
 
 async def _get_user_id_from_headers(request: Request, db: AsyncSession) -> str:
@@ -116,6 +174,7 @@ def _merge_task_source_metadata(
     output_format: Any = None,
     add_subtitles: Any = None,
     cleanup_settings: Dict[str, Any] | None = None,
+    hook_style: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     merged = dict(existing or {})
 
@@ -129,6 +188,8 @@ def _merge_task_source_metadata(
         merged["add_subtitles"] = add_subtitles
     if cleanup_settings:
         merged.update(cleanup_settings)
+    if hook_style is not None:
+        merged["hook_style"] = hook_style or None
 
     return merged
 
@@ -247,6 +308,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
         data.get("remove_filler_words"),
         data.get("filtered_words"),
     )
+    hook_style = _normalize_hook_style(data.get("hook_style"))
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
@@ -291,6 +353,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             output_format,
             add_subtitles,
             cleanup_settings,
+            hook_style,
         )
 
         # Save source metadata for resume/retries in environments without sources.url column
@@ -303,6 +366,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                 output_format=output_format,
                 add_subtitles=add_subtitles,
                 cleanup_settings=cleanup_settings,
+                hook_style=hook_style,
             ),
         )
 
@@ -836,6 +900,7 @@ async def apply_task_settings(
             payload.get("remove_filler_words"),
             payload.get("filtered_words"),
         )
+        hook_style = _normalize_hook_style(payload.get("hook_style"))
 
         task_service = TaskService(db)
         await _require_task_owner(request, task_service, db, task_id)
@@ -848,6 +913,26 @@ async def apply_task_settings(
             raise HTTPException(
                 status_code=400, detail="Selected font is not available"
             )
+
+        # Persist hook_style (and other metadata) before regenerating clips so
+        # regenerate_all_clips_for_task picks up the new value when it re-reads
+        # task_source:{task_id}.
+        metadata = await _load_task_source_metadata(task_id)
+        merged_metadata = _merge_task_source_metadata(
+            metadata,
+            source_url=metadata.get("url") or task_record.get("source_url"),
+            source_type=metadata.get("source_type") or task_record.get("source_type"),
+            output_format=metadata.get("output_format"),
+            add_subtitles=(
+                metadata["add_subtitles"]
+                if isinstance(metadata.get("add_subtitles"), bool)
+                else None
+            ),
+            cleanup_settings=cleanup_settings,
+            hook_style=hook_style if "hook_style" in payload else metadata.get("hook_style"),
+        )
+        await _save_task_source_metadata(task_id, merged_metadata)
+
         task = await task_service.update_task_settings(
             task_id,
             font_family,
@@ -857,22 +942,6 @@ async def apply_task_settings(
             include_broll,
             apply_to_existing,
             cleanup_settings,
-        )
-        metadata = await _load_task_source_metadata(task_id)
-        await _save_task_source_metadata(
-            task_id,
-            _merge_task_source_metadata(
-                metadata,
-                source_url=metadata.get("url") or task_record.get("source_url"),
-                source_type=metadata.get("source_type") or task_record.get("source_type"),
-                output_format=metadata.get("output_format") or task.get("output_format"),
-                add_subtitles=(
-                    metadata["add_subtitles"]
-                    if isinstance(metadata.get("add_subtitles"), bool)
-                    else task.get("add_subtitles")
-                ),
-                cleanup_settings=cleanup_settings,
-            ),
         )
         return {"task": task, "message": "Task settings updated"}
     except ValueError as e:

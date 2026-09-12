@@ -202,7 +202,22 @@ TEMPLATE_DEFAULTS: Dict[str, Any] = {
     "glow": False,
     "max_words_per_line": 4,
     "position_y": 0.80,
+    # Hook title (the AI-written headline burned in for the first few seconds).
+    # None means "inherit the caption styling above"; the renderer resolves that.
+    "hook_font_family": None,
+    "hook_font_size_scale": 0.82,
+    "hook_font_color": None,
+    "hook_background_color": None,
+    "hook_stroke_color": None,
+    "hook_stroke_width": None,
+    "hook_position": "top",
+    "hook_duration_seconds": 4.0,
+    "hook_animation": "fade_pop",
+    "hook_shadow": None,
 }
+
+HOOK_POSITIONS = ("top", "center", "bottom")
+HOOK_ANIMATIONS = ("fade_pop", "fade", "slide_down", "none")
 
 
 def get_template(template_name: str) -> Dict[str, Any]:

@@ -19,10 +19,11 @@ class Config:
         self.ollama_base_url = self._get_runtime_setting("OLLAMA_BASE_URL")
         self.ollama_api_key = self._get_runtime_setting("OLLAMA_API_KEY")
 
-        self.whisper_model = os.getenv("WHISPER_MODEL", "base")
+        self.whisper_model = self._get_runtime_setting("WHISPER_MODEL") or "base"
         self.transcription_provider = self._normalize_transcription_provider(
-            os.getenv("TRANSCRIPTION_PROVIDER", "assemblyai")
+            self._get_runtime_setting("TRANSCRIPTION_PROVIDER") or "assemblyai"
         )
+        self.whisper_language = self._get_runtime_setting("WHISPER_LANGUAGE")
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
         self.assembly_ai_http_timeout_seconds = int(
@@ -65,8 +66,8 @@ class Config:
         )
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 
-        self.max_clips = int(os.getenv("MAX_CLIPS", "10"))
-        self.clip_duration = int(os.getenv("CLIP_DURATION", "30"))  # seconds
+        self.max_clips = self._get_runtime_int_setting("MAX_CLIPS", 10)
+        self.clip_duration = self._get_runtime_int_setting("CLIP_DURATION", 30)  # seconds
 
         self.temp_dir = os.getenv("TEMP_DIR", "temp")
 
@@ -116,8 +117,10 @@ class Config:
         ).rstrip("/")
         self.discord_feedback_webhook_url = self._get_optional_env("DISCORD_FEEDBACK_WEBHOOK_URL")
         self.discord_sales_webhook_url = self._get_optional_env("DISCORD_SALES_WEBHOOK_URL")
-        self.default_processing_mode = os.getenv("DEFAULT_PROCESSING_MODE", "fast")
-        self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "4"))
+        self.default_processing_mode = (
+            self._get_runtime_setting("DEFAULT_PROCESSING_MODE") or "fast"
+        )
+        self.fast_mode_max_clips = self._get_runtime_int_setting("FAST_MODE_MAX_CLIPS", 4)
         self.fast_mode_transcript_model = os.getenv(
             "FAST_MODE_TRANSCRIPT_MODEL", "universal"
         )
@@ -152,6 +155,16 @@ class Config:
             return admin_value
         return env_value or admin_value
 
+    @classmethod
+    def _get_runtime_int_setting(cls, name: str, default: int) -> int:
+        raw = cls._get_runtime_setting(name)
+        if raw is None:
+            return default
+        try:
+            return int(raw)
+        except ValueError:
+            return default
+
     def as_runtime_settings(self) -> dict[str, str | None]:
         return {
             "ASSEMBLY_AI_API_KEY": self.assembly_ai_api_key,
@@ -164,6 +177,13 @@ class Config:
             "YOUTUBE_DATA_API_KEY": self.youtube_data_api_key,
             "APIFY_API_TOKEN": self.apify_api_token,
             "PEXELS_API_KEY": self.pexels_api_key,
+            "TRANSCRIPTION_PROVIDER": self.transcription_provider,
+            "WHISPER_MODEL": self.whisper_model,
+            "WHISPER_LANGUAGE": self.whisper_language,
+            "MAX_CLIPS": str(self.max_clips),
+            "CLIP_DURATION": str(self.clip_duration),
+            "DEFAULT_PROCESSING_MODE": self.default_processing_mode,
+            "FAST_MODE_MAX_CLIPS": str(self.fast_mode_max_clips),
         }
 
     @staticmethod

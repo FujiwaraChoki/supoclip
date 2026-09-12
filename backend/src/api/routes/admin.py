@@ -72,6 +72,44 @@ SETTING_METADATA = {
         "description": "Optional B-roll stock footage provider key.",
         "input_type": "password",
     },
+    "TRANSCRIPTION_PROVIDER": {
+        "label": "Transcription provider",
+        "description": "Which service transcribes source video into word-level timestamps.",
+        "input_type": "select",
+        "options": ["assemblyai", "whisper", "youtube_captions"],
+    },
+    "WHISPER_MODEL": {
+        "label": "Whisper model",
+        "description": "Model size used when the transcription provider is whisper.",
+        "input_type": "select",
+        "options": ["tiny", "base", "small", "medium", "large"],
+    },
+    "WHISPER_LANGUAGE": {
+        "label": "Whisper language",
+        "description": "Optional ISO 639-1 language code (e.g. en, es). Leave blank to auto-detect.",
+        "input_type": "text",
+    },
+    "MAX_CLIPS": {
+        "label": "Max clips per task",
+        "description": "Upper bound on how many clips the AI selects from a source video.",
+        "input_type": "text",
+    },
+    "CLIP_DURATION": {
+        "label": "Default clip duration (seconds)",
+        "description": "Target clip length used as a hint during AI segment selection.",
+        "input_type": "text",
+    },
+    "DEFAULT_PROCESSING_MODE": {
+        "label": "Default processing mode",
+        "description": "Processing mode used when a task doesn't specify one.",
+        "input_type": "select",
+        "options": ["fast", "balanced", "quality"],
+    },
+    "FAST_MODE_MAX_CLIPS": {
+        "label": "Fast mode max clips",
+        "description": "Clip cap applied specifically to fast processing mode.",
+        "input_type": "text",
+    },
 }
 
 
@@ -103,6 +141,7 @@ def _setting_status(
         "label": metadata["label"],
         "description": metadata["description"],
         "input_type": metadata["input_type"],
+        "options": metadata.get("options"),
         "source": source,
         "configured": has_env or has_admin_value,
         "has_admin_value": has_admin_value,

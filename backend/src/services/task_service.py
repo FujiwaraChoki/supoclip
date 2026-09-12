@@ -211,6 +211,7 @@ class TaskService:
         should_cancel: Optional[Callable] = None,
         clip_ready_callback: Optional[Callable] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        hook_style: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -367,6 +368,7 @@ class TaskService:
                     output_format,
                     add_subtitles,
                     normalized_cleanup_settings,
+                    hook_style,
                 )
                 if clip_info is None:
                     continue  # Skip failed clip
@@ -665,6 +667,7 @@ class TaskService:
         metadata = await self._load_task_source_settings(task_id)
         output_format = metadata.get("output_format", "vertical")
         add_subtitles = metadata.get("add_subtitles", True)
+        hook_style = metadata.get("hook_style")
         cleanup_payload = cleanup_settings or {
             "cut_long_pauses": metadata.get("cut_long_pauses"),
             "pause_threshold_ms": metadata.get("pause_threshold_ms"),
@@ -750,6 +753,7 @@ class TaskService:
             output_format,
             add_subtitles,
             normalized_cleanup_settings,
+            hook_style,
         )
 
         await self.clip_repo.delete_clips_by_task(self.db, task_id)
@@ -1031,6 +1035,7 @@ class TaskService:
         defaults = {
             "output_format": "vertical",
             "add_subtitles": True,
+            "hook_style": None,
             **normalize_clip_cleanup_settings(),
         }
         redis_client = redis.Redis(
@@ -1070,9 +1075,12 @@ class TaskService:
         if not isinstance(add_subtitles, bool):
             add_subtitles = defaults["add_subtitles"]
 
+        hook_style = parsed.get("hook_style")
+
         return {
             "output_format": output_format,
             "add_subtitles": add_subtitles,
+            "hook_style": hook_style if isinstance(hook_style, dict) else None,
             **normalize_clip_cleanup_settings(
                 parsed.get("cut_long_pauses"),
                 parsed.get("pause_threshold_ms"),

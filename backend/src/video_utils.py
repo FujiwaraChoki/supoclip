@@ -241,12 +241,18 @@ def _get_whisper_model(model_name: str = "base"):
     return _WHISPER_MODEL_CACHE[model_name]
 
 
-def transcribe_with_whisper(video_path: Path, model_name: str = "base") -> Dict[str, Any]:
+def transcribe_with_whisper(
+    video_path: Path, model_name: str = "base", language: Optional[str] = None
+) -> Dict[str, Any]:
     """Transcribe video using local Whisper with word-level timestamps."""
     audio_path = _prepare_audio_for_transcription(video_path)
     model = _get_whisper_model(model_name)
-    logger.info("Starting Whisper transcription with model: %s", model_name)
-    return model.transcribe(str(audio_path), word_timestamps=True, language=None)
+    logger.info(
+        "Starting Whisper transcription with model: %s (language=%s)",
+        model_name,
+        language or "auto",
+    )
+    return model.transcribe(str(audio_path), word_timestamps=True, language=language)
 
 
 def _whisper_result_to_transcript_data(whisper_result: Dict[str, Any]) -> Dict[str, Any]:
@@ -450,8 +456,8 @@ def _get_transcript_with_assemblyai(
 def _get_transcript_with_whisper(video_path: Path, runtime_config) -> str:
     """Get transcript using local Whisper with word-level timestamps."""
     model_name = runtime_config.whisper_model
-    logger.info("Starting Whisper transcription with model: %s", model_name)
-    whisper_result = transcribe_with_whisper(video_path, model_name)
+    language = getattr(runtime_config, "whisper_language", None) or None
+    whisper_result = transcribe_with_whisper(video_path, model_name, language)
 
     formatted_lines = format_transcript_for_analysis(whisper_result)
     cache_transcript_data(video_path, whisper_result)
@@ -1648,26 +1654,43 @@ def build_hook_title_ass(
     output_duration: float,
     font_name: str,
     caption_font_px: int,
+    hook_style: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, List[str]]:
     """Build the (style_line, dialogue_events) for a burned-in hook title.
 
-    The title sits in the top safe area (Alignment 8), styled off the caption
-    template so it reads as part of the same design system: same font, an
-    outline/backing for contrast, power words and numbers in the template's
-    highlight colour, and a quick fade+pop entrance.
+    The title styling is derived from the caption template's hook_* defaults
+    (see caption_templates.TEMPLATE_DEFAULTS), overridden by any non-None keys
+    in ``hook_style`` (a per-task customization payload). With no overrides
+    and a template's defaults, this renders identically to the original
+    fixed top-of-frame fade+pop hook title.
     """
+    effective = dict(template)
+    for key, value in (hook_style or {}).items():
+        if value is not None:
+            effective[key] = value
+
     uppercase = bool(template.get("uppercase"))
     title_text = hook_title.upper() if uppercase else hook_title
 
-    primary = hex_to_ass_color(template.get("font_color"), "#FFFFFF")
+    hook_font_family = effective.get("hook_font_family")
+    hook_font_name = ass_font_name(hook_font_family) if hook_font_family else font_name
+
+    primary = hex_to_ass_color(
+        effective.get("hook_font_color") or template.get("font_color"), "#FFFFFF"
+    )
     highlight = hex_to_ass_color(
         template.get("emphasis_color") or template.get("highlight_color"), "#FFE000"
     )
-    outline = hex_to_ass_color(template.get("stroke_color") or "#000000", "#000000")
-    back_color = hex_to_ass_color(template.get("background_color"), "#00000080")
+    stroke_color = effective.get("hook_stroke_color") or template.get("stroke_color") or "#000000"
+    outline = hex_to_ass_color(stroke_color, "#000000")
+    background_color = effective.get("hook_background_color") or template.get(
+        "background_color"
+    )
+    back_color = hex_to_ass_color(background_color, "#00000080")
 
+    font_size_scale = float(effective.get("hook_font_size_scale") or 0.82)
     # Slightly smaller than the captions so the spoken words stay the hero.
-    base_px = max(34, min(66, int(caption_font_px * 0.82)))
+    base_px = max(34, min(66, int(caption_font_px * font_size_scale)))
     usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_TOP_MARGIN_FRAC))
     max_chars = max(10, int(usable_width / (base_px * 0.52)))
     lines = _balance_title_lines(title_text.split(), max_chars)
@@ -1676,9 +1699,12 @@ def build_hook_title_ass(
     if longest > max_chars:
         hook_px = max(30, min(base_px, int(usable_width / (longest * 0.52))))
 
-    base_stroke = int(template.get("stroke_width", 3) or 0)
-    has_outline = template.get("stroke_color") is not None and base_stroke > 0
-    border_style = 3 if (not has_outline and template.get("background_color")) else 1
+    hook_stroke_width = effective.get("hook_stroke_width")
+    base_stroke = int(
+        hook_stroke_width if hook_stroke_width is not None else template.get("stroke_width", 3) or 0
+    )
+    has_outline = stroke_color is not None and base_stroke > 0
+    border_style = 3 if (not has_outline and background_color) else 1
     outline_px = (
         max(base_stroke, round(hook_px * base_stroke / 26)) if has_outline else 0
     )
@@ -1686,12 +1712,26 @@ def build_hook_title_ass(
         outline_px = max(4, hook_px // 6)  # backing-box padding
     elif outline_px == 0:
         outline_px = max(2, hook_px // 16)  # always keep contrast on video
-    shadow_px = max(2, hook_px // 20) if template.get("shadow") else 0
-    margin_v = max(48, int(video_height * HOOK_TITLE_TOP_MARGIN_FRAC))
+
+    hook_shadow = effective.get("hook_shadow")
+    has_shadow = bool(hook_shadow) if hook_shadow is not None else bool(template.get("shadow"))
+    shadow_px = max(2, hook_px // 20) if has_shadow else 0
+
+    hook_position = effective.get("hook_position") or "top"
+    margin_frac = max(48, int(video_height * HOOK_TITLE_TOP_MARGIN_FRAC))
+    if hook_position == "bottom":
+        alignment = 2
+        margin_v = margin_frac
+    elif hook_position == "center":
+        alignment = 5
+        margin_v = 0
+    else:
+        alignment = 8
+        margin_v = margin_frac
 
     style_line = (
-        f"Style: Hook,{font_name},{hook_px},{primary},&H000000FF,{outline},{back_color},"
-        f"1,0,0,0,100,100,0,0,{border_style},{outline_px},{shadow_px},8,60,60,{margin_v},1"
+        f"Style: Hook,{hook_font_name},{hook_px},{primary},&H000000FF,{outline},{back_color},"
+        f"1,0,0,0,100,100,0,0,{border_style},{outline_px},{shadow_px},{alignment},60,60,{margin_v},1"
     )
 
     # Accent power words / numbers in the template highlight colour.
@@ -1706,16 +1746,29 @@ def build_hook_title_ass(
         rendered_lines.append(" ".join(spans))
     text = "\\N".join(rendered_lines)
 
+    hook_duration = float(effective.get("hook_duration_seconds") or HOOK_TITLE_SECONDS)
     start = 0.12
-    end = min(HOOK_TITLE_SECONDS, max(HOOK_TITLE_MIN_SECONDS, output_duration - 0.25))
+    end = min(hook_duration, max(HOOK_TITLE_MIN_SECONDS, output_duration - 0.25))
     if output_duration <= HOOK_TITLE_MIN_SECONDS:
         start, end = 0.0, max(0.5, output_duration)
-    entrance = "\\fad(160,240)"
-    if template.get("word_pop", True):
-        entrance += "\\fscx90\\fscy90\\t(0,160,\\fscx100\\fscy100)"
+
+    hook_animation = effective.get("hook_animation") or "fade_pop"
+    if hook_animation == "none":
+        entrance = ""
+    elif hook_animation == "slide_down":
+        # Approximate a slide-in with a fast vertical unsquash (no \move, which
+        # needs an explicit \pos anchor we don't otherwise use for this style).
+        entrance = "\\fad(120,240)\\fscy60\\t(0,220,\\fscy100)"
+    elif hook_animation == "fade":
+        entrance = "\\fad(200,240)"
+    else:  # fade_pop (default, matches original behavior)
+        entrance = "\\fad(160,240)"
+        if template.get("word_pop", True):
+            entrance += "\\fscx90\\fscy90\\t(0,160,\\fscx100\\fscy100)"
+    override_tags = f"{{{entrance}}}" if entrance else ""
     events = [
         f"Dialogue: 1,{ass_timestamp(start)},{ass_timestamp(end)},Hook,,0,0,0,,"
-        f"{{{entrance}}}{text}"
+        f"{override_tags}{text}"
     ]
     return style_line, events
 
@@ -1738,6 +1791,7 @@ def build_assemblyai_ass_subtitles(
     caption_words: Optional[List[Dict[str, Any]]] = None,
     position_y_override: Optional[float] = None,
     highlight_words: Optional[List[str]] = None,
+    hook_style: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -1836,6 +1890,7 @@ def build_assemblyai_ass_subtitles(
             output_duration,
             font_name,
             font_px,
+            hook_style,
         )
         hook_style_block = f"{hook_style_line}\n"
 
@@ -3467,6 +3522,7 @@ def create_optimized_clip(
     output_format: str = "vertical",
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
     hook_title: Optional[str] = None,
+    hook_style: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size)."""
     try:
@@ -3560,6 +3616,7 @@ def create_optimized_clip(
                 effective_keep_ranges,
                 hook_title=hook_title,
                 include_captions=add_subtitles,
+                hook_style=hook_style,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
@@ -3596,6 +3653,7 @@ def create_clips_from_segments(
     output_format: str = "vertical",
     add_subtitles: bool = True,
     cleanup_settings: Optional[Dict[str, Any]] = None,
+    hook_style: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Create optimized video clips from segments with template support."""
     logger.info(
@@ -3668,6 +3726,7 @@ def create_clips_from_segments(
                 output_format,
                 keep_ranges,
                 hook_title=segment.get("hook_title"),
+                hook_style=hook_style,
             )
 
             if success:
@@ -3820,6 +3879,7 @@ def create_clips_with_transitions(
     output_format: str = "vertical",
     add_subtitles: bool = True,
     cleanup_settings: Optional[Dict[str, Any]] = None,
+    hook_style: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Create standalone video clips without inter-clip transitions.
 
@@ -3842,6 +3902,7 @@ def create_clips_with_transitions(
         output_format,
         add_subtitles,
         cleanup_settings,
+        hook_style,
     )
 
 
