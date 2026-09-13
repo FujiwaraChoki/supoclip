@@ -581,6 +581,7 @@ async def run_with_llm_fallback(
     *,
     system_prompt: str = "",
     allow_gemini: bool = False,
+    max_output_tokens: int = 2000,
 ) -> tuple[Optional[_FallbackT], LlmProvider]:
     """Run `prompt` against the local Ollama model first (retrying once with a
     stricter prompt on malformed/schema-invalid output), then fall back to
@@ -590,7 +591,9 @@ async def run_with_llm_fallback(
     local LLM call and a video render are never in flight on the same GPU at
     once (see workers/resource_locks.py); Gemini is a remote call and skips
     that slot. Every call (Ollama or Gemini) acquires the "llm" slot, capping
-    concurrent LLM calls across the app at 1 by default.
+    concurrent LLM calls across the app at 1 by default. Output is capped at
+    `max_output_tokens` (~2000 by default) since every caller here truncates
+    its own input aggressively and expects a short, structured response.
 
     Returns (result, provider). `provider == "unavailable"` (result is None)
     means callers should skip per spec (content policy: skip silently;
@@ -598,12 +601,19 @@ async def run_with_llm_fallback(
     """
     runtime_config = get_config()
     apply_settings_to_process_env(runtime_config.as_runtime_settings())
+    model_settings = {"max_tokens": max_output_tokens}
+    # Local CPU inference can take far longer than a cloud API for the same
+    # prompt/output size — the client's default timeout is tuned for fast
+    # remote APIs and cuts off a real local model mid-generation. Gemini
+    # keeps the (short) library default since it's a fast cloud call.
+    ollama_model_settings = {**model_settings, "timeout": 300.0}
 
     ollama_agent = Agent[None, output_type](
         model=_build_ollama_model(runtime_config),
         output_type=output_type,
         system_prompt=system_prompt,
         output_retries=1,
+        model_settings=ollama_model_settings,
     )
 
     async with resource_slot("llm", 1):
@@ -622,6 +632,7 @@ async def run_with_llm_fallback(
                     output_type=output_type,
                     system_prompt=system_prompt,
                     output_retries=2,
+                    model_settings=model_settings,
                 )
                 result = await gemini_agent.run(prompt)
                 return result.output, "gemini"

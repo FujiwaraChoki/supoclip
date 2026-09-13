@@ -117,6 +117,25 @@ SETTING_METADATA = {
         "input_type": "select",
         "options": ["true", "false"],
     },
+    "LLM_PROVIDER_MODE": {
+        "label": "Local LLM provider mode",
+        "description": "Ollama (local) is always tried first for content-policy/metadata features. "
+        "Gemini fallback is used only if Ollama is unavailable.",
+        "input_type": "select",
+        "options": ["ollama", "gemini", "hybrid"],
+    },
+    "OLLAMA_MODEL": {
+        "label": "Ollama model",
+        "description": "Model used for content-policy and metadata generation calls.",
+        "input_type": "select",
+        "options": ["llama3.2:3b", "gemma2:2b", "qwen2.5:3b"],
+    },
+    "GEMINI_MODEL": {
+        "label": "Gemini model",
+        "description": "Fallback model used when Ollama is unavailable and LLM_PROVIDER_MODE allows it. "
+        "Uses the same Google API key as the general LLM setting.",
+        "input_type": "text",
+    },
 }
 
 

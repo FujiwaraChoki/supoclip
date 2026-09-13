@@ -44,6 +44,17 @@ def _parse_content_policy_flags(raw: Optional[str]) -> List[Dict[str, Any]]:
     return parsed if isinstance(parsed, list) else []
 
 
+def _parse_metadata_tags(raw: Optional[str]) -> List[str]:
+    """Decode the JSON-encoded metadata_tags column into a list of tag strings."""
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
 class ClipRepository:
     """Repository for clip-related database operations."""
 
@@ -163,7 +174,10 @@ class ClipRepository:
                     SELECT id, filename, file_path, start_time, end_time, duration,
                            text, relevance_score, reasoning, clip_order, created_at,
                            virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                           hook_title, hook_title_variants, selected_hook_variant_id, reactions, content_policy_flags
+                           hook_title, hook_title_variants, selected_hook_variant_id, reactions, content_policy_flags,
+                           metadata_title, metadata_description, metadata_tags,
+                           metadata_title_user_edited, metadata_description_user_edited, metadata_tags_user_edited,
+                           metadata_provider, metadata_generated_at, metadata_generation_ms
                     FROM generated_clips
                     WHERE task_id = :task_id
                     ORDER BY clip_order ASC
@@ -212,6 +226,21 @@ class ClipRepository:
                     "content_policy_flags": _parse_content_policy_flags(
                         getattr(row, "content_policy_flags", None)
                     ),
+                    "metadata_title": getattr(row, "metadata_title", None),
+                    "metadata_description": getattr(row, "metadata_description", None),
+                    "metadata_tags": _parse_metadata_tags(getattr(row, "metadata_tags", None)),
+                    "metadata_title_user_edited": bool(getattr(row, "metadata_title_user_edited", False)),
+                    "metadata_description_user_edited": bool(
+                        getattr(row, "metadata_description_user_edited", False)
+                    ),
+                    "metadata_tags_user_edited": bool(getattr(row, "metadata_tags_user_edited", False)),
+                    "metadata_provider": getattr(row, "metadata_provider", None),
+                    "metadata_generated_at": (
+                        row.metadata_generated_at.isoformat()
+                        if getattr(row, "metadata_generated_at", None)
+                        else None
+                    ),
+                    "metadata_generation_ms": getattr(row, "metadata_generation_ms", None),
                 }
             )
 
@@ -263,7 +292,11 @@ class ClipRepository:
                            text, relevance_score, reasoning, clip_order,
                            virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
                            hook_title, hook_title_variants, selected_hook_variant_id, reactions,
-                           content_policy_flags, created_at
+                           content_policy_flags,
+                           metadata_title, metadata_description, metadata_tags,
+                           metadata_title_user_edited, metadata_description_user_edited, metadata_tags_user_edited,
+                           metadata_provider, metadata_generated_at, metadata_generation_ms,
+                           created_at
                     FROM generated_clips
                     WHERE id = :clip_id
                     """
@@ -312,6 +345,21 @@ class ClipRepository:
             "content_policy_flags": _parse_content_policy_flags(
                 getattr(row, "content_policy_flags", None)
             ),
+            "metadata_title": getattr(row, "metadata_title", None),
+            "metadata_description": getattr(row, "metadata_description", None),
+            "metadata_tags": _parse_metadata_tags(getattr(row, "metadata_tags", None)),
+            "metadata_title_user_edited": bool(getattr(row, "metadata_title_user_edited", False)),
+            "metadata_description_user_edited": bool(
+                getattr(row, "metadata_description_user_edited", False)
+            ),
+            "metadata_tags_user_edited": bool(getattr(row, "metadata_tags_user_edited", False)),
+            "metadata_provider": getattr(row, "metadata_provider", None),
+            "metadata_generated_at": (
+                row.metadata_generated_at.isoformat()
+                if getattr(row, "metadata_generated_at", None)
+                else None
+            ),
+            "metadata_generation_ms": getattr(row, "metadata_generation_ms", None),
             "created_at": row.created_at.isoformat(),
             "video_url": f"/tasks/{row.task_id}/clips/{row.id}/file",
         }
@@ -380,6 +428,84 @@ class ClipRepository:
                 "UPDATE generated_clips SET content_policy_flags = :flags, updated_at = NOW() WHERE id = :clip_id"
             ),
             {"clip_id": clip_id, "flags": json.dumps(flags)},
+        )
+        await db.commit()
+
+    @staticmethod
+    async def update_clip_metadata(
+        db: AsyncSession,
+        clip_id: str,
+        *,
+        title: str,
+        description: str,
+        tags: List[str],
+        provider: str,
+        generation_ms: Optional[int] = None,
+    ) -> None:
+        """Full (re)write from a generation run: overwrites title/description/
+        tags outright and resets all three user-edited flags to FALSE, since
+        a fresh generation is not user-authored. Callers implementing the
+        "never overwrite user edits" passive-regeneration rule must instead
+        call update_clip_metadata_fields per-field, checking each
+        *_user_edited flag first."""
+        await db.execute(
+            sa_text(
+                """
+                UPDATE generated_clips
+                SET metadata_title = :title,
+                    metadata_description = :description,
+                    metadata_tags = :tags,
+                    metadata_title_user_edited = FALSE,
+                    metadata_description_user_edited = FALSE,
+                    metadata_tags_user_edited = FALSE,
+                    metadata_provider = :provider,
+                    metadata_generated_at = NOW(),
+                    metadata_generation_ms = :generation_ms,
+                    updated_at = NOW()
+                WHERE id = :clip_id
+                """
+            ),
+            {
+                "clip_id": clip_id,
+                "title": title,
+                "description": description,
+                "tags": json.dumps(tags),
+                "provider": provider,
+                "generation_ms": generation_ms,
+            },
+        )
+        await db.commit()
+
+    @staticmethod
+    async def update_clip_metadata_fields(
+        db: AsyncSession,
+        clip_id: str,
+        *,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+    ) -> None:
+        """Manual user edit: only the fields explicitly passed are updated,
+        each marking its own *_user_edited flag TRUE. An explicit edit always
+        wins outright — never merged/COALESCEd against a concurrent
+        generation."""
+        sets: List[str] = []
+        params: Dict[str, Any] = {"clip_id": clip_id}
+        if title is not None:
+            sets.append("metadata_title = :title, metadata_title_user_edited = TRUE")
+            params["title"] = title
+        if description is not None:
+            sets.append("metadata_description = :description, metadata_description_user_edited = TRUE")
+            params["description"] = description
+        if tags is not None:
+            sets.append("metadata_tags = :tags, metadata_tags_user_edited = TRUE")
+            params["tags"] = json.dumps(tags)
+        if not sets:
+            return
+        sets.append("updated_at = NOW()")
+        await db.execute(
+            sa_text(f"UPDATE generated_clips SET {', '.join(sets)} WHERE id = :clip_id"),
+            params,
         )
         await db.commit()
 

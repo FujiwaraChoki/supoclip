@@ -21,6 +21,7 @@ from ..repositories.cache_repository import CacheRepository
 from .video_service import VideoService
 from .billing_service import BillingService
 from .content_policy_service import ContentPolicyService
+from .metadata_service import MetadataService
 from .task_completion_email_service import (
     TaskCompletionEmailService,
     TaskCompletionRecipient,
@@ -445,6 +446,30 @@ class TaskService:
             except Exception as exc:
                 logger.warning(
                     "Content policy scan failed for task %s: %s", task_id, exc
+                )
+
+            # Metadata generation: one LLM call for the whole video, per spec.
+            # generate_metadata_for_video (via run_with_llm_fallback) already
+            # acquires the shared "llm"/"gpu" resource slots, so this never
+            # overlaps a render job on the same GPU.
+            await update_progress(98, "Generating clip metadata...", stage="metadata")
+            try:
+                clips_for_metadata = await self.clip_repo.get_clips_by_task(self.db, task_id)
+                if clips_for_metadata:
+                    task_record = await self.task_repo.get_task_by_id(self.db, task_id)
+                    video_title = (
+                        (task_record or {}).get("source_title")
+                        or (task_record or {}).get("source_url")
+                    )
+                    await MetadataService(self.db).regenerate_project_metadata(
+                        task_id,
+                        clips_for_metadata,
+                        video_title=video_title,
+                        allow_gemini=self.config.llm_provider_mode in ("gemini", "hybrid"),
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Metadata generation failed for task %s: %s", task_id, exc
                 )
 
             # Mark as completed
