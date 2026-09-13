@@ -15,6 +15,7 @@ import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE
 import { DEFAULT_HOOK_STYLE, hookStylePayload, type HookAnimation, type HookPosition, type HookStyle } from "@/lib/hook-style";
 import { splitHookIntoHighlightSpans } from "@/lib/hook-highlight";
 import { TemplatePicker, type TemplateInfo } from "@/components/template-picker";
+import { takePendingFile } from "@/lib/pending-file-transfer";
 import {
   DEFAULT_BROLL_SETTINGS,
   DEFAULT_SOCIAL_OVERLAY,
@@ -281,6 +282,16 @@ export default function VideoProcessingPage() {
     setPresets(listPresets());
   }, [applyGenerationSettings]);
 
+  // Picked up once on mount: a file handed off by the home screen's
+  // drag-and-drop or "Import Video" CTA (see lib/pending-file-transfer.ts).
+  // A direct visit to /create has nothing pending, so this is a no-op.
+  useEffect(() => {
+    const file = takePendingFile();
+    if (!file) return;
+    setSourceType("upload");
+    handleFileSelected(file);
+  }, []);
+
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const youtubeThumbnailUrl = sourceType === "youtube" ? getYouTubeThumbnailUrl(url) : null;
 
@@ -390,16 +401,16 @@ export default function VideoProcessingPage() {
 
   const getStepIcon = (step: string) => {
     const iconMap: Record<string, React.ReactElement> = {
-      validation: <Loader2 className="w-4 h-4 animate-spin text-blue-500" />,
-      source_analysis: <Loader2 className="w-4 h-4 animate-spin text-blue-500" />,
-      youtube_info: <Youtube className="w-4 h-4 text-red-500" />,
-      download: <Loader2 className="w-4 h-4 animate-spin text-green-500" />,
-      transcript: <Loader2 className="w-4 h-4 animate-spin text-purple-500" />,
-      ai_analysis: <Loader2 className="w-4 h-4 animate-spin text-orange-500" />,
-      clip_generation: <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />,
-      complete: <CheckCircle className="w-4 h-4 text-green-500" />,
+      validation: <Loader2 className="w-4 h-4 animate-spin text-secondary" />,
+      source_analysis: <Loader2 className="w-4 h-4 animate-spin text-secondary" />,
+      youtube_info: <Youtube className="w-4 h-4 text-foreground" />,
+      download: <Loader2 className="w-4 h-4 animate-spin text-primary" />,
+      transcript: <Loader2 className="w-4 h-4 animate-spin text-secondary" />,
+      ai_analysis: <Loader2 className="w-4 h-4 animate-spin text-secondary" />,
+      clip_generation: <Loader2 className="w-4 h-4 animate-spin text-primary" />,
+      complete: <CheckCircle className="w-4 h-4 text-primary" />,
     };
-    return iconMap[step] || <Loader2 className="w-4 h-4 animate-spin text-gray-500" />;
+    return iconMap[step] || <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />;
   };
 
   const buildTaskCreationPayload = (videoUrl: string) => {
@@ -563,8 +574,8 @@ export default function VideoProcessingPage() {
     !isBatchProcessing;
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="border-b bg-white">
+    <div className="min-h-screen bg-background">
+      <div className="border-b border-border bg-background">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/">
             <Button variant="ghost" size="sm">
@@ -572,7 +583,7 @@ export default function VideoProcessingPage() {
               Home
             </Button>
           </Link>
-          <h1 className="text-lg font-bold text-black">New Video</h1>
+          <h1 className="text-lg font-bold text-foreground">New Video</h1>
           <div className="w-16" />
         </div>
       </div>
@@ -581,21 +592,21 @@ export default function VideoProcessingPage() {
         <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row gap-8 items-start">
           {/* Sticky preview column — never scrolls away */}
           <div className="w-full lg:w-[300px] flex-shrink-0 lg:sticky lg:top-8">
-            <div className="flex items-center gap-2 mb-3 text-xs text-stone-400">
+            <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
               <Monitor className="w-3.5 h-3.5" />
               <span>Preview (approximate)</span>
             </div>
             <div className="mx-auto" style={{ maxWidth: "280px" }}>
-              <div className="relative overflow-hidden bg-black rounded-[2rem]" style={{ aspectRatio: "9/16" }}>
+              <div className="relative overflow-hidden bg-foreground border border-border" style={{ aspectRatio: "9/16" }}>
                 {youtubeThumbnailUrl ? (
                   <div
                     className="absolute inset-0 bg-cover bg-center scale-105 blur-sm"
                     style={{ backgroundImage: `url(${youtubeThumbnailUrl})` }}
                   />
                 ) : (
-                  <div className="absolute inset-0 bg-gradient-to-b from-stone-600 via-stone-500 to-stone-700" />
+                  <div className="absolute inset-0 bg-foreground" />
                 )}
-                <div className="absolute inset-0 bg-black/20" />
+                <div className="absolute inset-0 bg-foreground/20" />
 
                 {/* Hook title overlay — text only, composited directly over the frame (not the
                     boxed HookTitlePreview, which has its own opaque background) */}
@@ -611,7 +622,7 @@ export default function VideoProcessingPage() {
                   }}
                 >
                   <span
-                    className="text-center font-bold rounded-[3px]"
+                    className="text-center font-bold"
                     style={{
                       fontFamily: `'${hookStyle.hook_font_family ?? previewFontFamily}', system-ui, sans-serif`,
                       fontSize: `${Math.round((hookStyle.hook_font_size_scale ?? 0.82) * 17)}px`,
@@ -656,11 +667,11 @@ export default function VideoProcessingPage() {
                 {/* Social overlay preview */}
                 {socialOverlay.enabled && (
                   <div className="absolute left-3 z-10 max-w-[75%]" style={{ bottom: "10%" }}>
-                    <p className="text-white text-xs font-bold mb-1 flex items-center gap-1">
+                    <p className="text-background text-xs font-bold mb-1 flex items-center gap-1">
                       @{socialOverlay.username.trim() || "yourhandle"}
-                      {socialOverlay.verified && <span className="text-blue-400">✓</span>}
+                      {socialOverlay.verified && <span className="text-secondary">✓</span>}
                     </p>
-                    <p className="text-white/80 text-[10px]">
+                    <p className="text-background/80 text-[10px]">
                       {(socialOverlay.likes.trim() || "24.5K")} likes · {(socialOverlay.comments.trim() || "482")} comments
                       {socialOverlay.followers.trim() ? ` · ${socialOverlay.followers.trim()} followers` : ""}
                     </p>
@@ -673,16 +684,16 @@ export default function VideoProcessingPage() {
           {/* Tabbed controls */}
           <div className="flex-1 min-w-0 space-y-4">
             {error && (
-              <Alert className="border-red-200 bg-red-50">
-                <AlertCircle className="h-4 w-4 text-red-500" />
-                <AlertDescription className="text-sm text-red-700">{error}</AlertDescription>
+              <Alert className="border-border bg-background">
+                <AlertCircle className="h-4 w-4 text-foreground" />
+                <AlertDescription className="text-sm text-foreground font-bold">{error}</AlertDescription>
               </Alert>
             )}
 
             {/* Presets bar */}
-            <Card className="border-stone-200">
+            <Card className="border-border">
               <CardContent className="px-4 py-3 space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-stone-900">
+                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                   <Settings className="w-4 h-4" />
                   Presets
                 </div>
@@ -747,7 +758,7 @@ export default function VideoProcessingPage() {
             </Card>
 
             {/* Tab bar */}
-            <div className="flex gap-1 border-b border-stone-200 overflow-x-auto">
+            <div className="flex gap-1 border-b border-border overflow-x-auto">
               {TABS.map((tab) => {
                 const Icon = tab.icon;
                 return (
@@ -757,8 +768,8 @@ export default function VideoProcessingPage() {
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
                       activeTab === tab.id
-                        ? "border-stone-900 text-stone-900"
-                        : "border-transparent text-stone-500 hover:text-stone-700"
+                        ? "border-foreground text-foreground"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -781,8 +792,8 @@ export default function VideoProcessingPage() {
                       if (fileInputRef.current) fileInputRef.current.value = "";
                     }}
                     disabled={isLoading}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      sourceType === "youtube" ? "bg-stone-900 text-white shadow-sm" : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all border ${
+                      sourceType === "youtube" ? "bg-foreground text-background border-foreground" : "bg-background text-muted-foreground border-border hover:text-foreground"
                     }`}
                   >
                     <Youtube className="w-4 h-4" />
@@ -792,8 +803,8 @@ export default function VideoProcessingPage() {
                     type="button"
                     onClick={() => setSourceType("upload")}
                     disabled={isLoading}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      sourceType === "upload" ? "bg-stone-900 text-white shadow-sm" : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all border ${
+                      sourceType === "upload" ? "bg-foreground text-background border-foreground" : "bg-background text-muted-foreground border-border hover:text-foreground"
                     }`}
                   >
                     <Upload className="w-4 h-4" />
@@ -803,20 +814,20 @@ export default function VideoProcessingPage() {
 
                 {sourceType === "youtube" ? (
                   <div className="relative">
-                    <Youtube className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
+                    <Youtube className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                     <Input
                       type="url"
                       placeholder="https://www.youtube.com/watch?v=..."
                       value={url}
                       onChange={(e) => setUrl(e.target.value)}
                       disabled={isLoading}
-                      className="h-14 pl-12 text-base rounded-xl border-stone-300 focus:border-stone-500 placeholder:text-stone-400"
+                      className="h-14 pl-12 text-base border-border focus:border-foreground placeholder:text-muted-foreground"
                     />
                   </div>
                 ) : (
                   <div
-                    className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
-                      isDraggingFile ? "border-stone-500 bg-stone-50" : "border-stone-300 hover:border-stone-400"
+                    className={`relative border-2 border-dashed p-8 text-center transition-colors cursor-pointer ${
+                      isDraggingFile ? "border-foreground bg-background" : "border-border hover:border-foreground"
                     }`}
                     onClick={() => !isLoading && fileInputRef.current?.click()}
                     onDragOver={handleDragOver}
@@ -832,34 +843,34 @@ export default function VideoProcessingPage() {
                       disabled={isLoading}
                       className="hidden"
                     />
-                    <Upload className="w-8 h-8 text-stone-400 mx-auto mb-3" />
+                    <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
                     {fileName ? (
-                      <p className="text-sm font-medium text-stone-900">{fileName}</p>
+                      <p className="text-sm font-medium text-foreground">{fileName}</p>
                     ) : (
                       <>
-                        <p className="text-sm font-medium text-stone-700">Drop video files here or click to browse</p>
-                        <p className="text-xs text-stone-400 mt-1">MP4, MOV, AVI up to 500MB · drop multiple to batch-process</p>
+                        <p className="text-sm font-medium text-foreground">Drop video files here or click to browse</p>
+                        <p className="text-xs text-muted-foreground mt-1">MP4, MOV, AVI up to 500MB · drop multiple to batch-process</p>
                       </>
                     )}
                   </div>
                 )}
 
                 {queuedFiles.length > 1 && (
-                  <div className="rounded-lg border border-stone-200 divide-y divide-stone-100">
+                  <div className="border border-border divide-y divide-border">
                     {queuedFiles.map((file, idx) => {
                       const status = batchStatuses[idx]?.status;
                       return (
                         <div key={`${file.name}-${idx}`} className="flex items-center justify-between px-3 py-2 text-xs">
-                          <span className="truncate text-stone-700">{file.name}</span>
+                          <span className="truncate text-foreground">{file.name}</span>
                           <span
                             className={`ml-2 flex-shrink-0 font-medium ${
                               status === "done"
-                                ? "text-emerald-600"
+                                ? "text-primary"
                                 : status === "error"
-                                  ? "text-red-600"
+                                  ? "text-foreground font-bold"
                                   : status === "uploading" || status === "creating"
-                                    ? "text-stone-900"
-                                    : "text-stone-400"
+                                    ? "text-foreground"
+                                    : "text-muted-foreground"
                             }`}
                           >
                             {status === "done"
@@ -884,7 +895,7 @@ export default function VideoProcessingPage() {
             {activeTab === "style" && (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600">Caption Style</label>
+                  <label className="text-sm text-muted-foreground">Caption Style</label>
                   <TemplatePicker
                     templates={availableTemplates}
                     selectedId={captionTemplate}
@@ -894,7 +905,7 @@ export default function VideoProcessingPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600 flex items-center gap-2">
+                  <label className="text-sm text-muted-foreground flex items-center gap-2">
                     <Type className="w-3.5 h-3.5" />
                     Font Family
                   </label>
@@ -924,11 +935,11 @@ export default function VideoProcessingPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  {fontLoadError && <p className="text-xs text-amber-700">{fontLoadError}</p>}
+                  {fontLoadError && <p className="text-xs text-foreground font-bold">{fontLoadError}</p>}
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600">Size</label>
+                  <label className="text-sm text-muted-foreground">Size</label>
                   <div className="grid grid-cols-4 gap-1.5">
                     {FONT_SIZE_OPTIONS.map((option) => (
                       <button
@@ -936,8 +947,8 @@ export default function VideoProcessingPage() {
                         type="button"
                         onClick={() => setFontSize(option.value)}
                         disabled={isLoading}
-                        className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                          fontSize === option.value ? "bg-stone-900 text-white border-stone-900" : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                        className={`px-2 py-1.5 text-xs font-medium border transition-colors ${
+                          fontSize === option.value ? "bg-foreground text-background border-foreground" : "bg-background text-muted-foreground border-border hover:text-foreground"
                         }`}
                       >
                         {option.label}
@@ -947,7 +958,7 @@ export default function VideoProcessingPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600 flex items-center gap-1.5">
+                  <label className="text-sm text-muted-foreground flex items-center gap-1.5">
                     <Palette className="w-3.5 h-3.5" />
                     Color
                   </label>
@@ -957,20 +968,20 @@ export default function VideoProcessingPage() {
                       value={fontColor ?? "#FFFFFF"}
                       onChange={(e) => setFontColor(e.target.value)}
                       disabled={isLoading}
-                      className="w-10 h-8 rounded border border-stone-300 cursor-pointer"
+                      className="w-10 h-8 border border-border cursor-pointer"
                     />
-                    <button type="button" className="text-xs text-stone-500 hover:text-stone-700" onClick={() => setFontColor(null)}>
+                    <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setFontColor(null)}>
                       Template default
                     </button>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-stone-50">
+                <div className="flex items-center justify-between p-3 border border-border bg-background">
                   <div className="flex items-center gap-3">
-                    <Type className="w-4 h-4 text-emerald-500" />
+                    <Type className="w-4 h-4 text-primary" />
                     <div>
-                      <h3 className="text-sm font-medium text-stone-900">Add subtitles</h3>
-                      <p className="text-xs text-stone-500">Burn captions onto clips</p>
+                      <h3 className="text-sm font-medium text-foreground">Add subtitles</h3>
+                      <p className="text-xs text-muted-foreground">Burn captions onto clips</p>
                     </div>
                   </div>
                   <Switch checked={addSubtitles} onCheckedChange={setAddSubtitles} disabled={isLoading} />
@@ -982,7 +993,7 @@ export default function VideoProcessingPage() {
             {activeTab === "hook" && (
               <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600 flex items-center gap-2">
+                  <label className="text-sm text-muted-foreground flex items-center gap-2">
                     <Type className="w-3.5 h-3.5" />
                     Font Family
                   </label>
@@ -1006,7 +1017,7 @@ export default function VideoProcessingPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600">Size</label>
+                  <label className="text-sm text-muted-foreground">Size</label>
                   <div className="grid grid-cols-4 gap-1.5">
                     {[
                       { label: "Small", value: 0.65 },
@@ -1019,8 +1030,8 @@ export default function VideoProcessingPage() {
                         type="button"
                         onClick={() => updateHookStyle("hook_font_size_scale", option.value)}
                         disabled={isLoading}
-                        className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                          hookStyle.hook_font_size_scale === option.value ? "bg-stone-900 text-white border-stone-900" : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                        className={`px-2 py-1.5 text-xs font-medium border transition-colors ${
+                          hookStyle.hook_font_size_scale === option.value ? "bg-foreground text-background border-foreground" : "bg-background text-muted-foreground border-border hover:text-foreground"
                         }`}
                       >
                         {option.label}
@@ -1031,7 +1042,7 @@ export default function VideoProcessingPage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <label className="text-sm text-stone-600 flex items-center gap-1.5">
+                    <label className="text-sm text-muted-foreground flex items-center gap-1.5">
                       <Palette className="w-3.5 h-3.5" />
                       Text color
                     </label>
@@ -1041,15 +1052,15 @@ export default function VideoProcessingPage() {
                         value={hookStyle.hook_font_color ?? "#FFFFFF"}
                         onChange={(e) => updateHookStyle("hook_font_color", e.target.value)}
                         disabled={isLoading}
-                        className="w-10 h-8 rounded border border-stone-300 cursor-pointer"
+                        className="w-10 h-8 border border-border cursor-pointer"
                       />
-                      <button type="button" className="text-xs text-stone-500 hover:text-stone-700" onClick={() => updateHookStyle("hook_font_color", null)}>
+                      <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => updateHookStyle("hook_font_color", null)}>
                         Reset
                       </button>
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-sm text-stone-600 flex items-center justify-between">
+                    <label className="text-sm text-muted-foreground flex items-center justify-between">
                       <span>Yellow keyword</span>
                     </label>
                     <div className="flex items-center gap-2">
@@ -1058,9 +1069,9 @@ export default function VideoProcessingPage() {
                         value={hookStyle.hook_highlight_color ?? "#FFE000"}
                         onChange={(e) => updateHookStyle("hook_highlight_color", e.target.value)}
                         disabled={isLoading}
-                        className="w-10 h-8 rounded border border-stone-300 cursor-pointer"
+                        className="w-10 h-8 border border-border cursor-pointer"
                       />
-                      <button type="button" className="text-xs text-stone-500 hover:text-stone-700" onClick={() => updateHookStyle("hook_highlight_color", null)}>
+                      <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => updateHookStyle("hook_highlight_color", null)}>
                         Reset
                       </button>
                     </div>
@@ -1068,7 +1079,7 @@ export default function VideoProcessingPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600 flex items-center justify-between">
+                  <label className="text-sm text-muted-foreground flex items-center justify-between">
                     <span>Background box</span>
                     <Switch
                       checked={hookStyle.hook_background_color !== null}
@@ -1085,31 +1096,31 @@ export default function VideoProcessingPage() {
                         value={hookStyle.hook_background_color.slice(0, 7)}
                         onChange={(e) => updateHookStyle("hook_background_color", `${e.target.value}99`)}
                         disabled={isLoading}
-                        className="w-10 h-8 rounded border border-stone-300 cursor-pointer"
+                        className="w-10 h-8 border border-border cursor-pointer"
                       />
-                      <span className="text-xs text-stone-500">Box color</span>
+                      <span className="text-xs text-muted-foreground">Box color</span>
                     </div>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600">Outline</label>
+                  <label className="text-sm text-muted-foreground">Outline</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
                       value={hookStyle.hook_stroke_color ?? "#000000"}
                       onChange={(e) => updateHookStyle("hook_stroke_color", e.target.value)}
                       disabled={isLoading}
-                      className="w-10 h-8 rounded border border-stone-300 cursor-pointer"
+                      className="w-10 h-8 border border-border cursor-pointer"
                     />
-                    <button type="button" className="text-xs text-stone-500 hover:text-stone-700" onClick={() => updateHookStyle("hook_stroke_color", null)}>
+                    <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => updateHookStyle("hook_stroke_color", null)}>
                       Reset
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600">Position</label>
+                  <label className="text-sm text-muted-foreground">Position</label>
                   <div className="grid grid-cols-3 gap-1.5">
                     {(["top", "center", "bottom"] as HookPosition[]).map((position) => (
                       <button
@@ -1117,8 +1128,8 @@ export default function VideoProcessingPage() {
                         type="button"
                         onClick={() => updateHookStyle("hook_position", position)}
                         disabled={isLoading}
-                        className={`px-2 py-1.5 rounded-md text-xs font-medium border capitalize transition-colors ${
-                          (hookStyle.hook_position ?? "top") === position ? "bg-stone-900 text-white border-stone-900" : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                        className={`px-2 py-1.5 text-xs font-medium border capitalize transition-colors ${
+                          (hookStyle.hook_position ?? "top") === position ? "bg-foreground text-background border-foreground" : "bg-background text-muted-foreground border-border hover:text-foreground"
                         }`}
                       >
                         {position}
@@ -1128,9 +1139,9 @@ export default function VideoProcessingPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600 flex items-center justify-between">
+                  <label className="text-sm text-muted-foreground flex items-center justify-between">
                     <span>Duration</span>
-                    <span className="text-stone-400">{(hookStyle.hook_duration_seconds ?? 4).toFixed(1)}s</span>
+                    <span className="text-muted-foreground">{(hookStyle.hook_duration_seconds ?? 4).toFixed(1)}s</span>
                   </label>
                   <input
                     type="range"
@@ -1145,7 +1156,7 @@ export default function VideoProcessingPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600">Animation</label>
+                  <label className="text-sm text-muted-foreground">Animation</label>
                   <Select
                     value={hookStyle.hook_animation ?? "fade_pop"}
                     onValueChange={(value) => updateHookStyle("hook_animation", value as HookAnimation)}
@@ -1165,12 +1176,12 @@ export default function VideoProcessingPage() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <label className="text-sm text-stone-600">Drop shadow</label>
+                  <label className="text-sm text-muted-foreground">Drop shadow</label>
                   <Switch checked={hookStyle.hook_shadow ?? true} onCheckedChange={(checked) => updateHookStyle("hook_shadow", checked)} disabled={isLoading} />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600 flex items-center gap-2">
+                  <label className="text-sm text-muted-foreground flex items-center gap-2">
                     <Music className="w-3.5 h-3.5" />
                     Whoosh/riser SFX
                   </label>
@@ -1192,7 +1203,7 @@ export default function VideoProcessingPage() {
                     </SelectContent>
                   </Select>
                   {sfxOptions.length === 0 && (
-                    <p className="text-xs text-stone-400">
+                    <p className="text-xs text-muted-foreground">
                       Add sound files to the SFX library in{" "}
                       <Link href="/settings" className="underline">
                         Settings
@@ -1202,7 +1213,7 @@ export default function VideoProcessingPage() {
                   )}
                 </div>
 
-                <button type="button" className="text-xs text-stone-500 hover:text-stone-700 underline" onClick={() => setHookStyle(DEFAULT_HOOK_STYLE)}>
+                <button type="button" className="text-xs text-muted-foreground hover:text-foreground underline" onClick={() => setHookStyle(DEFAULT_HOOK_STYLE)}>
                   Reset all hook styling to template default
                 </button>
               </div>
@@ -1211,11 +1222,11 @@ export default function VideoProcessingPage() {
             {/* Retention tab */}
             {activeTab === "retention" && (
               <div className="space-y-5">
-                <div className="rounded-lg border bg-stone-50 p-3 space-y-3">
+                <div className="border border-border bg-background p-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-sm font-medium text-stone-900">Fake social overlay</h3>
-                      <p className="text-xs text-stone-500">Username, verified badge, like/comment/follower counts — cosmetic only.</p>
+                      <h3 className="text-sm font-medium text-foreground">Fake social overlay</h3>
+                      <p className="text-xs text-muted-foreground">Username, verified badge, like/comment/follower counts — cosmetic only.</p>
                     </div>
                     <Switch checked={socialOverlay.enabled} onCheckedChange={(checked) => updateSocialOverlay("enabled", checked)} disabled={isLoading} />
                   </div>
@@ -1232,7 +1243,7 @@ export default function VideoProcessingPage() {
                         <Input placeholder="Comments (482)" value={socialOverlay.comments} onChange={(e) => updateSocialOverlay("comments", e.target.value)} disabled={isLoading} />
                         <Input placeholder="Followers" value={socialOverlay.followers} onChange={(e) => updateSocialOverlay("followers", e.target.value)} disabled={isLoading} />
                       </div>
-                      <label className="flex items-center gap-2 text-sm text-stone-700">
+                      <label className="flex items-center gap-2 text-sm text-foreground">
                         <input
                           type="checkbox"
                           checked={socialOverlay.verified}
@@ -1246,18 +1257,18 @@ export default function VideoProcessingPage() {
                   )}
                 </div>
 
-                <div className="rounded-lg border bg-stone-50 p-3 space-y-3">
+                <div className="border border-border bg-background p-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-sm font-medium text-stone-900">B-roll cuts</h3>
-                      <p className="text-xs text-stone-500">Let the AI suggest B-roll insertion points from stock footage.</p>
+                      <h3 className="text-sm font-medium text-foreground">B-roll cuts</h3>
+                      <p className="text-xs text-muted-foreground">Let the AI suggest B-roll insertion points from stock footage.</p>
                     </div>
                     <Switch checked={brollSettings.enabled} onCheckedChange={(checked) => updateBrollSettings("enabled", checked)} disabled={isLoading} />
                   </div>
                   {brollSettings.enabled && (
                     <div className="space-y-3">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-stone-500 flex items-center justify-between">
+                        <label className="text-xs font-medium text-muted-foreground flex items-center justify-between">
                           <span>Max insertions per clip</span>
                           <span>{brollSettings.maxInsertions}</span>
                         </label>
@@ -1273,7 +1284,7 @@ export default function VideoProcessingPage() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-stone-500 flex items-center justify-between">
+                        <label className="text-xs font-medium text-muted-foreground flex items-center justify-between">
                           <span>Minimum gap between insertions</span>
                           <span>{brollSettings.minGapSeconds}s</span>
                         </label>
@@ -1293,7 +1304,7 @@ export default function VideoProcessingPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600">Target clip length</label>
+                  <label className="text-sm text-muted-foreground">Target clip length</label>
                   <div className="grid grid-cols-4 gap-1.5">
                     {[15, 30, 60, null].map((preset) => (
                       <button
@@ -1301,19 +1312,19 @@ export default function VideoProcessingPage() {
                         type="button"
                         onClick={() => setTargetDuration(preset as TargetDuration)}
                         disabled={isLoading}
-                        className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                          targetDuration === preset ? "bg-stone-900 text-white border-stone-900" : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                        className={`px-2 py-1.5 text-xs font-medium border transition-colors ${
+                          targetDuration === preset ? "bg-foreground text-background border-foreground" : "bg-background text-muted-foreground border-border hover:text-foreground"
                         }`}
                       >
                         {preset ? `${preset}s` : "Auto"}
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-stone-400">The AI aims for clips around this length, and clips longer than it get trimmed down.</p>
+                  <p className="text-xs text-muted-foreground">The AI aims for clips around this length, and clips longer than it get trimmed down.</p>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm text-stone-600">Clip count</label>
+                  <label className="text-sm text-muted-foreground">Clip count</label>
                   <div className="grid grid-cols-5 gap-1.5">
                     {[3, 5, 7, 10, null].map((preset) => (
                       <button
@@ -1321,15 +1332,15 @@ export default function VideoProcessingPage() {
                         type="button"
                         onClick={() => setClipCount(preset)}
                         disabled={isLoading}
-                        className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-                          clipCount === preset ? "bg-stone-900 text-white border-stone-900" : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                        className={`px-2 py-1.5 text-xs font-medium border transition-colors ${
+                          clipCount === preset ? "bg-foreground text-background border-foreground" : "bg-background text-muted-foreground border-border hover:text-foreground"
                         }`}
                       >
                         {preset ?? "Auto"}
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-stone-400">How many clips the AI aims to produce from this video (quality still gates each pick).</p>
+                  <p className="text-xs text-muted-foreground">How many clips the AI aims to produce from this video (quality still gates each pick).</p>
                 </div>
               </div>
             )}
@@ -1339,8 +1350,8 @@ export default function VideoProcessingPage() {
               <div className="space-y-4">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-stone-900">Cleanup sensitivity</label>
-                    <span className="text-xs text-stone-500 tabular-nums">
+                    <label className="text-sm font-medium text-foreground">Cleanup sensitivity</label>
+                    <span className="text-xs text-muted-foreground tabular-nums">
                       {cleanupSensitivity === null ? "Off" : `${cleanupSensitivity}/100`}
                     </span>
                   </div>
@@ -1352,7 +1363,7 @@ export default function VideoProcessingPage() {
                     disabled={isLoading}
                     onValueChange={([value]) => setCleanupSensitivity(value)}
                   />
-                  <p className="text-xs text-stone-400">
+                  <p className="text-xs text-muted-foreground">
                     0 turns cleanup off. Higher values cut shorter pauses and more filler words at once
                     &mdash; this overrides the manual controls below. Meaning-changing cuts (punchlines,
                     sentence-ending words, emphatic delivery) are always protected regardless of sensitivity.
@@ -1362,7 +1373,7 @@ export default function VideoProcessingPage() {
                       type="button"
                       onClick={() => setCleanupSensitivity(null)}
                       disabled={isLoading}
-                      className="text-xs text-stone-500 underline hover:text-stone-700"
+                      className="text-xs text-muted-foreground underline hover:text-foreground"
                     >
                       Reset to manual controls
                     </button>
@@ -1371,13 +1382,13 @@ export default function VideoProcessingPage() {
                 <Separator />
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-medium text-stone-900">Cut long pauses</div>
-                    <div className="text-xs text-stone-500">Split out silence gaps longer than your threshold.</div>
+                    <div className="text-sm font-medium text-foreground">Cut long pauses</div>
+                    <div className="text-xs text-muted-foreground">Split out silence gaps longer than your threshold.</div>
                   </div>
                   <Switch checked={cutLongPauses} onCheckedChange={setCutLongPauses} disabled={isLoading || cleanupSensitivity !== null} />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-stone-500">Pause threshold (ms)</label>
+                  <label className="text-xs font-medium text-muted-foreground">Pause threshold (ms)</label>
                   <Input
                     type="number"
                     min={250}
@@ -1391,13 +1402,13 @@ export default function VideoProcessingPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-medium text-stone-900">Remove filler words</div>
-                    <div className="text-xs text-stone-500">Uses a safe default list like &quot;um&quot;, &quot;uh&quot;, and &quot;you know&quot;.</div>
+                    <div className="text-sm font-medium text-foreground">Remove filler words</div>
+                    <div className="text-xs text-muted-foreground">Uses a safe default list like &quot;um&quot;, &quot;uh&quot;, and &quot;you know&quot;.</div>
                   </div>
                   <Switch checked={removeFillerWords} onCheckedChange={setRemoveFillerWords} disabled={isLoading || cleanupSensitivity !== null} />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-stone-500">Extra filtered words or phrases</label>
+                  <label className="text-xs font-medium text-muted-foreground">Extra filtered words or phrases</label>
                   <Input
                     value={filteredWords}
                     onChange={(e) => setFilteredWords(e.target.value)}
@@ -1411,16 +1422,16 @@ export default function VideoProcessingPage() {
             {/* Output tab */}
             {activeTab === "output" && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between gap-4 p-3 border rounded-lg bg-stone-50">
+                <div className="flex items-center justify-between gap-4 p-3 border rounded-lg bg-background">
                   <div className="flex min-w-0 items-center gap-3">
-                    <Monitor className="w-4 h-4 text-blue-500" />
+                    <Monitor className="w-4 h-4 text-secondary" />
                     <div>
-                      <h3 className="text-sm font-medium text-stone-900">Framing</h3>
-                      <p className="text-xs text-stone-500">Choose how clips are reframed for social video</p>
+                      <h3 className="text-sm font-medium text-foreground">Framing</h3>
+                      <p className="text-xs text-muted-foreground">Choose how clips are reframed for social video</p>
                     </div>
                   </div>
                   <Select value={outputFormat} onValueChange={(value) => setOutputFormat(value as OutputFormat)} disabled={isLoading}>
-                    <SelectTrigger className="w-[180px] bg-white">
+                    <SelectTrigger className="w-[180px] bg-background">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1437,16 +1448,16 @@ export default function VideoProcessingPage() {
             {isLoading && (
               <div className="space-y-2 pt-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-stone-600">Processing</span>
-                  <span className="text-stone-900 font-medium">{progress}%</span>
+                  <span className="text-muted-foreground">Processing</span>
+                  <span className="text-foreground font-medium">{progress}%</span>
                 </div>
                 <Progress value={progress} className="h-2" />
                 {currentStep && statusMessage && (
-                  <div className="flex items-center gap-3 bg-stone-50 rounded-xl p-3 border border-stone-200">
+                  <div className="flex items-center gap-3 bg-background p-3 border border-border">
                     {getStepIcon(currentStep)}
                     <div>
-                      <p className="text-sm font-medium text-stone-900">{statusMessage}</p>
-                      {sourceTitle && <p className="text-xs text-stone-500 mt-1">Processing: {sourceTitle}</p>}
+                      <p className="text-sm font-medium text-foreground">{statusMessage}</p>
+                      {sourceTitle && <p className="text-xs text-muted-foreground mt-1">Processing: {sourceTitle}</p>}
                     </div>
                   </div>
                 )}
