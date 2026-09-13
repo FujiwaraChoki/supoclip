@@ -1,59 +1,38 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/empty-state";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { useDelayedFlag } from "@/hooks/use-delayed-flag";
-import Link from "next/link";
-import Image from "next/image";
-import { ArrowRight, CheckCircle, Loader2, Film, List, Settings, Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { UploadCloud } from "lucide-react";
 
-interface TaskSummary {
-  id: string;
-  source_title: string;
-  source_type: string;
-  status: string;
-  clips_count: number;
-  created_at: string;
-}
+import { HomeTopBar } from "@/components/home/home-top-bar";
+import { HeroActions } from "@/components/home/hero-actions";
+import { RecentProjects, type TaskSummary } from "@/components/home/recent-projects";
+import { ToolsGrid } from "@/components/home/tools-grid";
+import { StatusStrip } from "@/components/home/status-strip";
+import { ActivityFeed } from "@/components/home/activity-feed";
+import { setPendingFile } from "@/lib/pending-file-transfer";
+import { getLastOpenedProject, type LastOpenedProject } from "@/lib/last-project";
 
-function statusBadge(status: string) {
-  if (status === "completed") {
-    return (
-      <Badge className="bg-green-100 text-green-800 text-xs">
-        <CheckCircle className="w-3 h-3 mr-1" />
-        Completed
-      </Badge>
-    );
-  }
-  if (status === "processing" || status === "queued") {
-    return (
-      <Badge className="bg-blue-100 text-blue-800 text-xs">
-        <Loader2 className="w-3 h-3 animate-spin" />
-        {status === "queued" ? "Queued" : "Processing"}
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className="text-xs">
-      {status}
-    </Badge>
-  );
-}
-
-/** Local-first dashboard: recent projects + a way to start a new one. No login, no form here. */
+/** The home screen: an operations-dashboard launchpad for the multi-tool
+ * platform (see CLAUDE.md's "Home Screen" section), not a marketing page or
+ * a bare project list. Sections top to bottom: top bar, hero CTAs, recent
+ * projects, tools grid, activity, system status strip. */
 export default function HomeApp() {
+  const router = useRouter();
   const [tasks, setTasks] = useState<TaskSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const showLoading = useDelayedFlag(isLoading);
+  const [lastProject, setLastProject] = useState<LastOpenedProject | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const dragDepthRef = useRef(0);
+
+  useEffect(() => {
+    setLastProject(getLastOpenedProject());
+  }, []);
 
   useEffect(() => {
     const loadTasks = async () => {
       try {
-        const response = await fetch("/api/tasks/", { cache: "no-store" });
+        const response = await fetch("/api/tasks/?limit=20", { cache: "no-store" });
         if (response.ok) {
           const data = await response.json();
           setTasks(data.tasks || []);
@@ -65,114 +44,69 @@ export default function HomeApp() {
       }
     };
 
-    loadTasks();
+    void loadTasks();
   }, []);
 
+  const processingCount = tasks.filter((task) => task.status === "processing" || task.status === "queued").length;
+
+  // Page-level drag-and-drop: dropping a file anywhere on home hands it off
+  // to /create the same way "Import Video" does (see pending-file-transfer.ts).
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.types.includes("Files")) setIsDraggingFile(true);
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    if (!e.dataTransfer.types.includes("Files")) return;
+    dragDepthRef.current += 1;
+    setIsDraggingFile(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDraggingFile(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDraggingFile(false);
+      dragDepthRef.current = 0;
+      const file = e.dataTransfer.files?.[0];
+      if (!file) return;
+      setPendingFile(file);
+      router.push("/create");
+    },
+    [router],
+  );
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b bg-background">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="SupoClip" width={24} height={24} className="rounded-lg" />
-            <h1 className="text-xl font-bold text-foreground">SupoClip</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link href="/list">
-              <Button variant="outline" size="sm">
-                <List className="w-4 h-4" />
-                All Generations
-              </Button>
-            </Link>
-            <Link href="/trash">
-              <Button variant="outline" size="sm">
-                <Trash2 className="w-4 h-4" />
-                Trash
-              </Button>
-            </Link>
-            <Link href="/settings">
-              <Button variant="outline" size="sm">
-                <Settings className="w-4 h-4" />
-                Settings
-              </Button>
-            </Link>
-            <ThemeToggle />
-          </div>
+    <div
+      className="min-h-screen bg-background relative"
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDraggingFile && (
+        <div className="fixed inset-0 z-50 bg-background border-4 border-dashed border-primary flex flex-col items-center justify-center gap-3 pointer-events-none">
+          <UploadCloud className="w-10 h-10 text-primary" />
+          <p className="text-sm font-semibold text-foreground">Drop to start a new clip</p>
         </div>
+      )}
+
+      <HomeTopBar />
+
+      <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col gap-8">
+        <HeroActions lastProject={lastProject} />
+        <RecentProjects tasks={tasks} isLoading={isLoading} />
+        <ToolsGrid processingCount={processingCount} />
+        <ActivityFeed tasks={tasks} />
       </div>
 
-      {/* Main content */}
-      <div className="max-w-6xl mx-auto px-6 py-10">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h2 className="text-2xl font-bold text-stone-900 mb-1">Your projects</h2>
-            <p className="text-stone-500">Paste a YouTube link or upload a video — AI handles the rest.</p>
-          </div>
-          <Link href="/create">
-            <Button size="lg" className="rounded-xl">
-              <Plus className="w-4 h-4" />
-              New Video
-            </Button>
-          </Link>
-        </div>
-
-        {showLoading && (
-          <div className="space-y-3">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="p-4 rounded-xl border border-stone-200">
-                <div className="flex items-center gap-4">
-                  <Skeleton className="w-10 h-10 rounded-lg" />
-                  <div className="flex-1">
-                    <Skeleton className="h-4 w-48 mb-1.5" />
-                    <Skeleton className="h-3 w-32" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {!isLoading && tasks.length === 0 && (
-          <EmptyState
-            icon={Film}
-            title="No projects yet"
-            description="Paste a YouTube link or upload a video to get started."
-            action={{ label: "Create your first clip", href: "/create" }}
-          />
-        )}
-
-        {!isLoading && tasks.length > 0 && (
-          <div className="space-y-3">
-            {tasks.map((task) => (
-              <Link key={task.id} href={`/tasks/${task.id}`} className="block">
-                <div className="flex items-center justify-between p-4 rounded-xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 transition-colors group">
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-stone-900 flex items-center justify-center">
-                      <Film className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-stone-900 truncate">{task.source_title}</p>
-                      <div className="flex items-center gap-2 text-xs text-stone-500 mt-0.5">
-                        <span className="capitalize">{task.source_type}</span>
-                        <span>&middot;</span>
-                        <span>{new Date(task.created_at).toLocaleDateString()}</span>
-                        <span>&middot;</span>
-                        <span>
-                          {task.clips_count} {task.clips_count === 1 ? "clip" : "clips"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    {statusBadge(task.status)}
-                    <ArrowRight className="w-4 h-4 text-stone-400 group-hover:text-stone-600 transition-colors" />
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+      <StatusStrip />
     </div>
   );
 }
