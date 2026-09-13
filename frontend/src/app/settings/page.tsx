@@ -15,7 +15,7 @@ import { LOCAL_USER_ID } from "@/lib/local-user";
 import { formatBillingPlanName, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight, Mic, Music, SlidersHorizontal, Download } from "lucide-react";
+import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight, Mic, Music, SlidersHorizontal, Download, LayoutTemplate } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RuntimeSettingsForm, type RuntimeSetting } from "@/components/admin/runtime-settings-form";
 import { EmptyState } from "@/components/empty-state";
@@ -633,6 +633,19 @@ export default function SettingsPage() {
                     <div>
                       <p className="text-sm font-medium text-foreground">API Keys</p>
                       <p className="text-xs text-gray-500">Create and manage API keys</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                </div>
+              </Link>
+
+              <Link href="/settings/templates" className="block">
+                <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <LayoutTemplate className="w-5 h-5 text-foreground" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Templates</p>
+                      <p className="text-xs text-gray-500">Reusable project settings bundles</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-400" />

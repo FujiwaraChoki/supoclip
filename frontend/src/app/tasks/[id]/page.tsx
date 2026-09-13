@@ -37,6 +37,7 @@ import { HookTitlePreview } from "@/components/hook-title-preview";
 import { HookVariantCompare } from "@/components/hook-variant-compare";
 import { TemplatePicker, type TemplateInfo } from "@/components/template-picker";
 import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft,
   Download,
@@ -211,6 +212,13 @@ export default function TaskPage() {
   }, []);
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
   const [regeneratingHookClipId, setRegeneratingHookClipId] = useState<string | null>(null);
+  const [projectTemplates, setProjectTemplates] = useState<
+    Array<{ id: string; name: string; section_count: number }>
+  >([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [newTemplateName, setNewTemplateName] = useState("");
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [isApplyingTemplate, setIsApplyingTemplate] = useState<"replace" | "merge" | null>(null);
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
   const [deletingFontName, setDeletingFontName] = useState<string | null>(null);
@@ -713,6 +721,58 @@ export default function TaskPage() {
       projectRemoveFillerWords, projectHookStyle, projectSocialOverlay, buildSupportError, fetchTaskStatus,
     ],
   );
+
+  useEffect(() => {
+    if (!settingsSheetOpen) return;
+    fetch("/api/templates", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : { templates: [] }))
+      .then((data) => setProjectTemplates(data.templates || []))
+      .catch(() => setProjectTemplates([]));
+  }, [settingsSheetOpen]);
+
+  const handleSaveAsTemplate = async () => {
+    const name = newTemplateName.trim();
+    if (!name || !params.id) return;
+    setIsSavingTemplate(true);
+    try {
+      const response = await fetch("/api/templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, task_id: params.id }),
+      });
+      if (!response.ok) throw new Error(await buildSupportError(response, "Failed to save template"));
+      toast.success(`Saved template "${name}".`);
+      setNewTemplateName("");
+      const listResponse = await fetch("/api/templates", { cache: "no-store" });
+      if (listResponse.ok) {
+        const data = await listResponse.json();
+        setProjectTemplates(data.templates || []);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save template");
+    } finally {
+      setIsSavingTemplate(false);
+    }
+  };
+
+  const handleApplyTemplate = async (mode: "replace" | "merge") => {
+    if (!selectedTemplateId || !params.id) return;
+    setIsApplyingTemplate(mode);
+    try {
+      const response = await fetch(`/api/templates/${selectedTemplateId}/apply/${params.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      if (!response.ok) throw new Error(await buildSupportError(response, "Failed to apply template"));
+      toast.success(mode === "replace" ? "Template applied — all settings replaced." : "Template merged into current settings.");
+      await fetchTaskStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to apply template");
+    } finally {
+      setIsApplyingTemplate(null);
+    }
+  };
 
   const handleApplyProjectSettings = async () => {
     setIsApplyingSettings(true);
@@ -1649,6 +1709,69 @@ export default function TaskPage() {
                       />
                     </div>
                   </div>
+                </div>
+
+                <Separator className="my-2" />
+
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium text-foreground">Templates</h4>
+
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={newTemplateName}
+                      onChange={(e) => setNewTemplateName(e.target.value)}
+                      placeholder="Template name"
+                      className="flex-1"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!newTemplateName.trim() || isSavingTemplate}
+                      onClick={handleSaveAsTemplate}
+                    >
+                      {isSavingTemplate ? "Saving..." : "Save as Template"}
+                    </Button>
+                  </div>
+
+                  {projectTemplates.length > 0 && (
+                    <div className="space-y-2">
+                      <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Load a template..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {projectTemplates.map((template) => (
+                            <SelectItem key={template.id} value={template.id}>
+                              {template.name} ({template.section_count} sections)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          disabled={!selectedTemplateId || isApplyingTemplate !== null}
+                          onClick={() => handleApplyTemplate("merge")}
+                        >
+                          {isApplyingTemplate === "merge" ? "Merging..." : "Merge into current"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          disabled={!selectedTemplateId || isApplyingTemplate !== null}
+                          onClick={() => handleApplyTemplate("replace")}
+                        >
+                          {isApplyingTemplate === "replace" ? "Replacing..." : "Replace all settings"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  <Link href="/settings/templates" className="text-xs text-gray-500 underline block">
+                    Manage templates (rename, duplicate, delete, export/import)
+                  </Link>
                 </div>
 
                 <SheetFooter className="gap-2">
