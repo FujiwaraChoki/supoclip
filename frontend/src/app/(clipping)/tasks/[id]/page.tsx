@@ -70,6 +70,7 @@ import { TranscriptPreview } from "@/components/transcript-preview";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 import { useDelayedFlag } from "@/hooks/use-delayed-flag";
 import { toast } from "@/lib/toast";
+import { recordLastOpenedProject } from "@/lib/last-project";
 
 const PROCESSING_STAGES = [
   { id: "download", label: "Download" },
@@ -281,6 +282,7 @@ export default function TaskPage() {
 
         const taskData = await taskResponse.json();
         setTask(taskData);
+        recordLastOpenedProject({ id: taskData.id, title: taskData.source_title });
         const loadedSettings = {
           projectFontFamily: taskData.font_family ?? null,
           projectFontSize: typeof taskData.font_size === "number" ? taskData.font_size : null,
@@ -546,23 +548,21 @@ export default function TaskPage() {
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 0.8) return "bg-green-100 text-green-800";
-    if (score >= 0.6) return "bg-yellow-100 text-yellow-800";
-    return "bg-red-100 text-red-800";
+    if (score >= 0.8) return "bg-primary text-primary-foreground";
+    if (score >= 0.6) return "border border-border text-foreground bg-background";
+    return "bg-foreground text-background";
   };
 
   const getViralityColor = (score: number) => {
-    if (score >= 80) return "text-green-600";
-    if (score >= 60) return "text-yellow-600";
-    if (score >= 40) return "text-orange-600";
-    return "text-red-600";
+    if (score >= 80) return "text-primary";
+    if (score >= 60) return "text-foreground";
+    return "text-foreground font-bold";
   };
 
   const getViralityBgColor = (score: number) => {
-    if (score >= 80) return "bg-green-500";
-    if (score >= 60) return "bg-yellow-500";
-    if (score >= 40) return "bg-orange-500";
-    return "bg-red-500";
+    if (score >= 80) return "bg-primary text-primary-foreground";
+    if (score >= 60) return "border border-border text-foreground bg-background";
+    return "bg-foreground text-background";
   };
 
   const getHookTypeLabel = (hookType: string | null) => {
@@ -1225,7 +1225,7 @@ export default function TaskPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-foreground hover:bg-foreground hover:text-background"
                         onClick={() => setShowDeleteDialog(true)}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -1234,7 +1234,7 @@ export default function TaskPage() {
                   </>
                 )}
               </div>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <Badge variant="outline" className="capitalize">
                   {task.source_type}
                 </Badge>
@@ -1265,13 +1265,13 @@ export default function TaskPage() {
                   </span>
                 ) : task.status === "processing" ? (
                   <div className="relative group">
-                    <Badge className="bg-blue-100 text-blue-800 cursor-default shimmer">Processing</Badge>
-                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
+                    <Badge className="bg-secondary text-secondary-foreground cursor-default shimmer">Processing</Badge>
+                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
                       🔍&nbsp;&nbsp;We&apos;re currently processing your video. Check back in a couple minutes.
                     </div>
                   </div>
                 ) : task.status === "queued" ? (
-                  <Badge className="bg-yellow-100 text-yellow-800">Queued</Badge>
+                  <Badge className="bg-background text-foreground border border-border">Queued</Badge>
                 ) : (
                   <Badge variant="outline" className="capitalize">
                     {task.status}
@@ -1364,30 +1364,30 @@ export default function TaskPage() {
             <div className="flex flex-col items-center py-8">
               {/* Minimal animated dots */}
               <div className="relative group flex items-center gap-1.5 mb-8 cursor-default">
-                <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_infinite]" />
-                <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
-                <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
-                <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
+                <span className="w-2 h-2 bg-foreground rounded-full animate-[pulse_1.4s_ease-in-out_infinite]" />
+                <span className="w-2 h-2 bg-foreground rounded-full animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+                <span className="w-2 h-2 bg-foreground rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+                <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
                   ☕&nbsp;&nbsp;Grab a coffee, and come back to ready-to-post clips.
                 </div>
               </div>
 
               {/* Status message */}
-              <p className="shimmer text-neutral-600/60 text-sm tracking-wide mb-8">
+              <p className="shimmer text-muted-foreground text-sm tracking-wide mb-8">
                 {progressMessage || (task.status === "queued" ? "Waiting in queue" : "Processing")}
               </p>
 
               {/* Minimal progress bar */}
               {progress > 0 && (
                 <div className="w-48">
-                  <div className="h-px bg-neutral-200 w-full relative overflow-hidden">
+                  <div className="h-px bg-border w-full relative overflow-hidden">
                     <div
-                      className="absolute inset-y-0 left-0 bg-neutral-800 transition-all duration-700 ease-out"
+                      className="absolute inset-y-0 left-0 bg-primary transition-all duration-700 ease-out"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
-                  <p className="text-[11px] text-neutral-400 text-center mt-3 tabular-nums">{progress}%</p>
-                  <p className="text-[11px] text-neutral-400 text-center mt-1 tabular-nums">
+                  <p className="text-[11px] text-muted-foreground text-center mt-3 tabular-nums">{progress}%</p>
+                  <p className="text-[11px] text-muted-foreground text-center mt-1 tabular-nums">
                     Elapsed {formatDuration(elapsedSeconds)}
                     {" · "}
                     {estimatedSecondsRemaining !== null
@@ -1407,18 +1407,18 @@ export default function TaskPage() {
                   return (
                     <div key={s.id} className="flex items-center gap-1.5">
                       <span
-                        className={`text-[11px] px-2 py-1 rounded-full border transition-colors ${
+                        className={`text-[11px] px-2 py-1 border transition-colors ${
                           state === "done"
-                            ? "bg-neutral-900 text-white border-neutral-900"
+                            ? "bg-foreground text-background border-foreground"
                             : state === "current"
-                              ? "border-neutral-800 text-neutral-800 font-medium"
-                              : "border-neutral-200 text-neutral-400"
+                              ? "border-foreground text-foreground font-medium"
+                              : "border-border text-muted-foreground"
                         }`}
                       >
                         {s.label}
                       </span>
                       {idx < PROCESSING_STAGES.length - 1 && (
-                        <span className="w-3 h-px bg-neutral-200" />
+                        <span className="w-3 h-px bg-border" />
                       )}
                     </div>
                   );
@@ -1426,7 +1426,7 @@ export default function TaskPage() {
               </div>
 
               {renderingClip && (
-                <p className="text-[11px] text-neutral-400 mt-3">
+                <p className="text-[11px] text-muted-foreground mt-3">
                   Rendering clip {renderingClip.index + 1} of {renderingClip.total}…
                 </p>
               )}
@@ -1435,7 +1435,7 @@ export default function TaskPage() {
             {/* Live clips grid — shows clips as they render */}
             {clips.length > 0 && (
               <div className="grid gap-6">
-                <p className="text-sm text-neutral-500 text-center">
+                <p className="text-sm text-muted-foreground text-center">
                   {clips.length} clip{clips.length !== 1 ? "s" : ""} ready
                   {renderingClip ? ` · rendering ${renderingClip.index + 1}/${renderingClip.total}` : ""}
                 </p>
@@ -1443,7 +1443,7 @@ export default function TaskPage() {
                   <Card key={clip.id} className="overflow-hidden">
                     <CardContent className="p-0">
                       <div className="flex flex-col lg:flex-row">
-                        <div className="relative flex-shrink-0 bg-black rounded-lg overflow-hidden m-3">
+                        <div className="relative flex-shrink-0 bg-foreground overflow-hidden m-3">
                           <DynamicVideoPlayer src={getClipUrl(clip.video_url)} poster="/placeholder-video.jpg" />
                         </div>
                         <div className="p-6 flex-1">
@@ -1452,7 +1452,7 @@ export default function TaskPage() {
                               <h3 className="font-semibold text-lg text-foreground mb-1">
                                 {clip.hook_title || `Clip ${clip.clip_order}`}
                               </h3>
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <span>Clip {clip.clip_order}</span>
                                 <span>•</span>
                                 <span>{clip.start_time} - {clip.end_time}</span>
@@ -1462,7 +1462,7 @@ export default function TaskPage() {
                             </div>
                             <div className="flex items-center gap-2">
                               {clip.virality_score > 0 && (
-                                <Badge className={`${getViralityBgColor(clip.virality_score)} text-white`}>
+                                <Badge className={getViralityBgColor(clip.virality_score)}>
                                   <Zap className="w-3 h-3 mr-1" />
                                   {clip.virality_score}
                                 </Badge>
@@ -1493,19 +1493,19 @@ export default function TaskPage() {
         ) : !task ? (
           <div className="flex flex-col items-center justify-center min-h-[50vh] py-16">
             <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-neutral-300 rounded-full animate-[pulse_1.4s_ease-in-out_infinite]" />
-              <span className="w-2 h-2 bg-neutral-300 rounded-full animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
-              <span className="w-2 h-2 bg-neutral-300 rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+              <span className="w-2 h-2 bg-muted-foreground rounded-full animate-[pulse_1.4s_ease-in-out_infinite]" />
+              <span className="w-2 h-2 bg-muted-foreground rounded-full animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
+              <span className="w-2 h-2 bg-muted-foreground rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
             </div>
           </div>
         ) : task?.status === "error" ? (
           <Card>
             <CardContent className="p-8 text-center">
-              <div className="text-red-600 mb-4">
+              <div className="text-foreground font-bold mb-4">
                 <AlertCircle className="w-12 h-12 mx-auto mb-2" />
                 <h2 className="text-xl font-semibold">Processing Failed</h2>
               </div>
-              <p className="text-gray-600 mb-4">There was an error processing your video. Please try again.</p>
+              <p className="text-muted-foreground mb-4">There was an error processing your video. Please try again.</p>
               <Link href="/">
                 <Button>
                   <ArrowLeft className="w-4 h-4" />
@@ -1519,11 +1519,11 @@ export default function TaskPage() {
             <CardContent className="p-8 text-center">
               {task?.status === "completed" ? (
                 <>
-                  <div className="text-yellow-600 mb-4">
+                  <div className="text-foreground font-bold mb-4">
                     <AlertCircle className="w-12 h-12 mx-auto mb-2" />
                     <h2 className="text-xl font-semibold">No Clips Generated</h2>
                   </div>
-                  <p className="text-gray-600 mb-4">
+                  <p className="text-muted-foreground mb-4">
                     The task completed but no clips were generated. The video may not have had suitable content for
                     clipping.
                   </p>
@@ -1536,11 +1536,11 @@ export default function TaskPage() {
                 </>
               ) : (
                 <>
-                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Clock className="w-8 h-8 text-blue-500 animate-pulse" />
+                  <div className="w-16 h-16 bg-secondary rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Clock className="w-8 h-8 text-secondary-foreground animate-pulse" />
                   </div>
                   <h2 className="text-xl font-semibold text-foreground mb-2">Still Generating...</h2>
-                  <p className="text-gray-600">
+                  <p className="text-muted-foreground">
                     Your clips are being generated. This page will refresh automatically when they&apos;re ready.
                   </p>
                 </>
@@ -1576,7 +1576,7 @@ export default function TaskPage() {
 
                 <div className="space-y-5 px-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-500">Font</label>
+                    <label className="text-xs font-medium text-muted-foreground">Font</label>
                     <Select
                       value={projectFontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE}
                       onValueChange={(value) =>
@@ -1601,7 +1601,7 @@ export default function TaskPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-500">Size</label>
+                    <label className="text-xs font-medium text-muted-foreground">Size</label>
                     <div className="grid grid-cols-4 gap-1.5">
                       {FONT_SIZE_OPTIONS.map((option) => (
                         <button
@@ -1610,8 +1610,8 @@ export default function TaskPage() {
                           onClick={() => setProjectFontSize(option.value)}
                           className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
                             projectFontSize === option.value
-                              ? "bg-stone-900 text-white border-stone-900"
-                              : "bg-background text-stone-600 border-stone-300 hover:bg-stone-50"
+                              ? "bg-foreground text-background border-foreground"
+                              : "bg-background text-muted-foreground border-border hover:border-primary"
                           }`}
                         >
                           {option.label}
@@ -1622,8 +1622,8 @@ export default function TaskPage() {
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-medium text-gray-500">Color</label>
-                      <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                      <label className="text-xs font-medium text-muted-foreground">Color</label>
+                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
                         <input
                           type="checkbox"
                           checked={projectFontColor === null}
@@ -1639,7 +1639,7 @@ export default function TaskPage() {
                         value={projectFontColor ?? "#FFFFFF"}
                         onChange={(e) => setProjectFontColor(e.target.value)}
                         disabled={projectFontColor === null}
-                        className="h-9 w-9 rounded border border-gray-300 cursor-pointer disabled:cursor-not-allowed"
+                        className="h-9 w-9 rounded border border-border cursor-pointer disabled:cursor-not-allowed"
                       />
                       <Input
                         value={projectFontColor ?? ""}
@@ -1651,7 +1651,7 @@ export default function TaskPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-500">Caption Template</label>
+                    <label className="text-xs font-medium text-muted-foreground">Caption Template</label>
                     <TemplatePicker
                       templates={availableTemplates}
                       selectedId={projectCaptionTemplate}
@@ -1659,16 +1659,16 @@ export default function TaskPage() {
                     />
                   </div>
 
-                  <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
+                  <div className="border border-border p-3 space-y-3">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">Hook title</div>
-                      <div className="text-xs text-gray-500">Style of the AI-written headline burned in for the first few seconds.</div>
+                      <div className="text-sm font-medium text-foreground">Hook title</div>
+                      <div className="text-xs text-muted-foreground">Style of the AI-written headline burned in for the first few seconds.</div>
                     </div>
 
                     <HookTitlePreview style={projectHookStyle} captionTemplate={projectCaptionTemplate} availableTemplates={availableTemplates} />
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-gray-500">Size</label>
+                      <label className="text-xs font-medium text-muted-foreground">Size</label>
                       <div className="grid grid-cols-4 gap-1.5">
                         {[
                           { label: "Small", value: 0.65 },
@@ -1682,8 +1682,8 @@ export default function TaskPage() {
                             onClick={() => updateProjectHookStyle("hook_font_size_scale", option.value)}
                             className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
                               projectHookStyle.hook_font_size_scale === option.value
-                                ? "bg-gray-900 text-white border-gray-900"
-                                : "bg-background text-gray-600 border-gray-300 hover:bg-gray-50"
+                                ? "bg-foreground text-background border-foreground"
+                                : "bg-background text-muted-foreground border-border hover:bg-border"
                             }`}
                           >
                             {option.label}
@@ -1694,16 +1694,16 @@ export default function TaskPage() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-gray-500">Text color</label>
+                        <label className="text-xs font-medium text-muted-foreground">Text color</label>
                         <input
                           type="color"
                           value={projectHookStyle.hook_font_color ?? "#FFFFFF"}
                           onChange={(e) => updateProjectHookStyle("hook_font_color", e.target.value)}
-                          className="w-full h-8 rounded border border-gray-300 cursor-pointer"
+                          className="w-full h-8 rounded border border-border cursor-pointer"
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-gray-500 flex items-center justify-between">
+                        <label className="text-xs font-medium text-muted-foreground flex items-center justify-between">
                           Background box
                           <Switch
                             checked={projectHookStyle.hook_background_color !== null}
@@ -1720,14 +1720,14 @@ export default function TaskPage() {
                             type="color"
                             value={projectHookStyle.hook_background_color.slice(0, 7)}
                             onChange={(e) => updateProjectHookStyle("hook_background_color", `${e.target.value}99`)}
-                            className="w-full h-8 rounded border border-gray-300 cursor-pointer"
+                            className="w-full h-8 rounded border border-border cursor-pointer"
                           />
                         )}
                       </div>
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-gray-500">Position</label>
+                      <label className="text-xs font-medium text-muted-foreground">Position</label>
                       <div className="grid grid-cols-3 gap-1.5">
                         {(["top", "center", "bottom"] as HookPosition[]).map((position) => (
                           <button
@@ -1736,8 +1736,8 @@ export default function TaskPage() {
                             onClick={() => updateProjectHookStyle("hook_position", position)}
                             className={`px-2 py-1.5 rounded-md text-xs font-medium border capitalize transition-colors ${
                               (projectHookStyle.hook_position ?? "top") === position
-                                ? "bg-gray-900 text-white border-gray-900"
-                                : "bg-background text-gray-600 border-gray-300 hover:bg-gray-50"
+                                ? "bg-foreground text-background border-foreground"
+                                : "bg-background text-muted-foreground border-border hover:bg-border"
                             }`}
                           >
                             {position}
@@ -1747,7 +1747,7 @@ export default function TaskPage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-gray-500">Animation</label>
+                      <label className="text-xs font-medium text-muted-foreground">Animation</label>
                       <Select
                         value={projectHookStyle.hook_animation ?? "fade_pop"}
                         onValueChange={(value) => updateProjectHookStyle("hook_animation", value as HookAnimation)}
@@ -1767,7 +1767,7 @@ export default function TaskPage() {
                       </Select>
                     </div>
 
-                    <label className="flex items-center justify-between text-sm text-gray-700">
+                    <label className="flex items-center justify-between text-sm text-foreground">
                       Drop shadow
                       <Switch
                         checked={projectHookStyle.hook_shadow ?? true}
@@ -1777,18 +1777,18 @@ export default function TaskPage() {
 
                     <button
                       type="button"
-                      className="text-xs text-gray-500 hover:text-gray-700 underline"
+                      className="text-xs text-muted-foreground hover:text-foreground underline"
                       onClick={() => setProjectHookStyle(DEFAULT_HOOK_STYLE)}
                     >
                       Reset hook styling to template default
                     </button>
                   </div>
 
-                  <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
+                  <div className="border border-border p-3 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">Fake social overlay</div>
-                        <div className="text-xs text-gray-500">Username, verified badge, like/comment counts.</div>
+                        <div className="text-sm font-medium text-foreground">Fake social overlay</div>
+                        <div className="text-xs text-muted-foreground">Username, verified badge, like/comment counts.</div>
                       </div>
                       <Switch
                         checked={projectSocialOverlay.enabled}
@@ -1811,13 +1811,13 @@ export default function TaskPage() {
                     )}
                   </div>
 
-                  <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
+                  <div className="border border-border p-3 space-y-3">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">Clip cleanup</div>
-                      <div className="text-xs text-gray-500">Apply silence and filler-word cuts to regenerated clips.</div>
+                      <div className="text-sm font-medium text-foreground">Clip cleanup</div>
+                      <div className="text-xs text-muted-foreground">Apply silence and filler-word cuts to regenerated clips.</div>
                     </div>
 
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <label className="flex items-center gap-2 text-sm text-foreground">
                       <input
                         type="checkbox"
                         checked={projectCutLongPauses}
@@ -1828,7 +1828,7 @@ export default function TaskPage() {
                     </label>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-gray-500">Pause threshold (ms)</label>
+                      <label className="text-xs font-medium text-muted-foreground">Pause threshold (ms)</label>
                       <Input
                         type="number"
                         min={250}
@@ -1840,7 +1840,7 @@ export default function TaskPage() {
                       />
                     </div>
 
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <label className="flex items-center gap-2 text-sm text-foreground">
                       <input
                         type="checkbox"
                         checked={projectRemoveFillerWords}
@@ -1851,7 +1851,7 @@ export default function TaskPage() {
                     </label>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-gray-500">Extra filtered words or phrases</label>
+                      <label className="text-xs font-medium text-muted-foreground">Extra filtered words or phrases</label>
                       <Input
                         value={projectFilteredWords}
                         onChange={(e) => setProjectFilteredWords(e.target.value)}
@@ -1919,13 +1919,13 @@ export default function TaskPage() {
                       </div>
                     </div>
                   )}
-                  <Link href="/settings/templates" className="text-xs text-gray-500 underline block">
+                  <Link href="/settings/templates" className="text-xs text-muted-foreground underline block">
                     Manage templates (rename, duplicate, delete, export/import)
                   </Link>
                 </div>
 
                 <SheetFooter className="gap-2">
-                  <p className="text-xs text-gray-400 text-center" aria-live="polite">
+                  <p className="text-xs text-muted-foreground text-center" aria-live="polite">
                     {autoSaveState === "saving"
                       ? "Saving settings…"
                       : autoSaveState === "saved"
@@ -1944,7 +1944,7 @@ export default function TaskPage() {
                   >
                     {isApplyingSettings ? "Applying..." : "Apply to All Clips"}
                   </Button>
-                  <p className="text-xs text-gray-400 text-center">
+                  <p className="text-xs text-muted-foreground text-center">
                     Settings auto-save as you edit; this re-renders every clip with them (can take a few minutes).
                   </p>
                 </SheetFooter>
@@ -1956,7 +1956,7 @@ export default function TaskPage() {
                 <CardContent className="p-0">
                   <div className="flex flex-col lg:flex-row">
                     {/* Video Player */}
-                    <div className="relative flex-shrink-0 bg-black rounded-lg overflow-hidden m-3">
+                    <div className="relative flex-shrink-0 bg-foreground overflow-hidden m-3">
                       <DynamicVideoPlayer src={getClipUrl(clip.video_url)} poster="/placeholder-video.jpg" />
                     </div>
 
@@ -1964,7 +1964,7 @@ export default function TaskPage() {
                     <div className="p-6 flex-1">
                       <div className="flex items-start justify-between mb-4">
                         <div>
-                          <label className="flex items-center gap-2 text-xs text-gray-600 mb-2">
+                          <label className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                             <input
                               type="checkbox"
                               checked={selectedClipIds.includes(clip.id)}
@@ -1975,7 +1975,7 @@ export default function TaskPage() {
                           <h3 className="font-semibold text-lg text-foreground mb-1">
                             {clip.hook_title || `Clip ${clip.clip_order}`}
                           </h3>
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <span>Clip {clip.clip_order}</span>
                             <span>•</span>
                             <span>
@@ -1988,7 +1988,7 @@ export default function TaskPage() {
                         <div className="flex items-center gap-2">
                           {/* Virality Score Badge */}
                           {clip.virality_score > 0 && (
-                            <Badge className={`${getViralityBgColor(clip.virality_score)} text-white`}>
+                            <Badge className={getViralityBgColor(clip.virality_score)}>
                               <Zap className="w-3 h-3 mr-1" />
                               {clip.virality_score}
                             </Badge>
@@ -2002,7 +2002,7 @@ export default function TaskPage() {
 
                       {/* Virality Score Breakdown */}
                       {clip.virality_score > 0 && (
-                        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                        <div className="mb-4 p-3 border border-border">
                           <div className="flex items-center justify-between mb-3">
                             <h4 className="font-medium text-foreground text-sm flex items-center gap-2">
                               <Zap className="w-4 h-4" />
@@ -2017,7 +2017,7 @@ export default function TaskPage() {
                             {/* Hook Score */}
                             <div className="space-y-1">
                               <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-gray-600">
+                                <span className="flex items-center gap-1 text-muted-foreground">
                                   <MessageSquare className="w-3 h-3" />
                                   Hook
                                 </span>
@@ -2029,7 +2029,7 @@ export default function TaskPage() {
                             {/* Engagement Score */}
                             <div className="space-y-1">
                               <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-gray-600">
+                                <span className="flex items-center gap-1 text-muted-foreground">
                                   <TrendingUp className="w-3 h-3" />
                                   Engagement
                                 </span>
@@ -2041,7 +2041,7 @@ export default function TaskPage() {
                             {/* Value Score */}
                             <div className="space-y-1">
                               <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-gray-600">
+                                <span className="flex items-center gap-1 text-muted-foreground">
                                   <Star className="w-3 h-3" />
                                   Value
                                 </span>
@@ -2053,7 +2053,7 @@ export default function TaskPage() {
                             {/* Shareability Score */}
                             <div className="space-y-1">
                               <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-gray-600">
+                                <span className="flex items-center gap-1 text-muted-foreground">
                                   <Share2 className="w-3 h-3" />
                                   Shareability
                                 </span>
@@ -2110,7 +2110,7 @@ export default function TaskPage() {
                             const preset = exportPresets.find((p) => p.name === exportPreset);
                             if (!preset) return null;
                             return (
-                              <span className="text-xs text-gray-500">
+                              <span className="text-xs text-muted-foreground">
                                 Target: {preset.target_lufs} LUFS &middot; Max {preset.max_duration_seconds}s
                               </span>
                             );
@@ -2164,7 +2164,7 @@ export default function TaskPage() {
                       </div>
 
                       {editingClipId === clip.id && (
-                        <div className="mt-4 p-3 border rounded-lg space-y-3 bg-gray-50">
+                        <div className="mt-4 p-3 border border-border space-y-3">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                             <Input
                               value={startOffset}
@@ -2265,13 +2265,13 @@ export default function TaskPage() {
               const failedCount = Object.values(exportAllStatus).filter((s) => s === "failed").length;
               return (
                 <>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     {done} / {total} clips processed
                     {failedCount > 0 && <span className="text-red-600"> &middot; {failedCount} failed</span>}
                   </p>
-                  <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
+                  <div className="h-2 w-full rounded-full bg-border overflow-hidden">
                     <div
-                      className="h-full bg-gray-900 transition-all"
+                      className="h-full bg-foreground transition-all"
                       style={{ width: total ? `${(done / total) * 100}%` : "0%" }}
                     />
                   </div>
@@ -2283,7 +2283,7 @@ export default function TaskPage() {
                 const status = exportAllStatus[clip.id] || "pending";
                 return (
                   <div key={clip.id} className="flex items-center justify-between text-sm py-1">
-                    <span className="truncate flex-1 text-gray-700">{clip.filename}</span>
+                    <span className="truncate flex-1 text-foreground">{clip.filename}</span>
                     {status === "success" && <span className="text-green-600 text-xs">Exported</span>}
                     {status === "failed" && (
                       <div className="flex items-center gap-2">
@@ -2294,9 +2294,9 @@ export default function TaskPage() {
                       </div>
                     )}
                     {(status === "exporting" || status === "retrying") && (
-                      <span className="text-gray-500 text-xs">{status === "retrying" ? "Retrying…" : "Exporting…"}</span>
+                      <span className="text-muted-foreground text-xs">{status === "retrying" ? "Retrying…" : "Exporting…"}</span>
                     )}
-                    {status === "pending" && <span className="text-gray-400 text-xs">Pending</span>}
+                    {status === "pending" && <span className="text-muted-foreground text-xs">Pending</span>}
                   </div>
                 );
               })}
