@@ -174,6 +174,15 @@ export default function VideoProcessingPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fileRef = useRef<File | null>(null);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
+  // Batch queue: when more than one file is selected/dropped, all of them
+  // process sequentially (one upload+create at a time) instead of only the
+  // first file being kept.
+  const [queuedFiles, setQueuedFiles] = useState<File[]>([]);
+  type BatchItemStatus = "pending" | "uploading" | "creating" | "done" | "error";
+  const [batchStatuses, setBatchStatuses] = useState<
+    Array<{ name: string; status: BatchItemStatus; taskId?: string; error?: string }>
+  >([]);
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
   const [fontFamily, setFontFamily] = useState<string | null>(null);
   const [fontSize, setFontSize] = useState<number | null>(null);
@@ -332,7 +341,18 @@ export default function VideoProcessingPage() {
     fileRef.current = file;
     setFileName(file ? file.name : null);
   };
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => handleFileSelected(e.target.files?.[0] || null);
+  const handleFilesSelected = (files: File[]) => {
+    if (files.length > 1) {
+      setQueuedFiles(files);
+      handleFileSelected(null);
+      setFileName(`${files.length} videos queued`);
+    } else {
+      setQueuedFiles([]);
+      handleFileSelected(files[0] || null);
+    }
+  };
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+    handleFilesSelected(Array.from(e.target.files || []));
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     if (isLoading) return;
@@ -346,8 +366,7 @@ export default function VideoProcessingPage() {
     e.preventDefault();
     setIsDraggingFile(false);
     if (isLoading) return;
-    const file = e.dataTransfer.files?.[0] || null;
-    if (file) handleFileSelected(file);
+    handleFilesSelected(Array.from(e.dataTransfer.files || []));
   };
 
   const filteredFonts = availableFonts.filter((font) => {
@@ -375,7 +394,87 @@ export default function VideoProcessingPage() {
     return iconMap[step] || <Loader2 className="w-4 h-4 animate-spin text-gray-500" />;
   };
 
+  const buildTaskCreationPayload = (videoUrl: string) => {
+    const normalizedPauseThreshold = Number.isFinite(Number(pauseThresholdMs))
+      ? Math.max(250, Math.min(3000, Math.round(Number(pauseThresholdMs))))
+      : 900;
+    const normalizedFilteredWords = filteredWords.split(",").map((w) => w.trim().toLowerCase()).filter(Boolean);
+    return {
+      source: { url: videoUrl, title: null },
+      font_options: buildFontOptionsPayload(fontFamily, fontSize, fontColor),
+      caption_template: captionTemplate,
+      processing_mode: "fast",
+      output_format: outputFormat,
+      add_subtitles: addSubtitles,
+      cut_long_pauses: cutLongPauses,
+      pause_threshold_ms: normalizedPauseThreshold,
+      remove_filler_words: removeFillerWords,
+      filtered_words: normalizedFilteredWords,
+      hook_style: hookStylePayload(hookStyle),
+      social_overlay: socialOverlayPayload(socialOverlay),
+      broll_settings: brollSettingsPayload(brollSettings),
+      target_duration_seconds: targetDuration,
+      max_clips: clipCount,
+      include_broll: brollSettings.enabled,
+    };
+  };
+
+  const handleBatchSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (queuedFiles.length === 0) return;
+
+    setIsBatchProcessing(true);
+    setError(null);
+    setBatchStatuses(queuedFiles.map((file) => ({ name: file.name, status: "pending" })));
+
+    // Sequential by design: uploads/creations run one at a time so a batch
+    // drop of several large files doesn't saturate the upload endpoint at
+    // once. Each task, once created, is queued and processed by the worker
+    // independently — this loop only sequences the (fast) creation step.
+    for (let i = 0; i < queuedFiles.length; i++) {
+      const file = queuedFiles[i];
+      try {
+        setBatchStatuses((current) =>
+          current.map((item, idx) => (idx === i ? { ...item, status: "uploading" } : item)),
+        );
+        const videoUrl = await uploadVideoFile(file);
+
+        setBatchStatuses((current) =>
+          current.map((item, idx) => (idx === i ? { ...item, status: "creating" } : item)),
+        );
+        const startResponse = await fetch("/api/tasks/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(buildTaskCreationPayload(videoUrl)),
+        });
+        if (!startResponse.ok) {
+          const startError = await parseApiError(startResponse, `API error: ${startResponse.status}`);
+          throw new Error(formatSupportMessage(startError));
+        }
+        const startResult = await startResponse.json();
+        setBatchStatuses((current) =>
+          current.map((item, idx) =>
+            idx === i ? { ...item, status: "done", taskId: startResult.task_id } : item,
+          ),
+        );
+      } catch (err) {
+        setBatchStatuses((current) =>
+          current.map((item, idx) =>
+            idx === i
+              ? { ...item, status: "error", error: err instanceof Error ? err.message : "Failed" }
+              : item,
+          ),
+        );
+      }
+    }
+
+    saveLastSettings(currentGenerationSettings());
+    setIsBatchProcessing(false);
+    window.location.href = "/list";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
+    if (queuedFiles.length > 1) return handleBatchSubmit(e);
     e.preventDefault();
     if (sourceType === "upload" && !fileRef.current) return;
     if (sourceType === "youtube" && !url.trim()) return;
@@ -449,7 +548,9 @@ export default function VideoProcessingPage() {
   };
 
   const canSubmit =
-    (sourceType === "youtube" ? url.trim().length > 0 : Boolean(fileRef.current || fileName)) && !isLoading;
+    (sourceType === "youtube" ? url.trim().length > 0 : Boolean(fileRef.current || fileName)) &&
+    !isLoading &&
+    !isBatchProcessing;
 
   return (
     <div className="min-h-screen bg-white">
@@ -707,6 +808,7 @@ export default function VideoProcessingPage() {
                     <input
                       type="file"
                       accept="video/*"
+                      multiple
                       ref={fileInputRef}
                       onChange={handleFileChange}
                       disabled={isLoading}
@@ -717,10 +819,44 @@ export default function VideoProcessingPage() {
                       <p className="text-sm font-medium text-stone-900">{fileName}</p>
                     ) : (
                       <>
-                        <p className="text-sm font-medium text-stone-700">Drop a video file here or click to browse</p>
-                        <p className="text-xs text-stone-400 mt-1">MP4, MOV, AVI up to 500MB</p>
+                        <p className="text-sm font-medium text-stone-700">Drop video files here or click to browse</p>
+                        <p className="text-xs text-stone-400 mt-1">MP4, MOV, AVI up to 500MB · drop multiple to batch-process</p>
                       </>
                     )}
+                  </div>
+                )}
+
+                {queuedFiles.length > 1 && (
+                  <div className="rounded-lg border border-stone-200 divide-y divide-stone-100">
+                    {queuedFiles.map((file, idx) => {
+                      const status = batchStatuses[idx]?.status;
+                      return (
+                        <div key={`${file.name}-${idx}`} className="flex items-center justify-between px-3 py-2 text-xs">
+                          <span className="truncate text-stone-700">{file.name}</span>
+                          <span
+                            className={`ml-2 flex-shrink-0 font-medium ${
+                              status === "done"
+                                ? "text-emerald-600"
+                                : status === "error"
+                                  ? "text-red-600"
+                                  : status === "uploading" || status === "creating"
+                                    ? "text-stone-900"
+                                    : "text-stone-400"
+                            }`}
+                          >
+                            {status === "done"
+                              ? "Queued for processing"
+                              : status === "error"
+                                ? batchStatuses[idx]?.error || "Failed"
+                                : status === "uploading"
+                                  ? "Uploading…"
+                                  : status === "creating"
+                                    ? "Creating task…"
+                                    : "Waiting…"}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -1270,7 +1406,13 @@ export default function VideoProcessingPage() {
             <Separator />
 
             <Button type="submit" className="w-full h-12 text-base rounded-xl" disabled={!canSubmit}>
-              {isLoading ? "Processing..." : "Process Video"}
+              {isBatchProcessing
+                ? `Queuing ${batchStatuses.filter((s) => s.status === "done" || s.status === "error").length}/${queuedFiles.length}…`
+                : isLoading
+                  ? "Processing..."
+                  : queuedFiles.length > 1
+                    ? `Process ${queuedFiles.length} Videos`
+                    : "Process Video"}
             </Button>
           </div>
         </form>

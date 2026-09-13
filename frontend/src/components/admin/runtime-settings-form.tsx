@@ -2,9 +2,10 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Save, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { useDebouncedEffect } from "@/lib/use-debounced-effect";
 
 export type RuntimeSetting = {
   key: string;
@@ -62,8 +63,7 @@ export function RuntimeSettingsForm({ settings, onSaved }: RuntimeSettingsFormPr
     [deleteKeys, priorityOverrides, settings, values],
   );
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function performSave() {
     setError(null);
     setMessage(null);
     setIsSaving(true);
@@ -109,13 +109,29 @@ export function RuntimeSettingsForm({ settings, onSaved }: RuntimeSettingsFormPr
       setValues({});
       setDeleteKeys({});
       setPriorityOverrides({});
-      setMessage("Settings saved.");
+      setMessage("Saved.");
       onSaved?.();
       startTransition(() => router.refresh());
     } finally {
       setIsSaving(false);
     }
   }
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void performSave();
+  }
+
+  // Auto-save: persist pending edits shortly after the user stops typing, so
+  // nothing requires a manual "Save" click. A trailing manual submit (Enter
+  // key) is still handled by handleSubmit for immediate feedback.
+  useDebouncedEffect(
+    () => {
+      if (hasChanges) void performSave();
+    },
+    [values, deleteKeys, priorityOverrides],
+    900,
+  );
 
   return (
     <form onSubmit={handleSubmit}>
@@ -242,16 +258,16 @@ export function RuntimeSettingsForm({ settings, onSaved }: RuntimeSettingsFormPr
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-4 py-4">
         <div className="text-sm">
           {error && <p className="text-red-700">{error}</p>}
-          {message && <p className="text-green-700">{message}</p>}
         </div>
-        <button
-          type="submit"
-          disabled={!hasChanges || isPending || isSaving}
-          className="inline-flex items-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Save className="h-4 w-4" aria-hidden="true" />
-          {isPending || isSaving ? "Saving" : "Save settings"}
-        </button>
+        <p className="text-sm text-gray-500" aria-live="polite">
+          {isPending || isSaving
+            ? "Saving…"
+            : hasChanges
+              ? "Unsaved changes — saving shortly…"
+              : message
+                ? "Saved"
+                : ""}
+        </p>
       </div>
     </form>
   );

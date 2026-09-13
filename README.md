@@ -49,14 +49,15 @@ SupoClip gives you the same core pipeline without the leash:
 
 ## Features
 
-- **AI clip selection** — an LLM (Gemini, GPT, Claude, or a local Ollama model) picks the 3–7 most clip-worthy segments from the transcript
+- **AI clip selection** — an LLM (Gemini, GPT, Claude, or a local Ollama model) picks the most clip-worthy segments from the transcript; set a target clip count and length per video, or leave it on auto
+- **Batch processing** — drop multiple videos at once and they queue up and process one after another, each with its own status
 - **Virality scoring** — every clip gets hook, engagement, value, and shareability scores
 - **Smart vertical cropping** — face detection keeps the speaker centered in the 9:16 frame
 - **Word-synced subtitles** — AssemblyAI word-level timestamps, custom fonts, caption templates with animation styles
 - **Hook titles** — an AI-written headline burned into the top of each clip's opening seconds, with selectable animation styles and per-clip A/B comparison to generate and pick between alternative hooks
 - **B-roll & transitions** — optional Pexels stock footage overlays and transition effects
 - **Built-in editor** — trim, split, and merge clips, then export with platform presets (TikTok, Reels, Shorts)
-- **Real-time progress** — live pipeline updates streamed to the browser while your video processes
+- **Real-time progress** — a stage-by-stage pipeline view (download → transcribe → analyze → render) with per-clip status, streamed live to the browser
 
 ## Quick Start
 

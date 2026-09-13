@@ -197,6 +197,9 @@ async def _get_user_id_from_headers(request: Request, db: AsyncSession) -> str:
     return await resolve_authenticated_user_id(request, db, config)
 
 
+TASK_SOURCE_METADATA_TTL_SECONDS = 60 * 60 * 24 * 180  # 180 days, refreshed on read
+
+
 async def _load_task_source_metadata(task_id: str) -> Dict[str, Any]:
     runtime_config = get_config()
     redis_client = redis.Redis(
@@ -206,7 +209,12 @@ async def _load_task_source_metadata(task_id: str) -> Dict[str, Any]:
         decode_responses=True,
     )
     try:
-        payload = await redis_client.get(f"task_source:{task_id}")
+        key = f"task_source:{task_id}"
+        payload = await redis_client.get(key)
+        if payload:
+            # Sliding expiration: a project the user keeps coming back to
+            # never expires just from the calendar, only from real inactivity.
+            await redis_client.expire(key, TASK_SOURCE_METADATA_TTL_SECONDS)
     except Exception as exc:
         logger.warning("Unable to load task source metadata for %s: %s", task_id, exc)
         return {}
@@ -231,10 +239,14 @@ async def _save_task_source_metadata(task_id: str, payload: Dict[str, Any]) -> N
         decode_responses=True,
     )
     try:
+        # Long, sliding TTL (refreshed on every read too — see
+        # _load_task_source_metadata) so a project a user comes back to
+        # occasionally doesn't silently lose its hook/cleanup/social/duration
+        # settings just from sitting idle between visits.
         await redis_client.set(
             f"task_source:{task_id}",
             json.dumps(payload),
-            ex=60 * 60 * 24 * 7,
+            ex=TASK_SOURCE_METADATA_TTL_SECONDS,
         )
     except Exception as exc:
         logger.warning("Unable to save task source metadata for %s: %s", task_id, exc)

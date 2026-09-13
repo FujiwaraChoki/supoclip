@@ -28,6 +28,7 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { LOCAL_USER_ID } from "@/lib/local-user";
+import { useDebouncedEffect } from "@/lib/use-debounced-effect";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import { DEFAULT_HOOK_STYLE, hookStylePayload, type HookAnimation, type HookPosition, type HookStyle, type HookTitleVariant } from "@/lib/hook-style";
@@ -185,6 +186,7 @@ export default function TaskPage() {
   const [deletingFontName, setDeletingFontName] = useState<string | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<TemplateInfo[]>([]);
   const hasTriggeredAutoRefresh = useRef(false);
+  const lastSavedProjectSettingsRef = useRef<string | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const taskApiUrl = "/api/tasks";
@@ -228,16 +230,32 @@ export default function TaskPage() {
 
         const taskData = await taskResponse.json();
         setTask(taskData);
-        setProjectFontFamily(taskData.font_family ?? null);
-        setProjectFontSize(typeof taskData.font_size === "number" ? taskData.font_size : null);
-        setProjectFontColor(taskData.font_color ?? null);
-        setProjectCaptionTemplate(taskData.caption_template || "default");
-        setProjectCutLongPauses(Boolean(taskData.cut_long_pauses));
-        setProjectPauseThresholdMs(String(taskData.pause_threshold_ms || 900));
-        setProjectRemoveFillerWords(Boolean(taskData.remove_filler_words));
-        setProjectFilteredWords((taskData.filtered_words || []).join(", "));
-        setProjectHookStyle({ ...DEFAULT_HOOK_STYLE, ...(taskData.hook_style || {}) });
-        setProjectSocialOverlay({ ...DEFAULT_SOCIAL_OVERLAY, ...(taskData.social_overlay || {}) });
+        const loadedSettings = {
+          projectFontFamily: taskData.font_family ?? null,
+          projectFontSize: typeof taskData.font_size === "number" ? taskData.font_size : null,
+          projectFontColor: taskData.font_color ?? null,
+          projectCaptionTemplate: taskData.caption_template || "default",
+          projectCutLongPauses: Boolean(taskData.cut_long_pauses),
+          projectPauseThresholdMs: String(taskData.pause_threshold_ms || 900),
+          projectRemoveFillerWords: Boolean(taskData.remove_filler_words),
+          projectFilteredWords: (taskData.filtered_words || []).join(", "),
+          projectHookStyle: { ...DEFAULT_HOOK_STYLE, ...(taskData.hook_style || {}) },
+          projectSocialOverlay: { ...DEFAULT_SOCIAL_OVERLAY, ...(taskData.social_overlay || {}) },
+        };
+        setProjectFontFamily(loadedSettings.projectFontFamily);
+        setProjectFontSize(loadedSettings.projectFontSize);
+        setProjectFontColor(loadedSettings.projectFontColor);
+        setProjectCaptionTemplate(loadedSettings.projectCaptionTemplate);
+        setProjectCutLongPauses(loadedSettings.projectCutLongPauses);
+        setProjectPauseThresholdMs(loadedSettings.projectPauseThresholdMs);
+        setProjectRemoveFillerWords(loadedSettings.projectRemoveFillerWords);
+        setProjectFilteredWords(loadedSettings.projectFilteredWords);
+        setProjectHookStyle(loadedSettings.projectHookStyle);
+        setProjectSocialOverlay(loadedSettings.projectSocialOverlay);
+        // Mark this as the "already saved" baseline so the auto-save effect
+        // below doesn't immediately re-save data we just loaded from the
+        // server (fetchTaskStatus runs often — after SSE events, edits, etc).
+        lastSavedProjectSettingsRef.current = JSON.stringify(loadedSettings);
 
         // Fetch clips if task is completed or processing (incremental clips)
         if (taskData.status === "completed" || taskData.status === "processing") {
@@ -602,20 +620,19 @@ export default function TaskPage() {
     await fetchTaskStatus();
   };
 
-  const handleApplyProjectSettings = async () => {
-    if (!session?.user?.id || !params.id) return;
-    const fontOptions = buildFontOptionsPayload(projectFontFamily, projectFontSize, projectFontColor);
-    const parsedPauseThreshold = Number(projectPauseThresholdMs || "900");
-    const safePauseThreshold = Number.isFinite(parsedPauseThreshold)
-      ? Math.max(250, Math.min(3000, Math.round(parsedPauseThreshold)))
-      : 900;
-    const normalizedFilteredWords = projectFilteredWords
-      .split(",")
-      .map((word) => word.trim().toLowerCase())
-      .filter(Boolean);
+  const saveProjectSettings = useCallback(
+    async (applyToExisting: boolean) => {
+      if (!session?.user?.id || !params.id) return;
+      const fontOptions = buildFontOptionsPayload(projectFontFamily, projectFontSize, projectFontColor);
+      const parsedPauseThreshold = Number(projectPauseThresholdMs || "900");
+      const safePauseThreshold = Number.isFinite(parsedPauseThreshold)
+        ? Math.max(250, Math.min(3000, Math.round(parsedPauseThreshold)))
+        : 900;
+      const normalizedFilteredWords = projectFilteredWords
+        .split(",")
+        .map((word) => word.trim().toLowerCase())
+        .filter(Boolean);
 
-    setIsApplyingSettings(true);
-    try {
       const response = await fetch(`${taskApiUrl}/${params.id}/settings`, {
         method: "POST",
         headers: {
@@ -630,18 +647,63 @@ export default function TaskPage() {
           filtered_words: normalizedFilteredWords,
           hook_style: hookStylePayload(projectHookStyle),
           social_overlay: socialOverlayPayload(projectSocialOverlay),
-          apply_to_existing: true,
+          apply_to_existing: applyToExisting,
         }),
       });
       if (!response.ok) {
-        alert(await buildSupportError(response, "Failed to apply settings"));
-        return;
+        throw new Error(await buildSupportError(response, "Failed to save settings"));
       }
       await fetchTaskStatus();
+    },
+    [
+      session?.user?.id, params.id, taskApiUrl, projectFontFamily, projectFontSize, projectFontColor,
+      projectPauseThresholdMs, projectFilteredWords, projectCaptionTemplate, projectCutLongPauses,
+      projectRemoveFillerWords, projectHookStyle, projectSocialOverlay, buildSupportError, fetchTaskStatus,
+    ],
+  );
+
+  const handleApplyProjectSettings = async () => {
+    setIsApplyingSettings(true);
+    try {
+      await saveProjectSettings(true);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to apply settings");
     } finally {
       setIsApplyingSettings(false);
     }
   };
+
+  // Auto-save the settings themselves (cheap: just persists to the task's
+  // metadata) shortly after the user stops editing — separate from "Apply to
+  // All Clips", which re-renders every clip and stays an explicit action
+  // since it's expensive (can take minutes for several clips).
+  const [autoSaveState, setAutoSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  useDebouncedEffect(
+    () => {
+      const snapshot = JSON.stringify({
+        projectFontFamily, projectFontSize, projectFontColor, projectCaptionTemplate,
+        projectCutLongPauses, projectPauseThresholdMs, projectRemoveFillerWords, projectFilteredWords,
+        projectHookStyle, projectSocialOverlay,
+      });
+      // fetchTaskStatus (SSE events, other edits) reloads these same states
+      // from the server — skip re-saving when nothing actually changed.
+      if (snapshot === lastSavedProjectSettingsRef.current) return;
+
+      setAutoSaveState("saving");
+      saveProjectSettings(false)
+        .then(() => {
+          lastSavedProjectSettingsRef.current = snapshot;
+          setAutoSaveState("saved");
+        })
+        .catch(() => setAutoSaveState("error"));
+    },
+    [
+      projectFontFamily, projectFontSize, projectFontColor, projectCaptionTemplate,
+      projectCutLongPauses, projectPauseThresholdMs, projectRemoveFillerWords, projectFilteredWords,
+      projectHookStyle, projectSocialOverlay,
+    ],
+    1000,
+  );
 
   const handleDeleteFont = async (font: FontOption) => {
     if (font.scope !== "user" || deletingFontName) return;
@@ -1484,7 +1546,16 @@ export default function TaskPage() {
                   </div>
                 </div>
 
-                <SheetFooter>
+                <SheetFooter className="gap-2">
+                  <p className="text-xs text-gray-400 text-center" aria-live="polite">
+                    {autoSaveState === "saving"
+                      ? "Saving settings…"
+                      : autoSaveState === "saved"
+                        ? "Settings saved automatically"
+                        : autoSaveState === "error"
+                          ? "Couldn't auto-save settings"
+                          : ""}
+                  </p>
                   <Button
                     className="w-full"
                     onClick={() => {
@@ -1495,6 +1566,9 @@ export default function TaskPage() {
                   >
                     {isApplyingSettings ? "Applying..." : "Apply to All Clips"}
                   </Button>
+                  <p className="text-xs text-gray-400 text-center">
+                    Settings auto-save as you edit; this re-renders every clip with them (can take a few minutes).
+                  </p>
                 </SheetFooter>
               </SheetContent>
             </Sheet>

@@ -78,7 +78,7 @@ Source file:
 - `GET /`
   - List tasks
 - `POST /`
-  - Create task
+  - Create task. Accepts per-request `max_clips` (1-20, overrides the global `MAX_CLIPS`) and `target_duration_seconds` (15/30/60, overrides `CLIP_DURATION`) that steer AI segment selection for this video specifically, in addition to the existing styling/cleanup fields.
 - `GET /billing/summary`
   - Billing summary for current user
 - `GET /{task_id}`
@@ -215,6 +215,8 @@ Important implications:
 - The frontend subscribes with `EventSource`
 - The response stays open while the task is active
 - Redis-backed progress updates can appear live without repeated polling
+- `status`/`progress` events carry a `stage` field (`download`/`transcribe`/`analyze`/`render`/`complete`) for a stage-by-stage UI, alongside the numeric `progress` percentage and free-text `message`
+- A `clip_progress` event fires when a clip starts rendering (before `clip_ready`), carrying `clip_index`/`total_clips`, so the UI can show "rendering clip i/N" ahead of the clip actually being ready
 
 ## Billing and Hosted Mode Notes
 
