@@ -329,13 +329,13 @@ export default function SettingsPage() {
               <ThemeToggle />
               <Avatar className="w-8 h-8">
                 <AvatarImage src={session.user.image || ""} />
-                <AvatarFallback className="bg-gray-100 text-foreground text-sm">
+                <AvatarFallback className="bg-background text-foreground text-sm">
                   {session.user.name?.charAt(0) || session.user.email?.charAt(0) || "U"}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden sm:block">
                 <p className="text-sm font-medium text-foreground">{session.user.name}</p>
-                <p className="text-xs text-gray-500">{session.user.email}</p>
+                <p className="text-xs text-muted-foreground">{session.user.email}</p>
               </div>
             </div>
           </div>
@@ -352,7 +352,7 @@ export default function SettingsPage() {
                 Settings
               </h2>
             </div>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               Configure your default preferences for video clip generation
             </p>
           </div>
@@ -367,14 +367,14 @@ export default function SettingsPage() {
                   <Mic className="w-4 h-4" />
                   Transcription
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Choose the transcription provider and its API key/model/language. Persisted
                   here, with your .env values as fallback.
                 </p>
               </div>
-              <div className="rounded-lg border border-gray-200 bg-background">
+              <div className="rounded-lg border border-border bg-background">
                 {runtimeSettingsError ? (
-                  <div className="px-4 py-5 text-sm text-red-700">{runtimeSettingsError}</div>
+                  <div className="px-4 py-5 text-sm text-foreground font-bold">{runtimeSettingsError}</div>
                 ) : (
                   <RuntimeSettingsForm
                     settings={transcriptionSettings}
@@ -393,7 +393,7 @@ export default function SettingsPage() {
                   <Music className="w-4 h-4" />
                   Hooks
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Sound effects available for the hook&apos;s whoosh/riser (per-hook style is
                   configured when creating or editing a task). Drop{" "}
                   <code className="text-xs">.mp3</code>/<code className="text-xs">.wav</code> files
@@ -401,7 +401,7 @@ export default function SettingsPage() {
                 </p>
               </div>
               {sfxError ? (
-                <p className="text-sm text-red-700">{sfxError}</p>
+                <p className="text-sm text-foreground font-bold">{sfxError}</p>
               ) : sfxFiles.length === 0 ? (
                 <EmptyState
                   icon={Music}
@@ -409,7 +409,7 @@ export default function SettingsPage() {
                   description="Add .mp3/.wav files to backend/sfx/ to make them available here."
                 />
               ) : (
-                <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-background">
+                <ul className="divide-y divide-border rounded-lg border border-border bg-background">
                   {sfxFiles.map((sfx) => (
                     <li key={sfx.name} className="flex items-center justify-between gap-3 px-4 py-3">
                       <span className="text-sm text-foreground">{sfx.display_name}</span>
@@ -429,14 +429,14 @@ export default function SettingsPage() {
                   <Download className="w-4 h-4" />
                   Export
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Defaults for clip count, duration, processing mode, and rendering. Persisted
                   here, with your .env values as fallback.
                 </p>
               </div>
-              <div className="rounded-lg border border-gray-200 bg-background">
+              <div className="rounded-lg border border-border bg-background">
                 {runtimeSettingsError ? (
-                  <div className="px-4 py-5 text-sm text-red-700">{runtimeSettingsError}</div>
+                  <div className="px-4 py-5 text-sm text-foreground font-bold">{runtimeSettingsError}</div>
                 ) : (
                   <RuntimeSettingsForm settings={exportSettings} onSaved={loadRuntimeSettings} />
                 )}
@@ -453,7 +453,7 @@ export default function SettingsPage() {
                     <Type className="w-4 h-4" />
                     UI — Subtitle Appearance
                   </h3>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     These settings will be applied to all new video processing tasks
                   </p>
                 </div>
@@ -497,7 +497,7 @@ export default function SettingsPage() {
                       className="w-full"
                     />
                   </div>
-                  <div className="flex justify-between text-xs text-gray-500">
+                  <div className="flex justify-between text-xs text-muted-foreground">
                     <span>12px</span>
                     <span>48px</span>
                   </div>
@@ -515,7 +515,7 @@ export default function SettingsPage() {
                       value={fontColor}
                       onChange={(e) => setFontColor(e.target.value)}
                       disabled={isLoading}
-                      className="w-12 h-10 rounded border border-gray-300 cursor-pointer disabled:cursor-not-allowed"
+                      className="w-12 h-10 rounded border border-border cursor-pointer disabled:cursor-not-allowed"
                     />
                     <Input
                       type="text"
@@ -534,7 +534,7 @@ export default function SettingsPage() {
                         type="button"
                         onClick={() => setFontColor(color)}
                         disabled={isLoading}
-                        className="w-8 h-8 rounded border-2 border-gray-300 cursor-pointer hover:scale-110 transition-transform disabled:cursor-not-allowed"
+                        className="w-8 h-8 rounded border-2 border-border cursor-pointer hover:scale-110 transition-transform disabled:cursor-not-allowed"
                         style={{ backgroundColor: color }}
                         title={color}
                       />
@@ -545,7 +545,7 @@ export default function SettingsPage() {
                 {/* Preview */}
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-foreground">Preview</Label>
-                  <div className="p-6 bg-black rounded-lg flex items-center justify-center min-h-[100px]">
+                  <div className="p-6 bg-foreground rounded-lg flex items-center justify-center min-h-[100px]">
                     <p
                       style={{
                         color: fontColor,
@@ -571,7 +571,7 @@ export default function SettingsPage() {
                 <h3 className="text-lg font-semibold text-foreground mb-1">
                   Notifications
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Manage how you receive updates about your clips
                 </p>
               </div>
@@ -580,7 +580,7 @@ export default function SettingsPage() {
                 <Label htmlFor="completion-emails" className="flex items-center gap-2 text-sm font-medium text-foreground cursor-pointer">
                   <Mail className="w-4 h-4" />
                   Completion emails
-                  <span className="text-gray-500 font-normal">— get notified when clips are ready</span>
+                  <span className="text-muted-foreground font-normal">— get notified when clips are ready</span>
                 </Label>
                 <Switch
                   id="completion-emails"
@@ -600,14 +600,14 @@ export default function SettingsPage() {
                   <SlidersHorizontal className="w-4 h-4" />
                   Advanced
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   LLM provider, API keys, and download/B-roll providers. Persisted here, with
                   your .env values as fallback.
                 </p>
               </div>
-              <div className="rounded-lg border border-gray-200 bg-background">
+              <div className="rounded-lg border border-border bg-background">
                 {runtimeSettingsError ? (
-                  <div className="px-4 py-5 text-sm text-red-700">{runtimeSettingsError}</div>
+                  <div className="px-4 py-5 text-sm text-foreground font-bold">{runtimeSettingsError}</div>
                 ) : (
                   <RuntimeSettingsForm settings={advancedSettings} onSaved={loadRuntimeSettings} />
                 )}
@@ -622,34 +622,34 @@ export default function SettingsPage() {
                 <h3 className="text-lg font-semibold text-foreground mb-1">
                   Developer
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-muted-foreground">
                   Programmatic access for tools like the SupoClip MCP server
                 </p>
               </div>
 
               <Link href="/settings/api-keys" className="block">
-                <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between p-4 border border-border rounded-lg hover:border-foreground transition-colors">
                   <div className="flex items-center gap-3">
                     <KeyRound className="w-5 h-5 text-foreground" />
                     <div>
                       <p className="text-sm font-medium text-foreground">API Keys</p>
-                      <p className="text-xs text-gray-500">Create and manage API keys</p>
+                      <p className="text-xs text-muted-foreground">Create and manage API keys</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 </div>
               </Link>
 
               <Link href="/settings/templates" className="block">
-                <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between p-4 border border-border rounded-lg hover:border-foreground transition-colors">
                   <div className="flex items-center gap-3">
                     <LayoutTemplate className="w-5 h-5 text-foreground" />
                     <div>
                       <p className="text-sm font-medium text-foreground">Templates</p>
-                      <p className="text-xs text-gray-500">Reusable project settings bundles</p>
+                      <p className="text-xs text-muted-foreground">Reusable project settings bundles</p>
                     </div>
                   </div>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 </div>
               </Link>
             </div>
@@ -658,18 +658,18 @@ export default function SettingsPage() {
 
             {/* Success/Error Messages */}
             {success && (
-              <Alert className="border-green-200 bg-green-50">
-                <CheckCircle className="h-4 w-4 text-green-500" />
-                <AlertDescription className="text-sm text-green-700">
+              <Alert className="border-primary">
+                <CheckCircle className="h-4 w-4 text-primary" />
+                <AlertDescription className="text-sm text-primary">
                   Preferences saved successfully!
                 </AlertDescription>
               </Alert>
             )}
 
             {error && (
-              <Alert className="border-red-200 bg-red-50">
-                <AlertCircle className="h-4 w-4 text-red-500" />
-                <AlertDescription className="text-sm text-red-700">
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-sm font-bold">
                   {error}
                 </AlertDescription>
               </Alert>
@@ -677,27 +677,27 @@ export default function SettingsPage() {
 
             {/* Save Button */}
             {billingSummary?.monetization_enabled && (
-              <div className="border rounded-lg p-4 bg-gray-50 space-y-3">
+              <div className="border border-border rounded-lg p-4 space-y-3">
                 <div>
                   <h3 className="text-lg font-semibold text-foreground">Billing</h3>
                   {!isPaidBillingPlan(billingSummary.plan) && (
-                    <p className="text-sm text-gray-600">Video processing requires a paid plan.</p>
+                    <p className="text-sm text-muted-foreground">Video processing requires a paid plan.</p>
                   )}
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     {billingSummary.upgrade_required
                       ? "Current plan cannot create generations."
                       : billingSummary.usage_limit === null
                       ? `${billingSummary.usage_count} generations in this billing period`
                       : `${billingSummary.usage_count}/${billingSummary.usage_limit} generations used this period`}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     Plan: {formatBillingPlanName(billingSummary.plan)} ({billingSummary.subscription_status})
                   </p>
                 </div>
 
                 {isPaidBillingPlan(billingSummary.plan) ? (
                   billingSummary.subscription_provider === "apple" ? (
-                    <p className="rounded-md border border-gray-200 bg-background px-3 py-2 text-sm text-gray-600">
+                    <p className="rounded-md border border-border bg-background px-3 py-2 text-sm text-muted-foreground">
                       Managed through the App Store
                     </p>
                   ) : (

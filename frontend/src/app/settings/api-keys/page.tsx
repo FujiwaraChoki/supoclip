@@ -154,7 +154,7 @@ export default function ApiKeysPage() {
               <KeyRound className="w-6 h-6 text-foreground" />
               <h1 className="text-2xl font-bold text-foreground">API Keys</h1>
             </div>
-            <p className="text-gray-600">
+            <p className="text-muted-foreground">
               Create keys for programmatic access — for example the{" "}
               <span className="font-medium">SupoClip MCP server</span>. Treat keys
               like passwords; they grant full access to your account.
@@ -170,13 +170,13 @@ export default function ApiKeysPage() {
 
           {/* One-time key reveal */}
           {newKey && (
-            <Alert className="mb-6 border-green-200 bg-green-50">
+            <Alert className="mb-6 border-primary">
               <AlertDescription>
-                <p className="font-medium text-green-900 mb-2">
+                <p className="font-medium text-primary mb-2">
                   Copy your new key now — it won&apos;t be shown again.
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 px-3 py-2 bg-background border rounded text-sm break-all">
+                  <code className="flex-1 px-3 py-2 bg-background border border-border rounded text-sm break-all">
                     {newKey}
                   </code>
                   <Button size="sm" variant="outline" onClick={handleCopy}>
@@ -188,7 +188,7 @@ export default function ApiKeysPage() {
           )}
 
           {/* Create form */}
-          <div className="mb-10 p-4 border rounded-lg">
+          <div className="mb-10 p-4 border border-border rounded-lg">
             <Label htmlFor="key-name" className="mb-2 block">
               Create a new key
             </Label>
@@ -210,7 +210,7 @@ export default function ApiKeysPage() {
 
           {/* Key list */}
           <div>
-            <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
               Your keys
             </h2>
             {showFetching ? (
@@ -226,17 +226,17 @@ export default function ApiKeysPage() {
                 {keys.map((key) => (
                   <div
                     key={key.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
+                    className="flex items-center justify-between p-4 border border-border rounded-lg"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-foreground truncate">{key.name}</span>
                         {key.revoked && <Badge variant="secondary">Revoked</Badge>}
                       </div>
-                      <p className="text-xs text-gray-500 font-mono mt-1">
+                      <p className="text-xs text-muted-foreground font-mono mt-1">
                         {key.key_prefix}…
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         Created {formatDate(key.created_at)} · Last used{" "}
                         {formatDate(key.last_used_at)}
                       </p>
@@ -245,7 +245,7 @@ export default function ApiKeysPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-foreground font-bold hover:bg-background"
                         onClick={() => setRevokeTarget(key)}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -271,7 +271,7 @@ export default function ApiKeysPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handleRevoke()} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogAction onClick={() => void handleRevoke()} className="bg-destructive text-background hover:bg-destructive/90">
               Revoke
             </AlertDialogAction>
           </AlertDialogFooter>

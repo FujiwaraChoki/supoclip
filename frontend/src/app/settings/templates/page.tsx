@@ -193,8 +193,8 @@ export default function TemplatesSettingsPage() {
         </div>
 
         {error && (
-          <Card className="border-destructive/50">
-            <CardContent className="pt-6 text-sm text-destructive">{error}</CardContent>
+          <Card className="border-foreground">
+            <CardContent className="pt-6 text-sm text-foreground font-bold">{error}</CardContent>
           </Card>
         )}
 
@@ -276,7 +276,7 @@ export default function TemplatesSettingsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="text-destructive hover:text-destructive"
+                        className="text-foreground font-bold"
                         disabled={busyId === template.id}
                         onClick={() => setPendingDeleteId(template.id)}
                       >
