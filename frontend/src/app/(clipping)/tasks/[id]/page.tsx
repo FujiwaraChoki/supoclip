@@ -62,6 +62,7 @@ import {
   Subtitles,
   Settings2,
   Clapperboard,
+  Sparkles,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
@@ -79,6 +80,7 @@ const PROCESSING_STAGES = [
   { id: "analyze", label: "Analyze" },
   { id: "render", label: "Render" },
   { id: "policy_check", label: "Policy Check" },
+  { id: "metadata", label: "Metadata" },
   { id: "complete", label: "Done" },
 ] as const;
 
@@ -224,6 +226,7 @@ export default function TaskPage() {
   const [regeneratingHookClipId, setRegeneratingHookClipId] = useState<string | null>(null);
   const [exportAllOpen, setExportAllOpen] = useState(false);
   const [exportAllRunning, setExportAllRunning] = useState(false);
+  const [regeneratingMetadata, setRegeneratingMetadata] = useState(false);
   const [exportAllStatus, setExportAllStatus] = useState<
     Record<string, "pending" | "exporting" | "retrying" | "success" | "failed">
   >({});
@@ -1003,6 +1006,26 @@ export default function TaskPage() {
   // time on the backend already, and sequential downloads avoid the browser's
   // multi-download popup-blocker). One retry per failed clip before it's
   // marked failed; one clip failing never stops the rest of the batch.
+  const handleRegenerateMetadata = async () => {
+    if (!task?.id) return;
+    setRegeneratingMetadata(true);
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/metadata/regenerate`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error(await buildSupportError(response, "Failed to regenerate metadata"));
+      }
+      const data = await response.json();
+      toast.success(`Metadata generated for ${data.generated}/${data.total} clips (${data.provider}).`);
+      await fetchTaskStatus();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to regenerate metadata");
+    } finally {
+      setRegeneratingMetadata(false);
+    }
+  };
+
   const handleExportAllClips = async () => {
     if (clips.length === 0) return;
     setExportAllRunning(true);
@@ -1291,6 +1314,17 @@ export default function TaskPage() {
                   <Button size="sm" variant="outline" onClick={handleExportAllClips} disabled={exportAllRunning}>
                     <Download className="w-4 h-4" />
                     {exportAllRunning ? "Exporting All..." : "Export All Clips"}
+                  </Button>
+                )}
+                {task.status === "completed" && clips.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRegenerateMetadata}
+                    disabled={regeneratingMetadata}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    {regeneratingMetadata ? "Generating..." : "Regenerate Metadata"}
                   </Button>
                 )}
                 {task.status === "completed" && clips.length > 0 && (

@@ -14,6 +14,7 @@ import {
   Scissors,
   ShieldAlert,
   Smile,
+  Sparkles,
   SplitSquareVertical,
   Subtitles,
   Trash2,
@@ -25,6 +26,7 @@ import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ContentPolicyHighlight } from "@/components/editor/content-policy-highlight";
+import { ClipMetadataPanel } from "@/components/editor/clip-metadata-panel";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -84,6 +86,11 @@ interface Clip {
   video_url: string;
   reactions?: ClipReaction[];
   content_policy_flags?: ContentPolicyFlag[];
+  metadata_title?: string | null;
+  metadata_description?: string | null;
+  metadata_tags?: string[];
+  metadata_provider?: "ollama" | "gemini" | null;
+  metadata_generation_ms?: number | null;
 }
 
 interface VideoFx {
@@ -1101,6 +1108,31 @@ export default function TaskEditPage() {
                           Rescan
                         </Button>
                       </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Select a clip to review.</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Sparkles className="w-4 h-4" />
+                      Metadata
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedClip ? (
+                      <ClipMetadataPanel
+                        taskId={task?.id ?? ""}
+                        clipId={selectedClip.id}
+                        title={selectedClip.metadata_title}
+                        description={selectedClip.metadata_description}
+                        tags={selectedClip.metadata_tags}
+                        provider={selectedClip.metadata_provider}
+                        generationMs={selectedClip.metadata_generation_ms}
+                        onSaved={fetchEditorData}
+                      />
                     ) : (
                       <p className="text-xs text-muted-foreground">Select a clip to review.</p>
                     )}
