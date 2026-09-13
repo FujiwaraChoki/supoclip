@@ -385,6 +385,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
         data.get("pause_threshold_ms"),
         data.get("remove_filler_words"),
         data.get("filtered_words"),
+        data.get("sensitivity"),
     )
     hook_style = _normalize_hook_style(data.get("hook_style"))
     social_overlay = _normalize_social_overlay(data.get("social_overlay"))
@@ -985,6 +986,7 @@ async def apply_task_settings(
             payload.get("pause_threshold_ms"),
             payload.get("remove_filler_words"),
             payload.get("filtered_words"),
+            payload.get("sensitivity"),
         )
         hook_style = _normalize_hook_style(payload.get("hook_style"))
         social_overlay = _normalize_social_overlay(payload.get("social_overlay"))
@@ -1189,6 +1191,7 @@ async def resume_task(
             metadata.get("pause_threshold_ms"),
             metadata.get("remove_filler_words"),
             metadata.get("filtered_words"),
+            metadata.get("sensitivity"),
         )
 
         if not source_url or not source_type:

@@ -10,7 +10,30 @@ from src.video_utils import (
     create_optimized_clip,
     create_clips_from_segments,
     get_words_for_keep_ranges,
+    crossfade_fades_for_ranges,
+    crossfade_fade_for_ranges,
 )
+
+
+def test_crossfade_applies_beyond_old_eight_segment_cap():
+    """Heavy filler/pause edits can leave many fragments; every junction
+    should still get a smooth crossfade instead of falling back to a hard
+    concat past some arbitrary fragment count."""
+    ranges = [(float(i), float(i + 1)) for i in range(12)]
+    fades = crossfade_fades_for_ranges(ranges)
+    assert len(fades) == 11
+    assert all(fade > 0 for fade in fades)
+
+
+def test_crossfade_not_disabled_clip_wide_by_one_short_segment():
+    """A single short fragment used to zero out crossfading for the whole
+    clip; now only the junctions touching it are bounded by its length, and
+    every junction still gets a positive fade."""
+    ranges = [(0.0, 2.0), (2.0, 2.15), (2.15, 5.0)]
+    fades = crossfade_fades_for_ranges(ranges)
+    assert len(fades) == 2
+    assert all(fade > 0 for fade in fades)
+    assert crossfade_fade_for_ranges(ranges) > 0
 
 
 def test_build_clip_keep_ranges_removes_pauses_and_filler_words(monkeypatch):
@@ -40,6 +63,117 @@ def test_build_clip_keep_ranges_removes_pauses_and_filler_words(monkeypatch):
     )
 
     assert keep_ranges == [(0.0, 0.3), (1.7, 2.4)]
+
+
+def test_build_clip_keep_ranges_protects_filler_near_clip_end(monkeypatch):
+    """A filler word landing right before the clip end (likely a punchline
+    payoff the clip was trimmed to land on) must not be cut."""
+    transcript_data = {
+        "words": [
+            {"text": "That's", "start": 0, "end": 300},
+            {"text": "the", "start": 300, "end": 500},
+            {"text": "punchline", "start": 500, "end": 1200},
+            {"text": "um", "start": 1200, "end": 1400},
+        ]
+    }
+    monkeypatch.setattr(
+        "src.video_utils.load_cached_transcript_data",
+        lambda _video_path: transcript_data,
+    )
+
+    keep_ranges = build_clip_keep_ranges(
+        Path("/tmp/demo.mp4"),
+        0.0,
+        1.4,
+        {"remove_filler_words": True, "filtered_words": []},
+    )
+
+    assert keep_ranges == [(0.0, 1.4)]
+
+
+def test_build_clip_keep_ranges_protects_sentence_final_filler(monkeypatch):
+    """Removing a filler phrase that closes a sentence could leave a
+    dangling clause -- protect it even mid-clip."""
+    transcript_data = {
+        "words": [
+            {"text": "Anyway,", "start": 0, "end": 300},
+            {"text": "you", "start": 300, "end": 500},
+            {"text": "know.", "start": 500, "end": 800},
+            {"text": "Next", "start": 3000, "end": 3300},
+            {"text": "thought.", "start": 3300, "end": 3700},
+        ]
+    }
+    monkeypatch.setattr(
+        "src.video_utils.load_cached_transcript_data",
+        lambda _video_path: transcript_data,
+    )
+
+    keep_ranges = build_clip_keep_ranges(
+        Path("/tmp/demo.mp4"),
+        0.0,
+        3.7,
+        {"remove_filler_words": True, "filtered_words": []},
+    )
+
+    assert keep_ranges == [(0.0, 3.7)]
+
+
+def test_build_clip_keep_ranges_protects_filler_next_to_emphasis(monkeypatch):
+    """A filler word sitting right next to an exclamation/question is part
+    of an emphatic beat, not disposable filler."""
+    transcript_data = {
+        "words": [
+            {"text": "Wait,", "start": 0, "end": 300},
+            {"text": "um,", "start": 300, "end": 500},
+            {"text": "what!?", "start": 500, "end": 900},
+            {"text": "Seriously.", "start": 3000, "end": 3400},
+        ]
+    }
+    monkeypatch.setattr(
+        "src.video_utils.load_cached_transcript_data",
+        lambda _video_path: transcript_data,
+    )
+
+    keep_ranges = build_clip_keep_ranges(
+        Path("/tmp/demo.mp4"),
+        0.0,
+        3.4,
+        {"remove_filler_words": True, "filtered_words": []},
+    )
+
+    assert keep_ranges == [(0.0, 3.4)]
+
+
+def test_build_clip_keep_ranges_still_removes_safe_mid_clip_filler(monkeypatch):
+    """The meaning guards shouldn't neuter filler removal entirely -- a
+    filler far from any boundary/sentence-end/emphasis is still cut."""
+    transcript_data = {
+        "words": [
+            {"text": "So", "start": 0, "end": 200},
+            {"text": "um", "start": 200, "end": 400},
+            {"text": "I", "start": 400, "end": 500},
+            {"text": "went", "start": 500, "end": 700},
+            {"text": "there", "start": 700, "end": 900},
+            {"text": "yesterday", "start": 900, "end": 1300},
+            {"text": "and", "start": 1300, "end": 1450},
+            {"text": "it", "start": 1450, "end": 1550},
+            {"text": "was", "start": 1550, "end": 1700},
+            {"text": "great", "start": 1700, "end": 2100},
+        ]
+    }
+    monkeypatch.setattr(
+        "src.video_utils.load_cached_transcript_data",
+        lambda _video_path: transcript_data,
+    )
+
+    keep_ranges = build_clip_keep_ranges(
+        Path("/tmp/demo.mp4"),
+        0.0,
+        4.0,
+        {"remove_filler_words": True, "filtered_words": []},
+    )
+
+    assert keep_ranges == [(0.0, 0.2), (0.4, 4.0)]
 
 
 def test_build_clip_keep_ranges_removes_boundary_silence(monkeypatch):

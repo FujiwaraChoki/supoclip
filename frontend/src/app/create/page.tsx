@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import { DEFAULT_HOOK_STYLE, hookStylePayload, type HookAnimation, type HookPosition, type HookStyle } from "@/lib/hook-style";
@@ -190,6 +191,10 @@ export default function VideoProcessingPage() {
   const [pauseThresholdMs, setPauseThresholdMs] = useState("900");
   const [removeFillerWords, setRemoveFillerWords] = useState(false);
   const [filteredWords, setFilteredWords] = useState("");
+  // null = use the manual toggles/threshold above unchanged (default, fully
+  // backward compatible). Once the user touches the slider it takes over as
+  // the single knob for both pause and filler-word aggressiveness.
+  const [cleanupSensitivity, setCleanupSensitivity] = useState<number | null>(null);
 
   const [hookStyle, setHookStyle] = useState<HookStyle>(DEFAULT_HOOK_STYLE);
   const updateHookStyle = useCallback(<K extends keyof HookStyle>(key: K, value: HookStyle[K]) => {
@@ -223,6 +228,7 @@ export default function VideoProcessingPage() {
     setPauseThresholdMs(settings.pauseThresholdMs);
     setRemoveFillerWords(settings.removeFillerWords);
     setFilteredWords(settings.filteredWords);
+    setCleanupSensitivity(settings.cleanupSensitivity ?? null);
     setHookStyle({ ...DEFAULT_HOOK_STYLE, ...settings.hookStyle });
     setSocialOverlay({ ...DEFAULT_SOCIAL_OVERLAY, ...settings.socialOverlay });
     setBrollSettings({ ...DEFAULT_BROLL_SETTINGS, ...settings.brollSettings });
@@ -241,6 +247,7 @@ export default function VideoProcessingPage() {
       pauseThresholdMs,
       removeFillerWords,
       filteredWords,
+      cleanupSensitivity,
       hookStyle,
       socialOverlay,
       brollSettings,
@@ -248,8 +255,8 @@ export default function VideoProcessingPage() {
     }),
     [
       fontFamily, fontSize, fontColor, captionTemplate, outputFormat, addSubtitles,
-      cutLongPauses, pauseThresholdMs, removeFillerWords, filteredWords, hookStyle,
-      socialOverlay, brollSettings, targetDuration,
+      cutLongPauses, pauseThresholdMs, removeFillerWords, filteredWords, cleanupSensitivity,
+      hookStyle, socialOverlay, brollSettings, targetDuration,
     ],
   );
 
@@ -413,6 +420,7 @@ export default function VideoProcessingPage() {
           pause_threshold_ms: normalizedPauseThreshold,
           remove_filler_words: removeFillerWords,
           filtered_words: normalizedFilteredWords,
+          ...(cleanupSensitivity !== null ? { sensitivity: cleanupSensitivity } : {}),
           hook_style: hookStylePayload(hookStyle),
           social_overlay: socialOverlayPayload(socialOverlay),
           broll_settings: brollSettingsPayload(brollSettings),
@@ -1159,12 +1167,44 @@ export default function VideoProcessingPage() {
             {/* Cleanup tab */}
             {activeTab === "cleanup" && (
               <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-stone-900">Cleanup sensitivity</label>
+                    <span className="text-xs text-stone-500 tabular-nums">
+                      {cleanupSensitivity === null ? "Off" : `${cleanupSensitivity}/100`}
+                    </span>
+                  </div>
+                  <Slider
+                    value={[cleanupSensitivity ?? 0]}
+                    min={0}
+                    max={100}
+                    step={1}
+                    disabled={isLoading}
+                    onValueChange={([value]) => setCleanupSensitivity(value)}
+                  />
+                  <p className="text-xs text-stone-400">
+                    0 turns cleanup off. Higher values cut shorter pauses and more filler words at once
+                    &mdash; this overrides the manual controls below. Meaning-changing cuts (punchlines,
+                    sentence-ending words, emphatic delivery) are always protected regardless of sensitivity.
+                  </p>
+                  {cleanupSensitivity !== null && (
+                    <button
+                      type="button"
+                      onClick={() => setCleanupSensitivity(null)}
+                      disabled={isLoading}
+                      className="text-xs text-stone-500 underline hover:text-stone-700"
+                    >
+                      Reset to manual controls
+                    </button>
+                  )}
+                </div>
+                <Separator />
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm font-medium text-stone-900">Cut long pauses</div>
                     <div className="text-xs text-stone-500">Split out silence gaps longer than your threshold.</div>
                   </div>
-                  <Switch checked={cutLongPauses} onCheckedChange={setCutLongPauses} disabled={isLoading} />
+                  <Switch checked={cutLongPauses} onCheckedChange={setCutLongPauses} disabled={isLoading || cleanupSensitivity !== null} />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-stone-500">Pause threshold (ms)</label>
@@ -1175,7 +1215,7 @@ export default function VideoProcessingPage() {
                     step={50}
                     value={pauseThresholdMs}
                     onChange={(e) => setPauseThresholdMs(e.target.value)}
-                    disabled={isLoading || !cutLongPauses}
+                    disabled={isLoading || !cutLongPauses || cleanupSensitivity !== null}
                     placeholder="900"
                   />
                 </div>
@@ -1184,7 +1224,7 @@ export default function VideoProcessingPage() {
                     <div className="text-sm font-medium text-stone-900">Remove filler words</div>
                     <div className="text-xs text-stone-500">Uses a safe default list like &quot;um&quot;, &quot;uh&quot;, and &quot;you know&quot;.</div>
                   </div>
-                  <Switch checked={removeFillerWords} onCheckedChange={setRemoveFillerWords} disabled={isLoading} />
+                  <Switch checked={removeFillerWords} onCheckedChange={setRemoveFillerWords} disabled={isLoading || cleanupSensitivity !== null} />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-stone-500">Extra filtered words or phrases</label>

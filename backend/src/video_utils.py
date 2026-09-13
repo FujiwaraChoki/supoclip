@@ -1335,20 +1335,50 @@ def emoji_rendering_supported() -> bool:
     return result
 
 
-def crossfade_fade_for_ranges(keep_ranges: List[Tuple[float, float]]) -> float:
-    """Crossfade duration render_source_ranges will use, or 0.0 for hard concat.
+# Above this many stitched fragments, chaining per-junction xfade/acrossfade
+# filters becomes a real ffmpeg performance/memory concern; fall back to a
+# hard concat only at this extreme (heavy filler edits rarely get anywhere
+# close to it in a single clip).
+MAX_CROSSFADE_JUNCTIONS = 60
 
-    A single source of truth so caption timing (which compacts the same ranges)
-    stays perfectly in sync with the crossfade-shortened video timeline.
+
+def crossfade_fades_for_ranges(
+    keep_ranges: List[Tuple[float, float]]
+) -> List[float]:
+    """Per-junction crossfade durations between consecutive keep_ranges.
+
+    One value per junction (len(ranges) - 1 entries). Each fade is bounded by
+    40% of whichever adjacent segment is shorter so a transition can never
+    consume more than 80% of any single segment (used on both its incoming
+    and outgoing edge), and floored above zero so every junction dissolves
+    smoothly instead of jump-cutting -- pause/filler cuts should never leave
+    an abrupt cut, not just "usually" avoid one.
+
+    A single source of truth so caption timing (which compacts the same
+    ranges) stays perfectly in sync with the crossfade-shortened video
+    timeline -- see get_words_for_keep_ranges.
     """
     ranges = normalize_source_ranges(keep_ranges)
-    if len(ranges) < 2 or len(ranges) > 8:
-        return 0.0
+    n = len(ranges)
+    if n < 2 or n - 1 > MAX_CROSSFADE_JUNCTIONS:
+        return []
     durations = [end - start for start, end in ranges]
-    if min(durations) < 0.45:
-        return 0.0
-    fade = min(0.22, min(durations) * 0.5)
-    return fade if fade >= 0.06 else 0.0
+    fades: List[float] = []
+    for i in range(1, n):
+        left, right = durations[i - 1], durations[i]
+        fade = min(0.22, left * 0.4, right * 0.4)
+        fades.append(max(fade, 0.02))
+    return fades
+
+
+def crossfade_fade_for_ranges(keep_ranges: List[Tuple[float, float]]) -> float:
+    """Backward-compatible single-value view: the largest per-junction fade.
+
+    0.0 means there's nothing to crossfade (fewer than 2 ranges, or too many
+    fragments to safely chain -- see MAX_CROSSFADE_JUNCTIONS).
+    """
+    fades = crossfade_fades_for_ranges(keep_ranges)
+    return max(fades) if fades else 0.0
 
 
 def render_ranges_crossfade_ffmpeg(
@@ -1369,8 +1399,8 @@ def render_ranges_crossfade_ffmpeg(
     if n < 2:
         return False
     durations = [end - start for start, end in keep_ranges]
-    fade = crossfade_fade_for_ranges(keep_ranges)
-    if fade <= 0:
+    fades = crossfade_fades_for_ranges(keep_ranges)
+    if not fades:
         return False
 
     parts: List[str] = []
@@ -1387,6 +1417,7 @@ def render_ranges_crossfade_ffmpeg(
     cur_v = "[v0]"
     cumulative = durations[0]
     for i in range(1, n):
+        fade = fades[i - 1]
         offset = cumulative - fade
         out = f"[vx{i}]"
         parts.append(
@@ -1400,6 +1431,7 @@ def render_ranges_crossfade_ffmpeg(
     if has_audio:
         cur_a = "[a0]"
         for i in range(1, n):
+            fade = fades[i - 1]
             out = f"[ax{i}]"
             parts.append(f"{cur_a}[a{i}]acrossfade=d={fade:.3f}{out}")
             cur_a = out
@@ -1459,8 +1491,8 @@ def render_source_ranges_ffmpeg(
 
     has_audio = ffprobe_has_audio(video_path)
 
-    # Smooth a handful of substantial internal cuts with crossfades; fall back to
-    # a hard concat for many tiny fragments (heavy filler edits) or on failure.
+    # Every multi-segment stitch gets a smooth crossfade at each junction; fall
+    # back to a hard concat only on an extreme fragment count or ffmpeg failure.
     if crossfade_fade_for_ranges(keep_ranges) > 0:
         if render_ranges_crossfade_ffmpeg(
             video_path, keep_ranges, output_path, has_audio
@@ -1959,10 +1991,8 @@ def build_assemblyai_ass_subtitles(
     if hook_title or social_overlay_enabled:
         if keep_ranges:
             ranges = normalize_source_ranges(keep_ranges)
-            fade = crossfade_fade_for_ranges(ranges)
-            output_duration = sum(end - start for start, end in ranges) - fade * max(
-                0, len(ranges) - 1
-            )
+            fades = crossfade_fades_for_ranges(ranges)
+            output_duration = sum(end - start for start, end in ranges) - sum(fades)
         else:
             output_duration = max(0.0, clip_end - clip_start)
 
@@ -3488,6 +3518,52 @@ def trim_keep_ranges_to_duration(
     return trimmed or keep_ranges
 
 
+# Never cut a filler match landing this close to the clip's end -- clips are
+# very often trimmed to land right on a punchline, so protect the payoff
+# rather than risk swallowing part of it.
+FILLER_END_BOUNDARY_GUARD_SECONDS = 0.75
+
+
+def _filler_span_changes_meaning(
+    relevant_words: List[Dict[str, Any]],
+    start_idx: int,
+    end_idx_exclusive: int,
+    clip_end: float,
+) -> bool:
+    """Guard against filler/pause removal that could alter meaning.
+
+    A literal token match (e.g. "you know", "kind of") is only truly
+    disposable filler when it isn't doing double duty as the emphatic or
+    sentence-closing word it's attached to. This blocks a match when it:
+
+    - sits within FILLER_END_BOUNDARY_GUARD_SECONDS of the clip's end
+      (protects a punchline/payoff the clip was trimmed to land on)
+    - is the sentence-final word (removing it could leave a dangling clause
+      or cut a deliberate trailing beat)
+    - sits directly next to an exclamation or question mark (emphatic
+      delivery or a question shouldn't have its neighboring words erased)
+    """
+    last_word = relevant_words[end_idx_exclusive - 1]
+
+    if clip_end - float(last_word["end"]) < FILLER_END_BOUNDARY_GUARD_SECONDS:
+        return True
+
+    if word_ends_sentence(str(last_word.get("text", ""))):
+        return True
+
+    neighbor_indices = []
+    if start_idx > 0:
+        neighbor_indices.append(start_idx - 1)
+    if end_idx_exclusive < len(relevant_words):
+        neighbor_indices.append(end_idx_exclusive)
+    for neighbor_idx in neighbor_indices:
+        neighbor_text = str(relevant_words[neighbor_idx].get("text", "")).rstrip()
+        if neighbor_text.endswith(("!", "?")):
+            return True
+
+    return False
+
+
 def build_clip_keep_ranges(
     video_path: Path,
     clip_start: float,
@@ -3549,7 +3625,9 @@ def build_clip_keep_ranges(
                     matched_length = len(phrase)
                     break
 
-            if matched_length:
+            if matched_length and not _filler_span_changes_meaning(
+                relevant_words, idx, idx + matched_length, clip_end
+            ):
                 removal_intervals.append(
                     (
                         relevant_words[idx]["start"],
@@ -3611,20 +3689,20 @@ def get_words_for_keep_ranges(
     """Project transcript word timings into the output timeline after cuts.
 
     When the kept ranges are stitched with crossfades (see
-    ``crossfade_fade_for_ranges``) each junction shortens the timeline by the
-    fade duration, so word offsets are pulled earlier by the same amount to keep
-    captions locked to the spoken audio.
+    ``crossfade_fades_for_ranges``) each junction shortens the timeline by its
+    own fade duration, so word offsets are pulled earlier by the same amount to
+    keep captions locked to the spoken audio.
     """
     if not transcript_data or not transcript_data.get("words") or not keep_ranges:
         return []
 
-    fade = crossfade_fade_for_ranges(keep_ranges)
+    fades = crossfade_fades_for_ranges(keep_ranges)
     relevant_words: List[Dict[str, Any]] = []
     timeline_offset = 0.0
 
     for index, (keep_start, keep_end) in enumerate(keep_ranges):
         if index > 0:
-            timeline_offset -= fade  # account for the crossfade overlap
+            timeline_offset -= fades[index - 1]  # account for that junction's crossfade overlap
         range_words = get_absolute_words_in_range(transcript_data, keep_start, keep_end)
         for word in range_words:
             relevant_words.append(
