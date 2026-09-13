@@ -23,9 +23,37 @@ IDEAL_CLIP_MIN_SECONDS = 25
 IDEAL_CLIP_MAX_SECONDS = 50
 MIN_ACCEPTED_CLIP_SECONDS = 15
 MAX_ACCEPTED_CLIP_SECONDS = 60
-TRANSCRIPT_ANALYSIS_CACHE_VERSION = "hook-titles-v5-grounded"
+TRANSCRIPT_ANALYSIS_CACHE_VERSION = "hook-titles-v6-audience-first-hook"
 HOOK_TITLE_MAX_CHARS = 64
 HOOK_TITLE_MAX_WORDS = 10
+
+# The on-screen text hook shown at the start of every clip. Shared verbatim by
+# both hook-generation call sites — the per-segment "hook_title" produced as
+# part of the (cached) transcript analysis below, and the standalone
+# generate_hook_title_variants() used by the "Regenerate Hook" / "Compare
+# Hooks" UI. Keep this the single source of truth for hook-writing rules.
+HOOK_GENERATION_RULES = """Write ONLY the short on-screen text hook shown at the very start of the clip — never captions, descriptions, titles, hashtags, analysis, or CTAs. Base it only on the clip's own content; never invent facts, stats, or context, and never exaggerate.
+
+GOAL: the viewer instantly understands what the clip is about AND wants to see what happens / hear the answer / find out more. Create CLEAR curiosity, not vague mystery — the topic itself must be instantly understandable.
+
+STYLE: usually 4-10 words, instantly understandable to a first-time viewer, focused on the single strongest angle, curiosity-driven without being misleading, audience-relevant, readable in ~1-2 seconds. Structure: CLEAR TOPIC -> WHY IT MATTERS -> OPEN LOOP. Do not explain the whole video, and do not hide the topic just for mystery's sake.
+
+MATCH THE CONTENT'S ANGLE (don't force a formula if another structure is stronger):
+- Ranking: "Ranking [topic] [curiosity/emotion]"
+- Funny clip: "[Person/topic] + [funny angle] 😂"
+- Educational: "Why [problem/topic] [curiosity]"
+- Opinion/debate: "The Truth About [topic] 👀"
+- Surprising moment: "Why [moment/topic] Was So Unexpected 😳"
+- Question/explanation: "Why [topic/problem] Happens 🤔"
+- List: "[Number] [topic] You Need to See 👀"
+
+AUDIENCE-FIRST VOICE: prefer you / your / you're / why you / why your / what you're missing / if you're / before you — the viewer's perspective. Avoid I / me / my / we / our.
+
+EMOJI RULE: only at the very END of the hook (never start or middle), 1-2 max, and only when it reinforces the meaning — never pure decoration.
+
+NEVER output a generic hook unless the subject is clearly named in the same breath: "You Won't Believe This 😱", "This Is Crazy 🤯", "You Need To See This 👀", "Wait Until You See This 😳", "This Changes Everything 🔥" are all banned as-is. Never sacrifice topic clarity for a punchier generic hook.
+
+Internally weigh several angles (problem-based, curiosity-based, insight-based, ranking/debate, humor/reaction) for topic clarity, viewer relevance, curiosity, brevity, accuracy, readability, and specificity — then output ONLY the single winning hook: no "Hook:" prefix, no surrounding quotes, no alternatives, no reasoning, no hashtags, no bullets. Ready to paste directly into the editor, emoji always at the end."""
 TRANSCRIPT_SPAN_RE = re.compile(
     r"^\[(?P<start>\d{1,2}:\d{2}(?::\d{2})?)\s*-\s*"
     r"(?P<end>\d{1,2}:\d{2}(?::\d{2})?)\]\s*(?P<text>.*)$"
@@ -237,7 +265,7 @@ class TranscriptAnalysis(BaseModel):
 
 
 # Enhanced system prompt with virality scoring and B-roll detection
-transcript_analysis_system_prompt = """You are an expert transcript analyst for short-form video editing.
+transcript_analysis_system_prompt = f"""You are an expert transcript analyst for short-form video editing.
 
 Your job is extraction and ranking, not creative rewriting. You must stay fully grounded in the transcript and choose the best clip candidates that already exist in the source material.
 
@@ -316,13 +344,8 @@ For each segment, provide a detailed virality breakdown:
    - 10-14: Nice but not share-worthy
    - 0-9: Generic content
 
-HOOK TITLES ("hook_title" per segment):
-- Write a short on-screen headline (3-9 words) that is burned into the top of the clip
-- It must make a scrolling viewer stop: a bold claim, curiosity gap, number, or stakes taken directly from the segment
-- Stay grounded: only promise what the clip actually delivers; never invent facts or numbers
-- Do not simply repeat the first spoken words verbatim; reframe them as a headline
-- Plain text only: no hashtags, no emojis, no quotes around the title
-- Good examples: "The $40k mistake I keep seeing", "Why nobody tells you this about VC", "Do this before your next interview"
+HOOK TITLES ("hook_title" per segment): write the on-screen text hook for the segment following these rules exactly:
+{HOOK_GENERATION_RULES}
 
 HOOK TYPES to identify:
 - "question": Opens with a question that creates curiosity
@@ -491,16 +514,12 @@ class HookVariants(BaseModel):
 _hook_variants_agent: Optional[Agent[None, HookVariants]] = None
 _hook_variants_agent_signature: Optional[tuple[str | None, ...]] = None
 
-HOOK_VARIANTS_SYSTEM_PROMPT = """You write short, punchy on-screen headlines ("hooks") for viral short-form video clips.
+HOOK_VARIANTS_SYSTEM_PROMPT = f"""You write on-screen text hooks for viral short-form video clips.
 
-Given a clip's transcript and its current hook title, write alternative hook titles that could replace it.
+Given a clip's transcript and its current hook title, write alternative hooks that could replace it. Every variant must follow these rules:
+{HOOK_GENERATION_RULES}
 
-Rules for every variant:
-- 3-9 words, plain text only (no hashtags, no emojis, no surrounding quotes)
-- Grounded in the transcript: only promise what the clip actually delivers, never invent facts or numbers
-- Make a scrolling viewer stop: a bold claim, curiosity gap, number, or stakes taken from the segment
-- Each variant must take a genuinely different angle from the others and from the current hook title (e.g. question vs. bold statement vs. number/stat vs. contrast)
-- Do not simply repeat the first spoken words verbatim"""
+Additionally, since these are alternatives to an existing hook: each variant must take a genuinely different angle from the others and from the current hook title (e.g. question vs. bold statement vs. number/stat vs. contrast)."""
 
 
 def get_hook_variants_agent() -> Agent[None, HookVariants]:

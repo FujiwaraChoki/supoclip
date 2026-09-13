@@ -1251,6 +1251,7 @@ class TaskService:
         caption_text: str,
         position: str,
         highlight_words: list[str],
+        font_size: Optional[int] = None,
     ) -> Dict[str, Any]:
         clip = await self.clip_repo.get_clip_by_id(self.db, clip_id)
         if not clip or clip["task_id"] != task_id:
@@ -1286,6 +1287,11 @@ class TaskService:
                 except ValueError:
                     transcript_video_path = None
 
+        if font_size is not None:
+            # Persist per-project so future clip regenerations (and the
+            # settings page) reflect the size chosen in the editor.
+            await self.task_repo.update_task_font_size(self.db, task_id, font_size)
+
         output_path = overlay_custom_captions(
             input_path,
             Path(self.config.temp_dir) / "clips",
@@ -1293,7 +1299,7 @@ class TaskService:
             position,
             highlight_words,
             font_family=task.get("font_family") or None,
-            font_size=task.get("font_size") or None,
+            font_size=font_size or task.get("font_size") or None,
             font_color=task.get("font_color") or None,
             caption_template=task.get("caption_template") or "default",
             transcript_video_path=transcript_video_path,

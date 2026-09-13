@@ -1027,6 +1027,11 @@ async def update_clip_captions(
             raise HTTPException(
                 status_code=400, detail="highlight_words must be an array"
             )
+        font_size = (
+            _normalize_font_size(payload.get("font_size"))
+            if "font_size" in payload
+            else None
+        )
 
         task_service = TaskService(db)
         await _require_task_owner(request, task_service, db, task_id)
@@ -1036,6 +1041,7 @@ async def update_clip_captions(
             caption_text,
             position,
             [str(word) for word in highlight_words],
+            font_size,
         )
         return {"clip": updated_clip}
     except ValueError as e:

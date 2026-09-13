@@ -294,6 +294,27 @@ class TaskRepository:
         await db.commit()
 
     @staticmethod
+    async def update_task_font_size(db: AsyncSession, task_id: str, font_size: int) -> None:
+        """Persist just the caption font size, without touching other task columns.
+
+        Used by the editor's inline caption size control, which must not clobber
+        font_family/font_color/caption_template the way the full `/settings`
+        replace-style update would if called with a partial payload.
+        """
+        await db.execute(
+            text(
+                """
+                UPDATE tasks
+                SET font_size = :font_size,
+                    updated_at = NOW()
+                WHERE id = :task_id
+                """
+            ),
+            {"task_id": task_id, "font_size": font_size},
+        )
+        await db.commit()
+
+    @staticmethod
     async def update_task_status(
         db: AsyncSession,
         task_id: str,

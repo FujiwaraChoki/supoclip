@@ -31,6 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { EmptyState } from "@/components/empty-state";
 import { EmojiPicker } from "@/components/ui/emoji-picker";
 import { useDelayedFlag } from "@/hooks/use-delayed-flag";
+import { useDebouncedEffect } from "@/lib/use-debounced-effect";
 import { toast } from "sonner";
 
 const REACTION_ANIMATIONS = ["fade_pop", "fade", "slide_down", "zoom_punch", "bounce", "pulse", "none"] as const;
@@ -58,6 +59,7 @@ interface TaskDetails {
   source_type: string;
   status: string;
   clips_count: number;
+  font_size?: number | null;
 }
 
 interface Clip {
@@ -153,6 +155,7 @@ export default function TaskEditPage() {
   const showLoading = useDelayedFlag(isLoading);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const lastSavedCaptionSizeRef = useRef<number | null>(null);
 
   const selectedClip = useMemo(
     () => clips.find((clip) => clip.id === selectedClipId) ?? null,
@@ -263,9 +266,11 @@ export default function TaskEditPage() {
     setCurrentTime(0);
     setVideoFx(DEFAULT_VIDEO_FX);
     setSubtitleY(78);
-    setSubtitleSize(52);
+    const initialCaptionSize = clamp(task?.font_size || 52, 28, 72);
+    setSubtitleSize(initialCaptionSize);
+    lastSavedCaptionSizeRef.current = initialCaptionSize;
     setReactions(selectedClip.reactions ?? []);
-  }, [selectedClip]);
+  }, [selectedClip, task?.font_size]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -333,11 +338,44 @@ export default function TaskEditPage() {
           caption_text: captionText,
           position: captionPosition,
           highlight_words: highlightWords,
+          font_size: subtitleSize,
         }),
       });
       if (!response.ok) throw new Error(await buildSupportError(response, "Failed to update captions"));
     }, "Captions updated.");
+    lastSavedCaptionSizeRef.current = subtitleSize;
   };
+
+  // Auto-persist the caption size per project shortly after the user stops
+  // dragging the slider — the live preview (canvas + DOM overlay) already
+  // updates instantly on every change, this just makes it stick for future
+  // renders/regenerations instead of only affecting the in-browser preview.
+  useDebouncedEffect(
+    () => {
+      if (!selectedClip || !task?.id) return;
+      if (lastSavedCaptionSizeRef.current === subtitleSize) return;
+      const sizeToSave = subtitleSize;
+      fetch(`${taskApiUrl}/${task.id}/clips/${selectedClip.id}/captions`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          caption_text: captionText,
+          position: captionPosition,
+          highlight_words: highlightWords,
+          font_size: sizeToSave,
+        }),
+      })
+        .then((response) => {
+          if (!response.ok) throw new Error("Failed to save caption size");
+          lastSavedCaptionSizeRef.current = sizeToSave;
+        })
+        .catch(() => {
+          toast.error("Failed to save caption size");
+        });
+    },
+    [subtitleSize],
+    900,
+  );
 
   const handleMerge = async () => {
     if (!session?.user?.id || !task?.id || mergeSelection.length < 2) return;
@@ -962,7 +1000,7 @@ export default function TaskEditPage() {
                         <span>Subtitle Size</span>
                         <span>{subtitleSize}</span>
                       </div>
-                      <Slider min={28} max={88} step={1} value={[subtitleSize]} onValueChange={(v) => setSubtitleSize(v[0] || 52)} />
+                      <Slider min={28} max={72} step={1} value={[subtitleSize]} onValueChange={(v) => setSubtitleSize(v[0] || 52)} />
                     </div>
 
                     <div className="space-y-2">

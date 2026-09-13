@@ -746,6 +746,39 @@ def get_subtitle_max_width(video_width: int) -> int:
     return max(200, video_width - (horizontal_padding * 2))
 
 
+def _estimate_caption_text_width_px(text: str, font_px: int) -> float:
+    """Rough glyph-width estimate, same 0.52-per-character heuristic used for
+    hook title shrink-to-fit (see build_hook_title_ass) — good enough to catch
+    overflow without needing real font metrics."""
+    return len(text) * font_px * 0.52
+
+
+def _split_caption_chunks(
+    words: List[Dict[str, Any]], max_words: int, font_px: int, usable_width: int
+) -> List[List[Dict[str, Any]]]:
+    """Group words into caption chunks capped by both word count and estimated
+    on-screen width, so a chunk of otherwise-short words doesn't run off the
+    safe area just because `max_words_per_line` allowed too many of them.
+    """
+    chunks: List[List[Dict[str, Any]]] = []
+    current: List[Dict[str, Any]] = []
+    current_text = ""
+    for word in words:
+        text = str(word.get("text", ""))
+        candidate_text = f"{current_text} {text}".strip()
+        candidate_width = _estimate_caption_text_width_px(candidate_text, font_px)
+        if current and (len(current) >= max_words or candidate_width > usable_width):
+            chunks.append(current)
+            current = [word]
+            current_text = text
+        else:
+            current.append(word)
+            current_text = candidate_text
+    if current:
+        chunks.append(current)
+    return chunks
+
+
 def get_safe_vertical_position(
     video_height: int, text_height: int, position_y: float
 ) -> int:
@@ -1807,6 +1840,7 @@ def build_hook_title_ass(
     font_name: str,
     caption_font_px: int,
     hook_style: Optional[Dict[str, Any]] = None,
+    highlight_words: Optional[List[str]] = None,
 ) -> Tuple[str, List[str]]:
     """Build the (style_line, dialogue_events) for a burned-in hook title.
 
@@ -1842,15 +1876,18 @@ def build_hook_title_ass(
     back_color = hex_to_ass_color(background_color, "#00000099")
 
     font_size_scale = float(effective.get("hook_font_size_scale") or 0.82)
-    # Slightly smaller than the captions so the spoken words stay the hero.
-    base_px = max(34, min(66, int(caption_font_px * font_size_scale)))
+    # Hook titles are allowed to run noticeably larger than captions since
+    # they only hold the frame briefly at the very top of the clip — the old
+    # 66px ceiling made even the "XL" preset barely register as larger than
+    # captions. This still shrinks to fit long titles below.
+    base_px = max(40, min(160, int(caption_font_px * font_size_scale)))
     usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_TOP_MARGIN_FRAC))
     max_chars = max(10, int(usable_width / (base_px * 0.52)))
     lines = _balance_title_lines(title_text.split(), max_chars)
     longest = max(len(line) for line in lines)
     hook_px = base_px
     if longest > max_chars:
-        hook_px = max(30, min(base_px, int(usable_width / (longest * 0.52))))
+        hook_px = max(36, min(base_px, int(usable_width / (longest * 0.52))))
 
     hook_stroke_width = effective.get("hook_stroke_width")
     base_stroke = int(
@@ -1890,13 +1927,22 @@ def build_hook_title_ass(
         f"1,0,0,0,100,100,0,0,{border_style},{outline_px},{shadow_px},{alignment},60,60,{margin_v},1"
     )
 
-    # Accent power words / numbers in the template highlight colour.
+    # Accent power words / numbers / user-requested keywords in the highlight
+    # colour — the same three triggers captions honour, so a keyword a user
+    # explicitly asks to highlight lights up in the hook too, not just captions.
+    requested_highlights = {
+        normalize_token(word) for word in (highlight_words or []) if normalize_token(word)
+    }
     rendered_lines: List[str] = []
     for line in lines:
         spans: List[str] = []
         for word in line.split():
             token = normalize_token(word)
-            accented = bool(token) and (token in POWER_WORDS or any(c.isdigit() for c in token))
+            accented = bool(token) and (
+                token in POWER_WORDS
+                or any(c.isdigit() for c in token)
+                or token in requested_highlights
+            )
             color = highlight if accented else primary
             spans.append(f"{{\\c{color}}}{escape_ass_text(word)}")
         rendered_lines.append(" ".join(spans))
@@ -2079,6 +2125,18 @@ def build_assemblyai_ass_subtitles(
     )
 
     font_px = get_scaled_font_size(effective_font_size, video_width, video_height)
+    usable_caption_width = get_subtitle_max_width(video_width)
+    # Long-word overflow guard: shrink the font just enough that even the
+    # single longest word in the clip (a long compound word, a URL, etc.)
+    # fits within the horizontal safe area, so it never runs off-screen
+    # regardless of the chosen caption size.
+    longest_word_text = max(
+        (str(w.get("text", "")) for w in relevant_words), key=len, default=""
+    )
+    if longest_word_text:
+        longest_word_width = _estimate_caption_text_width_px(longest_word_text, font_px)
+        if longest_word_width > usable_caption_width:
+            font_px = max(18, int(font_px * usable_caption_width / longest_word_width))
     base_stroke = int(template.get("stroke_width", 3) or 0)
     # Scale the outline with the font so big captions keep a chunky, readable edge.
     outline_px = (
@@ -2128,6 +2186,7 @@ def build_assemblyai_ass_subtitles(
                 font_name,
                 font_px,
                 hook_style,
+                highlight_words,
             )
             hook_style_block = f"{hook_style_line}\n"
 
@@ -2174,7 +2233,7 @@ def build_assemblyai_ass_subtitles(
     )
 
     max_words = max(1, int(template.get("max_words_per_line", 4) or 4))
-    chunk_size = max_words
+    caption_chunks = _split_caption_chunks(relevant_words, max_words, font_px, usable_caption_width)
 
     header = f"""[Script Info]
 ScriptType: v4.00+
@@ -2233,10 +2292,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     line_entrance = "\\fscx92\\fscy92\\t(0,140,\\fscx100\\fscy100)" if word_pop else ""
 
     events: List[str] = []
-    total = len(relevant_words)
-    for chunk_start in range(0, total, chunk_size):
-        chunk = relevant_words[chunk_start : chunk_start + chunk_size]
+    chunk_start = 0
+    for chunk in caption_chunks:
         indices = list(range(chunk_start, chunk_start + len(chunk)))
+        chunk_start += len(chunk)
         chunk_end = float(chunk[-1]["end"])
 
         if animation == "karaoke":

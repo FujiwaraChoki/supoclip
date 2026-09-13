@@ -210,6 +210,7 @@ export default function TaskPage() {
     setProjectSocialOverlay((current) => ({ ...current, [key]: value }));
   }, []);
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
+  const [regeneratingHookClipId, setRegeneratingHookClipId] = useState<string | null>(null);
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
   const [deletingFontName, setDeletingFontName] = useState<string | null>(null);
@@ -722,6 +723,41 @@ export default function TaskPage() {
       toast.error(err instanceof Error ? err.message : "Failed to apply settings");
     } finally {
       setIsApplyingSettings(false);
+    }
+  };
+
+  // Hooks are generated once (during analysis) and cached — this is the only
+  // way to get a fresh LLM call for a single clip's hook without going
+  // through the full A/B "Compare Hooks" dialog.
+  const handleRegenerateHook = async (clipId: string) => {
+    setRegeneratingHookClipId(clipId);
+    try {
+      const variantsResponse = await fetch(`${taskApiUrl}/${params.id}/clips/${clipId}/hook-variants`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count: 1 }),
+      });
+      if (!variantsResponse.ok) {
+        throw new Error(await buildSupportError(variantsResponse, "Failed to regenerate hook"));
+      }
+      const data = await variantsResponse.json();
+      const variant = (data.variants || [])[0];
+      if (!variant) throw new Error("No new hook was generated");
+
+      const selectResponse = await fetch(`${taskApiUrl}/${params.id}/clips/${clipId}/hook-variants/select`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variant_id: variant.id }),
+      });
+      if (!selectResponse.ok) {
+        throw new Error(await buildSupportError(selectResponse, "Failed to apply regenerated hook"));
+      }
+      await fetchTaskStatus();
+      toast.success("Hook regenerated.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to regenerate hook");
+    } finally {
+      setRegeneratingHookClipId(null);
     }
   };
 
@@ -1831,6 +1867,17 @@ export default function TaskPage() {
                           availableTemplates={availableTemplates}
                           onApplied={fetchTaskStatus}
                         />
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={regeneratingHookClipId === clip.id}
+                          onClick={() => handleRegenerateHook(clip.id)}
+                          title="Generate a fresh hook with one click, without opening the comparison dialog"
+                        >
+                          <RefreshCw className={`w-4 h-4 ${regeneratingHookClipId === clip.id ? "animate-spin" : ""}`} />
+                          {regeneratingHookClipId === clip.id ? "Regenerating..." : "Regenerate Hook"}
+                        </Button>
 
                         <Button
                           size="sm"
