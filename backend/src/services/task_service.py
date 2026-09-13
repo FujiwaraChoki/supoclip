@@ -479,10 +479,14 @@ class TaskService:
                     progress=0,
                     progress_message="Cancelled by user",
                 )
+                if progress_callback:
+                    await progress_callback(0, "Cancelled by user", "cancelled")
                 raise
             await self.task_repo.update_task_status(
                 self.db, task_id, "error", progress=0, progress_message=str(e)
             )
+            if progress_callback:
+                await progress_callback(0, str(e), "error")
             error_code = "task_error"
             message = str(e).lower()
             if "download" in message or "youtube" in message:

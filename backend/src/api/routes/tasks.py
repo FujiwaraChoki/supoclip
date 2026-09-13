@@ -691,8 +691,8 @@ async def get_task_progress_sse(task_id: str, request: Request):
             ),
         }
 
-        # If task is already completed or error, close connection
-        if task.get("status") in ["completed", "error"]:
+        # If task is already completed, error, or cancelled, close connection
+        if task.get("status") in ["completed", "error", "cancelled"]:
             yield {"event": "close", "data": json.dumps({"status": task.get("status")})}
             return
 
@@ -714,7 +714,7 @@ async def get_task_progress_sse(task_id: str, request: Request):
                 yield {"event": event_type, "data": json.dumps(progress_data)}
 
                 # Close connection if task is done
-                if progress_data.get("status") in ["completed", "error"]:
+                if progress_data.get("status") in ["completed", "error", "cancelled"]:
                     yield {
                         "event": "close",
                         "data": json.dumps({"status": progress_data.get("status")}),
