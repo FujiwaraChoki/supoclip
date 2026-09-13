@@ -50,7 +50,9 @@ SupoClip gives you the same core pipeline without the leash:
 ## Features
 
 - **AI clip selection** — an LLM (Gemini, GPT, Claude, or a local Ollama model) picks the most clip-worthy segments from the transcript; set a target clip count and length per video, or leave it on auto
-- **Batch processing** — drop multiple videos at once and they queue up and process one after another, each with its own status
+- **Batch processing** — drop multiple videos at once, pick a preset once, and they queue up and process one after another; pause, resume, cancel, or retry a failed video without losing the rest, and the queue survives a restart
+- **Content policy detection** — sensitive words are flagged and asterisked in captions (never in audio) using an editable, per-category word list, with an optional local-LLM pass for euphemisms a keyword list would miss
+- **Per-clip SEO metadata** — an AI-generated title, description, and tags for every clip in one call per video, fully editable and never regenerated over a manual edit
 - **Virality scoring** — every clip gets hook, engagement, value, and shareability scores
 - **Smart vertical cropping** — face detection keeps the speaker centered in the 9:16 frame
 - **Word-synced subtitles** — AssemblyAI word-level timestamps, custom fonts, caption templates with animation styles
