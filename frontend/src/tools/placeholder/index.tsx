@@ -16,9 +16,9 @@ import type { Tool } from "../types";
 function ComingSoon() {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-24 text-center px-4">
-      <Sparkles className="w-10 h-10 text-stone-300" />
-      <p className="font-medium text-stone-700">More tools are coming</p>
-      <p className="text-sm text-stone-500 max-w-sm">
+      <Sparkles className="w-10 h-10 text-muted-foreground" />
+      <p className="font-medium text-foreground">More tools are coming</p>
+      <p className="text-sm text-muted-foreground max-w-sm">
         SupoClip is growing beyond clipping. This space is reserved for what&apos;s next.
       </p>
     </div>
@@ -30,6 +30,7 @@ export const placeholderTool: Tool = {
   name: "More Tools",
   icon: Sparkles,
   description: "Coming soon",
+  thumbnail: "/assets/tools/placeholder.svg",
   mount(container: HTMLElement) {
     const root: Root = createRoot(container);
     root.render(<ComingSoon />);

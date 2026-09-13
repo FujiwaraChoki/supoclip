@@ -70,9 +70,9 @@ export function HookTitlePreview({
 
   return (
     <div className="space-y-1.5">
-      {!compact && <label className="text-xs text-stone-500">Preview (approximate)</label>}
+      {!compact && <label className="text-xs text-muted-foreground">Preview (approximate)</label>}
       <div
-        className={`relative w-full aspect-[9/16] rounded-lg bg-stone-900 overflow-hidden flex ${
+        className={`relative w-full aspect-[9/16] bg-foreground overflow-hidden flex ${
           compact ? "max-h-40" : "max-h-56"
         }`}
         style={{
@@ -99,7 +99,7 @@ export function HookTitlePreview({
         `}</style>
         <span
           key={animationKey}
-          className="text-center font-bold leading-tight rounded-[3px]"
+          className="text-center font-bold leading-tight"
           style={{
             fontFamily,
             color: fontColor,

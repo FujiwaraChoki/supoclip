@@ -32,7 +32,7 @@ export function FontSelectOption({
       {font.scope === "user" && (
         <button
           type="button"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-gray-500 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50"
+          className="flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground hover:bg-foreground hover:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           aria-label={`Delete ${font.display_name}`}
           title={`Delete ${font.display_name}`}
           disabled={isDeleting}

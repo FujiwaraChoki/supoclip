@@ -114,13 +114,13 @@ export function HookVariantCompare({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="rounded-lg border p-3 bg-gray-50">
-            <div className="text-xs font-medium text-gray-500 mb-2">Current hook</div>
-            <div className="text-sm font-medium text-gray-900">{currentHookTitle || "(no hook title set)"}</div>
+          <div className="rounded-lg border p-3 ">
+            <div className="text-xs font-medium text-muted-foreground mb-2">Current hook</div>
+            <div className="text-sm font-medium text-foreground">{currentHookTitle || "(no hook title set)"}</div>
           </div>
 
           <div className="flex items-center justify-between">
-            <div className="text-sm font-medium text-gray-900">Generated variants</div>
+            <div className="text-sm font-medium text-foreground">Generated variants</div>
             <Button size="sm" variant="outline" onClick={handleGenerate} disabled={generating}>
               <Wand2 className="w-4 h-4" />
               {generating ? "Generating..." : variants.length ? "Generate more" : "Generate variants"}
@@ -128,7 +128,7 @@ export function HookVariantCompare({
           </div>
 
           {variants.length === 0 && !generating && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               No variants yet. Generate a few AI-written alternatives, then compare them side-by-side before picking a winner.
             </p>
           )}
@@ -138,7 +138,7 @@ export function HookVariantCompare({
               <div
                 key={variant.id}
                 className={`rounded-lg border p-2.5 space-y-2 ${
-                  variant.text === currentHookTitle ? "border-gray-900 bg-gray-50" : "border-gray-200"
+                  variant.text === currentHookTitle ? "border-foreground " : "border-border"
                 }`}
               >
                 <HookTitlePreview
@@ -148,7 +148,7 @@ export function HookVariantCompare({
                   overrideText={variant.text}
                   compact
                 />
-                <div className="text-sm font-medium text-gray-900">{variant.text}</div>
+                <div className="text-sm font-medium text-foreground">{variant.text}</div>
                 <Button
                   size="sm"
                   className="w-full"
@@ -172,7 +172,7 @@ export function HookVariantCompare({
           </div>
 
           <div className="rounded-lg border p-3 space-y-2">
-            <div className="text-sm font-medium text-gray-900">Write your own</div>
+            <div className="text-sm font-medium text-foreground">Write your own</div>
             <Input
               value={customText}
               onChange={(e) => setCustomText(e.target.value)}
@@ -190,7 +190,7 @@ export function HookVariantCompare({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-gray-500">Hook type</label>
+            <label className="text-xs font-medium text-muted-foreground">Hook type</label>
             <Select value={hookType} onValueChange={setHookType}>
               <SelectTrigger>
                 <SelectValue />
@@ -203,10 +203,10 @@ export function HookVariantCompare({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-gray-500">Applied together with whichever hook you pick above.</p>
+            <p className="text-xs text-muted-foreground">Applied together with whichever hook you pick above.</p>
           </div>
 
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-foreground font-bold">{error}</p>}
         </div>
       </DialogContent>
     </Dialog>

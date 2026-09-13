@@ -74,14 +74,14 @@ export function TemplatePicker({
             onClick={() => onSelect(template.id)}
             className={`flex flex-col gap-1.5 rounded-lg border-2 p-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               isSelected
-                ? "border-stone-900 bg-stone-50"
-                : "border-stone-200 hover:border-stone-400"
+                ? "border-foreground"
+                : "border-border hover:border-primary"
             }`}
           >
             <TemplateSwatch template={template} />
             <div>
-              <p className="text-xs font-medium text-stone-900">{template.name}</p>
-              <p className="text-[10px] text-stone-500 capitalize">{template.animation}</p>
+              <p className="text-xs font-medium text-foreground">{template.name}</p>
+              <p className="text-[10px] text-muted-foreground capitalize">{template.animation}</p>
             </div>
           </button>
         );
