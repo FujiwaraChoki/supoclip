@@ -31,7 +31,7 @@ export function EmojiPicker({ onSelect, trigger }: EmojiPickerProps) {
               type="button"
               onClick={() => onSelect(emoji)}
               className={cn(
-                "text-xl leading-none rounded-md p-1.5 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors",
+                "text-xl leading-none p-1.5 hover:bg-accent hover:text-accent-foreground transition-colors",
               )}
               aria-label={`Add ${emoji} reaction`}
             >
