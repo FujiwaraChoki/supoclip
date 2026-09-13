@@ -742,7 +742,7 @@ export default function TaskEditPage() {
           <Card>
             <CardContent className="p-8 text-center space-y-3">
               <p className="text-lg font-semibold">This editor is available once processing completes.</p>
-              <p className="text-gray-600">Current status: {task.status}</p>
+              <p className="text-muted-foreground">Current status: {task.status}</p>
               <Link href={`/tasks/${task.id}`}>
                 <Button variant="outline">Return to Task</Button>
               </Link>
@@ -762,7 +762,7 @@ export default function TaskEditPage() {
                 <CardContent className="p-4 lg:p-5 space-y-4">
                   {selectedClip ? (
                     <>
-                      <div className="rounded-xl bg-black overflow-hidden relative">
+                      <div className="rounded-xl bg-foreground overflow-hidden relative">
                         <video
                           ref={videoRef}
                           key={selectedClip.id}
@@ -776,7 +776,7 @@ export default function TaskEditPage() {
                         />
 
                         <div
-                          className="absolute left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-black/70 text-white text-center pointer-events-none"
+                          className="absolute left-1/2 -translate-x-1/2 px-4 py-1.5 bg-foreground text-background text-center pointer-events-none"
                           style={{
                             bottom: `${subtitleY}%`,
                             fontSize: `${subtitleSize / 2.5}px`,
@@ -787,7 +787,7 @@ export default function TaskEditPage() {
                               const cleaned = word.toLowerCase().replace(/[^a-z0-9']/g, "");
                               const highlighted = highlightWords.includes(cleaned);
                               return (
-                                <span key={`${word}-${index}`} className={highlighted ? "text-yellow-300" : "text-white"}>
+                                <span key={`${word}-${index}`} className={highlighted ? "text-primary" : "text-background"}>
                                   {word}{index === activeSubtitleWords.length - 1 ? "" : " "}
                                 </span>
                               );
@@ -800,7 +800,7 @@ export default function TaskEditPage() {
                         {activeReactions.map((reaction) => (
                           <div
                             key={reaction.id}
-                            className="absolute text-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none drop-shadow"
+                            className="absolute text-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                             style={{
                               left: `${reaction.position.x_pct}%`,
                               top: `${reaction.position.y_pct}%`,
@@ -812,7 +812,7 @@ export default function TaskEditPage() {
                       </div>
 
                       <div className="border rounded-lg p-3 space-y-3">
-                        <div className="flex items-center justify-between text-sm text-gray-600">
+                        <div className="flex items-center justify-between text-sm text-muted-foreground">
                           <span>Playhead: {formatDuration(currentTime)} / {formatDuration(selectedClip.duration)}</span>
                           <span>{isPlaying ? "Playing" : "Paused"}</span>
                         </div>
@@ -843,7 +843,7 @@ export default function TaskEditPage() {
                       </div>
 
                       <div className="border rounded-lg p-3 space-y-3">
-                        <div className="flex items-center justify-between text-sm text-gray-700">
+                        <div className="flex items-center justify-between text-sm text-foreground">
                           <span className="font-medium">Trim Range</span>
                           <span>{formatDuration(trimRange[0])} - {formatDuration(trimRange[1])}</span>
                         </div>
@@ -865,7 +865,7 @@ export default function TaskEditPage() {
                       </div>
                     </>
                   ) : (
-                    <p className="text-sm text-gray-600">Select a clip to start editing.</p>
+                    <p className="text-sm text-muted-foreground">Select a clip to start editing.</p>
                   )}
                 </CardContent>
               </Card>
@@ -900,14 +900,14 @@ export default function TaskEditPage() {
                     <div className="space-y-3">
                       <div className="text-sm font-medium flex items-center gap-2"><AudioLines className="w-4 h-4" />Audio</div>
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs text-gray-600">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>Volume</span>
                           <span>{volume}%</span>
                         </div>
                         <Slider min={0} max={200} step={1} value={[volume]} onValueChange={(v) => setVolume(v[0] || 0)} />
                       </div>
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs text-gray-600">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
                           <span>Playback Rate</span>
                           <span>{playbackRate.toFixed(2)}x</span>
                         </div>
@@ -933,7 +933,7 @@ export default function TaskEditPage() {
                         const currentValue = videoFx[typedKey];
                         return (
                           <div key={key} className="space-y-1.5">
-                            <div className="flex items-center justify-between text-xs text-gray-600">
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
                               <span>{label}</span>
                               <span>{currentValue}</span>
                             </div>
@@ -968,7 +968,7 @@ export default function TaskEditPage() {
                       value={captionText}
                       onChange={(e) => setCaptionText(e.target.value)}
                       placeholder="Edit subtitle script"
-                      className="w-full min-h-24 rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+                      className="w-full min-h-24 rounded-md border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     />
 
                     <div className="grid grid-cols-2 gap-2">
@@ -996,7 +996,7 @@ export default function TaskEditPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs text-gray-600">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>Subtitle Size</span>
                         <span>{subtitleSize}</span>
                       </div>
@@ -1004,7 +1004,7 @@ export default function TaskEditPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between text-xs text-gray-600">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>Vertical Offset</span>
                         <span>{subtitleY}%</span>
                       </div>
@@ -1012,10 +1012,10 @@ export default function TaskEditPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <div className="text-xs text-gray-600">Highlight words (click to toggle)</div>
-                      <div className="max-h-28 overflow-y-auto rounded-md border border-gray-200 p-2 flex flex-wrap gap-1.5">
+                      <div className="text-xs text-muted-foreground">Highlight words (click to toggle)</div>
+                      <div className="max-h-28 overflow-y-auto rounded-md border border-border p-2 flex flex-wrap gap-1.5">
                         {subtitleWords.length === 0 ? (
-                          <span className="text-xs text-gray-500">No words yet.</span>
+                          <span className="text-xs text-muted-foreground">No words yet.</span>
                         ) : (
                           subtitleWords.map((word, index) => {
                             const cleaned = word.toLowerCase().replace(/[^a-z0-9']/g, "");
@@ -1026,7 +1026,7 @@ export default function TaskEditPage() {
                                 type="button"
                                 onClick={() => toggleHighlightedWord(word)}
                                 className={`px-1.5 py-0.5 rounded text-xs border ${
-                                  highlighted ? "bg-yellow-100 border-yellow-300 text-yellow-900" : "bg-background border-gray-200 text-gray-700"
+                                  highlighted ? "bg-foreground border-foreground text-background" : "bg-background border-border text-foreground"
                                 }`}
                               >
                                 {word}
@@ -1052,7 +1052,7 @@ export default function TaskEditPage() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {reactions.length === 0 ? (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-muted-foreground">
                         No reactions yet. Use &quot;Add emoji reaction here&quot; above the preview to place one at the
                         playhead.
                       </p>
@@ -1062,11 +1062,11 @@ export default function TaskEditPage() {
                           .slice()
                           .sort((a, b) => a.timestamp_seconds - b.timestamp_seconds)
                           .map((reaction) => (
-                            <div key={reaction.id} className="rounded-lg border border-gray-200 p-3 space-y-2">
+                            <div key={reaction.id} className="rounded-lg border border-border p-3 space-y-2">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                   <span className="text-xl">{reaction.emoji}</span>
-                                  <span className="text-xs text-gray-500">
+                                  <span className="text-xs text-muted-foreground">
                                     at {formatDuration(reaction.timestamp_seconds)}
                                   </span>
                                 </div>
@@ -1076,7 +1076,7 @@ export default function TaskEditPage() {
                                   onClick={() => removeReaction(reaction.id)}
                                   aria-label="Remove reaction"
                                 >
-                                  <Trash2 className="w-4 h-4 text-red-600" />
+                                  <Trash2 className="w-4 h-4 text-foreground" />
                                 </Button>
                               </div>
 
@@ -1126,7 +1126,7 @@ export default function TaskEditPage() {
                               </div>
 
                               <div className="space-y-1">
-                                <div className="flex items-center justify-between text-xs text-gray-600">
+                                <div className="flex items-center justify-between text-xs text-muted-foreground">
                                   <span>Duration</span>
                                   <span>{reaction.duration_seconds.toFixed(1)}s</span>
                                 </div>
@@ -1182,16 +1182,16 @@ export default function TaskEditPage() {
                         type="button"
                         onClick={() => setSelectedClipId(clip.id)}
                         className={`text-left rounded-lg border p-3 transition ${
-                          isActive ? "border-black bg-gray-50" : "border-gray-200 hover:border-gray-400"
+                          isActive ? "border-foreground bg-background" : "border-border hover:border-primary"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <p className="font-medium text-sm text-foreground">Clip {clip.clip_order}</p>
-                            <p className="text-xs text-gray-500">{clip.start_time} - {clip.end_time}</p>
-                            <p className="text-xs text-gray-500">{formatDuration(clip.duration)}</p>
+                            <p className="text-xs text-muted-foreground">{clip.start_time} - {clip.end_time}</p>
+                            <p className="text-xs text-muted-foreground">{formatDuration(clip.duration)}</p>
                           </div>
-                          <label className="flex items-center gap-1 text-xs text-gray-600" onClick={(e) => e.stopPropagation()}>
+                          <label className="flex items-center gap-1 text-xs text-muted-foreground" onClick={(e) => e.stopPropagation()}>
                             <input type="checkbox" checked={isSelectedForMerge} onChange={() => toggleMergeSelection(clip.id)} />
                             Merge
                           </label>
