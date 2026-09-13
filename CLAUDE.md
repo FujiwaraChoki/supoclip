@@ -8,6 +8,8 @@ SupoClip is an open-source alternative to OpusClip — an AI-powered video clipp
 
 A `docs/` directory is the canonical deep-dive documentation (start at [docs/README.md](docs/README.md)): [architecture.md](docs/architecture.md), [configuration.md](docs/configuration.md), [api-reference.md](docs/api-reference.md), [app-guide.md](docs/app-guide.md), [development.md](docs/development.md), [troubleshooting.md](docs/troubleshooting.md). Prefer those for detail beyond what's below.
 
+**[DESIGN.md](DESIGN.md) is required reading before touching any UI.** It defines the Swiss/International-Typographic-Style design system (locked 4-color palette, type scale, spacing/grid, and per-component rules) that every core-product screen (Home, Clipping tool, Settings) must follow. Frontend marketing/legal pages (`blog`, `terms`, `privacy`, `share`, the landing `[slug]` page) are exempt — they're slated for removal and intentionally out of scope for the design system.
+
 ## Development Commands
 
 ### Docker (recommended)
@@ -135,6 +137,21 @@ SupoClip is architecturally a single tool (clipping) today, but the frontend has
 
 **To add a new tool**: create `frontend/src/tools/<tool>/index.ts(x)` exporting a `Tool`; if it's route-based, add its pages under their own route group in `frontend/src/app/` (e.g. `(ranking)/`) the same way `(clipping)/` works; add the tool to `frontend/src/tools/registry.ts`. That's the whole integration surface for the shell — no other file needs to change. Backend-side, a substantially different pipeline (non-clipping input/output) should get its own worker task function and settings rather than extending `process_video_task`/the `tasks` table; the generic pieces above are ready to reuse.
 
+### Home Screen
+
+`/` (`frontend/src/components/home-app.tsx`, rendered via `home-router.tsx`) is an operations-dashboard launchpad for the multi-tool platform, not a marketing page and not a bare project list — that content lives at `/list` (the Clipping tool's full history, linked from Home's "View all"). Sections top to bottom, each its own component under `frontend/src/components/home/`:
+
+- **`home-top-bar.tsx`** — thin persistent header: wordmark left, icon-only Notifications/System Status/Settings/theme-toggle right. No search input by design. Notifications is stubbed with a "coming soon" toast; System Status scrolls to the status strip.
+- **`hero-actions.tsx`** — "Start something": New Clip (`/create`), Import Video (file picker → same pending-file handoff as drag-and-drop, below), and a "Continue" card for the last-opened project (only rendered when one exists).
+- **`recent-projects.tsx`** — up to 6 most-recent tasks as thumbnail cards (YouTube thumbnail or a Film-icon fallback, via `lib/youtube-thumbnail.ts`), "View all" links to `/list`. Empty state reuses `EmptyState`.
+- **`tools-grid.tsx`** + **`tool-card.tsx`** — one card per entry in `frontend/src/tools/registry.ts`; this is the primary discovery surface for future tools. A tool with `href` (route-owning, e.g. Clipping) is clickable with an "Open" button; a `mount`-only tool (e.g. Placeholder) renders disabled with "Coming soon" — this falls out of the existing `Tool` shape, no new fields needed for that part.
+- **`activity-feed.tsx`** — compact last-5-actions list derived from the same task fetch (no new backend aggregation — per-week clip/hour totals aren't tracked anywhere yet, so that's deferred rather than faked).
+- **`status-strip.tsx`** — bottom operator strip (queue depth, active jobs, GPU on/off/unavailable, disk free), polling `GET /tasks/system-status` (backend: `api/routes/tasks.py::get_system_status`, counts from `TaskRepository.get_status_counts`, GPU via the existing `detect_gpu_encoder()` cache, disk via `shutil.disk_usage(TEMP_DIR)`) every 10s. Routed to the backend automatically by the existing generic `frontend/src/app/api/tasks/[...path]/route.ts` proxy — no dedicated Next.js route file needed for a new `/tasks/*` backend endpoint.
+
+**Tool card thumbnails**: a `Tool` may set `thumbnail: "/assets/tools/<tool-id>.svg"` (see `tools/types.ts`) pointing at a static SVG under `frontend/public/assets/tools/` — plain files, never inlined/base64'd, so art can be swapped without a code change. `ToolCard` renders it in an `<img>` with an `onError` fallback to a plain CSS icon tile (`tool.icon` + name) so a missing/broken thumbnail never breaks the grid. **To add a thumbnail for a new tool**: drop `frontend/public/assets/tools/<tool-id>.svg` and set `thumbnail` on that tool's descriptor — nothing else changes.
+
+**Drag-and-drop and Import Video** hand a `File` to `/create` across a full route navigation via `frontend/src/lib/pending-file-transfer.ts` (a module-level variable — survives a Next.js client-side navigation, but not a hard reload) — `create/page.tsx` consumes it once on mount via `takePendingFile()`. **"Continue"** is backed by `frontend/src/lib/last-project.ts` (localStorage), written by `tasks/[id]/page.tsx` every time a project loads.
+
 ### Database
 
 PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
@@ -169,6 +186,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 **Task lifecycle:**
 - `POST /start-with-progress` — Create task, enqueue to worker (returns task_id)
 - `GET /tasks/` — List user tasks
+- `GET /tasks/system-status` — Queue depth, active/processing job counts, GPU state, disk space (home screen's status strip)
 - `GET /tasks/{id}` — Get task with clips
 - `GET /tasks/{id}/progress` — SSE real-time progress stream
 - `POST /tasks/{id}/cancel` — Cancel processing
