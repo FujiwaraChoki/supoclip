@@ -15,6 +15,9 @@ from .caption_templates import get_template
 from .video_utils import (
     ass_fonts_dir,
     build_assemblyai_ass_subtitles,
+    build_audio_output_args,
+    enforce_size_cap,
+    ffprobe_has_audio,
     get_words_for_keep_ranges,
     get_words_in_range,
     load_cached_transcript_data,
@@ -28,12 +31,37 @@ class ExportPreset:
     height: int
     video_bitrate: str
     audio_bitrate: str
+    # Hard cap on exported clip length for this platform (seconds).
+    max_duration_seconds: float
+    # Fraction of frame height, top/bottom, to keep clear of platform UI
+    # chrome (captions/overlays should stay out of these bands).
+    safe_area_top_pct: float
+    safe_area_bottom_pct: float
+    # Loudness normalisation target for this platform (LUFS).
+    target_lufs: float
 
 
 EXPORT_PRESETS = {
-    "tiktok": ExportPreset("tiktok", 1080, 1920, "10M", "192k"),
-    "reels": ExportPreset("reels", 1080, 1920, "12M", "192k"),
-    "shorts": ExportPreset("shorts", 1080, 1920, "10M", "192k"),
+    # TikTok: 10-minute uploads allowed, but short-form virality lives well
+    # under 60s; -14 LUFS matches TikTok's published loudness target.
+    "tiktok": ExportPreset("tiktok", 1080, 1920, "10M", "192k", 60.0, 0.08, 0.12, -14.0),
+    # Instagram Reels: same -14 LUFS target as TikTok/YouTube Shorts.
+    "reels": ExportPreset("reels", 1080, 1920, "12M", "192k", 60.0, 0.08, 0.12, -14.0),
+    "shorts": ExportPreset("shorts", 1080, 1920, "10M", "192k", 60.0, 0.08, 0.12, -14.0),
+    # YouTube Shorts: platform cap is up to 3 minutes, but we keep the same
+    # short-form 60s default as TikTok/Shorts for consistency; -14 LUFS is
+    # YouTube's own recommended target.
+    "youtube_shorts": ExportPreset(
+        "youtube_shorts", 1080, 1920, "10M", "192k", 60.0, 0.08, 0.12, -14.0
+    ),
+    # Facebook Reels: platform allows up to 90s and commonly targets a
+    # quieter -16 LUFS than TikTok/YouTube.
+    "facebook_reels": ExportPreset(
+        "facebook_reels", 1080, 1920, "10M", "192k", 90.0, 0.08, 0.12, -16.0
+    ),
+    # Threads: video posts cap at ~5 minutes, but short-form clips there
+    # perform like Reels/TikTok; keep loudness consistent with those (-14).
+    "threads": ExportPreset("threads", 1080, 1920, "10M", "192k", 90.0, 0.08, 0.12, -14.0),
 }
 
 
@@ -390,6 +418,8 @@ def export_with_preset(input_path: Path, output_dir: Path, preset_name: str) -> 
         f"pad={preset.width}:{preset.height}:(ow-iw)/2:(oh-ih)/2,"
         "setsar=1"
     )
+    has_audio = ffprobe_has_audio(input_path)
+    audio_args = build_audio_output_args(has_audio, target_lufs=preset.target_lufs)
     command = [
         "ffmpeg",
         "-y",
@@ -411,15 +441,11 @@ def export_with_preset(input_path: Path, output_dir: Path, preset_name: str) -> 
         "yuv420p",
         "-profile:v",
         "high",
-        "-c:a",
-        "aac",
-        "-b:a",
-        preset.audio_bitrate,
-        "-ar",
-        "48000",
+        *audio_args,
         "-movflags",
         "+faststart",
         str(output_path),
     ]
     _run(command)
+    enforce_size_cap(output_path)
     return output_path

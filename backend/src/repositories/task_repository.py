@@ -92,27 +92,34 @@ class TaskRepository:
 
     @staticmethod
     async def get_task_by_id(
-        db: AsyncSession, task_id: str
+        db: AsyncSession, task_id: str, include_deleted: bool = True
     ) -> Optional[Dict[str, Any]]:
-        """Get task by ID with source information."""
+        """Get task by ID with source information.
+
+        `include_deleted` defaults to True here because this single-task
+        lookup backs ownership checks, restore, and purge flows that must be
+        able to see a soft-deleted task. Listing queries below always exclude
+        soft-deleted tasks.
+        """
+        deleted_clause = "" if include_deleted else "AND t.deleted_at IS NULL"
         try:
             result = await db.execute(
-                text("""
+                text(f"""
                     SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url
                     FROM tasks t
                     LEFT JOIN sources s ON t.source_id = s.id
-                    WHERE t.id = :task_id
+                    WHERE t.id = :task_id {deleted_clause}
                 """),
                 {"task_id": task_id},
             )
         except Exception:
             await db.rollback()
             result = await db.execute(
-                text("""
+                text(f"""
                     SELECT t.*, s.title as source_title, s.type as source_type
                     FROM tasks t
                     LEFT JOIN sources s ON t.source_id = s.id
-                    WHERE t.id = :task_id
+                    WHERE t.id = :task_id {deleted_clause}
                 """),
                 {"task_id": task_id},
             )
@@ -146,6 +153,7 @@ class TaskRepository:
                 row, "completion_notification_sent_at", None
             ),
             "source_url": getattr(row, "source_url", None),
+            "deleted_at": getattr(row, "deleted_at", None),
             "created_at": row.created_at,
             "updated_at": row.updated_at,
         }
@@ -339,14 +347,14 @@ class TaskRepository:
     async def get_user_tasks(
         db: AsyncSession, user_id: str, limit: int = 50
     ) -> List[Dict[str, Any]]:
-        """Get all tasks for a user."""
+        """Get all (non-deleted) tasks for a user."""
         result = await db.execute(
             text("""
                 SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url,
                        (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count
                 FROM tasks t
                 LEFT JOIN sources s ON t.source_id = s.id
-                WHERE t.user_id = :user_id
+                WHERE t.user_id = :user_id AND t.deleted_at IS NULL
                 ORDER BY t.created_at DESC
                 LIMIT :limit
             """),
@@ -371,6 +379,45 @@ class TaskRepository:
                         row, "completion_notification_sent_at", None
                     ),
                     "clips_count": row.clips_count,
+                    "created_at": row.created_at,
+                    "updated_at": row.updated_at,
+                }
+            )
+
+        return tasks
+
+    @staticmethod
+    async def list_deleted_tasks(
+        db: AsyncSession, user_id: str, limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """Get soft-deleted (trashed) tasks for a user, most recently deleted first."""
+        result = await db.execute(
+            text("""
+                SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url,
+                       (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count
+                FROM tasks t
+                LEFT JOIN sources s ON t.source_id = s.id
+                WHERE t.user_id = :user_id AND t.deleted_at IS NOT NULL
+                ORDER BY t.deleted_at DESC
+                LIMIT :limit
+            """),
+            {"user_id": user_id, "limit": limit},
+        )
+
+        tasks = []
+        for row in result.fetchall():
+            tasks.append(
+                {
+                    "id": row.id,
+                    "user_id": row.user_id,
+                    "source_id": row.source_id,
+                    "source_title": row.source_title,
+                    "source_type": row.source_type,
+                    "source_url": getattr(row, "source_url", None),
+                    "status": row.status,
+                    "processing_mode": getattr(row, "processing_mode", "fast"),
+                    "clips_count": row.clips_count,
+                    "deleted_at": getattr(row, "deleted_at", None),
                     "created_at": row.created_at,
                     "updated_at": row.updated_at,
                 }
@@ -439,6 +486,7 @@ class TaskRepository:
                 WHERE share_token = :share_token
                   AND share_enabled = TRUE
                   AND status = 'completed'
+                  AND deleted_at IS NULL
                 LIMIT 1
                 """
             ),
@@ -457,12 +505,47 @@ class TaskRepository:
 
     @staticmethod
     async def delete_task(db: AsyncSession, task_id: str) -> None:
-        """Delete a task by ID."""
+        """Soft-delete a task by ID (sets deleted_at; the row and its clips stay).
+
+        Use `purge_task` for the actual hard delete, once a trashed task is
+        permanently removed.
+        """
+        await db.execute(
+            text(
+                "UPDATE tasks SET deleted_at = NOW(), updated_at = NOW() "
+                "WHERE id = :task_id AND deleted_at IS NULL"
+            ),
+            {"task_id": task_id},
+        )
+        await db.commit()
+        logger.info(f"Soft-deleted task {task_id}")
+
+    @staticmethod
+    async def restore_task(db: AsyncSession, task_id: str) -> bool:
+        """Restore a soft-deleted task. Returns True if a row was restored."""
+        result = await db.execute(
+            text(
+                "UPDATE tasks SET deleted_at = NULL, updated_at = NOW() "
+                "WHERE id = :task_id AND deleted_at IS NOT NULL "
+                "RETURNING id"
+            ),
+            {"task_id": task_id},
+        )
+        await db.commit()
+        restored = result.fetchone() is not None
+        if restored:
+            logger.info(f"Restored task {task_id} from trash")
+        return restored
+
+    @staticmethod
+    async def purge_task(db: AsyncSession, task_id: str) -> None:
+        """Permanently delete a task row (hard delete). Only call this from the
+        purge path, once any on-disk clip files have already been cleaned up."""
         await db.execute(
             text("DELETE FROM tasks WHERE id = :task_id"), {"task_id": task_id}
         )
         await db.commit()
-        logger.info(f"Deleted task {task_id}")
+        logger.info(f"Purged task {task_id}")
 
     @staticmethod
     async def get_task_notification_context(

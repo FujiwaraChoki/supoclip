@@ -9,6 +9,7 @@ import logging
 import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 import json
+import os
 import re
 import uuid
 import shutil
@@ -1255,15 +1256,117 @@ def build_final_video_encode_args(
     ]
 
 
-def build_audio_output_args(has_audio: bool, loudnorm: bool = True) -> List[str]:
-    """Audio encode args (with optional loudness normalisation) or `-an`."""
+def build_audio_output_args(
+    has_audio: bool, loudnorm: bool = True, target_lufs: float = -14.0
+) -> List[str]:
+    """Audio encode args (with optional loudness normalisation) or `-an`.
+
+    `target_lufs` defaults to -14 (the constant `LOUDNORM_FILTER`'s target)
+    for backward compatibility with existing callers that don't pass one.
+    """
     if not has_audio:
         return ["-an"]
     args: List[str] = []
     if loudnorm:
-        args += ["-af", LOUDNORM_FILTER]
+        if target_lufs == -14.0:
+            loudnorm_filter = LOUDNORM_FILTER
+        else:
+            loudnorm_filter = f"loudnorm=I={target_lufs}:TP=-1.5:LRA=11"
+        args += ["-af", loudnorm_filter]
     args += ["-c:a", "aac", "-b:a", AUDIO_BITRATE, "-ar", "48000"]
     return args
+
+
+# --- output size cap -------------------------------------------------------
+# Applied after every final-pass encode (main render, subtitle-burn pass, and
+# preset export) so no single output blows past a sane upload/storage limit.
+DEFAULT_SIZE_CAP_BYTES = 300 * 1024 * 1024
+# Quality floor: never let the computed bitrate drop low enough to produce a
+# visibly garbage re-encode, even for a very long clip against the cap.
+MIN_VIDEO_BITRATE_BPS = 800_000
+SIZE_CAP_AUDIO_BITRATE_BPS = 192_000
+
+
+def enforce_size_cap(
+    file_path: Path,
+    target_bytes: int = DEFAULT_SIZE_CAP_BYTES,
+) -> bool:
+    """Re-encode `file_path` in place (two-pass libx264) if it exceeds
+    `target_bytes`; otherwise leaves it untouched.
+
+    Prioritises quality: only compresses as much as needed to land under the
+    cap, computing an average video bitrate from the file's duration and the
+    byte budget, with a quality floor (`MIN_VIDEO_BITRATE_BPS`) so a very long
+    clip against the cap doesn't degrade into an unwatchable re-encode.
+
+    Returns True if the file was re-encoded, False if it was left alone or
+    the re-encode failed (in which case the original file is untouched).
+    """
+    try:
+        current_size = file_path.stat().st_size
+    except OSError as e:
+        logger.warning(f"enforce_size_cap: could not stat {file_path}: {e}")
+        return False
+
+    if current_size <= target_bytes:
+        return False
+
+    try:
+        duration = ffprobe_duration(file_path)
+    except Exception as e:
+        logger.warning(f"enforce_size_cap: could not read duration for {file_path}: {e}")
+        return False
+    if duration <= 0:
+        return False
+
+    has_audio = ffprobe_has_audio(file_path)
+    audio_bps = SIZE_CAP_AUDIO_BITRATE_BPS if has_audio else 0
+
+    # 2% headroom for container/muxing overhead so we land safely under the cap.
+    target_total_bps = (target_bytes * 8 / duration) * 0.98
+    video_bps = max(MIN_VIDEO_BITRATE_BPS, int(target_total_bps - audio_bps))
+
+    logger.info(
+        "enforce_size_cap: %s is %.1fMB (> %.1fMB cap); re-encoding at ~%dkbps video",
+        file_path, current_size / (1024 * 1024), target_bytes / (1024 * 1024), video_bps // 1000,
+    )
+
+    with tempfile.TemporaryDirectory(prefix="supoclip_sizecap_") as temp_dir:
+        temp_root = Path(temp_dir)
+        output_path = temp_root / f"capped{file_path.suffix or '.mp4'}"
+        passlogfile = str(temp_root / "ffmpeg2pass")
+        null_output = "NUL" if os.name == "nt" else "/dev/null"
+
+        pass1 = [
+            "ffmpeg", "-y", "-i", str(file_path),
+            "-c:v", "libx264", "-b:v", str(video_bps),
+            "-preset", "slow", "-pass", "1", "-passlogfile", passlogfile,
+            "-an", "-f", "mp4", null_output,
+        ]
+        result1 = run_ffmpeg_command(pass1)
+        if result1.returncode != 0:
+            logger.error(f"enforce_size_cap: pass 1 failed for {file_path}: {result1.stderr}")
+            return False
+
+        audio_args = build_audio_output_args(has_audio)
+        pass2 = [
+            "ffmpeg", "-y", "-i", str(file_path),
+            "-c:v", "libx264", "-b:v", str(video_bps),
+            "-preset", "slow", "-pass", "2", "-passlogfile", passlogfile,
+            "-pix_fmt", "yuv420p",
+            *audio_args,
+            "-movflags", "+faststart",
+            str(output_path),
+        ]
+        result2 = run_ffmpeg_command(pass2)
+        if result2.returncode != 0:
+            logger.error(f"enforce_size_cap: pass 2 failed for {file_path}: {result2.stderr}")
+            return False
+
+        shutil.move(str(output_path), str(file_path))
+
+    logger.info(f"enforce_size_cap: re-encoded {file_path} to {file_path.stat().st_size / (1024*1024):.1f}MB")
+    return True
 
 
 def subtitles_filter_fragment(
@@ -1917,6 +2020,7 @@ def build_assemblyai_ass_subtitles(
     highlight_words: Optional[List[str]] = None,
     hook_style: Optional[Dict[str, Any]] = None,
     social_overlay: Optional[Dict[str, Any]] = None,
+    reactions: Optional[List[Dict[str, Any]]] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -1947,8 +2051,9 @@ def build_assemblyai_ass_subtitles(
         else:
             relevant_words = get_words_in_range(transcript_data, clip_start, clip_end)
     social_overlay_enabled = bool(social_overlay and social_overlay.get("enabled"))
-    if not relevant_words and not hook_title and not social_overlay_enabled:
-        logger.warning("No words, hook title, or social overlay available for ASS subtitles")
+    has_reactions = bool(reactions)
+    if not relevant_words and not hook_title and not social_overlay_enabled and not has_reactions:
+        logger.warning("No words, hook title, social overlay, or reactions available for ASS subtitles")
         return False
 
     # --- styling knobs (new template fields, all optional) ---
@@ -2003,7 +2108,9 @@ def build_assemblyai_ass_subtitles(
     hook_events: List[str] = []
     social_overlay_block = ""
     social_overlay_events: List[str] = []
-    if hook_title or social_overlay_enabled:
+    reactions_block = ""
+    reactions_events: List[str] = []
+    if hook_title or social_overlay_enabled or has_reactions:
         if keep_ranges:
             ranges = normalize_source_ranges(keep_ranges)
             fades = crossfade_fades_for_ranges(ranges)
@@ -2034,6 +2141,19 @@ def build_assemblyai_ass_subtitles(
                 font_px,
             )
             social_overlay_block = f"{social_style_line}\n"
+
+        if has_reactions:
+            # Deferred import: `emoji_reactions` imports helpers from this
+            # module, so importing at module load time would be circular.
+            from .emoji_reactions import build_emoji_reactions_ass
+
+            reactions_style_line, reactions_events = build_emoji_reactions_ass(
+                reactions,
+                video_width,
+                video_height,
+            )
+            if reactions_style_line:
+                reactions_block = f"{reactions_style_line}\n"
 
     # Contextual emoji + emphasis annotations over the whole clip word list.
     emoji_by_idx, emphasis_idx = annotate_caption_words(
@@ -2066,7 +2186,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{font_name},{font_px},{primary},&H000000FF,{outline},{back_color},1,0,0,0,100,100,0,0,{border_style},{outline_px},{shadow_px},5,60,60,60,1
-{hook_style_block}{social_overlay_block}
+{hook_style_block}{social_overlay_block}{reactions_block}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
@@ -2171,14 +2291,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{line_prefix}{effect}{chunk_text}"
             )
 
-    all_events = hook_events + social_overlay_events + events
+    all_events = hook_events + social_overlay_events + events + reactions_events
     output_ass_path.write_text(header + "\n".join(all_events) + "\n", encoding="utf-8")
     logger.info(
-        "Wrote ASS subtitles: %s (%d events%s%s)",
+        "Wrote ASS subtitles: %s (%d events%s%s%s)",
         output_ass_path,
         len(all_events),
         ", hook title" if hook_events else "",
         ", social overlay" if social_overlay_events else "",
+        ", reactions" if reactions_events else "",
     )
     return True
 
@@ -3043,6 +3164,20 @@ def build_vertical_filter_plan(
     )
 
 
+def _run_encode_and_cap_size(
+    command: List[str], output_path: Path, out_w: int, out_h: int
+) -> Tuple[bool, int, int]:
+    """Run a final-pass ffmpeg encode command, then enforce the output size cap.
+
+    Shared by every branch of `render_reframed_clip_ffmpeg` so the size cap is
+    applied consistently regardless of which reframe path was taken.
+    """
+    ok = run_ffmpeg_command(command).returncode == 0
+    if ok:
+        enforce_size_cap(output_path)
+    return ok, out_w, out_h
+
+
 def render_reframed_clip_ffmpeg(
     input_path: Path,
     output_path: Path,
@@ -3054,7 +3189,8 @@ def render_reframed_clip_ffmpeg(
 
     Collapsing reframing + subtitle burn into a single encode avoids a whole
     generation of re-encode loss. The pass uses the high-quality profile, CFR
-    output and loudness-normalised audio.
+    output and loudness-normalised audio. The output is re-encoded down to
+    `enforce_size_cap`'s target if it comes out over the cap.
     """
     width, height = ffprobe_video_size(input_path)
     has_audio = ffprobe_has_audio(input_path)
@@ -3078,7 +3214,7 @@ def render_reframed_clip_ffmpeg(
             "-movflags", "+faststart",
             str(output_path),
         ]
-        return run_ffmpeg_command(command).returncode == 0, out_w, out_h
+        return _run_encode_and_cap_size(command, output_path, out_w, out_h)
 
     plan = (
         detect_speaker_reframe_plan(input_path, output_format)
@@ -3107,7 +3243,7 @@ def render_reframed_clip_ffmpeg(
             "-movflags", "+faststart",
             str(output_path),
         ]
-        return run_ffmpeg_command(command).returncode == 0, 1080, 1920
+        return _run_encode_and_cap_size(command, output_path, 1080, 1920)
 
     if plan and plan["mode"] == "pan":
         video_filter = (
@@ -3124,7 +3260,7 @@ def render_reframed_clip_ffmpeg(
             "-movflags", "+faststart",
             str(output_path),
         ]
-        return run_ffmpeg_command(command).returncode == 0, 1080, 1920
+        return _run_encode_and_cap_size(command, output_path, 1080, 1920)
 
     # Default "vertical": scene-aware — tracked crop for face shots, blurred-
     # background full-frame fit for content shots (tweets/graphs/slides).
@@ -3145,7 +3281,7 @@ def render_reframed_clip_ffmpeg(
             "-movflags", "+faststart",
             str(output_path),
         ]
-        return run_ffmpeg_command(command).returncode == 0, 1080, 1920
+        return _run_encode_and_cap_size(command, output_path, 1080, 1920)
 
     if subs:
         video_filter = f"{video_filter},{subs}"
@@ -3157,7 +3293,7 @@ def render_reframed_clip_ffmpeg(
         "-movflags", "+faststart",
         str(output_path),
     ]
-    return run_ffmpeg_command(command).returncode == 0, 1080, 1920
+    return _run_encode_and_cap_size(command, output_path, 1080, 1920)
 
 
 def burn_ass_subtitles_ffmpeg(
@@ -3165,11 +3301,15 @@ def burn_ass_subtitles_ffmpeg(
     ass_path: Path,
     output_path: Path,
     fonts_dir: Optional[Path] = None,
+    target_lufs: float = -14.0,
 ) -> bool:
     subtitles_filter = f"subtitles=filename={ffmpeg_escape_filter_path(ass_path)}"
     if fonts_dir:
         subtitles_filter += f":fontsdir={ffmpeg_escape_filter_value(str(fonts_dir))}"
     video_filter = f"{subtitles_filter},setsar=1"
+
+    has_audio = ffprobe_has_audio(input_path)
+    audio_args = build_audio_output_args(has_audio, target_lufs=target_lufs)
 
     command = [
         "ffmpeg",
@@ -3186,15 +3326,15 @@ def burn_ass_subtitles_ffmpeg(
         "20",
         "-pix_fmt",
         "yuv420p",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
+        *audio_args,
         "-movflags",
         "+faststart",
         str(output_path),
     ]
-    return run_ffmpeg_command(command).returncode == 0
+    ok = run_ffmpeg_command(command).returncode == 0
+    if ok:
+        enforce_size_cap(output_path)
+    return ok
 
 
 def parse_timestamp_to_seconds(timestamp_str: str) -> float:
@@ -3748,6 +3888,7 @@ def create_optimized_clip(
     hook_title: Optional[str] = None,
     hook_style: Optional[Dict[str, Any]] = None,
     social_overlay: Optional[Dict[str, Any]] = None,
+    reactions: Optional[List[Dict[str, Any]]] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size)."""
     try:
@@ -3829,7 +3970,7 @@ def create_optimized_clip(
             fonts_dir: Optional[Path] = None
             social_overlay_enabled = bool(social_overlay and social_overlay.get("enabled"))
             if (
-                add_subtitles or hook_title or social_overlay_enabled
+                add_subtitles or hook_title or social_overlay_enabled or reactions
             ) and build_assemblyai_ass_subtitles(
                 video_path,
                 start_time,
@@ -3846,6 +3987,7 @@ def create_optimized_clip(
                 include_captions=add_subtitles,
                 hook_style=hook_style,
                 social_overlay=social_overlay,
+                reactions=reactions,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
@@ -3964,6 +4106,7 @@ def create_clips_from_segments(
                 hook_title=segment.get("hook_title"),
                 hook_style=hook_style,
                 social_overlay=social_overlay,
+                reactions=segment.get("reactions"),
             )
 
             if success:
@@ -3987,6 +4130,7 @@ def create_clips_from_segments(
                     "shareability_score": segment.get("shareability_score", 0),
                     "hook_type": segment.get("hook_type"),
                     "hook_title": segment.get("hook_title"),
+                    "reactions": segment.get("reactions") or [],
                     "keep_ranges": keep_ranges,
                 }
                 clips_info.append(clip_info)

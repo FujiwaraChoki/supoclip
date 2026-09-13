@@ -22,6 +22,17 @@ def _parse_hook_variants(raw: Optional[str]) -> List[Dict[str, Any]]:
     return parsed if isinstance(parsed, list) else []
 
 
+def _parse_reactions(raw: Optional[str]) -> List[Dict[str, Any]]:
+    """Decode the JSON-encoded reactions column into a list of reaction dicts."""
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
 class ClipRepository:
     """Repository for clip-related database operations."""
 
@@ -141,7 +152,7 @@ class ClipRepository:
                     SELECT id, filename, file_path, start_time, end_time, duration,
                            text, relevance_score, reasoning, clip_order, created_at,
                            virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                           hook_title, hook_title_variants, selected_hook_variant_id
+                           hook_title, hook_title_variants, selected_hook_variant_id, reactions
                     FROM generated_clips
                     WHERE task_id = :task_id
                     ORDER BY clip_order ASC
@@ -186,6 +197,7 @@ class ClipRepository:
                     "hook_title": getattr(row, "hook_title", None),
                     "hook_title_variants": _parse_hook_variants(getattr(row, "hook_title_variants", None)),
                     "selected_hook_variant_id": getattr(row, "selected_hook_variant_id", None),
+                    "reactions": _parse_reactions(getattr(row, "reactions", None)),
                 }
             )
 
@@ -236,7 +248,7 @@ class ClipRepository:
                     SELECT id, task_id, filename, file_path, start_time, end_time, duration,
                            text, relevance_score, reasoning, clip_order,
                            virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                           hook_title, hook_title_variants, selected_hook_variant_id, created_at
+                           hook_title, hook_title_variants, selected_hook_variant_id, reactions, created_at
                     FROM generated_clips
                     WHERE id = :clip_id
                     """
@@ -281,6 +293,7 @@ class ClipRepository:
             "hook_title": getattr(row, "hook_title", None),
             "hook_title_variants": _parse_hook_variants(getattr(row, "hook_title_variants", None)),
             "selected_hook_variant_id": getattr(row, "selected_hook_variant_id", None),
+            "reactions": _parse_reactions(getattr(row, "reactions", None)),
             "created_at": row.created_at.isoformat(),
             "video_url": f"/tasks/{row.task_id}/clips/{row.id}/file",
         }
@@ -319,6 +332,21 @@ class ClipRepository:
         await db.execute(
             sa_text(f"UPDATE generated_clips SET {', '.join(sets)} WHERE id = :clip_id"),
             params,
+        )
+        await db.commit()
+
+    @staticmethod
+    async def update_clip_reactions(
+        db: AsyncSession,
+        clip_id: str,
+        reactions: List[Dict[str, Any]],
+    ) -> None:
+        """Replace a clip's stored emoji reactions list (JSON-encoded)."""
+        await db.execute(
+            sa_text(
+                "UPDATE generated_clips SET reactions = :reactions, updated_at = NOW() WHERE id = :clip_id"
+            ),
+            {"clip_id": clip_id, "reactions": json.dumps(reactions)},
         )
         await db.commit()
 

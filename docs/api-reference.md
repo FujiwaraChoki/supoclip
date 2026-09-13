@@ -88,11 +88,17 @@ Source file:
 - `PATCH /{task_id}`
   - Update task metadata
 - `DELETE /{task_id}`
-  - Delete a task
+  - Soft-delete a task (moves it to Trash; the source video and clip files are left on disk)
 - `POST /{task_id}/cancel`
   - Cancel an active task
 - `POST /{task_id}/resume`
   - Resume a cancelled or errored task
+- `GET /trash`
+  - List the current user's soft-deleted tasks
+- `POST /{task_id}/restore`
+  - Restore a soft-deleted task out of Trash
+- `DELETE /{task_id}/purge`
+  - Permanently delete a soft-deleted task (irreversible) — best-effort removes its on-disk clip files, never touches the source video
 
 ### Clip operations
 
@@ -116,6 +122,8 @@ Source file:
   - Apply a generated variant (`variant_id`) or custom text (`hook_title`) as the clip's active hook, optionally overriding `hook_type`; re-renders the clip from source since the hook is burned into the frame
 - `GET /{task_id}/clips/{clip_id}/export`
   - Export using a platform preset
+- `PATCH /{task_id}/clips/{clip_id}/reactions`
+  - Replace a clip's emoji reactions (body: `{"reactions": [{id, emoji, timestamp_seconds, animation_style, duration_seconds, position: {x_pct, y_pct}}]}`); re-renders the clip from source since reactions are burned into the frame
 
 ### Task-wide settings and diagnostics
 
@@ -145,6 +153,8 @@ Source file:
 
 ### Other media assets
 
+- `GET /export-presets`
+  - List all export presets with full metadata (dimensions, bitrates, `max_duration_seconds`, safe-area margins, `target_lufs`), in display order
 - `GET /transitions`
   - List available transitions
 - `GET /caption-templates`

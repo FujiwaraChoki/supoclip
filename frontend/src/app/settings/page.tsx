@@ -16,7 +16,11 @@ import { formatBillingPlanName, getPublicBillingPlans, isPaidBillingPlan, type B
 import { track } from "@/lib/datafast";
 import Link from "next/link";
 import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight, Mic, Music, SlidersHorizontal, Download } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { RuntimeSettingsForm, type RuntimeSetting } from "@/components/admin/runtime-settings-form";
+import { EmptyState } from "@/components/empty-state";
+import { useDelayedFlag } from "@/hooks/use-delayed-flag";
+import { toast } from "sonner";
 
 const TRANSCRIPTION_SETTING_KEYS = new Set([
   "TRANSCRIPTION_PROVIDER",
@@ -60,6 +64,7 @@ export default function SettingsPage() {
   const [availableFonts, setAvailableFonts] = useState<Array<{ name: string, display_name: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
+  const showFetching = useDelayedFlag(isFetching);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
@@ -248,7 +253,9 @@ export default function SettingsPage() {
       });
       window.location.href = data.url;
     } catch (billingError) {
-      setError(billingError instanceof Error ? billingError.message : "Billing action failed");
+      const message = billingError instanceof Error ? billingError.message : "Billing action failed";
+      setError(message);
+      toast.error(message);
     } finally {
       setIsBillingActionLoading(false);
     }
@@ -280,18 +287,21 @@ export default function SettingsPage() {
 
       track("preferences_saved");
       setSuccess(true);
+      toast.success("Preferences saved.");
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
       console.error('Error saving preferences:', error);
-      setError(error instanceof Error ? error.message : 'Failed to save preferences');
+      const message = error instanceof Error ? error.message : 'Failed to save preferences';
+      setError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (isFetching) {
+  if (showFetching) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="space-y-4">
           <Skeleton className="h-4 w-32 mx-auto" />
           <Skeleton className="h-4 w-48 mx-auto" />
@@ -302,9 +312,9 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b bg-white">
+      <div className="border-b bg-background">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <Link href="/">
@@ -315,14 +325,15 @@ export default function SettingsPage() {
             </Link>
 
             <div className="flex items-center gap-3">
+              <ThemeToggle />
               <Avatar className="w-8 h-8">
                 <AvatarImage src={session.user.image || ""} />
-                <AvatarFallback className="bg-gray-100 text-black text-sm">
+                <AvatarFallback className="bg-gray-100 text-foreground text-sm">
                   {session.user.name?.charAt(0) || session.user.email?.charAt(0) || "U"}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden sm:block">
-                <p className="text-sm font-medium text-black">{session.user.name}</p>
+                <p className="text-sm font-medium text-foreground">{session.user.name}</p>
                 <p className="text-xs text-gray-500">{session.user.email}</p>
               </div>
             </div>
@@ -331,12 +342,12 @@ export default function SettingsPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 py-16">
+      <div className="max-w-4xl mx-auto px-4 py-10">
         <div>
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-2">
-              <Settings className="w-6 h-6 text-black" />
-              <h2 className="text-2xl font-bold text-black">
+              <Settings className="w-6 h-6 text-foreground" />
+              <h2 className="text-2xl font-bold text-foreground">
                 Settings
               </h2>
             </div>
@@ -351,7 +362,7 @@ export default function SettingsPage() {
             {/* Transcription Section */}
             <div className="space-y-4">
               <div>
-                <h3 className="text-lg font-semibold text-black mb-1 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
                   <Mic className="w-4 h-4" />
                   Transcription
                 </h3>
@@ -360,7 +371,7 @@ export default function SettingsPage() {
                   here, with your .env values as fallback.
                 </p>
               </div>
-              <div className="rounded-lg border border-gray-200 bg-white">
+              <div className="rounded-lg border border-gray-200 bg-background">
                 {runtimeSettingsError ? (
                   <div className="px-4 py-5 text-sm text-red-700">{runtimeSettingsError}</div>
                 ) : (
@@ -377,7 +388,7 @@ export default function SettingsPage() {
             {/* Hooks Section — sound effects for the AI-written hook overlay */}
             <div className="space-y-4">
               <div>
-                <h3 className="text-lg font-semibold text-black mb-1 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
                   <Music className="w-4 h-4" />
                   Hooks
                 </h3>
@@ -391,14 +402,16 @@ export default function SettingsPage() {
               {sfxError ? (
                 <p className="text-sm text-red-700">{sfxError}</p>
               ) : sfxFiles.length === 0 ? (
-                <p className="text-sm text-gray-500">
-                  No SFX files yet — add some to <code className="text-xs">backend/sfx/</code>.
-                </p>
+                <EmptyState
+                  icon={Music}
+                  title="No SFX files yet"
+                  description="Add .mp3/.wav files to backend/sfx/ to make them available here."
+                />
               ) : (
-                <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
+                <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-background">
                   {sfxFiles.map((sfx) => (
                     <li key={sfx.name} className="flex items-center justify-between gap-3 px-4 py-3">
-                      <span className="text-sm text-black">{sfx.display_name}</span>
+                      <span className="text-sm text-foreground">{sfx.display_name}</span>
                       <audio controls src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/sfx/${encodeURIComponent(sfx.name)}`} className="h-8" />
                     </li>
                   ))}
@@ -411,7 +424,7 @@ export default function SettingsPage() {
             {/* Export Section — clip count/duration/mode defaults applied at generation time */}
             <div className="space-y-4">
               <div>
-                <h3 className="text-lg font-semibold text-black mb-1 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
                   <Download className="w-4 h-4" />
                   Export
                 </h3>
@@ -420,7 +433,7 @@ export default function SettingsPage() {
                   your .env values as fallback.
                 </p>
               </div>
-              <div className="rounded-lg border border-gray-200 bg-white">
+              <div className="rounded-lg border border-gray-200 bg-background">
                 {runtimeSettingsError ? (
                   <div className="px-4 py-5 text-sm text-red-700">{runtimeSettingsError}</div>
                 ) : (
@@ -435,7 +448,7 @@ export default function SettingsPage() {
             <div className="space-y-8">
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-semibold text-black mb-1 flex items-center gap-2">
+                  <h3 className="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
                     <Type className="w-4 h-4" />
                     UI — Subtitle Appearance
                   </h3>
@@ -446,7 +459,7 @@ export default function SettingsPage() {
 
                 {/* Font Family Selector */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-black flex items-center gap-2">
+                  <Label className="text-sm font-medium text-foreground flex items-center gap-2">
                     <Type className="w-4 h-4" />
                     Font Family
                   </Label>
@@ -469,7 +482,7 @@ export default function SettingsPage() {
 
                 {/* Font Size Slider */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-black">
+                  <Label className="text-sm font-medium text-foreground">
                     Font Size: {fontSize}px
                   </Label>
                   <div className="px-2">
@@ -491,7 +504,7 @@ export default function SettingsPage() {
 
                 {/* Font Color Picker */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-black flex items-center gap-2">
+                  <Label className="text-sm font-medium text-foreground flex items-center gap-2">
                     <Palette className="w-4 h-4" />
                     Font Color
                   </Label>
@@ -530,7 +543,7 @@ export default function SettingsPage() {
 
                 {/* Preview */}
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-black">Preview</Label>
+                  <Label className="text-sm font-medium text-foreground">Preview</Label>
                   <div className="p-6 bg-black rounded-lg flex items-center justify-center min-h-[100px]">
                     <p
                       style={{
@@ -554,7 +567,7 @@ export default function SettingsPage() {
             {/* Notifications Section */}
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-black mb-1">
+                <h3 className="text-lg font-semibold text-foreground mb-1">
                   Notifications
                 </h3>
                 <p className="text-sm text-gray-600">
@@ -563,7 +576,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex items-center justify-between">
-                <Label htmlFor="completion-emails" className="flex items-center gap-2 text-sm font-medium text-black cursor-pointer">
+                <Label htmlFor="completion-emails" className="flex items-center gap-2 text-sm font-medium text-foreground cursor-pointer">
                   <Mail className="w-4 h-4" />
                   Completion emails
                   <span className="text-gray-500 font-normal">— get notified when clips are ready</span>
@@ -582,7 +595,7 @@ export default function SettingsPage() {
             {/* Advanced Section — the rest of the runtime settings (LLM/API keys/providers) */}
             <div className="space-y-4">
               <div>
-                <h3 className="text-lg font-semibold text-black mb-1 flex items-center gap-2">
+                <h3 className="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
                   <SlidersHorizontal className="w-4 h-4" />
                   Advanced
                 </h3>
@@ -591,7 +604,7 @@ export default function SettingsPage() {
                   your .env values as fallback.
                 </p>
               </div>
-              <div className="rounded-lg border border-gray-200 bg-white">
+              <div className="rounded-lg border border-gray-200 bg-background">
                 {runtimeSettingsError ? (
                   <div className="px-4 py-5 text-sm text-red-700">{runtimeSettingsError}</div>
                 ) : (
@@ -605,7 +618,7 @@ export default function SettingsPage() {
             {/* Developer Section */}
             <div className="space-y-6">
               <div>
-                <h3 className="text-lg font-semibold text-black mb-1">
+                <h3 className="text-lg font-semibold text-foreground mb-1">
                   Developer
                 </h3>
                 <p className="text-sm text-gray-600">
@@ -616,9 +629,9 @@ export default function SettingsPage() {
               <Link href="/settings/api-keys" className="block">
                 <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
                   <div className="flex items-center gap-3">
-                    <KeyRound className="w-5 h-5 text-black" />
+                    <KeyRound className="w-5 h-5 text-foreground" />
                     <div>
-                      <p className="text-sm font-medium text-black">API Keys</p>
+                      <p className="text-sm font-medium text-foreground">API Keys</p>
                       <p className="text-xs text-gray-500">Create and manage API keys</p>
                     </div>
                   </div>
@@ -652,7 +665,7 @@ export default function SettingsPage() {
             {billingSummary?.monetization_enabled && (
               <div className="border rounded-lg p-4 bg-gray-50 space-y-3">
                 <div>
-                  <h3 className="text-lg font-semibold text-black">Billing</h3>
+                  <h3 className="text-lg font-semibold text-foreground">Billing</h3>
                   {!isPaidBillingPlan(billingSummary.plan) && (
                     <p className="text-sm text-gray-600">Video processing requires a paid plan.</p>
                   )}
@@ -670,7 +683,7 @@ export default function SettingsPage() {
 
                 {isPaidBillingPlan(billingSummary.plan) ? (
                   billingSummary.subscription_provider === "apple" ? (
-                    <p className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600">
+                    <p className="rounded-md border border-gray-200 bg-background px-3 py-2 text-sm text-gray-600">
                       Managed through the App Store
                     </p>
                   ) : (

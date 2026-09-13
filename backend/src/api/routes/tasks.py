@@ -575,6 +575,25 @@ async def get_shared_clip_file(
     )
 
 
+@router.get("/trash")
+async def list_trash(
+    request: Request, db: AsyncSession = Depends(get_db), limit: int = 50
+):
+    """List the authenticated user's soft-deleted (trashed) tasks.
+
+    Registered before `GET /{task_id}` so the literal "trash" path segment
+    isn't swallowed by that param route.
+    """
+    user_id = await _get_user_id_from_headers(request, db)
+    try:
+        task_service = TaskService(db)
+        tasks = await task_service.list_trash(user_id, limit)
+        return {"tasks": tasks, "total": len(tasks)}
+    except Exception as e:
+        logger.error(f"Error retrieving trashed tasks: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving trashed tasks: {str(e)}")
+
+
 @router.get("/{task_id}")
 async def get_task(
     task_id: str, request: Request, db: AsyncSession = Depends(get_db)
@@ -774,16 +793,74 @@ async def delete_task(
                 status_code=403, detail="Not authorized to delete this task"
             )
 
-        # Delete clips and task
+        # Soft-delete: moves the task to trash, clips stay attached
         await task_service.delete_task(task_id)
 
-        return {"message": "Task deleted successfully"}
+        return {"message": "Task moved to trash"}
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error deleting task: {e}")
         raise HTTPException(status_code=500, detail=f"Error deleting task: {str(e)}")
+
+
+@router.post("/{task_id}/restore")
+async def restore_task(
+    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Restore a task out of trash."""
+    try:
+        user_id = await _get_user_id_from_headers(request, db)
+        task_service = TaskService(db)
+
+        task = await task_service.task_repo.get_task_by_id(db, task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        if task["user_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="Not authorized to restore this task"
+            )
+
+        restored = await task_service.restore_task(task_id)
+        if not restored:
+            raise HTTPException(status_code=400, detail="Task is not in trash")
+
+        return {"message": "Task restored successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error restoring task: {e}")
+        raise HTTPException(status_code=500, detail=f"Error restoring task: {str(e)}")
+
+
+@router.delete("/{task_id}/purge")
+async def purge_task(
+    task_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Permanently delete a trashed task and its clip files. Cannot be undone."""
+    try:
+        user_id = await _get_user_id_from_headers(request, db)
+        task_service = TaskService(db)
+
+        task = await task_service.task_repo.get_task_by_id(db, task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        if task["user_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="Not authorized to purge this task"
+            )
+
+        await task_service.purge_task(task_id)
+
+        return {"message": "Task permanently deleted"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error purging task: {e}")
+        raise HTTPException(status_code=500, detail=f"Error purging task: {str(e)}")
 
 
 @router.delete("/{task_id}/clips/{clip_id}")
@@ -1041,6 +1118,85 @@ async def select_clip_hook_variant(
         logger.error(f"Error selecting hook variant: {e}")
         raise HTTPException(
             status_code=500, detail=f"Error selecting hook variant: {str(e)}"
+        )
+
+
+@router.patch("/{task_id}/clips/{clip_id}/reactions")
+async def update_clip_reactions(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Replace a clip's emoji reactions and re-render it with them burned in."""
+    try:
+        payload = await request.json()
+        reactions = payload.get("reactions")
+        if not isinstance(reactions, list):
+            raise HTTPException(status_code=400, detail="reactions must be an array")
+
+        from ...emoji_reactions import REACTION_ANIMATIONS
+
+        normalized: list[Dict[str, Any]] = []
+        for index, item in enumerate(reactions):
+            if not isinstance(item, dict):
+                raise HTTPException(
+                    status_code=400, detail=f"reactions[{index}] must be an object"
+                )
+            emoji = str(item.get("emoji") or "").strip()
+            if not emoji:
+                raise HTTPException(
+                    status_code=400, detail=f"reactions[{index}].emoji is required"
+                )
+            animation_style = str(item.get("animation_style") or "fade_pop").strip().lower()
+            if animation_style not in REACTION_ANIMATIONS:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"reactions[{index}].animation_style must be one of: {', '.join(REACTION_ANIMATIONS)}",
+                )
+            try:
+                timestamp_seconds = max(0.0, float(item.get("timestamp_seconds", 0)))
+            except (TypeError, ValueError):
+                raise HTTPException(
+                    status_code=400, detail=f"reactions[{index}].timestamp_seconds must be a number"
+                )
+            try:
+                duration_seconds = float(item.get("duration_seconds", 1.6))
+            except (TypeError, ValueError):
+                raise HTTPException(
+                    status_code=400, detail=f"reactions[{index}].duration_seconds must be a number"
+                )
+            duration_seconds = max(0.2, duration_seconds)
+
+            raw_position = item.get("position") or {}
+            try:
+                x_pct = min(max(float(raw_position.get("x_pct", 0.5)), 0.0), 1.0)
+                y_pct = min(max(float(raw_position.get("y_pct", 0.3)), 0.0), 1.0)
+            except (TypeError, ValueError):
+                raise HTTPException(
+                    status_code=400, detail=f"reactions[{index}].position must have numeric x_pct/y_pct"
+                )
+
+            normalized.append(
+                {
+                    "id": str(item.get("id") or secrets.token_hex(6)),
+                    "emoji": emoji,
+                    "timestamp_seconds": timestamp_seconds,
+                    "animation_style": animation_style,
+                    "duration_seconds": duration_seconds,
+                    "position": {"x_pct": x_pct, "y_pct": y_pct},
+                }
+            )
+
+        task_service = TaskService(db)
+        await _require_task_owner(request, task_service, db, task_id)
+        updated_clip = await task_service.update_clip_reactions(task_id, clip_id, normalized)
+        return {"clip": updated_clip}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating clip reactions: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error updating clip reactions: {str(e)}"
         )
 
 

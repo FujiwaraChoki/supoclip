@@ -325,6 +325,33 @@ async def get_caption_templates():
         return {"templates": default_templates}
 
 
+@router.get("/export-presets")
+async def get_export_presets():
+    """Return the full metadata for every social-platform export preset.
+
+    Includes dimensions/bitrates plus the newer duration-cap, safe-area, and
+    loudness-normalisation-target fields, in EXPORT_PRESETS insertion order.
+    """
+    from ...clip_editor import EXPORT_PRESETS
+
+    presets = []
+    for preset in EXPORT_PRESETS.values():
+        presets.append(
+            {
+                "name": preset.name,
+                "width": preset.width,
+                "height": preset.height,
+                "video_bitrate": preset.video_bitrate,
+                "audio_bitrate": preset.audio_bitrate,
+                "max_duration_seconds": preset.max_duration_seconds,
+                "safe_area_top_pct": preset.safe_area_top_pct,
+                "safe_area_bottom_pct": preset.safe_area_bottom_pct,
+                "target_lufs": preset.target_lufs,
+            }
+        )
+    return {"presets": presets}
+
+
 @router.get("/broll/status")
 async def get_broll_status():
     """Return whether B-roll integrations are configured."""

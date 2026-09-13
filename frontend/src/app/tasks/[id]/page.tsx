@@ -66,6 +66,8 @@ import Link from "next/link";
 import DynamicVideoPlayer from "@/components/dynamic-video-player";
 import { TranscriptPreview } from "@/components/transcript-preview";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
+import { useDelayedFlag } from "@/hooks/use-delayed-flag";
+import { toast } from "sonner";
 
 const PROCESSING_STAGES = [
   { id: "download", label: "Download" },
@@ -109,6 +111,31 @@ interface Clip {
   selected_hook_variant_id: string | null;
 }
 
+interface ExportPreset {
+  name: string;
+  width: number;
+  height: number;
+  video_bitrate: string;
+  audio_bitrate: string;
+  max_duration_seconds: number;
+  safe_area_top_pct: number;
+  safe_area_bottom_pct: number;
+  target_lufs: number;
+}
+
+const EXPORT_PRESET_LABELS: Record<string, string> = {
+  tiktok: "TikTok",
+  reels: "Instagram Reels",
+  shorts: "YouTube Shorts",
+  youtube_shorts: "YouTube Shorts",
+  facebook_reels: "Facebook Reels",
+  threads: "Threads",
+};
+
+function exportPresetLabel(name: string): string {
+  return EXPORT_PRESET_LABELS[name] ?? name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 interface TaskDetails {
   id: string;
   user_id: string;
@@ -141,6 +168,7 @@ export default function TaskPage() {
   const [task, setTask] = useState<TaskDetails | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const showLoading = useDelayedFlag(isLoading);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
@@ -160,6 +188,7 @@ export default function TaskPage() {
   const [captionPosition, setCaptionPosition] = useState("bottom");
   const [highlightWords, setHighlightWords] = useState("");
   const [exportPreset, setExportPreset] = useState("original");
+  const [exportPresets, setExportPresets] = useState<ExportPreset[]>([]);
   const [shareState, setShareState] = useState<"idle" | "copying" | "copied">("idle");
   const [isRevokingShare, setIsRevokingShare] = useState(false);
 
@@ -184,6 +213,7 @@ export default function TaskPage() {
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
   const [deletingFontName, setDeletingFontName] = useState<string | null>(null);
+  const [fontPendingDelete, setFontPendingDelete] = useState<FontOption | null>(null);
   const [availableTemplates, setAvailableTemplates] = useState<TemplateInfo[]>([]);
   const hasTriggeredAutoRefresh = useRef(false);
   const lastSavedProjectSettingsRef = useRef<string | null>(null);
@@ -341,6 +371,20 @@ export default function TaskPage() {
       }
     };
     void loadTemplates();
+
+    const loadExportPresets = async () => {
+      try {
+        const response = await fetch(`${apiUrl}/export-presets`, { cache: "no-store" });
+        if (response.ok) {
+          const data = await response.json();
+          const presets = (Array.isArray(data) ? data : data.presets || []) as ExportPreset[];
+          setExportPresets(presets);
+        }
+      } catch (error) {
+        console.error("Failed to load export presets:", error);
+      }
+    };
+    void loadExportPresets();
   }, [apiUrl]);
 
   // SSE effect - real-time progress updates
@@ -484,12 +528,13 @@ export default function TaskPage() {
       if (response.ok) {
         setTask(task ? { ...task, source_title: editedTitle } : null);
         setIsEditing(false);
+        toast.success("Title updated.");
       } else {
-        alert(await buildSupportError(response, "Failed to update title"));
+        toast.error(await buildSupportError(response, "Failed to update title"));
       }
     } catch (err) {
       console.error("Error updating title:", err);
-      alert(err instanceof Error ? err.message : "Failed to update title");
+      toast.error(err instanceof Error ? err.message : "Failed to update title");
     }
   };
 
@@ -503,13 +548,14 @@ export default function TaskPage() {
       });
 
       if (response.ok) {
+        toast.success("Moved to Trash.");
         router.push("/list");
       } else {
-        alert(await buildSupportError(response, "Failed to delete task"));
+        toast.error(await buildSupportError(response, "Failed to delete task"));
       }
     } catch (err) {
       console.error("Error deleting task:", err);
-      alert(err instanceof Error ? err.message : "Failed to delete task");
+      toast.error(err instanceof Error ? err.message : "Failed to delete task");
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
@@ -527,12 +573,13 @@ export default function TaskPage() {
       if (response.ok) {
         setClips(clips.filter((clip) => clip.id !== clipId));
         setDeletingClipId(null);
+        toast.success("Clip deleted.");
       } else {
-        alert(await buildSupportError(response, "Failed to delete clip"));
+        toast.error(await buildSupportError(response, "Failed to delete clip"));
       }
     } catch (err) {
       console.error("Error deleting clip:", err);
-      alert(err instanceof Error ? err.message : "Failed to delete clip");
+      toast.error(err instanceof Error ? err.message : "Failed to delete clip");
     }
   };
 
@@ -558,10 +605,11 @@ export default function TaskPage() {
       }),
     });
     if (!response.ok) {
-      alert(await buildSupportError(response, "Failed to trim clip"));
+      toast.error(await buildSupportError(response, "Failed to trim clip"));
       return;
     }
     await fetchTaskStatus();
+    toast.success("Clip trimmed.");
   };
 
   const handleSplitClip = async (clipId: string) => {
@@ -574,10 +622,11 @@ export default function TaskPage() {
       body: JSON.stringify({ split_time: Number(splitTime || "5") }),
     });
     if (!response.ok) {
-      alert(await buildSupportError(response, "Failed to split clip"));
+      toast.error(await buildSupportError(response, "Failed to split clip"));
       return;
     }
     await fetchTaskStatus();
+    toast.success("Clip split.");
   };
 
   const handleMergeClips = async () => {
@@ -590,11 +639,12 @@ export default function TaskPage() {
       body: JSON.stringify({ clip_ids: selectedClipIds }),
     });
     if (!response.ok) {
-      alert(await buildSupportError(response, "Failed to merge clips"));
+      toast.error(await buildSupportError(response, "Failed to merge clips"));
       return;
     }
     setSelectedClipIds([]);
     await fetchTaskStatus();
+    toast.success("Clips merged.");
   };
 
   const handleUpdateCaptions = async (clipId: string) => {
@@ -614,10 +664,11 @@ export default function TaskPage() {
       }),
     });
     if (!response.ok) {
-      alert(await buildSupportError(response, "Failed to update captions"));
+      toast.error(await buildSupportError(response, "Failed to update captions"));
       return;
     }
     await fetchTaskStatus();
+    toast.success("Captions updated.");
   };
 
   const saveProjectSettings = useCallback(
@@ -666,8 +717,9 @@ export default function TaskPage() {
     setIsApplyingSettings(true);
     try {
       await saveProjectSettings(true);
+      toast.success("Settings applied to all clips — re-rendering.");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to apply settings");
+      toast.error(err instanceof Error ? err.message : "Failed to apply settings");
     } finally {
       setIsApplyingSettings(false);
     }
@@ -705,9 +757,14 @@ export default function TaskPage() {
     1000,
   );
 
-  const handleDeleteFont = async (font: FontOption) => {
+  const handleDeleteFont = (font: FontOption) => {
     if (font.scope !== "user" || deletingFontName) return;
-    if (!window.confirm(`Delete ${font.display_name}? This cannot be undone.`)) return;
+    setFontPendingDelete(font);
+  };
+
+  const confirmDeleteFont = async () => {
+    const font = fontPendingDelete;
+    if (!font) return;
 
     setDeletingFontName(font.name);
     try {
@@ -724,10 +781,12 @@ export default function TaskPage() {
         // The deleted font was in use — fall back to the caption template's own font.
         setProjectFontFamily(null);
       }
+      toast.success(`"${font.display_name}" deleted.`);
     } catch (deleteError) {
-      alert(deleteError instanceof Error ? deleteError.message : "Failed to delete font");
+      toast.error(deleteError instanceof Error ? deleteError.message : "Failed to delete font");
     } finally {
       setDeletingFontName(null);
+      setFontPendingDelete(null);
     }
   };
 
@@ -739,7 +798,7 @@ export default function TaskPage() {
     });
 
     if (!response.ok) {
-      alert(await buildSupportError(response, "Failed to export clip"));
+      toast.error(await buildSupportError(response, "Failed to export clip"));
       return;
     }
 
@@ -752,6 +811,7 @@ export default function TaskPage() {
     link.click();
     link.remove();
     URL.revokeObjectURL(blobUrl);
+    toast.success("Clip exported.");
   };
 
   const handleDownloadClip = (clip: Clip) => {
@@ -762,6 +822,7 @@ export default function TaskPage() {
       document.body.appendChild(link);
       link.click();
       link.remove();
+      toast.success("Clip downloaded.");
       return;
     }
     void handleExportClip(clip.id, clip.filename);
@@ -797,10 +858,11 @@ export default function TaskPage() {
         currentTask ? { ...currentTask, share_enabled: true } : currentTask,
       );
       setShareState("copied");
+      toast.success("Share link copied to clipboard.");
       window.setTimeout(() => setShareState("idle"), 2500);
     } catch (shareError) {
       setShareState("idle");
-      alert(shareError instanceof Error ? shareError.message : "Failed to create share link");
+      toast.error(shareError instanceof Error ? shareError.message : "Failed to create share link");
     }
   };
 
@@ -818,16 +880,17 @@ export default function TaskPage() {
       setTask((currentTask) =>
         currentTask ? { ...currentTask, share_enabled: false } : currentTask,
       );
+      toast.success("Share link disabled.");
     } catch (revokeError) {
-      alert(revokeError instanceof Error ? revokeError.message : "Failed to disable share link");
+      toast.error(revokeError instanceof Error ? revokeError.message : "Failed to disable share link");
     } finally {
       setIsRevokingShare(false);
     }
   };
 
-  if (isLoading) {
+  if (showLoading) {
     return (
-      <div className="min-h-screen bg-white p-4">
+      <div className="min-h-screen bg-background p-4">
         <div className="max-w-6xl mx-auto">
           <div className="mb-6">
             <Skeleton className="h-8 w-48 mb-2" />
@@ -851,7 +914,7 @@ export default function TaskPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white p-4">
+      <div className="min-h-screen bg-background p-4">
         <div className="max-w-6xl mx-auto">
           <Alert>
             <AlertDescription>{error}</AlertDescription>
@@ -867,10 +930,16 @@ export default function TaskPage() {
     );
   }
 
+  if (!task) {
+    // isLoading is still true but showLoading hasn't kicked in yet (avoids a
+    // skeleton flash on fast loads) — render nothing for this brief window.
+    return null;
+  }
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b bg-white">
+      <div className="border-b bg-background">
         <div className="max-w-6xl mx-auto px-4 py-6">
           <div className="flex items-center gap-4 mb-4">
             <Link href="/">
@@ -908,7 +977,7 @@ export default function TaskPage() {
                   </div>
                 ) : (
                   <>
-                    <h1 className={`text-2xl font-bold text-black ${task.status === "processing" || task.status === "queued" ? "shimmer" : ""}`}>{task.source_title}</h1>
+                    <h1 className={`text-2xl font-bold text-foreground ${task.status === "processing" || task.status === "queued" ? "shimmer" : ""}`}>{task.source_title}</h1>
                     <div className="flex items-center gap-1">
                       <Button
                         size="sm"
@@ -1134,7 +1203,7 @@ export default function TaskPage() {
                         <div className="p-6 flex-1">
                           <div className="flex items-start justify-between mb-4">
                             <div>
-                              <h3 className="font-semibold text-lg text-black mb-1">
+                              <h3 className="font-semibold text-lg text-foreground mb-1">
                                 {clip.hook_title || `Clip ${clip.clip_order}`}
                               </h3>
                               <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -1224,7 +1293,7 @@ export default function TaskPage() {
                   <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <Clock className="w-8 h-8 text-blue-500 animate-pulse" />
                   </div>
-                  <h2 className="text-xl font-semibold text-black mb-2">Still Generating...</h2>
+                  <h2 className="text-xl font-semibold text-foreground mb-2">Still Generating...</h2>
                   <p className="text-gray-600">
                     Your clips are being generated. This page will refresh automatically when they&apos;re ready.
                   </p>
@@ -1296,7 +1365,7 @@ export default function TaskPage() {
                           className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
                             projectFontSize === option.value
                               ? "bg-stone-900 text-white border-stone-900"
-                              : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
+                              : "bg-background text-stone-600 border-stone-300 hover:bg-stone-50"
                           }`}
                         >
                           {option.label}
@@ -1368,7 +1437,7 @@ export default function TaskPage() {
                             className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
                               projectHookStyle.hook_font_size_scale === option.value
                                 ? "bg-gray-900 text-white border-gray-900"
-                                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                                : "bg-background text-gray-600 border-gray-300 hover:bg-gray-50"
                             }`}
                           >
                             {option.label}
@@ -1422,7 +1491,7 @@ export default function TaskPage() {
                             className={`px-2 py-1.5 rounded-md text-xs font-medium border capitalize transition-colors ${
                               (projectHookStyle.hook_position ?? "top") === position
                                 ? "bg-gray-900 text-white border-gray-900"
-                                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                                : "bg-background text-gray-600 border-gray-300 hover:bg-gray-50"
                             }`}
                           >
                             {position}
@@ -1594,7 +1663,7 @@ export default function TaskPage() {
                             />
                             Select for merge
                           </label>
-                          <h3 className="font-semibold text-lg text-black mb-1">
+                          <h3 className="font-semibold text-lg text-foreground mb-1">
                             {clip.hook_title || `Clip ${clip.clip_order}`}
                           </h3>
                           <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -1626,7 +1695,7 @@ export default function TaskPage() {
                       {clip.virality_score > 0 && (
                         <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                           <div className="flex items-center justify-between mb-3">
-                            <h4 className="font-medium text-black text-sm flex items-center gap-2">
+                            <h4 className="font-medium text-foreground text-sm flex items-center gap-2">
                               <Zap className="w-4 h-4" />
                               Virality Score
                             </h4>
@@ -1719,12 +1788,24 @@ export default function TaskPage() {
                             </SelectTrigger>
                             <SelectContent align="end">
                               <SelectItem value="original">Original</SelectItem>
-                              <SelectItem value="tiktok">TikTok</SelectItem>
-                              <SelectItem value="reels">Reels</SelectItem>
-                              <SelectItem value="shorts">Shorts</SelectItem>
+                              {exportPresets.map((preset) => (
+                                <SelectItem key={preset.name} value={preset.name}>
+                                  {exportPresetLabel(preset.name)}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
+                        {exportPreset !== "original" &&
+                          (() => {
+                            const preset = exportPresets.find((p) => p.name === exportPreset);
+                            if (!preset) return null;
+                            return (
+                              <span className="text-xs text-gray-500">
+                                Target: {preset.target_lufs} LUFS &middot; Max {preset.max_duration_seconds}s
+                              </span>
+                            );
+                          })()}
 
                         <Button
                           size="sm"
@@ -1836,16 +1917,16 @@ export default function TaskPage() {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Generation</AlertDialogTitle>
+            <AlertDialogTitle>Move to Trash?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this generation? This will permanently delete all clips and cannot be
-              undone.
+              This generation and its clips will be moved to Trash. You can restore it later, or permanently delete
+              it from there.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteTask} disabled={isDeleting} className="bg-red-600 hover:bg-red-700">
-              {isDeleting ? "Deleting..." : "Delete"}
+              {isDeleting ? "Moving..." : "Move to Trash"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1867,6 +1948,29 @@ export default function TaskPage() {
               className="bg-red-600 hover:bg-red-700"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Font Confirmation Dialog */}
+      <AlertDialog open={!!fontPendingDelete} onOpenChange={(open) => !open && setFontPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete font?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {fontPendingDelete && `"${fontPendingDelete.display_name}" `}
+              will be permanently deleted. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingFontName}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void confirmDeleteFont()}
+              disabled={!!deletingFontName}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deletingFontName ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

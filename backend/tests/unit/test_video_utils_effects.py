@@ -240,7 +240,8 @@ def test_burn_ass_subtitles_passes_fontsdir_to_ffmpeg(tmp_path):
         )
 
     assert success is True
-    video_filter = commands[0][commands[0].index("-vf") + 1]
+    encode_command = next(c for c in commands if "-vf" in c)
+    video_filter = encode_command[encode_command.index("-vf") + 1]
     assert "fontsdir=" in video_filter
     assert video_filter.endswith(",setsar=1")
 
@@ -270,7 +271,8 @@ def test_burn_ass_subtitles_passes_selected_fonts_dir(tmp_path):
         )
 
     assert success is True
-    video_filter = commands[0][commands[0].index("-vf") + 1]
+    encode_command = next(c for c in commands if "-vf" in c)
+    video_filter = encode_command[encode_command.index("-vf") + 1]
     assert f"fontsdir={tmp_path / 'fonts'}" in video_filter
     assert video_filter.endswith(",setsar=1")
 

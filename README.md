@@ -56,8 +56,11 @@ SupoClip gives you the same core pipeline without the leash:
 - **Word-synced subtitles** — AssemblyAI word-level timestamps, custom fonts, caption templates with animation styles
 - **Hook titles** — an AI-written headline burned into the top of each clip's opening seconds, with selectable animation styles and per-clip A/B comparison to generate and pick between alternative hooks
 - **B-roll & transitions** — optional Pexels stock footage overlays and transition effects
-- **Built-in editor** — trim, split, and merge clips, then export with platform presets (TikTok, Reels, Shorts)
+- **Built-in editor** — trim, split, and merge clips, then export with platform presets (TikTok, Instagram Reels, YouTube Shorts, Facebook Reels, Threads), each with its own duration cap, safe-area margins, and loudness target, and clips auto-capped at 300MB without sacrificing quality unless needed
+- **Emoji reactions** — drop emoji reactions at any point on a clip's timeline, pick an animation style, duration, and position, and they're burned into the re-rendered clip
 - **Real-time progress** — a stage-by-stage pipeline view (download → transcribe → analyze → render) with per-clip status, streamed live to the browser
+- **Recoverable deletes** — deleting a project moves it to Trash (the source video is never touched); restore it or delete it forever
+- **Light/dark theme** — follows your system preference by default, toggle persists across sessions
 
 ## Quick Start
 

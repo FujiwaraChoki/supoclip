@@ -12,8 +12,10 @@ import {
   Layers,
   Palette,
   Scissors,
+  Smile,
   SplitSquareVertical,
   Subtitles,
+  Trash2,
   Volume2,
   VolumeX,
 } from "lucide-react";
@@ -26,6 +28,29 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EmptyState } from "@/components/empty-state";
+import { EmojiPicker } from "@/components/ui/emoji-picker";
+import { useDelayedFlag } from "@/hooks/use-delayed-flag";
+import { toast } from "sonner";
+
+const REACTION_ANIMATIONS = ["fade_pop", "fade", "slide_down", "zoom_punch", "bounce", "pulse", "none"] as const;
+
+const REACTION_POSITIONS: { label: string; x_pct: number; y_pct: number }[] = [
+  { label: "Top left", x_pct: 15, y_pct: 15 },
+  { label: "Top right", x_pct: 85, y_pct: 15 },
+  { label: "Center", x_pct: 50, y_pct: 50 },
+  { label: "Bottom left", x_pct: 15, y_pct: 85 },
+  { label: "Bottom right", x_pct: 85, y_pct: 85 },
+];
+
+interface ClipReaction {
+  id: string;
+  emoji: string;
+  timestamp_seconds: number;
+  animation_style: string;
+  duration_seconds: number;
+  position: { x_pct: number; y_pct: number };
+}
 
 interface TaskDetails {
   id: string;
@@ -44,6 +69,7 @@ interface Clip {
   end_time: string;
   text: string;
   video_url: string;
+  reactions?: ClipReaction[];
 }
 
 interface VideoFx {
@@ -121,6 +147,10 @@ export default function TaskEditPage() {
 
   const [exportPreset, setExportPreset] = useState("tiktok");
   const [exportProgress, setExportProgress] = useState<number | null>(null);
+
+  const [reactions, setReactions] = useState<ClipReaction[]>([]);
+  const [isSavingReactions, setIsSavingReactions] = useState(false);
+  const showLoading = useDelayedFlag(isLoading);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -234,6 +264,7 @@ export default function TaskEditPage() {
     setVideoFx(DEFAULT_VIDEO_FX);
     setSubtitleY(78);
     setSubtitleSize(52);
+    setReactions(selectedClip.reactions ?? []);
   }, [selectedClip]);
 
   useEffect(() => {
@@ -244,11 +275,14 @@ export default function TaskEditPage() {
     video.playbackRate = playbackRate;
   }, [volume, isMuted, playbackRate]);
 
-  const withSaving = async (action: () => Promise<void>) => {
+  const withSaving = async (action: () => Promise<void>, successMessage?: string) => {
     setIsSaving(true);
     try {
       await action();
       await fetchEditorData();
+      if (successMessage) toast.success(successMessage);
+    } catch (saveError) {
+      toast.error(saveError instanceof Error ? saveError.message : "Something went wrong");
     } finally {
       setIsSaving(false);
     }
@@ -268,7 +302,7 @@ export default function TaskEditPage() {
         body: JSON.stringify({ start_offset: startOffset, end_offset: endOffset }),
       });
       if (!response.ok) throw new Error(await buildSupportError(response, "Failed to trim clip"));
-    });
+    }, "Clip trimmed.");
   };
 
   const handleSplit = async (splitAt?: number) => {
@@ -283,7 +317,7 @@ export default function TaskEditPage() {
         body: JSON.stringify({ split_time: Number(value.toFixed(2)) }),
       });
       if (!response.ok) throw new Error(await buildSupportError(response, "Failed to split clip"));
-    });
+    }, "Clip split.");
   };
 
   const handleUpdateCaptions = async () => {
@@ -302,7 +336,7 @@ export default function TaskEditPage() {
         }),
       });
       if (!response.ok) throw new Error(await buildSupportError(response, "Failed to update captions"));
-    });
+    }, "Captions updated.");
   };
 
   const handleMerge = async () => {
@@ -316,8 +350,60 @@ export default function TaskEditPage() {
         body: JSON.stringify({ clip_ids: mergeSelection }),
       });
       if (!response.ok) throw new Error(await buildSupportError(response, "Failed to merge selected clips"));
-    });
+    }, "Clips merged.");
     setMergeSelection([]);
+  };
+
+  const addReactionAtPlayhead = (emoji: string) => {
+    const id = `reaction-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const newReaction: ClipReaction = {
+      id,
+      emoji,
+      timestamp_seconds: Number(currentTime.toFixed(2)),
+      animation_style: "fade_pop",
+      duration_seconds: 2,
+      position: { x_pct: 50, y_pct: 30 },
+    };
+    setReactions((current) => [...current, newReaction]);
+  };
+
+  const updateReaction = (id: string, patch: Partial<ClipReaction>) => {
+    setReactions((current) =>
+      current.map((reaction) => (reaction.id === id ? { ...reaction, ...patch } : reaction)),
+    );
+  };
+
+  const removeReaction = (id: string) => {
+    setReactions((current) => current.filter((reaction) => reaction.id !== id));
+  };
+
+  const activeReactions = useMemo(
+    () =>
+      reactions.filter(
+        (r) =>
+          currentTime >= r.timestamp_seconds &&
+          currentTime < r.timestamp_seconds + r.duration_seconds,
+      ),
+    [reactions, currentTime],
+  );
+
+  const handleSaveReactions = async () => {
+    if (!selectedClip || !task?.id) return;
+    setIsSavingReactions(true);
+    try {
+      const response = await fetch(`${taskApiUrl}/${task.id}/clips/${selectedClip.id}/reactions`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reactions }),
+      });
+      if (!response.ok) throw new Error(await buildSupportError(response, "Failed to save reactions"));
+      toast.success("Reactions saved — re-rendering clip with new reactions.");
+      await fetchEditorData();
+    } catch (saveError) {
+      toast.error(saveError instanceof Error ? saveError.message : "Failed to save reactions");
+    } finally {
+      setIsSavingReactions(false);
+    }
   };
 
   const handleExport = async () => {
@@ -493,6 +579,9 @@ export default function TaskEditPage() {
       link.remove();
       URL.revokeObjectURL(blobUrl);
       setExportProgress(100);
+      toast.success("Clip exported and downloaded.");
+    } catch (exportError) {
+      toast.error(exportError instanceof Error ? exportError.message : "Failed to export clip");
     } finally {
       setIsSaving(false);
       setTimeout(() => setExportProgress(null), 800);
@@ -562,9 +651,9 @@ export default function TaskEditPage() {
     setSubtitleY(78);
   };
 
-  if (isLoading) {
+  if (showLoading) {
     return (
-      <div className="min-h-screen bg-white p-4">
+      <div className="min-h-screen bg-background p-4">
         <div className="max-w-7xl mx-auto space-y-4">
           <Skeleton className="h-10 w-56" />
           <Skeleton className="h-[420px] w-full" />
@@ -578,8 +667,8 @@ export default function TaskEditPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="border-b bg-white">
+    <div className="min-h-screen bg-background">
+      <div className="border-b bg-background">
         <div className="max-w-7xl mx-auto px-4 py-5 flex items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-3">
@@ -591,7 +680,7 @@ export default function TaskEditPage() {
               </Link>
               <Badge variant="outline">Studio Editor</Badge>
             </div>
-            <h1 className="text-2xl font-bold text-black">{task?.source_title || "Clip Editor"}</h1>
+            <h1 className="text-2xl font-bold text-foreground">{task?.source_title || "Clip Editor"}</h1>
           </div>
           <Button onClick={handleExport} disabled={!selectedClip || isSaving}>
             <Download className="w-4 h-4" />
@@ -622,14 +711,12 @@ export default function TaskEditPage() {
             </CardContent>
           </Card>
         ) : clips.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center space-y-3">
-              <p className="text-lg font-semibold">No clips to edit yet.</p>
-              <Link href={`/tasks/${task.id}`}>
-                <Button variant="outline">Return to Task</Button>
-              </Link>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={Clapperboard}
+            title="No clips to edit yet"
+            description="Clips will show up here once processing finishes."
+            action={{ label: "Return to Task", href: `/tasks/${task.id}` }}
+          />
         ) : (
           <>
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
@@ -671,6 +758,19 @@ export default function TaskEditPage() {
                             <span>Subtitle preview</span>
                           )}
                         </div>
+
+                        {activeReactions.map((reaction) => (
+                          <div
+                            key={reaction.id}
+                            className="absolute text-3xl -translate-x-1/2 -translate-y-1/2 pointer-events-none drop-shadow"
+                            style={{
+                              left: `${reaction.position.x_pct}%`,
+                              top: `${reaction.position.y_pct}%`,
+                            }}
+                          >
+                            {reaction.emoji}
+                          </div>
+                        ))}
                       </div>
 
                       <div className="border rounded-lg p-3 space-y-3">
@@ -693,6 +793,15 @@ export default function TaskEditPage() {
                           <Button variant="outline" size="sm" onClick={setTrimInToPlayhead}>Set In</Button>
                           <Button variant="outline" size="sm" onClick={setTrimOutToPlayhead}>Set Out</Button>
                         </div>
+                        <EmojiPicker
+                          onSelect={(emoji) => addReactionAtPlayhead(emoji)}
+                          trigger={
+                            <Button variant="outline" size="sm" className="w-full">
+                              <Smile className="w-4 h-4" />
+                              Add emoji reaction here ({formatDuration(currentTime)})
+                            </Button>
+                          }
+                        />
                       </div>
 
                       <div className="border rounded-lg p-3 space-y-3">
@@ -879,7 +988,7 @@ export default function TaskEditPage() {
                                 type="button"
                                 onClick={() => toggleHighlightedWord(word)}
                                 className={`px-1.5 py-0.5 rounded text-xs border ${
-                                  highlighted ? "bg-yellow-100 border-yellow-300 text-yellow-900" : "bg-white border-gray-200 text-gray-700"
+                                  highlighted ? "bg-yellow-100 border-yellow-300 text-yellow-900" : "bg-background border-gray-200 text-gray-700"
                                 }`}
                               >
                                 {word}
@@ -892,6 +1001,118 @@ export default function TaskEditPage() {
 
                     <Button onClick={handleUpdateCaptions} disabled={isSaving || !selectedClip} className="w-full">
                       Save Subtitle Changes
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Smile className="w-4 h-4" />
+                      Emoji Reactions
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {reactions.length === 0 ? (
+                      <p className="text-xs text-gray-500">
+                        No reactions yet. Use &quot;Add emoji reaction here&quot; above the preview to place one at the
+                        playhead.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {reactions
+                          .slice()
+                          .sort((a, b) => a.timestamp_seconds - b.timestamp_seconds)
+                          .map((reaction) => (
+                            <div key={reaction.id} className="rounded-lg border border-gray-200 p-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xl">{reaction.emoji}</span>
+                                  <span className="text-xs text-gray-500">
+                                    at {formatDuration(reaction.timestamp_seconds)}
+                                  </span>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => removeReaction(reaction.id)}
+                                  aria-label="Remove reaction"
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-600" />
+                                </Button>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                <Select
+                                  value={reaction.animation_style}
+                                  onValueChange={(value) => updateReaction(reaction.id, { animation_style: value })}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Animation" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {REACTION_ANIMATIONS.map((style) => (
+                                      <SelectItem key={style} value={style}>
+                                        {style.replace(/_/g, " ")}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+
+                                <Select
+                                  value={
+                                    REACTION_POSITIONS.find(
+                                      (p) => p.x_pct === reaction.position.x_pct && p.y_pct === reaction.position.y_pct,
+                                    )?.label ?? "Center"
+                                  }
+                                  onValueChange={(label) => {
+                                    const preset = REACTION_POSITIONS.find((p) => p.label === label);
+                                    if (preset) {
+                                      updateReaction(reaction.id, {
+                                        position: { x_pct: preset.x_pct, y_pct: preset.y_pct },
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Position" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {REACTION_POSITIONS.map((preset) => (
+                                      <SelectItem key={preset.label} value={preset.label}>
+                                        {preset.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-xs text-gray-600">
+                                  <span>Duration</span>
+                                  <span>{reaction.duration_seconds.toFixed(1)}s</span>
+                                </div>
+                                <Slider
+                                  min={0.5}
+                                  max={6}
+                                  step={0.1}
+                                  value={[reaction.duration_seconds]}
+                                  onValueChange={(value) =>
+                                    updateReaction(reaction.id, { duration_seconds: value[0] ?? reaction.duration_seconds })
+                                  }
+                                />
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={() => void handleSaveReactions()}
+                      disabled={isSavingReactions || !selectedClip}
+                      className="w-full"
+                    >
+                      {isSavingReactions ? "Saving & re-rendering..." : "Save Reactions"}
                     </Button>
                   </CardContent>
                 </Card>
@@ -928,7 +1149,7 @@ export default function TaskEditPage() {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <p className="font-medium text-sm text-black">Clip {clip.clip_order}</p>
+                            <p className="font-medium text-sm text-foreground">Clip {clip.clip_order}</p>
                             <p className="text-xs text-gray-500">{clip.start_time} - {clip.end_time}</p>
                             <p className="text-xs text-gray-500">{formatDuration(clip.duration)}</p>
                           </div>

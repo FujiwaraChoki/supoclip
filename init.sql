@@ -73,6 +73,10 @@ CREATE TABLE tasks (
     share_token VARCHAR(64),
     share_enabled BOOLEAN NOT NULL DEFAULT false,
 
+    -- Soft delete: set on DELETE instead of removing the row, so a task (and
+    -- its clips) can be restored from trash. A separate purge path hard-deletes.
+    deleted_at TIMESTAMPTZ NULL,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -101,6 +105,7 @@ CREATE TABLE generated_clips (
     hook_title VARCHAR(200),         -- AI-written on-screen headline
     hook_title_variants TEXT,        -- JSON-encoded [{id, text}] alternative hooks for A/B comparison
     selected_hook_variant_id VARCHAR(64), -- which variant (or "custom") is currently applied
+    reactions TEXT DEFAULT '[]',     -- JSON-encoded [{id, emoji, timestamp_seconds, animation_style, duration_seconds, position}] burned-in emoji reactions
 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -197,6 +202,7 @@ CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_created_at ON tasks(created_at);
 CREATE INDEX idx_tasks_processing_mode ON tasks(processing_mode);
 CREATE INDEX idx_tasks_completed_at ON tasks(completed_at);
+CREATE INDEX idx_tasks_deleted_at ON tasks(deleted_at);
 CREATE UNIQUE INDEX idx_tasks_share_token ON tasks(share_token) WHERE share_token IS NOT NULL;
 CREATE INDEX idx_sources_created_at ON sources(created_at);
 CREATE INDEX idx_processing_cache_source_url ON processing_cache(source_url);

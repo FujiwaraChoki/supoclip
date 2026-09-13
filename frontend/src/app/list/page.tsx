@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +25,9 @@ import {
 import { LOCAL_USER_ID } from "@/lib/local-user";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/empty-state";
+import { useDelayedFlag } from "@/hooks/use-delayed-flag";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Clock,
@@ -137,6 +139,7 @@ export default function ListPage() {
   } | null>(null);
   const [activeBatchAction, setActiveBatchAction] = useState<BatchAction>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const showLoading = useDelayedFlag(isLoading);
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -271,7 +274,9 @@ export default function ListPage() {
       if (fulfilled.length > 0) await refreshTasks();
 
       if (rejected.length === 0) {
-        setBatchNotice({ tone: "success", message: labels.success(fulfilled.length) });
+        const message = labels.success(fulfilled.length);
+        setBatchNotice({ tone: "success", message });
+        toast.success(message);
       } else {
         const firstFailure = rejected[0]?.reason;
         const firstError =
@@ -280,20 +285,24 @@ export default function ListPage() {
             : typeof firstFailure === "string"
               ? firstFailure
               : labels.fallback;
+        const message = labels.partial(fulfilled.length, rejected.length, firstError);
         setBatchNotice({
           tone: "error",
-          message: labels.partial(fulfilled.length, rejected.length, firstError),
+          message,
         });
+        toast.error(message);
       }
     } catch (refreshError) {
       console.error("Error refreshing task list:", refreshError);
+      const message =
+        refreshError instanceof Error
+          ? refreshError.message
+          : "The batch action finished, but the list could not be refreshed.";
       setBatchNotice({
         tone: "error",
-        message:
-          refreshError instanceof Error
-            ? refreshError.message
-            : "The batch action finished, but the list could not be refreshed.",
+        message,
       });
+      toast.error(message);
     } finally {
       setActiveBatchAction(null);
     }
@@ -344,9 +353,9 @@ export default function ListPage() {
       (taskId) => fetch(`/api/tasks/${taskId}`, { method: "DELETE" }),
       {
         empty: "Select at least one generation to delete.",
-        fallback: "Failed to delete generation",
-        success: (count) => `${count} generation${count === 1 ? "" : "s"} deleted.`,
-        partial: (s, f, err) => `${s} deleted, ${f} failed. ${err}`,
+        fallback: "Failed to move generation to Trash",
+        success: (count) => `${count} generation${count === 1 ? "" : "s"} moved to Trash.`,
+        partial: (s, f, err) => `${s} moved to Trash, ${f} failed. ${err}`,
       },
     );
 
@@ -383,13 +392,19 @@ export default function ListPage() {
   return (
     <div className="min-h-screen bg-stone-50/50">
       {/* ── Page header ──────────────────────────────────────── */}
-      <div className="border-b border-stone-200 bg-white">
+      <div className="border-b border-stone-200 bg-background">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
           <div className="flex items-center gap-3 mb-4">
             <Link href="/">
               <Button variant="ghost" size="sm" className="text-stone-500 hover:text-stone-900">
                 <ArrowLeft className="w-4 h-4" />
                 Back
+              </Button>
+            </Link>
+            <Link href="/trash">
+              <Button variant="ghost" size="sm" className="text-stone-500 hover:text-stone-900">
+                <Trash2 className="w-4 h-4" />
+                Trash
               </Button>
             </Link>
           </div>
@@ -453,12 +468,12 @@ export default function ListPage() {
           </Alert>
         )}
 
-        {isLoading ? (
+        {showLoading ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="flex items-center gap-4 rounded-xl border border-stone-200 bg-white p-4"
+                className="flex items-center gap-4 rounded-xl border border-stone-200 bg-background p-4"
               >
                 <Skeleton className="h-5 w-5 rounded" />
                 <div className="flex-1 space-y-2">
@@ -475,20 +490,12 @@ export default function ListPage() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : tasks.length === 0 ? (
-          <Card className="border-stone-200">
-            <CardContent className="p-12 text-center">
-              <div className="w-16 h-16 bg-stone-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <PlayCircle className="w-8 h-8 text-stone-400" />
-              </div>
-              <h2 className="text-xl font-semibold text-stone-950 mb-2">No generations yet</h2>
-              <p className="text-stone-500 mb-6 text-sm">
-                Start by processing your first video to create clips.
-              </p>
-              <Link href="/">
-                <Button>Create New Generation</Button>
-              </Link>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={PlayCircle}
+            title="No generations yet"
+            description="Start by processing your first video to create clips."
+            action={{ label: "Create New Generation", href: "/" }}
+          />
         ) : (
           <>
             {/* ── Table header row ────────────────────────────── */}
@@ -514,7 +521,7 @@ export default function ListPage() {
                   <div
                     key={task.id}
                     className={cn(
-                      "group relative flex items-start gap-4 rounded-xl border bg-white p-4 transition-all duration-150",
+                      "group relative flex items-start gap-4 rounded-xl border bg-background p-4 transition-all duration-150",
                       isSelected
                         ? "border-stone-900/20 bg-stone-50 shadow-sm ring-1 ring-stone-900/5"
                         : "border-stone-200 hover:border-stone-300 hover:shadow-sm",
@@ -625,7 +632,7 @@ export default function ListPage() {
                 onCheckedChange={handleToggleAllVisible}
                 disabled={activeBatchAction !== null}
                 aria-label="Select all"
-                className="border-stone-600 data-[state=checked]:bg-white data-[state=checked]:text-stone-950 data-[state=checked]:border-white data-[state=indeterminate]:bg-stone-500 data-[state=indeterminate]:border-stone-500"
+                className="border-stone-600 data-[state=checked]:bg-background data-[state=checked]:text-stone-950 data-[state=checked]:border-white data-[state=indeterminate]:bg-stone-500 data-[state=indeterminate]:border-stone-500"
               />
               <span className="text-sm font-medium text-white tabular-nums">
                 {selectedCount}
@@ -745,10 +752,10 @@ export default function ListPage() {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedCount} generation{selectedCount === 1 ? "" : "s"}?</AlertDialogTitle>
+            <AlertDialogTitle>Move {selectedCount} generation{selectedCount === 1 ? "" : "s"} to Trash?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove {selectedCount === 1 ? "this generation" : "these generations"} and all
-              associated clips. This cannot be undone.
+              {selectedCount === 1 ? "This generation" : "These generations"} will be moved to Trash and can be
+              restored later, or permanently deleted from there.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -761,10 +768,10 @@ export default function ListPage() {
               {activeBatchAction === "delete" ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Deleting...
+                  Moving...
                 </>
               ) : (
-                "Delete"
+                "Move to Trash"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

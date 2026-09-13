@@ -335,6 +335,7 @@ class VideoService:
                 segment.get("hook_title"),
                 hook_style,
                 social_overlay,
+                segment.get("reactions"),
             )
 
             if not success:
@@ -363,6 +364,7 @@ class VideoService:
                 "shareability_score": segment.get("shareability_score", 0),
                 "hook_type": segment.get("hook_type"),
                 "hook_title": segment.get("hook_title"),
+                "reactions": segment.get("reactions") or [],
                 "keep_ranges": keep_ranges,
             }
         except Exception as e:

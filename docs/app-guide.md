@@ -64,7 +64,9 @@ Users can:
 - Select multiple tasks
 - Cancel active tasks
 - Resume errored or cancelled tasks
-- Delete tasks in bulk
+- Delete tasks in bulk (soft-delete — moves them to Trash rather than deleting immediately)
+
+Deleting a task never deletes its source video. Deleted tasks land in **Trash** (`/trash`), where they can be restored or permanently deleted ("Delete forever", which is irreversible and best-effort removes the clip files on disk).
 
 Status states used across the UI include:
 
@@ -101,7 +103,8 @@ Editing actions exposed in the UI map to backend operations:
 - Update captions
 - Regenerate a clip
 - Apply project-wide style settings to a task
-- Export with a platform preset such as TikTok
+- Export with a platform preset (TikTok, Instagram Reels, YouTube Shorts, Facebook Reels, Threads, or the original Shorts preset), each showing its duration cap and loudness target next to the picker
+- Add emoji reactions to a clip: place one at the current playhead position, pick the emoji, animation style, duration, and position, preview it live, then save — saving re-renders the clip with the reactions burned in
 
 ### Settings: `/settings`
 
@@ -116,6 +119,8 @@ Users can:
 - Sign out (hosted mode only)
 
 The page also loads billing summary data so the user can see plan and usage information.
+
+A theme toggle in the main navigation switches between light and dark; it defaults to the system preference and persists across sessions (stored per-browser, not per-account).
 
 **Every non-secret setting shows its current effective value** (admin-saved or env-sourced) next to its label — only API keys stay hidden. Changes **auto-save** a moment after you stop editing; there's no separate "Save" button to remember to click. The per-task "Project Settings" panel on a task page works the same way for that task's own styling — settings persist automatically, while the "Apply to All Clips" button remains a separate, explicit action since it re-renders every clip and can take a few minutes.
 

@@ -4,9 +4,12 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/empty-state";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { useDelayedFlag } from "@/hooks/use-delayed-flag";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, CheckCircle, Loader2, Film, List, Settings, Plus } from "lucide-react";
+import { ArrowRight, CheckCircle, Loader2, Film, List, Settings, Plus, Trash2 } from "lucide-react";
 
 interface TaskSummary {
   id: string;
@@ -45,6 +48,7 @@ function statusBadge(status: string) {
 export default function HomeApp() {
   const [tasks, setTasks] = useState<TaskSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const showLoading = useDelayedFlag(isLoading);
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -65,13 +69,13 @@ export default function HomeApp() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="border-b bg-white">
+      <div className="border-b bg-background">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Image src="/logo.png" alt="SupoClip" width={24} height={24} className="rounded-lg" />
-            <h1 className="text-xl font-bold text-black">SupoClip</h1>
+            <h1 className="text-xl font-bold text-foreground">SupoClip</h1>
           </div>
           <div className="flex items-center gap-2">
             <Link href="/list">
@@ -80,12 +84,19 @@ export default function HomeApp() {
                 All Generations
               </Button>
             </Link>
+            <Link href="/trash">
+              <Button variant="outline" size="sm">
+                <Trash2 className="w-4 h-4" />
+                Trash
+              </Button>
+            </Link>
             <Link href="/settings">
               <Button variant="outline" size="sm">
                 <Settings className="w-4 h-4" />
                 Settings
               </Button>
             </Link>
+            <ThemeToggle />
           </div>
         </div>
       </div>
@@ -105,7 +116,7 @@ export default function HomeApp() {
           </Link>
         </div>
 
-        {isLoading && (
+        {showLoading && (
           <div className="space-y-3">
             {[0, 1, 2].map((i) => (
               <div key={i} className="p-4 rounded-xl border border-stone-200">
@@ -122,16 +133,12 @@ export default function HomeApp() {
         )}
 
         {!isLoading && tasks.length === 0 && (
-          <div className="text-center py-16 rounded-xl border border-dashed border-stone-300">
-            <Film className="w-10 h-10 text-stone-300 mx-auto mb-3" />
-            <p className="text-stone-500 mb-4">No projects yet.</p>
-            <Link href="/create">
-              <Button>
-                <Plus className="w-4 h-4" />
-                Create your first clip
-              </Button>
-            </Link>
-          </div>
+          <EmptyState
+            icon={Film}
+            title="No projects yet"
+            description="Paste a YouTube link or upload a video to get started."
+            action={{ label: "Create your first clip", href: "/create" }}
+          />
         )}
 
         {!isLoading && tasks.length > 0 && (
