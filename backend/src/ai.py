@@ -8,6 +8,7 @@ import asyncio
 import logging
 import re
 
+import httpx
 from pydantic_ai import Agent
 from pydantic_ai.models import Model
 from pydantic_ai.models.ollama import OllamaModel
@@ -607,7 +608,20 @@ async def run_with_llm_fallback(
     # prompt/output size — the client's default timeout is tuned for fast
     # remote APIs and cuts off a real local model mid-generation. Gemini
     # keeps the (short) library default since it's a fast cloud call.
-    ollama_model_settings = {**model_settings, "timeout": 300.0}
+    #
+    # A flat 300s timeout has a real failure mode though: when Ollama is
+    # simply unreachable (wrong URL, daemon down, host firewalled), the TCP
+    # connection attempt itself can hang for a long time before failing,
+    # and a flat timeout gives it the same 300s a slow-but-connected local
+    # model gets to actually generate — an unreachable host then takes just
+    # as long to report "unavailable" as a real (successful) slow inference
+    # would take to finish, which defeats the point of failing fast so the
+    # Gemini fallback can kick in promptly. httpx.Timeout separates the
+    # connect phase (kept short) from the read phase (kept generous).
+    ollama_model_settings = {
+        **model_settings,
+        "timeout": httpx.Timeout(300.0, connect=5.0),
+    }
 
     ollama_agent = Agent[None, output_type](
         model=_build_ollama_model(runtime_config),
