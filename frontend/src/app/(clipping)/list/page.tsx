@@ -98,33 +98,33 @@ const STATUS_CONFIG: Record<
 > = {
   completed: {
     label: "Completed",
-    dotClass: "bg-emerald-500",
-    bgClass: "bg-emerald-50 border-emerald-200/60",
-    textClass: "text-emerald-800",
+    dotClass: "bg-primary",
+    bgClass: "border-primary",
+    textClass: "text-primary",
   },
   processing: {
     label: "Processing",
-    dotClass: "bg-blue-500 animate-pulse",
-    bgClass: "bg-blue-50 border-blue-200/60",
-    textClass: "text-blue-800",
+    dotClass: "bg-secondary animate-pulse",
+    bgClass: "border-secondary",
+    textClass: "text-secondary",
   },
   queued: {
     label: "Queued",
-    dotClass: "bg-amber-500",
-    bgClass: "bg-amber-50 border-amber-200/60",
-    textClass: "text-amber-800",
+    dotClass: "bg-foreground",
+    bgClass: "border-border",
+    textClass: "text-foreground",
   },
   error: {
     label: "Error",
-    dotClass: "bg-red-500",
-    bgClass: "bg-red-50 border-red-200/60",
-    textClass: "text-red-800",
+    dotClass: "bg-background",
+    bgClass: "bg-foreground border-foreground",
+    textClass: "text-background font-bold",
   },
   cancelled: {
     label: "Cancelled",
-    dotClass: "bg-stone-400",
-    bgClass: "bg-stone-100 border-stone-200/60",
-    textClass: "text-stone-600",
+    dotClass: "bg-muted-foreground",
+    bgClass: "border-border",
+    textClass: "text-muted-foreground",
   },
 };
 
@@ -379,7 +379,7 @@ export default function ListPage() {
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+          "inline-flex items-center gap-1.5 border px-2.5 py-0.5 text-xs font-medium",
           config.bgClass,
           config.textClass,
         )}
@@ -393,19 +393,19 @@ export default function ListPage() {
   /* ── Main render ──────────────────────────────────────────── */
 
   return (
-    <div className="min-h-screen bg-stone-50/50">
+    <div className="min-h-screen bg-background">
       {/* ── Page header ──────────────────────────────────────── */}
-      <div className="border-b border-stone-200 bg-background">
+      <div className="border-b border-border bg-background">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
           <div className="flex items-center gap-3 mb-4">
             <Link href="/">
-              <Button variant="ghost" size="sm" className="text-stone-500 hover:text-stone-900">
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
                 <ArrowLeft className="w-4 h-4" />
                 Back
               </Button>
             </Link>
             <Link href="/trash">
-              <Button variant="ghost" size="sm" className="text-stone-500 hover:text-stone-900">
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
                 <Trash2 className="w-4 h-4" />
                 Trash
               </Button>
@@ -414,10 +414,10 @@ export default function ListPage() {
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="font-[var(--font-syne)] text-2xl font-bold tracking-tight text-stone-950">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
                 Generations
               </h1>
-              <p className="mt-1 text-sm text-stone-500">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {tasks.length} total &middot; manage and review your clips
               </p>
             </div>
@@ -425,20 +425,20 @@ export default function ListPage() {
             {!isLoading && !error && tasks.length > 0 && (
               <div className="flex items-center gap-2">
                 {completedCount > 0 && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 text-xs font-medium text-emerald-800">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  <span className="inline-flex items-center gap-1.5 border border-primary px-2.5 py-1 text-xs font-medium text-primary">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                     {completedCount} done
                   </span>
                 )}
                 {activeCount > 0 && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200/60 px-2.5 py-1 text-xs font-medium text-blue-800">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                  <span className="inline-flex items-center gap-1.5 border border-secondary px-2.5 py-1 text-xs font-medium text-secondary">
+                    <span className="h-1.5 w-1.5 rounded-full bg-secondary animate-pulse" />
                     {activeCount} active
                   </span>
                 )}
                 {attentionCount > 0 && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 border border-red-200/60 px-2.5 py-1 text-xs font-medium text-red-700">
-                    <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                  <span className="inline-flex items-center gap-1.5 border border-foreground px-2.5 py-1 text-xs font-bold text-foreground">
+                    <span className="h-1.5 w-1.5 rounded-full bg-foreground" />
                     {attentionCount} need attention
                   </span>
                 )}
@@ -456,14 +456,14 @@ export default function ListPage() {
             className={cn(
               "mb-4",
               batchNotice.tone === "success"
-                ? "border-emerald-200 bg-emerald-50/50"
-                : "border-red-200 bg-red-50/50",
+                ? "border-primary"
+                : "border-foreground",
             )}
           >
             {batchNotice.tone === "success" ? (
-              <CheckCircle className="h-4 w-4 text-emerald-600" />
+              <CheckCircle className="h-4 w-4 text-primary" />
             ) : (
-              <AlertCircle className="h-4 w-4 text-red-600" />
+              <AlertCircle className="h-4 w-4 text-foreground" />
             )}
             <AlertDescription className="text-sm">
               {batchNotice.message}
@@ -476,14 +476,14 @@ export default function ListPage() {
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="flex items-center gap-4 rounded-xl border border-stone-200 bg-background p-4"
+                className="flex items-center gap-4 rounded-xl border border-border bg-background p-4"
               >
                 <Skeleton className="h-5 w-5 rounded" />
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-64" />
                   <Skeleton className="h-3 w-40" />
                 </div>
-                <Skeleton className="h-6 w-20 rounded-full" />
+                <Skeleton className="h-6 w-20" />
               </div>
             ))}
           </div>
@@ -508,9 +508,9 @@ export default function ListPage() {
                 onCheckedChange={handleToggleAllVisible}
                 disabled={activeBatchAction !== null}
                 aria-label="Select all generations"
-                className="data-[state=indeterminate]:bg-stone-400 data-[state=indeterminate]:border-stone-400"
+                className="data-[state=indeterminate]:bg-foreground data-[state=indeterminate]:border-foreground"
               />
-              <span className="text-xs font-medium uppercase tracking-widest text-stone-400">
+              <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
                 {selectedCount > 0 ? `${selectedCount} of ${tasks.length} selected` : "Select"}
               </span>
             </div>
@@ -524,17 +524,17 @@ export default function ListPage() {
                   <div
                     key={task.id}
                     className={cn(
-                      "group relative flex items-start gap-4 rounded-xl border bg-background p-4 transition-all duration-150",
+                      "group relative flex items-start gap-4 border bg-background p-4 transition-all duration-150",
                       isSelected
-                        ? "border-stone-900/20 bg-stone-50 shadow-sm ring-1 ring-stone-900/5"
-                        : "border-stone-200 hover:border-stone-300 hover:shadow-sm",
+                        ? "border-foreground"
+                        : "border-border hover:border-primary",
                     )}
                   >
                     {/* Selection indicator bar */}
                     <div
                       className={cn(
-                        "absolute left-0 top-3 bottom-3 w-0.5 rounded-full transition-all duration-150",
-                        isSelected ? "bg-stone-900" : "bg-transparent",
+                        "absolute left-0 top-3 bottom-3 w-0.5 transition-all duration-150",
+                        isSelected ? "bg-foreground" : "bg-transparent",
                       )}
                     />
 
@@ -553,7 +553,7 @@ export default function ListPage() {
                     </div>
 
                     {/* Thumbnail */}
-                    <div className="hidden sm:block flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-stone-100 border border-stone-200">
+                    <div className="hidden sm:block flex-shrink-0 w-16 h-16 overflow-hidden border border-border">
                       {youTubeThumbnailUrl(task.source_url) ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -562,7 +562,7 @@ export default function ListPage() {
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-stone-300">
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                           <PlayCircle className="w-6 h-6" />
                         </div>
                       )}
@@ -572,11 +572,11 @@ export default function ListPage() {
                     <Link href={`/tasks/${task.id}`} className="flex-1 min-w-0">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
-                          <h3 className="truncate text-sm font-semibold text-stone-950 transition-colors group-hover:text-stone-600">
+                          <h3 className="truncate text-sm font-semibold text-foreground transition-colors group-hover:text-muted-foreground">
                             {task.source_title}
                           </h3>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-400">
-                            <span className="uppercase tracking-wide font-medium text-stone-500">
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            <span className="uppercase tracking-wide font-medium text-muted-foreground">
                               {task.source_type}
                             </span>
                             <Separator orientation="vertical" className="h-3" />
@@ -591,13 +591,13 @@ export default function ListPage() {
                           </div>
                           {ACTIVE_TASK_STATUSES.includes(task.status) && (
                             <div className="mt-2 max-w-xs">
-                              <div className="flex items-center justify-between text-[11px] text-stone-400 mb-1">
+                              <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1">
                                 <span className="truncate">{task.progress_message || "Waiting in queue"}</span>
                                 <span className="tabular-nums ml-2 flex-shrink-0">{task.progress ?? 0}%</span>
                               </div>
-                              <div className="h-1 bg-stone-200 rounded-full overflow-hidden">
+                              <div className="h-1 border border-border overflow-hidden">
                                 <div
-                                  className="h-full bg-stone-800 transition-all duration-700 ease-out"
+                                  className="h-full bg-primary transition-all duration-700 ease-out"
                                   style={{ width: `${task.progress ?? 0}%` }}
                                 />
                               </div>
@@ -625,7 +625,7 @@ export default function ListPage() {
           style={{ animation: "command-bar-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both" }}
         >
           <div
-            className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-stone-800 bg-stone-950 px-2 py-2 shadow-2xl"
+            className="pointer-events-auto flex items-center gap-1 border border-background bg-foreground px-2 py-2"
             style={{ animation: "command-bar-pulse 3s ease-in-out infinite" }}
           >
             {/* Select all checkbox */}
@@ -635,17 +635,17 @@ export default function ListPage() {
                 onCheckedChange={handleToggleAllVisible}
                 disabled={activeBatchAction !== null}
                 aria-label="Select all"
-                className="border-stone-600 data-[state=checked]:bg-background data-[state=checked]:text-stone-950 data-[state=checked]:border-white data-[state=indeterminate]:bg-stone-500 data-[state=indeterminate]:border-stone-500"
+                className="border-background data-[state=checked]:bg-background data-[state=checked]:text-foreground data-[state=checked]:border-background data-[state=indeterminate]:bg-background data-[state=indeterminate]:border-background"
               />
-              <span className="text-sm font-medium text-white tabular-nums">
+              <span className="text-sm font-medium text-background tabular-nums">
                 {selectedCount}
-                <span className="text-stone-400 ml-0.5">
+                <span className="text-background ml-0.5">
                   {" "}selected
                 </span>
               </span>
             </div>
 
-            <Separator orientation="vertical" className="h-6 bg-stone-700" />
+            <Separator orientation="vertical" className="h-6 bg-background" />
 
             {/* Action buttons */}
             <div className="flex items-center gap-0.5 px-1">
@@ -656,7 +656,7 @@ export default function ListPage() {
                     size="sm"
                     onClick={() => void handleCancelSelected()}
                     disabled={cancelableCount === 0 || activeBatchAction !== null}
-                    className="text-stone-300 hover:text-white hover:bg-stone-800 disabled:text-stone-600 disabled:hover:bg-transparent"
+                    className="text-background hover:bg-background hover:text-foreground disabled:opacity-50 disabled:hover:bg-transparent"
                   >
                     {activeBatchAction === "cancel" ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -665,7 +665,7 @@ export default function ListPage() {
                     )}
                     <span className="hidden sm:inline">Cancel</span>
                     {cancelableCount > 0 && (
-                      <span className="text-xs text-stone-500">{cancelableCount}</span>
+                      <span className="text-xs">{cancelableCount}</span>
                     )}
                   </Button>
                 </TooltipTrigger>
@@ -681,7 +681,7 @@ export default function ListPage() {
                     size="sm"
                     onClick={() => void handleResumeSelected()}
                     disabled={resumableCount === 0 || activeBatchAction !== null}
-                    className="text-stone-300 hover:text-white hover:bg-stone-800 disabled:text-stone-600 disabled:hover:bg-transparent"
+                    className="text-background hover:bg-background hover:text-foreground disabled:opacity-50 disabled:hover:bg-transparent"
                   >
                     {activeBatchAction === "resume" ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -690,7 +690,7 @@ export default function ListPage() {
                     )}
                     <span className="hidden sm:inline">Resume</span>
                     {resumableCount > 0 && (
-                      <span className="text-xs text-stone-500">{resumableCount}</span>
+                      <span className="text-xs">{resumableCount}</span>
                     )}
                   </Button>
                 </TooltipTrigger>
@@ -699,7 +699,7 @@ export default function ListPage() {
                 </TooltipContent>
               </Tooltip>
 
-              <Separator orientation="vertical" className="h-6 bg-stone-700" />
+              <Separator orientation="vertical" className="h-6 bg-background" />
 
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -708,7 +708,7 @@ export default function ListPage() {
                     size="sm"
                     onClick={() => setShowDeleteDialog(true)}
                     disabled={selectedCount === 0 || activeBatchAction !== null}
-                    className="text-red-400 hover:text-red-300 hover:bg-red-950/50 disabled:text-stone-600 disabled:hover:bg-transparent"
+                    className="text-background font-bold hover:bg-background hover:text-foreground disabled:opacity-50 disabled:font-normal disabled:hover:bg-transparent"
                   >
                     {activeBatchAction === "delete" ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -724,7 +724,7 @@ export default function ListPage() {
               </Tooltip>
             </div>
 
-            <Separator orientation="vertical" className="h-6 bg-stone-700" />
+            <Separator orientation="vertical" className="h-6 bg-background" />
 
             {/* Clear selection */}
             <Tooltip>
@@ -737,7 +737,7 @@ export default function ListPage() {
                     setBatchNotice(null);
                   }}
                   disabled={activeBatchAction !== null}
-                  className="text-stone-400 hover:text-white hover:bg-stone-800 rounded-xl"
+                  className="text-background hover:bg-background hover:text-foreground"
                   aria-label="Clear selection"
                 >
                   <X className="w-4 h-4" />

@@ -109,21 +109,21 @@ export default function TrashPage() {
     }).format(new Date(dateString));
 
   return (
-    <div className="min-h-screen bg-stone-50/50 dark:bg-stone-950">
-      <div className="border-b border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
+    <div className="min-h-screen bg-background">
+      <div className="border-b border-border bg-background">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
           <div className="flex items-center gap-3 mb-4">
             <Link href="/">
-              <Button variant="ghost" size="sm" className="text-stone-500 hover:text-stone-900">
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
                 <ArrowLeft className="w-4 h-4" />
                 Back
               </Button>
             </Link>
           </div>
-          <h1 className="font-[var(--font-syne)] text-2xl font-bold tracking-tight text-stone-950 dark:text-stone-50">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Trash
           </h1>
-          <p className="mt-1 text-sm text-stone-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             {tasks.length} item{tasks.length === 1 ? "" : "s"} &middot; restore or permanently delete
           </p>
         </div>
@@ -135,13 +135,13 @@ export default function TrashPage() {
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="flex items-center gap-4 rounded-xl border border-stone-200 bg-white p-4"
+                className="flex items-center gap-4 border border-border bg-background p-4"
               >
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-64" />
                   <Skeleton className="h-3 w-40" />
                 </div>
-                <Skeleton className="h-8 w-24 rounded-md" />
+                <Skeleton className="h-8 w-24" />
               </div>
             ))}
           </div>
@@ -157,13 +157,13 @@ export default function TrashPage() {
             {tasks.map((task) => (
               <div
                 key={task.id}
-                className="flex items-center justify-between gap-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-4"
+                className="flex items-center justify-between gap-4 border border-border bg-background p-4"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-stone-950 dark:text-stone-50 truncate">
+                  <p className="text-sm font-medium text-foreground truncate">
                     {task.source_title}
                   </p>
-                  <div className="flex items-center gap-2 text-xs text-stone-500 mt-0.5">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                     <span className="capitalize">{task.source_type}</span>
                     <span>&middot;</span>
                     <span>{formatDate(task.updated_at)}</span>
@@ -192,7 +192,7 @@ export default function TrashPage() {
                     size="sm"
                     onClick={() => setPurgeTarget(task)}
                     disabled={pendingId === task.id}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    className="text-foreground font-bold hover:bg-foreground hover:text-background"
                   >
                     <Trash2 className="w-4 h-4" />
                     Delete forever
@@ -218,7 +218,7 @@ export default function TrashPage() {
             <AlertDialogAction
               onClick={() => void handlePurge()}
               disabled={pendingId !== null}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-foreground text-background hover:bg-foreground/90"
             >
               {pendingId !== null ? (
                 <>
