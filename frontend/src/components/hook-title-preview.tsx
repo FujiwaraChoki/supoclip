@@ -34,13 +34,21 @@ export function HookTitlePreview({
   const animation = style.hook_animation ?? "fade_pop";
   const shadow = style.hook_shadow ?? true;
 
+  const highlightColor = style.hook_highlight_color ?? "#FFE000";
+
   const animationKey = `${animation}-${position}-${fontColor}-${backgroundColor}-${scale}`;
   const animationStyle: React.CSSProperties =
     animation === "none"
       ? {}
       : {
           animationName:
-            animation === "slide_down" ? "hookSlideDown" : animation === "fade" ? "hookFade" : "hookFadePop",
+            animation === "slide_down"
+              ? "hookSlideDown"
+              : animation === "fade"
+              ? "hookFade"
+              : animation === "zoom_punch"
+              ? "hookZoomPunch"
+              : "hookFadePop",
           animationDuration: "0.4s",
           animationTimingFunction: "ease-out",
         };
@@ -60,21 +68,23 @@ export function HookTitlePreview({
           @keyframes hookFadePop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
           @keyframes hookFade { from { opacity: 0; } to { opacity: 1; } }
           @keyframes hookSlideDown { from { opacity: 0; transform: scaleY(0.6); } to { opacity: 1; transform: scaleY(1); } }
+          @keyframes hookZoomPunch { from { transform: scale(1); } to { transform: scale(1.1); } }
         `}</style>
         <span
           key={animationKey}
-          className="text-center font-bold leading-tight rounded px-2 py-1"
+          className="text-center font-bold leading-tight rounded-[3px]"
           style={{
             fontFamily,
             color: fontColor,
             backgroundColor,
             fontSize: `${Math.round(scale * 22)}px`,
+            padding: backgroundColor === "transparent" ? 0 : "0.3em 0.3em",
             WebkitTextStroke: `1px ${outlineColor}`,
             textShadow: shadow ? "0 2px 4px rgba(0,0,0,0.6)" : "none",
             ...animationStyle,
           }}
         >
-          This Changes Everything
+          This <span style={{ color: highlightColor }}>Changes</span> Everything
         </span>
       </div>
     </div>

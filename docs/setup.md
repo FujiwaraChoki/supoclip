@@ -39,24 +39,20 @@ cd supoclip
 
 ### 2. Create a local environment file
 
-```bash
-cp .env.example .env
-```
-
-Then edit `.env` and set at least:
+There is no `.env.example` template shipped in the repo; create `.env` in the project root yourself and set at least:
 
 ```env
 ASSEMBLY_AI_API_KEY=your_assemblyai_key
 LLM=google-gla:gemini-3-flash-preview
 GOOGLE_API_KEY=your_google_key
-BETTER_AUTH_SECRET=replace_this_for_real_use
-BACKEND_AUTH_SECRET=replace_this_if_using_hosted_mode
 
 # Optional: DataFast analytics
 NEXT_PUBLIC_DATAFAST_WEBSITE_ID=dfid_xxxxx
 NEXT_PUBLIC_DATAFAST_DOMAIN=your-domain.com
 NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST=false
 ```
+
+By default `REQUIRE_AUTH` is unset (`false`), so the app runs local-first with no login and everything resolves to a single implicit user. Only set `BETTER_AUTH_SECRET`, `BACKEND_AUTH_SECRET`, and `REQUIRE_AUTH=true` if you're standing up a real multi-tenant deployment — see [Configuration](./configuration.md).
 
 ### 3. Start the stack
 
@@ -89,7 +85,7 @@ You should see these services:
 
 ### 5. Open the application
 
-- Frontend: `http://localhost:3000`
+- Frontend: `http://localhost:3001` (the container listens on `3107`; Compose maps it to host port `3001` — see `docker-compose.yml`)
 - Backend API: `http://localhost:8000`
 - FastAPI docs: `http://localhost:8000/docs`
 
@@ -98,7 +94,7 @@ You should see these services:
 The default Compose stack contains five services:
 
 - `frontend`
-  - Next.js application on port `3000`
+  - Next.js application on container port `3107`, exposed on the host as `3001`
   - Proxies authenticated requests to the backend
 - `backend`
   - FastAPI API on port `8000`
@@ -115,14 +111,13 @@ The default Compose stack contains five services:
 
 After the stack is up:
 
-1. Load the homepage at `http://localhost:3000`.
-2. Create an account or sign in.
-3. Submit a YouTube URL or upload a video file.
-4. Open the task page and confirm progress updates appear.
-5. Wait for clip generation to finish.
-6. Open the clips list and verify playback and download work.
-7. If DataFast is enabled, open browser devtools and confirm `/js/script.js` and `/api/events` load from your own domain.
-8. Trigger one successful action such as sign-up, sign-in, task creation, or feedback submission and verify the goal arrives in DataFast.
+1. Load the homepage at `http://localhost:3001`. No sign-in is required by default (local-first mode).
+2. Submit a YouTube URL or upload a video file.
+3. Open the task page and confirm progress updates appear.
+4. Wait for clip generation to finish.
+5. Open the clips list and verify playback and download work.
+6. If DataFast is enabled, open browser devtools and confirm `/js/script.js` and `/api/events` load from your own domain.
+7. Trigger one successful action such as task creation or feedback submission and verify the goal arrives in DataFast.
 
 ## Local Development Without Docker
 
@@ -150,9 +145,11 @@ arq src.workers.tasks.WorkerSettings
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
+
+This starts the dev server on `http://localhost:3107` (not `3001` — that host port only exists when Compose maps the containerized frontend).
 
 ### Required local dependencies
 

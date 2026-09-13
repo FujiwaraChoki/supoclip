@@ -26,6 +26,7 @@ from ..video_utils import (
     build_keep_ranges_from_source_ranges,
     build_clip_signal_summary,
     extend_keep_ranges_to_sentence_boundary,
+    trim_keep_ranges_to_duration,
     seconds_to_mmss,
     get_transcript_text_in_range,
 )
@@ -186,9 +187,12 @@ class VideoService:
         This is already async, no need to wrap.
         """
         logger.info("Starting AI analysis of transcript")
+        runtime_config = get_config()
         relevant_parts = await get_most_relevant_parts_by_transcript(
             transcript,
             clip_signals=clip_signals,
+            max_segments=runtime_config.max_clips,
+            target_duration_seconds=runtime_config.clip_duration,
         )
         logger.info(
             f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"
@@ -207,6 +211,7 @@ class VideoService:
         add_subtitles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
         hook_style: Optional[Dict[str, Any]] = None,
+        social_overlay: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Create standalone video clips from segments with optional subtitles.
@@ -231,6 +236,7 @@ class VideoService:
             add_subtitles,
             cleanup_settings,
             hook_style,
+            social_overlay,
         )
 
         logger.info(f"Successfully created {len(clips_info)} clips")
@@ -250,6 +256,8 @@ class VideoService:
         add_subtitles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
         hook_style: Optional[Dict[str, Any]] = None,
+        social_overlay: Optional[Dict[str, Any]] = None,
+        target_duration_seconds: Optional[float] = None,
     ) -> Optional[Dict[str, Any]]:
         """Render a single clip in the thread pool and return clip_info dict, or None on failure."""
         try:
@@ -296,6 +304,7 @@ class VideoService:
                     cleanup_settings,
                 )
             keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
+            keep_ranges = trim_keep_ranges_to_duration(keep_ranges, target_duration_seconds)
 
             success = await run_in_thread(
                 create_optimized_clip,
@@ -312,6 +321,7 @@ class VideoService:
                 keep_ranges,
                 segment.get("hook_title"),
                 hook_style,
+                social_overlay,
             )
 
             if not success:

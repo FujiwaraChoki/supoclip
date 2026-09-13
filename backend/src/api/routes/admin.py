@@ -13,6 +13,7 @@ from ...config import get_config
 from ...database import get_db
 from ...runtime_settings import (
     RUNTIME_SETTING_KEYS,
+    decrypt_setting_value,
     encrypt_setting_value,
     get_runtime_setting_rows,
     load_runtime_settings_cache,
@@ -136,6 +137,22 @@ def _setting_status(
     else:
         source = "unset"
 
+    # Never expose secret values back to the client, but every other setting
+    # must show its live effective value so users aren't left guessing what
+    # is actually configured (only the raw input for typing a new value is
+    # blank).
+    current_value: str | None = None
+    if metadata["input_type"] != "password":
+        if source == "admin":
+            encrypted_value = row.get("encrypted_value")
+            if encrypted_value:
+                try:
+                    current_value = decrypt_setting_value(str(encrypted_value))
+                except Exception:
+                    current_value = None
+        elif source == "environment":
+            current_value = env_value
+
     return {
         "key": setting_key,
         "label": metadata["label"],
@@ -149,6 +166,7 @@ def _setting_status(
         "prefer_admin_value": prefer_admin_value,
         "overridden_by_env": has_env and has_admin_value and not prefer_admin_value,
         "updated_at": row.get("updated_at"),
+        "current_value": current_value,
     }
 
 

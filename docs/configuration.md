@@ -2,7 +2,7 @@
 
 This guide explains the important environment variables used by SupoClip and how they affect behavior.
 
-Most settings are sourced from `.env.example`, `docker-compose.yml`, and the backend configuration code in `backend/src/config.py`.
+Most settings are sourced from the root `.env` file (there is no `.env.example` template shipped in the repo — create `.env` yourself), `docker-compose.yml`, and the backend configuration code in `backend/src/config.py`.
 
 ## Configuration Strategy
 
@@ -42,11 +42,12 @@ The backend can infer a default LLM from whichever API key is present, but setti
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `BETTER_AUTH_SECRET` | Dev secret | Frontend auth secret; must be changed in non-local environments |
-| `DISABLE_SIGN_UP` | `false` | Prevents creation of new user accounts when set |
+| `REQUIRE_AUTH` | `false` | Local-first by default: every request resolves to a single implicit user, no login. Set `true` on **both** frontend and backend to restore real multi-tenant Better Auth session checks (hosted mode) |
+| `BETTER_AUTH_SECRET` | Dev secret | Frontend auth secret; only exercised when `REQUIRE_AUTH=true`; must be changed in non-local environments |
+| `DISABLE_SIGN_UP` | `false` | Prevents creation of new user accounts when set (hosted mode only) |
 | `NEXT_PUBLIC_LANDING_ONLY_MODE` | `false` | Restricts the UI to the landing page only |
 | `TEMP_DIR` | `/app/uploads` in Docker | Temporary backend working directory for uploads and processing |
-| `CORS_ORIGINS` | `http://localhost:3000,http://sp.localhost:3000` | Allowed browser origins for backend requests, including direct browser video uploads |
+| `CORS_ORIGINS` | `http://localhost:3107,http://sp.localhost:3107` | Allowed browser origins for backend requests, including direct browser video uploads |
 
 ## Analytics Settings
 
@@ -80,8 +81,8 @@ These settings affect clip generation speed, throughput, and defaults.
 |---|---|---|
 | `DEFAULT_PROCESSING_MODE` | `fast` | Default mode for new tasks |
 | `FAST_MODE_MAX_CLIPS` | `4` | Clip cap used by fast mode |
-| `FAST_MODE_TRANSCRIPT_MODEL` | `nano` | Lightweight transcript path for fast mode |
-| `WHISPER_MODEL_SIZE` | `medium` in `.env.example` | Whisper model size when Whisper is used locally |
+| `FAST_MODE_TRANSCRIPT_MODEL` | `universal` | Transcript model path used for fast mode |
+| `WHISPER_MODEL` | `base` | Whisper model size when Whisper is used locally as the transcription provider |
 | `QUEUED_TASK_TIMEOUT_SECONDS` | `180` | Marks stale queued tasks as failed instead of leaving them stuck forever |
 | `MAX_VIDEO_DURATION` | `5400` | Maximum accepted upload length and baseline YouTube length in seconds |
 | `PRO_YOUTUBE_MAX_VIDEO_DURATION` | `5400` | Maximum YouTube length for active or trialing Pro subscriptions, in seconds |

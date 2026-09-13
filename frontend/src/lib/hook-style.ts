@@ -1,5 +1,5 @@
 export type HookPosition = "top" | "center" | "bottom";
-export type HookAnimation = "fade_pop" | "fade" | "slide_down" | "none";
+export type HookAnimation = "fade_pop" | "fade" | "slide_down" | "zoom_punch" | "none";
 
 export type HookStyle = {
   hook_font_family: string | null;
@@ -11,6 +11,8 @@ export type HookStyle = {
   hook_duration_seconds: number | null;
   hook_animation: HookAnimation | null;
   hook_shadow: boolean | null;
+  hook_highlight_color: string | null;
+  hook_sfx: string | null;
 };
 
 // null fields mean "inherit from the caption template" — mirrors the
@@ -25,6 +27,8 @@ export const DEFAULT_HOOK_STYLE: HookStyle = {
   hook_duration_seconds: null,
   hook_animation: null,
   hook_shadow: null,
+  hook_highlight_color: null,
+  hook_sfx: null,
 };
 
 /** Strips null (inherit) fields so the request only carries explicit overrides. */

@@ -81,7 +81,7 @@ Then start everything:
 docker-compose up -d
 ```
 
-First startup takes a few minutes; watch it with `docker-compose logs -f`. Once healthy, open [http://localhost:3000](http://localhost:3000), create an account, and start clipping. The backend API lives at [http://localhost:8000](http://localhost:8000) with interactive docs at `/docs`.
+First startup takes a few minutes; watch it with `docker-compose logs -f`. Once healthy, open [http://localhost:3001](http://localhost:3001) and start clipping — SupoClip runs local-first by default, with no login required. The backend API lives at [http://localhost:8000](http://localhost:8000) with interactive docs at `/docs`.
 
 To use a different LLM provider, self-host with Ollama, or configure the optional pieces (B-roll, analytics, emails, YouTube metadata), see the [configuration guide](docs/configuration.md). If something misbehaves, the [troubleshooting guide](docs/troubleshooting.md) covers the common failure modes.
 

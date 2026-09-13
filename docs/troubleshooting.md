@@ -15,7 +15,7 @@ docker-compose logs -f worker
 
 Also verify:
 
-- `http://localhost:3000` loads
+- `http://localhost:3001` loads (Docker) or `http://localhost:3107` (local `pnpm run dev`)
 - `http://localhost:8000/health` responds
 - `http://localhost:8000/docs` opens
 
@@ -180,6 +180,8 @@ The UI opens, but parts of it fail to load or authenticated actions do not work.
 - Confirm trusted origins include your actual frontend URL
 
 ## Cannot Sign In or Sign Up
+
+This only applies when `REQUIRE_AUTH=true` (hosted/multi-tenant mode). By default the app runs local-first with `REQUIRE_AUTH=false` and there are no sign-in/sign-up pages at all — every request resolves to the same implicit local user.
 
 ### Common causes
 

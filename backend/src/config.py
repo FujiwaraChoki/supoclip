@@ -89,6 +89,9 @@ class Config:
 
         self.self_host = self._get_bool_env("SELF_HOST", True)
         self.monetization_enabled = not self.self_host
+        # Local-first default: no login. Set REQUIRE_AUTH=true to restore the
+        # original signed-session/multi-tenant behavior (e.g. a hosted deployment).
+        self.require_auth = self._get_bool_env("REQUIRE_AUTH", False)
         self.backend_auth_secret = self._get_optional_env("BACKEND_AUTH_SECRET")
         self.allow_unsigned_backend_auth = self._get_bool_env(
             "ALLOW_UNSIGNED_BACKEND_AUTH", False

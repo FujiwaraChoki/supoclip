@@ -724,13 +724,18 @@ def clamp_even(value: int, minimum: int, maximum: int) -> int:
     return round_to_even(max(minimum, min(value, maximum)))
 
 
-def get_scaled_font_size(base_font_size: int, video_width: int) -> int:
-    """Scale caption font size by output width while preserving user choices.
+def get_scaled_font_size(base_font_size: int, video_width: int, video_height: int = 0) -> int:
+    """Scale caption font size by the frame's constraining dimension.
 
     Template defaults remain readable on 1080-wide vertical clips, while the
-    full 12-72 UI range produces a meaningful, monotonic size change.
+    full 12-72 UI range produces a meaningful, monotonic size change. Scaling
+    by width alone made captions balloon on wide outputs (1:1, 16:9) relative
+    to their much shorter height, pushing them past the safe area — so the
+    shorter of width/height (the axis that actually constrains how much
+    vertical room captions have) drives the scale instead.
     """
-    scaled_size = round(base_font_size * (video_width / 560.0))
+    reference_dimension = min(video_width, video_height) if video_height else video_width
+    scaled_size = round(base_font_size * (reference_dimension / 560.0))
     return max(26, min(132, scaled_size))
 
 
@@ -743,13 +748,25 @@ def get_subtitle_max_width(video_width: int) -> int:
 def get_safe_vertical_position(
     video_height: int, text_height: int, position_y: float
 ) -> int:
-    """Return subtitle y position clamped inside a top/bottom safe area."""
+    """Return a subtitle y anchor clamped inside a top/bottom safe area.
+
+    The caller renders text with an ASS center anchor (Alignment 5 + \\pos),
+    so the returned value is the vertical CENTER of the text block, not its
+    top-left corner. Clamping is done in that same center-anchor space —
+    keeping the block's top edge below min_top_padding and its bottom edge
+    above min_bottom_padding — so it stays correct across every aspect ratio
+    instead of only lining up by coincidence on tall 9:16 frames.
+    """
     min_top_padding = max(40, int(video_height * 0.05))
     min_bottom_padding = max(120, int(video_height * 0.10))
+    half_height = text_height / 2
 
-    desired_y = int(video_height * position_y - text_height // 2)
-    max_y = video_height - min_bottom_padding - text_height
-    return max(min_top_padding, min(desired_y, max_y))
+    desired_center = video_height * position_y
+    min_center = min_top_padding + half_height
+    max_center = video_height - min_bottom_padding - half_height
+    if max_center < min_center:
+        return int(video_height / 2)
+    return int(max(min_center, min(desired_center, max_center)))
 
 
 def detect_optimal_crop_region(
@@ -1678,15 +1695,16 @@ def build_hook_title_ass(
     primary = hex_to_ass_color(
         effective.get("hook_font_color") or template.get("font_color"), "#FFFFFF"
     )
-    highlight = hex_to_ass_color(
-        template.get("emphasis_color") or template.get("highlight_color"), "#FFE000"
-    )
-    stroke_color = effective.get("hook_stroke_color") or template.get("stroke_color") or "#000000"
+    # Decoupled from the caption template's own highlight/emphasis color so the
+    # hook's keyword pop stays consistent (and independently customizable)
+    # regardless of which caption style is selected.
+    highlight = hex_to_ass_color(effective.get("hook_highlight_color"), "#FFE000")
+    stroke_color = effective.get("hook_stroke_color") or template.get("stroke_color")
     outline = hex_to_ass_color(stroke_color, "#000000")
-    background_color = effective.get("hook_background_color") or template.get(
-        "background_color"
-    )
-    back_color = hex_to_ass_color(background_color, "#00000080")
+    # Hook background is opt-in only — never inherit the caption template's own
+    # background_color (that's meant for the spoken-word captions, not the hook).
+    background_color = effective.get("hook_background_color")
+    back_color = hex_to_ass_color(background_color, "#00000099")
 
     font_size_scale = float(effective.get("hook_font_size_scale") or 0.82)
     # Slightly smaller than the captions so the spoken words stay the hero.
@@ -1703,13 +1721,16 @@ def build_hook_title_ass(
     base_stroke = int(
         hook_stroke_width if hook_stroke_width is not None else template.get("stroke_width", 3) or 0
     )
-    has_outline = stroke_color is not None and base_stroke > 0
-    border_style = 3 if (not has_outline and background_color) else 1
+    has_outline = base_stroke > 0
+    # Box mode depends only on an explicit hook background — independent of
+    # whether an outline is drawn, so turning off the outline never conjures
+    # up an unrequested background box.
+    border_style = 3 if background_color else 1
     outline_px = (
         max(base_stroke, round(hook_px * base_stroke / 26)) if has_outline else 0
     )
     if border_style == 3:
-        outline_px = max(4, hook_px // 6)  # backing-box padding
+        outline_px = max(10, round(hook_px * 0.3))  # backing-box padding — roomy pill, not a tight hug
     elif outline_px == 0:
         outline_px = max(2, hook_px // 16)  # always keep contrast on video
 
@@ -1761,14 +1782,70 @@ def build_hook_title_ass(
         entrance = "\\fad(120,240)\\fscy60\\t(0,220,\\fscy100)"
     elif hook_animation == "fade":
         entrance = "\\fad(200,240)"
+    elif hook_animation == "zoom_punch":
+        # Scale 100% -> 110% over ~300ms, then hold — a punchier entrance than fade_pop.
+        entrance = "\\fad(120,240)\\fscx100\\fscy100\\t(0,300,\\fscx110\\fscy110)"
     else:  # fade_pop (default, matches original behavior)
         entrance = "\\fad(160,240)"
         if template.get("word_pop", True):
             entrance += "\\fscx90\\fscy90\\t(0,160,\\fscx100\\fscy100)"
-    override_tags = f"{{{entrance}}}" if entrance else ""
+    # A hair of edge blur keeps the backing box from reading as a harsh flat
+    # rectangle — softened corners without needing custom vector geometry.
+    box_soften = "\\blur1" if border_style == 3 else ""
+    override_tags = f"{{{box_soften}{entrance}}}" if (box_soften or entrance) else ""
     events = [
         f"Dialogue: 1,{ass_timestamp(start)},{ass_timestamp(end)},Hook,,0,0,0,,"
         f"{override_tags}{text}"
+    ]
+    return style_line, events
+
+
+def build_social_overlay_ass(
+    social_overlay: Dict[str, Any],
+    video_width: int,
+    video_height: int,
+    output_duration: float,
+    font_name: str,
+    font_px: int,
+) -> Tuple[str, List[str]]:
+    """Build the (style_line, dialogue_events) for a fake social-proof overlay.
+
+    A cosmetic retention feature: username + verified badge + like/comment/
+    follower counts, burned in for the whole clip near the bottom-left. Purely
+    user-typed placeholder text — not tied to any real social account.
+    """
+    username = str(social_overlay.get("username") or "yourhandle").strip().lstrip("@")
+    verified = social_overlay.get("verified")
+    verified = True if verified is None else bool(verified)
+    likes = str(social_overlay.get("likes") or "24.5K").strip()
+    comments = str(social_overlay.get("comments") or "482").strip()
+    followers = str(social_overlay.get("followers") or "").strip()
+
+    overlay_px = max(18, min(36, int(font_px * 0.6)))
+    primary = hex_to_ass_color("#FFFFFF", "#FFFFFF")
+    outline = hex_to_ass_color("#000000", "#000000")
+    margin_l = max(30, int(video_width * 0.04))
+    margin_v = max(60, int(video_height * 0.15))
+    outline_px = max(2, overlay_px // 14)
+    shadow_px = max(1, overlay_px // 18)
+
+    style_line = (
+        f"Style: Social,{font_name},{overlay_px},{primary},&H000000FF,{outline},&H00000000&,"
+        f"1,0,0,0,100,100,0,0,1,{outline_px},{shadow_px},1,{margin_l},{margin_l},{margin_v},1"
+    )
+
+    handle_line = escape_ass_text(f"@{username}")
+    if verified:
+        handle_line += "  ✓"
+    stats_parts = [f"{likes} likes", f"{comments} comments"]
+    if followers:
+        stats_parts.append(f"{followers} followers")
+    stats_line = escape_ass_text(" · ".join(stats_parts))
+
+    text = f"{handle_line}\\N{stats_line}"
+    events = [
+        f"Dialogue: 0,{ass_timestamp(0.0)},{ass_timestamp(output_duration)},Social,,0,0,0,,"
+        f"{{\\fad(300,300)}}{text}"
     ]
     return style_line, events
 
@@ -1792,6 +1869,7 @@ def build_assemblyai_ass_subtitles(
     position_y_override: Optional[float] = None,
     highlight_words: Optional[List[str]] = None,
     hook_style: Optional[Dict[str, Any]] = None,
+    social_overlay: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -1821,8 +1899,9 @@ def build_assemblyai_ass_subtitles(
             relevant_words = get_words_for_keep_ranges(transcript_data, keep_ranges)
         else:
             relevant_words = get_words_in_range(transcript_data, clip_start, clip_end)
-    if not relevant_words and not hook_title:
-        logger.warning("No words or hook title available for ASS subtitles")
+    social_overlay_enabled = bool(social_overlay and social_overlay.get("enabled"))
+    if not relevant_words and not hook_title and not social_overlay_enabled:
+        logger.warning("No words, hook title, or social overlay available for ASS subtitles")
         return False
 
     # --- styling knobs (new template fields, all optional) ---
@@ -1847,7 +1926,7 @@ def build_assemblyai_ass_subtitles(
         template.get("word_box_color") or template.get("highlight_color"), "#00BF49"
     )
 
-    font_px = get_scaled_font_size(effective_font_size, video_width)
+    font_px = get_scaled_font_size(effective_font_size, video_width, video_height)
     base_stroke = int(template.get("stroke_width", 3) or 0)
     # Scale the outline with the font so big captions keep a chunky, readable edge.
     outline_px = (
@@ -1862,7 +1941,9 @@ def build_assemblyai_ass_subtitles(
         if position_y_override is not None
         else float(template.get("position_y", 0.80))
     )
-    est_text_height = int(font_px * 1.5)
+    # Include the outline/shadow so the safe-area clamp accounts for the full
+    # visible glyph extent, not just the bare font size.
+    est_text_height = int(font_px * 1.3) + 2 * outline_px + shadow_px
     y_pos = get_safe_vertical_position(video_height, est_text_height, pos_y)
     font_name = ass_font_name(effective_font_family)
     border_style = (
@@ -1873,7 +1954,9 @@ def build_assemblyai_ass_subtitles(
 
     hook_style_block = ""
     hook_events: List[str] = []
-    if hook_title:
+    social_overlay_block = ""
+    social_overlay_events: List[str] = []
+    if hook_title or social_overlay_enabled:
         if keep_ranges:
             ranges = normalize_source_ranges(keep_ranges)
             fade = crossfade_fade_for_ranges(ranges)
@@ -1882,17 +1965,30 @@ def build_assemblyai_ass_subtitles(
             )
         else:
             output_duration = max(0.0, clip_end - clip_start)
-        hook_style_line, hook_events = build_hook_title_ass(
-            hook_title,
-            template,
-            video_width,
-            video_height,
-            output_duration,
-            font_name,
-            font_px,
-            hook_style,
-        )
-        hook_style_block = f"{hook_style_line}\n"
+
+        if hook_title:
+            hook_style_line, hook_events = build_hook_title_ass(
+                hook_title,
+                template,
+                video_width,
+                video_height,
+                output_duration,
+                font_name,
+                font_px,
+                hook_style,
+            )
+            hook_style_block = f"{hook_style_line}\n"
+
+        if social_overlay_enabled:
+            social_style_line, social_overlay_events = build_social_overlay_ass(
+                social_overlay,
+                video_width,
+                video_height,
+                output_duration,
+                font_name,
+                font_px,
+            )
+            social_overlay_block = f"{social_style_line}\n"
 
     # Contextual emoji + emphasis annotations over the whole clip word list.
     emoji_by_idx, emphasis_idx = annotate_caption_words(
@@ -1925,7 +2021,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{font_name},{font_px},{primary},&H000000FF,{outline},{back_color},1,0,0,0,100,100,0,0,{border_style},{outline_px},{shadow_px},5,60,60,60,1
-{hook_style_block}
+{hook_style_block}{social_overlay_block}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
@@ -2030,13 +2126,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{line_prefix}{effect}{chunk_text}"
             )
 
-    all_events = hook_events + events
+    all_events = hook_events + social_overlay_events + events
     output_ass_path.write_text(header + "\n".join(all_events) + "\n", encoding="utf-8")
     logger.info(
-        "Wrote ASS subtitles: %s (%d events%s)",
+        "Wrote ASS subtitles: %s (%d events%s%s)",
         output_ass_path,
         len(all_events),
         ", hook title" if hook_events else "",
+        ", social overlay" if social_overlay_events else "",
     )
     return True
 
@@ -3357,6 +3454,40 @@ def get_transcript_text_in_range(
     return _join_transcript_tokens([word["text"] for word in relevant_words])
 
 
+def trim_keep_ranges_to_duration(
+    keep_ranges: List[Tuple[float, float]], target_seconds: Optional[float]
+) -> List[Tuple[float, float]]:
+    """Cap keep_ranges at a target total duration (an auto-trim preset).
+
+    Never extends beyond what was already selected — only trims the tail of
+    the last range(s) once the cumulative kept duration reaches the target.
+    """
+    if not target_seconds or not keep_ranges:
+        return keep_ranges
+
+    total = sum(max(0.0, end - start) for start, end in keep_ranges)
+    if total <= target_seconds:
+        return keep_ranges
+
+    trimmed: List[Tuple[float, float]] = []
+    remaining = target_seconds
+    for start, end in keep_ranges:
+        duration = max(0.0, end - start)
+        if duration <= 0:
+            continue
+        if remaining <= 0:
+            break
+        if duration <= remaining:
+            trimmed.append((start, end))
+            remaining -= duration
+        else:
+            trimmed.append((start, start + remaining))
+            remaining = 0
+            break
+
+    return trimmed or keep_ranges
+
+
 def build_clip_keep_ranges(
     video_path: Path,
     clip_start: float,
@@ -3523,6 +3654,7 @@ def create_optimized_clip(
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
     hook_title: Optional[str] = None,
     hook_style: Optional[Dict[str, Any]] = None,
+    social_overlay: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size)."""
     try:
@@ -3602,7 +3734,10 @@ def create_optimized_clip(
 
             burn_ass_path: Optional[Path] = None
             fonts_dir: Optional[Path] = None
-            if (add_subtitles or hook_title) and build_assemblyai_ass_subtitles(
+            social_overlay_enabled = bool(social_overlay and social_overlay.get("enabled"))
+            if (
+                add_subtitles or hook_title or social_overlay_enabled
+            ) and build_assemblyai_ass_subtitles(
                 video_path,
                 start_time,
                 end_time,
@@ -3617,6 +3752,7 @@ def create_optimized_clip(
                 hook_title=hook_title,
                 include_captions=add_subtitles,
                 hook_style=hook_style,
+                social_overlay=social_overlay,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
@@ -3634,6 +3770,12 @@ def create_optimized_clip(
                 raise RuntimeError("ffmpeg reframe render failed")
 
             shutil.move(str(final_clip_path), str(output_path))
+
+            sfx_name = (hook_style or {}).get("hook_sfx") if hook_title else None
+            sfx_path = find_sfx_path(sfx_name)
+            if sfx_path:
+                mix_sfx_into_clip(output_path, sfx_path, start_seconds=0.12)
+
             logger.info(f"Successfully created clip with ffmpeg: {output_path}")
             return True
 
@@ -3654,6 +3796,7 @@ def create_clips_from_segments(
     add_subtitles: bool = True,
     cleanup_settings: Optional[Dict[str, Any]] = None,
     hook_style: Optional[Dict[str, Any]] = None,
+    social_overlay: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Create optimized video clips from segments with template support."""
     logger.info(
@@ -3727,6 +3870,7 @@ def create_clips_from_segments(
                 keep_ranges,
                 hook_title=segment.get("hook_title"),
                 hook_style=hook_style,
+                social_overlay=social_overlay,
             )
 
             if success:
@@ -3777,6 +3921,73 @@ def get_available_transitions() -> List[str]:
 
     logger.info(f"Found {len(transition_files)} transition files")
     return transition_files
+
+
+SFX_DIR = Path(__file__).parent.parent / "sfx"
+SFX_EXTENSIONS = (".mp3", ".wav", ".m4a", ".ogg")
+
+
+def get_available_sfx() -> List[str]:
+    """Get list of available sound-effect files (user-supplied; ships empty)."""
+    if not SFX_DIR.exists():
+        return []
+    return sorted(
+        str(p) for p in SFX_DIR.iterdir() if p.suffix.lower() in SFX_EXTENSIONS
+    )
+
+
+def find_sfx_path(name: Optional[str]) -> Optional[Path]:
+    """Resolve a user-chosen SFX name to a real file inside SFX_DIR (no traversal)."""
+    if not name:
+        return None
+    candidate = Path(name).name  # strip any directory components
+    path = SFX_DIR / candidate
+    if path.suffix.lower() in SFX_EXTENSIONS and path.is_file():
+        try:
+            path.resolve().relative_to(SFX_DIR.resolve())
+        except ValueError:
+            return None
+        return path
+    return None
+
+
+def mix_sfx_into_clip(
+    clip_path: Path, sfx_path: Path, start_seconds: float, volume: float = 0.8
+) -> bool:
+    """Mix an SFX file into a rendered clip's audio track, starting at start_seconds.
+
+    Re-muxes in place (via a temp file): video is stream-copied, only audio is
+    re-encoded, so this is fast and doesn't degrade the already-burned-in video.
+    """
+    delay_ms = max(0, int(start_seconds * 1000))
+    has_audio = ffprobe_has_audio(clip_path)
+    with tempfile.TemporaryDirectory(prefix="supoclip_sfx_") as temp_dir:
+        mixed_path = Path(temp_dir) / "mixed.mp4"
+        if has_audio:
+            filter_complex = (
+                f"[1:a]adelay={delay_ms}|{delay_ms},volume={volume}[sfx];"
+                f"[0:a][sfx]amix=inputs=2:duration=first:dropout_transition=0,volume=2[aout]"
+            )
+        else:
+            filter_complex = f"[1:a]adelay={delay_ms}|{delay_ms},volume={volume}[aout]"
+        command = [
+            "ffmpeg", "-y",
+            "-i", str(clip_path),
+            "-i", str(sfx_path),
+            "-filter_complex", filter_complex,
+            "-map", "0:v", "-map", "[aout]",
+            "-c:v", "copy",
+            "-c:a", "aac", "-b:a", "192k",
+            "-shortest",
+            "-movflags", "+faststart",
+            str(mixed_path),
+        ]
+        result = run_ffmpeg_command(command)
+        if result.returncode != 0 or not mixed_path.exists():
+            logger.error("Failed to mix SFX into clip: %s", clip_path)
+            return False
+        shutil.move(str(mixed_path), str(clip_path))
+        return True
 
 
 def apply_transition_effect(
@@ -3880,6 +4091,7 @@ def create_clips_with_transitions(
     add_subtitles: bool = True,
     cleanup_settings: Optional[Dict[str, Any]] = None,
     hook_style: Optional[Dict[str, Any]] = None,
+    social_overlay: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Create standalone video clips without inter-clip transitions.
 
@@ -3903,6 +4115,7 @@ def create_clips_with_transitions(
         add_subtitles,
         cleanup_settings,
         hook_style,
+        social_overlay,
     )
 
 

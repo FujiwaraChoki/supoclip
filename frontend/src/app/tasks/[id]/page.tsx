@@ -27,11 +27,13 @@ import {
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
-import { useSession } from "@/lib/auth-client";
+import { LOCAL_USER_ID } from "@/lib/local-user";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import { DEFAULT_HOOK_STYLE, hookStylePayload, type HookAnimation, type HookPosition, type HookStyle } from "@/lib/hook-style";
+import { DEFAULT_SOCIAL_OVERLAY, socialOverlayPayload, type SocialOverlay } from "@/lib/retention-settings";
 import { HookTitlePreview } from "@/components/hook-title-preview";
+import { TemplatePicker, type TemplateInfo } from "@/components/template-picker";
 import { Switch } from "@/components/ui/switch";
 import {
   ArrowLeft,
@@ -112,7 +114,9 @@ interface TaskDetails {
 export default function TaskPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
+  // Local-first: no login, so there's no real session — kept as a constant so
+  // the existing "if (!session?.user?.id) return" guards keep working.
+  const session = { user: { id: LOCAL_USER_ID } };
   const [task, setTask] = useState<TaskDetails | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -149,13 +153,15 @@ export default function TaskPage() {
   const updateProjectHookStyle = useCallback(<K extends keyof HookStyle>(key: K, value: HookStyle[K]) => {
     setProjectHookStyle((current) => ({ ...current, [key]: value }));
   }, []);
+  const [projectSocialOverlay, setProjectSocialOverlay] = useState<SocialOverlay>(DEFAULT_SOCIAL_OVERLAY);
+  const updateProjectSocialOverlay = useCallback(<K extends keyof SocialOverlay>(key: K, value: SocialOverlay[K]) => {
+    setProjectSocialOverlay((current) => ({ ...current, [key]: value }));
+  }, []);
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
   const [deletingFontName, setDeletingFontName] = useState<string | null>(null);
-  const [availableTemplates, setAvailableTemplates] = useState<
-    Array<{ id: string; name: string; description: string; animation: string }>
-  >([]);
+  const [availableTemplates, setAvailableTemplates] = useState<TemplateInfo[]>([]);
   const hasTriggeredAutoRefresh = useRef(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -209,6 +215,7 @@ export default function TaskPage() {
         setProjectRemoveFillerWords(Boolean(taskData.remove_filler_words));
         setProjectFilteredWords((taskData.filtered_words || []).join(", "));
         setProjectHookStyle({ ...DEFAULT_HOOK_STYLE, ...(taskData.hook_style || {}) });
+        setProjectSocialOverlay({ ...DEFAULT_SOCIAL_OVERLAY, ...(taskData.social_overlay || {}) });
 
         // Fetch clips if task is completed or processing (incremental clips)
         if (taskData.status === "completed" || taskData.status === "processing") {
@@ -591,6 +598,7 @@ export default function TaskPage() {
           remove_filler_words: projectRemoveFillerWords,
           filtered_words: normalizedFilteredWords,
           hook_style: hookStylePayload(projectHookStyle),
+          social_overlay: socialOverlayPayload(projectSocialOverlay),
           apply_to_existing: true,
         }),
       });
@@ -1112,7 +1120,7 @@ export default function TaskPage() {
             </div>
 
             <Sheet open={settingsSheetOpen} onOpenChange={setSettingsSheetOpen}>
-              <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
+              <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
                 <SheetHeader>
                   <SheetTitle className="flex items-center gap-2">
                     <Settings2 className="w-4 h-4" />
@@ -1201,24 +1209,11 @@ export default function TaskPage() {
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-gray-500">Caption Template</label>
-                    <Select value={projectCaptionTemplate} onValueChange={setProjectCaptionTemplate}>
-                      <SelectTrigger>
-                        <SelectValue>
-                          {availableTemplates.find((t) => t.id === projectCaptionTemplate)?.name || "Select style"}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableTemplates.map((template) => (
-                          <SelectItem key={template.id} value={template.id}>
-                            <div>
-                              <div className="font-medium">{template.name}</div>
-                              <div className="text-xs text-gray-500">{template.description}</div>
-                            </div>
-                          </SelectItem>
-                        ))}
-                        {availableTemplates.length === 0 && <SelectItem value="default">Default</SelectItem>}
-                      </SelectContent>
-                    </Select>
+                    <TemplatePicker
+                      templates={availableTemplates}
+                      selectedId={projectCaptionTemplate}
+                      onSelect={setProjectCaptionTemplate}
+                    />
                   </div>
 
                   <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
@@ -1228,6 +1223,31 @@ export default function TaskPage() {
                     </div>
 
                     <HookTitlePreview style={projectHookStyle} captionTemplate={projectCaptionTemplate} availableTemplates={availableTemplates} />
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-gray-500">Size</label>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {[
+                          { label: "Small", value: 0.65 },
+                          { label: "Default", value: null },
+                          { label: "Large", value: 1.0 },
+                          { label: "XL", value: 1.3 },
+                        ].map((option) => (
+                          <button
+                            key={option.label}
+                            type="button"
+                            onClick={() => updateProjectHookStyle("hook_font_size_scale", option.value)}
+                            className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+                              projectHookStyle.hook_font_size_scale === option.value
+                                ? "bg-gray-900 text-white border-gray-900"
+                                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
@@ -1240,13 +1260,26 @@ export default function TaskPage() {
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-gray-500">Background</label>
-                        <input
-                          type="color"
-                          value={(projectHookStyle.hook_background_color ?? "#00000080").slice(0, 7)}
-                          onChange={(e) => updateProjectHookStyle("hook_background_color", `${e.target.value}80`)}
-                          className="w-full h-8 rounded border border-gray-300 cursor-pointer"
-                        />
+                        <label className="text-xs font-medium text-gray-500 flex items-center justify-between">
+                          Background box
+                          <Switch
+                            checked={projectHookStyle.hook_background_color !== null}
+                            onCheckedChange={(checked) =>
+                              updateProjectHookStyle(
+                                "hook_background_color",
+                                checked ? (projectHookStyle.hook_background_color ?? "#00000099") : null,
+                              )
+                            }
+                          />
+                        </label>
+                        {projectHookStyle.hook_background_color !== null && (
+                          <input
+                            type="color"
+                            value={projectHookStyle.hook_background_color.slice(0, 7)}
+                            onChange={(e) => updateProjectHookStyle("hook_background_color", `${e.target.value}99`)}
+                            className="w-full h-8 rounded border border-gray-300 cursor-pointer"
+                          />
+                        )}
                       </div>
                     </div>
 
@@ -1303,6 +1336,33 @@ export default function TaskPage() {
                     >
                       Reset hook styling to template default
                     </button>
+                  </div>
+
+                  <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">Fake social overlay</div>
+                        <div className="text-xs text-gray-500">Username, verified badge, like/comment counts.</div>
+                      </div>
+                      <Switch
+                        checked={projectSocialOverlay.enabled}
+                        onCheckedChange={(checked) => updateProjectSocialOverlay("enabled", checked)}
+                      />
+                    </div>
+                    {projectSocialOverlay.enabled && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          placeholder="Username"
+                          value={projectSocialOverlay.username}
+                          onChange={(e) => updateProjectSocialOverlay("username", e.target.value)}
+                        />
+                        <Input
+                          placeholder="Likes (24.5K)"
+                          value={projectSocialOverlay.likes}
+                          onChange={(e) => updateProjectSocialOverlay("likes", e.target.value)}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="rounded-lg border bg-gray-50 p-3 space-y-3">

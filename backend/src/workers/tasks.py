@@ -28,6 +28,8 @@ async def process_video_task(
     add_subtitles: bool = True,
     cleanup_settings: Dict[str, Any] | None = None,
     hook_style: Dict[str, Any] | None = None,
+    social_overlay: Dict[str, Any] | None = None,
+    target_duration_seconds: float | None = None,
 ) -> Dict[str, Any]:
     """
     Background worker task to process a video.
@@ -95,6 +97,8 @@ async def process_video_task(
                 clip_ready_callback=clip_ready_callback,
                 cleanup_settings=cleanup_settings,
                 hook_style=hook_style,
+                social_overlay=social_overlay,
+                target_duration_seconds=target_duration_seconds,
             )
 
             logger.info(f"Task {task_id} completed successfully")

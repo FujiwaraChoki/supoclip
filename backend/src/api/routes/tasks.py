@@ -87,7 +87,7 @@ def _normalize_hook_style(value: Any) -> Optional[Dict[str, Any]]:
     if isinstance(font_size_scale, (int, float)):
         style["hook_font_size_scale"] = max(0.4, min(1.5, float(font_size_scale)))
 
-    for key in ("hook_font_color", "hook_background_color", "hook_stroke_color"):
+    for key in ("hook_font_color", "hook_background_color", "hook_stroke_color", "hook_highlight_color"):
         color = _normalize_hook_hex_color(value.get(key))
         if color:
             style[key] = color
@@ -112,7 +112,76 @@ def _normalize_hook_style(value: Any) -> Optional[Dict[str, Any]]:
     if isinstance(shadow, bool):
         style["hook_shadow"] = shadow
 
+    sfx_name = value.get("hook_sfx")
+    if isinstance(sfx_name, str) and sfx_name.strip():
+        from ...video_utils import find_sfx_path
+
+        if find_sfx_path(sfx_name.strip()):
+            style["hook_sfx"] = Path(sfx_name.strip()).name
+
     return style or None
+
+
+_SOCIAL_OVERLAY_TEXT_FIELDS = ("username", "likes", "comments", "followers")
+
+
+def _normalize_social_overlay(value: Any) -> Optional[Dict[str, Any]]:
+    """Whitelist and clamp a per-task fake-social-overlay payload.
+
+    Purely cosmetic, user-typed placeholder text — never validated against any
+    real account. Text fields are length-capped defensively.
+    """
+    if not isinstance(value, dict):
+        return None
+
+    overlay: Dict[str, Any] = {}
+
+    enabled = value.get("enabled")
+    if isinstance(enabled, bool):
+        overlay["enabled"] = enabled
+
+    for key in _SOCIAL_OVERLAY_TEXT_FIELDS:
+        text_value = value.get(key)
+        if isinstance(text_value, str) and text_value.strip():
+            overlay[key] = text_value.strip()[:40]
+
+    verified = value.get("verified")
+    if isinstance(verified, bool):
+        overlay["verified"] = verified
+
+    return overlay or None
+
+
+_BROLL_TIMING_KEYS = ("max_insertions", "min_gap_seconds")
+
+
+def _normalize_broll_settings(value: Any) -> Optional[Dict[str, Any]]:
+    """Whitelist and clamp per-task B-roll timing controls."""
+    if not isinstance(value, dict):
+        return None
+
+    settings: Dict[str, Any] = {}
+
+    enabled = value.get("enabled")
+    if isinstance(enabled, bool):
+        settings["enabled"] = enabled
+
+    max_insertions = value.get("max_insertions")
+    if isinstance(max_insertions, (int, float)):
+        settings["max_insertions"] = max(1, min(6, int(max_insertions)))
+
+    min_gap_seconds = value.get("min_gap_seconds")
+    if isinstance(min_gap_seconds, (int, float)):
+        settings["min_gap_seconds"] = max(2.0, min(30.0, float(min_gap_seconds)))
+
+    return settings or None
+
+
+def _normalize_target_duration(value: Any) -> Optional[int]:
+    """Whitelist an auto-trim duration preset (15/30/60s, or None for AI-selected)."""
+    if isinstance(value, (int, float)) and int(value) in (15, 30, 60):
+        return int(value)
+    return None
 
 
 async def _get_user_id_from_headers(request: Request, db: AsyncSession) -> str:
@@ -175,6 +244,9 @@ def _merge_task_source_metadata(
     add_subtitles: Any = None,
     cleanup_settings: Dict[str, Any] | None = None,
     hook_style: Dict[str, Any] | None = None,
+    social_overlay: Dict[str, Any] | None = None,
+    broll_settings: Dict[str, Any] | None = None,
+    target_duration_seconds: Any = None,
 ) -> Dict[str, Any]:
     merged = dict(existing or {})
 
@@ -190,6 +262,12 @@ def _merge_task_source_metadata(
         merged.update(cleanup_settings)
     if hook_style is not None:
         merged["hook_style"] = hook_style or None
+    if social_overlay is not None:
+        merged["social_overlay"] = social_overlay or None
+    if broll_settings is not None:
+        merged["broll_settings"] = broll_settings or None
+    if target_duration_seconds is not None:
+        merged["target_duration_seconds"] = target_duration_seconds or None
 
     return merged
 
@@ -309,6 +387,9 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
         data.get("filtered_words"),
     )
     hook_style = _normalize_hook_style(data.get("hook_style"))
+    social_overlay = _normalize_social_overlay(data.get("social_overlay"))
+    broll_settings = _normalize_broll_settings(data.get("broll_settings"))
+    target_duration_seconds = _normalize_target_duration(data.get("target_duration_seconds"))
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
@@ -354,6 +435,8 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             add_subtitles,
             cleanup_settings,
             hook_style,
+            social_overlay,
+            target_duration_seconds,
         )
 
         # Save source metadata for resume/retries in environments without sources.url column
@@ -365,6 +448,9 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                 source_type=source_type,
                 output_format=output_format,
                 add_subtitles=add_subtitles,
+                social_overlay=social_overlay,
+                broll_settings=broll_settings,
+                target_duration_seconds=target_duration_seconds,
                 cleanup_settings=cleanup_settings,
                 hook_style=hook_style,
             ),
@@ -901,6 +987,8 @@ async def apply_task_settings(
             payload.get("filtered_words"),
         )
         hook_style = _normalize_hook_style(payload.get("hook_style"))
+        social_overlay = _normalize_social_overlay(payload.get("social_overlay"))
+        broll_settings = _normalize_broll_settings(payload.get("broll_settings"))
 
         task_service = TaskService(db)
         await _require_task_owner(request, task_service, db, task_id)
@@ -930,6 +1018,12 @@ async def apply_task_settings(
             ),
             cleanup_settings=cleanup_settings,
             hook_style=hook_style if "hook_style" in payload else metadata.get("hook_style"),
+            social_overlay=(
+                social_overlay if "social_overlay" in payload else metadata.get("social_overlay")
+            ),
+            broll_settings=(
+                broll_settings if "broll_settings" in payload else metadata.get("broll_settings")
+            ),
         )
         await _save_task_source_metadata(task_id, merged_metadata)
 

@@ -212,6 +212,8 @@ class TaskService:
         clip_ready_callback: Optional[Callable] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
         hook_style: Optional[Dict[str, Any]] = None,
+        social_overlay: Optional[Dict[str, Any]] = None,
+        target_duration_seconds: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -369,6 +371,8 @@ class TaskService:
                     add_subtitles,
                     normalized_cleanup_settings,
                     hook_style,
+                    social_overlay,
+                    target_duration_seconds,
                 )
                 if clip_info is None:
                     continue  # Skip failed clip
@@ -668,6 +672,7 @@ class TaskService:
         output_format = metadata.get("output_format", "vertical")
         add_subtitles = metadata.get("add_subtitles", True)
         hook_style = metadata.get("hook_style")
+        social_overlay = metadata.get("social_overlay")
         cleanup_payload = cleanup_settings or {
             "cut_long_pauses": metadata.get("cut_long_pauses"),
             "pause_threshold_ms": metadata.get("pause_threshold_ms"),
@@ -754,6 +759,7 @@ class TaskService:
             add_subtitles,
             normalized_cleanup_settings,
             hook_style,
+            social_overlay,
         )
 
         await self.clip_repo.delete_clips_by_task(self.db, task_id)
@@ -1036,6 +1042,9 @@ class TaskService:
             "output_format": "vertical",
             "add_subtitles": True,
             "hook_style": None,
+            "social_overlay": None,
+            "broll_settings": None,
+            "target_duration_seconds": None,
             **normalize_clip_cleanup_settings(),
         }
         redis_client = redis.Redis(
@@ -1076,11 +1085,19 @@ class TaskService:
             add_subtitles = defaults["add_subtitles"]
 
         hook_style = parsed.get("hook_style")
+        social_overlay = parsed.get("social_overlay")
+        broll_settings = parsed.get("broll_settings")
+        target_duration_seconds = parsed.get("target_duration_seconds")
+        if not isinstance(target_duration_seconds, (int, float)):
+            target_duration_seconds = None
 
         return {
             "output_format": output_format,
             "add_subtitles": add_subtitles,
             "hook_style": hook_style if isinstance(hook_style, dict) else None,
+            "social_overlay": social_overlay if isinstance(social_overlay, dict) else None,
+            "broll_settings": broll_settings if isinstance(broll_settings, dict) else None,
+            "target_duration_seconds": target_duration_seconds,
             **normalize_clip_cleanup_settings(
                 parsed.get("cut_long_pauses"),
                 parsed.get("pause_threshold_ms"),

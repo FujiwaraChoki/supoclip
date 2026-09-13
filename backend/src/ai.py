@@ -354,7 +354,7 @@ SCORING AND OUTPUT RULES:
 - virality_reasoning and reasoning should cite what is actually present in the chosen span
 - summary and key_topics must also stay grounded in the transcript and should not add outside interpretation
 
-Find 2-5 compelling segments that would work well as standalone clips. Quality over quantity: choose fewer stronger segments over filling a quota. Every selected segment must be accurate, self-contained, have proper time ranges, and score high on virality metrics."""
+Find as many compelling segments as the transcript genuinely supports, up to the maximum stated in the task instructions below. Quality over quantity still governs: never pad the count with weak, repetitive, or unclear segments just to reach the maximum — but if the transcript contains that many genuinely strong, distinct moments, return all of them rather than stopping early. Every selected segment must be accurate, self-contained, have proper time ranges, and score high on virality metrics."""
 
 # Lazy-loaded agent to avoid import-time failures when API keys aren't set
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
@@ -466,7 +466,11 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
 
 
 def build_transcript_analysis_prompt(
-    transcript: str, include_broll: bool = False, clip_signals: str | None = None
+    transcript: str,
+    include_broll: bool = False,
+    clip_signals: str | None = None,
+    max_segments: int = 5,
+    target_duration_seconds: int | None = None,
 ) -> str:
     """Build the grounded task prompt for transcript analysis."""
     broll_instruction = ""
@@ -483,6 +487,18 @@ def build_transcript_analysis_prompt(
             "must still be a coherent contiguous transcript range."
         )
 
+    if target_duration_seconds:
+        ideal_low = max(MIN_ACCEPTED_CLIP_SECONDS, target_duration_seconds - 10)
+        ideal_high = min(MAX_ACCEPTED_CLIP_SECONDS, target_duration_seconds + 10)
+        duration_target_line = (
+            f"- The configured target clip length is {target_duration_seconds} seconds. "
+            f"Prefer clips roughly {ideal_low}-{ideal_high} seconds — this target overrides the "
+            "generic 25-50s guidance above whenever they conflict. Still let a genuinely complete "
+            "hook-to-payoff arc take priority over hitting the exact number."
+        )
+    else:
+        duration_target_line = f"- Most selected clips should be {IDEAL_CLIP_MIN_SECONDS}-{IDEAL_CLIP_MAX_SECONDS} seconds."
+
     return f"""Analyze this video transcript and identify the most engaging segments for short-form content.
 
 The transcript is formatted as one line per timestamped span, for example:
@@ -496,8 +512,9 @@ Follow this workflow:
 4. For each chosen segment, use the earliest timestamp in the selected range as start_time and the latest timestamp in the selected range as end_time.{broll_instruction}
 
 Selection target:
-- Choose 2-5 segments total.
-- Most selected clips should be 25-50 seconds.
+- Choose up to {max_segments} segments total. Return fewer only if the transcript genuinely doesn't contain that many distinct, self-contained, high-quality moments — never pad the count with weak or repetitive picks just to reach {max_segments}.
+- If the transcript supports it, prefer returning close to {max_segments} strong, non-overlapping segments over stopping at just 2-3.
+{duration_target_line}
 - Only choose a 15-24 second clip when it already contains a full setup and payoff.
 - If a strong moment is shorter than 25 seconds, first try expanding to nearby contiguous transcript lines that add useful context.
 - Skip weak standalone picks: intros, sponsor reads, CTAs, contextless quotes, repeated points, vague setup, and answer fragments that require prior context.
@@ -707,11 +724,16 @@ def _repair_segment_bounds(
 
 
 async def get_most_relevant_parts_by_transcript(
-    transcript: str, include_broll: bool = False, clip_signals: str | None = None
+    transcript: str,
+    include_broll: bool = False,
+    clip_signals: str | None = None,
+    max_segments: int = 5,
+    target_duration_seconds: int | None = None,
 ) -> TranscriptAnalysis:
     """Get the most relevant parts of a transcript with virality scoring and optional B-roll detection."""
     logger.info(
-        f"Starting AI analysis of transcript ({len(transcript)} chars), include_broll={include_broll}"
+        f"Starting AI analysis of transcript ({len(transcript)} chars), include_broll={include_broll}, "
+        f"max_segments={max_segments}, target_duration_seconds={target_duration_seconds}"
     )
 
     try:
@@ -723,6 +745,8 @@ async def get_most_relevant_parts_by_transcript(
                 transcript=transcript,
                 include_broll=include_broll,
                 clip_signals=clip_signals,
+                max_segments=max_segments,
+                target_duration_seconds=target_duration_seconds,
             )
         )
 
@@ -850,6 +874,10 @@ async def get_most_relevant_parts_by_transcript(
             ),
             reverse=True,
         )
+
+        # Enforce the requested ceiling even if the model overshot it.
+        if max_segments > 0:
+            validated_segments = validated_segments[:max_segments]
 
         final_analysis = TranscriptAnalysis(
             most_relevant_segments=validated_segments,

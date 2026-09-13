@@ -11,11 +11,28 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { signOut, useSession } from "@/lib/auth-client";
+import { LOCAL_USER_ID } from "@/lib/local-user";
 import { formatBillingPlanName, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight } from "lucide-react";
+import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight, Mic, Music, SlidersHorizontal, Download } from "lucide-react";
+import { RuntimeSettingsForm, type RuntimeSetting } from "@/components/admin/runtime-settings-form";
+
+const TRANSCRIPTION_SETTING_KEYS = new Set([
+  "TRANSCRIPTION_PROVIDER",
+  "WHISPER_MODEL",
+  "WHISPER_LANGUAGE",
+  "ASSEMBLY_AI_API_KEY",
+]);
+
+const EXPORT_SETTING_KEYS = new Set([
+  "MAX_CLIPS",
+  "CLIP_DURATION",
+  "DEFAULT_PROCESSING_MODE",
+  "FAST_MODE_MAX_CLIPS",
+]);
+
+type SfxFile = { name: string; display_name: string };
 
 interface UserPreferences {
   fontFamily: string;
@@ -47,8 +64,13 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState(false);
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
   const [isBillingActionLoading, setIsBillingActionLoading] = useState(false);
-  const { data: session, isPending } = useSession();
-  const isAdmin = Boolean((session?.user as { is_admin?: boolean } | undefined)?.is_admin);
+  const [runtimeSettings, setRuntimeSettings] = useState<RuntimeSetting[]>([]);
+  const [runtimeSettingsError, setRuntimeSettingsError] = useState<string | null>(null);
+  const [sfxFiles, setSfxFiles] = useState<SfxFile[]>([]);
+  const [sfxError, setSfxError] = useState<string | null>(null);
+  // Local-first: no login, so there's no real session — every user_id-shaped
+  // value downstream just resolves to the single implicit local user.
+  const session = { user: { id: LOCAL_USER_ID, name: "Local User", email: "", image: null as string | null } };
 
   const paidPlans = getPublicBillingPlans();
 
@@ -142,6 +164,52 @@ export default function SettingsPage() {
     fetchBillingSummary();
   }, [session?.user?.id]);
 
+  const loadRuntimeSettings = async () => {
+    try {
+      const response = await fetch("/api/admin/runtime-settings", { cache: "no-store" });
+      if (!response.ok) {
+        setRuntimeSettingsError("Unable to load runtime settings.");
+        return;
+      }
+      const data = (await response.json()) as { settings?: RuntimeSetting[] };
+      setRuntimeSettings(data.settings ?? []);
+      setRuntimeSettingsError(null);
+    } catch {
+      setRuntimeSettingsError("Unable to reach the backend settings API.");
+    }
+  };
+
+  useEffect(() => {
+    loadRuntimeSettings();
+  }, []);
+
+  useEffect(() => {
+    const loadSfx = async () => {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const response = await fetch(`${apiUrl}/sfx`, { cache: "no-store" });
+        if (!response.ok) {
+          setSfxError("Unable to load the SFX library.");
+          return;
+        }
+        const data = (await response.json()) as { sfx?: SfxFile[] };
+        setSfxFiles(data.sfx ?? []);
+      } catch {
+        setSfxError("Unable to reach the backend SFX API.");
+      }
+    };
+
+    loadSfx();
+  }, []);
+
+  const transcriptionSettings = runtimeSettings.filter((setting) =>
+    TRANSCRIPTION_SETTING_KEYS.has(setting.key),
+  );
+  const exportSettings = runtimeSettings.filter((setting) => EXPORT_SETTING_KEYS.has(setting.key));
+  const advancedSettings = runtimeSettings.filter(
+    (setting) => !TRANSCRIPTION_SETTING_KEYS.has(setting.key) && !EXPORT_SETTING_KEYS.has(setting.key),
+  );
+
   const handleBillingAction = async (selectedPlan?: BillingPlanId) => {
     if (!billingSummary?.monetization_enabled) return;
 
@@ -221,38 +289,13 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    window.location.href = "/sign-in";
-  };
-
-  if (isPending || isFetching) {
+  if (isFetching) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="space-y-4">
           <Skeleton className="h-4 w-32 mx-auto" />
           <Skeleton className="h-4 w-48 mx-auto" />
           <Skeleton className="h-4 w-24 mx-auto" />
-        </div>
-      </div>
-    );
-  }
-
-  if (!session?.user) {
-    return (
-      <div className="min-h-screen bg-white">
-        <div className="max-w-4xl mx-auto px-4 py-24">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-black mb-4">
-              Sign In Required
-            </h1>
-            <p className="text-gray-600 mb-8">
-              You need to sign in to access your settings
-            </p>
-            <Link href="/sign-in">
-              <Button size="lg">Sign In</Button>
-            </Link>
-          </div>
         </div>
       </div>
     );
@@ -272,16 +315,6 @@ export default function SettingsPage() {
             </Link>
 
             <div className="flex items-center gap-3">
-              {isAdmin && (
-                <Link href="/admin">
-                  <Button variant="outline" size="sm">
-                    Admin
-                  </Button>
-                </Link>
-              )}
-              <Button variant="outline" size="sm" onClick={handleSignOut}>
-                Sign Out
-              </Button>
               <Avatar className="w-8 h-8">
                 <AvatarImage src={session.user.image || ""} />
                 <AvatarFallback className="bg-gray-100 text-black text-sm">
@@ -299,7 +332,7 @@ export default function SettingsPage() {
 
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 py-16">
-        <div className="max-w-xl mx-auto">
+        <div>
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-2">
               <Settings className="w-6 h-6 text-black" />
@@ -314,121 +347,209 @@ export default function SettingsPage() {
 
           <Separator className="my-8" />
 
-          <div className="space-y-8">
-            {/* Font Preferences Section */}
-            <div className="space-y-6">
+          <div className="space-y-10">
+            {/* Transcription Section */}
+            <div className="space-y-4">
               <div>
-                <h3 className="text-lg font-semibold text-black mb-1">
-                  Default Font Settings
+                <h3 className="text-lg font-semibold text-black mb-1 flex items-center gap-2">
+                  <Mic className="w-4 h-4" />
+                  Transcription
                 </h3>
                 <p className="text-sm text-gray-600">
-                  These settings will be applied to all new video processing tasks
+                  Choose the transcription provider and its API key/model/language. Persisted
+                  here, with your .env values as fallback.
                 </p>
               </div>
-
-              {/* Font Family Selector */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-black flex items-center gap-2">
-                  <Type className="w-4 h-4" />
-                  Font Family
-                </Label>
-                <Select value={fontFamily} onValueChange={setFontFamily} disabled={isLoading}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select font" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableFonts.map((font) => (
-                      <SelectItem key={font.name} value={font.name}>
-                        {font.display_name}
-                      </SelectItem>
-                    ))}
-                    {availableFonts.length === 0 && (
-                      <SelectItem value="TikTokSans-Regular">TikTok Sans Regular</SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
+              <div className="rounded-lg border border-gray-200 bg-white">
+                {runtimeSettingsError ? (
+                  <div className="px-4 py-5 text-sm text-red-700">{runtimeSettingsError}</div>
+                ) : (
+                  <RuntimeSettingsForm
+                    settings={transcriptionSettings}
+                    onSaved={loadRuntimeSettings}
+                  />
+                )}
               </div>
+            </div>
 
-              {/* Font Size Slider */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-black">
-                  Font Size: {fontSize}px
-                </Label>
-                <div className="px-2">
-                  <Slider
-                    value={[fontSize]}
-                    onValueChange={(value) => setFontSize(value[0])}
-                    max={48}
-                    min={12}
-                    step={2}
-                    disabled={isLoading}
-                    className="w-full"
-                  />
-                </div>
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>12px</span>
-                  <span>48px</span>
-                </div>
+            <Separator />
+
+            {/* Hooks Section — sound effects for the AI-written hook overlay */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-black mb-1 flex items-center gap-2">
+                  <Music className="w-4 h-4" />
+                  Hooks
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Sound effects available for the hook&apos;s whoosh/riser (per-hook style is
+                  configured when creating or editing a task). Drop{" "}
+                  <code className="text-xs">.mp3</code>/<code className="text-xs">.wav</code> files
+                  into <code className="text-xs">backend/sfx/</code> to add more.
+                </p>
               </div>
-
-              {/* Font Color Picker */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-black flex items-center gap-2">
-                  <Palette className="w-4 h-4" />
-                  Font Color
-                </Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={fontColor}
-                    onChange={(e) => setFontColor(e.target.value)}
-                    disabled={isLoading}
-                    className="w-12 h-10 rounded border border-gray-300 cursor-pointer disabled:cursor-not-allowed"
-                  />
-                  <Input
-                    type="text"
-                    value={fontColor}
-                    onChange={(e) => setFontColor(e.target.value)}
-                    disabled={isLoading}
-                    placeholder="#FFFFFF"
-                    className="flex-1 h-10"
-                    pattern="^#[0-9A-Fa-f]{6}$"
-                  />
-                </div>
-                <div className="flex gap-2 mt-2">
-                  {["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"].map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setFontColor(color)}
-                      disabled={isLoading}
-                      className="w-8 h-8 rounded border-2 border-gray-300 cursor-pointer hover:scale-110 transition-transform disabled:cursor-not-allowed"
-                      style={{ backgroundColor: color }}
-                      title={color}
-                    />
+              {sfxError ? (
+                <p className="text-sm text-red-700">{sfxError}</p>
+              ) : sfxFiles.length === 0 ? (
+                <p className="text-sm text-gray-500">
+                  No SFX files yet — add some to <code className="text-xs">backend/sfx/</code>.
+                </p>
+              ) : (
+                <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white">
+                  {sfxFiles.map((sfx) => (
+                    <li key={sfx.name} className="flex items-center justify-between gap-3 px-4 py-3">
+                      <span className="text-sm text-black">{sfx.display_name}</span>
+                      <audio controls src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/sfx/${encodeURIComponent(sfx.name)}`} className="h-8" />
+                    </li>
                   ))}
-                </div>
-              </div>
+                </ul>
+              )}
+            </div>
 
-              {/* Preview */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-black">Preview</Label>
-                <div className="p-6 bg-black rounded-lg flex items-center justify-center min-h-[100px]">
-                  <p
-                    style={{
-                      color: fontColor,
-                      fontSize: `${Math.min(fontSize, 32)}px`,
-                      fontFamily: `'${fontFamily}', system-ui, -apple-system, sans-serif`,
-                      textAlign: 'center',
-                      lineHeight: '1.4'
-                    }}
-                    className="font-medium"
-                  >
-                    Your subtitle will look like this
+            <Separator />
+
+            {/* Export Section — clip count/duration/mode defaults applied at generation time */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-black mb-1 flex items-center gap-2">
+                  <Download className="w-4 h-4" />
+                  Export
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Defaults for clip count, duration, and processing mode. Persisted here, with
+                  your .env values as fallback.
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white">
+                {runtimeSettingsError ? (
+                  <div className="px-4 py-5 text-sm text-red-700">{runtimeSettingsError}</div>
+                ) : (
+                  <RuntimeSettingsForm settings={exportSettings} onSaved={loadRuntimeSettings} />
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* UI Section — local subtitle appearance */}
+            <div className="space-y-8">
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-black mb-1 flex items-center gap-2">
+                    <Type className="w-4 h-4" />
+                    UI — Subtitle Appearance
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    These settings will be applied to all new video processing tasks
                   </p>
+                </div>
+
+                {/* Font Family Selector */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-black flex items-center gap-2">
+                    <Type className="w-4 h-4" />
+                    Font Family
+                  </Label>
+                  <Select value={fontFamily} onValueChange={setFontFamily} disabled={isLoading}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select font" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableFonts.map((font) => (
+                        <SelectItem key={font.name} value={font.name}>
+                          {font.display_name}
+                        </SelectItem>
+                      ))}
+                      {availableFonts.length === 0 && (
+                        <SelectItem value="TikTokSans-Regular">TikTok Sans Regular</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Font Size Slider */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-black">
+                    Font Size: {fontSize}px
+                  </Label>
+                  <div className="px-2">
+                    <Slider
+                      value={[fontSize]}
+                      onValueChange={(value) => setFontSize(value[0])}
+                      max={48}
+                      min={12}
+                      step={2}
+                      disabled={isLoading}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span>12px</span>
+                    <span>48px</span>
+                  </div>
+                </div>
+
+                {/* Font Color Picker */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-black flex items-center gap-2">
+                    <Palette className="w-4 h-4" />
+                    Font Color
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={fontColor}
+                      onChange={(e) => setFontColor(e.target.value)}
+                      disabled={isLoading}
+                      className="w-12 h-10 rounded border border-gray-300 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <Input
+                      type="text"
+                      value={fontColor}
+                      onChange={(e) => setFontColor(e.target.value)}
+                      disabled={isLoading}
+                      placeholder="#FFFFFF"
+                      className="flex-1 h-10"
+                      pattern="^#[0-9A-Fa-f]{6}$"
+                    />
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    {["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"].map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setFontColor(color)}
+                        disabled={isLoading}
+                        className="w-8 h-8 rounded border-2 border-gray-300 cursor-pointer hover:scale-110 transition-transform disabled:cursor-not-allowed"
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Preview */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-black">Preview</Label>
+                  <div className="p-6 bg-black rounded-lg flex items-center justify-center min-h-[100px]">
+                    <p
+                      style={{
+                        color: fontColor,
+                        fontSize: `${Math.min(fontSize, 32)}px`,
+                        fontFamily: `'${fontFamily}', system-ui, -apple-system, sans-serif`,
+                        textAlign: 'center',
+                        lineHeight: '1.4'
+                      }}
+                      className="font-medium"
+                    >
+                      Your subtitle will look like this
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
+
+            <Separator />
 
             {/* Notifications Section */}
             <div className="space-y-6">
@@ -455,6 +576,31 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
+
+            <Separator />
+
+            {/* Advanced Section — the rest of the runtime settings (LLM/API keys/providers) */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-black mb-1 flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4" />
+                  Advanced
+                </h3>
+                <p className="text-sm text-gray-600">
+                  LLM provider, API keys, and download/B-roll providers. Persisted here, with
+                  your .env values as fallback.
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 bg-white">
+                {runtimeSettingsError ? (
+                  <div className="px-4 py-5 text-sm text-red-700">{runtimeSettingsError}</div>
+                ) : (
+                  <RuntimeSettingsForm settings={advancedSettings} onSaved={loadRuntimeSettings} />
+                )}
+              </div>
+            </div>
+
+            <Separator />
 
             {/* Developer Section */}
             <div className="space-y-6">

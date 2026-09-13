@@ -214,10 +214,12 @@ TEMPLATE_DEFAULTS: Dict[str, Any] = {
     "hook_duration_seconds": 4.0,
     "hook_animation": "fade_pop",
     "hook_shadow": None,
+    "hook_highlight_color": "#FFE000",
+    "hook_sfx": None,
 }
 
 HOOK_POSITIONS = ("top", "center", "bottom")
-HOOK_ANIMATIONS = ("fade_pop", "fade", "slide_down", "none")
+HOOK_ANIMATIONS = ("fade_pop", "fade", "slide_down", "zoom_punch", "none")
 
 
 def get_template(template_name: str) -> Dict[str, Any]:
@@ -239,7 +241,7 @@ def get_template_names() -> list:
 
 
 def get_template_info() -> list:
-    """Get list of template info for API response."""
+    """Get list of template info for API response (used to render the template picker grid)."""
     return [
         {
             "id": name,
@@ -250,6 +252,13 @@ def get_template_info() -> list:
             "font_size": template["font_size"],
             "font_color": template["font_color"],
             "highlight_color": template["highlight_color"],
+            "word_box": merged["word_box"],
+            "word_box_color": merged["word_box_color"],
+            "uppercase": merged["uppercase"],
+            "stroke_color": merged["stroke_color"],
+            "background_color": merged["background_color"],
+            "glow": merged["glow"],
         }
         for name, template in CAPTION_TEMPLATES.items()
+        for merged in [get_template(name)]
     ]

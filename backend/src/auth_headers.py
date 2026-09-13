@@ -13,6 +13,32 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
+async def ensure_local_user(db: "AsyncSession") -> None:
+    """Idempotently create the single implicit local user row.
+
+    Needed so FK constraints (tasks.user_id, api_keys.user_id, ...) have
+    something to point at once login is bypassed. Safe to call on every boot.
+    """
+    from sqlalchemy import text
+
+    await db.execute(
+        text(
+            """
+            INSERT INTO users (id, name, email, "emailVerified", is_admin, plan, subscription_status)
+            VALUES (:id, 'Local User', 'local@supoclip.local', true, true, 'self_host', 'inactive')
+            ON CONFLICT (id) DO NOTHING
+            """
+        ),
+        {"id": LOCAL_USER_ID},
+    )
+    await db.commit()
+
+
+# Local-first mode: when Config.require_auth is False (the default), every
+# request is treated as this single implicit user instead of going through
+# session/signature checks. See resolve_authenticated_user_id below.
+LOCAL_USER_ID = "local"
+
 USER_ID_HEADER = "x-supoclip-user-id"
 TIMESTAMP_HEADER = "x-supoclip-ts"
 SIGNATURE_HEADER = "x-supoclip-signature"
@@ -114,6 +140,10 @@ async def resolve_authenticated_user_id(
     back to the frontend's HMAC-signed session headers. This lets the same
     endpoints serve both the web app and programmatic clients like the MCP
     server.
+
+    When ``config.require_auth`` is False (the local-first default), there is
+    no login at all — every non-API-key request resolves to the single
+    implicit ``LOCAL_USER_ID`` rather than requiring signed session headers.
     """
     raw_key = extract_api_key(request)
     if raw_key:
@@ -124,5 +154,8 @@ async def resolve_authenticated_user_id(
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid or revoked API key")
         return user_id
+
+    if not config.require_auth:
+        return LOCAL_USER_ID
 
     return get_authenticated_user_id(request, config)

@@ -1,7 +1,6 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { auth } from "@/lib/auth";
+import { getServerSession } from "@/server/session";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 
 interface Params {
@@ -9,7 +8,7 @@ interface Params {
 }
 
 export async function GET(_: Request, { params }: Params) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -50,7 +49,7 @@ export async function GET(_: Request, { params }: Params) {
 }
 
 export async function DELETE(_: Request, { params }: Params) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getServerSession();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

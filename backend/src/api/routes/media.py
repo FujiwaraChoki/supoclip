@@ -240,6 +240,64 @@ async def get_available_transitions():
         )
 
 
+_SFX_MEDIA_TYPES = {
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".m4a": "audio/mp4",
+    ".ogg": "audio/ogg",
+}
+
+
+@router.get("/sfx/{sfx_name}")
+async def get_sfx_file(sfx_name: str):
+    """Serve a specific SFX file (public, no auth — same as /transitions)."""
+    from ...video_utils import find_sfx_path
+
+    sfx_path = find_sfx_path(sfx_name)
+    if not sfx_path:
+        raise HTTPException(status_code=404, detail="SFX file not found")
+
+    media_type = _SFX_MEDIA_TYPES.get(sfx_path.suffix.lower(), "application/octet-stream")
+    return FileResponse(
+        path=str(sfx_path),
+        media_type=media_type,
+        headers={
+            "Cache-Control": "public, max-age=31536000",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+
+@router.get("/sfx")
+async def get_available_sfx():
+    """Get list of available sound-effect files (user-supplied; empty by default)."""
+    try:
+        from ...video_utils import get_available_sfx
+
+        sfx_files = get_available_sfx()
+
+        sfx_info = []
+        for sfx_path in sfx_files:
+            sfx_file = Path(sfx_path)
+            sfx_info.append(
+                {
+                    "name": sfx_file.name,
+                    "display_name": sfx_file.stem.replace("_", " ")
+                    .replace("-", " ")
+                    .title(),
+                }
+            )
+
+        logger.info(f"Found {len(sfx_info)} available SFX files")
+        return {"sfx": sfx_info}
+
+    except Exception as e:
+        logger.error(f"Error retrieving SFX files: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error retrieving SFX files: {str(e)}"
+        )
+
+
 @router.get("/caption-templates")
 async def get_caption_templates():
     """Get available caption templates.
