@@ -15,6 +15,7 @@ import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE
 import { DEFAULT_HOOK_STYLE, hookStylePayload, type HookAnimation, type HookPosition, type HookStyle } from "@/lib/hook-style";
 import { splitHookIntoHighlightSpans } from "@/lib/hook-highlight";
 import { TemplatePicker, type TemplateInfo } from "@/components/template-picker";
+import { PresetPromptDialog } from "@/components/batch/preset-prompt-dialog";
 import { takePendingFile } from "@/lib/pending-file-transfer";
 import {
   DEFAULT_BROLL_SETTINGS,
@@ -186,6 +187,8 @@ export default function VideoProcessingPage() {
     Array<{ name: string; status: BatchItemStatus; taskId?: string; error?: string }>
   >([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
+  const [autoExportToSource, setAutoExportToSource] = useState(false);
 
   const [fontFamily, setFontFamily] = useState<string | null>(null);
   const [fontSize, setFontSize] = useState<number | null>(null);
@@ -439,18 +442,21 @@ export default function VideoProcessingPage() {
     };
   };
 
-  const handleBatchSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const runBatchSubmit = async (templateId: string | null) => {
     if (queuedFiles.length === 0) return;
 
     setIsBatchProcessing(true);
     setError(null);
     setBatchStatuses(queuedFiles.map((file) => ({ name: file.name, status: "pending" })));
 
-    // Sequential by design: uploads/creations run one at a time so a batch
-    // drop of several large files doesn't saturate the upload endpoint at
-    // once. Each task, once created, is queued and processed by the worker
-    // independently — this loop only sequences the (fast) creation step.
+    // Sequential by design: uploads run one at a time here (a batch drop of
+    // several large files shouldn't saturate the upload endpoint at once).
+    // Once every file is uploaded, a single POST creates the whole
+    // DB-backed batch queue row, which the ARQ worker then walks item by
+    // item — the actual processing sequencing lives server-side now, not
+    // in this loop (which previously created+enqueued one task per file
+    // itself, with no queue row, no pause/resume, and no restart-survival).
+    const items: { source_filename: string; source_path: string }[] = [];
     for (let i = 0; i < queuedFiles.length; i++) {
       const file = queuedFiles[i];
       try {
@@ -458,24 +464,9 @@ export default function VideoProcessingPage() {
           current.map((item, idx) => (idx === i ? { ...item, status: "uploading" } : item)),
         );
         const videoUrl = await uploadVideoFile(file);
-
+        items.push({ source_filename: file.name, source_path: videoUrl });
         setBatchStatuses((current) =>
-          current.map((item, idx) => (idx === i ? { ...item, status: "creating" } : item)),
-        );
-        const startResponse = await fetch("/api/tasks/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(buildTaskCreationPayload(videoUrl)),
-        });
-        if (!startResponse.ok) {
-          const startError = await parseApiError(startResponse, `API error: ${startResponse.status}`);
-          throw new Error(formatSupportMessage(startError));
-        }
-        const startResult = await startResponse.json();
-        setBatchStatuses((current) =>
-          current.map((item, idx) =>
-            idx === i ? { ...item, status: "done", taskId: startResult.task_id } : item,
-          ),
+          current.map((item, idx) => (idx === i ? { ...item, status: "done" } : item)),
         );
       } catch (err) {
         setBatchStatuses((current) =>
@@ -488,9 +479,37 @@ export default function VideoProcessingPage() {
       }
     }
 
-    saveLastSettings(currentGenerationSettings());
-    setIsBatchProcessing(false);
-    window.location.href = "/list";
+    if (items.length === 0) {
+      setIsBatchProcessing(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/batch-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items,
+          template_id: templateId,
+          auto_export_to_source: autoExportToSource,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(await formatSupportMessage(await parseApiError(response, `API error: ${response.status}`)));
+      }
+      const result = await response.json();
+      saveLastSettings(currentGenerationSettings());
+      window.location.href = `/batch/${result.batch_queue.id}`;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start batch");
+      setIsBatchProcessing(false);
+    }
+  };
+
+  const handleBatchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (queuedFiles.length === 0) return;
+    setPresetDialogOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -886,6 +905,18 @@ export default function VideoProcessingPage() {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+                {queuedFiles.length > 1 && (
+                  <div className="flex items-center justify-between px-1 py-2">
+                    <label htmlFor="auto-export-toggle" className="text-xs text-muted-foreground">
+                      Auto-export clips into each source video&apos;s directory
+                    </label>
+                    <Switch
+                      id="auto-export-toggle"
+                      checked={autoExportToSource}
+                      onCheckedChange={setAutoExportToSource}
+                    />
                   </div>
                 )}
               </div>
@@ -1478,6 +1509,11 @@ export default function VideoProcessingPage() {
           </div>
         </form>
       </div>
+      <PresetPromptDialog
+        open={presetDialogOpen}
+        onOpenChange={setPresetDialogOpen}
+        onSelect={(templateId) => void runBatchSubmit(templateId)}
+      />
     </div>
   );
 }

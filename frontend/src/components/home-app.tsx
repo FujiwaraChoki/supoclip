@@ -12,6 +12,7 @@ import { StatusStrip } from "@/components/home/status-strip";
 import { ActivityFeed } from "@/components/home/activity-feed";
 import { setPendingFile } from "@/lib/pending-file-transfer";
 import { getLastOpenedProject, type LastOpenedProject } from "@/lib/last-project";
+import { ResumeBatchPrompt } from "@/components/batch/resume-batch-prompt";
 
 /** The home screen: an operations-dashboard launchpad for the multi-tool
  * platform (see CLAUDE.md's "Home Screen" section), not a marketing page or
@@ -90,6 +91,7 @@ export default function HomeApp() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      <ResumeBatchPrompt />
       {isDraggingFile && (
         <div className="fixed inset-0 z-50 bg-background border-4 border-dashed border-primary flex flex-col items-center justify-center gap-3 pointer-events-none">
           <UploadCloud className="w-10 h-10 text-primary" />

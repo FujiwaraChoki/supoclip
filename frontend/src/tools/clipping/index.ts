@@ -15,6 +15,7 @@ export const clippingTool: Tool = {
   name: "Clipping",
   icon: Scissors,
   description: "Turn long-form video into short clips",
+  thumbnail: "/assets/tools/clipping.svg",
   href: "/list",
-  matchPaths: ["/create", "/tasks", "/trash"],
+  matchPaths: ["/create", "/tasks", "/trash", "/batch"],
 };
