@@ -3,7 +3,7 @@ AI-related functions for transcript analysis with enhanced precision and viralit
 """
 
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Literal
+from typing import List, Dict, Any, Optional, Literal, TypeVar
 import asyncio
 import logging
 import re
@@ -16,6 +16,7 @@ from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from .config import Config, get_config
 from .runtime_settings import apply_settings_to_process_env
+from .workers.resource_locks import resource_slot
 
 logger = logging.getLogger(__name__)
 
@@ -548,6 +549,86 @@ def get_hook_variants_agent() -> Agent[None, HookVariants]:
         )
         _hook_variants_agent_signature = signature
     return _hook_variants_agent
+
+
+LlmProvider = Literal["ollama", "gemini", "unavailable"]
+
+_FallbackT = TypeVar("_FallbackT")
+
+_STRICT_JSON_RETRY_SUFFIX = (
+    "\n\nYour previous response was not valid JSON matching the required schema. "
+    "Output ONLY valid JSON matching the schema, nothing else."
+)
+
+
+def _build_ollama_model(runtime_config: Config) -> OllamaModel:
+    return OllamaModel(
+        runtime_config.ollama_model,
+        provider=OllamaProvider(
+            base_url=runtime_config.resolve_ollama_base_url(),
+            api_key=runtime_config.ollama_api_key,
+        ),
+    )
+
+
+def _build_gemini_model(runtime_config: Config) -> str:
+    return f"google-gla:{runtime_config.gemini_model}"
+
+
+async def run_with_llm_fallback(
+    prompt: str,
+    output_type: type[_FallbackT],
+    *,
+    system_prompt: str = "",
+    allow_gemini: bool = False,
+) -> tuple[Optional[_FallbackT], LlmProvider]:
+    """Run `prompt` against the local Ollama model first (retrying once with a
+    stricter prompt on malformed/schema-invalid output), then fall back to
+    Gemini if `allow_gemini` and a Google API key is configured, else give up.
+
+    Ollama and render jobs both acquire the shared "gpu" resource slot so a
+    local LLM call and a video render are never in flight on the same GPU at
+    once (see workers/resource_locks.py); Gemini is a remote call and skips
+    that slot. Every call (Ollama or Gemini) acquires the "llm" slot, capping
+    concurrent LLM calls across the app at 1 by default.
+
+    Returns (result, provider). `provider == "unavailable"` (result is None)
+    means callers should skip per spec (content policy: skip silently;
+    metadata: skip that clip) rather than treat this as a hard failure.
+    """
+    runtime_config = get_config()
+    apply_settings_to_process_env(runtime_config.as_runtime_settings())
+
+    ollama_agent = Agent[None, output_type](
+        model=_build_ollama_model(runtime_config),
+        output_type=output_type,
+        system_prompt=system_prompt,
+        output_retries=1,
+    )
+
+    async with resource_slot("llm", 1):
+        async with resource_slot("gpu", 1):
+            for attempt_prompt in (prompt, prompt + _STRICT_JSON_RETRY_SUFFIX):
+                try:
+                    result = await ollama_agent.run(attempt_prompt)
+                    return result.output, "ollama"
+                except Exception as exc:
+                    logger.info("Ollama LLM call failed (%s)", exc)
+
+        if allow_gemini and runtime_config.google_api_key:
+            try:
+                gemini_agent = Agent[None, output_type](
+                    model=_build_gemini_model(runtime_config),
+                    output_type=output_type,
+                    system_prompt=system_prompt,
+                    output_retries=2,
+                )
+                result = await gemini_agent.run(prompt)
+                return result.output, "gemini"
+            except Exception as exc:
+                logger.warning("Gemini fallback also failed (%s)", exc)
+
+    return None, "unavailable"
 
 
 async def generate_hook_title_variants(

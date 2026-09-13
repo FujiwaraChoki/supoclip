@@ -33,6 +33,17 @@ def _parse_reactions(raw: Optional[str]) -> List[Dict[str, Any]]:
     return parsed if isinstance(parsed, list) else []
 
 
+def _parse_content_policy_flags(raw: Optional[str]) -> List[Dict[str, Any]]:
+    """Decode the JSON-encoded content_policy_flags column into a list of flag dicts."""
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
 class ClipRepository:
     """Repository for clip-related database operations."""
 
@@ -152,7 +163,7 @@ class ClipRepository:
                     SELECT id, filename, file_path, start_time, end_time, duration,
                            text, relevance_score, reasoning, clip_order, created_at,
                            virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                           hook_title, hook_title_variants, selected_hook_variant_id, reactions
+                           hook_title, hook_title_variants, selected_hook_variant_id, reactions, content_policy_flags
                     FROM generated_clips
                     WHERE task_id = :task_id
                     ORDER BY clip_order ASC
@@ -198,6 +209,9 @@ class ClipRepository:
                     "hook_title_variants": _parse_hook_variants(getattr(row, "hook_title_variants", None)),
                     "selected_hook_variant_id": getattr(row, "selected_hook_variant_id", None),
                     "reactions": _parse_reactions(getattr(row, "reactions", None)),
+                    "content_policy_flags": _parse_content_policy_flags(
+                        getattr(row, "content_policy_flags", None)
+                    ),
                 }
             )
 
@@ -248,7 +262,8 @@ class ClipRepository:
                     SELECT id, task_id, filename, file_path, start_time, end_time, duration,
                            text, relevance_score, reasoning, clip_order,
                            virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                           hook_title, hook_title_variants, selected_hook_variant_id, reactions, created_at
+                           hook_title, hook_title_variants, selected_hook_variant_id, reactions,
+                           content_policy_flags, created_at
                     FROM generated_clips
                     WHERE id = :clip_id
                     """
@@ -294,6 +309,9 @@ class ClipRepository:
             "hook_title_variants": _parse_hook_variants(getattr(row, "hook_title_variants", None)),
             "selected_hook_variant_id": getattr(row, "selected_hook_variant_id", None),
             "reactions": _parse_reactions(getattr(row, "reactions", None)),
+            "content_policy_flags": _parse_content_policy_flags(
+                getattr(row, "content_policy_flags", None)
+            ),
             "created_at": row.created_at.isoformat(),
             "video_url": f"/tasks/{row.task_id}/clips/{row.id}/file",
         }
@@ -347,6 +365,21 @@ class ClipRepository:
                 "UPDATE generated_clips SET reactions = :reactions, updated_at = NOW() WHERE id = :clip_id"
             ),
             {"clip_id": clip_id, "reactions": json.dumps(reactions)},
+        )
+        await db.commit()
+
+    @staticmethod
+    async def update_clip_content_policy_flags(
+        db: AsyncSession,
+        clip_id: str,
+        flags: List[Dict[str, Any]],
+    ) -> None:
+        """Replace a clip's cached content-policy flag spans (JSON-encoded)."""
+        await db.execute(
+            sa_text(
+                "UPDATE generated_clips SET content_policy_flags = :flags, updated_at = NOW() WHERE id = :clip_id"
+            ),
+            {"clip_id": clip_id, "flags": json.dumps(flags)},
         )
         await db.commit()
 

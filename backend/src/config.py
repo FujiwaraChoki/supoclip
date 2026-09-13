@@ -25,6 +25,11 @@ class Config:
         )
         self.whisper_language = self._get_runtime_setting("WHISPER_LANGUAGE")
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
+        self.llm_provider_mode = self._normalize_llm_provider_mode(
+            self._get_runtime_setting("LLM_PROVIDER_MODE")
+        )
+        self.ollama_model = self._get_runtime_setting("OLLAMA_MODEL") or "llama3.2:3b"
+        self.gemini_model = self._get_runtime_setting("GEMINI_MODEL") or "gemini-2.0-flash-lite"
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
         self.assembly_ai_http_timeout_seconds = int(
             os.getenv("ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS", "900")
@@ -195,6 +200,9 @@ class Config:
             "DEFAULT_PROCESSING_MODE": self.default_processing_mode,
             "FAST_MODE_MAX_CLIPS": str(self.fast_mode_max_clips),
             "GPU_ACCELERATION_ENABLED": "true" if self.gpu_acceleration_enabled else "false",
+            "LLM_PROVIDER_MODE": self.llm_provider_mode,
+            "OLLAMA_MODEL": self.ollama_model,
+            "GEMINI_MODEL": self.gemini_model,
         }
 
     @staticmethod
@@ -243,6 +251,13 @@ class Config:
         if normalized == "apify":
             return "apify"
         return "yt_dlp"
+
+    @staticmethod
+    def _normalize_llm_provider_mode(value: str | None) -> str:
+        normalized = (value or "").strip().lower()
+        if normalized in {"ollama", "gemini", "hybrid"}:
+            return normalized
+        return "ollama"
 
     def resolve_youtube_data_api_key(self) -> str | None:
         return self.youtube_data_api_key or self.google_api_key

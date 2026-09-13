@@ -178,12 +178,14 @@ def create_app(
     from .api.routes.billing import router as billing_router
     from .api.routes.api_keys import router as api_keys_router
     from .api.routes.templates import router as templates_router
+    from .api.routes.content_policy import router as content_policy_router
 
     app.include_router(media_router)
     app.include_router(feedback_router)
     app.include_router(billing_router)
     app.include_router(api_keys_router)
     app.include_router(templates_router)
+    app.include_router(content_policy_router)
 
     @app.get("/")
     def read_root():
