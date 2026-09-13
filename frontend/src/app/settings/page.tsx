@@ -15,9 +15,10 @@ import { LOCAL_USER_ID } from "@/lib/local-user";
 import { formatBillingPlanName, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight, Mic, Music, SlidersHorizontal, Download, LayoutTemplate, ShieldAlert } from "lucide-react";
+import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight, Mic, Music, SlidersHorizontal, Download, LayoutTemplate, ShieldAlert, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RuntimeSettingsForm, type RuntimeSetting } from "@/components/admin/runtime-settings-form";
+import { LlmConnectionTest } from "@/components/settings/llm-connection-test";
 import { EmptyState } from "@/components/empty-state";
 import { useDelayedFlag } from "@/hooks/use-delayed-flag";
 import { toast } from "@/lib/toast";
@@ -35,6 +36,14 @@ const EXPORT_SETTING_KEYS = new Set([
   "DEFAULT_PROCESSING_MODE",
   "FAST_MODE_MAX_CLIPS",
   "GPU_ACCELERATION_ENABLED",
+]);
+
+const LLM_PROVIDER_SETTING_KEYS = new Set([
+  "LLM_PROVIDER_MODE",
+  "OLLAMA_BASE_URL",
+  "OLLAMA_MODEL",
+  "GOOGLE_API_KEY",
+  "GEMINI_MODEL",
 ]);
 
 type SfxFile = { name: string; display_name: string };
@@ -72,6 +81,7 @@ export default function SettingsPage() {
   const [isBillingActionLoading, setIsBillingActionLoading] = useState(false);
   const [runtimeSettings, setRuntimeSettings] = useState<RuntimeSetting[]>([]);
   const [runtimeSettingsError, setRuntimeSettingsError] = useState<string | null>(null);
+  const [llmStatus, setLlmStatus] = useState<{ ollama_connected: boolean; gemini_key_set: boolean } | null>(null);
   const [sfxFiles, setSfxFiles] = useState<SfxFile[]>([]);
   const [sfxError, setSfxError] = useState<string | null>(null);
   // Local-first: no login, so there's no real session — every user_id-shaped
@@ -177,8 +187,12 @@ export default function SettingsPage() {
         setRuntimeSettingsError("Unable to load runtime settings.");
         return;
       }
-      const data = (await response.json()) as { settings?: RuntimeSetting[] };
+      const data = (await response.json()) as {
+        settings?: RuntimeSetting[];
+        llm_status?: { ollama_connected: boolean; gemini_key_set: boolean };
+      };
       setRuntimeSettings(data.settings ?? []);
+      setLlmStatus(data.llm_status ?? null);
       setRuntimeSettingsError(null);
     } catch {
       setRuntimeSettingsError("Unable to reach the backend settings API.");
@@ -212,8 +226,12 @@ export default function SettingsPage() {
     TRANSCRIPTION_SETTING_KEYS.has(setting.key),
   );
   const exportSettings = runtimeSettings.filter((setting) => EXPORT_SETTING_KEYS.has(setting.key));
+  const llmProviderSettings = runtimeSettings.filter((setting) => LLM_PROVIDER_SETTING_KEYS.has(setting.key));
   const advancedSettings = runtimeSettings.filter(
-    (setting) => !TRANSCRIPTION_SETTING_KEYS.has(setting.key) && !EXPORT_SETTING_KEYS.has(setting.key),
+    (setting) =>
+      !TRANSCRIPTION_SETTING_KEYS.has(setting.key) &&
+      !EXPORT_SETTING_KEYS.has(setting.key) &&
+      !LLM_PROVIDER_SETTING_KEYS.has(setting.key),
   );
 
   const handleBillingAction = async (selectedPlan?: BillingPlanId) => {
@@ -439,6 +457,33 @@ export default function SettingsPage() {
                   <div className="px-4 py-5 text-sm text-foreground font-bold">{runtimeSettingsError}</div>
                 ) : (
                   <RuntimeSettingsForm settings={exportSettings} onSaved={loadRuntimeSettings} />
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* LLM Provider Section — Ollama (local) primary, Gemini fallback */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  LLM Provider
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Content-policy detection and metadata generation use a local Ollama model by
+                  default — free, private, and unlimited. Gemini is an optional fallback for when
+                  Ollama is unavailable.
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-background">
+                {runtimeSettingsError ? (
+                  <div className="px-4 py-5 text-sm text-foreground font-bold">{runtimeSettingsError}</div>
+                ) : (
+                  <>
+                    <RuntimeSettingsForm settings={llmProviderSettings} onSaved={loadRuntimeSettings} />
+                    <LlmConnectionTest status={llmStatus} />
+                  </>
                 )}
               </div>
             </div>

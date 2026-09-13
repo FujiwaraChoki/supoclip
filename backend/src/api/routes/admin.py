@@ -214,15 +214,83 @@ async def admin_health(
     return {"status": "ok"}
 
 
+
+# Every settings page load/save triggers this check, so it must fail fast
+# when Ollama isn't reachable rather than stalling the whole page — the
+# explicit "Test connection" button (test_ollama_connection below) is the
+# place for a more patient, user-initiated check.
+_BACKGROUND_OLLAMA_CHECK_TIMEOUT_SECONDS = 1.5
+
+
+async def _check_ollama_for_settings_page():
+    """One background Ollama probe per settings request, reused for both the
+    OLLAMA_MODEL live options and the llm_status indicator, so a page
+    load/save never pays for two separate (redundant) round trips."""
+    from ...ollama_status import check_ollama_status
+
+    config = get_config()
+    return await check_ollama_status(
+        config.resolve_ollama_base_url(), timeout=_BACKGROUND_OLLAMA_CHECK_TIMEOUT_SECONDS
+    )
+
+
+def _build_llm_status(ollama_status, config: Config) -> dict[str, bool]:
+    return {
+        "ollama_connected": ollama_status.reachable,
+        "gemini_key_set": bool(config.google_api_key),
+    }
+
+
+def _settings_with_live_ollama_models(
+    rows: dict[str, dict[str, object]], ollama_status
+) -> list[dict]:
+    """Same as [_setting_status(k, rows) for k in RUNTIME_SETTING_KEYS], except
+    OLLAMA_MODEL's `options` are refreshed from the live daemon (installed
+    models) when reachable, instead of the static recommended-models list."""
+    settings = [_setting_status(setting_key, rows) for setting_key in RUNTIME_SETTING_KEYS]
+    if ollama_status.reachable and ollama_status.models:
+        for setting in settings:
+            if setting["key"] == "OLLAMA_MODEL":
+                setting["options"] = ollama_status.models
+    return settings
+
+
 @router.get("/runtime-settings")
 async def get_runtime_settings(request: Request, db: AsyncSession = Depends(get_db)):
-    await require_admin_user(request, db, get_config())
+    config = get_config()
+    await require_admin_user(request, db, config)
     rows = await get_runtime_setting_rows(db)
+    ollama_status = await _check_ollama_for_settings_page()
     return {
-        "settings": [
-            _setting_status(setting_key, rows) for setting_key in RUNTIME_SETTING_KEYS
-        ]
+        "settings": _settings_with_live_ollama_models(rows, ollama_status),
+        "llm_status": _build_llm_status(ollama_status, config),
     }
+
+
+@router.post("/test-ollama-connection")
+async def test_ollama_connection(request: Request, db: AsyncSession = Depends(get_db)):
+    await require_admin_user(request, db, get_config())
+    from ...ollama_status import check_ollama_status
+
+    status = await check_ollama_status(get_config().resolve_ollama_base_url())
+    return status.model_dump()
+
+
+@router.post("/test-gemini-connection")
+async def test_gemini_connection(request: Request, db: AsyncSession = Depends(get_db)):
+    await require_admin_user(request, db, get_config())
+    config = get_config()
+    if not config.google_api_key:
+        return {"ok": False, "error": "GOOGLE_API_KEY is not set"}
+
+    from pydantic_ai import Agent
+
+    try:
+        agent = Agent[None, str](model=f"google-gla:{config.gemini_model}")
+        result = await agent.run('Respond with exactly the word "ok".')
+        return {"ok": True, "response": result.output}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
 
 
 @router.patch("/runtime-settings")
@@ -311,8 +379,8 @@ async def update_runtime_settings(
     await load_runtime_settings_cache(db)
 
     rows = await get_runtime_setting_rows(db)
+    ollama_status = await _check_ollama_for_settings_page()
     return {
-        "settings": [
-            _setting_status(setting_key, rows) for setting_key in RUNTIME_SETTING_KEYS
-        ]
+        "settings": _settings_with_live_ollama_models(rows, ollama_status),
+        "llm_status": _build_llm_status(ollama_status, get_config()),
     }

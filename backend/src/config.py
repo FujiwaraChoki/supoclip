@@ -29,7 +29,7 @@ class Config:
             self._get_runtime_setting("LLM_PROVIDER_MODE")
         )
         self.ollama_model = self._get_runtime_setting("OLLAMA_MODEL") or "llama3.2:3b"
-        self.gemini_model = self._get_runtime_setting("GEMINI_MODEL") or "gemini-2.0-flash-lite"
+        self.gemini_model = self._get_runtime_setting("GEMINI_MODEL") or "gemini-3.5-flash-lite"
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
         self.assembly_ai_http_timeout_seconds = int(
             os.getenv("ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS", "900")
