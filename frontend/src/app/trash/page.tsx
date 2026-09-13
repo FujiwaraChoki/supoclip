@@ -18,7 +18,7 @@ import {
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { ArrowLeft, Trash2, RotateCcw, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 interface Task {
   id: string;

@@ -27,7 +27,7 @@ import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/empty-state";
 import { useDelayedFlag } from "@/hooks/use-delayed-flag";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import {
   ArrowLeft,
   Clock,

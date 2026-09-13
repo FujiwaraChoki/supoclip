@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { ArrowLeft, Download, Upload, Copy, Trash2, Pencil, LayoutTemplate } from "lucide-react";
 
 import { Button } from "@/components/ui/button";

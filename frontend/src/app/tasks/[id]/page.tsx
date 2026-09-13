@@ -68,7 +68,7 @@ import DynamicVideoPlayer from "@/components/dynamic-video-player";
 import { TranscriptPreview } from "@/components/transcript-preview";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 import { useDelayedFlag } from "@/hooks/use-delayed-flag";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 const PROCESSING_STAGES = [
   { id: "download", label: "Download" },

@@ -32,7 +32,7 @@ import { EmptyState } from "@/components/empty-state";
 import { EmojiPicker } from "@/components/ui/emoji-picker";
 import { useDelayedFlag } from "@/hooks/use-delayed-flag";
 import { useDebouncedEffect } from "@/lib/use-debounced-effect";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 const REACTION_ANIMATIONS = ["fade_pop", "fade", "slide_down", "zoom_punch", "bounce", "pulse", "none"] as const;
 

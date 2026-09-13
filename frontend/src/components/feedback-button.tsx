@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { MessageSquare, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { track } from "@/lib/datafast";
 
 import { Button } from "@/components/ui/button";

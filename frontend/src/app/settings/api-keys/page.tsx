@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { LOCAL_USER_ID } from "@/lib/local-user";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 interface ApiKey {
   id: string;

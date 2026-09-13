@@ -20,7 +20,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { RuntimeSettingsForm, type RuntimeSetting } from "@/components/admin/runtime-settings-form";
 import { EmptyState } from "@/components/empty-state";
 import { useDelayedFlag } from "@/hooks/use-delayed-flag";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 const TRANSCRIPTION_SETTING_KEYS = new Set([
   "TRANSCRIPTION_PROVIDER",
