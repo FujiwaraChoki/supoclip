@@ -58,11 +58,13 @@ SupoClip gives you the same core pipeline without the leash:
 - **B-roll & transitions** — optional Pexels stock footage overlays and transition effects
 - **Built-in editor** — trim, split, and merge clips, adjust caption size with a live preview, then export with platform presets (TikTok, Instagram Reels, YouTube Shorts, Facebook Reels, Threads), each with its own duration cap, safe-area margins, and loudness target, and clips auto-capped at 300MB without sacrificing quality unless needed
 - **Export All Clips** — export every clip in a project in one click, with per-clip progress, automatic one-time retry on failure, and a final success/failure report
-- **Emoji reactions** — drop emoji reactions at any point on a clip's timeline, pick an animation style, duration, and position, and they're burned into the re-rendered clip
+- **Emoji reactions** — drop emoji reactions at any point on a clip's timeline, pick an animation style, duration, and position, and they're burned into the re-rendered clip in full color
 - **Reusable settings templates** — save a project's font/caption/hook/B-roll/cleanup/export settings as a named template, then replace or merge it onto any other project
-- **Real-time progress** — a stage-by-stage pipeline view (download → transcribe → analyze → render) with per-clip status, streamed live to the browser
+- **Real-time progress** — a stage-by-stage pipeline view (download → transcribe → analyze → render) with per-clip status, elapsed time, and an ETA once one is actually known, streamed live to the browser
+- **Optional GPU-accelerated rendering** — enable hardware encoding in Settings; it's automatically disabled with an explanation if no supported GPU is detected
 - **Recoverable deletes** — deleting a project moves it to Trash (the source video is never touched); restore it or delete it forever
 - **Light/dark theme** — follows your system preference by default, toggle persists across sessions
+- **Built as a platform** — a tool tab bar sits above the clipping screens; clipping is the first tool, with a "More Tools" placeholder marking where future tools (a ranking/compilation tool, a voiceover/animation tool, etc.) will plug in
 
 ## Quick Start
 
