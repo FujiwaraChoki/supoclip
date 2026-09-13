@@ -4,21 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SupoClip is an open-source alternative to OpusClip — an AI-powered video clipping tool that transforms long-form content into viral short clips. AGPL-3.0 licensed.
+SupoClip is an open-source alternative to OpusClip — an AI-powered video clipping tool that transforms long-form content into viral short clips. AGPL-3.0 licensed. Hosted at supoclip.com; self-hostable via Docker Compose.
+
+A `docs/` directory is the canonical deep-dive documentation (start at [docs/README.md](docs/README.md)): [architecture.md](docs/architecture.md), [configuration.md](docs/configuration.md), [api-reference.md](docs/api-reference.md), [app-guide.md](docs/app-guide.md), [development.md](docs/development.md), [troubleshooting.md](docs/troubleshooting.md). Prefer those for detail beyond what's below.
 
 ## Development Commands
 
 ### Docker (recommended)
 
 ```bash
-docker-compose up -d              # Start all 5 services
-docker-compose up -d --build      # Rebuild after changes
+docker-compose up -d --build      # Start/rebuild all services
 docker-compose logs -f backend    # Debug backend
 docker-compose logs -f worker     # Debug video processing
 docker-compose down               # Stop all services
 ```
 
-Services: Frontend (:3000), Backend API (:8000, docs at /docs), Worker (ARQ), PostgreSQL (:5432), Redis (:6379)
+Services: Frontend (:3107 locally / :3000 in Docker), Backend API (:8000, docs at `/docs`), Worker (ARQ), PostgreSQL (:5432), Redis (:6379).
 
 ### Backend (local)
 
@@ -29,26 +30,38 @@ cd backend
 uv venv .venv && source .venv/bin/activate
 uv sync
 
-# API server (uses refactored entry point)
-uvicorn src.main_refactored:app --reload --host 0.0.0.0 --port 8000
-
-# Worker process (required for video processing)
-arq src.workers.tasks.WorkerSettings
+uvicorn src.main_refactored:app --reload --host 0.0.0.0 --port 8000  # API
+arq src.workers.tasks.WorkerSettings                                  # Worker (required for video processing)
 ```
 
 ### Frontend (local)
 
+Package manager is **pnpm** (pinned via `packageManager` in `package.json`), not npm.
+
 ```bash
 cd frontend
 pnpm install
-pnpm run dev          # Dev server with Turbopack
+pnpm run dev          # Dev server with Turbopack, port 3107
 pnpm run build        # Prisma generate + Next.js build
 pnpm run lint
 ```
 
-### No tests
+### Tests
 
-The project currently has no test files.
+There is a real three-layer test suite (backend pytest, frontend Vitest, Playwright e2e), run via `make` from the repo root or directly per app. Postgres and Redis must be running for backend/e2e tests (`docker-compose up -d postgres redis` is enough).
+
+```bash
+make test          # backend + frontend
+make test-backend  # cd backend && uv sync --all-groups && .venv/bin/pytest
+make test-frontend # cd frontend && npm install && npm run test:coverage (Makefile uses npm, not pnpm)
+make test-e2e      # Playwright smoke tests against real frontend+backend
+make test-ci       # everything, as CI runs it
+```
+
+Run a single backend test: `cd backend && .venv/bin/pytest tests/unit/test_ai_prompt.py -k some_test`.
+Run a single frontend test: `cd frontend && pnpm exec vitest run path/to/file.test.ts`.
+
+CI (`.github/workflows/tests.yml`) runs `backend`, `frontend`, and `e2e` as separate jobs against Postgres/Redis service containers.
 
 ## Architecture
 
@@ -62,9 +75,15 @@ User → Frontend (Next.js 15) → Backend API (FastAPI) → Redis Queue → ARQ
 
 Task creation returns immediately (<100ms). Video processing happens asynchronously in the worker. Frontend connects via SSE for real-time progress updates.
 
+### Local-first auth model
+
+By default the app runs with **no login**: both frontend and backend resolve every request to a single implicit user (`LOCAL_USER_ID = "local"`), controlled by the `REQUIRE_AUTH` env var (must be set identically on both sides — see `backend/src/auth_headers.py` and `frontend/src/lib/local-user.ts` / `frontend/src/server/session.ts`). Set `REQUIRE_AUTH=true` to restore real multi-tenant Better Auth session checks (used for the hosted deployment). There are currently no `/sign-in`, `/sign-up`, or admin dashboard pages in the frontend — those are hosted-mode/legacy concerns; check `git log`/`docs/` before assuming they exist.
+
+Frontend-to-backend requests (when auth is required) are authenticated via HMAC-signed headers (`x-supoclip-user-id`, `x-supoclip-ts`, `x-supoclip-signature`), not raw session cookies. Programmatic clients (MCP server, API consumers) instead use a per-user API key (`Authorization: Bearer sk_...` or `x-api-key`), resolved by `auth_headers.resolve_authenticated_user_id` (API key → DB lookup, else falls back to signed session headers). Only the SHA-256 hash of an API key is stored (`api_keys` table); the frontend manages keys at `/settings/api-keys`.
+
 ### Backend: Layered Architecture
 
-The backend was refactored from monolithic (`main.py`, legacy) to layered (`main_refactored.py`, active):
+The backend was refactored from monolithic (`main.py`, legacy — do not use for new work) to layered (`main_refactored.py`, active):
 
 ```
 api/routes/          → HTTP handlers (tasks.py, media.py)
@@ -82,10 +101,10 @@ utils/               → Thread pool helpers for blocking operations (async_help
 
 ### Video Processing Pipeline
 
-1. **Input** → YouTube URL (yt-dlp) or uploaded file
-2. **Transcription** → AssemblyAI word-level timestamps (cached as `.transcript_cache.json`)
+1. **Input** → YouTube URL (yt-dlp, or Apify as an alternate download/metadata provider) or uploaded file
+2. **Transcription** → AssemblyAI word-level timestamps (cached as `.transcript_cache.json`); alternate providers configurable
 3. **AI Analysis** → Pydantic AI selects 3-7 viral segments (10-45s each) with virality scoring
-4. **Clip Generation** → MoviePy creates 9:16 clips with:
+4. **Clip Generation** → MoviePy creates clips (9:16 vertical, or original aspect ratio) with:
    - Face-centered cropping: MediaPipe → OpenCV DNN → Haar cascade (fallback chain)
    - Word-synced subtitles from AssemblyAI
    - Custom fonts (TTF files in `backend/fonts/`)
@@ -98,13 +117,11 @@ utils/               → Thread pool helpers for blocking operations (async_help
 
 - **Next.js 15** with App Router, React 19, TailwindCSS v4
 - **ShadCN UI** (New York style, stone base color, Radix primitives)
-- **Better Auth** with Prisma adapter for email/password auth
+- **Better Auth** with Prisma adapter (only exercised when `REQUIRE_AUTH=true`)
 - **No global state library** — React hooks only (`useState`, `useEffect`, `useSession`)
-- All pages use `"use client"` — SSR is minimal
+- Mostly client-side (`"use client"`) product pages — SSR is minimal
 - Prisma client generated to `frontend/src/generated/prisma/` (custom output path)
 - Build: `prisma generate && next build` (Prisma generate runs on both build and postinstall)
-
-**Auth flow:** Frontend calls Better Auth → session cookie → passes `user_id` header to backend API
 
 ### Database
 
@@ -118,17 +135,18 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 
 | File | Purpose |
 |------|---------|
-| `src/main_refactored.py` | Active FastAPI entry point (129 lines) |
+| `src/main_refactored.py` | Active FastAPI entry point |
 | `src/main.py` | Legacy monolithic entry point (do not use for new work) |
-| `src/api/routes/tasks.py` | Task CRUD, SSE progress, clip editing endpoints (711 lines) |
+| `src/api/routes/tasks.py` | Task CRUD, SSE progress, clip editing endpoints |
 | `src/api/routes/media.py` | Fonts, transitions, uploads, templates |
-| `src/services/task_service.py` | Task orchestration, clip editing logic (574 lines) |
+| `src/auth_headers.py` | Local-first bypass, HMAC session verification, API key auth |
+| `src/services/task_service.py` | Task orchestration, clip editing logic |
 | `src/services/video_service.py` | Video download, transcription, AI analysis, clip generation |
 | `src/workers/tasks.py` | ARQ worker task definitions |
 | `src/workers/job_queue.py` | Job queue management |
 | `src/workers/progress.py` | Real-time progress via Redis |
 | `src/ai.py` | Pydantic AI agents, system prompt, segment validation |
-| `src/video_utils.py` | Video processing, cropping, subtitles (~820 lines) |
+| `src/video_utils.py` | Video processing, cropping, subtitles |
 | `src/clip_editor.py` | Clip trim, split, merge, export presets |
 | `src/broll.py` | Pexels API B-roll integration |
 | `src/caption_templates.py` | Caption template system |
@@ -162,15 +180,11 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 - `POST /api-keys/` — Create a key (plaintext `sk_...` returned exactly once)
 - `DELETE /api-keys/{key_id}` — Revoke a key
 
-API keys authenticate `/tasks/*`, `/fonts` and `/upload` directly via
-`Authorization: Bearer sk_...` or `x-api-key`. Resolution lives in
-`auth_headers.resolve_authenticated_user_id` (API key → DB lookup, else falls
-back to the frontend's HMAC-signed session headers). Only the SHA-256 hash is
-stored (`api_keys` table). The frontend manages keys at `/settings/api-keys`.
+Full endpoint list including billing/admin/feedback routes: [docs/api-reference.md](docs/api-reference.md).
 
 ## Environment Variables
 
-Required in `.env` (root) or `backend/.env`:
+See [docs/configuration.md](docs/configuration.md) for the complete list. Core ones:
 
 ```bash
 ASSEMBLY_AI_API_KEY=...              # Required: video transcription
@@ -179,15 +193,20 @@ GOOGLE_API_KEY=...                   # Or OPENAI_API_KEY / ANTHROPIC_API_KEY
 OLLAMA_BASE_URL=http://localhost:11434/v1  # Optional for ollama:* models
 OLLAMA_API_KEY=...                   # Optional; required for Ollama Cloud
 
-# Optional
-PEXELS_API_KEY=...                   # B-roll stock footage
+REQUIRE_AUTH=false                   # Default: local-first, no login. Set true on both frontend and backend for hosted/multi-tenant mode
+PEXELS_API_KEY=...                   # Optional: B-roll stock footage
 REDIS_HOST=localhost                 # Default: localhost
 REDIS_PORT=6379                      # Default: 6379
 QUEUED_TASK_TIMEOUT_SECONDS=180      # Fail-safe for stuck tasks
 TEMP_DIR=/tmp                        # Temp file storage
 DATABASE_URL=postgresql+asyncpg://...
-BETTER_AUTH_SECRET=...               # Frontend auth secret
+BETTER_AUTH_SECRET=...               # Frontend auth secret (only used when REQUIRE_AUTH=true)
 ```
+
+## Conventions
+
+- **Runtime settings must always show their current effective value.** `/admin/runtime-settings` (`src/api/routes/admin.py::_setting_status`) returns a `current_value` field for every non-`password` setting (decrypted admin value or the env fallback); the frontend (`RuntimeSettingsForm`) renders it next to the label and in the input's placeholder/default option. Password-type settings intentionally never expose their value. When adding a new runtime setting, keep this contract — never hide a non-secret value behind a generic "configured"/"unset" placeholder.
+- **Caption/hook font sizing scales off the shorter frame dimension**, not just width (`get_scaled_font_size(base, width, height)` in `video_utils.py`). Scaling by width alone made captions balloon on wide outputs (16:9, 1:1) relative to their shorter height and pushed them past the safe area. `get_safe_vertical_position` treats its return value as the vertical **center** of the text block (matching the ASS `Alignment 5` + `\pos` renderer), not a top-left corner — keep that anchor convention consistent if you touch subtitle positioning.
 
 ## Common Workflows
 
@@ -201,10 +220,13 @@ Edit `backend/src/ai.py`: `simplified_system_prompt` controls selection criteria
 
 ### Video processing constraints
 
-- Output: 9:16 vertical format, H.264, even pixel dimensions (`round_to_even()`)
+- Output: 9:16 vertical (default) or original aspect ratio, H.264, even pixel dimensions (`round_to_even()`)
 - Subtitles positioned at 75% down the frame
 - Virality scoring: `hook_score`, `engagement_score`, `value_score`, `shareability_score` (0-25 each, summed to `virality_score` 0-100)
 - Each segment gets an AI-written `hook_title` (3-9 words) burned into the top safe area for the first ~4s (`build_hook_title_ass` in `video_utils.py`), persisted on `generated_clips.hook_title`
+  - Hook animation styles (`caption_templates.HOOK_ANIMATIONS`): `fade_pop`, `fade`, `slide_down`, `zoom_punch`, `bounce`, `pulse`, `none`
+  - Hook type labels (`caption_templates.HOOK_TYPES`, AI-classified but user-overridable): `question`, `statement`, `statistic`, `story`, `contrast`, `callout`, `warning`, `none`
+  - A/B hook comparison: `ai.generate_hook_title_variants()` generates alternative hook titles for an existing clip (stored as JSON in `generated_clips.hook_title_variants`); `TaskService.select_hook_variant()` applies a chosen variant/custom text and re-renders the clip from source (the hook is burned into the same frame as the crop/captions, so it can't be swapped without a re-render) — see `POST/PATCH /tasks/{id}/clips/{clip_id}/hook-variants[/select]`
 - Static talking-head crops get a slow ~5% Ken Burns punch-in (`kenburns_zoom_fragment`); tracked pans and split screens keep their own motion
 
 ## iOS App

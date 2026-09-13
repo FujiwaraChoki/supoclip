@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { MessageSquare, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useSession } from "@/lib/auth-client";
 import { track } from "@/lib/datafast";
 
 import { Button } from "@/components/ui/button";
@@ -29,13 +28,10 @@ const categories = [
 ];
 
 export function FeedbackButton() {
-  const { data: session } = useSession();
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState("");
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  if (!session?.user) return null;
 
   const handleSubmit = async () => {
     if (!category || !message.trim()) return;

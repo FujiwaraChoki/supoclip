@@ -4,13 +4,18 @@ from fastapi import HTTPException, Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .auth_headers import get_authenticated_user_id
+from .auth_headers import LOCAL_USER_ID, get_authenticated_user_id
 from .config import Config
 
 
 async def require_admin_user(
     request: Request, db: AsyncSession, config: Config
 ) -> str:
+    # Local-first mode: no login, so the single implicit user is always treated
+    # as admin — there's no one else it could be.
+    if not config.require_auth:
+        return LOCAL_USER_ID
+
     user_id = get_authenticated_user_id(request, config)
 
     result = await db.execute(

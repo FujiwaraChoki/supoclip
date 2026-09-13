@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .config import Config, get_config, set_config_override
 from .database import AsyncSessionLocal, close_db, configure_database, get_db, init_db
 from .runtime_settings import load_runtime_settings_cache
+from .auth_headers import ensure_local_user
 from .workers.job_queue import JobQueue
 from .api.routes import tasks
 from .api.routes.admin import router as admin_router
@@ -65,6 +66,11 @@ def create_app(
             async with AsyncSessionLocal() as db:
                 await load_runtime_settings_cache(db)
             logger.info("✅ Runtime settings loaded")
+
+            if not runtime_config.require_auth:
+                async with AsyncSessionLocal() as db:
+                    await ensure_local_user(db)
+                logger.info("✅ Local user ensured")
 
             await queue_adapter.get_pool()
             logger.info("✅ Job queue initialized")

@@ -25,7 +25,7 @@ from ...config import get_config
 from ...font_registry import is_font_accessible
 from ...clip_cleanup import normalize_clip_cleanup_settings
 from ...video_utils import VALID_OUTPUT_FORMATS
-from ...caption_templates import HOOK_POSITIONS, HOOK_ANIMATIONS
+from ...caption_templates import HOOK_POSITIONS, HOOK_ANIMATIONS, HOOK_TYPES, get_hook_options
 from ...admin_auth import require_admin_user
 import redis.asyncio as redis
 from ...clip_editor import export_with_preset, EXPORT_PRESETS
@@ -87,7 +87,7 @@ def _normalize_hook_style(value: Any) -> Optional[Dict[str, Any]]:
     if isinstance(font_size_scale, (int, float)):
         style["hook_font_size_scale"] = max(0.4, min(1.5, float(font_size_scale)))
 
-    for key in ("hook_font_color", "hook_background_color", "hook_stroke_color"):
+    for key in ("hook_font_color", "hook_background_color", "hook_stroke_color", "hook_highlight_color"):
         color = _normalize_hook_hex_color(value.get(key))
         if color:
             style[key] = color
@@ -112,7 +112,83 @@ def _normalize_hook_style(value: Any) -> Optional[Dict[str, Any]]:
     if isinstance(shadow, bool):
         style["hook_shadow"] = shadow
 
+    sfx_name = value.get("hook_sfx")
+    if isinstance(sfx_name, str) and sfx_name.strip():
+        from ...video_utils import find_sfx_path
+
+        if find_sfx_path(sfx_name.strip()):
+            style["hook_sfx"] = Path(sfx_name.strip()).name
+
     return style or None
+
+
+_SOCIAL_OVERLAY_TEXT_FIELDS = ("username", "likes", "comments", "followers")
+
+
+def _normalize_social_overlay(value: Any) -> Optional[Dict[str, Any]]:
+    """Whitelist and clamp a per-task fake-social-overlay payload.
+
+    Purely cosmetic, user-typed placeholder text — never validated against any
+    real account. Text fields are length-capped defensively.
+    """
+    if not isinstance(value, dict):
+        return None
+
+    overlay: Dict[str, Any] = {}
+
+    enabled = value.get("enabled")
+    if isinstance(enabled, bool):
+        overlay["enabled"] = enabled
+
+    for key in _SOCIAL_OVERLAY_TEXT_FIELDS:
+        text_value = value.get(key)
+        if isinstance(text_value, str) and text_value.strip():
+            overlay[key] = text_value.strip()[:40]
+
+    verified = value.get("verified")
+    if isinstance(verified, bool):
+        overlay["verified"] = verified
+
+    return overlay or None
+
+
+_BROLL_TIMING_KEYS = ("max_insertions", "min_gap_seconds")
+
+
+def _normalize_broll_settings(value: Any) -> Optional[Dict[str, Any]]:
+    """Whitelist and clamp per-task B-roll timing controls."""
+    if not isinstance(value, dict):
+        return None
+
+    settings: Dict[str, Any] = {}
+
+    enabled = value.get("enabled")
+    if isinstance(enabled, bool):
+        settings["enabled"] = enabled
+
+    max_insertions = value.get("max_insertions")
+    if isinstance(max_insertions, (int, float)):
+        settings["max_insertions"] = max(1, min(6, int(max_insertions)))
+
+    min_gap_seconds = value.get("min_gap_seconds")
+    if isinstance(min_gap_seconds, (int, float)):
+        settings["min_gap_seconds"] = max(2.0, min(30.0, float(min_gap_seconds)))
+
+    return settings or None
+
+
+def _normalize_target_duration(value: Any) -> Optional[int]:
+    """Whitelist an auto-trim duration preset (15/30/60s, or None for AI-selected)."""
+    if isinstance(value, (int, float)) and int(value) in (15, 30, 60):
+        return int(value)
+    return None
+
+
+def _normalize_max_clips(value: Any) -> Optional[int]:
+    """Clamp a user-requested clip count, or None to use the global default."""
+    if isinstance(value, (int, float)):
+        return max(1, min(20, int(value)))
+    return None
 
 
 async def _get_user_id_from_headers(request: Request, db: AsyncSession) -> str:
@@ -175,6 +251,10 @@ def _merge_task_source_metadata(
     add_subtitles: Any = None,
     cleanup_settings: Dict[str, Any] | None = None,
     hook_style: Dict[str, Any] | None = None,
+    social_overlay: Dict[str, Any] | None = None,
+    broll_settings: Dict[str, Any] | None = None,
+    target_duration_seconds: Any = None,
+    max_clips: Any = None,
 ) -> Dict[str, Any]:
     merged = dict(existing or {})
 
@@ -190,6 +270,14 @@ def _merge_task_source_metadata(
         merged.update(cleanup_settings)
     if hook_style is not None:
         merged["hook_style"] = hook_style or None
+    if social_overlay is not None:
+        merged["social_overlay"] = social_overlay or None
+    if broll_settings is not None:
+        merged["broll_settings"] = broll_settings or None
+    if target_duration_seconds is not None:
+        merged["target_duration_seconds"] = target_duration_seconds or None
+    if max_clips is not None:
+        merged["max_clips"] = max_clips or None
 
     return merged
 
@@ -309,6 +397,10 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
         data.get("filtered_words"),
     )
     hook_style = _normalize_hook_style(data.get("hook_style"))
+    social_overlay = _normalize_social_overlay(data.get("social_overlay"))
+    broll_settings = _normalize_broll_settings(data.get("broll_settings"))
+    target_duration_seconds = _normalize_target_duration(data.get("target_duration_seconds"))
+    max_clips = _normalize_max_clips(data.get("max_clips"))
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
@@ -354,6 +446,9 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             add_subtitles,
             cleanup_settings,
             hook_style,
+            social_overlay,
+            target_duration_seconds,
+            max_clips,
         )
 
         # Save source metadata for resume/retries in environments without sources.url column
@@ -365,8 +460,12 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                 source_type=source_type,
                 output_format=output_format,
                 add_subtitles=add_subtitles,
+                social_overlay=social_overlay,
+                broll_settings=broll_settings,
+                target_duration_seconds=target_duration_seconds,
                 cleanup_settings=cleanup_settings,
                 hook_style=hook_style,
+                max_clips=max_clips,
             ),
         )
 
@@ -411,6 +510,12 @@ async def get_billing_summary(request: Request, db: AsyncSession = Depends(get_d
             status_code=500,
             detail=f"Error retrieving billing summary: {str(e)}",
         )
+
+
+@router.get("/hook-options")
+async def get_hook_options_route():
+    """List selectable hook types and animation styles for the hook editor UI."""
+    return get_hook_options()
 
 
 @router.get("/shared/{share_token}")
@@ -854,6 +959,78 @@ async def update_clip_captions(
         )
 
 
+@router.post("/{task_id}/clips/{clip_id}/hook-variants")
+async def generate_clip_hook_variants(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Generate alternative hook title candidates for a clip, for A/B comparison."""
+    try:
+        payload: Dict[str, Any] = {}
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+        count = payload.get("count", 3)
+        try:
+            count = max(1, min(6, int(count)))
+        except (TypeError, ValueError):
+            count = 3
+
+        task_service = TaskService(db)
+        await _require_task_owner(request, task_service, db, task_id)
+        result = await task_service.generate_hook_variants_for_clip(task_id, clip_id, count)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating hook variants: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error generating hook variants: {str(e)}"
+        )
+
+
+@router.patch("/{task_id}/clips/{clip_id}/hook-variants/select")
+async def select_clip_hook_variant(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Apply a generated hook variant (or custom text) as the clip's hook title, and re-render it."""
+    try:
+        payload = await request.json()
+        variant_id = payload.get("variant_id")
+        custom_text = payload.get("hook_title")
+        hook_type = payload.get("hook_type")
+        if not variant_id and not custom_text:
+            raise HTTPException(
+                status_code=400, detail="variant_id or hook_title is required"
+            )
+        if hook_type is not None and (
+            not isinstance(hook_type, str) or hook_type.strip().lower() not in HOOK_TYPES
+        ):
+            raise HTTPException(status_code=400, detail="Invalid hook_type")
+
+        task_service = TaskService(db)
+        await _require_task_owner(request, task_service, db, task_id)
+        updated_clip = await task_service.select_hook_variant(
+            task_id,
+            clip_id,
+            variant_id=str(variant_id) if variant_id else None,
+            custom_text=str(custom_text) if custom_text else None,
+            hook_type=hook_type.strip().lower() if hook_type else None,
+        )
+        return {"clip": updated_clip}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error selecting hook variant: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error selecting hook variant: {str(e)}"
+        )
+
+
 @router.post("/{task_id}/clips/{clip_id}/regenerate")
 async def regenerate_clip(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
@@ -901,6 +1078,8 @@ async def apply_task_settings(
             payload.get("filtered_words"),
         )
         hook_style = _normalize_hook_style(payload.get("hook_style"))
+        social_overlay = _normalize_social_overlay(payload.get("social_overlay"))
+        broll_settings = _normalize_broll_settings(payload.get("broll_settings"))
 
         task_service = TaskService(db)
         await _require_task_owner(request, task_service, db, task_id)
@@ -930,6 +1109,12 @@ async def apply_task_settings(
             ),
             cleanup_settings=cleanup_settings,
             hook_style=hook_style if "hook_style" in payload else metadata.get("hook_style"),
+            social_overlay=(
+                social_overlay if "social_overlay" in payload else metadata.get("social_overlay")
+            ),
+            broll_settings=(
+                broll_settings if "broll_settings" in payload else metadata.get("broll_settings")
+            ),
         )
         await _save_task_source_metadata(task_id, merged_metadata)
 
@@ -1096,6 +1281,15 @@ async def resume_task(
             metadata.get("remove_filler_words"),
             metadata.get("filtered_words"),
         )
+        # These were previously loaded into `metadata` but never forwarded to
+        # the re-enqueued job, so resuming a task silently dropped hook
+        # styling, social overlay, target duration, and clip-count settings.
+        hook_style = _normalize_hook_style(metadata.get("hook_style"))
+        social_overlay = _normalize_social_overlay(metadata.get("social_overlay"))
+        target_duration_seconds = _normalize_target_duration(
+            metadata.get("target_duration_seconds")
+        )
+        max_clips = _normalize_max_clips(metadata.get("max_clips"))
 
         if not source_url or not source_type:
             raise HTTPException(status_code=400, detail="Task source URL is missing")
@@ -1139,6 +1333,10 @@ async def resume_task(
             output_format,
             add_subtitles,
             cleanup_settings,
+            hook_style,
+            social_overlay,
+            target_duration_seconds,
+            max_clips,
         )
 
         return {"message": "Task resumed", "job_id": job_id}

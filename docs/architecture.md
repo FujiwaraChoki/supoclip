@@ -116,7 +116,6 @@ Current top-level layout:
 - `frontend/`
 - `docker-compose.yml`
 - `init.sql`
-- `.env.example`
 - `start.sh`
 
 ## Backend Architecture
@@ -212,9 +211,8 @@ Key pages:
 - `/list`
 - `/tasks/[id]`
 - `/settings`
-- `/sign-in`
-- `/sign-up`
-- `/admin`
+
+There are currently no `/sign-in`, `/sign-up`, or `/admin` pages in the frontend — those were hosted-mode/legacy concerns and have been removed. The app runs local-first by default (`REQUIRE_AUTH=false`), with no login screen at all.
 
 ### Frontend API routes
 
@@ -229,14 +227,15 @@ This separation lets the browser talk to the frontend domain while the frontend 
 
 ### Authentication
 
-SupoClip uses Better Auth with Prisma and PostgreSQL.
+By default (`REQUIRE_AUTH=false`), there is no login at all: both frontend and backend resolve every request to a single implicit user (`LOCAL_USER_ID = "local"`). This is the local-first, self-hosted default.
 
-Important details:
+Setting `REQUIRE_AUTH=true` on both frontend and backend restores real multi-tenant auth for hosted deployments:
 
-- Email and password login is enabled
+- Better Auth with Prisma and PostgreSQL handles email/password login
 - Additional user field `is_admin` is persisted
 - Trusted origins are derived from app configuration
-- Session cookies are used to identify the current user
+- Session cookies identify the current user, and frontend-to-backend requests are authenticated via HMAC-signed headers (`x-supoclip-user-id`, `x-supoclip-ts`, `x-supoclip-signature`) rather than raw cookies
+- Programmatic clients (MCP server, API consumers) instead use a per-user API key (`Authorization: Bearer sk_...` or `x-api-key`)
 
 ## End-to-End Task Lifecycle
 

@@ -1,4 +1,5 @@
 import type { HookStyle } from "@/lib/hook-style";
+import type { BrollSettings, SocialOverlay, TargetDuration } from "@/lib/retention-settings";
 
 export type TaskGenerationSettings = {
   fontFamily: string | null;
@@ -12,6 +13,10 @@ export type TaskGenerationSettings = {
   removeFillerWords: boolean;
   filteredWords: string;
   hookStyle: HookStyle;
+  socialOverlay: SocialOverlay;
+  brollSettings: BrollSettings;
+  targetDuration: TargetDuration;
+  clipCount: number | null;
 };
 
 export type TaskPreset = {

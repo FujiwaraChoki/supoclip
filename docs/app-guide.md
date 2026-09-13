@@ -13,7 +13,7 @@ SupoClip turns long-form videos into short clips. Users can:
 - Review and edit generated clips
 - Download clips for publishing
 
-Depending on configuration, users may also see hosted billing, usage limits, or admin tooling.
+By default (`REQUIRE_AUTH=false`) SupoClip runs local-first: there is no login, no `/sign-in`/`/sign-up`, and no admin dashboard — every request resolves to a single implicit local user. Setting `REQUIRE_AUTH=true` (hosted deployments) restores multi-tenant auth and, depending on configuration, hosted billing and usage limits.
 
 ## Main Screens
 
@@ -112,32 +112,14 @@ Users can:
 - Set default font family
 - Set default font size
 - Set default font color
-- Open checkout or billing portal flows
-- Sign out
+- Open checkout or billing portal flows (hosted mode only)
+- Sign out (hosted mode only)
 
 The page also loads billing summary data so the user can see plan and usage information.
 
-### Auth Screens
+### Auth and Admin (Hosted Mode Only)
 
-- `/sign-in`
-- `/sign-up`
-
-SupoClip uses Better Auth with an email and password flow backed by PostgreSQL through Prisma.
-
-If `DISABLE_SIGN_UP=true`, sign-up is disabled for new users.
-
-### Admin Dashboard: `/admin`
-
-The admin area is available to users with `is_admin=true`.
-
-It includes:
-
-- User counts and platform metrics
-- Active task visibility
-- Recent generations
-- Per-user generation stats
-- Admin status toggles for users
-- YouTube auth management tools
+There are currently no `/sign-in`, `/sign-up`, or `/admin` pages in the frontend — those are legacy/hosted-mode concerns that have been removed from the self-hosted app. In hosted mode (`REQUIRE_AUTH=true`), SupoClip uses Better Auth with an email and password flow backed by PostgreSQL through Prisma, and `DISABLE_SIGN_UP=true` disables sign-up for new users.
 
 ### Feedback
 
@@ -147,13 +129,12 @@ The app includes feedback submission plumbing via frontend API routes and backen
 
 ### 1. Create a task
 
-1. Sign in.
-2. Open `/`.
-3. Choose YouTube or upload mode.
-4. Configure caption and styling preferences.
-5. Submit the task.
+1. Open `/` (no sign-in required by default).
+2. Choose YouTube or upload mode.
+3. Configure caption and styling preferences.
+4. Submit the task.
 
-The frontend sends the request through its authenticated API routes, and the backend creates a task record plus a queued background job.
+The frontend sends the request through its API routes, and the backend creates a task record plus a queued background job.
 
 ### 2. Monitor progress
 
@@ -217,6 +198,17 @@ Custom font upload is also supported through the media API. In monetized setups,
 ### Caption templates
 
 Caption templates are exposed by the backend and loaded into the frontend task creation and editing flows.
+
+### Hook titles
+
+Every clip gets an AI-written on-screen headline ("hook") burned in for its first few seconds. From the task detail page you can:
+
+- Style the hook (font, size, color, background box, position, drop shadow) with a live CSS-approximation preview.
+- Pick an animation style: Fade + Pop, Fade, Slide Down, Zoom Punch, Bounce, or Pulse.
+- Compare hooks (per clip, via the "Compare Hooks" button): generate a few AI-written alternative hook titles for that clip, preview them side-by-side, and pick a winner — or write your own custom hook text. Applying a hook re-renders just that clip (the hook text is burned into the same frame as the crop/captions, so it can't be swapped without a re-render).
+- Optionally override the hook's content-type label (Question, Bold Statement, Data/Stats, Story, Contrast, Callout, Warning, or None) when applying a hook.
+
+`GET /api/tasks/hook-options` lists the current selectable hook types and animation styles.
 
 ### B-roll
 

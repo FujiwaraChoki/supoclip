@@ -19,10 +19,13 @@ export type RuntimeSetting = {
   prefer_admin_value: boolean;
   overridden_by_env: boolean;
   updated_at?: string | null;
+  /** Live effective value. Always null for password-type settings. */
+  current_value?: string | null;
 };
 
 type RuntimeSettingsFormProps = {
   settings: RuntimeSetting[];
+  onSaved?: () => void;
 };
 
 function sourceBadge(setting: RuntimeSetting) {
@@ -35,7 +38,7 @@ function sourceBadge(setting: RuntimeSetting) {
   return <Badge variant="outline">Unset</Badge>;
 }
 
-export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
+export function RuntimeSettingsForm({ settings, onSaved }: RuntimeSettingsFormProps) {
   const router = useRouter();
   const [values, setValues] = useState<Record<string, string>>({});
   const [deleteKeys, setDeleteKeys] = useState<Record<string, boolean>>({});
@@ -107,6 +110,7 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
       setDeleteKeys({});
       setPriorityOverrides({});
       setMessage("Settings saved.");
+      onSaved?.();
       startTransition(() => router.refresh());
     } finally {
       setIsSaving(false);
@@ -127,6 +131,20 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
                 {sourceBadge(setting)}
               </div>
               <p className="mt-1 text-xs font-mono text-gray-500">{setting.key}</p>
+              {setting.input_type === "password" ? (
+                setting.configured && (
+                  <p className="mt-1 text-xs text-gray-600">Currently set (value hidden)</p>
+                )
+              ) : (
+                <p className="mt-1 text-xs text-gray-600">
+                  Current value:{" "}
+                  <span className="font-mono font-medium text-black">
+                    {setting.current_value && setting.current_value.length > 0
+                      ? setting.current_value
+                      : "(not set)"}
+                  </span>
+                </p>
+              )}
             </div>
 
             <div>
@@ -142,7 +160,9 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-black outline-none focus:border-black"
                 >
                   <option value="">
-                    {setting.configured ? "Keep configured value" : "Select a value"}
+                    {setting.configured
+                      ? `Keep current (${setting.current_value ?? "configured"})`
+                      : "Select a value"}
                   </option>
                   {(setting.options ?? []).map((option) => (
                     <option key={option} value={option}>
@@ -161,7 +181,13 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
                     }))
                   }
                   placeholder={
-                    setting.configured ? "Configured value is hidden" : "Add value"
+                    setting.input_type === "password"
+                      ? setting.configured
+                        ? "Configured value is hidden"
+                        : "Add value"
+                      : setting.configured
+                        ? `Keep current (${setting.current_value ?? "configured"})`
+                        : "Add value"
                   }
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-black outline-none focus:border-black"
                   autoComplete="off"

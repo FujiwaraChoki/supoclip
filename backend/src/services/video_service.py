@@ -26,6 +26,7 @@ from ..video_utils import (
     build_keep_ranges_from_source_ranges,
     build_clip_signal_summary,
     extend_keep_ranges_to_sentence_boundary,
+    trim_keep_ranges_to_duration,
     seconds_to_mmss,
     get_transcript_text_in_range,
 )
@@ -180,15 +181,31 @@ class VideoService:
         return transcript
 
     @staticmethod
-    async def analyze_transcript(transcript: str, clip_signals: Optional[str] = None) -> Any:
+    async def analyze_transcript(
+        transcript: str,
+        clip_signals: Optional[str] = None,
+        max_clips: Optional[int] = None,
+        target_duration_seconds: Optional[float] = None,
+    ) -> Any:
         """
         Analyze transcript with AI to find relevant segments.
         This is already async, no need to wrap.
+
+        max_clips/target_duration_seconds are per-request overrides (set by the
+        user when creating the task); they fall back to the global runtime
+        config when not provided.
         """
         logger.info("Starting AI analysis of transcript")
+        runtime_config = get_config()
         relevant_parts = await get_most_relevant_parts_by_transcript(
             transcript,
             clip_signals=clip_signals,
+            max_segments=int(max_clips) if max_clips else runtime_config.max_clips,
+            target_duration_seconds=(
+                int(target_duration_seconds)
+                if target_duration_seconds
+                else runtime_config.clip_duration
+            ),
         )
         logger.info(
             f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"
@@ -207,6 +224,7 @@ class VideoService:
         add_subtitles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
         hook_style: Optional[Dict[str, Any]] = None,
+        social_overlay: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Create standalone video clips from segments with optional subtitles.
@@ -231,6 +249,7 @@ class VideoService:
             add_subtitles,
             cleanup_settings,
             hook_style,
+            social_overlay,
         )
 
         logger.info(f"Successfully created {len(clips_info)} clips")
@@ -250,6 +269,8 @@ class VideoService:
         add_subtitles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
         hook_style: Optional[Dict[str, Any]] = None,
+        social_overlay: Optional[Dict[str, Any]] = None,
+        target_duration_seconds: Optional[float] = None,
     ) -> Optional[Dict[str, Any]]:
         """Render a single clip in the thread pool and return clip_info dict, or None on failure."""
         try:
@@ -296,6 +317,7 @@ class VideoService:
                     cleanup_settings,
                 )
             keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
+            keep_ranges = trim_keep_ranges_to_duration(keep_ranges, target_duration_seconds)
 
             success = await run_in_thread(
                 create_optimized_clip,
@@ -312,6 +334,7 @@ class VideoService:
                 keep_ranges,
                 segment.get("hook_title"),
                 hook_style,
+                social_overlay,
             )
 
             if not success:
@@ -390,6 +413,8 @@ class VideoService:
         cached_analysis_json: Optional[str] = None,
         progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]] = None,
         should_cancel: Optional[Callable[[], Awaitable[bool]]] = None,
+        max_clips: Optional[int] = None,
+        target_duration_seconds: Optional[float] = None,
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.
@@ -410,7 +435,7 @@ class VideoService:
                 raise Exception("Task cancelled")
 
             if progress_callback:
-                await progress_callback(10, "Downloading video...", "processing")
+                await progress_callback(10, "Downloading video...", "processing", stage="download")
 
             if source_type == "youtube":
                 video_info = await async_get_youtube_video_info(url, task_id=task_id)
@@ -445,7 +470,7 @@ class VideoService:
                 raise Exception("Task cancelled")
 
             if progress_callback:
-                await progress_callback(30, "Generating transcript...", "processing")
+                await progress_callback(30, "Generating transcript...", "processing", stage="transcribe")
 
             transcript = cached_transcript
             if not transcript:
@@ -461,7 +486,7 @@ class VideoService:
 
             if progress_callback:
                 await progress_callback(
-                    50, "Analyzing content with AI...", "processing"
+                    50, "Analyzing content with AI...", "processing", stage="analyze"
                 )
 
             relevant_parts = None
@@ -506,6 +531,8 @@ class VideoService:
                 relevant_parts = await VideoService.analyze_transcript(
                     transcript,
                     clip_signals=clip_signals,
+                    max_clips=max_clips,
+                    target_duration_seconds=target_duration_seconds,
                 )
 
             # Step 4: Create clips
@@ -513,7 +540,7 @@ class VideoService:
                 raise Exception("Task cancelled")
 
             if progress_callback:
-                await progress_callback(70, "Creating video clips...", "processing")
+                await progress_callback(70, "Creating video clips...", "processing", stage="render")
 
             raw_segments = relevant_parts.most_relevant_segments
             segments_json: List[Dict[str, Any]] = []
@@ -561,7 +588,11 @@ class VideoService:
                 segments_json.append(segment_payload)
 
             if processing_mode == "fast":
-                segments_json = segments_json[: runtime_config.fast_mode_max_clips]
+                # An explicit per-request clip count is the user directly asking
+                # for N clips — honor it instead of silently overriding it with
+                # the fast-mode default cap.
+                fast_cap = int(max_clips) if max_clips else runtime_config.fast_mode_max_clips
+                segments_json = segments_json[:fast_cap]
 
             if not segments_json:
                 logger.warning(

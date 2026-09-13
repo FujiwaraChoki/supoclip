@@ -5,9 +5,21 @@ Clip repository - handles all database operations for generated clips.
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text as sa_text
 from typing import List, Dict, Any, Optional
+import json
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_hook_variants(raw: Optional[str]) -> List[Dict[str, Any]]:
+    """Decode the JSON-encoded hook_title_variants column into a list of {id, text}."""
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return []
+    return parsed if isinstance(parsed, list) else []
 
 
 class ClipRepository:
@@ -129,7 +141,7 @@ class ClipRepository:
                     SELECT id, filename, file_path, start_time, end_time, duration,
                            text, relevance_score, reasoning, clip_order, created_at,
                            virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                           hook_title
+                           hook_title, hook_title_variants, selected_hook_variant_id
                     FROM generated_clips
                     WHERE task_id = :task_id
                     ORDER BY clip_order ASC
@@ -172,6 +184,8 @@ class ClipRepository:
                     "shareability_score": row.shareability_score or 0,
                     "hook_type": row.hook_type,
                     "hook_title": getattr(row, "hook_title", None),
+                    "hook_title_variants": _parse_hook_variants(getattr(row, "hook_title_variants", None)),
+                    "selected_hook_variant_id": getattr(row, "selected_hook_variant_id", None),
                 }
             )
 
@@ -222,7 +236,7 @@ class ClipRepository:
                     SELECT id, task_id, filename, file_path, start_time, end_time, duration,
                            text, relevance_score, reasoning, clip_order,
                            virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                           hook_title, created_at
+                           hook_title, hook_title_variants, selected_hook_variant_id, created_at
                     FROM generated_clips
                     WHERE id = :clip_id
                     """
@@ -265,9 +279,48 @@ class ClipRepository:
             "shareability_score": row.shareability_score or 0,
             "hook_type": row.hook_type,
             "hook_title": getattr(row, "hook_title", None),
+            "hook_title_variants": _parse_hook_variants(getattr(row, "hook_title_variants", None)),
+            "selected_hook_variant_id": getattr(row, "selected_hook_variant_id", None),
             "created_at": row.created_at.isoformat(),
             "video_url": f"/tasks/{row.task_id}/clips/{row.id}/file",
         }
+
+    @staticmethod
+    async def update_clip_hook(
+        db: AsyncSession,
+        clip_id: str,
+        hook_title: Optional[str] = None,
+        hook_type: Optional[str] = None,
+        hook_title_variants: Optional[List[Dict[str, Any]]] = None,
+        selected_hook_variant_id: Optional[str] = None,
+    ) -> None:
+        """Update a clip's active hook title/type and/or its stored A/B variants.
+
+        Only fields explicitly passed (non-None) are updated; pass
+        `hook_title_variants=[]` explicitly to clear stored variants.
+        """
+        sets: List[str] = []
+        params: Dict[str, Any] = {"clip_id": clip_id}
+        if hook_title is not None:
+            sets.append("hook_title = :hook_title")
+            params["hook_title"] = hook_title
+        if hook_type is not None:
+            sets.append("hook_type = :hook_type")
+            params["hook_type"] = hook_type
+        if hook_title_variants is not None:
+            sets.append("hook_title_variants = :hook_title_variants")
+            params["hook_title_variants"] = json.dumps(hook_title_variants)
+        if selected_hook_variant_id is not None:
+            sets.append("selected_hook_variant_id = :selected_hook_variant_id")
+            params["selected_hook_variant_id"] = selected_hook_variant_id
+        if not sets:
+            return
+        sets.append("updated_at = NOW()")
+        await db.execute(
+            sa_text(f"UPDATE generated_clips SET {', '.join(sets)} WHERE id = :clip_id"),
+            params,
+        )
+        await db.commit()
 
     @staticmethod
     async def update_clip(

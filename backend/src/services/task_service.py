@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 import json
 import hashlib
+import uuid
 from time import perf_counter
 
 import redis.asyncio as redis
@@ -210,8 +211,12 @@ class TaskService:
         progress_callback: Optional[Callable] = None,
         should_cancel: Optional[Callable] = None,
         clip_ready_callback: Optional[Callable] = None,
+        clip_started_callback: Optional[Callable] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
         hook_style: Optional[Dict[str, Any]] = None,
+        social_overlay: Optional[Dict[str, Any]] = None,
+        target_duration_seconds: Optional[float] = None,
+        max_clips: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -254,7 +259,10 @@ class TaskService:
 
             # Progress callback wrapper
             async def update_progress(
-                progress: int, message: str, status: str = "processing"
+                progress: int,
+                message: str,
+                status: str = "processing",
+                stage: Optional[str] = None,
             ):
                 await self.task_repo.update_task_status(
                     self.db,
@@ -264,7 +272,7 @@ class TaskService:
                     progress_message=message,
                 )
                 if progress_callback:
-                    await progress_callback(progress, message, status)
+                    await progress_callback(progress, message, status, stage=stage)
 
             # Process video with progress updates
             max_video_duration = self.config.max_video_duration
@@ -293,6 +301,8 @@ class TaskService:
                 cached_analysis_json=cached_analysis_json,
                 progress_callback=update_progress,
                 should_cancel=should_cancel,
+                max_clips=max_clips,
+                target_duration_seconds=target_duration_seconds,
             )
             stage_timings["pipeline_seconds"] = round(
                 perf_counter() - pipeline_start, 3
@@ -353,7 +363,13 @@ class TaskService:
                 await update_progress(
                     clip_progress,
                     f"Creating clip {i + 1}/{total_clips}...",
+                    stage="render",
                 )
+                if clip_started_callback:
+                    try:
+                        await clip_started_callback(i, total_clips)
+                    except Exception:
+                        logger.exception("clip_started_callback failed for clip %s", i)
 
                 # Render single clip in thread pool
                 clip_info = await self.video_service.create_single_clip(
@@ -369,6 +385,8 @@ class TaskService:
                     add_subtitles,
                     normalized_cleanup_settings,
                     hook_style,
+                    social_overlay,
+                    target_duration_seconds,
                 )
                 if clip_info is None:
                     continue  # Skip failed clip
@@ -668,6 +686,7 @@ class TaskService:
         output_format = metadata.get("output_format", "vertical")
         add_subtitles = metadata.get("add_subtitles", True)
         hook_style = metadata.get("hook_style")
+        social_overlay = metadata.get("social_overlay")
         cleanup_payload = cleanup_settings or {
             "cut_long_pauses": metadata.get("cut_long_pauses"),
             "pause_threshold_ms": metadata.get("pause_threshold_ms"),
@@ -754,6 +773,7 @@ class TaskService:
             add_subtitles,
             normalized_cleanup_settings,
             hook_style,
+            social_overlay,
         )
 
         await self.clip_repo.delete_clips_by_task(self.db, task_id)
@@ -784,6 +804,154 @@ class TaskService:
             clip_ids.append(clip_id)
 
         await self.task_repo.update_task_clips(self.db, task_id, clip_ids)
+
+    async def generate_hook_variants_for_clip(
+        self, task_id: str, clip_id: str, count: int = 3
+    ) -> Dict[str, Any]:
+        """Generate alternative hook titles for a clip, for A/B comparison. Appends to any stored variants."""
+        clip = await self.clip_repo.get_clip_by_id(self.db, clip_id)
+        if not clip or clip["task_id"] != task_id:
+            raise ValueError("Clip not found")
+
+        from ..ai import generate_hook_title_variants
+
+        variant_texts = await generate_hook_title_variants(
+            clip.get("text") or "",
+            clip.get("hook_title"),
+            clip.get("hook_type"),
+            count=count,
+        )
+        new_variants = [{"id": uuid.uuid4().hex[:12], "text": text} for text in variant_texts]
+
+        existing_variants = clip.get("hook_title_variants") or []
+        existing_texts = {v.get("text") for v in existing_variants}
+        combined = existing_variants + [v for v in new_variants if v["text"] not in existing_texts]
+
+        await self.clip_repo.update_clip_hook(self.db, clip_id, hook_title_variants=combined)
+        return {"clip_id": clip_id, "hook_title": clip.get("hook_title"), "variants": combined}
+
+    async def select_hook_variant(
+        self,
+        task_id: str,
+        clip_id: str,
+        variant_id: Optional[str] = None,
+        custom_text: Optional[str] = None,
+        hook_type: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Apply a chosen hook-title variant (or custom text) to a clip and re-render its burned-in hook.
+
+        Re-renders the clip from the original source (not the already-rendered
+        file) since the hook text is baked into the same video frame as the
+        crop/captions — burning a second hook on top of the first would just
+        overlap the two, so this reuses the full clip-creation pipeline scoped
+        to a single segment instead of a lightweight overlay pass.
+        """
+        clip = await self.clip_repo.get_clip_by_id(self.db, clip_id)
+        if not clip or clip["task_id"] != task_id:
+            raise ValueError("Clip not found")
+
+        if custom_text is not None:
+            new_hook_title = custom_text.strip()
+            if not new_hook_title:
+                raise ValueError("Hook title cannot be empty")
+        else:
+            variants = clip.get("hook_title_variants") or []
+            match = next((v for v in variants if v.get("id") == variant_id), None)
+            if not match:
+                raise ValueError("Hook variant not found")
+            new_hook_title = match["text"]
+
+        task = await self.task_repo.get_task_by_id(self.db, task_id)
+        if not task:
+            raise ValueError("Task not found")
+
+        source_url = task.get("source_url")
+        source_type = task.get("source_type")
+        if not source_url or not source_type:
+            raise ValueError("Task source URL is missing; cannot re-render hook")
+
+        metadata = await self._load_task_source_settings(task_id)
+        output_format = metadata.get("output_format", "vertical")
+        add_subtitles = metadata.get("add_subtitles", True)
+        hook_style = metadata.get("hook_style")
+        social_overlay = metadata.get("social_overlay")
+        cleanup_settings = normalize_clip_cleanup_settings(
+            metadata.get("cut_long_pauses"),
+            metadata.get("pause_threshold_ms"),
+            metadata.get("remove_filler_words"),
+            metadata.get("filtered_words"),
+        )
+
+        if source_type == "youtube":
+            downloaded = await self.video_service.download_video(source_url)
+            if not downloaded:
+                raise ValueError("Failed to download source video to re-render hook")
+            video_path = Path(downloaded)
+        else:
+            video_path = self.video_service.resolve_local_video_path(source_url)
+            if not video_path.exists():
+                raise ValueError("Source video file no longer exists")
+
+        source_ranges = self._get_clip_source_ranges(clip)
+        bounds = source_range_bounds(source_ranges)
+        if bounds:
+            start_time = self._seconds_to_mmss(bounds[0])
+            end_time = self._seconds_to_mmss(bounds[1])
+        else:
+            start_time = clip["start_time"]
+            end_time = clip["end_time"]
+
+        segment = {
+            "start_time": start_time,
+            "end_time": end_time,
+            "keep_ranges": source_ranges,
+            "text": clip.get("text") or "",
+            "relevance_score": clip.get("relevance_score", 0.5),
+            "reasoning": clip.get("reasoning") or "Hook variant applied",
+            "virality_score": clip.get("virality_score", 0),
+            "hook_score": clip.get("hook_score", 0),
+            "engagement_score": clip.get("engagement_score", 0),
+            "value_score": clip.get("value_score", 0),
+            "shareability_score": clip.get("shareability_score", 0),
+            "hook_type": hook_type or clip.get("hook_type"),
+            "hook_title": new_hook_title,
+        }
+
+        clips_info = await self.video_service.create_video_clips(
+            video_path,
+            [segment],
+            task.get("font_family"),
+            task.get("font_size"),
+            task.get("font_color"),
+            task.get("caption_template") or "default",
+            output_format,
+            add_subtitles,
+            cleanup_settings,
+            hook_style,
+            social_overlay,
+        )
+        if not clips_info:
+            raise ValueError("Failed to re-render clip with new hook title")
+        clip_info = clips_info[0]
+
+        await self.clip_repo.update_clip(
+            self.db,
+            clip_id,
+            clip_info["filename"],
+            clip_info["path"],
+            clip_info.get("start_time", start_time),
+            clip_info.get("end_time", end_time),
+            clip_info.get("duration", clip["duration"]),
+            clip_info.get("text") or clip.get("text") or "",
+        )
+        await self.clip_repo.update_clip_hook(
+            self.db,
+            clip_id,
+            hook_title=new_hook_title,
+            hook_type=hook_type,
+            selected_hook_variant_id=variant_id or "custom",
+        )
+        return (await self.clip_repo.get_clip_by_id(self.db, clip_id)) or {}
 
     async def trim_clip(
         self,
@@ -1036,6 +1204,9 @@ class TaskService:
             "output_format": "vertical",
             "add_subtitles": True,
             "hook_style": None,
+            "social_overlay": None,
+            "broll_settings": None,
+            "target_duration_seconds": None,
             **normalize_clip_cleanup_settings(),
         }
         redis_client = redis.Redis(
@@ -1076,11 +1247,19 @@ class TaskService:
             add_subtitles = defaults["add_subtitles"]
 
         hook_style = parsed.get("hook_style")
+        social_overlay = parsed.get("social_overlay")
+        broll_settings = parsed.get("broll_settings")
+        target_duration_seconds = parsed.get("target_duration_seconds")
+        if not isinstance(target_duration_seconds, (int, float)):
+            target_duration_seconds = None
 
         return {
             "output_format": output_format,
             "add_subtitles": add_subtitles,
             "hook_style": hook_style if isinstance(hook_style, dict) else None,
+            "social_overlay": social_overlay if isinstance(social_overlay, dict) else None,
+            "broll_settings": broll_settings if isinstance(broll_settings, dict) else None,
+            "target_duration_seconds": target_duration_seconds,
             **normalize_clip_cleanup_settings(
                 parsed.get("cut_long_pauses"),
                 parsed.get("pause_threshold_ms"),

@@ -58,7 +58,7 @@ The current repository snapshot includes:
 
 - `frontend/`: the main Next.js application
 - `backend/`: the FastAPI API and ARQ worker code
-- Root-level infrastructure files such as `docker-compose.yml`, `init.sql`, `.env.example`, and `start.sh`
+- Root-level infrastructure files such as `docker-compose.yml`, `init.sql`, and `start.sh`
 
 ## Recommended Reading Paths
 

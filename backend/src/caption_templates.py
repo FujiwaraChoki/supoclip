@@ -214,10 +214,62 @@ TEMPLATE_DEFAULTS: Dict[str, Any] = {
     "hook_duration_seconds": 4.0,
     "hook_animation": "fade_pop",
     "hook_shadow": None,
+    "hook_highlight_color": "#FFE000",
+    "hook_sfx": None,
 }
 
 HOOK_POSITIONS = ("top", "center", "bottom")
-HOOK_ANIMATIONS = ("fade_pop", "fade", "slide_down", "none")
+HOOK_ANIMATIONS = ("fade_pop", "fade", "slide_down", "zoom_punch", "bounce", "pulse", "none")
+
+# Content-type classification for a clip's hook (AI-assigned by default, but
+# user-selectable/overridable in the hook comparison UI). Kept here as the
+# single source of truth so the API and frontend labels stay in sync.
+HOOK_TYPES = (
+    "question",
+    "statement",
+    "statistic",
+    "story",
+    "contrast",
+    "callout",
+    "warning",
+    "none",
+)
+
+HOOK_ANIMATION_INFO = {
+    "fade_pop": "Fade in with a soft scale pop",
+    "fade": "Simple fade in",
+    "slide_down": "Unsquashes into place from the top",
+    "zoom_punch": "Fades in then punches up in scale",
+    "bounce": "Overshoots on entry and settles with a bounce",
+    "pulse": "Fades in with a gentle breathing pulse",
+    "none": "No animation, appears instantly",
+}
+
+HOOK_TYPE_LABELS = {
+    "question": "Question Hook",
+    "statement": "Bold Statement",
+    "statistic": "Data/Stats",
+    "story": "Story Hook",
+    "contrast": "Contrast Hook",
+    "callout": "Callout",
+    "warning": "Warning",
+    "none": "No Hook",
+}
+
+
+def get_hook_options() -> Dict[str, Any]:
+    """Hook types/animations for the frontend hook picker (mirrors get_template_info)."""
+    return {
+        "hook_types": [
+            {"id": hook_type, "label": HOOK_TYPE_LABELS.get(hook_type, hook_type)}
+            for hook_type in HOOK_TYPES
+        ],
+        "hook_animations": [
+            {"id": animation, "label": HOOK_ANIMATION_INFO.get(animation, animation)}
+            for animation in HOOK_ANIMATIONS
+        ],
+        "hook_positions": list(HOOK_POSITIONS),
+    }
 
 
 def get_template(template_name: str) -> Dict[str, Any]:
@@ -239,7 +291,7 @@ def get_template_names() -> list:
 
 
 def get_template_info() -> list:
-    """Get list of template info for API response."""
+    """Get list of template info for API response (used to render the template picker grid)."""
     return [
         {
             "id": name,
@@ -250,6 +302,13 @@ def get_template_info() -> list:
             "font_size": template["font_size"],
             "font_color": template["font_color"],
             "highlight_color": template["highlight_color"],
+            "word_box": merged["word_box"],
+            "word_box_color": merged["word_box_color"],
+            "uppercase": merged["uppercase"],
+            "stroke_color": merged["stroke_color"],
+            "background_color": merged["background_color"],
+            "glow": merged["glow"],
         }
         for name, template in CAPTION_TEMPLATES.items()
+        for merged in [get_template(name)]
     ]

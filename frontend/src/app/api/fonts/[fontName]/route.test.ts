@@ -1,20 +1,10 @@
-import { headers } from "next/headers";
-
-import { auth } from "@/lib/auth";
+import { getServerSession } from "@/server/session";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 
 import { DELETE } from "./route";
 
-vi.mock("next/headers", () => ({
-  headers: vi.fn(),
-}));
-
-vi.mock("@/lib/auth", () => ({
-  auth: {
-    api: {
-      getSession: vi.fn(),
-    },
-  },
+vi.mock("@/server/session", () => ({
+  getServerSession: vi.fn(),
 }));
 
 vi.mock("@/lib/backend-auth", () => ({
@@ -24,15 +14,14 @@ vi.mock("@/lib/backend-auth", () => ({
 describe("DELETE /api/fonts/[fontName]", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.mocked(headers).mockResolvedValue(new Headers() as never);
     vi.mocked(buildBackendAuthHeaders).mockReturnValue({
       "x-supoclip-user-id": "user-1",
     });
     process.env.BACKEND_INTERNAL_URL = "http://backend:8000";
   });
 
-  it("returns 401 without an authenticated session", async () => {
-    vi.mocked(auth.api.getSession).mockResolvedValue(null);
+  it("returns 401 without a session (e.g. REQUIRE_AUTH=true and no login)", async () => {
+    vi.mocked(getServerSession).mockResolvedValue(null);
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -45,7 +34,7 @@ describe("DELETE /api/fonts/[fontName]", () => {
   });
 
   it("forwards an owner-authenticated delete request to the backend", async () => {
-    vi.mocked(auth.api.getSession).mockResolvedValue({
+    vi.mocked(getServerSession).mockResolvedValue({
       user: { id: "user-1" },
     } as never);
     const fetchMock = vi.fn().mockResolvedValue(

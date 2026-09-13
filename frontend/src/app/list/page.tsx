@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useSession } from "@/lib/auth-client";
+import { LOCAL_USER_ID } from "@/lib/local-user";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import {
@@ -112,7 +112,9 @@ const STATUS_CONFIG: Record<
 };
 
 export default function ListPage() {
-  const { data: session, isPending } = useSession();
+  // Local-first: no login, so there's no real session — kept as a constant so
+  // the existing "session?.user?.id" checks keep working.
+  const session = { user: { id: LOCAL_USER_ID } };
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -326,36 +328,6 @@ export default function ListPage() {
 
     setShowDeleteDialog(false);
   };
-
-  /* ── Loading / Auth gates ─────────────────────────────────── */
-
-  if (isPending) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
-        <div className="space-y-4">
-          <Skeleton className="h-4 w-32 mx-auto" />
-          <Skeleton className="h-4 w-48 mx-auto" />
-          <Skeleton className="h-4 w-24 mx-auto" />
-        </div>
-      </div>
-    );
-  }
-
-  if (!session?.user) {
-    return (
-      <div className="min-h-screen bg-white">
-        <div className="max-w-4xl mx-auto px-4 py-24 text-center">
-          <h1 className="text-3xl font-bold text-black mb-4">Sign In Required</h1>
-          <p className="text-gray-600 mb-8">
-            You need to be signed in to view your generations.
-          </p>
-          <Link href="/sign-in">
-            <Button size="lg">Sign In</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   /* ── Status badge renderer ────────────────────────────────── */
 

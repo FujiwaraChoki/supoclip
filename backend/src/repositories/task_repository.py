@@ -342,7 +342,7 @@ class TaskRepository:
         """Get all tasks for a user."""
         result = await db.execute(
             text("""
-                SELECT t.*, s.title as source_title, s.type as source_type,
+                SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url,
                        (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count
                 FROM tasks t
                 LEFT JOIN sources s ON t.source_id = s.id
@@ -362,7 +362,10 @@ class TaskRepository:
                     "source_id": row.source_id,
                     "source_title": row.source_title,
                     "source_type": row.source_type,
+                    "source_url": getattr(row, "source_url", None),
                     "status": row.status,
+                    "progress": getattr(row, "progress", 0),
+                    "progress_message": getattr(row, "progress_message", None),
                     "processing_mode": getattr(row, "processing_mode", "fast"),
                     "completion_notification_sent_at": getattr(
                         row, "completion_notification_sent_at", None

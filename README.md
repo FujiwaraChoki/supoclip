@@ -53,7 +53,7 @@ SupoClip gives you the same core pipeline without the leash:
 - **Virality scoring** — every clip gets hook, engagement, value, and shareability scores
 - **Smart vertical cropping** — face detection keeps the speaker centered in the 9:16 frame
 - **Word-synced subtitles** — AssemblyAI word-level timestamps, custom fonts, caption templates with animation styles
-- **Hook titles** — an AI-written headline burned into the top of each clip's opening seconds
+- **Hook titles** — an AI-written headline burned into the top of each clip's opening seconds, with selectable animation styles and per-clip A/B comparison to generate and pick between alternative hooks
 - **B-roll & transitions** — optional Pexels stock footage overlays and transition effects
 - **Built-in editor** — trim, split, and merge clips, then export with platform presets (TikTok, Reels, Shorts)
 - **Real-time progress** — live pipeline updates streamed to the browser while your video processes
@@ -81,7 +81,7 @@ Then start everything:
 docker-compose up -d
 ```
 
-First startup takes a few minutes; watch it with `docker-compose logs -f`. Once healthy, open [http://localhost:3000](http://localhost:3000), create an account, and start clipping. The backend API lives at [http://localhost:8000](http://localhost:8000) with interactive docs at `/docs`.
+First startup takes a few minutes; watch it with `docker-compose logs -f`. Once healthy, open [http://localhost:3001](http://localhost:3001) and start clipping — SupoClip runs local-first by default, with no login required. The backend API lives at [http://localhost:8000](http://localhost:8000) with interactive docs at `/docs`.
 
 To use a different LLM provider, self-host with Ollama, or configure the optional pieces (B-roll, analytics, emails, YouTube metadata), see the [configuration guide](docs/configuration.md). If something misbehaves, the [troubleshooting guide](docs/troubleshooting.md) covers the common failure modes.
 

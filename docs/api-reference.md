@@ -110,11 +110,17 @@ Source file:
   - Update caption text or related settings
 - `POST /{task_id}/clips/{clip_id}/regenerate`
   - Re-render a clip
+- `POST /{task_id}/clips/{clip_id}/hook-variants`
+  - Generate 1-6 AI-written alternative hook titles for a clip (for A/B comparison), appended to any previously generated variants
+- `PATCH /{task_id}/clips/{clip_id}/hook-variants/select`
+  - Apply a generated variant (`variant_id`) or custom text (`hook_title`) as the clip's active hook, optionally overriding `hook_type`; re-renders the clip from source since the hook is burned into the frame
 - `GET /{task_id}/clips/{clip_id}/export`
   - Export using a platform preset
 
 ### Task-wide settings and diagnostics
 
+- `GET /hook-options`
+  - List selectable hook types and animation styles (for the hook editor/comparison UI)
 - `POST /{task_id}/settings`
   - Apply project-wide task settings such as fonts or caption template
 - `GET /metrics/performance`

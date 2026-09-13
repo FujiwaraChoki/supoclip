@@ -28,6 +28,9 @@ async def process_video_task(
     add_subtitles: bool = True,
     cleanup_settings: Dict[str, Any] | None = None,
     hook_style: Dict[str, Any] | None = None,
+    social_overlay: Dict[str, Any] | None = None,
+    target_duration_seconds: float | None = None,
+    max_clips: int | None = None,
 ) -> Dict[str, Any]:
     """
     Background worker task to process a video.
@@ -63,9 +66,12 @@ async def process_video_task(
         try:
             # Progress callback
             async def update_progress(
-                percent: int, message: str, status: str = "processing"
+                percent: int,
+                message: str,
+                status: str = "processing",
+                stage: str | None = None,
             ):
-                await progress.update(percent, message, status)
+                await progress.update(percent, message, status, stage=stage)
                 logger.info(f"Task {task_id}: {percent}% - {message}")
 
             async def should_cancel() -> bool:
@@ -76,6 +82,9 @@ async def process_video_task(
                 clip_index: int, total_clips: int, clip_data: dict
             ):
                 await progress.clip_ready(clip_index, total_clips, clip_data)
+
+            async def clip_started_callback(clip_index: int, total_clips: int):
+                await progress.clip_started(clip_index, total_clips)
 
             # Process the video
             result = await task_service.process_task(
@@ -93,8 +102,12 @@ async def process_video_task(
                 progress_callback=update_progress,
                 should_cancel=should_cancel,
                 clip_ready_callback=clip_ready_callback,
+                clip_started_callback=clip_started_callback,
                 cleanup_settings=cleanup_settings,
                 hook_style=hook_style,
+                social_overlay=social_overlay,
+                target_duration_seconds=target_duration_seconds,
+                max_clips=max_clips,
             )
 
             logger.info(f"Task {task_id} completed successfully")

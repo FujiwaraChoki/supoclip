@@ -113,10 +113,22 @@ class ViralityAnalysis(BaseModel):
         le=100,
     )
     hook_type: Optional[
-        Literal["question", "statement", "statistic", "story", "contrast", "none"]
+        Literal[
+            "question",
+            "statement",
+            "statistic",
+            "story",
+            "contrast",
+            "callout",
+            "warning",
+            "none",
+        ]
     ] = Field(
         default="none",
-        description="Type of hook: question, statement, statistic, story, contrast, or none",
+        description=(
+            "Type of hook: question, statement, statistic, story, contrast, "
+            "callout, warning, or none"
+        ),
     )
     virality_reasoning: str = Field(
         default="The model did not provide a detailed virality breakdown.",
@@ -318,6 +330,8 @@ HOOK TYPES to identify:
 - "statistic": Uses compelling numbers or data
 - "story": Starts with narrative/anecdote
 - "contrast": Before/after or problem/solution framing
+- "callout": Directly calls out or addresses a specific audience/group
+- "warning": Warns the viewer about a mistake, risk, or thing to avoid
 - "none": No clear hook pattern
 
 B-ROLL OPPORTUNITIES:
@@ -354,7 +368,7 @@ SCORING AND OUTPUT RULES:
 - virality_reasoning and reasoning should cite what is actually present in the chosen span
 - summary and key_topics must also stay grounded in the transcript and should not add outside interpretation
 
-Find 2-5 compelling segments that would work well as standalone clips. Quality over quantity: choose fewer stronger segments over filling a quota. Every selected segment must be accurate, self-contained, have proper time ranges, and score high on virality metrics."""
+Find as many compelling segments as the transcript genuinely supports, up to the maximum stated in the task instructions below. Bias toward inclusion: a clearly solid, watchable segment belongs in the results even if it isn't the single best moment in the video — creators would rather review an extra decent clip and discard it than have the AI silently withhold it. Reserve exclusion for segments that are genuinely unusable standalone (pure filler, sponsor reads, fragments needing unseen context) rather than merely "good but not exceptional." Every selected segment must still be accurate, self-contained, have proper time ranges, and score high on virality metrics."""
 
 # Lazy-loaded agent to avoid import-time failures when API keys aren't set
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
@@ -465,8 +479,101 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
     return _transcript_agent
 
 
+class HookVariants(BaseModel):
+    """A small batch of alternative on-screen hook titles for one clip."""
+
+    variants: List[str] = Field(
+        default_factory=list,
+        description="Alternative hook titles, each 3-9 words, plain text.",
+    )
+
+
+_hook_variants_agent: Optional[Agent[None, HookVariants]] = None
+_hook_variants_agent_signature: Optional[tuple[str | None, ...]] = None
+
+HOOK_VARIANTS_SYSTEM_PROMPT = """You write short, punchy on-screen headlines ("hooks") for viral short-form video clips.
+
+Given a clip's transcript and its current hook title, write alternative hook titles that could replace it.
+
+Rules for every variant:
+- 3-9 words, plain text only (no hashtags, no emojis, no surrounding quotes)
+- Grounded in the transcript: only promise what the clip actually delivers, never invent facts or numbers
+- Make a scrolling viewer stop: a bold claim, curiosity gap, number, or stakes taken from the segment
+- Each variant must take a genuinely different angle from the others and from the current hook title (e.g. question vs. bold statement vs. number/stat vs. contrast)
+- Do not simply repeat the first spoken words verbatim"""
+
+
+def get_hook_variants_agent() -> Agent[None, HookVariants]:
+    """Get or create the (small, separate) hook-title-variants agent."""
+    global _hook_variants_agent, _hook_variants_agent_signature
+    runtime_config = get_config()
+    signature = (
+        runtime_config.llm,
+        runtime_config.openai_api_key,
+        runtime_config.google_api_key,
+        runtime_config.anthropic_api_key,
+        runtime_config.ollama_base_url,
+        runtime_config.ollama_api_key,
+    )
+    if _hook_variants_agent is None or _hook_variants_agent_signature != signature:
+        apply_settings_to_process_env(runtime_config.as_runtime_settings())
+        config_error = _get_missing_llm_key_error(runtime_config.llm, runtime_config)
+        if config_error:
+            raise RuntimeError(config_error)
+
+        _hook_variants_agent = Agent[None, HookVariants](
+            model=_build_transcript_model(runtime_config),
+            output_type=HookVariants,
+            system_prompt=HOOK_VARIANTS_SYSTEM_PROMPT,
+            output_retries=2,
+        )
+        _hook_variants_agent_signature = signature
+    return _hook_variants_agent
+
+
+async def generate_hook_title_variants(
+    clip_text: str,
+    current_hook_title: Optional[str],
+    hook_type: Optional[str] = None,
+    count: int = 3,
+) -> List[str]:
+    """Generate `count` alternative hook titles for an existing clip, for A/B comparison.
+
+    Reuses the same LLM configured for transcript analysis (via a narrower,
+    dedicated agent/output type) so no separate provider setup is required.
+    """
+    count = max(1, min(6, int(count)))
+    agent = get_hook_variants_agent()
+    prompt = (
+        f"Clip transcript:\n{clip_text.strip()}\n\n"
+        f"Current hook title: {current_hook_title or '(none yet)'}\n"
+        f"Current hook type: {hook_type or 'none'}\n\n"
+        f"Write exactly {count} alternative hook titles as a JSON array under \"variants\"."
+    )
+    result = await agent.run(prompt)
+    seen: set[str] = set()
+    variants: List[str] = []
+    existing_normalized = _normalize_transcript_text(current_hook_title or "")
+    for raw in result.output.variants:
+        cleaned = sanitize_hook_title(raw)
+        if not cleaned:
+            continue
+        normalized = _normalize_transcript_text(cleaned)
+        if normalized in seen or normalized == existing_normalized:
+            continue
+        seen.add(normalized)
+        variants.append(cleaned)
+        if len(variants) >= count:
+            break
+    return variants
+
+
 def build_transcript_analysis_prompt(
-    transcript: str, include_broll: bool = False, clip_signals: str | None = None
+    transcript: str,
+    include_broll: bool = False,
+    clip_signals: str | None = None,
+    max_segments: int = 5,
+    target_duration_seconds: int | None = None,
 ) -> str:
     """Build the grounded task prompt for transcript analysis."""
     broll_instruction = ""
@@ -483,6 +590,18 @@ def build_transcript_analysis_prompt(
             "must still be a coherent contiguous transcript range."
         )
 
+    if target_duration_seconds:
+        ideal_low = max(MIN_ACCEPTED_CLIP_SECONDS, target_duration_seconds - 10)
+        ideal_high = min(MAX_ACCEPTED_CLIP_SECONDS, target_duration_seconds + 10)
+        duration_target_line = (
+            f"- The configured target clip length is {target_duration_seconds} seconds. "
+            f"Prefer clips roughly {ideal_low}-{ideal_high} seconds — this target overrides the "
+            "generic 25-50s guidance above whenever they conflict. Still let a genuinely complete "
+            "hook-to-payoff arc take priority over hitting the exact number."
+        )
+    else:
+        duration_target_line = f"- Most selected clips should be {IDEAL_CLIP_MIN_SECONDS}-{IDEAL_CLIP_MAX_SECONDS} seconds."
+
     return f"""Analyze this video transcript and identify the most engaging segments for short-form content.
 
 The transcript is formatted as one line per timestamped span, for example:
@@ -496,12 +615,13 @@ Follow this workflow:
 4. For each chosen segment, use the earliest timestamp in the selected range as start_time and the latest timestamp in the selected range as end_time.{broll_instruction}
 
 Selection target:
-- Choose 2-5 segments total.
-- Most selected clips should be 25-50 seconds.
+- Choose up to {max_segments} segments total. Lean toward returning close to {max_segments} whenever the transcript has that many distinct, watchable moments — a solid-but-not-spectacular segment is still worth including, since the creator can always discard clips they don't want, but a segment the AI never surfaced can't be recovered. Only return fewer than {max_segments} when the transcript genuinely runs out of distinct moments that clear the bar below.
+- Do not pad with near-duplicate segments covering the same point, and do not include segments that fail the bar below — but do not hold back a clearly good, self-contained segment just because a "perfect" one already made the list.
+{duration_target_line}
 - Only choose a 15-24 second clip when it already contains a full setup and payoff.
 - If a strong moment is shorter than 25 seconds, first try expanding to nearby contiguous transcript lines that add useful context.
-- Skip weak standalone picks: intros, sponsor reads, CTAs, contextless quotes, repeated points, vague setup, and answer fragments that require prior context.
-- Before returning a segment, ask whether a viewer would understand and care without seeing the rest of the source video.
+- The bar for inclusion: skip only segments that are genuinely unusable standalone — pure intros/greetings, sponsor reads, CTAs, contextless quote fragments, near-exact repeats of an already-selected point, or answer fragments that require prior context to make sense.
+- Before excluding a segment, ask whether a viewer would understand and care without seeing the rest of the source video — if yes, include it even if it's merely good rather than exceptional.
 
 Critical accuracy requirements:
 - Do not fabricate or embellish content.
@@ -707,11 +827,16 @@ def _repair_segment_bounds(
 
 
 async def get_most_relevant_parts_by_transcript(
-    transcript: str, include_broll: bool = False, clip_signals: str | None = None
+    transcript: str,
+    include_broll: bool = False,
+    clip_signals: str | None = None,
+    max_segments: int = 5,
+    target_duration_seconds: int | None = None,
 ) -> TranscriptAnalysis:
     """Get the most relevant parts of a transcript with virality scoring and optional B-roll detection."""
     logger.info(
-        f"Starting AI analysis of transcript ({len(transcript)} chars), include_broll={include_broll}"
+        f"Starting AI analysis of transcript ({len(transcript)} chars), include_broll={include_broll}, "
+        f"max_segments={max_segments}, target_duration_seconds={target_duration_seconds}"
     )
 
     try:
@@ -723,6 +848,8 @@ async def get_most_relevant_parts_by_transcript(
                 transcript=transcript,
                 include_broll=include_broll,
                 clip_signals=clip_signals,
+                max_segments=max_segments,
+                target_duration_seconds=target_duration_seconds,
             )
         )
 
@@ -850,6 +977,10 @@ async def get_most_relevant_parts_by_transcript(
             ),
             reverse=True,
         )
+
+        # Enforce the requested ceiling even if the model overshot it.
+        if max_segments > 0:
+            validated_segments = validated_segments[:max_segments]
 
         final_analysis = TranscriptAnalysis(
             most_relevant_segments=validated_segments,

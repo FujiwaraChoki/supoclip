@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSession } from "@/lib/auth-client";
+import { LOCAL_USER_ID } from "@/lib/local-user";
 
 interface ApiKey {
   id: string;
@@ -29,7 +29,9 @@ function formatDate(value: string | null): string {
 }
 
 export default function ApiKeysPage() {
-  const { data: session, isPending } = useSession();
+  // Local-first: no login, so there's no real session — kept as a constant so
+  // the existing "session?.user?.id" checks keep working.
+  const session = { user: { id: LOCAL_USER_ID } };
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,27 +106,6 @@ export default function ApiKeysPage() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  if (isPending) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
-        <Skeleton className="h-32 w-full max-w-xl" />
-      </div>
-    );
-  }
-
-  if (!session?.user) {
-    return (
-      <div className="min-h-screen bg-white">
-        <div className="max-w-4xl mx-auto px-4 py-24 text-center">
-          <p className="text-gray-600 mb-4">Sign in to manage your API keys.</p>
-          <Link href="/sign-in">
-            <Button>Sign In</Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-white">

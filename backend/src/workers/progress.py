@@ -17,7 +17,13 @@ class ProgressTracker:
         self.task_id = task_id
         self.key = f"progress:{task_id}"
 
-    async def update(self, progress: int, message: str, status: str = "processing"):
+    async def update(
+        self,
+        progress: int,
+        message: str,
+        status: str = "processing",
+        stage: Optional[str] = None,
+    ):
         """
         Update progress in Redis.
 
@@ -25,12 +31,16 @@ class ProgressTracker:
             progress: Progress percentage (0-100)
             message: Human-readable progress message
             status: Task status (queued, processing, completed, error)
+            stage: One of PROCESSING_STAGES's ids ("download", "transcribe",
+                "analyze", "render", "complete") — lets the frontend render a
+                stage-by-stage stepper instead of just a percentage.
         """
         data = {
             "task_id": self.task_id,
             "progress": progress,
             "message": message,
-            "status": status
+            "status": status,
+            "stage": stage,
         }
 
         await self.redis.setex(
@@ -68,9 +78,26 @@ class ProgressTracker:
             json.dumps(data, default=str),
         )
 
+    async def clip_started(self, clip_index: int, total_clips: int):
+        """Notify that a clip has started rendering (before it's ready).
+
+        Lets the frontend show a "rendering clip i/N" placeholder instead of
+        only ever seeing clips pop in once fully done.
+        """
+        data = {
+            "task_id": self.task_id,
+            "event_type": "clip_progress",
+            "clip_index": clip_index,
+            "total_clips": total_clips,
+        }
+        await self.redis.publish(
+            f"progress:{self.task_id}",
+            json.dumps(data),
+        )
+
     async def complete(self, message: str = "Complete!"):
         """Mark task as completed."""
-        await self.update(100, message, "completed")
+        await self.update(100, message, "completed", stage="complete")
 
     async def error(self, message: str):
         """Mark task as failed."""

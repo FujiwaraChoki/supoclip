@@ -16,7 +16,6 @@ Current repository structure:
 - Root files
   - `docker-compose.yml`
   - `init.sql`
-  - `.env.example`
   - `start.sh`
 
 ## Main Commands
@@ -31,13 +30,15 @@ docker-compose down
 
 ## Frontend
 
+The frontend's package manager is pnpm (pinned via `packageManager` in `frontend/package.json`), not npm.
+
 ```bash
 cd frontend
-npm install
-npm run dev
-npm run build
-npm run start
-npm run lint
+pnpm install
+pnpm run dev      # http://localhost:3107
+pnpm run build    # prisma generate && next build
+pnpm run start
+pnpm run lint
 ```
 
 ## Backend

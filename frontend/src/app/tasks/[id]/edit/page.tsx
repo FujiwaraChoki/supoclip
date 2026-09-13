@@ -17,7 +17,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { useSession } from "@/lib/auth-client";
+import { LOCAL_USER_ID } from "@/lib/local-user";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,7 +89,9 @@ const EXPORT_DIMENSIONS = {
 
 export default function TaskEditPage() {
   const params = useParams();
-  const { data: session } = useSession();
+  // Local-first: no login, so there's no real session — kept as a constant so
+  // the existing "if (!session?.user?.id) return" guards keep working.
+  const session = { user: { id: LOCAL_USER_ID } };
   const taskApiUrl = "/api/tasks";
   const getClipUrl = (videoUrl: string) =>
     videoUrl.startsWith("/api/") ? videoUrl : `/api${videoUrl}`;
