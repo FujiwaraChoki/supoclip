@@ -16,7 +16,7 @@ export function ToolTabs() {
   const pathname = usePathname();
 
   return (
-    <nav className="border-b border-stone-200 dark:border-stone-800 bg-background">
+    <nav className="border-b border-border bg-background">
       <div className="max-w-6xl mx-auto px-4 flex items-center gap-1">
         {TOOLS.map((tool) => {
           const href = tool.href ?? `/tools/${tool.id}`;
@@ -31,8 +31,8 @@ export function ToolTabs() {
               className={cn(
                 "flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors",
                 isActive
-                  ? "border-stone-900 text-stone-900 dark:border-stone-100 dark:text-stone-100"
-                  : "border-transparent text-stone-500 hover:text-stone-800 dark:hover:text-stone-300",
+                  ? "border-foreground text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
               )}
             >
               <tool.icon className="w-4 h-4" />
