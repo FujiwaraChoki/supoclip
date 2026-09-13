@@ -12,6 +12,8 @@ export type TaskGenerationSettings = {
   pauseThresholdMs: string;
   removeFillerWords: boolean;
   filteredWords: string;
+  /** 0-100 slider (0 = off, 100 = most aggressive); null = use the manual toggles above. */
+  cleanupSensitivity: number | null;
   hookStyle: HookStyle;
   socialOverlay: SocialOverlay;
   brollSettings: BrollSettings;

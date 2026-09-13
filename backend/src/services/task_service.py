@@ -692,18 +692,21 @@ class TaskService:
             "pause_threshold_ms": metadata.get("pause_threshold_ms"),
             "remove_filler_words": metadata.get("remove_filler_words"),
             "filtered_words": metadata.get("filtered_words"),
+            "sensitivity": metadata.get("sensitivity"),
         }
         normalized_cleanup_settings = normalize_clip_cleanup_settings(
             cleanup_payload.get("cut_long_pauses"),
             cleanup_payload.get("pause_threshold_ms"),
             cleanup_payload.get("remove_filler_words"),
             cleanup_payload.get("filtered_words"),
+            cleanup_payload.get("sensitivity"),
         )
         existing_cleanup_settings = normalize_clip_cleanup_settings(
             metadata.get("cut_long_pauses"),
             metadata.get("pause_threshold_ms"),
             metadata.get("remove_filler_words"),
             metadata.get("filtered_words"),
+            metadata.get("sensitivity"),
         )
         should_recompute_cleanup = (
             cleanup_settings is not None
@@ -1265,5 +1268,6 @@ class TaskService:
                 parsed.get("pause_threshold_ms"),
                 parsed.get("remove_filler_words"),
                 parsed.get("filtered_words"),
+                parsed.get("sensitivity"),
             ),
         }
