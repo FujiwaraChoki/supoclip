@@ -180,6 +180,7 @@ def create_app(
     from .api.routes.templates import router as templates_router
     from .api.routes.content_policy import router as content_policy_router
     from .api.routes.metadata import router as metadata_router
+    from .api.routes.batch_queue import router as batch_queue_router
 
     app.include_router(media_router)
     app.include_router(feedback_router)
@@ -188,6 +189,7 @@ def create_app(
     app.include_router(templates_router)
     app.include_router(content_policy_router)
     app.include_router(metadata_router)
+    app.include_router(batch_queue_router)
 
     @app.get("/")
     def read_root():

@@ -134,6 +134,38 @@ async def process_video_task(
             # Error will be caught by arq and task status will be updated
             raise
 
+
+async def process_batch_queue_task(ctx: Dict[str, Any], batch_queue_id: str) -> None:
+    """Background worker job for a batch queue: walks its items sequentially
+    (see BatchQueueService.run_batch). Pause/cancel is signaled the same way
+    single-task cancellation is — a Redis key checked between items."""
+    from ..database import AsyncSessionLocal
+    from ..runtime_settings import load_runtime_settings_cache
+    from ..services.batch_queue_service import BatchQueueService
+
+    set_trace_id(f"batch-{batch_queue_id}")
+    logger.info(f"Worker processing batch queue {batch_queue_id}")
+
+    async def should_pause_or_cancel() -> Optional[str]:
+        cancelled = await ctx["redis"].get(f"batch_cancel:{batch_queue_id}")
+        if cancelled:
+            return "cancel"
+        paused = await ctx["redis"].get(f"batch_pause:{batch_queue_id}")
+        if paused:
+            return "pause"
+        return None
+
+    async with AsyncSessionLocal() as db:
+        await load_runtime_settings_cache(db)
+        try:
+            await BatchQueueService(db).run_batch(
+                batch_queue_id, should_pause_or_cancel=should_pause_or_cancel
+            )
+        except Exception:
+            logger.exception("Batch queue %s failed", batch_queue_id)
+            raise
+
+
 # Worker configuration for arq
 class WorkerSettings:
     """Configuration for arq worker."""
@@ -144,7 +176,7 @@ class WorkerSettings:
     config = Config()
 
     # Functions to run
-    functions = [process_video_task]
+    functions = [process_video_task, process_batch_queue_task]
     queue_name = "supoclip_tasks"
 
     # Redis settings from environment

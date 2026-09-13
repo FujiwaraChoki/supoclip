@@ -15,6 +15,7 @@ from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from .config import Config, get_config
+from .retry_backoff import is_rate_limit_error, with_exponential_backoff
 from .runtime_settings import apply_settings_to_process_env
 from .workers.resource_locks import resource_slot
 
@@ -634,7 +635,11 @@ async def run_with_llm_fallback(
                     output_retries=2,
                     model_settings=model_settings,
                 )
-                result = await gemini_agent.run(prompt)
+                result = await with_exponential_backoff(
+                    lambda: gemini_agent.run(prompt),
+                    max_retries=4,
+                    retryable=is_rate_limit_error,
+                )
                 return result.output, "gemini"
             except Exception as exc:
                 logger.warning("Gemini fallback also failed (%s)", exc)
