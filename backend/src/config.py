@@ -127,6 +127,13 @@ class Config:
         self.fast_mode_transcript_model = os.getenv(
             "FAST_MODE_TRANSCRIPT_MODEL", "universal"
         )
+        # Whether the user has opted into GPU-accelerated rendering. Whether
+        # a render actually uses the GPU also depends on hardware being
+        # detected at render time (video_utils.detect_gpu_encoder) — this
+        # flag alone never guarantees it.
+        self.gpu_acceleration_enabled = (
+            self._get_runtime_setting("GPU_ACCELERATION_ENABLED") or "false"
+        ).strip().lower() == "true"
 
     def max_youtube_video_duration_for_plan(
         self, plan: str | None, subscription_status: str | None
@@ -187,6 +194,7 @@ class Config:
             "CLIP_DURATION": str(self.clip_duration),
             "DEFAULT_PROCESSING_MODE": self.default_processing_mode,
             "FAST_MODE_MAX_CLIPS": str(self.fast_mode_max_clips),
+            "GPU_ACCELERATION_ENABLED": "true" if self.gpu_acceleration_enabled else "false",
         }
 
     @staticmethod

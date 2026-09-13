@@ -13,6 +13,7 @@ import { Slider } from "@/components/ui/slider";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import { DEFAULT_HOOK_STYLE, hookStylePayload, type HookAnimation, type HookPosition, type HookStyle } from "@/lib/hook-style";
+import { splitHookIntoHighlightSpans } from "@/lib/hook-highlight";
 import { TemplatePicker, type TemplateInfo } from "@/components/template-picker";
 import {
   DEFAULT_BROLL_SETTINGS,
@@ -621,7 +622,15 @@ export default function VideoProcessingPage() {
                       textShadow: (hookStyle.hook_shadow ?? true) ? "0 2px 4px rgba(0,0,0,0.7)" : "none",
                     }}
                   >
-                    This <span style={{ color: hookStyle.hook_highlight_color ?? "#FFE000" }}>Changes</span> Everything
+                    {splitHookIntoHighlightSpans("This Changes Everything").map((span, index) => (
+                      <span
+                        key={index}
+                        style={span.highlighted ? { color: hookStyle.hook_highlight_color ?? "#FFE000" } : undefined}
+                      >
+                        {index > 0 ? " " : ""}
+                        {span.text}
+                      </span>
+                    ))}
                   </span>
                 </div>
 

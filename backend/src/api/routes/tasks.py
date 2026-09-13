@@ -2,7 +2,7 @@
 Task API routes using refactored architecture.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
@@ -354,10 +354,17 @@ def _build_public_task(task: Dict[str, Any], share_token: str) -> Dict[str, Any]
 
 @router.get("/")
 async def list_tasks(
-    request: Request, db: AsyncSession = Depends(get_db), limit: int = 50
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(50, ge=1, le=500),
 ):
     """
     Get all tasks for the authenticated user.
+
+    Default limit stays 50 for callers that don't ask for more, but the
+    /list page's "select all" needs to actually see everything selectable —
+    it explicitly requests the max (500) so select-all-and-delete can't
+    silently miss tasks past whatever the default page size happens to be.
     """
     user_id = await _get_user_id_from_headers(request, db)
 
@@ -577,7 +584,9 @@ async def get_shared_clip_file(
 
 @router.get("/trash")
 async def list_trash(
-    request: Request, db: AsyncSession = Depends(get_db), limit: int = 50
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(50, ge=1, le=500),
 ):
     """List the authenticated user's soft-deleted (trashed) tasks.
 

@@ -88,6 +88,7 @@ services:
       - ./backend/fonts:/app/fonts
       - ./backend/transitions:/app/transitions
       - ./backend/sfx:/app/sfx
+      - ./backend/assets:/app/assets
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -195,6 +196,7 @@ services:
       - ./backend/fonts:/app/fonts
       - ./backend/transitions:/app/transitions
       - ./backend/sfx:/app/sfx
+      - ./backend/assets:/app/assets
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1

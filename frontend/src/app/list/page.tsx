@@ -72,7 +72,10 @@ const ACTIVE_TASK_STATUSES = ["queued", "processing"];
 const RESUMABLE_TASK_STATUSES = ["cancelled", "error"];
 
 async function fetchTasksList() {
-  const response = await fetch("/api/tasks/", {
+  // The backend defaults to 50 tasks/request; "select all" on this page
+  // needs to actually see every task, not just the first page, or it
+  // silently only selects (and deletes) whatever happened to be loaded.
+  const response = await fetch("/api/tasks/?limit=500", {
     cache: "no-store",
   });
 

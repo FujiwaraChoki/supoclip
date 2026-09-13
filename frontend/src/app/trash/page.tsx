@@ -31,7 +31,7 @@ interface Task {
 }
 
 async function fetchTrashList() {
-  const response = await fetch("/api/tasks/trash", { cache: "no-store" });
+  const response = await fetch("/api/tasks/trash?limit=500", { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`Failed to fetch trash: ${response.status}`);
   }

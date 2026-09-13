@@ -45,9 +45,16 @@ from .font_registry import FONTS_DIR, find_font_path, get_font_family_name
 logger = logging.getLogger(__name__)
 TRANSCRIPT_CACHE_SCHEMA_VERSION = 2
 VALID_OUTPUT_FORMATS = {"vertical", "vertical_pan", "vertical_split", "original"}
-# Family name of the bundled colour-emoji font (fonts/NotoColorEmoji.ttf). We
-# force it explicitly per-emoji via an ASS \fn override so libass renders colour
-# emojis reliably instead of depending on automatic Unicode font fallback.
+# Family name libass is asked for when a caption wants an emoji glyph (forced
+# per-emoji via an ASS \fn override rather than relying on automatic Unicode
+# font fallback). Not bundled: this project's ffmpeg/libass build cannot
+# composite full-colour glyphs via the subtitles filter regardless of which
+# colour-emoji font is installed or how it's supplied (verified directly —
+# neither a system-installed Noto Color Emoji (CBDT/bitmap) nor a bundled
+# Twemoji Mozilla (COLR/CPAL) font renders any pixels through this path), so
+# `emoji_rendering_supported()` below reliably self-diagnoses to False and
+# caption emoji injection stays off. Burned-in emoji reactions use true-colour
+# image overlays instead (see emoji_reactions.py / backend/assets/emoji/).
 EMOJI_FONT_NAME = "Noto Color Emoji"
 CLIP_END_SENTENCE_EXTENSION_SECONDS = 3.0
 CLIP_END_PADDING_SECONDS = 0.35
@@ -1271,12 +1278,79 @@ AUDIO_BITRATE = "192k"
 LOUDNORM_FILTER = "loudnorm=I=-14:TP=-1.5:LRA=11"
 
 
+_GPU_ENCODER_CACHE: Optional[str] = None  # None = unchecked; "" = none available
+
+
+def detect_gpu_encoder() -> Optional[str]:
+    """The working hardware H.264 encoder name, or None if unavailable.
+
+    Only NVENC is probed today — VAAPI/QSV each need their own device/filter
+    setup (hwupload, format negotiation, etc.), which is a real pipeline
+    change per vendor, not a one-line encoder swap; adding them is tracked as
+    follow-up, not built here. Actually attempts a trivial encode rather than
+    just checking ffmpeg's compiled encoder list, since an NVENC-capable
+    ffmpeg build with no NVIDIA GPU/driver present would otherwise report
+    "supported" and then fail for real at render time — same probe-don't-
+    assume approach as `emoji_rendering_supported()`.
+    """
+    global _GPU_ENCODER_CACHE
+    if _GPU_ENCODER_CACHE is not None:
+        return _GPU_ENCODER_CACHE or None
+
+    found = ""
+    try:
+        probe = run_ffmpeg_command(
+            [
+                "ffmpeg", "-y",
+                "-f", "lavfi", "-i", "color=c=black:s=64x64:d=0.1",
+                "-c:v", "h264_nvenc",
+                "-frames:v", "1",
+                "-f", "null", "-",
+            ],
+            timeout=20,
+        )
+        if probe.returncode == 0:
+            found = "h264_nvenc"
+    except Exception as exc:
+        logger.info("GPU encoder probe failed (%s); falling back to CPU encoding", exc)
+
+    _GPU_ENCODER_CACHE = found
+    logger.info("GPU (NVENC) encoding available: %s", bool(found))
+    return found or None
+
+
 def build_final_video_encode_args(
     crf: int = FINAL_VIDEO_CRF,
     preset: str = FINAL_VIDEO_PRESET,
     fps: int = OUTPUT_FPS,
+    use_gpu: bool = False,
 ) -> List[str]:
-    """libx264 args for the quality-determining final pass (CFR, H.264 High)."""
+    """Video encode args for the quality-determining final pass (CFR, H.264 High).
+
+    `use_gpu` reflects the user's GPU-acceleration setting, but is only ever
+    honoured if `detect_gpu_encoder()` confirms a working encoder is actually
+    present — the setting can say "on" while the toggle itself is disabled
+    for another reason, and hardware can also disappear between when the
+    setting was saved and when a render runs, so this always re-verifies
+    rather than trusting the flag blindly. Falls back to libx264 silently
+    (successfully) whenever GPU isn't actually usable, which is the correct
+    behaviour here — the *setting* is where "disabled with a clear reason"
+    is surfaced (see admin runtime settings), not a failed render.
+    """
+    encoder = detect_gpu_encoder() if use_gpu else None
+    if encoder == "h264_nvenc":
+        return [
+            "-c:v", "h264_nvenc",
+            "-preset", "p4",
+            "-tune", "hq",
+            "-rc", "vbr",
+            "-cq", str(crf),
+            "-b:v", "0",
+            "-pix_fmt", "yuv420p",
+            "-profile:v", "high",
+            "-level", "4.1",
+            "-r", str(fps),
+        ]
     return [
         "-c:v", "libx264",
         "-preset", preset,
@@ -2204,15 +2278,26 @@ def build_assemblyai_ass_subtitles(
         if has_reactions:
             # Deferred import: `emoji_reactions` imports helpers from this
             # module, so importing at module load time would be circular.
-            from .emoji_reactions import build_emoji_reactions_ass
-
-            reactions_style_line, reactions_events = build_emoji_reactions_ass(
-                reactions,
-                video_width,
-                video_height,
+            from .emoji_reactions import (
+                build_emoji_reactions_ass,
+                split_reactions_by_asset_availability,
             )
-            if reactions_style_line:
-                reactions_block = f"{reactions_style_line}\n"
+
+            # Reactions with a bundled Twemoji asset are burned as image
+            # overlays in a separate ffmpeg pass after this render (see
+            # create_optimized_clip) — ffmpeg's subtitles filter can't
+            # composite full-colour glyphs. Only reactions with no bundled
+            # asset fall back to the (possibly monochrome/tofu) ASS-text
+            # path, so nothing is silently dropped.
+            _, ass_fallback_reactions = split_reactions_by_asset_availability(reactions)
+            if ass_fallback_reactions:
+                reactions_style_line, reactions_events = build_emoji_reactions_ass(
+                    ass_fallback_reactions,
+                    video_width,
+                    video_height,
+                )
+                if reactions_style_line:
+                    reactions_block = f"{reactions_style_line}\n"
 
     # Contextual emoji + emphasis annotations over the whole clip word list.
     emoji_by_idx, emphasis_idx = annotate_caption_words(
@@ -3259,6 +3344,7 @@ def render_reframed_clip_ffmpeg(
         else None
     )
     audio_args = build_audio_output_args(has_audio)
+    use_gpu = get_config().gpu_acceleration_enabled
 
     if output_format == "original":
         out_w, out_h = round_to_even(width), round_to_even(height)
@@ -3268,7 +3354,7 @@ def render_reframed_clip_ffmpeg(
         command = [
             "ffmpeg", "-y", "-i", str(input_path),
             "-vf", f"{subs},setsar=1",
-            *build_final_video_encode_args(),
+            *build_final_video_encode_args(use_gpu=use_gpu),
             *audio_args,
             "-movflags", "+faststart",
             str(output_path),
@@ -3297,7 +3383,7 @@ def render_reframed_clip_ffmpeg(
             "ffmpeg", "-y", "-i", str(input_path),
             "-filter_complex", video_filter,
             "-map", "[v]", "-map", "0:a?",
-            *build_final_video_encode_args(),
+            *build_final_video_encode_args(use_gpu=use_gpu),
             *audio_args,
             "-movflags", "+faststart",
             str(output_path),
@@ -3314,7 +3400,7 @@ def render_reframed_clip_ffmpeg(
         command = [
             "ffmpeg", "-y", "-i", str(input_path),
             "-vf", video_filter,
-            *build_final_video_encode_args(),
+            *build_final_video_encode_args(use_gpu=use_gpu),
             *audio_args,
             "-movflags", "+faststart",
             str(output_path),
@@ -3335,7 +3421,7 @@ def render_reframed_clip_ffmpeg(
             "ffmpeg", "-y", "-i", str(input_path),
             "-filter_complex", graph,
             "-map", map_label, "-map", "0:a?",
-            *build_final_video_encode_args(),
+            *build_final_video_encode_args(use_gpu=use_gpu),
             *audio_args,
             "-movflags", "+faststart",
             str(output_path),
@@ -3347,7 +3433,7 @@ def render_reframed_clip_ffmpeg(
     command = [
         "ffmpeg", "-y", "-i", str(input_path),
         "-vf", video_filter,
-        *build_final_video_encode_args(),
+        *build_final_video_encode_args(use_gpu=use_gpu),
         *audio_args,
         "-movflags", "+faststart",
         str(output_path),
@@ -4064,6 +4150,37 @@ def create_optimized_clip(
                 raise RuntimeError("ffmpeg reframe render failed")
 
             shutil.move(str(final_clip_path), str(output_path))
+
+            if reactions:
+                from .emoji_reactions import (
+                    overlay_emoji_reactions_ffmpeg,
+                    split_reactions_by_asset_availability,
+                )
+
+                overlayable_reactions, _ = split_reactions_by_asset_availability(reactions)
+                if overlayable_reactions:
+                    reactions_out_path = temp_root / "with_reactions.mp4"
+                    try:
+                        overlay_ok = overlay_emoji_reactions_ffmpeg(
+                            output_path,
+                            reactions_out_path,
+                            overlayable_reactions,
+                            target_width,
+                            target_height,
+                        )
+                    except Exception:
+                        overlay_ok = False
+                        logger.exception(
+                            "Emoji reaction overlay pass raised for %s", output_path
+                        )
+                    if overlay_ok:
+                        shutil.move(str(reactions_out_path), str(output_path))
+                        enforce_size_cap(output_path)
+                    else:
+                        logger.warning(
+                            "Emoji reaction overlay pass failed for %s; clip kept without image-overlay reactions",
+                            output_path,
+                        )
 
             sfx_name = (hook_style or {}).get("hook_sfx") if hook_title else None
             sfx_path = find_sfx_path(sfx_name)

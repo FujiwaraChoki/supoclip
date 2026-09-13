@@ -34,6 +34,7 @@ const EXPORT_SETTING_KEYS = new Set([
   "CLIP_DURATION",
   "DEFAULT_PROCESSING_MODE",
   "FAST_MODE_MAX_CLIPS",
+  "GPU_ACCELERATION_ENABLED",
 ]);
 
 type SfxFile = { name: string; display_name: string };
@@ -429,8 +430,8 @@ export default function SettingsPage() {
                   Export
                 </h3>
                 <p className="text-sm text-gray-600">
-                  Defaults for clip count, duration, and processing mode. Persisted here, with
-                  your .env values as fallback.
+                  Defaults for clip count, duration, processing mode, and rendering. Persisted
+                  here, with your .env values as fallback.
                 </p>
               </div>
               <div className="rounded-lg border border-gray-200 bg-background">

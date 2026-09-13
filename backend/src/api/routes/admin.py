@@ -111,6 +111,12 @@ SETTING_METADATA = {
         "description": "Clip cap applied specifically to fast processing mode.",
         "input_type": "text",
     },
+    "GPU_ACCELERATION_ENABLED": {
+        "label": "GPU acceleration",
+        "description": "Use hardware-accelerated video encoding (NVENC) for rendering when available.",
+        "input_type": "select",
+        "options": ["true", "false"],
+    },
 }
 
 
@@ -153,6 +159,16 @@ def _setting_status(
         elif source == "environment":
             current_value = env_value
 
+    disabled_reason: str | None = None
+    if setting_key == "GPU_ACCELERATION_ENABLED":
+        from ...video_utils import detect_gpu_encoder
+
+        if not detect_gpu_encoder():
+            disabled_reason = (
+                "No supported GPU encoder (NVENC) detected on this machine — "
+                "rendering will keep using CPU encoding regardless of this setting."
+            )
+
     return {
         "key": setting_key,
         "label": metadata["label"],
@@ -167,6 +183,7 @@ def _setting_status(
         "overridden_by_env": has_env and has_admin_value and not prefer_admin_value,
         "updated_at": row.get("updated_at"),
         "current_value": current_value,
+        "disabled_reason": disabled_reason,
     }
 
 

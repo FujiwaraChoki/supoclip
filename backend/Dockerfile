@@ -2,12 +2,16 @@
 FROM python:3.11-slim
 
 # Install system dependencies including ffmpeg and unzip (for deno).
-# fonts-noto-color-emoji lets libass render colour emojis in burned captions.
+# Note: fonts-noto-color-emoji does NOT make burned-in captions/hooks
+# render colour emoji — this ffmpeg/libass build cannot composite full-colour
+# glyphs (COLR or bitmap/CBDT) via the subtitles filter regardless of which
+# colour-emoji font is installed (verified directly; see backend/src/
+# emoji_reactions.py's module docstring). Burned-in emoji reactions are
+# rendered as true-colour image overlays instead (backend/assets/emoji/).
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
     unzip \
-    fonts-noto-color-emoji \
     fontconfig \
     && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
@@ -37,10 +41,11 @@ RUN uv pip install --upgrade --force-reinstall "yt-dlp[default]"
 # Copy source code
 COPY src/ ./src/
 
-# Copy fonts, transitions, and sfx directories
+# Copy fonts, transitions, sfx, and emoji-reaction assets
 COPY fonts/ ./fonts/
 COPY transitions/ ./transitions/
 COPY sfx/ ./sfx/
+COPY assets/ ./assets/
 
 # Create necessary directories for video processing
 RUN mkdir -p /app/uploads /app/clips /app/logs /tmp

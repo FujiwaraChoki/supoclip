@@ -1,0 +1,21 @@
+Twemoji 72x72 PNG assets
+========================
+
+Source:  https://github.com/jdecked/twemoji (actively-maintained fork of the
+         original Twitter Twemoji project)
+Version: v17.0.3
+Files:   one PNG per codepoint (filename = lowercase hex codepoint, variation
+         selectors stripped, matching Twemoji's own asset naming convention),
+         covering exactly the emoji offered by the reaction picker
+         (frontend/src/components/ui/emoji-picker.tsx's REACTION_EMOJIS).
+
+Code:     MIT License - https://opensource.org/licenses/MIT
+Graphics: CC-BY 4.0    - https://creativecommons.org/licenses/by/4.0/
+Copyright (c) 2022-present Jason Sofonia & Justine De Caires
+Copyright (c) 2014-2021 Twitter, Inc and other contributors
+
+Used to burn true-color emoji reactions into exported clips via ffmpeg's
+`overlay` filter (see backend/src/emoji_reactions.py) — ffmpeg's ASS/
+subtitles filter cannot composite full-color glyphs (COLR or bitmap/CBDT)
+from a font in this project's ffmpeg build, so reactions are rendered as
+image overlays instead of text glyphs.

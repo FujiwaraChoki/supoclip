@@ -150,6 +150,7 @@ interface TaskDetails {
   clips_count: number;
   created_at: string;
   updated_at: string;
+  started_at?: string | null;
   font_family?: string | null;
   font_size?: number | null;
   font_color?: string | null;
@@ -176,6 +177,11 @@ export default function TaskPage() {
   const [progressMessage, setProgressMessage] = useState("");
   const [progressStage, setProgressStage] = useState<string | null>(null);
   const [renderingClip, setRenderingClip] = useState<{ index: number; total: number } | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  // Wall-clock time this run entered the render stage, and the render-stage
+  // progress observed at that moment — lets the ETA be computed from this
+  // run's own observed per-clip render speed instead of a guessed constant.
+  const renderStageRef = useRef<{ enteredAt: number; index: number } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -489,6 +495,49 @@ export default function TaskPage() {
       eventSource.close();
     };
   }, [params.id, task?.status, fetchTaskStatus, taskApiUrl, triggerAutoRefresh]); // Re-run when task status changes
+
+  // Elapsed-time ticker, driven by the task's own started_at (falling back to
+  // created_at for a still-queued task) rather than "time since this tab
+  // opened", so it survives a page refresh mid-processing.
+  useEffect(() => {
+    if (task?.status !== "queued" && task?.status !== "processing") return;
+    const startedAt = task.started_at || task.created_at;
+    if (!startedAt) return;
+    const startMs = new Date(startedAt).getTime();
+    if (Number.isNaN(startMs)) return;
+
+    const tick = () => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [task?.status, task?.started_at, task?.created_at]);
+
+  // Marks the moment this run entered the render stage (and the clip index
+  // at that moment) so the ETA below can be derived from this run's own
+  // observed per-clip render speed instead of a guessed constant.
+  useEffect(() => {
+    if (progressStage !== "render") {
+      renderStageRef.current = null;
+      return;
+    }
+    if (!renderStageRef.current) {
+      renderStageRef.current = { enteredAt: Date.now(), index: renderingClip?.index ?? 0 };
+    }
+  }, [progressStage, renderingClip?.index]);
+
+  // Never fabricate an ETA: only shown once we have a real, this-run signal
+  // to derive it from (observed per-clip render time during the render
+  // stage) — every earlier stage honestly shows "estimating…" instead of a
+  // guessed number.
+  const estimatedSecondsRemaining = (() => {
+    if (progressStage !== "render" || !renderingClip || !renderStageRef.current) return null;
+    const clipsDoneSinceEntering = renderingClip.index - renderStageRef.current.index;
+    if (clipsDoneSinceEntering <= 0) return null;
+    const secondsSinceEntering = (Date.now() - renderStageRef.current.enteredAt) / 1000;
+    const secondsPerClip = secondsSinceEntering / clipsDoneSinceEntering;
+    const clipsRemaining = renderingClip.total - renderingClip.index;
+    return Math.max(0, Math.round(secondsPerClip * clipsRemaining));
+  })();
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -1338,6 +1387,13 @@ export default function TaskPage() {
                     />
                   </div>
                   <p className="text-[11px] text-neutral-400 text-center mt-3 tabular-nums">{progress}%</p>
+                  <p className="text-[11px] text-neutral-400 text-center mt-1 tabular-nums">
+                    Elapsed {formatDuration(elapsedSeconds)}
+                    {" · "}
+                    {estimatedSecondsRemaining !== null
+                      ? `~${formatDuration(estimatedSecondsRemaining)} remaining`
+                      : "estimating…"}
+                  </p>
                 </div>
               )}
 

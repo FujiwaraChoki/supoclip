@@ -22,6 +22,10 @@ export type RuntimeSetting = {
   updated_at?: string | null;
   /** Live effective value. Always null for password-type settings. */
   current_value?: string | null;
+  /** When set, this setting can't actually take effect right now (e.g. no
+   * GPU detected) — the field is shown disabled with this explanation
+   * rather than silently accepting a value that won't do anything. */
+  disabled_reason?: string | null;
 };
 
 type RuntimeSettingsFormProps = {
@@ -165,27 +169,33 @@ export function RuntimeSettingsForm({ settings, onSaved }: RuntimeSettingsFormPr
 
             <div>
               {setting.input_type === "select" ? (
-                <select
-                  value={values[setting.key] ?? ""}
-                  onChange={(event) =>
-                    setValues((current) => ({
-                      ...current,
-                      [setting.key]: event.target.value,
-                    }))
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-black outline-none focus:border-black"
-                >
-                  <option value="">
-                    {setting.configured
-                      ? `Keep current (${setting.current_value ?? "configured"})`
-                      : "Select a value"}
-                  </option>
-                  {(setting.options ?? []).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
+                <>
+                  <select
+                    value={values[setting.key] ?? ""}
+                    disabled={!!setting.disabled_reason}
+                    onChange={(event) =>
+                      setValues((current) => ({
+                        ...current,
+                        [setting.key]: event.target.value,
+                      }))
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-black outline-none focus:border-black disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                  >
+                    <option value="">
+                      {setting.configured
+                        ? `Keep current (${setting.current_value ?? "configured"})`
+                        : "Select a value"}
                     </option>
-                  ))}
-                </select>
+                    {(setting.options ?? []).map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                  {setting.disabled_reason && (
+                    <p className="mt-1 text-xs text-amber-700">{setting.disabled_reason}</p>
+                  )}
+                </>
               ) : (
                 <input
                   type={setting.input_type}
