@@ -93,6 +93,34 @@ First startup takes a few minutes; watch it with `docker-compose logs -f`. Once 
 
 To use a different LLM provider, self-host with Ollama, or configure the optional pieces (B-roll, analytics, emails, YouTube metadata), see the [configuration guide](docs/configuration.md). If something misbehaves, the [troubleshooting guide](docs/troubleshooting.md) covers the common failure modes.
 
+## Local LLM Setup
+
+Content-policy detection and metadata generation (title/description/tag suggestions) run on a **local Ollama model by default** — free, private, and unlimited — with Gemini Flash-Lite as an optional opt-in fallback for machines without a GPU.
+
+**Install Ollama:**
+
+| OS | Command |
+|----|---------|
+| Linux | `curl -fsSL https://ollama.com/install.sh \| sh` |
+| macOS | `brew install ollama` (or download the app from [ollama.com](https://ollama.com/download)) |
+| Windows | `winget install --id Ollama.Ollama -e` (or download `OllamaSetup.exe` from ollama.com) |
+
+Then pull a model:
+
+```bash
+ollama pull llama3.2:3b   # balanced default
+ollama pull gemma2:2b     # fastest, lowest VRAM
+ollama pull qwen2.5:3b    # most reliable JSON-mode output
+```
+
+Set `OLLAMA_KEEP_ALIVE=30s` in the environment Ollama runs in so it unloads the model after 30 seconds idle, freeing VRAM for video rendering between LLM calls (see [CLAUDE.md](CLAUDE.md#local-llm-ollama) for the per-OS mechanism).
+
+**Provider choice**: in Settings → LLM Provider, choose `Ollama (local)`, `Gemini`, or `Hybrid` (Ollama-first, Gemini fallback). Gemini reuses your existing Google API key — set `GOOGLE_API_KEY` in `.env` or Settings and it's available as a fallback the moment Ollama is unreachable, provided you've opted into Hybrid/Gemini mode.
+
+**Content policy behavior**: flagged words are asterisked in captions (first letter preserved, e.g. "cocaine" → "c\*\*\*\*\*e") — audio is never censored. Sensitivity is configurable per project (Off/Low/Medium/High) and the word lists per category (sex, drugs, violence, profanity) are user-editable in Settings.
+
+**Batch workflow**: drop multiple videos into "New Clip" to queue them for sequential processing. Pick a preset (or your last-used one) once — it applies to the whole batch. Progress, pause/resume/cancel, and retry are all per-item as well as for the whole queue; a queue survives an app/backend restart and offers to resume on reopen.
+
 ## Documentation
 
 Everything beyond this page lives in [`docs/`](docs/README.md):

@@ -233,6 +233,17 @@ DATABASE_URL=postgresql+asyncpg://...
 BETTER_AUTH_SECRET=...               # Frontend auth secret (only used when REQUIRE_AUTH=true)
 ```
 
+## Local LLM (Ollama)
+
+SupoClip's content-policy detection and metadata generation features (see [Conventions](#conventions)) default to a **local Ollama model as the primary LLM**, with Gemini Flash-Lite as an explicit opt-in fallback for users without a GPU — never the other way around. This keeps those features free, private, and unlimited by default.
+
+- **Install**: `curl -fsSL https://ollama.com/install.sh | sh` (Linux, installs+starts a systemd service), `brew install ollama` (macOS), `winget install --id Ollama.Ollama -e` (Windows). See `backend/src/ollama_status.py::check_ollama_status()` for the live reachability/model-list probe used by Settings' "Test connection" action and the `OLLAMA_MODEL` dropdown — it always makes a real request rather than trusting config, mirroring `video_utils.detect_gpu_encoder()`'s probe-don't-assume approach.
+- **Recommended models**: `llama3.2:3b` (balanced default), `gemma2:2b` (fastest, lower VRAM), `qwen2.5:3b` (best JSON-mode reliability for structured output). Pull with `ollama pull <name>`.
+- **`OLLAMA_KEEP_ALIVE=30s`**: set this in the environment the `ollama serve`/service process runs in (systemd drop-in on Linux: `systemctl edit ollama`; `launchctl setenv`/shell profile on macOS; `setx` + service restart on Windows). This auto-unloads the model after 30s idle so its VRAM is freed for video rendering between LLM calls.
+- **VRAM serialization rule**: Ollama inference and ffmpeg rendering (GPU-accelerated or not) can compete for the same GPU's VRAM. `backend/src/workers/resource_locks.py` provides a Redis-backed distributed semaphore (`resource_slot(redis, name, max_concurrent)`) reused across worker processes; both LLM call sites (`ai.py`) and render call sites (`video_service.py`/`video_utils.py`) acquire the shared `"gpu"` slot (max_concurrent=1) so a local LLM call is never in flight at the same time as a render job. Remote Gemini calls intentionally skip this slot — they don't touch local VRAM.
+- **Gemini fallback**: reuses the existing `GOOGLE_API_KEY` setting (no separate Gemini-specific key) plus a `GEMINI_MODEL` setting (default `gemini-2.0-flash-lite`). Only used when Ollama is unreachable (or its output fails validation twice) *and* a Google API key is configured *and* the user has opted into the fallback (`LLM_PROVIDER_MODE=hybrid` or `gemini`). See `ai.py::run_with_llm_fallback()`.
+- **Provider selection**: Settings → LLM Provider (`Ollama (local)` / `Gemini` / `Hybrid`), with a live status indicator and "Test connection" actions for both providers.
+
 ## Conventions
 
 - **Runtime settings must always show their current effective value.** `/admin/runtime-settings` (`src/api/routes/admin.py::_setting_status`) returns a `current_value` field for every non-`password` setting (decrypted admin value or the env fallback); the frontend (`RuntimeSettingsForm`) renders it next to the label and in the input's placeholder/default option. Password-type settings intentionally never expose their value. When adding a new runtime setting, keep this contract — never hide a non-secret value behind a generic "configured"/"unset" placeholder.
