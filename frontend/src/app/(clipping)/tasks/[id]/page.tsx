@@ -36,6 +36,7 @@ import { DEFAULT_HOOK_STYLE, hookStylePayload, type HookAnimation, type HookPosi
 import { DEFAULT_SOCIAL_OVERLAY, socialOverlayPayload, type SocialOverlay } from "@/lib/retention-settings";
 import { HookTitlePreview } from "@/components/hook-title-preview";
 import { HookVariantCompare } from "@/components/hook-variant-compare";
+import { ContentPolicyProjectPanel } from "@/components/editor/content-policy-project-panel";
 import { TemplatePicker, type TemplateInfo } from "@/components/template-picker";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -77,6 +78,7 @@ const PROCESSING_STAGES = [
   { id: "transcribe", label: "Transcribe" },
   { id: "analyze", label: "Analyze" },
   { id: "render", label: "Render" },
+  { id: "policy_check", label: "Policy Check" },
   { id: "complete", label: "Done" },
 ] as const;
 
@@ -1922,6 +1924,10 @@ export default function TaskPage() {
                   <Link href="/settings/templates" className="text-xs text-muted-foreground underline block">
                     Manage templates (rename, duplicate, delete, export/import)
                   </Link>
+                </div>
+
+                <div className="px-4 pt-2">
+                  <ContentPolicyProjectPanel taskId={task.id} />
                 </div>
 
                 <SheetFooter className="gap-2">

@@ -20,6 +20,7 @@ from ..repositories.clip_repository import ClipRepository
 from ..repositories.cache_repository import CacheRepository
 from .video_service import VideoService
 from .billing_service import BillingService
+from .content_policy_service import ContentPolicyService
 from .task_completion_email_service import (
     TaskCompletionEmailService,
     TaskCompletionRecipient,
@@ -430,6 +431,22 @@ class TaskService:
                 perf_counter() - render_start, 3
             )
 
+            # Content policy scan: regex always, optional Ollama borderline
+            # check if the project opted in — one call per video, per spec.
+            # Runs after all clips exist so it can persist flags per real
+            # clip_id rather than re-deriving them from segments.
+            await update_progress(97, "Checking content policy...", stage="policy_check")
+            try:
+                clips_for_scan = await self.clip_repo.get_clips_by_task(self.db, task_id)
+                if user_id and clips_for_scan:
+                    await ContentPolicyService(self.db).scan_video(
+                        user_id, task_id, clips_for_scan
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Content policy scan failed for task %s: %s", task_id, exc
+                )
+
             # Mark as completed
             await self.task_repo.update_task_status(
                 self.db,
@@ -625,6 +642,10 @@ class TaskService:
     ) -> list[Dict[str, Any]]:
         """Get all tasks for a user."""
         return await self.task_repo.get_user_tasks(self.db, user_id, limit)
+
+    async def get_task_status_counts(self, user_id: str) -> Dict[str, int]:
+        """Status -> count for a user's non-deleted tasks."""
+        return await self.task_repo.get_status_counts(self.db, user_id)
 
     async def delete_task(self, task_id: str) -> None:
         """Soft-delete a task (moves it to trash). Clips stay associated with

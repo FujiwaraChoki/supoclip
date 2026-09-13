@@ -116,7 +116,11 @@ class ContentPolicyRepository:
         return {
             "enabled": row.enabled,
             "sensitivity": row.sensitivity,
-            "categories_enabled": json.loads(row.categories_enabled),
+            "categories_enabled": (
+                json.loads(row.categories_enabled)
+                if row.categories_enabled
+                else DEFAULT_CATEGORIES_ENABLED
+            ),
             "ollama_borderline_check_enabled": row.ollama_borderline_check_enabled,
         }
 

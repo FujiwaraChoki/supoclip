@@ -12,6 +12,7 @@ import {
   Layers,
   Palette,
   Scissors,
+  ShieldAlert,
   Smile,
   SplitSquareVertical,
   Subtitles,
@@ -23,6 +24,7 @@ import { LOCAL_USER_ID } from "@/lib/local-user";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ContentPolicyHighlight } from "@/components/editor/content-policy-highlight";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -62,6 +64,15 @@ interface TaskDetails {
   font_size?: number | null;
 }
 
+interface ContentPolicyFlag {
+  word: string;
+  category: string;
+  start: number;
+  end: number;
+  severity: "severe" | "borderline";
+  source: "regex" | "llm";
+}
+
 interface Clip {
   id: string;
   filename: string;
@@ -72,6 +83,7 @@ interface Clip {
   text: string;
   video_url: string;
   reactions?: ClipReaction[];
+  content_policy_flags?: ContentPolicyFlag[];
 }
 
 interface VideoFx {
@@ -291,6 +303,17 @@ export default function TaskEditPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleRescanContentPolicy = async () => {
+    if (!selectedClip || !task?.id) return;
+    await withSaving(async () => {
+      const response = await fetch(
+        `${taskApiUrl}/${task.id}/clips/${selectedClip.id}/content-policy/rescan`,
+        { method: "POST" }
+      );
+      if (!response.ok) throw new Error(await buildSupportError(response, "Failed to rescan clip"));
+    }, "Content policy rescanned.");
   };
 
   const handleTrim = async () => {
@@ -1040,6 +1063,47 @@ export default function TaskEditPage() {
                     <Button onClick={handleUpdateCaptions} disabled={isSaving || !selectedClip} className="w-full">
                       Save Subtitle Changes
                     </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4" />
+                      Content Policy
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {selectedClip ? (
+                      <>
+                        <p className="text-sm leading-relaxed">
+                          <ContentPolicyHighlight
+                            text={selectedClip.text}
+                            flags={selectedClip.content_policy_flags ?? []}
+                          />
+                        </p>
+                        {(selectedClip.content_policy_flags?.length ?? 0) > 0 ? (
+                          <p className="text-xs text-muted-foreground">
+                            {selectedClip.content_policy_flags?.length} term
+                            {selectedClip.content_policy_flags?.length === 1 ? "" : "s"} flagged —
+                            these will be asterisked in exported captions (audio is never censored).
+                          </p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No flagged terms.</p>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleRescanContentPolicy}
+                          disabled={isSaving}
+                          className="w-full"
+                        >
+                          Rescan
+                        </Button>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Select a clip to review.</p>
+                    )}
                   </CardContent>
                 </Card>
 

@@ -15,7 +15,7 @@ import { LOCAL_USER_ID } from "@/lib/local-user";
 import { formatBillingPlanName, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight, Mic, Music, SlidersHorizontal, Download, LayoutTemplate } from "lucide-react";
+import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight, Mic, Music, SlidersHorizontal, Download, LayoutTemplate, ShieldAlert } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RuntimeSettingsForm, type RuntimeSetting } from "@/components/admin/runtime-settings-form";
 import { EmptyState } from "@/components/empty-state";
@@ -647,6 +647,19 @@ export default function SettingsPage() {
                     <div>
                       <p className="text-sm font-medium text-foreground">Templates</p>
                       <p className="text-xs text-muted-foreground">Reusable project settings bundles</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                </div>
+              </Link>
+
+              <Link href="/settings/content-policy" className="block">
+                <div className="flex items-center justify-between p-4 border border-border rounded-lg hover:border-foreground transition-colors">
+                  <div className="flex items-center gap-3">
+                    <ShieldAlert className="w-5 h-5 text-foreground" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Content Policy</p>
+                      <p className="text-xs text-muted-foreground">Edit flagged-word lists per category</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-muted-foreground" />

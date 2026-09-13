@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { createProxyResponse, fetchBackend } from "@/server/backend-api";
 import { getServerSession } from "@/server/session";
 
-async function proxyTaskRequest(
+async function proxyContentPolicyRequest(
   request: Request,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
@@ -14,7 +14,7 @@ async function proxyTaskRequest(
 
   const { path } = await params;
   const incomingUrl = new URL(request.url);
-  const targetPath = `/tasks/${path.join("/")}${incomingUrl.search}`;
+  const targetPath = `/content-policy/${path.join("/")}${incomingUrl.search}`;
   const body =
     request.method === "GET" || request.method === "HEAD"
       ? undefined
@@ -26,15 +26,6 @@ async function proxyTaskRequest(
     extraHeaders: {
       ...(body && request.headers.get("content-type")
         ? { "Content-Type": request.headers.get("content-type") as string }
-        : {}),
-      ...(request.headers.get("accept")
-        ? { Accept: request.headers.get("accept") as string }
-        : {}),
-      ...(request.headers.get("range")
-        ? { Range: request.headers.get("range") as string }
-        : {}),
-      ...(request.headers.get("if-range")
-        ? { "If-Range": request.headers.get("if-range") as string }
         : {}),
     },
     body,
@@ -48,33 +39,19 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ path: string[] }> }
 ) {
-  return proxyTaskRequest(request, context);
-}
-
-export async function POST(
-  request: Request,
-  context: { params: Promise<{ path: string[] }> }
-) {
-  return proxyTaskRequest(request, context);
-}
-
-export async function PATCH(
-  request: Request,
-  context: { params: Promise<{ path: string[] }> }
-) {
-  return proxyTaskRequest(request, context);
+  return proxyContentPolicyRequest(request, context);
 }
 
 export async function PUT(
   request: Request,
   context: { params: Promise<{ path: string[] }> }
 ) {
-  return proxyTaskRequest(request, context);
+  return proxyContentPolicyRequest(request, context);
 }
 
-export async function DELETE(
+export async function POST(
   request: Request,
   context: { params: Promise<{ path: string[] }> }
 ) {
-  return proxyTaskRequest(request, context);
+  return proxyContentPolicyRequest(request, context);
 }

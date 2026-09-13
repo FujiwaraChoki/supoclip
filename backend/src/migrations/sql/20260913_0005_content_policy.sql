@@ -15,11 +15,16 @@ CREATE TABLE IF NOT EXISTS content_policy_word_lists (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_content_policy_word_lists_user_category
     ON content_policy_word_lists(user_id, category);
 
+-- No SQL-level default for categories_enabled: it's a JSON blob (would need
+-- awkward colon-escaping in a raw text() DEFAULT literal, since SQLAlchemy's
+-- text() parses bare ":" as a bind-parameter marker). ContentPolicyRepository
+-- always writes an explicit value on insert and supplies the equivalent
+-- Python-level default (DEFAULT_CATEGORIES_ENABLED) when no row exists yet.
 CREATE TABLE IF NOT EXISTS content_policy_project_settings (
     task_id VARCHAR(36) PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
     sensitivity VARCHAR(10) NOT NULL DEFAULT 'medium',
-    categories_enabled TEXT NOT NULL DEFAULT '{"sex":true,"drugs":true,"violence":false,"profanity":false}',
+    categories_enabled TEXT,
     ollama_borderline_check_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
