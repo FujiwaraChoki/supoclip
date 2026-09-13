@@ -19,6 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Sheet,
   SheetContent,
@@ -212,6 +213,11 @@ export default function TaskPage() {
   }, []);
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
   const [regeneratingHookClipId, setRegeneratingHookClipId] = useState<string | null>(null);
+  const [exportAllOpen, setExportAllOpen] = useState(false);
+  const [exportAllRunning, setExportAllRunning] = useState(false);
+  const [exportAllStatus, setExportAllStatus] = useState<
+    Record<string, "pending" | "exporting" | "retrying" | "success" | "failed">
+  >({});
   const [projectTemplates, setProjectTemplates] = useState<
     Array<{ id: string; name: string; section_count: number }>
   >([]);
@@ -886,28 +892,110 @@ export default function TaskPage() {
     }
   };
 
-  const handleExportClip = async (clipId: string, fallbackFilename: string) => {
-    if (!session?.user?.id || !task?.id) return;
+  // Shared by the single-clip download/export button and "Export All Clips":
+  // triggers a browser download for one clip and returns whether it
+  // succeeded instead of toasting directly, so the batch flow can decide when
+  // to surface a toast (once, with an aggregate result) instead of one per
+  // clip. "original" is a frontend-only sentinel (not a real backend preset,
+  // see EXPORT_PRESETS) meaning "download the rendered file as-is" — same
+  // special case handleDownloadClip already used for a single clip.
+  const exportClipFile = async (clip: Clip, preset: string): Promise<{ ok: boolean; error?: string }> => {
+    if (!session?.user?.id || !task?.id) return { ok: false, error: "Not ready" };
 
-    const response = await fetch(`${taskApiUrl}/${task.id}/clips/${clipId}/export?preset=${exportPreset}`, {
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      toast.error(await buildSupportError(response, "Failed to export clip"));
-      return;
+    if (preset === "original") {
+      const link = document.createElement("a");
+      link.href = getClipUrl(clip.video_url);
+      link.download = clip.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      return { ok: true };
     }
 
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = blobUrl;
-    link.download = `${fallbackFilename.replace(/\.mp4$/i, "")}_${exportPreset}.mp4`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(blobUrl);
+    try {
+      const response = await fetch(`${taskApiUrl}/${task.id}/clips/${clip.id}/export?preset=${preset}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        return { ok: false, error: await buildSupportError(response, "Failed to export clip") };
+      }
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = `${clip.filename.replace(/\.mp4$/i, "")}_${preset}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Failed to export clip" };
+    }
+  };
+
+  const handleExportClip = async (clipId: string, fallbackFilename: string) => {
+    const clip = clips.find((c) => c.id === clipId) ?? {
+      id: clipId,
+      filename: fallbackFilename,
+      video_url: "",
+    } as Clip;
+    const result = await exportClipFile(clip, exportPreset);
+    if (!result.ok) {
+      toast.error(result.error || "Failed to export clip");
+      return;
+    }
     toast.success("Clip exported.");
+  };
+
+  // Exports every clip in sequence (not parallel — one export renders at a
+  // time on the backend already, and sequential downloads avoid the browser's
+  // multi-download popup-blocker). One retry per failed clip before it's
+  // marked failed; one clip failing never stops the rest of the batch.
+  const handleExportAllClips = async () => {
+    if (clips.length === 0) return;
+    setExportAllRunning(true);
+    setExportAllOpen(true);
+    const initialStatus: Record<string, "pending"> = {};
+    for (const clip of clips) initialStatus[clip.id] = "pending";
+    setExportAllStatus(initialStatus);
+
+    const failures: string[] = [];
+    let succeeded = 0;
+
+    for (const clip of clips) {
+      setExportAllStatus((current) => ({ ...current, [clip.id]: "exporting" }));
+      let result = await exportClipFile(clip, exportPreset);
+      if (!result.ok) {
+        setExportAllStatus((current) => ({ ...current, [clip.id]: "retrying" }));
+        result = await exportClipFile(clip, exportPreset);
+      }
+      if (result.ok) {
+        succeeded += 1;
+        setExportAllStatus((current) => ({ ...current, [clip.id]: "success" }));
+      } else {
+        failures.push(clip.filename);
+        setExportAllStatus((current) => ({ ...current, [clip.id]: "failed" }));
+      }
+    }
+
+    setExportAllRunning(false);
+    if (failures.length === 0) {
+      toast.success(`All ${succeeded} clips exported`);
+    } else {
+      toast.error(`${succeeded} succeeded, ${failures.length} failed: ${failures.join(", ")}`);
+    }
+  };
+
+  const handleRetryClipExport = async (clip: Clip) => {
+    setExportAllStatus((current) => ({ ...current, [clip.id]: "exporting" }));
+    const result = await exportClipFile(clip, exportPreset);
+    setExportAllStatus((current) => ({ ...current, [clip.id]: result.ok ? "success" : "failed" }));
+    if (!result.ok) {
+      toast.error(result.error || `Failed to export ${clip.filename}`);
+    } else {
+      toast.success(`${clip.filename} exported.`);
+    }
   };
 
   const handleDownloadClip = (clip: Clip) => {
@@ -1147,6 +1235,12 @@ export default function TaskPage() {
                       Open Editor
                     </Button>
                   </Link>
+                )}
+                {task.status === "completed" && clips.length > 0 && (
+                  <Button size="sm" variant="outline" onClick={handleExportAllClips} disabled={exportAllRunning}>
+                    <Download className="w-4 h-4" />
+                    {exportAllRunning ? "Exporting All..." : "Export All Clips"}
+                  </Button>
                 )}
                 {task.status === "completed" && clips.length > 0 && (
                   <Button
@@ -2101,6 +2195,64 @@ export default function TaskPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Export All Clips progress */}
+      <Dialog open={exportAllOpen} onOpenChange={(open) => !exportAllRunning && setExportAllOpen(open)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Exporting all clips</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {(() => {
+              const done = Object.values(exportAllStatus).filter((s) => s === "success" || s === "failed").length;
+              const total = clips.length;
+              const failedCount = Object.values(exportAllStatus).filter((s) => s === "failed").length;
+              return (
+                <>
+                  <p className="text-sm text-gray-600">
+                    {done} / {total} clips processed
+                    {failedCount > 0 && <span className="text-red-600"> &middot; {failedCount} failed</span>}
+                  </p>
+                  <div className="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
+                    <div
+                      className="h-full bg-gray-900 transition-all"
+                      style={{ width: total ? `${(done / total) * 100}%` : "0%" }}
+                    />
+                  </div>
+                </>
+              );
+            })()}
+            <div className="max-h-72 overflow-y-auto space-y-1.5">
+              {clips.map((clip) => {
+                const status = exportAllStatus[clip.id] || "pending";
+                return (
+                  <div key={clip.id} className="flex items-center justify-between text-sm py-1">
+                    <span className="truncate flex-1 text-gray-700">{clip.filename}</span>
+                    {status === "success" && <span className="text-green-600 text-xs">Exported</span>}
+                    {status === "failed" && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-red-600 text-xs">Failed</span>
+                        <Button size="sm" variant="outline" onClick={() => handleRetryClipExport(clip)}>
+                          Retry
+                        </Button>
+                      </div>
+                    )}
+                    {(status === "exporting" || status === "retrying") && (
+                      <span className="text-gray-500 text-xs">{status === "retrying" ? "Retrying…" : "Exporting…"}</span>
+                    )}
+                    {status === "pending" && <span className="text-gray-400 text-xs">Pending</span>}
+                  </div>
+                );
+              })}
+            </div>
+            {!exportAllRunning && (
+              <Button className="w-full" variant="outline" onClick={() => setExportAllOpen(false)}>
+                Close
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Clip Confirmation Dialog */}
       <AlertDialog open={!!deletingClipId} onOpenChange={(open) => !open && setDeletingClipId(null)}>
