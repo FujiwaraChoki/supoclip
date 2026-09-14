@@ -52,13 +52,14 @@ SupoClip gives you the same core pipeline without the leash:
 - **AI clip selection** — an LLM (Gemini, GPT, Claude, or a local Ollama model) picks the most clip-worthy segments from the transcript; set a target clip count and length per video, or leave it on auto
 - **Batch processing** — drop multiple videos at once, pick a preset once, and they queue up and process one after another; pause, resume, cancel, or retry a failed video without losing the rest, and the queue survives a restart
 - **Content policy detection** — sensitive words are flagged and asterisked in captions (never in audio) using an editable, per-category word list, with an optional local-LLM pass for euphemisms a keyword list would miss
-- **Per-clip SEO metadata** — an AI-generated title, description, and tags for every clip in one call per video, fully editable and never regenerated over a manual edit
+- **Per-clip SEO metadata** — an AI-generated title, description, and tags for every clip, auto-generated in one call right after clip detection (toggle in Settings, on by default; manual "Regenerate" always available), fully editable and never regenerated over a manual edit. Shown per-clip on the project page with copy-one/copy-all buttons, a stale badge when the clip's been re-cut since generation, and an export-all-metadata download
 - **Virality scoring** — every clip gets hook, engagement, value, and shareability scores
 - **Smart vertical cropping** — face detection keeps the speaker centered in the 9:16 frame
 - **Word-synced subtitles** — AssemblyAI word-level timestamps, custom fonts, caption templates with animation styles
 - **Hook titles** — an AI-written headline burned into the top of each clip's opening seconds, with selectable animation styles and per-clip A/B comparison to generate and pick between alternative hooks
 - **B-roll & transitions** — optional Pexels stock footage overlays and transition effects
 - **Built-in editor** — trim, split, and merge clips, adjust caption size with a live preview, then export with platform presets (TikTok, Instagram Reels, YouTube Shorts, Facebook Reels, Threads), each with its own duration cap, safe-area margins, and loudness target, and clips auto-capped at 300MB without sacrificing quality unless needed
+- **Safe Zone Overlay** — an optional preview-only guide showing where each platform's own UI (username, captions, like/comment/share rail) will sit over your clip, per-platform or all at once, so you can see if your hook/captions would get covered before exporting; toggle persists per project
 - **Export All Clips** — export every clip in a project in one click, with per-clip progress, automatic one-time retry on failure, and a final success/failure report
 - **Emoji reactions** — drop emoji reactions at any point on a clip's timeline, pick an animation style, duration, and position, and they're burned into the re-rendered clip in full color
 - **Reusable settings templates** — save a project's font/caption/hook/B-roll/cleanup/export settings as a named template, then replace or merge it onto any other project

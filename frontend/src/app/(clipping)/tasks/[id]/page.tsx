@@ -37,9 +37,19 @@ import { DEFAULT_SOCIAL_OVERLAY, socialOverlayPayload, type SocialOverlay } from
 import { HookTitlePreview } from "@/components/hook-title-preview";
 import { HookVariantCompare } from "@/components/hook-variant-compare";
 import { ContentPolicyProjectPanel } from "@/components/editor/content-policy-project-panel";
+import { ClipMetadataPanel } from "@/components/editor/clip-metadata-panel";
 import { TemplatePicker, type TemplateInfo } from "@/components/template-picker";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { SafeZoneOverlay } from "@/components/safe-zone-overlay";
+import {
+  PLATFORM_SAFE_ZONES,
+  SAFE_ZONE_PLATFORM_IDS,
+  bandOverlapsUnsafeZone,
+  platformForExportPreset,
+  type SafeZoneSelection,
+} from "@/lib/safe-zones";
+import { getSafeZoneProjectState, setSafeZoneProjectState, getDefaultSafeZonePlatform } from "@/lib/safe-zone-settings";
 import {
   ArrowLeft,
   Download,
@@ -116,6 +126,12 @@ interface Clip {
   hook_title: string | null;
   hook_title_variants: HookTitleVariant[];
   selected_hook_variant_id: string | null;
+  metadata_title?: string | null;
+  metadata_description?: string | null;
+  metadata_tags?: string[] | null;
+  metadata_provider?: string | null;
+  metadata_generation_ms?: number | null;
+  metadata_stale?: boolean;
 }
 
 interface ExportPreset {
@@ -202,6 +218,9 @@ export default function TaskPage() {
   const [highlightWords, setHighlightWords] = useState("");
   const [exportPreset, setExportPreset] = useState("original");
   const [exportPresets, setExportPresets] = useState<ExportPreset[]>([]);
+  const [safeZonesEnabled, setSafeZonesEnabled] = useState(false);
+  const [safeZonePlatform, setSafeZonePlatform] = useState<SafeZoneSelection>("all");
+  const [safeZoneStateLoaded, setSafeZoneStateLoaded] = useState(false);
   const [shareState, setShareState] = useState<"idle" | "copying" | "copied">("idle");
   const [isRevokingShare, setIsRevokingShare] = useState(false);
 
@@ -415,6 +434,28 @@ export default function TaskPage() {
     void loadExportPresets();
   }, [apiUrl]);
 
+  // Load the per-project Safe Zone Overlay toggle/platform once, falling back
+  // to the export preset's platform (or the user's global default) when this
+  // project has never set one.
+  useEffect(() => {
+    if (!task?.id || safeZoneStateLoaded) return;
+    const saved = getSafeZoneProjectState(task.id);
+    if (saved) {
+      setSafeZonesEnabled(saved.enabled);
+      setSafeZonePlatform(saved.platform);
+    } else {
+      setSafeZonePlatform(platformForExportPreset(exportPreset) ?? getDefaultSafeZonePlatform());
+    }
+    setSafeZoneStateLoaded(true);
+  }, [task?.id, safeZoneStateLoaded, exportPreset]);
+
+  // Persist safe-zone toggle/platform per project once loaded (skip the
+  // initial load itself so we don't immediately rewrite what we just read).
+  useEffect(() => {
+    if (!task?.id || !safeZoneStateLoaded) return;
+    setSafeZoneProjectState(task.id, { enabled: safeZonesEnabled, platform: safeZonePlatform });
+  }, [task?.id, safeZoneStateLoaded, safeZonesEnabled, safeZonePlatform]);
+
   // SSE effect - real-time progress updates
   useEffect(() => {
     const taskStatus = task?.status;
@@ -423,8 +464,27 @@ export default function TaskPage() {
     // Only connect to SSE if task is queued or processing
     if (taskStatus !== "queued" && taskStatus !== "processing") return;
 
-    const eventSource = new EventSource(`${taskApiUrl}/${params.id}/progress`);
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let reconnectAttempts = 0;
+    let closedByUs = false;
+    let eventSource: EventSource;
 
+    function connect() {
+      eventSource = new EventSource(`${taskApiUrl}/${params.id}/progress`);
+      attachHandlers(eventSource);
+    }
+
+    function scheduleReconnect() {
+      if (closedByUs || reconnectAttempts >= 5) return;
+      reconnectAttempts += 1;
+      // Exponential backoff (1s, 2s, 4s, 8s, 16s) so a transient blip
+      // recovers the live connection instead of freezing the bar until
+      // the user manually reloads the page.
+      const delay = Math.min(1000 * 2 ** (reconnectAttempts - 1), 16000);
+      reconnectTimer = setTimeout(connect, delay);
+    }
+
+    function attachHandlers(eventSource: EventSource) {
     console.log("📡 Connected to SSE for real-time progress");
 
     eventSource.addEventListener("status", (e) => {
@@ -480,6 +540,7 @@ export default function TaskPage() {
     eventSource.addEventListener("close", async (e) => {
       const data = JSON.parse(e.data);
       console.log("✅ Task completed:", data.status);
+      closedByUs = true;
       eventSource.close();
 
       // Refresh task and clips
@@ -491,15 +552,27 @@ export default function TaskPage() {
       console.error("❌ SSE error:", e);
       const maybeMessageEvent = e as MessageEvent<string>;
       if (typeof maybeMessageEvent.data === "string" && maybeMessageEvent.data.length > 0) {
+        // A real server-sent error payload — fatal, don't retry.
         const data = JSON.parse(maybeMessageEvent.data);
         setError(data.error || "Connection error");
+        closedByUs = true;
+        eventSource.close();
+        return;
       }
+      // Native EventSource connection error (network blip, backend
+      // restart) — reconnect with backoff instead of leaving the bar frozen.
       eventSource.close();
+      scheduleReconnect();
     });
+    }
+
+    connect();
 
     return () => {
       console.log("🔌 Disconnecting SSE");
-      eventSource.close();
+      closedByUs = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      eventSource?.close();
     };
   }, [params.id, task?.status, fetchTaskStatus, taskApiUrl, triggerAutoRefresh]); // Re-run when task status changes
 
@@ -1026,6 +1099,27 @@ export default function TaskPage() {
     }
   };
 
+  const handleExportAllMetadata = () => {
+    if (clips.length === 0) return;
+    const ordered = [...clips].sort((a, b) => (a.clip_order ?? 0) - (b.clip_order ?? 0));
+    const blocks = ordered.map((clip, idx) => {
+      const title = clip.metadata_title || "(no title generated)";
+      const description = clip.metadata_description || "(no description generated)";
+      const tags = (clip.metadata_tags ?? []).join(", ") || "(no tags generated)";
+      return `Clip ${idx + 1}\nTitle: ${title}\nDescription: ${description}\nTags: ${tags}`;
+    });
+    const text = blocks.join("\n\n");
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(task?.source_title || "clips").replace(/[^a-z0-9]+/gi, "-")}-metadata.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleExportAllClips = async () => {
     if (clips.length === 0) return;
     setExportAllRunning(true);
@@ -1072,7 +1166,25 @@ export default function TaskPage() {
     }
   };
 
+  // Approximate on-screen bands for burned-in text: captions sit at ~75% down
+  // the frame, the hook title in the top safe area. A rough overlap check
+  // against the target platform's unsafe zones — not pixel-exact, just enough
+  // to warn before export. Never auto-moves anything; the user decides.
+  const warnIfTextInUnsafeZone = (presetName: string) => {
+    const platformId = platformForExportPreset(presetName);
+    if (!platformId) return;
+    const platform = PLATFORM_SAFE_ZONES[platformId];
+    const captionOverlap = bandOverlapsUnsafeZone(70, 80, platform.insets);
+    const hookOverlap = bandOverlapsUnsafeZone(0, 15, platform.insets);
+    if (captionOverlap || hookOverlap) {
+      toast.warning(
+        `Some ${captionOverlap && hookOverlap ? "captions/hooks" : captionOverlap ? "captions" : "hook text"} may be covered by ${platform.label} UI. Preview safe zones?`,
+      );
+    }
+  };
+
   const handleDownloadClip = (clip: Clip) => {
+    warnIfTextInUnsafeZone(exportPreset);
     if (exportPreset === "original") {
       const link = document.createElement("a");
       link.href = getClipUrl(clip.video_url);
@@ -1317,6 +1429,32 @@ export default function TaskPage() {
                   </Button>
                 )}
                 {task.status === "completed" && clips.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+                      <Switch checked={safeZonesEnabled} onCheckedChange={setSafeZonesEnabled} />
+                      Safe Zones
+                    </label>
+                    {safeZonesEnabled && (
+                      <Select
+                        value={safeZonePlatform}
+                        onValueChange={(value) => setSafeZonePlatform(value as SafeZoneSelection)}
+                      >
+                        <SelectTrigger size="sm" aria-label="Safe zone platform" className="h-8 min-w-[140px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent align="start">
+                          <SelectItem value="all">All</SelectItem>
+                          {SAFE_ZONE_PLATFORM_IDS.map((id) => (
+                            <SelectItem key={id} value={id}>
+                              {PLATFORM_SAFE_ZONES[id].label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                )}
+                {task.status === "completed" && clips.length > 0 && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -1325,6 +1463,12 @@ export default function TaskPage() {
                   >
                     <Sparkles className="w-4 h-4" />
                     {regeneratingMetadata ? "Generating..." : "Regenerate Metadata"}
+                  </Button>
+                )}
+                {task.status === "completed" && clips.length > 0 && (
+                  <Button size="sm" variant="outline" onClick={handleExportAllMetadata}>
+                    <Download className="w-4 h-4" />
+                    Export All Metadata
                   </Button>
                 )}
                 {task.status === "completed" && clips.length > 0 && (
@@ -1480,7 +1624,11 @@ export default function TaskPage() {
                     <CardContent className="p-0">
                       <div className="flex flex-col lg:flex-row">
                         <div className="relative flex-shrink-0 bg-foreground overflow-hidden m-3">
-                          <DynamicVideoPlayer src={getClipUrl(clip.video_url)} poster="/placeholder-video.jpg" />
+                          <DynamicVideoPlayer
+                        src={getClipUrl(clip.video_url)}
+                        poster="/placeholder-video.jpg"
+                        overlay={safeZonesEnabled ? <SafeZoneOverlay selection={safeZonePlatform} /> : undefined}
+                      />
                         </div>
                         <div className="p-6 flex-1">
                           <div className="flex items-start justify-between mb-4">
@@ -1991,13 +2139,25 @@ export default function TaskPage() {
               </SheetContent>
             </Sheet>
 
+            {clips.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {clips.filter((c) => c.metadata_title).length}/{clips.length} clips have metadata
+                {clips.some((c) => c.metadata_stale) &&
+                  ` · ${clips.filter((c) => c.metadata_stale).length} stale`}
+              </p>
+            )}
+
             {clips.map((clip) => (
               <Card key={clip.id} className="overflow-hidden">
                 <CardContent className="p-0">
                   <div className="flex flex-col lg:flex-row">
                     {/* Video Player */}
                     <div className="relative flex-shrink-0 bg-foreground overflow-hidden m-3">
-                      <DynamicVideoPlayer src={getClipUrl(clip.video_url)} poster="/placeholder-video.jpg" />
+                      <DynamicVideoPlayer
+                        src={getClipUrl(clip.video_url)}
+                        poster="/placeholder-video.jpg"
+                        overlay={safeZonesEnabled ? <SafeZoneOverlay selection={safeZonePlatform} /> : undefined}
+                      />
                     </div>
 
                     {/* Clip Details */}
@@ -2112,6 +2272,24 @@ export default function TaskPage() {
                           )}
                         </div>
                       )}
+
+                      <div className="mb-4 p-3 border border-border">
+                        <h4 className="font-medium text-foreground text-sm flex items-center gap-2 mb-3">
+                          <Sparkles className="w-4 h-4" />
+                          Metadata
+                        </h4>
+                        <ClipMetadataPanel
+                          taskId={task?.id ?? ""}
+                          clipId={clip.id}
+                          title={clip.metadata_title}
+                          description={clip.metadata_description}
+                          tags={clip.metadata_tags ?? undefined}
+                          provider={clip.metadata_provider as "ollama" | "gemini" | null | undefined}
+                          generationMs={clip.metadata_generation_ms}
+                          stale={clip.metadata_stale}
+                          onSaved={triggerAutoRefresh}
+                        />
+                      </div>
 
                       {clip.text && (
                         <TranscriptPreview text={clip.text} clipTitle={`Clip ${clip.clip_order}`} />

@@ -7,6 +7,8 @@ interface DynamicVideoPlayerProps {
   muted?: boolean;
   loop?: boolean;
   className?: string;
+  /** Non-interactive content (e.g. the Safe Zone Overlay) drawn over the frame. */
+  overlay?: React.ReactNode;
 }
 
 const DynamicVideoPlayer: React.FC<DynamicVideoPlayerProps> = ({
@@ -16,6 +18,7 @@ const DynamicVideoPlayer: React.FC<DynamicVideoPlayerProps> = ({
   muted = false,
   loop = false,
   className = "",
+  overlay,
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -38,6 +41,7 @@ const DynamicVideoPlayer: React.FC<DynamicVideoPlayerProps> = ({
         <source src={src} type="video/mp4" />
         Your browser does not support the video tag.
       </video>
+      {overlay}
     </div>
   );
 };

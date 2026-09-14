@@ -22,6 +22,8 @@ import { LlmConnectionTest } from "@/components/settings/llm-connection-test";
 import { EmptyState } from "@/components/empty-state";
 import { useDelayedFlag } from "@/hooks/use-delayed-flag";
 import { toast } from "@/lib/toast";
+import { PLATFORM_SAFE_ZONES, SAFE_ZONE_PLATFORM_IDS, type SafeZoneSelection } from "@/lib/safe-zones";
+import { getDefaultSafeZonePlatform, setDefaultSafeZonePlatform } from "@/lib/safe-zone-settings";
 
 const TRANSCRIPTION_SETTING_KEYS = new Set([
   "TRANSCRIPTION_PROVIDER",
@@ -44,6 +46,7 @@ const LLM_PROVIDER_SETTING_KEYS = new Set([
   "OLLAMA_MODEL",
   "GOOGLE_API_KEY",
   "GEMINI_MODEL",
+  "AUTO_GENERATE_METADATA_ENABLED",
 ]);
 
 type SfxFile = { name: string; display_name: string };
@@ -71,6 +74,7 @@ export default function SettingsPage() {
   const [fontSize, setFontSize] = useState(24);
   const [fontColor, setFontColor] = useState("#FFFFFF");
   const [completionEmails, setCompletionEmails] = useState(true);
+  const [defaultSafeZonePlatform, setDefaultSafeZonePlatformState] = useState<SafeZoneSelection>("all");
   const [availableFonts, setAvailableFonts] = useState<Array<{ name: string, display_name: string }>>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
@@ -89,6 +93,13 @@ export default function SettingsPage() {
   const session = { user: { id: LOCAL_USER_ID, name: "Local User", email: "", image: null as string | null } };
 
   const paidPlans = getPublicBillingPlans();
+
+  // Safe Zone Overlay default platform: purely local (localStorage), not one
+  // of the backend runtime settings — it's per-browser view state, not a
+  // project or server setting.
+  useEffect(() => {
+    setDefaultSafeZonePlatformState(getDefaultSafeZonePlatform());
+  }, []);
 
   // Load available fonts from backend and inject them into the page
   useEffect(() => {
@@ -604,6 +615,36 @@ export default function SettingsPage() {
                       Your subtitle will look like this
                     </p>
                   </div>
+                </div>
+
+                {/* Safe Zone Overlay default platform */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-foreground">
+                    Safe Zone Overlay — Default Platform
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Used for new projects that haven&apos;t picked their own Safe Zones platform yet.
+                  </p>
+                  <Select
+                    value={defaultSafeZonePlatform}
+                    onValueChange={(value) => {
+                      const platform = value as SafeZoneSelection;
+                      setDefaultSafeZonePlatformState(platform);
+                      setDefaultSafeZonePlatform(platform);
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      {SAFE_ZONE_PLATFORM_IDS.map((id) => (
+                        <SelectItem key={id} value={id}>
+                          {PLATFORM_SAFE_ZONES[id].label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>
