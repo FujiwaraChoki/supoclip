@@ -2,7 +2,9 @@
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...config import get_config
@@ -40,11 +42,24 @@ async def regenerate_task_metadata(
     return result
 
 
+_VALID_QUALITIES = {"fast", "balanced", "high", "gemini"}
+
+
 @router.post("/tasks/{task_id}/clips/{clip_id}/metadata/regenerate")
 async def regenerate_clip_metadata(
-    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+    task_id: str,
+    clip_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    quality: Optional[str] = Query(default=None),
 ):
-    """Per-clip "Regenerate" button — a single, lighter LLM call."""
+    """Per-clip "Regenerate" button — a single, lighter LLM call.
+
+    `quality` (fast/balanced/high/gemini) optionally overrides the model
+    for just this call — see MetadataService.regenerate_clip_metadata."""
+    if quality is not None and quality not in _VALID_QUALITIES:
+        raise HTTPException(status_code=400, detail=f"quality must be one of {sorted(_VALID_QUALITIES)}")
+
     task_service = TaskService(db)
     task = await _require_task_owner(request, task_service, db, task_id)
 
@@ -56,6 +71,7 @@ async def regenerate_clip_metadata(
         clip,
         video_title=task.get("source_title") or task.get("source_url"),
         allow_gemini=_allow_gemini(),
+        quality=quality,
     )
     if result is None:
         raise HTTPException(

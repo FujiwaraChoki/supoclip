@@ -29,6 +29,15 @@ export interface Tool {
   /** One-line description shown in the tab bar / coming-soon state. */
   description: string;
   /**
+   * Path (under `public/`) to a static SVG thumbnail for this tool's card on
+   * the home screen's Tools grid, e.g. "/assets/tools/clipping.svg". Kept as
+   * a plain file reference (not inlined/base64'd) so art can be swapped
+   * without touching code. Optional — ToolCard (home/tools-grid.tsx) falls
+   * back to a CSS-generated icon tile using `icon`/`name` if this is absent
+   * or fails to load.
+   */
+  thumbnail?: string;
+  /**
    * Mounts the tool's UI into `container`. Returns an optional cleanup
    * function (or void), called when the tool is unmounted/switched away
    * from. Route-owning tools (see class comment) may leave this out and

@@ -25,11 +25,24 @@ MAX_TAGS = 10
 METADATA_SYSTEM_PROMPT = """You write short-form video metadata: SEO-optimized titles, descriptions, and tags for viral short clips.
 
 For each clip, output:
-- title: 30-60 characters, SEO-optimized, short-form-platform-friendly (TikTok/Reels/Shorts style)
+- title: 30-60 characters exactly (not a hard word count, but never shorter than 30 or longer than 60), SEO-optimized, short-form-platform-friendly (TikTok/Reels/Shorts style)
 - description: 50-100 characters, SEO-focused, no hashtags
 - tags: 5-10 short lowercase tags (hyphenate multi-word tags, no spaces), covering these dimensions where applicable: content type (funny/educational/ranking/reaction/story/opinion), theme (free-form, e.g. football/sleep/finance), tone (serious/humorous/surprising/inspirational), hook_style (question/ranking/contrast/warning)
 
-Keep the theme tag consistent across all clips in the same batch when they share a common subject. Output ONLY the requested JSON — no explanation, no reasoning, no extra commentary."""
+Keep the theme tag consistent across all clips in the same batch when they share a common subject.
+
+Examples of good output (for calibration only, not the actual clips to generate):
+
+Transcript: "So I tried waking up at 5am for 30 days straight and honestly the first week almost broke me..."
+{"title": "I Woke Up At 5AM For 30 Days Straight", "description": "The brutal first week of a 30-day 5am challenge", "tags": ["story", "productivity", "challenge", "self-improvement", "morning-routine"]}
+
+Transcript: "Here's why your sourdough starter keeps dying: you're probably feeding it straight from the fridge..."
+{"title": "The #1 Reason Your Sourdough Starter Keeps Dying", "description": "Common sourdough starter mistake, fixed in under a minute", "tags": ["educational", "baking", "sourdough", "cooking-tips", "food"]}
+
+Transcript: "Would you rather have unlimited money but no friends, or unlimited friends but no money? Comment below..."
+{"title": "Unlimited Money, No Friends... Or The Opposite?", "description": "A would-you-rather that's harder than it sounds", "tags": ["question", "would-you-rather", "opinion", "money", "relationships"]}
+
+Output ONLY the requested JSON — no explanation, no reasoning, no extra commentary."""
 
 
 class ClipMetadata(BaseModel):
@@ -138,6 +151,10 @@ async def generate_metadata_for_video(
         output_type=MetadataBatchOutput,
         system_prompt=METADATA_SYSTEM_PROMPT,
         allow_gemini=allow_gemini,
+        # A batch response scales with clip count; 2000 tokens could truncate
+        # mid-JSON for a video with many clips, especially with few-shot
+        # examples in context. 4000 gives 7B-class models room to finish.
+        max_output_tokens=4000,
     )
     if provider == "unavailable" or result is None:
         return {}, "unavailable"
@@ -156,15 +173,21 @@ async def generate_metadata_for_single_clip(
     *,
     video_title: Optional[str] = None,
     allow_gemini: bool = False,
+    quality: Optional[str] = None,
 ) -> tuple[Optional[ClipMetadata], str]:
     """Generate metadata for exactly one clip — used by the per-clip
-    "Regenerate" button so it doesn't re-run the full video's batch call."""
+    "Regenerate" button so it doesn't re-run the full video's batch call.
+
+    `quality` ("fast"/"balanced"/"high"/"gemini") lets that button pick a
+    different model for just this call, overriding the global OLLAMA_MODEL
+    setting and/or forcing the Gemini fallback outright."""
     prompt = _build_single_clip_prompt(video_title, clip)
     result, provider = await run_with_llm_fallback(
         prompt=prompt,
         output_type=ClipMetadata,
         system_prompt=METADATA_SYSTEM_PROMPT,
-        allow_gemini=allow_gemini,
+        allow_gemini=allow_gemini or quality == "gemini",
+        quality=quality,
     )
     if provider == "unavailable" or result is None:
         return None, "unavailable"

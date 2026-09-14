@@ -563,9 +563,19 @@ _STRICT_JSON_RETRY_SUFFIX = (
 )
 
 
-def _build_ollama_model(runtime_config: Config) -> OllamaModel:
+# "quality" -> Ollama model overrides for a one-off call (e.g. the per-clip
+# metadata "Regenerate" button's model picker), without touching the global
+# OLLAMA_MODEL runtime setting other callers rely on.
+_QUALITY_OLLAMA_MODEL_OVERRIDES = {
+    "fast": "qwen2.5:3b-instruct",
+    "balanced": "llama3.2:3b",
+    "high": "qwen2.5:7b-instruct",
+}
+
+
+def _build_ollama_model(runtime_config: Config, model_override: Optional[str] = None) -> OllamaModel:
     return OllamaModel(
-        runtime_config.ollama_model,
+        model_override or runtime_config.ollama_model,
         provider=OllamaProvider(
             base_url=runtime_config.resolve_ollama_base_url(),
             api_key=runtime_config.ollama_api_key,
@@ -584,6 +594,7 @@ async def run_with_llm_fallback(
     system_prompt: str = "",
     allow_gemini: bool = False,
     max_output_tokens: int = 2000,
+    quality: Optional[str] = None,
 ) -> tuple[Optional[_FallbackT], LlmProvider]:
     """Run `prompt` against the local Ollama model first (retrying once with a
     stricter prompt on malformed/schema-invalid output), then fall back to
@@ -603,42 +614,50 @@ async def run_with_llm_fallback(
     """
     runtime_config = get_config()
     apply_settings_to_process_env(runtime_config.as_runtime_settings())
-    model_settings = {"max_tokens": max_output_tokens}
+    # Lower temperature/top_p favor consistent, schema-conforming structured
+    # output over creative variation — appropriate for every caller of this
+    # function (metadata, content policy, hook variants), all of which want a
+    # reliably parseable result rather than creative prose.
+    model_settings = {"max_tokens": max_output_tokens, "temperature": 0.4, "top_p": 0.9}
     # Local CPU inference can take far longer than a cloud API for the same
     # prompt/output size — the client's default timeout is tuned for fast
     # remote APIs and cuts off a real local model mid-generation. Gemini
     # keeps the (short) library default since it's a fast cloud call.
     #
-    # A flat 300s timeout has a real failure mode though: when Ollama is
-    # simply unreachable (wrong URL, daemon down, host firewalled), the TCP
-    # connection attempt itself can hang for a long time before failing,
-    # and a flat timeout gives it the same 300s a slow-but-connected local
-    # model gets to actually generate — an unreachable host then takes just
-    # as long to report "unavailable" as a real (successful) slow inference
-    # would take to finish, which defeats the point of failing fast so the
-    # Gemini fallback can kick in promptly. httpx.Timeout separates the
-    # connect phase (kept short) from the read phase (kept generous).
+    # A flat timeout has a real failure mode though: when Ollama is simply
+    # unreachable (wrong URL, daemon down, host firewalled), the TCP
+    # connection attempt itself can hang for a long time before failing.
+    # httpx.Timeout separates the connect phase (kept short, so an
+    # unreachable host fails fast into the Gemini fallback) from the read
+    # phase, which is left unbounded (`None`) so a slow-but-connected local
+    # model is never cut off mid-generation regardless of output size.
     ollama_model_settings = {
         **model_settings,
-        "timeout": httpx.Timeout(300.0, connect=5.0),
+        "timeout": httpx.Timeout(None, connect=5.0),
     }
 
+    ollama_model_override = _QUALITY_OLLAMA_MODEL_OVERRIDES.get(quality or "")
     ollama_agent = Agent[None, output_type](
-        model=_build_ollama_model(runtime_config),
+        model=_build_ollama_model(runtime_config, ollama_model_override),
         output_type=output_type,
         system_prompt=system_prompt,
         output_retries=1,
         model_settings=ollama_model_settings,
     )
 
+    # quality="gemini" is an explicit request to skip local inference
+    # entirely for this call, not just prefer it as a fallback.
+    skip_ollama = quality == "gemini"
+
     async with resource_slot("llm", 1):
-        async with resource_slot("gpu", 1):
-            for attempt_prompt in (prompt, prompt + _STRICT_JSON_RETRY_SUFFIX):
-                try:
-                    result = await ollama_agent.run(attempt_prompt)
-                    return result.output, "ollama"
-                except Exception as exc:
-                    logger.info("Ollama LLM call failed (%s)", exc)
+        if not skip_ollama:
+            async with resource_slot("gpu", 1):
+                for attempt_prompt in (prompt, prompt + _STRICT_JSON_RETRY_SUFFIX):
+                    try:
+                        result = await ollama_agent.run(attempt_prompt)
+                        return result.output, "ollama"
+                    except Exception as exc:
+                        logger.info("Ollama LLM call failed (%s)", exc)
 
         if allow_gemini and runtime_config.google_api_key:
             try:

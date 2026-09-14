@@ -55,6 +55,18 @@ def _parse_metadata_tags(raw: Optional[str]) -> List[str]:
     return parsed if isinstance(parsed, list) else []
 
 
+def _is_metadata_stale(row: Any) -> bool:
+    """A clip's metadata is stale if it was generated for a different
+    transcript than its current `text` — i.e. the clip was re-cut (trim/
+    split/merge changes `text`) after metadata was last generated. Not
+    stale if metadata was never generated (nothing to compare against, and
+    "missing" is a separate status the frontend already shows)."""
+    source_text = getattr(row, "metadata_source_text", None)
+    if source_text is None:
+        return False
+    return source_text != (getattr(row, "text", None) or "")
+
+
 class ClipRepository:
     """Repository for clip-related database operations."""
 
@@ -172,12 +184,12 @@ class ClipRepository:
             result = await db.execute(
                 sa_text("""
                     SELECT id, filename, file_path, start_time, end_time, duration,
-                           text, relevance_score, reasoning, clip_order, created_at,
+                           text, relevance_score, reasoning, clip_order, created_at, updated_at,
                            virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
                            hook_title, hook_title_variants, selected_hook_variant_id, reactions, content_policy_flags,
                            metadata_title, metadata_description, metadata_tags,
                            metadata_title_user_edited, metadata_description_user_edited, metadata_tags_user_edited,
-                           metadata_provider, metadata_generated_at, metadata_generation_ms
+                           metadata_provider, metadata_generated_at, metadata_generation_ms, metadata_source_text
                     FROM generated_clips
                     WHERE task_id = :task_id
                     ORDER BY clip_order ASC
@@ -212,6 +224,9 @@ class ClipRepository:
                     "reasoning": row.reasoning,
                     "clip_order": row.clip_order,
                     "created_at": row.created_at.isoformat(),
+                    "updated_at": (
+                        row.updated_at.isoformat() if getattr(row, "updated_at", None) else None
+                    ),
                     "video_url": f"/tasks/{task_id}/clips/{row.id}/file",
                     "virality_score": row.virality_score or 0,
                     "hook_score": row.hook_score or 0,
@@ -241,6 +256,7 @@ class ClipRepository:
                         else None
                     ),
                     "metadata_generation_ms": getattr(row, "metadata_generation_ms", None),
+                    "metadata_stale": _is_metadata_stale(row),
                 }
             )
 
@@ -295,8 +311,8 @@ class ClipRepository:
                            content_policy_flags,
                            metadata_title, metadata_description, metadata_tags,
                            metadata_title_user_edited, metadata_description_user_edited, metadata_tags_user_edited,
-                           metadata_provider, metadata_generated_at, metadata_generation_ms,
-                           created_at
+                           metadata_provider, metadata_generated_at, metadata_generation_ms, metadata_source_text,
+                           created_at, updated_at
                     FROM generated_clips
                     WHERE id = :clip_id
                     """
@@ -360,7 +376,11 @@ class ClipRepository:
                 else None
             ),
             "metadata_generation_ms": getattr(row, "metadata_generation_ms", None),
+            "metadata_stale": _is_metadata_stale(row),
             "created_at": row.created_at.isoformat(),
+            "updated_at": (
+                row.updated_at.isoformat() if getattr(row, "updated_at", None) else None
+            ),
             "video_url": f"/tasks/{row.task_id}/clips/{row.id}/file",
         }
 
@@ -441,13 +461,19 @@ class ClipRepository:
         tags: List[str],
         provider: str,
         generation_ms: Optional[int] = None,
+        source_text: Optional[str] = None,
     ) -> None:
         """Full (re)write from a generation run: overwrites title/description/
         tags outright and resets all three user-edited flags to FALSE, since
         a fresh generation is not user-authored. Callers implementing the
         "never overwrite user edits" passive-regeneration rule must instead
         call update_clip_metadata_fields per-field, checking each
-        *_user_edited flag first."""
+        *_user_edited flag first.
+
+        `source_text` snapshots the transcript text metadata was generated
+        from, so a later "stale" check can compare it against the clip's
+        current text rather than relying on `updated_at` (which the
+        table-wide trigger bumps on unrelated writes too)."""
         await db.execute(
             sa_text(
                 """
@@ -461,6 +487,7 @@ class ClipRepository:
                     metadata_provider = :provider,
                     metadata_generated_at = NOW(),
                     metadata_generation_ms = :generation_ms,
+                    metadata_source_text = :source_text,
                     updated_at = NOW()
                 WHERE id = :clip_id
                 """
@@ -472,6 +499,7 @@ class ClipRepository:
                 "tags": json.dumps(tags),
                 "provider": provider,
                 "generation_ms": generation_ms,
+                "source_text": source_text,
             },
         )
         await db.commit()

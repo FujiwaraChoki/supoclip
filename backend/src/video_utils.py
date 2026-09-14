@@ -3864,6 +3864,25 @@ def _filler_span_changes_meaning(
     return False
 
 
+def _pause_gap_is_safe_to_cut(prev_word_text: str, gap_seconds: float) -> bool:
+    """Only cut an inter-word gap if it's at a sentence/phrase boundary, or
+    it's long enough that it's obviously dead air regardless of grammar.
+
+    Cutting on raw gap length alone (the old behavior) would remove ordinary
+    mid-sentence breathing gaps at high sensitivity since ASR word-timestamp
+    gaps and ordinary speech cadence overlap well below "obvious silence."
+    """
+    if gap_seconds >= _OBVIOUS_SILENCE_SECONDS:
+        return True
+    text = str(prev_word_text or "").rstrip()
+    return text.endswith((".", "!", "?", "…", ","))
+
+
+# A gap this long is safe to cut even mid-sentence — no continuous speech
+# pattern produces dead air this long, so grammar boundary checks are moot.
+_OBVIOUS_SILENCE_SECONDS = 1.2
+
+
 def build_clip_keep_ranges(
     video_path: Path,
     clip_start: float,
@@ -3899,7 +3918,9 @@ def build_clip_keep_ranges(
 
         for current, nxt in zip(relevant_words, relevant_words[1:]):
             gap = nxt["start"] - current["end"]
-            if gap >= pause_threshold_seconds:
+            if gap >= pause_threshold_seconds and _pause_gap_is_safe_to_cut(
+                current.get("text", ""), gap
+            ):
                 removal_intervals.append((current["end"], nxt["start"]))
 
         trailing_gap = clip_end - relevant_words[-1]["end"]

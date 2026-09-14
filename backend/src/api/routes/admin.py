@@ -117,6 +117,14 @@ SETTING_METADATA = {
         "input_type": "select",
         "options": ["true", "false"],
     },
+    "AUTO_GENERATE_METADATA_ENABLED": {
+        "label": "Auto-generate metadata",
+        "description": "Automatically generate title/description/tags for every clip right after "
+        "clip detection finishes. When off, metadata is only generated via the manual "
+        "Regenerate buttons.",
+        "input_type": "select",
+        "options": ["true", "false"],
+    },
     "LLM_PROVIDER_MODE": {
         "label": "Local LLM provider mode",
         "description": "Ollama (local) is always tried first for content-policy/metadata features. "
@@ -126,9 +134,17 @@ SETTING_METADATA = {
     },
     "OLLAMA_MODEL": {
         "label": "Ollama model",
-        "description": "Model used for content-policy and metadata generation calls.",
+        "description": "Model used for content-policy and metadata generation calls. "
+        "qwen2.5:7b-instruct gives noticeably better structured-output quality if it fits "
+        "in VRAM (~4.5GB at Q4); qwen2.5:3b-instruct/llama3.2:3b are lighter fallbacks.",
         "input_type": "select",
-        "options": ["llama3.2:3b", "gemma2:2b", "qwen2.5:3b"],
+        "options": [
+            "qwen2.5:7b-instruct",
+            "qwen2.5:3b-instruct",
+            "llama3.2:3b",
+            "gemma2:2b",
+            "qwen2.5:3b",
+        ],
     },
     "GEMINI_MODEL": {
         "label": "Gemini model",

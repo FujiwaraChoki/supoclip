@@ -139,6 +139,12 @@ class Config:
         self.gpu_acceleration_enabled = (
             self._get_runtime_setting("GPU_ACCELERATION_ENABLED") or "false"
         ).strip().lower() == "true"
+        # Whether metadata (title/description/tags) auto-generates once per
+        # finished video, right after clip detection. Defaults on; turning
+        # it off falls back to the manual "Regenerate Metadata" button only.
+        self.auto_generate_metadata_enabled = (
+            self._get_runtime_setting("AUTO_GENERATE_METADATA_ENABLED") or "true"
+        ).strip().lower() == "true"
 
     def max_youtube_video_duration_for_plan(
         self, plan: str | None, subscription_status: str | None
@@ -200,6 +206,7 @@ class Config:
             "DEFAULT_PROCESSING_MODE": self.default_processing_mode,
             "FAST_MODE_MAX_CLIPS": str(self.fast_mode_max_clips),
             "GPU_ACCELERATION_ENABLED": "true" if self.gpu_acceleration_enabled else "false",
+            "AUTO_GENERATE_METADATA_ENABLED": "true" if self.auto_generate_metadata_enabled else "false",
             "LLM_PROVIDER_MODE": self.llm_provider_mode,
             "OLLAMA_MODEL": self.ollama_model,
             "GEMINI_MODEL": self.gemini_model,

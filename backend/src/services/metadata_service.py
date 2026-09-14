@@ -47,6 +47,7 @@ class MetadataService:
         )
         elapsed_ms = int((time.perf_counter() - start) * 1000)
 
+        text_by_clip_id = {c["id"]: c.get("text", "") for c in clips}
         generated = 0
         for clip_id, meta in results.items():
             await ClipRepository.update_clip_metadata(
@@ -57,6 +58,7 @@ class MetadataService:
                 tags=meta.tags,
                 provider=provider,
                 generation_ms=elapsed_ms,
+                source_text=text_by_clip_id.get(clip_id, ""),
             )
             generated += 1
 
@@ -75,15 +77,19 @@ class MetadataService:
         *,
         video_title: Optional[str] = None,
         allow_gemini: bool = False,
+        quality: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Per-clip "Regenerate" button — a lighter single-clip call rather
-        than re-running the whole video's batch."""
+        than re-running the whole video's batch. `quality` optionally
+        overrides the model for just this call ("fast"/"balanced"/"high"
+        pick an Ollama model size, "gemini" forces the Gemini fallback
+        outright) without touching the global OLLAMA_MODEL setting."""
         context = ClipContext(
             clip_id=clip["id"], text=clip.get("text", ""), hook_title=clip.get("hook_title")
         )
         start = time.perf_counter()
         meta, provider = await generate_metadata_for_single_clip(
-            context, video_title=video_title, allow_gemini=allow_gemini
+            context, video_title=video_title, allow_gemini=allow_gemini, quality=quality
         )
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         if meta is None:
@@ -97,6 +103,7 @@ class MetadataService:
             tags=meta.tags,
             provider=provider,
             generation_ms=elapsed_ms,
+            source_text=clip.get("text", ""),
         )
         return {
             "title": meta.title,

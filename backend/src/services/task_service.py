@@ -259,6 +259,12 @@ class TaskService:
                 progress_message="Starting...",
             )
 
+            # Tracks the last real progress percentage reached, so an error
+            # or cancellation can freeze the bar there instead of snapping
+            # to 0 — 0 reads as "nothing happened" even when the pipeline
+            # failed 90% of the way through.
+            last_progress = 0
+
             # Progress callback wrapper
             async def update_progress(
                 progress: int,
@@ -266,6 +272,8 @@ class TaskService:
                 status: str = "processing",
                 stage: Optional[str] = None,
             ):
+                nonlocal last_progress
+                last_progress = progress
                 await self.task_repo.update_task_status(
                     self.db,
                     task_id,
@@ -454,7 +462,11 @@ class TaskService:
             # overlaps a render job on the same GPU.
             await update_progress(98, "Generating clip metadata...", stage="metadata")
             try:
-                clips_for_metadata = await self.clip_repo.get_clips_by_task(self.db, task_id)
+                clips_for_metadata = (
+                    await self.clip_repo.get_clips_by_task(self.db, task_id)
+                    if self.config.auto_generate_metadata_enabled
+                    else []
+                )
                 if clips_for_metadata:
                     task_record = await self.task_repo.get_task_by_id(self.db, task_id)
                     video_title = (
@@ -518,17 +530,17 @@ class TaskService:
                     self.db,
                     task_id,
                     "cancelled",
-                    progress=0,
+                    progress=last_progress,
                     progress_message="Cancelled by user",
                 )
                 if progress_callback:
-                    await progress_callback(0, "Cancelled by user", "cancelled")
+                    await progress_callback(last_progress, "Cancelled by user", "cancelled")
                 raise
             await self.task_repo.update_task_status(
-                self.db, task_id, "error", progress=0, progress_message=str(e)
+                self.db, task_id, "error", progress=last_progress, progress_message=str(e)
             )
             if progress_callback:
-                await progress_callback(0, str(e), "error")
+                await progress_callback(last_progress, str(e), "error")
             error_code = "task_error"
             message = str(e).lower()
             if "download" in message or "youtube" in message:

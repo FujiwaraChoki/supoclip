@@ -48,8 +48,12 @@ MIN_SENSITIVITY = 0
 MAX_SENSITIVITY = 100
 # Sensitivity -> pause_threshold_ms interpolation bounds. Low sensitivity only
 # trims very long dead air; high sensitivity trims much shorter gaps.
+# 300ms was well within the range of ordinary inter-word gaps in natural,
+# unhurried speech (breaths, consonant transitions), so max sensitivity was
+# misclassifying continuous speech as pauses. 600ms is comfortably above
+# normal speech gaps while still much shorter than a true dead-air pause.
 _SENSITIVITY_PAUSE_THRESHOLD_MS_AT_MIN = 1500
-_SENSITIVITY_PAUSE_THRESHOLD_MS_AT_MAX = 300
+_SENSITIVITY_PAUSE_THRESHOLD_MS_AT_MAX = 600
 _AGGRESSIVE_WORDS_SENSITIVITY_THRESHOLD = 75
 
 
@@ -60,7 +64,7 @@ def normalize_pause_threshold_ms(
         parsed = int(value)
     except (TypeError, ValueError):
         parsed = default
-    return max(250, min(3000, parsed))
+    return max(600, min(3000, parsed))
 
 
 def normalize_filtered_words(value: Any) -> list[str]:

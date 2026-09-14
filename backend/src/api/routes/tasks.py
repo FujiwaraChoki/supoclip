@@ -379,6 +379,42 @@ async def list_tasks(
         raise HTTPException(status_code=500, detail=f"Error retrieving tasks: {str(e)}")
 
 
+@router.get("/system-status")
+async def get_system_status(request: Request, db: AsyncSession = Depends(get_db)):
+    """Compact operator-panel status for the home screen's status strip:
+    queue depth / active jobs (from this user's own tasks — there's no
+    separate multi-tenant queue to inspect in the local-first model), GPU
+    encoder availability, and disk space on TEMP_DIR (where clips render
+    to before they're served)."""
+    import shutil
+
+    from ...video_utils import detect_gpu_encoder
+
+    user_id = await _get_user_id_from_headers(request, db)
+    config = get_config()
+
+    task_service = TaskService(db)
+    counts = await task_service.get_task_status_counts(user_id)
+    queue_depth = counts.get("queued", 0)
+    processing_count = counts.get("processing", 0)
+    active_jobs = queue_depth + processing_count
+
+    try:
+        disk_total, _, disk_free = shutil.disk_usage(config.temp_dir)
+    except OSError:
+        disk_total, disk_free = 0, 0
+
+    return {
+        "queue_depth": queue_depth,
+        "processing_count": processing_count,
+        "active_jobs": active_jobs,
+        "gpu_enabled": config.gpu_acceleration_enabled,
+        "gpu_available": detect_gpu_encoder() is not None,
+        "disk_free_bytes": disk_free,
+        "disk_total_bytes": disk_total,
+    }
+
+
 @router.post("/")
 async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     """
@@ -706,24 +742,6 @@ async def get_task_progress_sse(task_id: str, request: Request):
 
     async def event_generator():
         """Generate SSE events for task progress."""
-        # Send initial task status
-        yield {
-            "event": "status",
-            "data": json.dumps(
-                {
-                    "task_id": task_id,
-                    "status": task.get("status"),
-                    "progress": task.get("progress", 0),
-                    "message": task.get("progress_message", ""),
-                }
-            ),
-        }
-
-        # If task is already completed, error, or cancelled, close connection
-        if task.get("status") in ["completed", "error", "cancelled"]:
-            yield {"event": "close", "data": json.dumps({"status": task.get("status")})}
-            return
-
         # Connect to Redis for real-time updates
         runtime_config = get_config()
         redis_client = redis.Redis(
@@ -732,6 +750,29 @@ async def get_task_progress_sse(task_id: str, request: Request):
             password=runtime_config.redis_password,
             decode_responses=True,
         )
+
+        # Prefer the last Redis progress snapshot (carries `stage`) over the
+        # DB row, which doesn't persist stage — falls back to the DB values
+        # if Redis has nothing cached yet (e.g. right after enqueue).
+        cached_progress = await ProgressTracker(redis_client, task_id).get()
+        yield {
+            "event": "status",
+            "data": json.dumps(
+                {
+                    "task_id": task_id,
+                    "status": task.get("status"),
+                    "progress": (cached_progress or {}).get("progress", task.get("progress", 0)),
+                    "message": (cached_progress or {}).get("message", task.get("progress_message", "")),
+                    "stage": (cached_progress or {}).get("stage"),
+                }
+            ),
+        }
+
+        # If task is already completed, error, or cancelled, close connection
+        if task.get("status") in ["completed", "error", "cancelled"]:
+            await redis_client.close()
+            yield {"event": "close", "data": json.dumps({"status": task.get("status")})}
+            return
 
         try:
             # Subscribe to progress updates
