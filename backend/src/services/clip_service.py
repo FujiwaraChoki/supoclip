@@ -523,7 +523,7 @@ class ClipEditingMixin:
             return defaults
         finally:
             try:
-                await redis_client.close()
+                await redis_client.aclose()
             except Exception:
                 pass
 

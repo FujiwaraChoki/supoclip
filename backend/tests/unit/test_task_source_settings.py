@@ -8,7 +8,7 @@ class _FailingRedisClient:
     async def get(self, _key: str):
         raise RuntimeError("redis unavailable")
 
-    async def close(self):
+    async def aclose(self):
         return None
 
 
@@ -19,7 +19,7 @@ class _RedisClient:
     async def get(self, _key: str):
         return self.payload
 
-    async def close(self):
+    async def aclose(self):
         return None
 
 
