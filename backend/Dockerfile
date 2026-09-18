@@ -48,4 +48,4 @@ RUN mkdir -p /app/uploads /app/clips /app/logs /tmp
 EXPOSE 8000
 
 # Activate virtual environment and start the application
-CMD [".venv/bin/uvicorn", "src.main_refactored:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD [".venv/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

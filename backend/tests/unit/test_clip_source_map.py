@@ -73,7 +73,7 @@ async def test_trim_clip_uses_persisted_source_ranges(monkeypatch, tmp_path):
     output_path.write_bytes(b"output")
 
     monkeypatch.setattr(
-        "src.services.task_service.trim_clip_file",
+        "src.services.clip_service.trim_clip_file",
         lambda *_args, **_kwargs: output_path,
     )
 

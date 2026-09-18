@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
 
 from src.config import Config, set_config_override
 from src.database import configure_database, init_db, reset_database_state
-from src.main_refactored import create_app
+from src.main import create_app
 
 
 class _FakeRedisPool:

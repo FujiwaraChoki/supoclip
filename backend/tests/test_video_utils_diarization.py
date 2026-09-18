@@ -100,8 +100,8 @@ class VideoUtilsDiarizationTests(unittest.TestCase):
         self.assertEqual(payload["utterances"][0]["speaker"], "A")
         self.assertEqual(payload["utterances"][0]["words"][0]["speaker"], "A")
 
-    @patch("src.video_utils.aai.Transcriber")
-    @patch("src.video_utils.aai.TranscriptionConfig")
+    @patch("src.media.transcription.aai.Transcriber")
+    @patch("src.media.transcription.aai.TranscriptionConfig")
     def test_get_video_transcript_enables_speaker_labels(
         self, mock_transcription_config, mock_transcriber
     ):
@@ -129,7 +129,7 @@ class VideoUtilsDiarizationTests(unittest.TestCase):
             ],
         )
         with patch(
-            "src.video_utils._submit_and_wait_for_assemblyai_transcript",
+            "src.media.transcription._submit_and_wait_for_assemblyai_transcript",
             return_value=transcript,
         ):
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -214,8 +214,8 @@ class VideoUtilsDiarizationTests(unittest.TestCase):
         mock_config = SimpleNamespace(
             transcription_provider="whisper", whisper_model="base"
         )
-        with patch("src.video_utils.get_config", return_value=mock_config), patch(
-            "src.video_utils.transcribe_with_whisper", return_value=whisper_result
+        with patch("src.media.transcription.get_config", return_value=mock_config), patch(
+            "src.media.transcription.transcribe_with_whisper", return_value=whisper_result
         ) as mock_transcribe:
             with tempfile.TemporaryDirectory() as temp_dir:
                 video_path = Path(temp_dir) / "sample.mp4"
