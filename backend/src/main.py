@@ -165,6 +165,8 @@ def create_app(
         )
 
     app.include_router(tasks.router)
+    from .api.routes.editor import router as editor_router
+    app.include_router(editor_router)
     app.include_router(admin_router)
 
     from .api.routes.media import router as media_router

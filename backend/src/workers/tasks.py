@@ -125,6 +125,8 @@ async def process_video_task(
             # Error will be caught by arq and task status will be updated
             raise
 
+from ..services.editor_service import prepare_editor, export_editor, combine_editor
+
 # Worker configuration for arq
 class WorkerSettings:
     """Configuration for arq worker."""
@@ -135,7 +137,7 @@ class WorkerSettings:
     config = Config()
 
     # Functions to run
-    functions = [process_video_task]
+    functions = [process_video_task, prepare_editor, export_editor, combine_editor]
     queue_name = "supoclip_tasks"
 
     # Redis settings from environment
