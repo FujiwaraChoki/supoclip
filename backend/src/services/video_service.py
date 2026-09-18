@@ -444,7 +444,14 @@ class VideoService:
                 await progress_callback(30, "Generating transcript...", "processing")
 
             transcript = cached_transcript
-            if not transcript:
+            # Database text alone cannot recreate timed captions or cleanup.
+            # Repair older caches whose word-timing sidecar was removed.
+            needs_word_timings = (
+                bool(transcript)
+                and getattr(runtime_config, "transcription_provider", "assemblyai") != "youtube_captions"
+                and not (load_cached_transcript_data(video_path) or {}).get("words")
+            )
+            if not transcript or needs_word_timings:
                 transcript = await VideoService.generate_transcript(
                     video_path,
                     processing_mode=processing_mode,

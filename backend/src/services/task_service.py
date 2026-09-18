@@ -99,9 +99,8 @@ class TaskService(ClipEditingMixin):
         """Delete the downloaded source video + audio sidecar after a task.
 
         Generated clips and the tiny transcript-cache JSON are left in place.
-        For YouTube sources, ``cleanup_downloaded_files`` removes every
-        ``{video_id}.*`` artifact in temp/ (the merged video, sidecar audio,
-        and any stray partials). For uploads we only remove the audio sidecar
+        For YouTube sources, ``cleanup_downloaded_files`` removes downloaded
+        media and partials but retains word timings. For uploads we remove the audio sidecar
         generated for transcription — the original upload is owned elsewhere.
         """
         if not video_path:
