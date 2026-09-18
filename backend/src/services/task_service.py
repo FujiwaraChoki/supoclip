@@ -19,6 +19,7 @@ from ..repositories.cache_repository import CacheRepository
 from .video_service import VideoService
 from .clip_service import ClipEditingMixin
 from ..repositories.edit_transaction import serialized_task_edit, task_edit_transaction, TaskCancelled
+from ..repositories.task_run_guard import exclusive_task_run, task_run_guard
 from .billing_service import BillingService
 from .task_completion_email_service import (
     TaskCompletionEmailService,
@@ -182,6 +183,10 @@ class TaskService(ClipEditingMixin):
     def _processing_transaction(self, task_id: str):
         return task_edit_transaction(self.db, task_id, processing=True)
 
+    def _task_run_guard(self, task_id: str):
+        return task_run_guard(self.db, task_id)
+
+    @exclusive_task_run
     async def process_task(
         self,
         task_id: str,

@@ -33,7 +33,7 @@ def setup_worker(db, tmp_path, original):
 async def test_cancel_during_final_render_keeps_cancelled_and_removes_unpublished_clip(
     db_session, initialized_database, tmp_path, redis_flag
 ):
-    task_id, _, original = await make_task(db_session, tmp_path)
+    task_id, _, original = await make_task(db_session, tmp_path, status="queued")
     sessions = async_sessionmaker(initialized_database, expire_on_commit=False)
     entered, release = asyncio.Event(), asyncio.Event()
     cancelled = False
@@ -80,7 +80,7 @@ async def test_cancel_during_final_render_keeps_cancelled_and_removes_unpublishe
 async def test_cancel_wins_race_before_worker_status_write(
     db_session, initialized_database, tmp_path, target_status
 ):
-    task_id, _, original = await make_task(db_session, tmp_path)
+    task_id, _, original = await make_task(db_session, tmp_path, status="queued")
     sessions = async_sessionmaker(initialized_database, expire_on_commit=False)
     async with sessions() as worker, sessions() as api:
         service, _, _ = setup_worker(worker, tmp_path, original)
@@ -107,7 +107,7 @@ async def test_cancel_wins_race_before_worker_status_write(
 
 @pytest.mark.asyncio
 async def test_cancel_between_insert_and_commit_rolls_back_clip(db_session, tmp_path):
-    task_id, _, original = await make_task(db_session, tmp_path)
+    task_id, _, original = await make_task(db_session, tmp_path, status="queued")
     service, clip_path, _ = setup_worker(db_session, tmp_path, original)
     cancelled = False
     create_clip = service.clip_repo.create_clip

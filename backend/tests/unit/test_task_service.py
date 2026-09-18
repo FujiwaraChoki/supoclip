@@ -68,6 +68,8 @@ def build_task_service() -> TaskService:
     config.ses_from_email = "SupoClip <noreply@example.com>"
     service = TaskService(db=AsyncMock(), config=config)
     service._processing_transaction = lambda _task_id: nullcontext()
+    service._task_run_guard = lambda _task_id: nullcontext()
+    service.task_repo.get_task_by_id = AsyncMock(return_value={"status": "queued"})
     service.cache_repo.get_cache = AsyncMock(return_value=None)
     service.cache_repo.upsert_cache = AsyncMock()
     service.task_repo.update_task_runtime_metadata = AsyncMock()

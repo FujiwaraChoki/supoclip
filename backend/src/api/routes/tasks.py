@@ -17,6 +17,7 @@ import secrets
 import math
 from ...utils.async_helpers import run_in_thread
 
+from ...repositories.task_run_guard import task_run_guard, TaskRunBusy
 from ...database import get_db
 from ...database import AsyncSessionLocal
 from ...services.task_service import TaskService
@@ -1049,80 +1050,94 @@ async def resume_task(
         task_service = TaskService(db)
         task = await _require_task_owner(request, task_service, db, task_id)
 
-        if task.get("status") not in ["cancelled", "error", "queued"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Only cancelled/error/queued tasks can be resumed",
+        async with task_run_guard(db, task_id):
+            task = await task_service.task_repo.get_task_by_id(db, task_id)
+            if task.get("status") == "queued":
+                return {"message": "Task already queued"}
+            if task.get("status") not in ["cancelled", "error"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Only cancelled/error/queued tasks can be resumed",
+                )
+
+            source_url = task.get("source_url")
+            source_type = task.get("source_type")
+            output_format = "vertical"
+            add_subtitles = True
+
+            metadata = await _load_task_source_metadata(task_id)
+            if not source_url:
+                source_url = metadata.get("url")
+            if not source_type:
+                source_type = metadata.get("source_type")
+            of = metadata.get("output_format", output_format)
+            if of in VALID_OUTPUT_FORMATS:
+                output_format = of
+            asub = metadata.get("add_subtitles", add_subtitles)
+            if isinstance(asub, bool):
+                add_subtitles = asub
+            cleanup_settings = normalize_clip_cleanup_settings(
+                metadata.get("cut_long_pauses"),
+                metadata.get("pause_threshold_ms"),
+                metadata.get("remove_filler_words"),
+                metadata.get("filtered_words"),
             )
 
-        source_url = task.get("source_url")
-        source_type = task.get("source_type")
-        output_format = "vertical"
-        add_subtitles = True
+            if not source_url or not source_type:
+                raise HTTPException(status_code=400, detail="Task source URL is missing")
 
-        metadata = await _load_task_source_metadata(task_id)
-        if not source_url:
-            source_url = metadata.get("url")
-        if not source_type:
-            source_type = metadata.get("source_type")
-        of = metadata.get("output_format", output_format)
-        if of in VALID_OUTPUT_FORMATS:
-            output_format = of
-        asub = metadata.get("add_subtitles", add_subtitles)
-        if isinstance(asub, bool):
-            add_subtitles = asub
-        cleanup_settings = normalize_clip_cleanup_settings(
-            metadata.get("cut_long_pauses"),
-            metadata.get("pause_threshold_ms"),
-            metadata.get("remove_filler_words"),
-            metadata.get("filtered_words"),
-        )
+            runtime_config = get_config()
+            redis_client = redis.Redis(
+                host=runtime_config.redis_host,
+                port=runtime_config.redis_port,
+                password=runtime_config.redis_password,
+                decode_responses=True,
+            )
+            try:
+                await redis_client.delete(f"task_cancel:{task_id}")
+            finally:
+                await redis_client.aclose()
 
-        if not source_url or not source_type:
-            raise HTTPException(status_code=400, detail="Task source URL is missing")
+            await task_service.task_repo.update_task_status(
+                db,
+                task_id,
+                "queued",
+                progress=0,
+                progress_message="Re-queued by user",
+            )
 
-        runtime_config = get_config()
-        redis_client = redis.Redis(
-            host=runtime_config.redis_host,
-            port=runtime_config.redis_port,
-            password=runtime_config.redis_password,
-            decode_responses=True,
-        )
-        try:
-            await redis_client.delete(f"task_cancel:{task_id}")
-        finally:
-            await redis_client.aclose()
+            processing_mode = (
+                task.get("processing_mode") or runtime_config.default_processing_mode
+            )
 
-        await task_service.task_repo.update_task_status(
-            db,
-            task_id,
-            "queued",
-            progress=0,
-            progress_message="Re-queued by user",
-        )
+            try:
+                job_id = await JobQueue.enqueue_processing_job(
+                    "process_video_task",
+                    processing_mode,
+                    task_id,
+                    source_url,
+                    source_type,
+                    task["user_id"],
+                    task.get("font_family"),
+                    task.get("font_size"),
+                    task.get("font_color"),
+                    task.get("caption_template") or "default",
+                    processing_mode,
+                    output_format,
+                    add_subtitles,
+                    cleanup_settings,
+                )
+            except Exception:
+                await task_service.task_repo.update_task_status(
+                    db, task_id, task["status"],
+                    progress_message="Could not enqueue resume. Please retry.",
+                    expected_statuses=["queued"],
+                )
+                raise
 
-        processing_mode = (
-            task.get("processing_mode") or runtime_config.default_processing_mode
-        )
-
-        job_id = await JobQueue.enqueue_processing_job(
-            "process_video_task",
-            processing_mode,
-            task_id,
-            source_url,
-            source_type,
-            task["user_id"],
-            task.get("font_family"),
-            task.get("font_size"),
-            task.get("font_color"),
-            task.get("caption_template") or "default",
-            processing_mode,
-            output_format,
-            add_subtitles,
-            cleanup_settings,
-        )
-
-        return {"message": "Task resumed", "job_id": job_id}
+            return {"message": "Task resumed", "job_id": job_id}
+    except TaskRunBusy as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
