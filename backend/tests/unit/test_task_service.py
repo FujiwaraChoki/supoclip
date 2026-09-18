@@ -123,6 +123,7 @@ async def test_update_clip_captions_passes_stored_task_style(isolated_clip_edits
         "start_time": "00:10",
         "end_time": "00:12",
         "duration": 2.0,
+        "hook_title": "Keep this headline style",
     }
     service.clip_repo.get_clip_by_id = AsyncMock(
         side_effect=[clip, {**clip, "file_path": str(output_path)}]
@@ -177,6 +178,11 @@ async def test_update_clip_captions_passes_stored_task_style(isolated_clip_edits
     assert rendered[0][0][0] == tmp_path / "source.mp4"
     assert rendered[0][1]["add_subtitles"] is False
     assert rendered[0][1]["extend_to_sentence"] is False
+    assert rendered[0][1]["hook_title"] == "Keep this headline style"
+    assert rendered[0][1]["font_family"] == "Inter"
+    assert rendered[0][1]["font_size"] == 48
+    assert rendered[0][1]["font_color"] == "#123456"
+    assert rendered[0][1]["caption_template"] == "minimal"
 
 
 @pytest.mark.asyncio
