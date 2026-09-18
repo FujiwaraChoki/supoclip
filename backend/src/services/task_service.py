@@ -18,6 +18,7 @@ from ..repositories.clip_repository import ClipRepository
 from ..repositories.cache_repository import CacheRepository
 from .video_service import VideoService
 from .clip_service import ClipEditingMixin
+from ..repositories.edit_transaction import serialized_task_edit
 from .billing_service import BillingService
 from .task_completion_email_service import (
     TaskCompletionEmailService,
@@ -591,6 +592,7 @@ class TaskService(ClipEditingMixin):
         """Get all tasks for a user."""
         return await self.task_repo.get_user_tasks(self.db, user_id, limit)
 
+    @serialized_task_edit
     async def delete_task(self, task_id: str) -> None:
         """Delete a task and all its associated clips."""
         # Delete all clips for this task

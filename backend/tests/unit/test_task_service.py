@@ -108,7 +108,7 @@ def test_cache_key_includes_analysis_prompt_version():
 
 
 @pytest.mark.asyncio
-async def test_update_clip_captions_passes_stored_task_style(monkeypatch, tmp_path):
+async def test_update_clip_captions_passes_stored_task_style(isolated_clip_edits, monkeypatch, tmp_path):
     config = Config()
     config.temp_dir = str(tmp_path)
     service = TaskService(db=AsyncMock(), config=config)
@@ -541,7 +541,7 @@ async def test_processing_rolls_back_failed_write_before_recording_error():
 
 
 @pytest.mark.asyncio
-async def test_merge_rejects_duplicate_ids_before_modifying_clips():
+async def test_merge_rejects_duplicate_ids_before_modifying_clips(isolated_clip_edits):
     service = build_task_service()
     service.clip_repo.get_clip_by_id = AsyncMock()
     service.clip_repo.delete_clip = AsyncMock()

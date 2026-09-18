@@ -14,7 +14,7 @@ from src.clip_source_map import load_clip_caption_settings, save_clip_source_ran
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is required")
-async def test_caption_saves_render_from_source_and_keep_exact_boundaries(tmp_path, monkeypatch):
+async def test_caption_saves_render_from_source_and_keep_exact_boundaries(isolated_clip_edits, tmp_path, monkeypatch):
     source = tmp_path / "source.mp4"
     subprocess.run([
         "ffmpeg", "-y", "-f", "lavfi", "-i", "color=c=blue:s=320x180:r=30:d=2",
