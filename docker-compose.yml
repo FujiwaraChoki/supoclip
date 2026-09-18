@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
       target: ${FRONTEND_BUILD_TARGET:-development}
       args:
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8002}
         - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3107}
         - NEXT_PUBLIC_SELF_HOST=${SELF_HOST:-true}
         - NEXT_PUBLIC_PRO_PRICE_MONTHLY=${NEXT_PUBLIC_PRO_PRICE_MONTHLY:-10}
@@ -26,8 +26,8 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - NEXT_TELEMETRY_DISABLED=1
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-      - BACKEND_INTERNAL_URL=http://backend:8000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8002}
+      - BACKEND_INTERNAL_URL=http://backend:8002
       - NEXT_PUBLIC_SELF_HOST=${SELF_HOST:-true}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3107}
       - NEXT_PUBLIC_LANDING_ONLY_MODE=${NEXT_PUBLIC_LANDING_ONLY_MODE:-false}
@@ -78,9 +78,9 @@ services:
       dockerfile: Dockerfile
     container_name: supoclip-backend
     platform: linux/amd64
-    command: [".venv/bin/uvicorn", "src.main_refactored:app", "--host", "0.0.0.0", "--port", "8000"]
+    command: [".venv/bin/uvicorn", "src.main_refactored:app", "--host", "0.0.0.0", "--port", "8002"]
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8002:8002"
     volumes:
       - ./backend/src:/app/src
       - uploads:/app/uploads
@@ -140,7 +140,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health/db"]
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health/db"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -156,7 +156,7 @@ services:
     volumes:
       - mcp_downloads:/app/supoclip-downloads
     environment:
-      - SUPOCLIP_API_URL=${SUPOCLIP_API_URL:-http://backend:8000}
+      - SUPOCLIP_API_URL=${SUPOCLIP_API_URL:-http://backend:8002}
       - SUPOCLIP_DOWNLOAD_DIR=/app/supoclip-downloads
       - SUPOCLIP_TIMEOUT=${SUPOCLIP_TIMEOUT:-60}
       - SUPOCLIP_MCP_TRANSPORT=${SUPOCLIP_MCP_TRANSPORT:-sse}
