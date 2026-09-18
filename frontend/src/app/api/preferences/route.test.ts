@@ -124,4 +124,13 @@ describe("/api/preferences", () => {
       notifyOnCompletion: true,
     });
   });
+  it.each([{ fontSize: 0 }, { fontSize: null }, { fontSize: 24.5 }, { fontFamily: false }, { fontColor: "" }, null, []])("rejects invalid falsy or non-object preferences: %j", async (body) => {
+    vi.mocked(getServerSession).mockResolvedValue({ user: { id: "user-1" } } as never);
+    const response = await PATCH(new Request("http://localhost/api/preferences", {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    }) as never);
+    expect(response.status).toBe(400);
+    expect(getPrismaClient).not.toHaveBeenCalled();
+  });
+
 });

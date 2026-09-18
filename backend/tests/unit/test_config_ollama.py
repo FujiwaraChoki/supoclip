@@ -24,3 +24,11 @@ def test_youtube_duration_limit_uses_active_subscription_plan(monkeypatch):
     assert config.max_youtube_video_duration_for_plan("pro", "active") == 7200
     assert config.max_youtube_video_duration_for_plan("scale", "trialing") == 10800
     assert config.max_youtube_video_duration_for_plan("scale", "inactive") == 5400
+
+
+def test_whisper_accepts_documented_model_size_setting(monkeypatch):
+    monkeypatch.delenv("WHISPER_MODEL", raising=False)
+    monkeypatch.setenv("WHISPER_MODEL_SIZE", "tiny")
+    assert Config().whisper_model == "tiny"
+    monkeypatch.setenv("WHISPER_MODEL", "base")
+    assert Config().whisper_model == "base"

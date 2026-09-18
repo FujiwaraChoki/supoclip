@@ -30,7 +30,7 @@ uv venv .venv && source .venv/bin/activate
 uv sync
 
 # API server (uses refactored entry point)
-uvicorn src.main_refactored:app --reload --host 0.0.0.0 --port 8000
+uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
 # Worker process (required for video processing)
 arq src.workers.tasks.WorkerSettings
@@ -64,7 +64,7 @@ Task creation returns immediately (<100ms). Video processing happens asynchronou
 
 ### Backend: Layered Architecture
 
-The backend was refactored from monolithic (`main.py`, legacy) to layered (`main_refactored.py`, active):
+The backend uses the layered application in `main.py`; `main_refactored.py` is a compatibility import:
 
 ```
 api/routes/          → HTTP handlers (tasks.py, media.py)
@@ -118,8 +118,8 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 
 | File | Purpose |
 |------|---------|
-| `src/main_refactored.py` | Active FastAPI entry point (129 lines) |
-| `src/main.py` | Legacy monolithic entry point (do not use for new work) |
+| `src/main_refactored.py` | Compatibility import for existing deployments |
+| `src/main.py` | Canonical FastAPI application factory |
 | `src/api/routes/tasks.py` | Task CRUD, SSE progress, clip editing endpoints (711 lines) |
 | `src/api/routes/media.py` | Fonts, transitions, uploads, templates |
 | `src/services/task_service.py` | Task orchestration, clip editing logic (574 lines) |

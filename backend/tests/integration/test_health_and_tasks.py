@@ -254,3 +254,44 @@ async def test_upload_video_uses_runtime_config_temp_dir(
     payload = response.json()
     saved_name = payload["video_path"].removeprefix("upload://")
     assert (tmp_path / "uploads" / saved_name).exists()
+
+
+@pytest.mark.asyncio
+async def test_deleting_clip_requires_clip_to_belong_to_owned_task(client, db_session, auth_headers):
+    owner = await create_user(db_session, user_id="user-1")
+    other = await create_user(db_session)
+    source = await create_source(db_session)
+    owned_task = await create_task(db_session, user_id=owner["id"], source_id=source["id"])
+    other_task = await create_task(db_session, user_id=other["id"], source_id=source["id"])
+    other_clip = await create_clip(db_session, task_id=other_task["id"])
+    response = await client.delete(f"/tasks/{owned_task['id']}/clips/{other_clip['id']}", headers=auth_headers)
+    assert response.status_code == 404
+    remaining = await db_session.execute(text("SELECT id FROM generated_clips WHERE id = :id"), {"id": other_clip["id"]})
+    assert remaining.scalar() == other_clip["id"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("payload", [None, [], {"source": "bad"}, {"source": {"url": 123}}, {"source": {"url": "https://youtu.be/jNQXAC9IVRw"}, "font_options": None}])
+async def test_create_task_rejects_malformed_payloads(client, auth_headers, payload):
+    import json
+    response = await client.post("/tasks/", headers={**auth_headers, "Content-Type": "application/json"}, content=json.dumps(payload))
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("suffix,method,payload", [
+    ("/clips/missing", "patch", {"start_offset": None}),
+    ("/clips/missing", "patch", {"start_offset": 10**400}),
+    ("/clips/missing", "patch", {"start_offset": "NaN"}),
+    ("/clips/missing/split", "post", {"split_time": "Infinity"}),
+    ("/clips/merge", "post", {"clip_ids": [{}, {}]}),
+])
+async def test_clip_edit_rejects_invalid_values(client, auth_headers, suffix, method, payload):
+    response = await getattr(client, method)(f"/tasks/missing{suffix}", headers=auth_headers, json=payload)
+    assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_fonts_preserves_unauthorized_status(client):
+    response = await client.get("/fonts")
+    assert response.status_code == 401

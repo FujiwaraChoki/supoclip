@@ -23,7 +23,7 @@ def test_build_clip_keep_ranges_removes_pauses_and_filler_words(monkeypatch):
         ]
     }
     monkeypatch.setattr(
-        "src.video_utils.load_cached_transcript_data",
+        "src.media.timeline.load_cached_transcript_data",
         lambda _video_path: transcript_data,
     )
 
@@ -50,7 +50,7 @@ def test_build_clip_keep_ranges_removes_boundary_silence(monkeypatch):
         ]
     }
     monkeypatch.setattr(
-        "src.video_utils.load_cached_transcript_data",
+        "src.media.timeline.load_cached_transcript_data",
         lambda _video_path: transcript_data,
     )
 
@@ -97,7 +97,7 @@ def test_build_keep_ranges_from_source_ranges_recomputes_each_range(monkeypatch)
         return [(clip_start + 0.1, clip_end - 0.1)]
 
     monkeypatch.setattr(
-        "src.video_utils.build_clip_keep_ranges",
+        "src.media.timeline.build_clip_keep_ranges",
         fake_build_clip_keep_ranges,
     )
 

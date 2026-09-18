@@ -43,7 +43,8 @@ export async function parseApiError(
   let payload: ErrorPayload = {};
 
   try {
-    payload = (await response.json()) as ErrorPayload;
+    const data: unknown = await response.json();
+    if (data && typeof data === "object") payload = data as ErrorPayload;
   } catch {
     // Some upstream responses are plain text
   }

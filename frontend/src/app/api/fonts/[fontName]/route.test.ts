@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 
-import { DELETE } from "./route";
+import { DELETE, GET } from "./route";
 
 vi.mock("next/headers", () => ({
   headers: vi.fn(),
@@ -69,4 +69,13 @@ describe("DELETE /api/fonts/[fontName]", () => {
     );
     expect(response.status).toBe(200);
   });
+  it("revalidates font files so deleted uploads cannot stay cached", async () => {
+    vi.mocked(auth.api.getSession).mockResolvedValue({ user: { id: "user-1" } } as never);
+    const fetchMock = vi.fn().mockResolvedValue(new Response("font", { headers: { "Content-Type": "font/ttf" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await GET(new Request("http://localhost/api/fonts/Custom"), { params: Promise.resolve({ fontName: "Custom" }) });
+    expect(fetchMock).toHaveBeenCalledWith("http://backend:8000/fonts/Custom", expect.objectContaining({ cache: "no-store" }));
+    expect(response.headers.get("cache-control")).toBe("private, no-cache");
+  });
+
 });

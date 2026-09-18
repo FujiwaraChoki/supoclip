@@ -49,7 +49,7 @@ Technology:
 
 Location:
 
-- `backend/src/main_refactored.py`
+- `backend/src/main.py`
 - `backend/src/api/routes`
 - `backend/src/services`
 - `backend/src/repositories`
@@ -413,17 +413,22 @@ Redis is required for:
 
 The backend exposes interactive docs at `/docs`, which is helpful for inspecting available endpoints outside the frontend.
 
-## Legacy and Active Entry Points
+## Backend entry point and media modules
 
-The active backend entry point is:
+`backend/src/main.py` is the canonical API factory and entry point. The old
+`main_refactored.py` import remains an alias for existing deployments. The legacy
+monolithic API implementation has been removed; clients use `/tasks/` and the
+shared media routes.
 
-- `backend/src/main_refactored.py`
+Processing orchestration lives in `services/task_service.py`; clip edits and
+regeneration live in `services/clip_service.py`. Media implementation is split
+into `media/transcription.py`, `media/timeline.py`, `media/captions.py`,
+`media/reframing.py`, and `media/ffmpeg.py`. `video_utils.py` retains pipeline
+composition and compatibility exports.
 
-The legacy monolithic file still exists:
-
-- `backend/src/main.py`
-
-For new work, use the refactored entry point and layered route structure.
+Caption edits render a fresh clip from its mapped source ranges before applying
+captions. The editor previews that saved file; exports do not add another caption
+layer. Caption edits need the original upload or an available YouTube source.
 
 ## Related Reading
 

@@ -7,6 +7,10 @@ on:
       - main
       - master
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     runs-on: ubuntu-latest
@@ -69,6 +73,8 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install frontend dependencies
         run: cd frontend && pnpm install --frozen-lockfile
+      - name: Lint and type-check frontend
+        run: cd frontend && pnpm run lint && pnpm run typecheck
       - name: Run frontend unit tests
         run: cd frontend && pnpm run test:coverage
 

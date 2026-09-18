@@ -7,13 +7,17 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 from pathlib import Path
+from contextlib import aclosing
 import json
 import logging
 from typing import Dict, Any, Optional
 import inspect
 import re
 import secrets
+import math
+from ...utils.async_helpers import run_in_thread
 
+from ...repositories.task_run_guard import task_run_guard, TaskRunBusy
 from ...database import get_db
 from ...database import AsyncSessionLocal
 from ...services.task_service import TaskService
@@ -55,6 +59,26 @@ def _normalize_font_family(value: Any) -> Optional[str]:
     if isinstance(value, str) and value.strip():
         return value.strip()
     return None
+
+
+async def _read_json_object(request: Request) -> Dict[str, Any]:
+    try:
+        payload = await request.json()
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Request body must be an object")
+    return payload
+
+
+def _finite_number(value: Any, name: str) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError(f"{name} must be a finite number")
+    if isinstance(value, bool) or not math.isfinite(number):
+        raise ValueError(f"{name} must be a finite number")
+    return number
 
 
 async def _get_user_id_from_headers(request: Request, db: AsyncSession) -> str:
@@ -217,13 +241,17 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     Create a new task and enqueue it for processing.
     Returns task_id immediately.
     """
-    data = await request.json()
+    data = await _read_json_object(request)
 
     raw_source = data.get("source")
+    if not isinstance(raw_source, dict) or not isinstance(raw_source.get("url"), str) or not raw_source["url"].strip():
+        raise HTTPException(status_code=400, detail="Source URL is required")
     user_id = await _get_user_id_from_headers(request, db)
 
     # Get font options
     font_options = data.get("font_options", {})
+    if not isinstance(font_options, dict):
+        raise HTTPException(status_code=400, detail="font_options must be an object")
     font_family = _normalize_font_family(font_options.get("font_family"))
     font_size = _normalize_font_size(font_options.get("font_size"))
     font_color = _normalize_font_color(font_options.get("font_color"))
@@ -510,7 +538,7 @@ async def get_task_progress_sse(task_id: str, request: Request):
         }
 
         # If task is already completed or error, close connection
-        if task.get("status") in ["completed", "error"]:
+        if task.get("status") in ["completed", "error", "cancelled"]:
             yield {"event": "close", "data": json.dumps({"status": task.get("status")})}
             return
 
@@ -525,22 +553,20 @@ async def get_task_progress_sse(task_id: str, request: Request):
 
         try:
             # Subscribe to progress updates
-            async for progress_data in ProgressTracker.subscribe_to_progress(
-                redis_client, task_id
-            ):
-                event_type = progress_data.get("event_type", "progress")
-                yield {"event": event_type, "data": json.dumps(progress_data)}
+            async with aclosing(ProgressTracker.subscribe_to_progress(redis_client, task_id)) as updates:
+                async for progress_data in updates:
+                    event_type = progress_data.get("event_type", "progress")
+                    yield {"event": event_type, "data": json.dumps(progress_data)}
 
-                # Close connection if task is done
-                if progress_data.get("status") in ["completed", "error"]:
-                    yield {
-                        "event": "close",
-                        "data": json.dumps({"status": progress_data.get("status")}),
-                    }
-                    break
-
+                    # Close connection if task is done
+                    if progress_data.get("status") in ["completed", "error", "cancelled"]:
+                        yield {
+                            "event": "close",
+                            "data": json.dumps({"status": progress_data.get("status")}),
+                        }
+                        break
         finally:
-            await redis_client.close()
+            await redis_client.aclose()
 
     return EventSourceResponse(event_generator())
 
@@ -551,10 +577,10 @@ async def update_task(
 ):
     """Update task details (title)."""
     try:
-        data = await request.json()
+        data = await _read_json_object(request)
         title = data.get("title")
 
-        if not title:
+        if not isinstance(title, str) or not title.strip():
             raise HTTPException(status_code=400, detail="Title is required")
 
         task_service = TaskService(db)
@@ -599,6 +625,8 @@ async def delete_task(
 
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting task: {e}")
         raise HTTPException(status_code=500, detail=f"Error deleting task: {str(e)}")
@@ -623,13 +651,18 @@ async def delete_clip(
                 status_code=403, detail="Not authorized to delete this clip"
             )
 
-        # Delete the clip
-        await task_service.clip_repo.delete_clip(db, clip_id)
+        clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
+        if not clip or clip["task_id"] != task_id:
+            raise HTTPException(status_code=404, detail="Clip not found")
+
+        await task_service.delete_clip(task_id, clip_id)
 
         return {"message": "Clip deleted successfully"}
 
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting clip: {e}")
         raise HTTPException(status_code=500, detail=f"Error deleting clip: {str(e)}")
@@ -682,9 +715,9 @@ async def trim_clip(
 ):
     """Trim clip boundaries and regenerate clip file."""
     try:
-        payload = await request.json()
-        start_offset = float(payload.get("start_offset", 0))
-        end_offset = float(payload.get("end_offset", 0))
+        payload = await _read_json_object(request)
+        start_offset = _finite_number(payload.get("start_offset", 0), "start_offset")
+        end_offset = _finite_number(payload.get("end_offset", 0), "end_offset")
 
         if start_offset < 0 or end_offset < 0:
             raise HTTPException(status_code=400, detail="Offsets must be non-negative")
@@ -710,8 +743,8 @@ async def split_clip(
 ):
     """Split a clip into two clips."""
     try:
-        payload = await request.json()
-        split_time = float(payload.get("split_time", 0))
+        payload = await _read_json_object(request)
+        split_time = _finite_number(payload.get("split_time", 0), "split_time")
         if split_time <= 0:
             raise HTTPException(
                 status_code=400, detail="split_time must be greater than zero"
@@ -736,9 +769,9 @@ async def merge_clips(
 ):
     """Merge multiple clips into one clip."""
     try:
-        payload = await request.json()
+        payload = await _read_json_object(request)
         clip_ids = payload.get("clip_ids") or []
-        if not isinstance(clip_ids, list):
+        if not isinstance(clip_ids, list) or any(not isinstance(cid, str) or not cid for cid in clip_ids):
             raise HTTPException(status_code=400, detail="clip_ids must be an array")
 
         task_service = TaskService(db)
@@ -760,7 +793,7 @@ async def update_clip_captions(
 ):
     """Update clip caption text, timing style and highlighted words."""
     try:
-        payload = await request.json()
+        payload = await _read_json_object(request)
         caption_text = str(payload.get("caption_text", "")).strip()
         position = str(payload.get("position", "bottom"))
         highlight_words = payload.get("highlight_words") or []
@@ -768,6 +801,20 @@ async def update_clip_captions(
             raise HTTPException(
                 status_code=400, detail="highlight_words must be an array"
             )
+
+        font_size = payload.get("font_size")
+        if font_size is not None:
+            font_size = _finite_number(font_size, "font_size")
+            if not math.isfinite(font_size) or not 12 <= font_size <= 72:
+                raise ValueError("Font size must be between 12 and 72")
+            font_size = int(font_size)
+        position_y = payload.get("position_y")
+        if position_y is not None:
+            position_y = _finite_number(position_y, "position_y")
+            if not math.isfinite(position_y) or not 0.1 <= position_y <= 0.85:
+                raise ValueError("Caption position must be between 0.1 and 0.85")
+        if position not in {"top", "middle", "bottom"}:
+            raise ValueError("Invalid caption position")
 
         task_service = TaskService(db)
         await _require_task_owner(request, task_service, db, task_id)
@@ -777,6 +824,8 @@ async def update_clip_captions(
             caption_text,
             position,
             [str(word) for word in highlight_words],
+            font_size=font_size,
+            position_y=position_y,
         )
         return {"clip": updated_clip}
     except ValueError as e:
@@ -796,9 +845,9 @@ async def regenerate_clip(
 ):
     """Regenerate a single clip after editing timing values."""
     try:
-        payload = await request.json()
-        start_offset = float(payload.get("start_offset", 0))
-        end_offset = float(payload.get("end_offset", 0))
+        payload = await _read_json_object(request)
+        start_offset = _finite_number(payload.get("start_offset", 0), "start_offset")
+        end_offset = _finite_number(payload.get("end_offset", 0), "end_offset")
 
         task_service = TaskService(db)
         await _require_task_owner(request, task_service, db, task_id)
@@ -823,7 +872,7 @@ async def apply_task_settings(
 ):
     """Update task-level styling settings and optionally apply to all existing clips."""
     try:
-        payload = await request.json()
+        payload = await _read_json_object(request)
         font_family = _normalize_font_family(payload.get("font_family"))
         font_size = _normalize_font_size(payload.get("font_size"))
         font_color = _normalize_font_color(payload.get("font_color"))
@@ -917,7 +966,8 @@ async def export_clip(
         await db.close()
 
         runtime_config = get_config()
-        output_path = export_with_preset(
+        output_path = await run_in_thread(
+            export_with_preset,
             Path(clip["file_path"]),
             Path(runtime_config.temp_dir) / "exports",
             preset_name,
@@ -956,7 +1006,7 @@ async def cancel_task(
         try:
             await redis_client.setex(f"task_cancel:{task_id}", 3600, "1")
         finally:
-            await redis_client.close()
+            await redis_client.aclose()
 
         await task_service.task_repo.update_task_status(
             db,
@@ -964,6 +1014,7 @@ async def cancel_task(
             "cancelled",
             progress=0,
             progress_message="Cancelled by user",
+            expected_statuses=["queued", "processing"],
         )
 
         return {"message": "Task cancellation requested"}
@@ -999,80 +1050,94 @@ async def resume_task(
         task_service = TaskService(db)
         task = await _require_task_owner(request, task_service, db, task_id)
 
-        if task.get("status") not in ["cancelled", "error", "queued"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Only cancelled/error/queued tasks can be resumed",
+        async with task_run_guard(db, task_id):
+            task = await task_service.task_repo.get_task_by_id(db, task_id)
+            if task.get("status") == "queued":
+                return {"message": "Task already queued"}
+            if task.get("status") not in ["cancelled", "error"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Only cancelled/error/queued tasks can be resumed",
+                )
+
+            source_url = task.get("source_url")
+            source_type = task.get("source_type")
+            output_format = "vertical"
+            add_subtitles = True
+
+            metadata = await _load_task_source_metadata(task_id)
+            if not source_url:
+                source_url = metadata.get("url")
+            if not source_type:
+                source_type = metadata.get("source_type")
+            of = metadata.get("output_format", output_format)
+            if of in VALID_OUTPUT_FORMATS:
+                output_format = of
+            asub = metadata.get("add_subtitles", add_subtitles)
+            if isinstance(asub, bool):
+                add_subtitles = asub
+            cleanup_settings = normalize_clip_cleanup_settings(
+                metadata.get("cut_long_pauses"),
+                metadata.get("pause_threshold_ms"),
+                metadata.get("remove_filler_words"),
+                metadata.get("filtered_words"),
             )
 
-        source_url = task.get("source_url")
-        source_type = task.get("source_type")
-        output_format = "vertical"
-        add_subtitles = True
+            if not source_url or not source_type:
+                raise HTTPException(status_code=400, detail="Task source URL is missing")
 
-        metadata = await _load_task_source_metadata(task_id)
-        if not source_url:
-            source_url = metadata.get("url")
-        if not source_type:
-            source_type = metadata.get("source_type")
-        of = metadata.get("output_format", output_format)
-        if of in VALID_OUTPUT_FORMATS:
-            output_format = of
-        asub = metadata.get("add_subtitles", add_subtitles)
-        if isinstance(asub, bool):
-            add_subtitles = asub
-        cleanup_settings = normalize_clip_cleanup_settings(
-            metadata.get("cut_long_pauses"),
-            metadata.get("pause_threshold_ms"),
-            metadata.get("remove_filler_words"),
-            metadata.get("filtered_words"),
-        )
+            runtime_config = get_config()
+            redis_client = redis.Redis(
+                host=runtime_config.redis_host,
+                port=runtime_config.redis_port,
+                password=runtime_config.redis_password,
+                decode_responses=True,
+            )
+            try:
+                await redis_client.delete(f"task_cancel:{task_id}")
+            finally:
+                await redis_client.aclose()
 
-        if not source_url or not source_type:
-            raise HTTPException(status_code=400, detail="Task source URL is missing")
+            await task_service.task_repo.update_task_status(
+                db,
+                task_id,
+                "queued",
+                progress=0,
+                progress_message="Re-queued by user",
+            )
 
-        runtime_config = get_config()
-        redis_client = redis.Redis(
-            host=runtime_config.redis_host,
-            port=runtime_config.redis_port,
-            password=runtime_config.redis_password,
-            decode_responses=True,
-        )
-        try:
-            await redis_client.delete(f"task_cancel:{task_id}")
-        finally:
-            await redis_client.close()
+            processing_mode = (
+                task.get("processing_mode") or runtime_config.default_processing_mode
+            )
 
-        await task_service.task_repo.update_task_status(
-            db,
-            task_id,
-            "queued",
-            progress=0,
-            progress_message="Re-queued by user",
-        )
+            try:
+                job_id = await JobQueue.enqueue_processing_job(
+                    "process_video_task",
+                    processing_mode,
+                    task_id,
+                    source_url,
+                    source_type,
+                    task["user_id"],
+                    task.get("font_family"),
+                    task.get("font_size"),
+                    task.get("font_color"),
+                    task.get("caption_template") or "default",
+                    processing_mode,
+                    output_format,
+                    add_subtitles,
+                    cleanup_settings,
+                )
+            except Exception:
+                await task_service.task_repo.update_task_status(
+                    db, task_id, task["status"],
+                    progress_message="Could not enqueue resume. Please retry.",
+                    expected_statuses=["queued"],
+                )
+                raise
 
-        processing_mode = (
-            task.get("processing_mode") or runtime_config.default_processing_mode
-        )
-
-        job_id = await JobQueue.enqueue_processing_job(
-            "process_video_task",
-            processing_mode,
-            task_id,
-            source_url,
-            source_type,
-            task["user_id"],
-            task.get("font_family"),
-            task.get("font_size"),
-            task.get("font_color"),
-            task.get("caption_template") or "default",
-            processing_mode,
-            output_format,
-            add_subtitles,
-            cleanup_settings,
-        )
-
-        return {"message": "Task resumed", "job_id": job_id}
+            return {"message": "Task resumed", "job_id": job_id}
+    except TaskRunBusy as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -1081,9 +1146,10 @@ async def resume_task(
 
 
 @router.get("/dead-letter/list")
-async def list_dead_letter_tasks():
+async def list_dead_letter_tasks(request: Request, db: AsyncSession = Depends(get_db)):
     """List tasks that exhausted retries and landed in dead-letter store."""
     runtime_config = get_config()
+    await require_admin_user(request, db, runtime_config)
     redis_client = redis.Redis(
         host=runtime_config.redis_host,
         port=runtime_config.redis_port,
@@ -1105,4 +1171,4 @@ async def list_dead_letter_tasks():
 
         return {"total": len(items), "tasks": items}
     finally:
-        await redis_client.close()
+        await redis_client.aclose()

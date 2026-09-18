@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from src import clip_editor, video_utils
+from src.media import captions
 
 
 def test_overlay_custom_captions_uses_template_and_cached_word_timings(
@@ -42,7 +43,7 @@ def test_overlay_custom_captions_uses_template_and_cached_word_timings(
     monkeypatch.setattr(
         clip_editor, "build_assemblyai_ass_subtitles", capture_builder
     )
-    monkeypatch.setattr(video_utils, "emoji_rendering_supported", lambda: False)
+    monkeypatch.setattr(captions, "emoji_rendering_supported", lambda: False)
 
     clip_editor.overlay_custom_captions(
         input_path,

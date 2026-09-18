@@ -669,10 +669,12 @@ def is_video_suitable_for_processing(
 
 
 def cleanup_downloaded_files(video_id: str):
-    """Clean up downloaded files for a specific video ID."""
+    """Remove downloaded media while retaining word timings for cached jobs."""
     temp_dir = Path(get_config().temp_dir)
 
     for file_path in temp_dir.glob(f"{video_id}.*"):
+        if file_path.name == f"{video_id}.transcript_cache.json":
+            continue
         try:
             if file_path.is_file():
                 file_path.unlink()

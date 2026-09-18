@@ -91,5 +91,6 @@ class ProgressTracker:
                     data = json.loads(message["data"])
                     yield data
         finally:
-            await pubsub.unsubscribe(f"progress:{task_id}")
-            await pubsub.close()
+            # Closing the dedicated connection also unsubscribes, even when the
+            # browser disconnects while the generator is yielding an event.
+            await pubsub.aclose()

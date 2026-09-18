@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { StatusBadge, ACTIVE_TASK_STATUSES, RESUMABLE_TASK_STATUSES } from "@/components/app/status-badge";
+import { PageLoading } from "@/components/app/page-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -54,9 +56,6 @@ interface Task {
 
 type BatchAction = "cancel" | "resume" | "delete" | null;
 
-const ACTIVE_TASK_STATUSES = ["queued", "processing"];
-const RESUMABLE_TASK_STATUSES = ["cancelled", "error"];
-
 async function fetchTasksList() {
   const response = await fetch("/api/tasks/", {
     cache: "no-store",
@@ -74,42 +73,6 @@ async function buildSupportError(response: Response, fallbackMessage: string) {
   const parsed = await parseApiError(response, fallbackMessage);
   return formatSupportMessage(parsed);
 }
-
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; dotClass: string; bgClass: string; textClass: string }
-> = {
-  completed: {
-    label: "Completed",
-    dotClass: "bg-emerald-500",
-    bgClass: "bg-emerald-50 border-emerald-200/60",
-    textClass: "text-emerald-800",
-  },
-  processing: {
-    label: "Processing",
-    dotClass: "bg-blue-500 animate-pulse",
-    bgClass: "bg-blue-50 border-blue-200/60",
-    textClass: "text-blue-800",
-  },
-  queued: {
-    label: "Queued",
-    dotClass: "bg-amber-500",
-    bgClass: "bg-amber-50 border-amber-200/60",
-    textClass: "text-amber-800",
-  },
-  error: {
-    label: "Error",
-    dotClass: "bg-red-500",
-    bgClass: "bg-red-50 border-red-200/60",
-    textClass: "text-red-800",
-  },
-  cancelled: {
-    label: "Cancelled",
-    dotClass: "bg-stone-400",
-    bgClass: "bg-stone-100 border-stone-200/60",
-    textClass: "text-stone-600",
-  },
-};
 
 export default function ListPage() {
   const { data: session, isPending } = useSession();
@@ -152,13 +115,29 @@ export default function ListPage() {
     void loadTasks();
   }, [session?.user?.id]);
 
-  const refreshTasks = async () => {
+  const refreshTasks = useCallback(async () => {
     const nextTasks = await fetchTasksList();
     setTasks(nextTasks);
     setSelectedTaskIds((current) =>
       current.filter((taskId) => nextTasks.some((task) => task.id === taskId)),
     );
-  };
+  }, []);
+
+  const hasActiveTasks = tasks.some((task) => ACTIVE_TASK_STATUSES.includes(task.status));
+  useEffect(() => {
+    if (!session?.user?.id || !hasActiveTasks) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      try { await refreshTasks(); }
+      catch { /* Preserve the last list during a transient network outage. */ }
+      if (!stopped) timer = setTimeout(refresh, 5000);
+    };
+    timer = setTimeout(refresh, 5000);
+    const onFocus = () => { void refreshTasks().catch(() => {}); };
+    window.addEventListener("focus", onFocus);
+    return () => { stopped = true; clearTimeout(timer); window.removeEventListener("focus", onFocus); };
+  }, [session?.user?.id, hasActiveTasks, refreshTasks]);
 
   const selectedTasks = tasks.filter((task) => selectedTaskIds.includes(task.id));
   const selectedCount = selectedTasks.length;
@@ -176,7 +155,7 @@ export default function ListPage() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return new Intl.DateTimeFormat("en-US", {
+    return new Intl.DateTimeFormat(undefined, {
       month: "short",
       day: "numeric",
       hour: "2-digit",
@@ -329,17 +308,7 @@ export default function ListPage() {
 
   /* ── Loading / Auth gates ─────────────────────────────────── */
 
-  if (isPending) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
-        <div className="space-y-4">
-          <Skeleton className="h-4 w-32 mx-auto" />
-          <Skeleton className="h-4 w-48 mx-auto" />
-          <Skeleton className="h-4 w-24 mx-auto" />
-        </div>
-      </div>
-    );
-  }
+  if (isPending) return <PageLoading />;
 
   if (!session?.user) {
     return (
@@ -356,31 +325,6 @@ export default function ListPage() {
       </div>
     );
   }
-
-  /* ── Status badge renderer ────────────────────────────────── */
-
-  const getStatusBadge = (status: string) => {
-    const config = STATUS_CONFIG[status];
-    if (!config) {
-      return (
-        <Badge variant="outline" className="capitalize">
-          {status}
-        </Badge>
-      );
-    }
-    return (
-      <span
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
-          config.bgClass,
-          config.textClass,
-        )}
-      >
-        <span className={cn("h-1.5 w-1.5 rounded-full", config.dotClass)} />
-        {config.label}
-      </span>
-    );
-  };
 
   /* ── Main render ──────────────────────────────────────────── */
 
@@ -570,7 +514,7 @@ export default function ListPage() {
                         </div>
 
                         <div className="flex-shrink-0">
-                          {getStatusBadge(task.status)}
+                          <StatusBadge status={task.status} />
                         </div>
                       </div>
                     </Link>

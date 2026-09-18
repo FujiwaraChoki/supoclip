@@ -493,3 +493,14 @@ def test_get_youtube_video_info_falls_back_to_ytdlp_when_no_data_api_key(monkeyp
         assert result == {"title": "Fallback yt-dlp"}
     finally:
         set_config_override(None)
+
+
+def test_cleanup_keeps_word_timings_for_cached_reprocessing(monkeypatch, tmp_path):
+    from src.youtube_utils import cleanup_downloaded_files
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    monkeypatch.setattr("src.youtube_utils.get_config", lambda: config)
+    for name in ["abcdefghijk.mp4", "abcdefghijk.transcription.mp3", "abcdefghijk.mp4.part", "abcdefghijk.transcript_cache.json"]:
+        (tmp_path / name).write_text("fixture")
+    cleanup_downloaded_files("abcdefghijk")
+    assert [p.name for p in tmp_path.iterdir()] == ["abcdefghijk.transcript_cache.json"]

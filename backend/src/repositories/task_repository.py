@@ -2,6 +2,10 @@
 Task repository - handles all database operations for tasks.
 """
 
+from .edit_transaction import commit_unless_editing
+from sqlalchemy.exc import DBAPIError
+
+
 from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -83,7 +87,7 @@ class TaskRepository:
                     "font_color": font_color,
                 },
             )
-        await db.commit()
+        await commit_unless_editing(db)
         task_id = result.scalar()
         if not task_id:
             raise RuntimeError("Failed to create task: no ID returned")
@@ -96,17 +100,19 @@ class TaskRepository:
     ) -> Optional[Dict[str, Any]]:
         """Get task by ID with source information."""
         try:
-            result = await db.execute(
-                text("""
-                    SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url
-                    FROM tasks t
-                    LEFT JOIN sources s ON t.source_id = s.id
-                    WHERE t.id = :task_id
-                """),
-                {"task_id": task_id},
-            )
-        except Exception:
-            await db.rollback()
+            async with db.begin_nested():
+                result = await db.execute(
+                    text("""
+                        SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url
+                        FROM tasks t
+                        LEFT JOIN sources s ON t.source_id = s.id
+                        WHERE t.id = :task_id
+                    """),
+                    {"task_id": task_id},
+                )
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) != "42703":
+                raise
             result = await db.execute(
                 text("""
                     SELECT t.*, s.title as source_title, s.type as source_type
@@ -189,7 +195,7 @@ class TaskRepository:
         set_parts.append("updated_at = NOW()")
         query = f"UPDATE tasks SET {', '.join(set_parts)} WHERE id = :task_id"
         await db.execute(text(query), params)
-        await db.commit()
+        await commit_unless_editing(db)
 
     @staticmethod
     async def get_performance_metrics(db: AsyncSession) -> Dict[str, Any]:
@@ -241,6 +247,32 @@ class TaskRepository:
     ) -> None:
         """Update task styling settings."""
         try:
+            async with db.begin_nested():
+                await db.execute(
+                    text(
+                        """
+                        UPDATE tasks
+                        SET font_family = :font_family,
+                            font_size = :font_size,
+                            font_color = :font_color,
+                            caption_template = :caption_template,
+                            include_broll = :include_broll,
+                            updated_at = NOW()
+                        WHERE id = :task_id
+                        """
+                    ),
+                    {
+                        "task_id": task_id,
+                        "font_family": font_family,
+                        "font_size": font_size,
+                        "font_color": font_color,
+                        "caption_template": caption_template,
+                        "include_broll": include_broll,
+                    },
+                )
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) != "42703":
+                raise
             await db.execute(
                 text(
                     """
@@ -248,8 +280,6 @@ class TaskRepository:
                     SET font_family = :font_family,
                         font_size = :font_size,
                         font_color = :font_color,
-                        caption_template = :caption_template,
-                        include_broll = :include_broll,
                         updated_at = NOW()
                     WHERE id = :task_id
                     """
@@ -259,31 +289,9 @@ class TaskRepository:
                     "font_family": font_family,
                     "font_size": font_size,
                     "font_color": font_color,
-                    "caption_template": caption_template,
-                    "include_broll": include_broll,
                 },
             )
-        except Exception:
-            await db.rollback()
-            await db.execute(
-                text(
-                    """
-                    UPDATE tasks
-                    SET font_family = :font_family,
-                        font_size = :font_size,
-                        font_color = :font_color,
-                        updated_at = NOW()
-                    WHERE id = :task_id
-                    """
-                ),
-                {
-                    "task_id": task_id,
-                    "font_family": font_family,
-                    "font_size": font_size,
-                    "font_color": font_color,
-                },
-            )
-        await db.commit()
+        await commit_unless_editing(db)
 
     @staticmethod
     async def update_task_status(
@@ -292,7 +300,8 @@ class TaskRepository:
         status: str,
         progress: Optional[int] = None,
         progress_message: Optional[str] = None,
-    ) -> None:
+        expected_statuses: Optional[List[str]] = None,
+    ) -> bool:
         """Update task status and optional progress."""
         params = {
             "task_id": task_id,
@@ -314,12 +323,18 @@ class TaskRepository:
 
         query = f"UPDATE tasks SET {', '.join(set_parts)} WHERE id = :task_id"
 
-        await db.execute(text(query), params)
-        await db.commit()
+        if expected_statuses is not None:
+            query += " AND status = ANY(:expected_statuses)"
+            params["expected_statuses"] = expected_statuses
+        result = await db.execute(text(query), params)
+        await commit_unless_editing(db)
+        if result.rowcount == 0:
+            return False
         logger.info(
             f"Updated task {task_id} status to {status}"
             + (f" (progress: {progress}%)" if progress else "")
         )
+        return True
 
     @staticmethod
     async def update_task_clips(
@@ -332,7 +347,7 @@ class TaskRepository:
             ),
             {"clip_ids": clip_ids, "task_id": task_id},
         )
-        await db.commit()
+        await commit_unless_editing(db)
         logger.info(f"Updated task {task_id} with {len(clip_ids)} clips")
 
     @staticmethod
@@ -401,7 +416,7 @@ class TaskRepository:
             ),
             {"task_id": task_id, "share_token": share_token},
         )
-        await db.commit()
+        await commit_unless_editing(db)
         row = result.fetchone()
         return str(row.share_token) if row else None
 
@@ -420,7 +435,7 @@ class TaskRepository:
             ),
             {"task_id": task_id},
         )
-        await db.commit()
+        await commit_unless_editing(db)
         return result.fetchone() is not None
 
     @staticmethod
@@ -458,7 +473,7 @@ class TaskRepository:
         await db.execute(
             text("DELETE FROM tasks WHERE id = :task_id"), {"task_id": task_id}
         )
-        await db.commit()
+        await commit_unless_editing(db)
         logger.info(f"Deleted task {task_id}")
 
     @staticmethod
@@ -517,5 +532,5 @@ class TaskRepository:
             ),
             {"task_id": task_id},
         )
-        await db.commit()
+        await commit_unless_editing(db)
         return result.fetchone() is not None

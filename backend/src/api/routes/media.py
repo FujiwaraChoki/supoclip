@@ -79,6 +79,8 @@ async def get_available_fonts_route(
         logger.info(f"Found {len(fonts)} available fonts")
         return {"fonts": fonts}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error retrieving fonts: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error retrieving fonts: {str(e)}")
@@ -104,7 +106,7 @@ async def get_font_file(
             path=str(font_path),
             media_type=media_type,
             headers={
-                "Cache-Control": "public, max-age=31536000",
+                "Cache-Control": "private, no-cache",
                 "Access-Control-Allow-Origin": "*",
             },
         )

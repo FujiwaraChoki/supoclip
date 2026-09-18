@@ -15,7 +15,7 @@ dependencies = [
     "sqlalchemy>=2.0.25",
     "alembic>=1.13.0",
     "python-dotenv>=1.0.0",
-    "yt-dlp>=2025.7.21",
+    "yt-dlp[default]>=2026.8.19",
     "whisper>=1.1.10",
     "greenlet>=2.0.0",
     "opencv-python>=4.8.0",
@@ -47,6 +47,7 @@ package = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
 addopts = """
 --cov=src.auth_headers

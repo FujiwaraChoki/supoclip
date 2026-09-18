@@ -1,24 +1,27 @@
 "use client";
 
+import { CaptionSizeControl } from "@/components/caption-size-control";
+
 import { useState, useRef, useEffect, useCallback } from "react";
+import { FONT_SEARCH_THRESHOLD, getYouTubeThumbnailUrl, uploadVideoFile } from "@/lib/video-upload";
+import { AppHeader } from "@/components/app/app-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/app/status-badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { signOut, useSession } from "@/lib/auth-client";
+import { useSession } from "@/lib/auth-client";
 import { formatBillingPlanName, isPaidBillingPlan } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
-import { buildFontOptionsPayload, FONT_SIZE_OPTIONS, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
+import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import Link from "next/link";
-import Image from "next/image";
-import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor, Menu, X, LogOut, List, Shield, Settings } from "lucide-react";
+import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 interface LatestTask {
@@ -50,140 +53,6 @@ interface FontOption {
 
 type OutputFormat = "vertical" | "vertical_pan" | "vertical_split" | "original";
 
-const MAX_VIDEO_UPLOAD_BYTES = 12_000_000_000;
-
-// Only surface the font search box once the list is long enough to need it.
-const FONT_SEARCH_THRESHOLD = 8;
-
-type DirectUploadAuthorization = {
-  directUpload: true;
-  uploadUrl: string;
-  headers: Record<string, string>;
-};
-
-type ProxyUploadAuthorization = {
-  directUpload: false;
-  reason: "signed_backend_auth_required";
-};
-
-type UploadAuthorization = DirectUploadAuthorization | ProxyUploadAuthorization;
-
-const extractYouTubeVideoId = (value: string): string | null => {
-  const input = value.trim();
-  if (!input) return null;
-
-  try {
-    const parsed = new URL(input);
-    const host = parsed.hostname.replace(/^www\./, "");
-
-    if (host === "youtu.be") {
-      const id = parsed.pathname.split("/").filter(Boolean)[0];
-      return id && id.length === 11 ? id : null;
-    }
-
-    if (host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com") {
-      const fromSearch = parsed.searchParams.get("v");
-      if (fromSearch && fromSearch.length === 11) {
-        return fromSearch;
-      }
-
-      const pathParts = parsed.pathname.split("/").filter(Boolean);
-      const embedId = pathParts[0] === "embed" ? pathParts[1] : null;
-      if (embedId && embedId.length === 11) {
-        return embedId;
-      }
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-};
-
-const getYouTubeThumbnailUrl = (value: string): string | null => {
-  const videoId = extractYouTubeVideoId(value);
-  return videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null;
-};
-
-async function requestUploadAuthorization(): Promise<UploadAuthorization> {
-  const response = await fetch("/api/upload/authorization", {
-    method: "POST",
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    const uploadError = await parseApiError(
-      response,
-      `Upload authorization error: ${response.status}`,
-    );
-    throw new Error(formatSupportMessage(uploadError));
-  }
-
-  return response.json() as Promise<UploadAuthorization>;
-}
-
-async function uploadVideoFile(file: File): Promise<string> {
-  if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
-    throw new Error("Uploaded file is too large. Please upload a video under 12 GB.");
-  }
-
-  const uploadAuthorization = await requestUploadAuthorization();
-  if (!uploadAuthorization.directUpload) {
-    return uploadVideoFileViaProxy(file);
-  }
-
-  const formData = new FormData();
-  formData.append("video", file);
-
-  const uploadResponse = await fetch(uploadAuthorization.uploadUrl, {
-    method: "POST",
-    headers: uploadAuthorization.headers,
-    body: formData,
-  });
-
-  if (!uploadResponse.ok) {
-    const fallbackMessage =
-      uploadResponse.status === 413
-        ? "Uploaded file is too large. Please upload a video under 12 GB."
-        : `Upload error: ${uploadResponse.status}`;
-    const uploadError = await parseApiError(uploadResponse, fallbackMessage);
-    throw new Error(formatSupportMessage(uploadError));
-  }
-
-  const uploadResult = await uploadResponse.json();
-  if (typeof uploadResult.video_path !== "string" || !uploadResult.video_path) {
-    throw new Error("Upload finished without a video path. Please try again.");
-  }
-
-  return uploadResult.video_path;
-}
-
-async function uploadVideoFileViaProxy(file: File): Promise<string> {
-  const formData = new FormData();
-  formData.append("video", file);
-
-  const uploadResponse = await fetch("/api/upload", {
-    method: "POST",
-    body: formData,
-  });
-
-  if (!uploadResponse.ok) {
-    const fallbackMessage =
-      uploadResponse.status === 413
-        ? "Uploaded file is too large. Please upload a video under 12 GB."
-        : `Upload error: ${uploadResponse.status}`;
-    const uploadError = await parseApiError(uploadResponse, fallbackMessage);
-    throw new Error(formatSupportMessage(uploadError));
-  }
-
-  const uploadResult = await uploadResponse.json();
-  if (typeof uploadResult.video_path !== "string" || !uploadResult.video_path) {
-    throw new Error("Upload finished without a video path. Please try again.");
-  }
-
-  return uploadResult.video_path;
-}
-
 export default function HomeApp() {
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -196,7 +65,6 @@ export default function HomeApp() {
   const [sourceTitle, setSourceTitle] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { data: session, isPending } = useSession();
-  const isAdmin = Boolean((session?.user as { is_admin?: boolean } | undefined)?.is_admin);
 
   // Font customization states — null means "use the caption template's own value"
   const [fontFamily, setFontFamily] = useState<string | null>(null);
@@ -223,8 +91,6 @@ export default function HomeApp() {
   const [latestTask, setLatestTask] = useState<LatestTask | null>(null);
   const [isLoadingLatest, setIsLoadingLatest] = useState(false);
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   const taskApiUrl = "/api/tasks";
   const youtubeThumbnailUrl = sourceType === "youtube" ? getYouTubeThumbnailUrl(url) : null;
 
@@ -278,7 +144,7 @@ export default function HomeApp() {
   useEffect(() => {
     const loadTemplates = async () => {
       try {
-        const response = await fetch(`${apiUrl}/caption-templates`);
+        const response = await fetch("/api/caption-templates");
         if (response.ok) {
           const data = await response.json();
           setAvailableTemplates(data.templates || []);
@@ -289,7 +155,7 @@ export default function HomeApp() {
     };
 
     loadTemplates();
-  }, [apiUrl]);
+  }, []);
 
   // Load latest task
   useEffect(() => {
@@ -339,7 +205,7 @@ export default function HomeApp() {
     };
 
     fetchBillingSummary();
-  }, [session?.user?.id, apiUrl]);
+  }, [session?.user?.id]);
 
   // Always treat file input as uncontrolled, and store file in a ref
   const fileRef = useRef<File | null>(null);
@@ -426,10 +292,7 @@ export default function HomeApp() {
     billingSummary?.reason || "Choose a paid plan to process videos.";
   const generationControlsDisabled = isLoading || generationRequiresUpgrade;
 
-  const handleSignOut = async () => {
-    await signOut();
-    window.location.href = "/sign-in";
-  };
+
 
   const getStepIcon = (step: string) => {
     const iconMap: Record<string, React.ReactElement> = {
@@ -540,12 +403,6 @@ export default function HomeApp() {
       setProgress(0);
       setStatusMessage("");
       setCurrentStep("");
-      setFileName(null);
-      fileRef.current = null;
-      setUrl("");
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     }
   };
 
@@ -563,219 +420,11 @@ export default function HomeApp() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="border-b bg-white relative">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <Image
-                src="/logo.png"
-                alt="SupoClip"
-                width={24}
-                height={24}
-                className="rounded-lg"
-              />
-              <h1 className="text-xl font-bold text-black">SupoClip</h1>
-            </div>
-
-            {/* Desktop nav */}
-            <div className="hidden md:flex items-center gap-2">
-              {billingSummary?.monetization_enabled && (
-                <div className="flex items-center gap-2 mr-1">
-                  <Badge
-                    className={`text-[10px] px-1.5 py-0 h-5 ${
-                      isPaidBillingPlan(billingSummary.plan) && !billingSummary.upgrade_required
-                        ? "bg-stone-900 text-white"
-                        : "bg-amber-100 text-amber-800 border border-amber-200"
-                    }`}
-                  >
-                    {isPaidBillingPlan(billingSummary.plan) && !billingSummary.upgrade_required
-                      ? formatBillingPlanName(billingSummary.plan)
-                      : "Upgrade required"}
-                  </Badge>
-                  {!billingSummary.upgrade_required && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-16 h-1.5 bg-stone-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          billingSummary.usage_limit &&
-                          billingSummary.usage_count / billingSummary.usage_limit > 0.8
-                            ? "bg-red-500"
-                            : "bg-stone-900"
-                        }`}
-                        style={{
-                          width: billingSummary.usage_limit
-                            ? `${Math.min((billingSummary.usage_count / billingSummary.usage_limit) * 100, 100)}%`
-                            : "0%",
-                        }}
-                      />
-                    </div>
-                    <span className="text-[11px] text-stone-500 tabular-nums whitespace-nowrap">
-                      {billingSummary.usage_limit
-                        ? `${billingSummary.usage_count}/${billingSummary.usage_limit}`
-                        : `${billingSummary.usage_count}`}
-                    </span>
-                  </div>
-                  )}
-                </div>
-              )}
-              <Link href="/list">
-                <Button variant="outline" size="sm">
-                  All Generations
-                </Button>
-              </Link>
-              {isAdmin && (
-                <Link href="/admin">
-                  <Button variant="outline" size="sm">
-                    Admin
-                  </Button>
-                </Link>
-              )}
-              <Button variant="outline" size="sm" onClick={handleSignOut}>
-                Sign Out
-              </Button>
-              <Link href="/settings" className="flex items-center gap-3 hover:bg-gray-50 rounded-lg px-3 py-2 transition-colors cursor-pointer">
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src={session.user.image || ""} />
-                  <AvatarFallback className="bg-gray-100 text-black text-sm">
-                    {session.user.name?.charAt(0) || session.user.email?.charAt(0) || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="hidden sm:block">
-                  <p className="text-sm font-medium text-black">{session.user.name}</p>
-                  <p className="text-xs text-gray-500">{session.user.email}</p>
-                </div>
-              </Link>
-            </div>
-
-            {/* Mobile hamburger */}
-            <div className="flex items-center gap-2 md:hidden">
-              {billingSummary?.monetization_enabled && (
-                <Badge
-                  className={`text-[10px] px-1.5 py-0 h-5 ${
-                    isPaidBillingPlan(billingSummary.plan) && !billingSummary.upgrade_required
-                      ? "bg-stone-900 text-white"
-                      : "bg-amber-100 text-amber-800 border border-amber-200"
-                  }`}
-                >
-                  {isPaidBillingPlan(billingSummary.plan) && !billingSummary.upgrade_required
-                    ? formatBillingPlanName(billingSummary.plan)
-                    : "Upgrade required"}
-                </Badge>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2"
-                aria-label="Toggle menu"
-              >
-                {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile menu dropdown */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t bg-white absolute left-0 right-0 z-50 shadow-lg">
-            <div className="px-4 py-3 space-y-1">
-              {/* User info */}
-              <Link
-                href="/settings"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-gray-50 transition-colors"
-              >
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src={session.user.image || ""} />
-                  <AvatarFallback className="bg-gray-100 text-black text-sm">
-                    {session.user.name?.charAt(0) || session.user.email?.charAt(0) || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-black truncate">{session.user.name}</p>
-                  <p className="text-xs text-gray-500 truncate">{session.user.email}</p>
-                </div>
-              </Link>
-
-              <Separator />
-
-              {/* Usage bar (mobile) */}
-              {billingSummary?.monetization_enabled && (
-                billingSummary.upgrade_required ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-                  <p className="text-xs font-medium text-amber-900">Choose a paid plan to process videos.</p>
-                </div>
-                ) : (
-                <div className="flex items-center gap-2 px-3 py-2">
-                  <div className="flex-1 h-1.5 bg-stone-200 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        billingSummary.usage_limit &&
-                        billingSummary.usage_count / billingSummary.usage_limit > 0.8
-                          ? "bg-red-500"
-                          : "bg-stone-900"
-                      }`}
-                      style={{
-                        width: billingSummary.usage_limit
-                          ? `${Math.min((billingSummary.usage_count / billingSummary.usage_limit) * 100, 100)}%`
-                          : "0%",
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs text-stone-500 tabular-nums whitespace-nowrap">
-                    {billingSummary.usage_limit
-                      ? `${billingSummary.usage_count}/${billingSummary.usage_limit}`
-                    : `${billingSummary.usage_count}`}
-                  </span>
-                </div>
-                )
-              )}
-
-              {/* Nav links */}
-              <Link
-                href="/list"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-stone-700 hover:bg-gray-50 transition-colors"
-              >
-                <List className="w-4 h-4 text-stone-400" />
-                All Generations
-              </Link>
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-stone-700 hover:bg-gray-50 transition-colors"
-                >
-                  <Shield className="w-4 h-4 text-stone-400" />
-                  Admin
-                </Link>
-              )}
-              <Link
-                href="/settings"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-stone-700 hover:bg-gray-50 transition-colors"
-              >
-                <Settings className="w-4 h-4 text-stone-400" />
-                Settings
-              </Link>
-
-              <Separator />
-
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  handleSignOut();
-                }}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left"
-              >
-                <LogOut className="w-4 h-4" />
-                Sign Out
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      <AppHeader>
+        {billingSummary?.monetization_enabled && <Link href="/settings" className="text-xs text-muted-foreground">
+          {billingSummary.upgrade_required ? "Choose a plan" : `${formatBillingPlanName(billingSummary.plan)} · ${billingSummary.usage_count}${billingSummary.usage_limit ? `/${billingSummary.usage_limit}` : ""} used`}
+        </Link>}
+      </AppHeader>
 
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-6 py-10">
@@ -801,19 +450,7 @@ export default function HomeApp() {
                 </div>
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
-                {latestTask.status === "completed" ? (
-                  <Badge className="bg-green-100 text-green-800 text-xs">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    Completed
-                  </Badge>
-                ) : latestTask.status === "processing" ? (
-                  <Badge className="bg-blue-100 text-blue-800 text-xs">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Processing
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-xs">{latestTask.status}</Badge>
-                )}
+                <StatusBadge status={latestTask.status} />
                 <ArrowRight className="w-4 h-4 text-stone-400 group-hover:text-stone-600 transition-colors" />
               </div>
             </div>
@@ -931,7 +568,7 @@ export default function HomeApp() {
                     ) : (
                       <>
                         <p className="text-sm font-medium text-stone-700">Drop a video file here or click to browse</p>
-                        <p className="text-xs text-stone-400 mt-1">MP4, MOV, AVI up to 500MB</p>
+                        <p className="text-xs text-stone-400 mt-1">MP4, MOV, AVI up to 12 GB</p>
                       </>
                     )}
                   </div>
@@ -1180,29 +817,7 @@ export default function HomeApp() {
                         )}
                       </div>
 
-                      {/* Font Size */}
-                      <div className="space-y-2">
-                        <label className="text-sm text-stone-600">
-                          Size
-                        </label>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {FONT_SIZE_OPTIONS.map((option) => (
-                            <button
-                              key={option.label}
-                              type="button"
-                              onClick={() => setFontSize(option.value)}
-                              disabled={generationControlsDisabled}
-                              className={`px-2 py-1.5 rounded-md text-xs font-medium border transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                                fontSize === option.value
-                                  ? "bg-stone-900 text-white border-stone-900"
-                                  : "bg-white text-stone-600 border-stone-300 hover:bg-stone-50"
-                              }`}
-                            >
-                              {option.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                      <CaptionSizeControl value={fontSize} onChange={setFontSize} disabled={generationControlsDisabled} />
 
                       {/* Font Color Picker */}
                       <div className="space-y-2">

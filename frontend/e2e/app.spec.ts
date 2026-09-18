@@ -16,6 +16,8 @@ async function signIn(page: import("@playwright/test").Page, email: string, pass
 }
 
 test("regular user can browse seeded tasks and save preferences", async ({ page }) => {
+  // This flow compiles several routes on its first visit to the dev server.
+  test.setTimeout(60_000);
   await signIn(page, seed.regular.email, seed.regular.password);
 
   await page.goto("/list");

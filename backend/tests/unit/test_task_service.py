@@ -1,4 +1,6 @@
+from src.services import clip_service as clip_service_module
 from datetime import datetime, timezone
+from contextlib import nullcontext
 import hashlib
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -66,6 +68,9 @@ def build_task_service() -> TaskService:
     config.ses_from_email = "SupoClip <noreply@example.com>"
     service = TaskService(db=AsyncMock(), config=config)
     service._load_performance_context = AsyncMock(return_value=None)
+    service._processing_transaction = lambda _task_id: nullcontext()
+    service._task_run_guard = lambda _task_id: nullcontext()
+    service.task_repo.get_task_by_id = AsyncMock(return_value={"status": "queued"})
     service.cache_repo.get_cache = AsyncMock(return_value=None)
     service.cache_repo.upsert_cache = AsyncMock()
     service.task_repo.update_task_runtime_metadata = AsyncMock()
@@ -108,7 +113,7 @@ def test_cache_key_includes_analysis_prompt_version():
 
 
 @pytest.mark.asyncio
-async def test_update_clip_captions_passes_stored_task_style(monkeypatch, tmp_path):
+async def test_update_clip_captions_passes_stored_task_style(isolated_clip_edits, monkeypatch, tmp_path):
     config = Config()
     config.temp_dir = str(tmp_path)
     service = TaskService(db=AsyncMock(), config=config)
@@ -123,6 +128,7 @@ async def test_update_clip_captions_passes_stored_task_style(monkeypatch, tmp_pa
         "start_time": "00:10",
         "end_time": "00:12",
         "duration": 2.0,
+        "hook_title": "Keep this headline style",
     }
     service.clip_repo.get_clip_by_id = AsyncMock(
         side_effect=[clip, {**clip, "file_path": str(output_path)}]
@@ -150,7 +156,15 @@ async def test_update_clip_captions_passes_stored_task_style(monkeypatch, tmp_pa
         captured["kwargs"] = kwargs
         return output_path
 
-    monkeypatch.setattr(task_service_module, "overlay_custom_captions", fake_overlay)
+    monkeypatch.setattr(clip_service_module, "overlay_custom_captions", fake_overlay)
+    (tmp_path / "source.mp4").write_bytes(b"source")
+    service._load_task_source_settings = AsyncMock(return_value={"output_format": "original"})
+    rendered = []
+    def fake_render(*args, **kwargs):
+        rendered.append((args, kwargs))
+        args[3].write_bytes(b"clean")
+        return True
+    monkeypatch.setattr(clip_service_module, "create_optimized_clip", fake_render)
 
     await service.update_clip_captions(
         "task-1", "clip-1", "edited caption", "middle", ["edited"]
@@ -163,7 +177,17 @@ async def test_update_clip_captions_passes_stored_task_style(monkeypatch, tmp_pa
         "caption_template": "minimal",
         "transcript_video_path": tmp_path / "source.mp4",
         "source_ranges": [(10.0, 12.0)],
+        "position_y": None,
     }
+    assert captured["args"][0].name == "clean.mp4"
+    assert rendered[0][0][0] == tmp_path / "source.mp4"
+    assert rendered[0][1]["add_subtitles"] is False
+    assert rendered[0][1]["extend_to_sentence"] is False
+    assert rendered[0][1]["hook_title"] == "Keep this headline style"
+    assert rendered[0][1]["font_family"] == "Inter"
+    assert rendered[0][1]["font_size"] == 48
+    assert rendered[0][1]["font_color"] == "#123456"
+    assert rendered[0][1]["caption_template"] == "minimal"
 
 
 @pytest.mark.asyncio
@@ -197,6 +221,7 @@ async def test_process_task_fails_when_no_clip_segments_are_selected():
         "error",
         progress=0,
         progress_message="No usable clip segments were selected for this video.",
+        expected_statuses=["queued", "processing"],
     )
     service.clip_repo.create_clip.assert_not_awaited()
 
@@ -498,3 +523,41 @@ async def test_process_task_skips_completion_email_when_already_sent(monkeypatch
 
     send_task_completed_email.assert_not_awaited()
     service.task_repo.mark_completion_notification_sent.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_processing_rolls_back_failed_write_before_recording_error():
+    service = build_task_service()
+    transaction_failed = False
+
+    async def fail_insert(*args, **kwargs):
+        nonlocal transaction_failed
+        transaction_failed = True
+        raise RuntimeError("clip insert failed")
+
+    async def rollback():
+        nonlocal transaction_failed
+        transaction_failed = False
+
+    async def check_status(*args, **kwargs):
+        assert not transaction_failed, "Cannot write status in an aborted transaction"
+
+    service.clip_repo.create_clip.side_effect = fail_insert
+    service.db.rollback.side_effect = rollback
+    service.task_repo.update_task_status.side_effect = check_status
+    with pytest.raises(RuntimeError, match="clip insert failed"):
+        await service.process_task(task_id="task-1", url="upload://test.mp4", source_type="upload", user_id="user-1")
+    service.db.rollback.assert_awaited_once()
+    assert service.task_repo.update_task_status.await_args.args[2] == "error"
+
+
+
+@pytest.mark.asyncio
+async def test_merge_rejects_duplicate_ids_before_modifying_clips(isolated_clip_edits):
+    service = build_task_service()
+    service.clip_repo.get_clip_by_id = AsyncMock()
+    service.clip_repo.delete_clip = AsyncMock()
+    with pytest.raises(ValueError, match="distinct"):
+        await service.merge_clips("task-1", ["clip-1", "clip-1"])
+    service.clip_repo.get_clip_by_id.assert_not_awaited()
+    service.clip_repo.delete_clip.assert_not_awaited()

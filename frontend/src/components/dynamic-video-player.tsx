@@ -1,4 +1,5 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 
 interface DynamicVideoPlayerProps {
   src: string;
@@ -11,21 +12,26 @@ interface DynamicVideoPlayerProps {
 
 const DynamicVideoPlayer: React.FC<DynamicVideoPlayerProps> = ({
   src,
-  poster = "/placeholder-video.jpg",
+  poster,
   autoPlay = false,
   muted = false,
   loop = false,
   className = "",
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
 
   return (
     <div
       className={`relative rounded-lg overflow-hidden ${className}`}
-      style={{ height: "min(70vh, 600px)", aspectRatio: "9 / 16" }}
+      style={{ height: "min(70vh, 600px)", maxWidth: "calc(100vw - 4rem)", aspectRatio: "9 / 16" }}
     >
       <video
+        key={src}
         ref={videoRef}
+        src={src}
+        onError={() => setFailedSrc(src)}
+        onLoadedData={() => setFailedSrc(null)}
         controls
         autoPlay={autoPlay}
         muted={muted}
@@ -35,9 +41,12 @@ const DynamicVideoPlayer: React.FC<DynamicVideoPlayerProps> = ({
         tabIndex={0}
         aria-label="Video player"
       >
-        <source src={src} type="video/mp4" />
         Your browser does not support the video tag.
       </video>
+      {failedSrc === src && <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/90 px-4 text-center text-sm text-white">
+        <p>Couldn&apos;t load this clip.</p>
+        <Button variant="secondary" size="sm" onClick={() => { setFailedSrc(null); videoRef.current?.load(); }}>Retry playback</Button>
+      </div>}
     </div>
   );
 };

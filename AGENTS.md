@@ -1,10 +1,11 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This repository is a monorepo with three apps:
+This repository contains the web app, processing backend, and MCP client:
 - `backend/`: FastAPI + async worker code (`src/api`, `src/services`, `src/repositories`, `src/workers`).
 - `frontend/`: main Next.js app (`src/app`, `src/components`, `src/lib`, `prisma/`).
-- `waitlist/`: separate Next.js marketing/waitlist app.
+- `mcp/`: Python MCP server that connects to the REST API.
+- `backend/src/media/`: transcription, captions, timeline, reframing, and ffmpeg helpers.
 
 Infra and bootstrap files live at the root: `docker-compose.yml`, `init.sql`, `.env.example`, and `start.sh`.
 
@@ -15,21 +16,25 @@ Use Docker for full-stack development:
 - `docker-compose down`: stop everything.
 
 Local app commands:
-- `cd frontend && npm run dev` (or `waitlist`): run Next.js in dev mode.
-- `cd frontend && npm run build && npm run start`: production build + serve.
-- `cd frontend && npm run lint` (same in `waitlist`): run ESLint.
+- `cd frontend && pnpm run dev`: run Next.js in dev mode.
+- `cd frontend && pnpm run build && pnpm run start`: production build + serve.
+- `cd frontend && pnpm run lint`: run ESLint.
 - `cd backend && uv sync && uvicorn src.main:app --reload --host 0.0.0.0 --port 8000`: run API locally.
 - `cd backend && .venv/bin/arq src.workers.tasks.WorkerSettings`: run the worker.
 
 ## Coding Style & Naming Conventions
 - Python: 4-space indentation, type hints where practical, `snake_case` for functions/modules.
 - TypeScript/React: 2-space indentation, `PascalCase` for component names, `camelCase` for variables/functions, route files in Next.js App Router conventions (`app/.../page.tsx`, `route.ts`).
-- Linting: Next.js ESLint configs in `frontend/eslint.config.mjs` and `waitlist/eslint.config.mjs`.
+- Linting: Next.js ESLint configs in `frontend/eslint.config.mjs`.
 - Imports: use the `@/*` alias in Next.js apps when possible.
 
 ## Testing Guidelines
-There is no mature automated test suite yet. Treat linting plus manual verification as the current baseline:
-- Run `npm run lint` in both Next.js apps.
+Automated coverage uses pytest, Vitest, and Playwright:
+- Run `make check` for frontend lint and TypeScript checks.
+- Run `make test` for backend and frontend unit/integration tests. Backend integration tests need a dedicated Postgres database.
+- Run `make test-e2e` for the database-backed browser smoke tests.
+- Run `cd frontend && pnpm run test:polish` for isolated browser workflow tests with mocked APIs.
+- Install frontend dependencies with `pnpm install --frozen-lockfile`; use the committed pnpm lockfile.
 - Smoke test core flows with `docker-compose` (create task, process clips, view task page).
 
 When adding tests, place them near code or under `tests/` with clear names (`test_*.py`, `*.test.ts[x]`).
