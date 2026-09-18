@@ -196,13 +196,45 @@ ${NEXT_PUBLIC_APP_URL}/api/social/callback/<provider>
 Platform review notes (the APIs themselves are free):
 
 - **YouTube**: uploads from an unverified Google project are forced private
-  until the project passes the YouTube API compliance audit. The default quota
-  (10,000 units/day) covers about six uploads a day across all users until you
-  request an extension.
+  until the project passes the YouTube API compliance audit. Check the project's
+  current upload quota in Google Cloud before enabling publishing for users.
 - **TikTok**: unaudited apps can only post with `private` visibility and for a
   handful of accounts per day. Public posting requires TikTok's app audit.
 - **Instagram**: requires a professional (Business or Creator) account. Meta App
   Review is needed before accounts outside the app's testers can connect.
+
+### Deployment and verification
+
+The API applies `20260901_0001_social_publishing.sql` on startup through the
+existing migration runner. It adds four social publishing tables; it does not
+change existing clip or account records. Back up the database before deploying.
+The API and worker need the same database, clip storage, encryption key, and
+provider credentials. Restart both after changing environment variables. The
+frontend proxies OAuth and media requests; provider secrets belong on the API
+and worker, not in `NEXT_PUBLIC_*` variables.
+
+With no provider credentials, task creation and editing remain available and
+Social Accounts explains that publishing is not configured. Configure one
+provider at a time and register its exact callback URL above. Instagram's media
+URL must be reachable from the public internet.
+
+Before enabling each provider for users:
+
+- Connect a test account, disconnect it, and reconnect it. Confirm token refresh
+  works and revoked credentials prompt a reconnect.
+- Publish one clip using a visibility level allowed for the test account. Check
+  the result on the platform as well as in SupoClip.
+- Schedule a clip, confirm it publishes once, and cancel another scheduled clip.
+- For TikTok, verify asynchronous processing and private completion with no
+  public post ID. Status-check failures should keep checking the existing upload;
+  after 45 minutes, Retry checks that same upload again instead of uploading it.
+- For Instagram, confirm its public media fetch works through the frontend.
+- Refresh metrics for a published post with an external ID and confirm the
+  performance dashboard updates. Private posts without a public ID have no metrics.
+
+Automated tests cover mocked provider requests, PostgreSQL migrations and
+repository workflows, and the browser experience without keys. They do not
+verify platform app approval or live OAuth, uploads, and metrics.
 
 ## Apify YouTube Downloader
 

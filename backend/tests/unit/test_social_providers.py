@@ -198,7 +198,7 @@ def test_tiktok_rejects_privacy_levels_the_account_cannot_use(clip_file):
     assert "private" in str(exc.value)
 
 
-def test_tiktok_publish_single_chunk_and_resolves_when_complete(clip_file):
+def test_tiktok_publish_persists_handle_before_checking_status(clip_file):
     session = FakeSession(
         {
             ("POST", "creator_info/query"): FakeResponse(
@@ -234,7 +234,11 @@ def test_tiktok_publish_single_chunk_and_resolves_when_complete(clip_file):
             file_path=clip_file, title="Title", caption="Caption", hashtags=["fyp"], privacy_level="public"
         ),
     )
-    assert result.external_post_id == "7351"
+    assert result.external_post_id is None
+    assert result.pending_handle == "pub-1"
+    assert not any("status/fetch" in call[1] for call in session.calls)
+    completed = provider.resolve_pending("token", result.pending_handle)
+    assert completed.external_post_id == "7351"
 
     init_body = next(call for call in session.calls if "video/init" in call[1])[2]["json"]
     assert init_body["post_info"]["privacy_level"] == "PUBLIC_TO_EVERYONE"
