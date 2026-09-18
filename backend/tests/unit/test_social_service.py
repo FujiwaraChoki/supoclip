@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
+import requests
 
 from src.config import Config
 from src.services import social_service as social_module
@@ -476,6 +477,82 @@ async def test_pending_publish_is_resolved_later(service, provider):
     resolved = await service.publish_post(post["id"])
     assert resolved["status"] == "published"
     assert resolved["external_post_id"] == "done-1"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("pending", [False, True])
+async def test_private_post_completes_without_public_id(service, provider, pending):
+    account = await _connect(service)
+    post = await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title="t", caption="c", hashtags=[], privacy_level="private", scheduled_for=None,
+    )
+    completed = PublishResult(external_post_id=None, external_url=None)
+    provider.publish_result = (
+        PublishResult(external_post_id=None, external_url=None, pending_handle="pub-private")
+        if pending else completed
+    )
+    result = await service.publish_post(post["id"])
+    if pending:
+        provider.resolve_pending = lambda token, handle: completed
+        result = await service.publish_post(post["id"])
+    assert result["status"] == "published"
+    assert result["pending_handle"] is None
+    assert result["external_post_id"] is None
+    assert result["external_url"] is None
+    assert result["published_at"] is not None
+    assert len(provider.publish_calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [
+    SocialProviderError("temporary status failure", retryable=True),
+    requests.Timeout("status request timed out"),
+])
+async def test_pending_status_failure_never_reuploads(service, provider, error):
+    account = await _connect(service)
+    post = await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title="t", caption="c", hashtags=[], privacy_level="private", scheduled_for=None,
+    )
+    provider.publish_result = PublishResult(None, None, pending_handle="accepted-upload")
+    pending = await service.publish_post(post["id"])
+
+    def fail_poll(token, handle):
+        raise error
+
+    provider.resolve_pending = fail_poll
+    retrying = await service.publish_post(post["id"])
+    assert retrying["status"] == "publishing"
+    assert retrying["updated_at"] == pending["updated_at"]
+    assert len(service.queue_adapter.jobs) == 1
+    provider.resolve_pending = lambda token, handle: PublishResult("finished", None)
+    result = await service.publish_post(post["id"])
+    assert result["status"] == "published"
+    assert result["external_post_id"] == "finished"
+    assert len(provider.publish_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_timed_out_pending_upload_can_be_rechecked_without_reupload(service, provider):
+    account = await _connect(service)
+    post = await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title="t", caption="c", hashtags=[], privacy_level="private", scheduled_for=None,
+    )
+    provider.publish_result = PublishResult(None, None, pending_handle="accepted-upload")
+    await service.publish_post(post["id"])
+    service.repo.posts[post["id"]]["updated_at"] = (
+        datetime.now(timezone.utc) - timedelta(minutes=46)
+    ).isoformat()
+    failed = await service.publish_post(post["id"])
+    assert failed["status"] == "failed"
+    retried = await service.retry_post("user-1", post["id"])
+    assert retried["pending_handle"] == "accepted-upload"
+    provider.resolve_pending = lambda token, handle: PublishResult("finished", None)
+    result = await service.publish_post(post["id"])
+    assert result["status"] == "published"
+    assert len(provider.publish_calls) == 1
 
 
 @pytest.mark.asyncio

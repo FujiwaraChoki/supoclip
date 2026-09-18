@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import requests
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Config, get_config
@@ -359,7 +360,6 @@ class SocialService:
             status="queued",
             error_message=None,
             scheduled_for=None,
-            pending_handle=None,
             media_token=post.get("media_token") or secrets.token_urlsafe(32),
         )
         await self._enqueue_publish(post_id)
@@ -395,11 +395,16 @@ class SocialService:
         post = await self.repo.get_post(self.db, post_id)
         if not post:
             raise SocialNotFound(f"Post {post_id} not found")
-        if post["status"] == "publishing" and post.get("pending_handle"):
-            return await self.resolve_pending_post(post)
         if post["status"] not in {"queued", "publishing"}:
             logger.info("Skipping publish for post %s in status %s", post_id, post["status"])
             return post
+        # An accepted upload must only be polled, including after an explicit
+        # retry. Uploading it again can create a duplicate on the platform.
+        if post.get("pending_handle"):
+            if post["status"] == "queued":
+                await self.repo.update_post(self.db, post_id, status="publishing")
+                post = await self.repo.get_post(self.db, post_id) or post
+            return await self.resolve_pending_post(post)
 
         account_id = post.get("social_account_id")
         account = (
@@ -455,7 +460,7 @@ class SocialService:
                 post, account, attempts, SocialProviderError(str(exc), retryable=True)
             )
 
-        if result.external_post_id:
+        if not result.pending_handle:
             await self._mark_published(post, account, result.external_post_id, result.external_url)
         else:
             await self.repo.update_post(
@@ -476,10 +481,13 @@ class SocialService:
         self,
         post: Dict[str, Any],
         account: Dict[str, Any],
-        external_post_id: str,
+        external_post_id: Optional[str],
         external_url: Optional[str],
     ) -> None:
-        url = external_url or _fallback_post_url(post["provider"], account, external_post_id)
+        url = external_url or (
+            _fallback_post_url(post["provider"], account, external_post_id)
+            if external_post_id else None
+        )
         await self.repo.update_post(
             self.db,
             post["id"],
@@ -535,7 +543,7 @@ class SocialService:
             await self.repo.get_account_with_tokens(self.db, account_id) if account_id else None
         )
         handle = post.get("pending_handle")
-        if not account or not handle:
+        if not account or account.get("revoked_at") or not handle:
             await self.repo.update_post(
                 self.db,
                 post["id"],
@@ -543,42 +551,37 @@ class SocialService:
                 error_message="Lost track of the pending upload.",
             )
             return await self.repo.get_post(self.db, post["id"]) or post
-        try:
-            provider = get_provider(post["provider"], self.config)
-            access_token = await self._get_valid_access_token(account)
-            result = await run_in_thread(provider.resolve_pending, access_token, handle)
-        except SocialProviderError as exc:
-            return await self._handle_publish_failure(
-                post, account, int(post.get("attempts") or 1), exc
-            )
-        if result is not None:
-            if result.external_post_id:
-                await self._mark_published(
-                    post, account, result.external_post_id, result.external_url
-                )
-            else:
-                # Published but the platform did not surface an id (TikTok
-                # private posts). Keep the record; metrics will not be available.
-                await self.repo.update_post(
-                    self.db,
-                    post["id"],
-                    status="published",
-                    pending_handle=None,
-                    published_at=datetime.now(timezone.utc),
-                    error_message=None,
-                )
-            return await self.repo.get_post(self.db, post["id"]) or post
-
+        # Do not reset updated_at on transient polling failures: it bounds the
+        # time spent waiting even if every status request fails.
         updated_at = _parse_datetime(post.get("updated_at")) or datetime.now(timezone.utc)
         if datetime.now(timezone.utc) - updated_at > timedelta(
             minutes=PENDING_PUBLISH_TIMEOUT_MINUTES
         ):
             await self.repo.update_post(
-                self.db,
-                post["id"],
-                status="failed",
-                error_message="The platform never finished processing the upload.",
+                self.db, post["id"], status="failed",
+                error_message="Could not confirm the upload within 45 minutes. Retry to check its status again.",
             )
+            return await self.repo.get_post(self.db, post["id"]) or post
+        try:
+            provider = get_provider(post["provider"], self.config)
+            access_token = await self._get_valid_access_token(account)
+            result = await run_in_thread(provider.resolve_pending, access_token, handle)
+        except SocialProviderError as exc:
+            if exc.retryable and not exc.reauth:
+                logger.warning("Will check pending post %s again: %s", post["id"], exc)
+                return post
+            return await self._handle_publish_failure(
+                post, account, int(post.get("attempts") or 1), exc
+            )
+        except requests.RequestException as exc:
+            logger.warning("Will check pending post %s after network failure: %s", post["id"], exc)
+            return post
+        if result is not None:
+            # Private TikTok posts may complete without a public post ID.
+            await self._mark_published(
+                post, account, result.external_post_id, result.external_url
+            )
+            return await self.repo.get_post(self.db, post["id"]) or post
         return await self.repo.get_post(self.db, post["id"]) or post
 
     async def resolve_pending_posts(self, limit: int = 100) -> int:

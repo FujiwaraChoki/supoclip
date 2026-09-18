@@ -251,11 +251,8 @@ class TikTokProvider(SocialProvider):
 
         self._upload_chunks(upload_url, request.file_path, file_size, chunk_size, total_chunks)
 
-        # TikTok processes the post asynchronously; try a quick resolve so the
-        # common fast path returns a post id immediately.
-        result = self.resolve_pending(access_token, publish_id)
-        if result is not None:
-            return result
+        # Persist the accepted upload before making any status requests. A
+        # failed status request must never be mistaken for a failed upload.
         return PublishResult(
             external_post_id=None,
             external_url=None,

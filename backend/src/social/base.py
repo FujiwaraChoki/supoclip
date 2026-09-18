@@ -65,6 +65,11 @@ class PublishRequest:
 
 @dataclass
 class PublishResult:
+    """An accepted upload; no pending handle means publication is complete.
+
+    A completed private post can have neither a public ID nor a public URL.
+    """
+
     external_post_id: Optional[str]
     external_url: Optional[str]
     # Some platforms (TikTok) finish processing asynchronously; when the final
