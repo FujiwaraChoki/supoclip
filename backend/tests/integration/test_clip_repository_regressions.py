@@ -52,4 +52,3 @@ async def test_splitting_first_clip_preserves_following_clips(db_session, tmp_pa
     assert [c["clip_order"] for c in clips] == [1, 2, 3, 4]
     stored = await db_session.execute(text("SELECT generated_clips_ids FROM tasks WHERE id = :id"), {"id": task["id"]})
     assert list(stored.scalar()) == [c["id"] for c in clips]
-

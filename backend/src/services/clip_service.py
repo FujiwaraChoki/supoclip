@@ -572,4 +572,3 @@ class ClipEditingMixin:
                 parsed.get("filtered_words"),
             ),
         }
-

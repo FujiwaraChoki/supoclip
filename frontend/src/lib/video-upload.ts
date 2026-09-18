@@ -133,4 +133,3 @@ export async function uploadVideoFileViaProxy(file: File): Promise<string> {
 
   return uploadResult.video_path;
 }
-

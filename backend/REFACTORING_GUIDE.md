@@ -1,3 +1,5 @@
+> Historical migration notes. The migration is complete: `src.main:app` is now canonical and `src.main_refactored:app` is a compatibility alias. See [architecture](../docs/architecture.md) for the current layout.
+
 # Backend Refactoring Guide
 
 ## 🎯 What Changed
