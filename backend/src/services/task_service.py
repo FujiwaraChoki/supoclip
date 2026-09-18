@@ -434,6 +434,8 @@ class TaskService(ClipEditingMixin):
 
         except Exception as e:
             logger.error(f"Error processing task {task_id}: {e}")
+            # Clear failed writes before recording the terminal error state.
+            await self.db.rollback()
             self._cleanup_source_video(video_path, source_type, url)
             if str(e) == "Task cancelled":
                 await self.task_repo.update_task_status(

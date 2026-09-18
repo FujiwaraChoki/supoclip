@@ -498,3 +498,30 @@ async def test_process_task_skips_completion_email_when_already_sent(monkeypatch
 
     send_task_completed_email.assert_not_awaited()
     service.task_repo.mark_completion_notification_sent.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_processing_rolls_back_failed_write_before_recording_error():
+    service = build_task_service()
+    transaction_failed = False
+
+    async def fail_insert(*args, **kwargs):
+        nonlocal transaction_failed
+        transaction_failed = True
+        raise RuntimeError("clip insert failed")
+
+    async def rollback():
+        nonlocal transaction_failed
+        transaction_failed = False
+
+    async def check_status(*args, **kwargs):
+        assert not transaction_failed, "Cannot write status in an aborted transaction"
+
+    service.clip_repo.create_clip.side_effect = fail_insert
+    service.db.rollback.side_effect = rollback
+    service.task_repo.update_task_status.side_effect = check_status
+    with pytest.raises(RuntimeError, match="clip insert failed"):
+        await service.process_task(task_id="task-1", url="upload://test.mp4", source_type="upload", user_id="user-1")
+    service.db.rollback.assert_awaited_once()
+    assert service.task_repo.update_task_status.await_args.args[2] == "error"
+
