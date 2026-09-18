@@ -60,10 +60,10 @@ caption_template, include_broll, include_hook_titles, processing_mode,
                     )
                     VALUES (
                         :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
-                        :caption_template, :include_broll, :include_hook_titles, :processing_mode,
-                        logo_path, logo_position_x, logo_position_y, logo_size, logo_opacity,
-                        theme_text, theme_font_family, theme_font_size, theme_font_color,
-                        theme_position, theme_alignment, theme_line_spacing, theme_margin,
+:caption_template, :include_broll, :include_hook_titles, :processing_mode,
+                        :logo_path, :logo_position_x, :logo_position_y, :logo_size, :logo_opacity,
+                        :theme_text, :theme_font_family, :theme_font_size, :theme_font_color,
+                        :theme_position, :theme_alignment, :theme_line_spacing, :theme_margin,
                         NOW(), NOW()
                     )
                     RETURNING id
@@ -110,9 +110,9 @@ caption_template, include_broll, include_hook_titles, processing_mode,
                     VALUES (
                         :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
                         :caption_template, :include_broll, :include_hook_titles, :processing_mode,
-                        logo_path, logo_position_x, logo_position_y, logo_size, logo_opacity,
-                        theme_text, theme_font_family, theme_font_size, theme_font_color,
-                        theme_position, theme_alignment, theme_line_spacing, theme_margin,
+                        :logo_path, :logo_position_x, :logo_position_y, :logo_size, :logo_opacity,
+                        :theme_text, :theme_font_family, :theme_font_size, :theme_font_color,
+                        :theme_position, :theme_alignment, :theme_line_spacing, :theme_margin,
                         NOW(), NOW()
                     )
                     RETURNING id
