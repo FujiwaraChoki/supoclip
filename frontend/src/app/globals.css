@@ -120,8 +120,6 @@
   }
   body {
     @apply bg-background text-foreground font-sans;
-    -webkit-user-select: none;
-    user-select: none;
   }
 }
 
@@ -153,4 +151,13 @@
 @keyframes command-bar-pulse {
   0%, 100% { box-shadow: 0 -4px 30px oklch(0.216 0.006 56.043 / 0.12); }
   50% { box-shadow: 0 -4px 30px oklch(0.216 0.006 56.043 / 0.22); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
