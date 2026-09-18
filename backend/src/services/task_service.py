@@ -27,6 +27,7 @@ from ..config import Config, get_config
 from ..youtube_utils import cleanup_downloaded_files, extract_video_id
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
+from ..clip_source_map import load_clip_caption_settings
 
 logger = logging.getLogger(__name__)
 PROCESSING_CACHE_VERSION = "20260319_grounded_segments_v1"
@@ -574,7 +575,10 @@ class TaskService(ClipEditingMixin):
         # Get clips
         clips = await self.clip_repo.get_clips_by_task(self.db, task_id)
         task["clips"] = [
-            {key: value for key, value in clip.items() if key != "file_path"}
+            {
+                **{key: value for key, value in clip.items() if key != "file_path"},
+                "caption_settings": load_clip_caption_settings(Path(clip["file_path"])) if clip.get("file_path") else None,
+            }
             for clip in clips
         ]
         task["clips_count"] = len(clips)

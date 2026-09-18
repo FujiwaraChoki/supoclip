@@ -260,6 +260,7 @@ def overlay_custom_captions(
     caption_template: str = "default",
     transcript_video_path: Optional[Path] = None,
     source_ranges: Optional[List[tuple[float, float]]] = None,
+    position_y: Optional[float] = None,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / _safe_name("caption")
@@ -270,7 +271,7 @@ def overlay_custom_captions(
 
     width, height = _ffprobe_size(input_path)
     duration = _ffprobe_duration(input_path)
-    position_y = {
+    position_y = position_y if position_y is not None else {
         "top": 0.18,
         "middle": 0.52,
         "bottom": 0.78,

@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional
 import inspect
 import re
 import secrets
+import math
 
 from ...database import get_db
 from ...database import AsyncSessionLocal
@@ -55,6 +56,16 @@ def _normalize_font_family(value: Any) -> Optional[str]:
     if isinstance(value, str) and value.strip():
         return value.strip()
     return None
+
+
+def _finite_number(value: Any, name: str) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name} must be a finite number")
+    if isinstance(value, bool) or not math.isfinite(number):
+        raise ValueError(f"{name} must be a finite number")
+    return number
 
 
 async def _get_user_id_from_headers(request: Request, db: AsyncSession) -> str:
@@ -770,6 +781,20 @@ async def update_clip_captions(
                 status_code=400, detail="highlight_words must be an array"
             )
 
+        font_size = payload.get("font_size")
+        if font_size is not None:
+            font_size = _finite_number(font_size, "font_size")
+            if not math.isfinite(font_size) or not 12 <= font_size <= 72:
+                raise ValueError("Font size must be between 12 and 72")
+            font_size = int(font_size)
+        position_y = payload.get("position_y")
+        if position_y is not None:
+            position_y = _finite_number(position_y, "position_y")
+            if not math.isfinite(position_y) or not 0.1 <= position_y <= 0.85:
+                raise ValueError("Caption position must be between 0.1 and 0.85")
+        if position not in {"top", "middle", "bottom"}:
+            raise ValueError("Invalid caption position")
+
         task_service = TaskService(db)
         await _require_task_owner(request, task_service, db, task_id)
         updated_clip = await task_service.update_clip_captions(
@@ -778,6 +803,8 @@ async def update_clip_captions(
             caption_text,
             position,
             [str(word) for word in highlight_words],
+            font_size=font_size,
+            position_y=position_y,
         )
         return {"clip": updated_clip}
     except ValueError as e:

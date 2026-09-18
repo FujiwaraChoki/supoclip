@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional
 import logging
 from pathlib import Path
 import json
+import tempfile
 
 import redis.asyncio as redis
 
@@ -16,12 +17,14 @@ from ..clip_editor import (
     merge_clip_files,
     overlay_custom_captions,
 )
-from ..video_utils import VALID_OUTPUT_FORMATS, parse_timestamp_to_seconds
+from ..video_utils import VALID_OUTPUT_FORMATS, parse_timestamp_to_seconds, create_optimized_clip
+from ..utils.async_helpers import run_in_thread
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..clip_source_map import (
     load_clip_source_ranges,
     save_clip_source_ranges,
-    copy_clip_source_ranges,
+    save_clip_caption_settings,
+    load_clip_caption_settings,
     source_range_bounds,
     split_source_ranges,
     total_source_duration,
@@ -370,6 +373,9 @@ class ClipEditingMixin:
         caption_text: str,
         position: str,
         highlight_words: list[str],
+        *,
+        font_size: Optional[int] = None,
+        position_y: Optional[float] = None,
     ) -> Dict[str, Any]:
         clip = await self.clip_repo.get_clip_by_id(self.db, clip_id)
         if not clip or clip["task_id"] != task_id:
@@ -405,20 +411,54 @@ class ClipEditingMixin:
                 except ValueError:
                     transcript_video_path = None
 
-        output_path = overlay_custom_captions(
-            input_path,
-            Path(self.config.temp_dir) / "clips",
-            caption_text,
-            position,
-            highlight_words,
-            font_family=task.get("font_family") or None,
-            font_size=task.get("font_size") or None,
-            font_color=task.get("font_color") or None,
-            caption_template=task.get("caption_template") or "default",
-            transcript_video_path=transcript_video_path,
-            source_ranges=self._get_clip_source_ranges(clip),
-        )
-        copy_clip_source_ranges(input_path, output_path)
+        # Always render from the source; overlaying an already captioned clip
+        # stacks old and new captions and compounds quality loss on every save.
+        if not transcript_video_path or not transcript_video_path.exists():
+            if source_type == "youtube" and source_url:
+                downloaded = await self.video_service.download_video(source_url)
+                transcript_video_path = Path(downloaded) if downloaded else None
+            elif source_url:
+                transcript_video_path = self.video_service.resolve_local_video_path(source_url)
+        if not transcript_video_path or not transcript_video_path.exists():
+            raise ValueError("The source video is no longer available. Upload it again to edit captions.")
+
+        settings = await self._load_task_source_settings(task_id)
+        source_ranges = self._get_clip_source_ranges(clip)
+        bounds = source_range_bounds(source_ranges)
+        if not bounds:
+            raise ValueError("Clip source timing is unavailable")
+        output_dir = Path(self.config.temp_dir) / "clips"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="caption_edit_", dir=output_dir) as temporary:
+            clean_path = Path(temporary) / "clean.mp4"
+            rendered = await run_in_thread(
+                create_optimized_clip, transcript_video_path, bounds[0], bounds[1], clean_path,
+                add_subtitles=False,
+                output_format=settings.get("output_format", "vertical"),
+                keep_ranges=source_ranges,
+                hook_title=clip.get("hook_title"),
+                extend_to_sentence=False,
+            )
+            if not rendered:
+                raise ValueError("Could not prepare the clip for caption editing")
+            output_path = await run_in_thread(
+                overlay_custom_captions,
+                clean_path, output_dir, caption_text, position, highlight_words,
+                font_family=task.get("font_family") or None,
+                font_size=font_size if font_size is not None else task.get("font_size") or None,
+                font_color=task.get("font_color") or None,
+                caption_template=task.get("caption_template") or "default",
+                transcript_video_path=transcript_video_path,
+                source_ranges=source_ranges,
+                position_y=position_y,
+            )
+        save_clip_source_ranges(output_path, source_ranges)
+        save_clip_caption_settings(output_path, {
+            "font_size": font_size if font_size is not None else task.get("font_size"),
+            "position": position,
+            "position_y": position_y if position_y is not None else {"top": 0.18, "middle": 0.52, "bottom": 0.78}[position],
+            "highlight_words": highlight_words,
+        })
 
         await self.clip_repo.update_clip(
             self.db,
