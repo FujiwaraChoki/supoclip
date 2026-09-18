@@ -72,10 +72,15 @@ async def test_trim_clip_uses_persisted_source_ranges(monkeypatch, tmp_path):
     output_path = tmp_path / "trimmed.mp4"
     output_path.write_bytes(b"output")
 
-    monkeypatch.setattr(
-        "src.services.clip_service.trim_clip_file",
-        lambda *_args, **_kwargs: output_path,
-    )
+    import threading
+    request_thread = threading.get_ident()
+    render_threads = []
+
+    def render_trim(*_args, **_kwargs):
+        render_threads.append(threading.get_ident())
+        return output_path
+
+    monkeypatch.setattr("src.services.clip_service.trim_clip_file", render_trim)
 
     repo = _FakeClipRepo(
         {
@@ -95,6 +100,7 @@ async def test_trim_clip_uses_persisted_source_ranges(monkeypatch, tmp_path):
 
     clip = await service.trim_clip("task-1", "clip-1", 1.0, 0.0)
 
+    assert render_threads and render_threads[0] != request_thread
     assert clip["start_time"] == "00:13"
     assert clip["end_time"] == "00:15"
     assert clip["duration"] == pytest.approx(2.0)
