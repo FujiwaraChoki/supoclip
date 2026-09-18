@@ -625,6 +625,7 @@ async def delete_clip(
 
         # Delete the clip
         await task_service.clip_repo.delete_clip(db, clip_id)
+        await task_service.clip_repo.reorder_task_clips(db, task_id)
 
         return {"message": "Clip deleted successfully"}
 
