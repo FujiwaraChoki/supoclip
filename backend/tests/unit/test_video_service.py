@@ -99,3 +99,20 @@ def test_fallback_segment_caps_to_video_duration():
     assert segment["start_time"] == "00:00"
     assert segment["end_time"] == "00:12"
     assert segment["hook_type"] == "fallback"
+
+
+@pytest.mark.asyncio
+async def test_cached_text_regenerates_missing_word_timings(monkeypatch, tmp_path):
+    from unittest.mock import AsyncMock
+    from src.config import Config
+    source = tmp_path / "source.mp4"
+    source.touch()
+    monkeypatch.setattr(video_service_module, "get_config", Config)
+    monkeypatch.setattr(VideoService, "resolve_local_video_path", lambda _: source)
+    monkeypatch.setattr(VideoService, "_get_file_duration", lambda _: 19)
+    monkeypatch.setattr(video_service_module, "load_cached_transcript_data", lambda _: None)
+    transcribe = AsyncMock(return_value="Restored transcript")
+    monkeypatch.setattr(VideoService, "generate_transcript", transcribe)
+    analysis = json.dumps({"most_relevant_segments": [{"start_time": "00:00", "end_time": "00:17", "text": "Cached segment"}], "summary": "Test", "key_topics": []})
+    await VideoService.process_video_complete(url="upload://source.mp4", source_type="video_url", cached_transcript="Cached transcript", cached_analysis_json=analysis)
+    transcribe.assert_awaited_once()
