@@ -635,7 +635,10 @@ async def delete_clip(
                 status_code=403, detail="Not authorized to delete this clip"
             )
 
-        # Delete the clip
+        clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
+        if not clip or clip["task_id"] != task_id:
+            raise HTTPException(status_code=404, detail="Clip not found")
+
         await task_service.clip_repo.delete_clip(db, clip_id)
         await task_service.clip_repo.reorder_task_clips(db, task_id)
 

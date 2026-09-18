@@ -254,3 +254,17 @@ async def test_upload_video_uses_runtime_config_temp_dir(
     payload = response.json()
     saved_name = payload["video_path"].removeprefix("upload://")
     assert (tmp_path / "uploads" / saved_name).exists()
+
+
+@pytest.mark.asyncio
+async def test_deleting_clip_requires_clip_to_belong_to_owned_task(client, db_session, auth_headers):
+    owner = await create_user(db_session, user_id="user-1")
+    other = await create_user(db_session)
+    source = await create_source(db_session)
+    owned_task = await create_task(db_session, user_id=owner["id"], source_id=source["id"])
+    other_task = await create_task(db_session, user_id=other["id"], source_id=source["id"])
+    other_clip = await create_clip(db_session, task_id=other_task["id"])
+    response = await client.delete(f"/tasks/{owned_task['id']}/clips/{other_clip['id']}", headers=auth_headers)
+    assert response.status_code == 404
+    remaining = await db_session.execute(text("SELECT id FROM generated_clips WHERE id = :id"), {"id": other_clip["id"]})
+    assert remaining.scalar() == other_clip["id"]
