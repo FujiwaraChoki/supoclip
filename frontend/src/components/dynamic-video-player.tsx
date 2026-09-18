@@ -11,7 +11,7 @@ interface DynamicVideoPlayerProps {
 
 const DynamicVideoPlayer: React.FC<DynamicVideoPlayerProps> = ({
   src,
-  poster = "/placeholder-video.jpg",
+  poster,
   autoPlay = false,
   muted = false,
   loop = false,
