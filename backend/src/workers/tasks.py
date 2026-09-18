@@ -125,17 +125,66 @@ async def process_video_task(
             # Error will be caught by arq and task status will be updated
             raise
 
+async def _social_service(db):
+    from ..runtime_settings import load_runtime_settings_cache
+    from ..services.social_service import SocialService
+
+    await load_runtime_settings_cache(db)
+    return SocialService(db)
+
+
+async def publish_social_post(ctx: Dict[str, Any], post_id: str) -> Dict[str, Any]:
+    """Upload one queued social post to its platform."""
+    from ..database import AsyncSessionLocal
+
+    set_trace_id(f"social-{post_id}")
+    logger.info("Worker publishing social post %s", post_id)
+    async with AsyncSessionLocal() as db:
+        service = await _social_service(db)
+        try:
+            post = await service.publish_post(post_id)
+        except Exception:
+            # Failures are recorded on the post row; never let arq retry blindly.
+            logger.exception("Publishing social post %s crashed", post_id)
+            return {"post_id": post_id, "status": "error"}
+    return {"post_id": post_id, "status": post.get("status")}
+
+
+async def dispatch_scheduled_social_posts(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """Cron: move due scheduled posts onto the publish queue."""
+    from ..database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as db:
+        service = await _social_service(db)
+        dispatched = await service.dispatch_scheduled_posts()
+        resolved = await service.resolve_pending_posts()
+    return {"dispatched": len(dispatched), "pending_checked": resolved}
+
+
+async def refresh_social_metrics(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """Cron: pull fresh audience metrics for recently published posts."""
+    from ..database import AsyncSessionLocal
+    from ..repositories.social_repository import SocialRepository
+
+    async with AsyncSessionLocal() as db:
+        service = await _social_service(db)
+        refreshed = await service.refresh_due_metrics()
+        purged = await SocialRepository.purge_expired_oauth_states(db)
+    return {"refreshed": refreshed, "purged_oauth_states": purged}
+
+
 # Worker configuration for arq
 class WorkerSettings:
     """Configuration for arq worker."""
 
     from ..config import Config
+    from arq import cron
     from arq.connections import RedisSettings
 
     config = Config()
 
     # Functions to run
-    functions = [process_video_task]
+    functions = [process_video_task, publish_social_post]
     queue_name = "supoclip_tasks"
 
     # Redis settings from environment
@@ -149,4 +198,9 @@ class WorkerSettings:
 
     # Worker pool settings
     max_jobs = 4  # Process up to 4 jobs simultaneously
-    cron_jobs = []
+    cron_jobs = [
+        # Every minute: promote due scheduled posts and poll async publishes.
+        cron(dispatch_scheduled_social_posts, second=0, timeout=300),
+        # Hourly: pull audience metrics back for the performance loop.
+        cron(refresh_social_metrics, minute=7, second=0, timeout=1800),
+    ]

@@ -164,6 +164,78 @@ Required when `SELF_HOST=false` and you want subscription management:
 | `DISCORD_FEEDBACK_WEBHOOK_URL` | Receives product feedback messages |
 | `DISCORD_SALES_WEBHOOK_URL` | Receives sales or lead-oriented submissions |
 
+## Social Publishing Settings
+
+Social publishing is optional. When no provider is configured the Publish
+button and the Social Accounts page explain what is missing instead of failing.
+
+SupoClip uses one OAuth app per platform, registered by whoever operates the
+server. Users connect their own YouTube, TikTok and Instagram accounts through
+that app from **Settings → Social Accounts**; tokens are stored encrypted with
+`APP_SETTINGS_ENCRYPTION_KEY` (falling back to `BACKEND_AUTH_SECRET`).
+
+| Variable | Purpose |
+|---|---|
+| `YOUTUBE_OAUTH_CLIENT_ID` / `YOUTUBE_OAUTH_CLIENT_SECRET` | Google OAuth client (Web application) with the YouTube Data API v3 enabled. `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` are accepted as aliases. |
+| `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` | TikTok for Developers app with Login Kit and the Content Posting API (scopes `user.info.basic`, `video.publish`, `video.list`) |
+| `INSTAGRAM_APP_ID` / `INSTAGRAM_APP_SECRET` | Meta app using "Instagram API with Instagram Login". `META_APP_ID` / `META_APP_SECRET` are accepted as aliases. |
+| `SOCIAL_OAUTH_REDIRECT_BASE_URL` | Base URL for OAuth callbacks; defaults to `NEXT_PUBLIC_APP_URL` |
+| `SOCIAL_PUBLIC_MEDIA_BASE_URL` | Base URL Instagram fetches videos from; defaults to `NEXT_PUBLIC_APP_URL` and must be publicly reachable |
+| `SOCIAL_METRICS_REFRESH_HOURS` | Minimum hours between metric pulls per post (default `6`) |
+| `SOCIAL_METRICS_MAX_POST_AGE_DAYS` | Stop refreshing metrics for posts older than this (default `60`) |
+| `SOCIAL_PERFORMANCE_MIN_POSTS` | Measured posts required before clip selection is personalized (default `3`) |
+| `SOCIAL_PUBLISH_MAX_ATTEMPTS` | Retries for transient publish failures (default `3`) |
+
+Register this redirect URI on every platform, replacing `<provider>` with
+`youtube`, `tiktok` or `instagram`:
+
+```
+${NEXT_PUBLIC_APP_URL}/api/social/callback/<provider>
+```
+
+Platform review notes (the APIs themselves are free):
+
+- **YouTube**: uploads from an unverified Google project are forced private
+  until the project passes the YouTube API compliance audit. Check the project's
+  current upload quota in Google Cloud before enabling publishing for users.
+- **TikTok**: unaudited apps can only post with `private` visibility and for a
+  handful of accounts per day. Public posting requires TikTok's app audit.
+- **Instagram**: requires a professional (Business or Creator) account. Meta App
+  Review is needed before accounts outside the app's testers can connect.
+
+### Deployment and verification
+
+The API applies `20260901_0001_social_publishing.sql` on startup through the
+existing migration runner. It adds four social publishing tables; it does not
+change existing clip or account records. Back up the database before deploying.
+The API and worker need the same database, clip storage, encryption key, and
+provider credentials. Restart both after changing environment variables. The
+frontend proxies OAuth and media requests; provider secrets belong on the API
+and worker, not in `NEXT_PUBLIC_*` variables.
+
+With no provider credentials, task creation and editing remain available and
+Social Accounts explains that publishing is not configured. Configure one
+provider at a time and register its exact callback URL above. Instagram's media
+URL must be reachable from the public internet.
+
+Before enabling each provider for users:
+
+- Connect a test account, disconnect it, and reconnect it. Confirm token refresh
+  works and revoked credentials prompt a reconnect.
+- Publish one clip using a visibility level allowed for the test account. Check
+  the result on the platform as well as in SupoClip.
+- Schedule a clip, confirm it publishes once, and cancel another scheduled clip.
+- For TikTok, verify asynchronous processing and private completion with no
+  public post ID. Status-check failures should keep checking the existing upload;
+  after 45 minutes, Retry checks that same upload again instead of uploading it.
+- For Instagram, confirm its public media fetch works through the frontend.
+- Refresh metrics for a published post with an external ID and confirm the
+  performance dashboard updates. Private posts without a public ID have no metrics.
+
+Automated tests cover mocked provider requests, PostgreSQL migrations and
+repository workflows, and the browser experience without keys. They do not
+verify platform app approval or live OAuth, uploads, and metrics.
+
 ## Apify YouTube Downloader
 
 SupoClip uses Apify's `epctex/youtube-video-downloader` actor as the primary YouTube download path. Metadata preflight and fallback downloads rely on the local `yt-dlp` stack over a direct connection.

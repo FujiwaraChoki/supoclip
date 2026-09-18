@@ -60,6 +60,13 @@ import Link from "next/link";
 import DynamicVideoPlayer from "@/components/dynamic-video-player";
 import { TranscriptPreview } from "@/components/transcript-preview";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
+import { ClipPostList, ClipPublishButton } from "@/components/clip-publisher";
+import {
+  ACTIVE_POST_STATUSES,
+  type SocialConnection,
+  type SocialPost,
+  type SocialProviderStatus,
+} from "@/lib/social";
 
 interface Clip {
   id: string;
@@ -125,6 +132,9 @@ export default function TaskPage() {
   const [exportPreset, setExportPreset] = useState("original");
   const [shareState, setShareState] = useState<"idle" | "copying" | "copied">("idle");
   const [isRevokingShare, setIsRevokingShare] = useState(false);
+  const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]);
+  const [socialProviders, setSocialProviders] = useState<SocialProviderStatus[]>([]);
+  const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
 
   // null means "use the caption template's own value" — mirrors the create form's contract.
   const [projectFontFamily, setProjectFontFamily] = useState<string | null>(null);
@@ -146,6 +156,53 @@ export default function TaskPage() {
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
   const taskApiUrl = "/api/tasks";
+
+  const loadSocialPosts = useCallback(async () => {
+    if (!params.id) return;
+    try {
+      const response = await fetch(`/api/social/posts?task_id=${params.id}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const data = (await response.json()) as { posts?: SocialPost[] };
+      setSocialPosts(data.posts ?? []);
+    } catch {
+      // Publishing is optional; never block the task page on it.
+    }
+  }, [params.id]);
+
+  const loadSocialContext = useCallback(async () => {
+    try {
+      const [connectionsResponse, providersResponse] = await Promise.all([
+        fetch("/api/social/connections", { cache: "no-store" }),
+        fetch("/api/social/providers", { cache: "no-store" }),
+      ]);
+      if (connectionsResponse.ok) {
+        const data = (await connectionsResponse.json()) as { connections?: SocialConnection[] };
+        setSocialConnections(data.connections ?? []);
+      }
+      if (providersResponse.ok) {
+        const data = (await providersResponse.json()) as { providers?: SocialProviderStatus[] };
+        setSocialProviders(data.providers ?? []);
+      }
+    } catch {
+      // Publishing is optional; never block the task page on it.
+    }
+    await loadSocialPosts();
+  }, [loadSocialPosts]);
+
+  // Load publishing context once the task is done, then poll while a post is in flight.
+  useEffect(() => {
+    if (!session?.user?.id || task?.status !== "completed") return;
+    void loadSocialContext();
+  }, [session?.user?.id, task?.status, loadSocialContext]);
+
+  useEffect(() => {
+    const inFlight = socialPosts.some((post) => ACTIVE_POST_STATUSES.includes(post.status));
+    if (!inFlight) return;
+    const interval = window.setInterval(() => {
+      void loadSocialPosts();
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, [socialPosts, loadSocialPosts]);
 
   const buildSupportError = useCallback(async (response: Response, fallbackMessage: string) => {
     const parsed = await parseApiError(response, fallbackMessage);
@@ -1196,6 +1253,14 @@ export default function TaskPage() {
                           <Link href={`/tasks/${task.id}/edit?clip=${clip.id}`}><Scissors className="w-4 h-4" />Edit</Link>
                         </Button>
 
+                        <ClipPublishButton
+                          taskId={task.id}
+                          clip={clip}
+                          connections={socialConnections}
+                          providers={socialProviders}
+                          onChanged={loadSocialPosts}
+                        />
+
                         <Button
                           size="sm"
                           variant="ghost"
@@ -1207,6 +1272,10 @@ export default function TaskPage() {
                         </Button>
                       </div>
 
+                      <ClipPostList
+                        posts={socialPosts.filter((post) => post.clip_id === clip.id)}
+                        onChanged={loadSocialPosts}
+                      />
 
                     </div>
                   </div>

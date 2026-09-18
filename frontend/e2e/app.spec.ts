@@ -43,3 +43,17 @@ test("admin user can access the admin dashboard", async ({ page }) => {
     page.getByRole("heading", { name: /currently processing tasks/i }),
   ).toBeVisible();
 });
+
+test("social publishing explains missing configuration without breaking task pages", async ({ page }) => {
+  test.setTimeout(60_000);
+  await signIn(page, seed.regular.email, seed.regular.password);
+  await page.goto(`/tasks/${seed.completedTaskId}`);
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(page.getByText("Social publishing is not configured on this server.", { exact: false })).toBeVisible();
+  await page.getByRole("link", { name: "Social Accounts", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Social Accounts", exact: true })).toBeVisible();
+  await expect(page.getByText("Not configured on this server.", { exact: true })).toHaveCount(3);
+  await expect(page.getByText("No accounts connected yet.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Failed to load social accounts")).toHaveCount(0);
+  await page.screenshot({ path: "test-results/social-accounts-unconfigured.png", fullPage: true });
+});

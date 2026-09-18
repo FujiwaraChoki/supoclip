@@ -180,6 +180,18 @@ class TaskService(ClipEditingMixin):
         logger.info(f"Created task {task_id} for user {user_id}")
         return task_id
 
+    async def _load_performance_context(self, user_id: Optional[str]) -> Optional[str]:
+        """Build the creator's performance summary for the AI prompt (best effort)."""
+        if not user_id:
+            return None
+        try:
+            from .social_service import SocialService
+
+            return await SocialService(self.db).build_performance_context(user_id)
+        except Exception as exc:  # pragma: no cover - never block processing
+            logger.warning("Skipping performance context for user %s: %s", user_id, exc)
+            return None
+
     def _processing_transaction(self, task_id: str):
         return task_edit_transaction(self.db, task_id, processing=True)
 
@@ -276,6 +288,13 @@ class TaskService(ClipEditingMixin):
                     billing.get("plan"), billing.get("subscription_status")
                 )
 
+            # Performance loop: feed this creator's real audience data back into
+            # clip selection. Personalized analyses bypass the shared analysis
+            # cache so one creator's history never shapes another's clips.
+            performance_context = await self._load_performance_context(user_id)
+            if performance_context:
+                cached_analysis_json = None
+
             pipeline_start = perf_counter()
             result = await self.video_service.process_video_complete(
                 url=url,
@@ -293,6 +312,7 @@ class TaskService(ClipEditingMixin):
                 cached_analysis_json=cached_analysis_json,
                 progress_callback=update_progress,
                 should_cancel=should_cancel,
+                performance_context=performance_context,
             )
             stage_timings["pipeline_seconds"] = round(
                 perf_counter() - pipeline_start, 3
@@ -325,7 +345,7 @@ class TaskService(ClipEditingMixin):
                 source_type=source_type,
                 video_path=result.get("video_path"),
                 transcript_text=result.get("transcript"),
-                analysis_json=result.get("analysis_json"),
+                analysis_json=None if performance_context else result.get("analysis_json"),
             )
 
             video_path = Path(result["video_path"])

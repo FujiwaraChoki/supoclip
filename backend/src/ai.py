@@ -466,9 +466,22 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
 
 
 def build_transcript_analysis_prompt(
-    transcript: str, include_broll: bool = False, clip_signals: str | None = None
+    transcript: str,
+    include_broll: bool = False,
+    clip_signals: str | None = None,
+    performance_context: str | None = None,
 ) -> str:
     """Build the grounded task prompt for transcript analysis."""
+    performance_section = ""
+    if performance_context:
+        performance_section = (
+            "\n\nCreator performance history (real audience data from clips this creator "
+            "already published):\n"
+            f"{performance_context}\n\n"
+            "Use this history to break ties and to bias hook_type, clip length and hook "
+            "style toward what has demonstrably worked for this creator. It never justifies "
+            "fabricating content, stretching timestamps, or picking a weak moment."
+        )
     broll_instruction = ""
     if include_broll:
         broll_instruction = (
@@ -511,7 +524,7 @@ Critical accuracy requirements:
 - If a span lacks enough context to stand alone, expand to nearby contiguous lines rather than guessing.
 - If there is a tradeoff between "viral" and "accurate", choose accuracy.
 - Do not reject or penalize a segment simply because of the subject matter; stay content-neutral and assess clip quality only.
-{signal_section}
+{signal_section}{performance_section}
 
 JSON-only output requirements:
 - Return one valid JSON object and nothing else.
@@ -707,7 +720,10 @@ def _repair_segment_bounds(
 
 
 async def get_most_relevant_parts_by_transcript(
-    transcript: str, include_broll: bool = False, clip_signals: str | None = None
+    transcript: str,
+    include_broll: bool = False,
+    clip_signals: str | None = None,
+    performance_context: str | None = None,
 ) -> TranscriptAnalysis:
     """Get the most relevant parts of a transcript with virality scoring and optional B-roll detection."""
     logger.info(
@@ -723,6 +739,7 @@ async def get_most_relevant_parts_by_transcript(
                 transcript=transcript,
                 include_broll=include_broll,
                 clip_signals=clip_signals,
+                performance_context=performance_context,
             )
         )
 

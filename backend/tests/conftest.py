@@ -36,6 +36,13 @@ class FakeQueueAdapter:
         return None
 
     @classmethod
+    async def enqueue_job(cls, function_name: str, *args, **kwargs):
+        cls.enqueued_jobs.append(
+            {"function_name": function_name, "args": args, "kwargs": kwargs}
+        )
+        return "job-test-2"
+
+    @classmethod
     async def enqueue_processing_job(cls, function_name: str, processing_mode: str, *args):
         cls.enqueued_jobs.append(
           {
