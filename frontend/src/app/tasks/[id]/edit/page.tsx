@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
-import { exportVideo } from "@/lib/editor/export-video";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   AudioLines,
@@ -19,12 +17,18 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { useSession } from "@/lib/auth-client";
+import { toast } from "sonner";
+import { EXPORT_PRESETS, getClipUrl, requestAction } from "@/lib/clip-actions";
+import { exportVideo } from "@/lib/editor/export-video";
+import { DEFAULT_VIDEO_FX, videoFilter, type VideoFx } from "@/lib/editor/video-effects";
+import { StatusBadge } from "@/components/app/status-badge";
+import { PageLoading, PageError } from "@/components/app/page-state";
+
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -35,6 +39,7 @@ interface TaskDetails {
   source_type: string;
   status: string;
   clips_count: number;
+  font_size?: number | null;
 }
 
 interface Clip {
@@ -46,36 +51,17 @@ interface Clip {
   end_time: string;
   text: string;
   video_url: string;
+  caption_settings?: { font_size?: number | null; position?: string; position_y?: number; highlight_words?: string[] } | null;
 }
-
-interface VideoFx {
-  brightness: number;
-  contrast: number;
-  saturation: number;
-  blur: number;
-  hue: number;
-  zoom: number;
-}
-
 
 const MIN_GAP_SECONDS = 0.25;
-
-const DEFAULT_VIDEO_FX: VideoFx = {
-  brightness: 100,
-  contrast: 100,
-  saturation: 100,
-  blur: 0,
-  hue: 0,
-  zoom: 1,
-};
-
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 export default function TaskEditPage() {
   const params = useParams();
-  const { data: session } = useSession();
+  const searchParams = useSearchParams();
+  const requestedClipId = searchParams.get("clip");
   const taskApiUrl = "/api/tasks";
-  const getClipUrl = (videoUrl: string) =>
-    videoUrl.startsWith("/api/") ? videoUrl : `/api${videoUrl}`;
 
   const [task, setTask] = useState<TaskDetails | null>(null);
   const [clips, setClips] = useState<Clip[]>([]);
@@ -90,7 +76,10 @@ export default function TaskEditPage() {
   const [captionText, setCaptionText] = useState("");
   const [captionPosition, setCaptionPosition] = useState("bottom");
   const [highlightWords, setHighlightWords] = useState<string[]>([]);
-  const [subtitleSize, setSubtitleSize] = useState(52);
+  const [subtitleSize, setSubtitleSize] = useState<number | null>(null);
+  const [captionsDirty, setCaptionsDirty] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState(292.5);
+  const previewRef = useRef<HTMLDivElement>(null);
   const [subtitleY, setSubtitleY] = useState(78);
 
   const [volume, setVolume] = useState(100);
@@ -112,11 +101,11 @@ export default function TaskEditPage() {
 
   const videoStyle = useMemo(
     () => ({
-      filter: `brightness(${videoFx.brightness}%) contrast(${videoFx.contrast}%) saturate(${videoFx.saturation}%) blur(${videoFx.blur}px) hue-rotate(${videoFx.hue}deg)`,
+      filter: videoFilter(videoFx, previewWidth / 1080),
       transform: `scale(${videoFx.zoom})`,
       transformOrigin: "center center",
     }),
-    [videoFx]
+    [videoFx, previewWidth]
   );
 
   const subtitleWords = useMemo(
@@ -124,19 +113,12 @@ export default function TaskEditPage() {
     [captionText]
   );
 
-  const activeSubtitleWords = useMemo(() => {
-    const start = Math.max(0, Math.floor((currentTime / Math.max(selectedClip?.duration || 1, 1)) * subtitleWords.length));
-    return subtitleWords.slice(start, start + 6);
-  }, [currentTime, selectedClip?.duration, subtitleWords]);
-
-
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
   const buildSupportError = useCallback(async (response: Response, fallbackMessage: string) => {
     const parsed = await parseApiError(response, fallbackMessage);
@@ -172,14 +154,16 @@ export default function TaskEditPage() {
 
       setSelectedClipId((current) => {
         if (current && nextClips.some((clip) => clip.id === current)) return current;
-        return nextClips[0]?.id ?? null;
+        return nextClips.find((clip) => clip.id === requestedClipId)?.id ?? nextClips[0]?.id ?? null;
       });
 
       setMergeSelection((current) => current.filter((id) => nextClips.some((clip) => clip.id === id)));
+      return true;
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : "Failed to load editor");
+      return false;
     }
-  }, [buildSupportError, params.id, taskApiUrl]);
+  }, [buildSupportError, params.id, taskApiUrl, requestedClipId]);
 
   useEffect(() => {
     const run = async () => {
@@ -193,18 +177,26 @@ export default function TaskEditPage() {
     void run();
   }, [fetchEditorData]);
 
+  const resetCaptionDraft = useCallback(() => {
+    if (!selectedClip) return;
+    const settings = selectedClip.caption_settings;
+    setCaptionText(selectedClip.text || "");
+    setHighlightWords(settings?.highlight_words || []);
+    setSubtitleY((settings?.position_y ?? 0.78) * 100);
+    setSubtitleSize(settings?.font_size ?? task?.font_size ?? null);
+    setCaptionPosition(settings?.position || "bottom");
+    setCaptionsDirty(false);
+  }, [selectedClip, task?.font_size]);
+
   useEffect(() => {
     if (!selectedClip) return;
     const safeDuration = Math.max(selectedClip.duration, MIN_GAP_SECONDS * 2);
     setTrimRange([0, safeDuration]);
     setSplitTime(clamp(safeDuration / 2, MIN_GAP_SECONDS, safeDuration - MIN_GAP_SECONDS));
-    setCaptionText(selectedClip.text || "");
-    setHighlightWords([]);
     setCurrentTime(0);
     setVideoFx(DEFAULT_VIDEO_FX);
-    setSubtitleY(78);
-    setSubtitleSize(52);
-  }, [selectedClip]);
+    resetCaptionDraft();
+  }, [selectedClip, resetCaptionDraft]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -212,86 +204,59 @@ export default function TaskEditPage() {
     video.volume = clamp(volume / 100, 0, 1);
     video.muted = isMuted;
     video.playbackRate = playbackRate;
-  }, [volume, isMuted, playbackRate]);
+  }, [volume, isMuted, playbackRate, selectedClip]);
 
-  const withSaving = async (action: () => Promise<void>) => {
+  useEffect(() => {
+    if (!previewRef.current) return;
+    const observer = new ResizeObserver(([entry]) => setPreviewWidth(entry.contentRect.width));
+    observer.observe(previewRef.current);
+    return () => observer.disconnect();
+  }, [selectedClipId, isLoading]);
+
+  useEffect(() => {
+    if (!captionsDirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [captionsDirty]);
+
+  const withSaving = async (action: () => Promise<unknown>, message: string) => {
+    if (isSaving) return false;
     setIsSaving(true);
+    setError(null);
     try {
       await action();
-      await fetchEditorData();
-    } finally {
-      setIsSaving(false);
-    }
+      if (!await fetchEditorData()) throw new Error("Changes saved, but the preview could not be refreshed. Reload to see the saved clip.");
+      toast.success(message);
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not save changes. Please try again.";
+      setError(message);
+      toast.error(message);
+      return false;
+    } finally { setIsSaving(false); }
   };
 
-  const handleTrim = async () => {
-    if (!selectedClip || !session?.user?.id || !task?.id) return;
-    const startOffset = Number(trimRange[0].toFixed(2));
-    const endOffset = Number((selectedClip.duration - trimRange[1]).toFixed(2));
-
-    await withSaving(async () => {
-      const response = await fetch(`${taskApiUrl}/${task.id}/clips/${selectedClip.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ start_offset: startOffset, end_offset: endOffset }),
-      });
-      if (!response.ok) throw new Error(await buildSupportError(response, "Failed to trim clip"));
-    });
+  const clipAction = (suffix: string, method: string, body: unknown, message: string) => {
+    if (!selectedClip || !task) return;
+    return withSaving(() => requestAction(`${taskApiUrl}/${task.id}/clips/${selectedClip.id}${suffix}`, method, body), message);
   };
-
-  const handleSplit = async (splitAt?: number) => {
-    if (!selectedClip || !session?.user?.id || !task?.id) return;
-    const value = splitAt ?? splitTime;
-    await withSaving(async () => {
-      const response = await fetch(`${taskApiUrl}/${task.id}/clips/${selectedClip.id}/split`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ split_time: Number(value.toFixed(2)) }),
-      });
-      if (!response.ok) throw new Error(await buildSupportError(response, "Failed to split clip"));
-    });
-  };
-
-  const handleUpdateCaptions = async () => {
-    if (!selectedClip || !session?.user?.id || !task?.id) return;
-
-    await withSaving(async () => {
-      const response = await fetch(`${taskApiUrl}/${task.id}/clips/${selectedClip.id}/captions`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          caption_text: captionText,
-          position: captionPosition,
-          highlight_words: highlightWords,
-        }),
-      });
-      if (!response.ok) throw new Error(await buildSupportError(response, "Failed to update captions"));
-    });
-  };
-
+  const handleTrim = () => clipAction("", "PATCH", {
+    start_offset: Number(trimRange[0].toFixed(2)),
+    end_offset: Number(((selectedClip?.duration || 0) - trimRange[1]).toFixed(2)),
+  }, "Clip trimmed");
+  const handleSplit = () => clipAction("/split", "POST", { split_time: Number(splitTime.toFixed(2)) }, "Clip split");
+  const handleUpdateCaptions = () => clipAction("/captions", "PATCH", {
+    caption_text: captionText, position: captionPosition, highlight_words: highlightWords,
+    font_size: subtitleSize ?? undefined, position_y: subtitleY / 100,
+  }, "Captions saved. Preview updated.");
   const handleMerge = async () => {
-    if (!session?.user?.id || !task?.id || mergeSelection.length < 2) return;
-    await withSaving(async () => {
-      const response = await fetch(`${taskApiUrl}/${task.id}/clips/merge`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ clip_ids: mergeSelection }),
-      });
-      if (!response.ok) throw new Error(await buildSupportError(response, "Failed to merge selected clips"));
-    });
-    setMergeSelection([]);
+    if (!task || mergeSelection.length < 2) return;
+    const saved = await withSaving(() => requestAction(`${taskApiUrl}/${task.id}/clips/merge`, "POST", { clip_ids: mergeSelection }), "Clips merged");
+    if (saved) setMergeSelection([]);
   };
-
   const handleExport = async () => {
-    if (!selectedClip || isSaving) return;
+    if (!selectedClip || isSaving || captionsDirty) return;
     setIsSaving(true);
     setError(null);
     setExportProgress(0);
@@ -313,6 +278,7 @@ export default function TaskEditPage() {
   const toggleHighlightedWord = (word: string) => {
     const cleaned = word.toLowerCase().replace(/[^a-z0-9']/g, "").trim();
     if (!cleaned) return;
+    setCaptionsDirty(true);
     setHighlightWords((current) => (current.includes(cleaned) ? current.filter((value) => value !== cleaned) : [...current, cleaned]));
   };
 
@@ -365,66 +331,53 @@ export default function TaskEditPage() {
     setVolume(100);
     setIsMuted(false);
     setPlaybackRate(1);
-    setSubtitleSize(52);
-    setSubtitleY(78);
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-white p-4">
-        <div className="max-w-7xl mx-auto space-y-4">
-          <Skeleton className="h-10 w-56" />
-          <Skeleton className="h-[420px] w-full" />
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-            <Skeleton className="h-[520px] xl:col-span-7" />
-            <Skeleton className="h-[520px] xl:col-span-5" />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (isLoading) return <PageLoading />;
+  if (!task && error) return <PageError message={error} retry={() => void fetchEditorData()} />;
 
   return (
     <div className="min-h-screen bg-white">
       <div className="border-b bg-white">
-        <div className="max-w-7xl mx-auto px-4 py-5 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-4 py-5 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div className="space-y-1">
             <div className="flex items-center gap-3">
               <Link href={`/tasks/${params.id}`}>
                 <Button variant="ghost" size="sm">
                   <ArrowLeft className="w-4 h-4" />
-                  Back to Task
+                  Back to generation
                 </Button>
               </Link>
-              <Badge variant="outline">Studio Editor</Badge>
+              <Badge variant="outline">Clip editor</Badge>
             </div>
-            <h1 className="text-2xl font-bold text-black">{task?.source_title || "Clip Editor"}</h1>
+            <h1 className="font-[var(--font-syne)] text-2xl font-bold text-black">{task?.source_title || "Clip Editor"}</h1>
           </div>
-          <Button onClick={handleExport} disabled={!selectedClip || isSaving}>
+          <Button onClick={handleExport} disabled={!selectedClip || isSaving || captionsDirty}>
             <Download className="w-4 h-4" />
             {exportProgress !== null ? `Exporting ${exportProgress}%` : "Export Selected"}
           </Button>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <fieldset disabled={isSaving} className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {error && (
           <Alert>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
+        {captionsDirty && <Alert><AlertDescription>Save subtitle changes to update the preview before exporting or editing another clip. <button type="button" className="ml-2 font-medium underline" onClick={resetCaptionDraft} disabled={isSaving}>Discard changes</button></AlertDescription></Alert>}
         {!task ? (
           <Alert>
-            <AlertDescription>Task not found.</AlertDescription>
+            <AlertDescription>Generation not found.</AlertDescription>
           </Alert>
         ) : task.status !== "completed" ? (
           <Card>
             <CardContent className="p-8 text-center space-y-3">
               <p className="text-lg font-semibold">This editor is available once processing completes.</p>
-              <p className="text-gray-600">Current status: {task.status}</p>
+              <p className="text-gray-600"><StatusBadge status={task.status} /></p>
               <Link href={`/tasks/${task.id}`}>
-                <Button variant="outline">Return to Task</Button>
+                <Button variant="outline">Return to generation</Button>
               </Link>
             </CardContent>
           </Card>
@@ -433,51 +386,31 @@ export default function TaskEditPage() {
             <CardContent className="p-8 text-center space-y-3">
               <p className="text-lg font-semibold">No clips to edit yet.</p>
               <Link href={`/tasks/${task.id}`}>
-                <Button variant="outline">Return to Task</Button>
+                <Button variant="outline">Return to generation</Button>
               </Link>
             </CardContent>
           </Card>
         ) : (
           <>
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-5">
+            <div className="grid grid-cols-1 xl:grid-cols-12 items-start gap-5">
               <Card className="xl:col-span-7">
                 <CardContent className="p-4 lg:p-5 space-y-4">
                   {selectedClip ? (
                     <>
-                      <div className="rounded-xl bg-black overflow-hidden relative">
+                      <div ref={previewRef} className="mx-auto aspect-[9/16] w-full max-w-[292.5px] rounded-xl bg-black overflow-hidden relative">
                         <video
                           ref={videoRef}
-                          key={selectedClip.id}
-                          src={getClipUrl(selectedClip.video_url)}
+                          key={selectedClip.filename}
+                          src={getClipUrl(selectedClip.video_url, selectedClip.filename)}
                           controls
                           onTimeUpdate={handleTimeUpdate}
                           onPlay={() => setIsPlaying(true)}
                           onPause={() => setIsPlaying(false)}
-                          className="w-full max-h-[520px] object-contain"
+                          className="h-full w-full object-contain"
                           style={videoStyle}
                         />
 
-                        <div
-                          className="absolute left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-black/70 text-white text-center pointer-events-none"
-                          style={{
-                            bottom: `${subtitleY}%`,
-                            fontSize: `${subtitleSize / 2.5}px`,
-                          }}
-                        >
-                          {activeSubtitleWords.length > 0 ? (
-                            activeSubtitleWords.map((word, index) => {
-                              const cleaned = word.toLowerCase().replace(/[^a-z0-9']/g, "");
-                              const highlighted = highlightWords.includes(cleaned);
-                              return (
-                                <span key={`${word}-${index}`} className={highlighted ? "text-yellow-300" : "text-white"}>
-                                  {word}{index === activeSubtitleWords.length - 1 ? "" : " "}
-                                </span>
-                              );
-                            })
-                          ) : (
-                            <span>Subtitle preview</span>
-                          )}
-                        </div>
+
                       </div>
 
                       <div className="border rounded-lg p-3 space-y-3">
@@ -486,9 +419,10 @@ export default function TaskEditPage() {
                           <span>{isPlaying ? "Playing" : "Paused"}</span>
                         </div>
 
-                        <Slider
+                        <Slider disabled={isSaving}
                           min={0}
                           max={selectedClip.duration}
+                          aria-label="Playhead"
                           value={[currentTime]}
                           step={0.01}
                           onValueChange={(value) => seekTo(value[0] || 0)}
@@ -507,15 +441,16 @@ export default function TaskEditPage() {
                           <span className="font-medium">Trim Range</span>
                           <span>{formatDuration(trimRange[0])} - {formatDuration(trimRange[1])}</span>
                         </div>
-                        <Slider
+                        <Slider disabled={isSaving}
                           min={0}
                           max={selectedClip.duration}
+                          aria-label="Trim range"
                           value={trimRange}
                           step={0.01}
                           onValueChange={handleTrimRangeChange}
                         />
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          <Button onClick={handleTrim} disabled={isSaving}>
+                          <Button onClick={handleTrim} disabled={isSaving || captionsDirty}>
                             <Scissors className="w-4 h-4" />
                             Apply Trim
                           </Button>
@@ -544,16 +479,17 @@ export default function TaskEditPage() {
                         <span className="flex items-center gap-2"><SplitSquareVertical className="w-4 h-4" />Split</span>
                         <span>{splitTime.toFixed(2)}s</span>
                       </div>
-                      <Slider
+                      <Slider disabled={isSaving}
                         min={MIN_GAP_SECONDS}
                         max={Math.max((selectedClip?.duration || MIN_GAP_SECONDS) - MIN_GAP_SECONDS, MIN_GAP_SECONDS)}
+                        aria-label="Split point"
                         value={[splitTime]}
                         step={0.01}
                         onValueChange={(value) => setSplitTime(value[0] || MIN_GAP_SECONDS)}
                       />
                       <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" onClick={() => setSplitTime(currentTime)} disabled={!selectedClip}>Set to Playhead</Button>
-                        <Button variant="outline" onClick={() => void handleSplit()} disabled={isSaving || !selectedClip}>Split Clip</Button>
+                        <Button variant="outline" onClick={() => setSplitTime(clamp(currentTime, MIN_GAP_SECONDS, (selectedClip?.duration || 1) - MIN_GAP_SECONDS))} disabled={!selectedClip}>Set to Playhead</Button>
+                        <Button variant="outline" onClick={() => void handleSplit()} disabled={isSaving || captionsDirty || !selectedClip || selectedClip.duration <= MIN_GAP_SECONDS * 2}>Split Clip</Button>
                       </div>
                     </div>
 
@@ -564,14 +500,14 @@ export default function TaskEditPage() {
                           <span>Volume</span>
                           <span>{volume}%</span>
                         </div>
-                        <Slider min={0} max={200} step={1} value={[volume]} onValueChange={(v) => setVolume(v[0] || 0)} />
+                        <Slider disabled={isSaving} aria-label="Volume" min={0} max={100} step={1} value={[volume]} onValueChange={(v) => setVolume(v[0] || 0)} />
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs text-gray-600">
-                          <span>Playback Rate</span>
+                          <span>Preview playback speed</span>
                           <span>{playbackRate.toFixed(2)}x</span>
                         </div>
-                        <Slider min={0.5} max={2} step={0.05} value={[playbackRate]} onValueChange={(v) => setPlaybackRate(v[0] || 1)} />
+                        <Slider disabled={isSaving} aria-label="Preview playback speed" min={0.5} max={2} step={0.05} value={[playbackRate]} onValueChange={(v) => setPlaybackRate(v[0] || 1)} />
                       </div>
                       <Button variant="outline" className="w-full" onClick={() => setIsMuted((m) => !m)}>
                         {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
@@ -597,7 +533,8 @@ export default function TaskEditPage() {
                               <span>{label}</span>
                               <span>{currentValue}</span>
                             </div>
-                            <Slider
+                            <Slider disabled={isSaving}
+                              aria-label={String(label)}
                               min={Number(min)}
                               max={Number(max)}
                               step={Number(step)}
@@ -626,13 +563,14 @@ export default function TaskEditPage() {
                   <CardContent className="space-y-3">
                     <textarea
                       value={captionText}
-                      onChange={(e) => setCaptionText(e.target.value)}
+                      onChange={(e) => { setCaptionText(e.target.value); setCaptionsDirty(true); }}
+                      aria-label="Subtitle text"
                       placeholder="Edit subtitle script"
                       className="w-full min-h-24 rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
                     />
 
                     <div className="grid grid-cols-2 gap-2">
-                      <Select value={captionPosition} onValueChange={setCaptionPosition}>
+                      <Select disabled={isSaving} value={captionPosition} onValueChange={(value) => { setCaptionPosition(value); setSubtitleY(({ top: 18, middle: 52, bottom: 78 })[value as "top" | "middle" | "bottom"]); setCaptionsDirty(true); }}>
                         <SelectTrigger>
                           <SelectValue placeholder="Position" />
                         </SelectTrigger>
@@ -643,14 +581,12 @@ export default function TaskEditPage() {
                         </SelectContent>
                       </Select>
 
-                      <Select value={exportPreset} onValueChange={setExportPreset}>
+                      <Select disabled={isSaving} value={exportPreset} onValueChange={setExportPreset}>
                         <SelectTrigger>
                           <SelectValue placeholder="Preset" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="tiktok">TikTok</SelectItem>
-                          <SelectItem value="reels">Reels</SelectItem>
-                          <SelectItem value="shorts">Shorts</SelectItem>
+                          {EXPORT_PRESETS.map((preset) => <SelectItem key={preset.id} value={preset.id}>{preset.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
@@ -658,9 +594,9 @@ export default function TaskEditPage() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between text-xs text-gray-600">
                         <span>Subtitle Size</span>
-                        <span>{subtitleSize}</span>
+                        <span>{subtitleSize ?? "Template default"}</span>
                       </div>
-                      <Slider min={28} max={88} step={1} value={[subtitleSize]} onValueChange={(v) => setSubtitleSize(v[0] || 52)} />
+                      <Slider disabled={isSaving} aria-label="Subtitle size" min={12} max={72} step={1} value={[subtitleSize ?? 24]} onValueChange={(v) => { setSubtitleSize(v[0] || 24); setCaptionsDirty(true); }} />
                     </div>
 
                     <div className="space-y-2">
@@ -668,7 +604,7 @@ export default function TaskEditPage() {
                         <span>Vertical Offset</span>
                         <span>{subtitleY}%</span>
                       </div>
-                      <Slider min={10} max={85} step={1} value={[subtitleY]} onValueChange={(v) => setSubtitleY(v[0] || 78)} />
+                      <Slider disabled={isSaving} min={10} max={85} step={1} value={[subtitleY]} aria-label="Subtitle vertical position" onValueChange={(v) => { setSubtitleY(v[0] || 78); setCaptionsDirty(true); }} />
                     </div>
 
                     <div className="space-y-2">
@@ -697,8 +633,8 @@ export default function TaskEditPage() {
                       </div>
                     </div>
 
-                    <Button onClick={handleUpdateCaptions} disabled={isSaving || !selectedClip} className="w-full">
-                      Save Subtitle Changes
+                    <Button onClick={handleUpdateCaptions} disabled={isSaving || !selectedClip || !captionsDirty} className="w-full">
+                      {isSaving ? "Saving…" : "Save subtitle changes"}
                     </Button>
                   </CardContent>
                 </Card>
@@ -715,7 +651,7 @@ export default function TaskEditPage() {
               <CardContent className="space-y-3">
                 {mergeSelection.length >= 2 && (
                   <div className="flex justify-end">
-                    <Button variant="outline" onClick={handleMerge} disabled={isSaving}>
+                    <Button variant="outline" onClick={handleMerge} disabled={isSaving || captionsDirty}>
                       Merge Selected ({mergeSelection.length})
                     </Button>
                   </div>
@@ -725,26 +661,24 @@ export default function TaskEditPage() {
                     const isActive = clip.id === selectedClipId;
                     const isSelectedForMerge = mergeSelection.includes(clip.id);
                     return (
-                      <button
+                      <div
                         key={clip.id}
-                        type="button"
-                        onClick={() => setSelectedClipId(clip.id)}
                         className={`text-left rounded-lg border p-3 transition ${
                           isActive ? "border-black bg-gray-50" : "border-gray-200 hover:border-gray-400"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div>
+                          <button type="button" className="min-w-0 text-left disabled:opacity-50" disabled={isSaving || captionsDirty} onClick={() => setSelectedClipId(clip.id)} aria-pressed={isActive}>
                             <p className="font-medium text-sm text-black">Clip {clip.clip_order}</p>
                             <p className="text-xs text-gray-500">{clip.start_time} - {clip.end_time}</p>
                             <p className="text-xs text-gray-500">{formatDuration(clip.duration)}</p>
-                          </div>
+                          </button>
                           <label className="flex items-center gap-1 text-xs text-gray-600" onClick={(e) => e.stopPropagation()}>
                             <input type="checkbox" checked={isSelectedForMerge} onChange={() => toggleMergeSelection(clip.id)} />
                             Merge
                           </label>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -752,7 +686,7 @@ export default function TaskEditPage() {
             </Card>
           </>
         )}
-      </div>
+      </fieldset>
     </div>
   );
 }
