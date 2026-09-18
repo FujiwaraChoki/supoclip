@@ -27,7 +27,7 @@ export async function GET(_: Request, { params }: Params) {
     headers: {
       ...backendAuthHeaders,
     },
-    cache: "force-cache",
+    cache: "no-store",
   });
 
   if (upstream.status === 404) {
@@ -35,7 +35,7 @@ export async function GET(_: Request, { params }: Params) {
       headers: {
         ...backendAuthHeaders,
       },
-      cache: "force-cache",
+      cache: "no-store",
     });
   }
 
@@ -44,7 +44,7 @@ export async function GET(_: Request, { params }: Params) {
     status: upstream.status,
     headers: {
       "Content-Type": upstream.headers.get("content-type") || "application/octet-stream",
-      "Cache-Control": upstream.headers.get("cache-control") || "public, max-age=31536000",
+      "Cache-Control": "private, no-cache",
     },
   });
 }

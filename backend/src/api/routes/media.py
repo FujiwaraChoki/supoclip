@@ -106,7 +106,7 @@ async def get_font_file(
             path=str(font_path),
             media_type=media_type,
             headers={
-                "Cache-Control": "public, max-age=31536000",
+                "Cache-Control": "private, no-cache",
                 "Access-Control-Allow-Origin": "*",
             },
         )
