@@ -3409,14 +3409,14 @@ def create_optimized_clip(
             logger.error(f"Invalid clip duration: {duration:.1f}s")
             return False
 
-keep_original = output_format == "original"
-    logger.info(
-        f"Creating clip: {start_time:.1f}s - {end_time:.1f}s ({duration:.1f}s) "
-        f"subtitles={add_subtitles} template '{caption_template}' format={'original' if keep_original else 'vertical'}"
-    )
+        keep_original = output_format == "original"
+        logger.info(
+            f"Creating clip: {start_time:.1f}s - {end_time:.1f}s ({duration:.1f}s) "
+            f"subtitles={add_subtitles} template '{caption_template}' format={'original' if keep_original else 'vertical'}"
+        )
 
-    if not include_hook_titles:
-        hook_title = None
+        if not include_hook_titles:
+            hook_title = None
 
         # Fast path: no subtitles + original = ffmpeg stream copy (no re-encoding)
         if not add_subtitles and keep_original and len(effective_keep_ranges) == 1:

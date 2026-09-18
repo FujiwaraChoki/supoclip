@@ -609,8 +609,8 @@ class TaskService:
         font_color: Optional[str],
         caption_template: str,
         include_broll: bool,
+        apply_to_existing: bool = False,
         include_hook_titles: bool = True,
-        apply_to_existing: bool,
         cleanup_settings: Optional[Dict[str, Any]] = None,
         # Visual Identity - Logo
         logo_path: Optional[str] = None,

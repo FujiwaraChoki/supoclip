@@ -912,8 +912,8 @@ async def apply_task_settings(
             font_color,
             caption_template,
             include_broll,
-            include_hook_titles,
             apply_to_existing,
+            include_hook_titles,
             cleanup_settings,
             # Visual Identity - Logo
             logo_path=logo_path,
