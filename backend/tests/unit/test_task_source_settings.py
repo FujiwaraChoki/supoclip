@@ -26,7 +26,7 @@ class _RedisClient:
 @pytest.mark.asyncio
 async def test_load_task_source_settings_falls_back_when_redis_fails(monkeypatch):
     monkeypatch.setattr(
-        "src.services.task_service.redis.Redis",
+        "src.services.clip_service.redis.Redis",
         lambda **_kwargs: _FailingRedisClient(),
     )
 
@@ -108,7 +108,7 @@ def test_merge_task_source_metadata_accepts_smart_vertical_modes():
 async def test_load_task_source_settings_accepts_speaker_pan_mode(monkeypatch):
     payload = '{"output_format": "vertical_pan", "add_subtitles": true}'
     monkeypatch.setattr(
-        "src.services.task_service.redis.Redis",
+        "src.services.clip_service.redis.Redis",
         lambda **_kwargs: _RedisClient(payload),
     )
 

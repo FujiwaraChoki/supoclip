@@ -1,3 +1,4 @@
+from src.services import clip_service as clip_service_module
 from datetime import datetime, timezone
 import hashlib
 from pathlib import Path
@@ -149,7 +150,7 @@ async def test_update_clip_captions_passes_stored_task_style(monkeypatch, tmp_pa
         captured["kwargs"] = kwargs
         return output_path
 
-    monkeypatch.setattr(task_service_module, "overlay_custom_captions", fake_overlay)
+    monkeypatch.setattr(clip_service_module, "overlay_custom_captions", fake_overlay)
 
     await service.update_clip_captions(
         "task-1", "clip-1", "edited caption", "middle", ["edited"]

@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from src import video_utils
+from src.media import timeline
 
 
 def test_get_scaled_font_size_preserves_visible_ui_range():
@@ -67,7 +68,7 @@ def test_prepare_audio_for_transcription_extracts_compact_mp3(tmp_path):
         Path(command[-1]).write_bytes(b"audio")
         return Result()
 
-    with patch("src.video_utils.run_ffmpeg_command", side_effect=fake_run):
+    with patch("src.media.transcription.run_ffmpeg_command", side_effect=fake_run):
         audio_path = video_utils._prepare_audio_for_transcription(video_path)
 
     assert audio_path.name == "source.transcription.mp3"
@@ -209,7 +210,7 @@ def test_extend_keep_ranges_finishes_nearby_sentence(tmp_path):
         encoding="utf-8",
     )
 
-    with patch("src.video_utils.ffprobe_duration", return_value=60.0):
+    with patch("src.media.timeline.ffprobe_duration", return_value=60.0):
         ranges = video_utils.extend_keep_ranges_to_sentence_boundary(
             video_path,
             [(0.0, 16.0)],
@@ -231,7 +232,7 @@ def test_burn_ass_subtitles_passes_fontsdir_to_ffmpeg(tmp_path):
         commands.append(command)
         return Result()
 
-    with patch("src.video_utils.run_ffmpeg_command", side_effect=fake_run):
+    with patch("src.media.ffmpeg.run_ffmpeg_command", side_effect=fake_run):
         success = video_utils.burn_ass_subtitles_ffmpeg(
             tmp_path / "input.mp4",
             tmp_path / "captions.ass",
@@ -261,7 +262,7 @@ def test_burn_ass_subtitles_passes_selected_fonts_dir(tmp_path):
         commands.append(command)
         return Result()
 
-    with patch("src.video_utils.run_ffmpeg_command", side_effect=fake_run):
+    with patch("src.media.ffmpeg.run_ffmpeg_command", side_effect=fake_run):
         success = video_utils.burn_ass_subtitles_ffmpeg(
             tmp_path / "input.mp4",
             tmp_path / "captions.ass",
@@ -283,7 +284,7 @@ def test_build_clip_signal_summary_surfaces_hook_and_audio_peak(monkeypatch, tmp
             "[00:08 - 00:12] Speaker A: Nobody expected the result!",
         ]
     )
-    monkeypatch.setattr(video_utils, "detect_audio_peak_times", lambda _path: [6.0])
+    monkeypatch.setattr(timeline, "detect_audio_peak_times", lambda _path: [6.0])
 
     summary = video_utils.build_clip_signal_summary(tmp_path / "source.mp4", transcript)
 
