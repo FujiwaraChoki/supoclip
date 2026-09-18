@@ -60,24 +60,27 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: "Expected a preferences object" }, { status: 400 });
+    }
     const { fontFamily, fontSize, fontColor, notifyOnCompletion } = body;
 
     // Validate inputs
-    if (fontFamily && typeof fontFamily !== "string") {
+    if (fontFamily !== undefined && (typeof fontFamily !== "string" || !fontFamily.trim())) {
       return NextResponse.json(
         { error: "Invalid fontFamily" },
         { status: 400 }
       );
     }
 
-    if (fontSize && (typeof fontSize !== "number" || fontSize < 12 || fontSize > 48)) {
+    if (fontSize !== undefined && (typeof fontSize !== "number" || !Number.isInteger(fontSize) || fontSize < 12 || fontSize > 48)) {
       return NextResponse.json(
         { error: "Invalid fontSize (must be between 12 and 48)" },
         { status: 400 }
       );
     }
 
-    if (fontColor && !/^#[0-9A-Fa-f]{6}$/.test(fontColor)) {
+    if (fontColor !== undefined && (typeof fontColor !== "string" || !/^#[0-9A-Fa-f]{6}$/.test(fontColor))) {
       return NextResponse.json(
         { error: "Invalid fontColor (must be hex format like #FFFFFF)" },
         { status: 400 }
