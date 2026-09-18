@@ -15,8 +15,13 @@ async def commit_unless_editing(db: AsyncSession) -> None:
         await db.commit()
 
 
+class TaskCancelled(Exception):
+    def __init__(self):
+        super().__init__("Task cancelled")
+
+
 @asynccontextmanager
-async def task_edit_transaction(db: AsyncSession, task_id: str):
+async def task_edit_transaction(db: AsyncSession, task_id: str, *, processing: bool = False):
     """Read and mutate one task under a row lock until its edit commits."""
     active_task = db.info.get(_EDIT_TASK)
     if active_task:
@@ -33,7 +38,9 @@ async def task_edit_transaction(db: AsyncSession, task_id: str):
         status = result.scalar_one_or_none()
         if status is None:
             raise ValueError("Task not found")
-        if status in {"queued", "processing"}:
+        if processing and status != "processing":
+            raise TaskCancelled()
+        if not processing and status in {"queued", "processing"}:
             raise ValueError("Wait for processing to finish before editing this task")
         db.info[_EDIT_TASK] = task_id
         yield

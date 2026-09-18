@@ -1013,6 +1013,7 @@ async def cancel_task(
             "cancelled",
             progress=0,
             progress_message="Cancelled by user",
+            expected_statuses=["queued", "processing"],
         )
 
         return {"message": "Task cancellation requested"}
