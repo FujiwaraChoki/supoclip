@@ -222,7 +222,7 @@ export default function SettingsPage() {
 
 
 
-  if (isPending || isFetching) {
+  if (isPending || (session?.user && isFetching)) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="space-y-4">
