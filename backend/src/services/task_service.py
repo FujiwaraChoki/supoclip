@@ -94,7 +94,23 @@ class TaskService:
         font_color: Optional[str] = None,
         caption_template: str = "default",
         include_broll: bool = False,
+        include_hook_titles: bool = True,
         processing_mode: str = "fast",
+        # Visual Identity - Logo
+        logo_path: Optional[str] = None,
+        logo_position_x: float = 0.5,
+        logo_position_y: float = 0.9,
+        logo_size: float = 0.15,
+        logo_opacity: float = 1.0,
+        # Visual Identity - Theme/Title
+        theme_text: Optional[str] = None,
+        theme_font_family: str = "Anton-Regular",
+        theme_font_size: int = 72,
+        theme_font_color: str = "#FFFFFF",
+        theme_position: str = "center",
+        theme_alignment: str = "center",
+        theme_line_spacing: float = 1.2,
+        theme_margin: float = 0.08,
     ) -> str:
         """
         Create a new task with associated source.
@@ -130,7 +146,23 @@ class TaskService:
             font_color=font_color,
             caption_template=caption_template,
             include_broll=include_broll,
+            include_hook_titles=include_hook_titles,
             processing_mode=processing_mode,
+            # Visual Identity - Logo
+            logo_path=logo_path,
+            logo_position_x=logo_position_x,
+            logo_position_y=logo_position_y,
+            logo_size=logo_size,
+            logo_opacity=logo_opacity,
+            # Visual Identity - Theme/Title
+            theme_text=theme_text,
+            theme_font_family=theme_font_family,
+            theme_font_size=theme_font_size,
+            theme_font_color=theme_font_color,
+            theme_position=theme_position,
+            theme_alignment=theme_alignment,
+            theme_line_spacing=theme_line_spacing,
+            theme_margin=theme_margin,
         )
 
         logger.info(f"Created task {task_id} for user {user_id}")
@@ -152,6 +184,7 @@ class TaskService:
         should_cancel: Optional[Callable] = None,
         clip_ready_callback: Optional[Callable] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        include_hook_titles: bool = True,
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -164,6 +197,27 @@ class TaskService:
 
             # Clean up any previous clips before processing
             await self.clip_repo.delete_clips_by_task(self.db, task_id)
+
+            # Get task settings including visual identity
+            task = await self.task_repo.get_task_by_id(self.db, task_id)
+            if not task:
+                raise ValueError(f"Task {task_id} not found")
+
+            # Visual Identity settings from Task
+            include_hook_titles = task.get("include_hook_titles", include_hook_titles)
+            logo_path = task.get("logo_path")
+            logo_position_x = task.get("logo_position_x") or 0.5
+            logo_position_y = task.get("logo_position_y") or 0.9
+            logo_size = task.get("logo_size") or 0.15
+            logo_opacity = task.get("logo_opacity") or 1.0
+            theme_text = task.get("theme_text")
+            theme_font_family = task.get("theme_font_family") or "Anton-Regular"
+            theme_font_size = task.get("theme_font_size") or 72
+            theme_font_color = task.get("theme_font_color") or "#FFFFFF"
+            theme_position = task.get("theme_position") or "center"
+            theme_alignment = task.get("theme_alignment") or "center"
+            theme_line_spacing = task.get("theme_line_spacing") or 1.2
+            theme_margin = task.get("theme_margin") or 0.08
 
             cache_key = self._build_cache_key(url, source_type, processing_mode)
 
@@ -296,6 +350,22 @@ class TaskService:
                     output_format,
                     add_subtitles,
                     normalized_cleanup_settings,
+                    include_hook_titles,
+                    # Visual Identity - Logo
+                    logo_path=Path(logo_path) if logo_path else None,
+                    logo_position_x=logo_position_x,
+                    logo_position_y=logo_position_y,
+                    logo_size=logo_size,
+                    logo_opacity=logo_opacity,
+                    # Visual Identity - Theme/Title
+                    theme_text=theme_text,
+                    theme_font_family=theme_font_family,
+                    theme_font_size=theme_font_size,
+                    theme_font_color=theme_font_color,
+                    theme_position=theme_position,
+                    theme_alignment=theme_alignment,
+                    theme_line_spacing=theme_line_spacing,
+                    theme_margin=theme_margin,
                 )
                 if clip_info is None:
                     logger.warning(f"Clip {i + 1} failed to render")
@@ -539,8 +609,24 @@ class TaskService:
         font_color: Optional[str],
         caption_template: str,
         include_broll: bool,
+        include_hook_titles: bool = True,
         apply_to_existing: bool,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        # Visual Identity - Logo
+        logo_path: Optional[str] = None,
+        logo_position_x: Optional[float] = None,
+        logo_position_y: Optional[float] = None,
+        logo_size: Optional[float] = None,
+        logo_opacity: Optional[float] = None,
+        # Visual Identity - Theme/Title
+        theme_text: Optional[str] = None,
+        theme_font_family: Optional[str] = None,
+        theme_font_size: Optional[int] = None,
+        theme_font_color: Optional[str] = None,
+        theme_position: Optional[str] = None,
+        theme_alignment: Optional[str] = None,
+        theme_line_spacing: Optional[float] = None,
+        theme_margin: Optional[float] = None,
     ) -> Dict[str, Any]:
         """Update task-level settings and optionally regenerate all clips."""
         await self.task_repo.update_task_settings(
@@ -551,6 +637,22 @@ class TaskService:
             font_color,
             caption_template,
             include_broll,
+            include_hook_titles,
+            # Visual Identity - Logo
+            logo_path=logo_path,
+            logo_position_x=logo_position_x,
+            logo_position_y=logo_position_y,
+            logo_size=logo_size,
+            logo_opacity=logo_opacity,
+            # Visual Identity - Theme/Title
+            theme_text=theme_text,
+            theme_font_family=theme_font_family,
+            theme_font_size=theme_font_size,
+            theme_font_color=theme_font_color,
+            theme_position=theme_position,
+            theme_alignment=theme_alignment,
+            theme_line_spacing=theme_line_spacing,
+            theme_margin=theme_margin,
         )
 
         if apply_to_existing:
@@ -561,6 +663,7 @@ class TaskService:
                 font_color,
                 caption_template,
                 cleanup_settings=cleanup_settings,
+                include_hook_titles=include_hook_titles,
             )
 
         return await self.get_task_with_clips(task_id) or {}
@@ -573,11 +676,28 @@ class TaskService:
         font_color: Optional[str],
         caption_template: str,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        include_hook_titles: bool = True,
     ) -> None:
         """Regenerate all clips in a task using existing segment boundaries."""
         task = await self.task_repo.get_task_by_id(self.db, task_id)
         if not task:
             raise ValueError("Task not found")
+
+        # Visual Identity settings from Task
+        include_hook_titles = task.get("include_hook_titles", include_hook_titles)
+        logo_path = task.get("logo_path")
+        logo_position_x = task.get("logo_position_x") or 0.5
+        logo_position_y = task.get("logo_position_y") or 0.9
+        logo_size = task.get("logo_size") or 0.15
+        logo_opacity = task.get("logo_opacity") or 1.0
+        theme_text = task.get("theme_text")
+        theme_font_family = task.get("theme_font_family") or "Anton-Regular"
+        theme_font_size = task.get("theme_font_size") or 72
+        theme_font_color = task.get("theme_font_color") or "#FFFFFF"
+        theme_position = task.get("theme_position") or "center"
+        theme_alignment = task.get("theme_alignment") or "center"
+        theme_line_spacing = task.get("theme_line_spacing") or 1.2
+        theme_margin = task.get("theme_margin") or 0.08
 
         source_url = task.get("source_url")
         source_type = task.get("source_type")
@@ -669,6 +789,22 @@ class TaskService:
             output_format,
             add_subtitles,
             normalized_cleanup_settings,
+            include_hook_titles,
+            # Visual Identity - Logo
+            logo_path=Path(logo_path) if logo_path else None,
+            logo_position_x=logo_position_x,
+            logo_position_y=logo_position_y,
+            logo_size=logo_size,
+            logo_opacity=logo_opacity,
+            # Visual Identity - Theme/Title
+            theme_text=theme_text,
+            theme_font_family=theme_font_family,
+            theme_font_size=theme_font_size,
+            theme_font_color=theme_font_color,
+            theme_position=theme_position,
+            theme_alignment=theme_alignment,
+            theme_line_spacing=theme_line_spacing,
+            theme_margin=theme_margin,
         )
 
         await self.clip_repo.delete_clips_by_task(self.db, task_id)

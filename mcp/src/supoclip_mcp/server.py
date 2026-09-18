@@ -356,6 +356,7 @@ async def supoclip_create_clip_task(
     add_subtitles: bool = True,
     caption_template: str = "default",
     include_broll: bool = False,
+    include_hook_titles: bool = True,
     font_family: str = "",
     font_size: int = 0,
     font_color: str = "",
@@ -379,6 +380,7 @@ async def supoclip_create_clip_task(
         add_subtitles: Whether to burn in subtitles.
         caption_template: Caption template id.
         include_broll: Whether to add B-roll overlays.
+        include_hook_titles: Whether to burn the AI hook-title headline into clips (True by default).
         font_family / font_size / font_color: Optional subtitle styling overrides.
         cut_long_pauses / remove_filler_words: Optional cleanup toggles.
 
@@ -404,6 +406,7 @@ async def supoclip_create_clip_task(
         "add_subtitles": add_subtitles,
         "caption_template": (caption_template or "default").strip()[:50] or "default",
         "include_broll": include_broll,
+        "include_hook_titles": include_hook_titles,
     }
 
     font_options: dict = {}

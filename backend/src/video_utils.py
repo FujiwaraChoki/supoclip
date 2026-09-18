@@ -1420,6 +1420,96 @@ def build_hook_title_ass(
     return style_line, events
 
 
+def build_theme_title_ass(
+    theme_text: str,
+    template: Dict[str, Any],
+    video_width: int,
+    video_height: int,
+    output_duration: float,
+    theme_font_family: str,
+    theme_font_size: int,
+    theme_font_color: str,
+    theme_position: str = "center",
+    theme_alignment: str = "center",
+    theme_line_spacing: float = 1.2,
+    theme_margin: float = 0.08,
+) -> Tuple[str, List[str]]:
+    """Build the (style_line, dialogue_events) for a burned-in theme title.
+
+    The theme title is a large, bold text overlay (using Gobold/Anton font)
+    positioned in the center/bottom/top of the video with configurable alignment.
+    """
+    uppercase = bool(template.get("uppercase"))
+    title_text = theme_text.upper() if uppercase else theme_text
+
+    primary = hex_to_ass_color(theme_font_color, "#FFFFFF")
+    outline = hex_to_ass_color("#000000", "#000000")
+    back_color = hex_to_ass_color("#00000080", "#00000080")
+
+    # Large font size for theme title
+    theme_px = max(48, min(120, int(theme_font_size * (video_width / 1080.0))))
+
+    # Calculate max chars per line based on video width
+    usable_width = video_width - 2 * int(video_width * theme_margin)
+    max_chars = max(10, int(usable_width / (theme_px * 0.5)))
+    words = title_text.split()
+    lines = _balance_title_lines(words, max_chars)
+
+    # Determine vertical alignment and margin_v based on theme_position
+    position_map = {"top": 8, "center": 5, "bottom": 2}
+    alignment = position_map.get(theme_position, 5)
+
+    # Margin from top/bottom
+    margin_v = max(48, int(video_height * theme_margin))
+
+    # Determine horizontal alignment
+    align_map = {"left": 1, "center": 2, "right": 3}
+    if theme_position == "top":
+        align_map = {"left": 7, "center": 8, "right": 9}
+    elif theme_position == "bottom":
+        align_map = {"left": 1, "center": 2, "right": 3}
+    else:  # center
+        align_map = {"left": 4, "center": 5, "right": 6}
+
+    alignment = align_map.get(theme_alignment, 5)
+
+    # Font name for theme (use theme font family)
+    theme_font_name = ass_font_name(theme_font_family)
+
+    # Bold, with outline for contrast
+    border_style = 1
+    outline_px = max(3, theme_px // 16)
+    shadow_px = max(2, theme_px // 20)
+
+    style_line = (
+        f"Style: Theme,{theme_font_name},{theme_px},{primary},&H000000FF,{outline},{back_color},"
+        f"1,0,0,0,100,100,0,0,{border_style},{outline_px},{shadow_px},{alignment},"
+        f"{int(video_width * theme_margin)},{int(video_width * theme_margin)},{margin_v},1"
+    )
+
+    # Render lines with line spacing
+    rendered_lines: List[str] = []
+    for line in lines:
+        spans: List[str] = []
+        for word in line.split():
+            spans.append(f"{{\\c{primary}}}{escape_ass_text(word)}")
+        rendered_lines.append(" ".join(spans))
+    text = ("\\N" * int(theme_line_spacing)).join(rendered_lines) if len(rendered_lines) > 1 else rendered_lines[0]
+
+    # Theme title shows for the full duration (or at least 3 seconds)
+    start = 0.0
+    end = max(3.0, output_duration)
+    entrance = "\\fad(200,300)"
+    if template.get("word_pop", True):
+        entrance += "\\fscx90\\fscy90\\t(0,200,\\fscx100\\fscy100)"
+
+    events = [
+        f"Dialogue: 2,{ass_timestamp(start)},{ass_timestamp(end)},Theme,,0,0,0,,"
+        f"{{{entrance}}}{text}"
+    ]
+    return style_line, events
+
+
 def build_assemblyai_ass_subtitles(
     video_path: Path,
     clip_start: float,
@@ -1438,6 +1528,15 @@ def build_assemblyai_ass_subtitles(
     caption_words: Optional[List[Dict[str, Any]]] = None,
     position_y_override: Optional[float] = None,
     highlight_words: Optional[List[str]] = None,
+    # Visual Identity - Theme/Title
+    theme_text: Optional[str] = None,
+    theme_font_family: str = "Anton-Regular",
+    theme_font_size: int = 72,
+    theme_font_color: str = "#FFFFFF",
+    theme_position: str = "center",
+    theme_alignment: str = "center",
+    theme_line_spacing: float = 1.2,
+    theme_margin: float = 0.08,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -1539,6 +1638,34 @@ def build_assemblyai_ass_subtitles(
         )
         hook_style_block = f"{hook_style_line}\n"
 
+    # Visual Identity - Theme/Title style and events
+    theme_style_block = ""
+    theme_events: List[str] = []
+    if theme_text:
+        if keep_ranges:
+            ranges = normalize_source_ranges(keep_ranges)
+            fade = crossfade_fade_for_ranges(ranges)
+            output_duration = sum(end - start for start, end in ranges) - fade * max(
+                0, len(ranges) - 1
+            )
+        else:
+            output_duration = max(0.0, clip_end - clip_start)
+        theme_style_line, theme_events = build_theme_title_ass(
+            theme_text,
+            template,
+            video_width,
+            video_height,
+            output_duration,
+            theme_font_family,
+            theme_font_size,
+            theme_font_color,
+            theme_position,
+            theme_alignment,
+            theme_line_spacing,
+            theme_margin,
+        )
+        theme_style_block = f"{theme_style_line}\n"
+
     # Contextual emoji + emphasis annotations over the whole clip word list.
     emoji_by_idx, emphasis_idx = annotate_caption_words(
         relevant_words,
@@ -1570,7 +1697,7 @@ ScaledBorderAndShadow: yes
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,{font_name},{font_px},{primary},&H000000FF,{outline},{back_color},1,0,0,0,100,100,0,0,{border_style},{outline_px},{shadow_px},5,60,60,60,1
-{hook_style_block}
+{hook_style_block}{theme_style_block}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
@@ -1675,13 +1802,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{line_prefix}{effect}{chunk_text}"
             )
 
-    all_events = hook_events + events
+    all_events = hook_events + theme_events + events
     output_ass_path.write_text(header + "\n".join(all_events) + "\n", encoding="utf-8")
     logger.info(
-        "Wrote ASS subtitles: %s (%d events%s)",
+        "Wrote ASS subtitles: %s (%d events%s%s)",
         output_ass_path,
         len(all_events),
         ", hook title" if hook_events else "",
+        ", theme title" if theme_events else "",
     )
     return True
 
@@ -2552,6 +2680,12 @@ def render_reframed_clip_ffmpeg(
     output_format: str,
     subtitle_ass_path: Optional[Path] = None,
     fonts_dir: Optional[Path] = None,
+    # Visual Identity - Logo overlay
+    logo_path: Optional[Path] = None,
+    logo_position_x: float = 0.5,
+    logo_position_y: float = 0.9,
+    logo_size: float = 0.15,
+    logo_opacity: float = 1.0,
 ) -> Tuple[bool, int, int]:
     """Render the final framed clip and (optionally) burn subtitles in one pass.
 
@@ -2568,19 +2702,49 @@ def render_reframed_clip_ffmpeg(
     )
     audio_args = build_audio_output_args(has_audio)
 
+    # Prepare logo overlay filter if logo provided
+    logo_filter = ""
+    logo_input = ""
+    if logo_path and logo_path.exists():
+        target_width = 1080 if output_format != "original" else round_to_even(width)
+        target_height = 1920 if output_format != "original" else round_to_even(height)
+        logo_w = int(target_width * logo_size)
+        # Calculate x, y positions (center of logo at position)
+        logo_x = int(target_width * logo_position_x - logo_w // 2)
+        logo_y = int(target_height * logo_position_y - logo_w // 2)  # approximate, will scale proportionally
+        # Build logo overlay filter with scaling and positioning
+        logo_filter = (
+            f"[1:v]scale={logo_w}:-1,format=rgba,colorchannelmixer=aa={logo_opacity}[logo];"
+            f"[v][logo]overlay={logo_x}:{logo_y}:format=auto[v]"
+        )
+        logo_input = f"-i {ffmpeg_escape_filter_path(logo_path)}"
+
     if output_format == "original":
         out_w, out_h = round_to_even(width), round_to_even(height)
         if not subs:
             shutil.copyfile(input_path, output_path)
             return True, out_w, out_h
-        command = [
-            "ffmpeg", "-y", "-i", str(input_path),
-            "-vf", f"{subs},setsar=1",
-            *build_final_video_encode_args(),
-            *audio_args,
-            "-movflags", "+faststart",
-            str(output_path),
-        ]
+        if logo_filter:
+            # Use filter_complex for logo overlay
+            command = [
+                "ffmpeg", "-y", "-i", str(input_path),
+                logo_input,
+                "-filter_complex", f"{subs},setsar=1[v];{logo_filter}",
+                "-map", "[v]", "-map", "0:a?",
+                *build_final_video_encode_args(),
+                *audio_args,
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
+        else:
+            command = [
+                "ffmpeg", "-y", "-i", str(input_path),
+                "-vf", f"{subs},setsar=1",
+                *build_final_video_encode_args(),
+                *audio_args,
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
         return run_ffmpeg_command(command).returncode == 0, out_w, out_h
 
     plan = (
@@ -2601,15 +2765,28 @@ def render_reframed_clip_ffmpeg(
             f"scale=1080:960:flags=lanczos,setsar=1[rv];"
             f"[lv][rv]vstack,setsar=1{vstack_tail}[v]"
         )
-        command = [
-            "ffmpeg", "-y", "-i", str(input_path),
-            "-filter_complex", video_filter,
-            "-map", "[v]", "-map", "0:a?",
-            *build_final_video_encode_args(),
-            *audio_args,
-            "-movflags", "+faststart",
-            str(output_path),
-        ]
+        if logo_filter:
+            video_filter = f"{video_filter};{logo_filter}"
+            command = [
+                "ffmpeg", "-y", "-i", str(input_path),
+                logo_input,
+                "-filter_complex", video_filter,
+                "-map", "[v]", "-map", "0:a?",
+                *build_final_video_encode_args(),
+                *audio_args,
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
+        else:
+            command = [
+                "ffmpeg", "-y", "-i", str(input_path),
+                "-filter_complex", video_filter,
+                "-map", "[v]", "-map", "0:a?",
+                *build_final_video_encode_args(),
+                *audio_args,
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
         return run_ffmpeg_command(command).returncode == 0, 1080, 1920
 
     if plan and plan["mode"] == "pan":
@@ -2619,14 +2796,27 @@ def render_reframed_clip_ffmpeg(
         )
         if subs:
             video_filter = f"{video_filter},{subs}"
-        command = [
-            "ffmpeg", "-y", "-i", str(input_path),
-            "-vf", video_filter,
-            *build_final_video_encode_args(),
-            *audio_args,
-            "-movflags", "+faststart",
-            str(output_path),
-        ]
+        if logo_filter:
+            video_filter = f"{video_filter};{logo_filter}"
+            command = [
+                "ffmpeg", "-y", "-i", str(input_path),
+                logo_input,
+                "-filter_complex", video_filter,
+                "-map", "[v]", "-map", "0:a?",
+                *build_final_video_encode_args(),
+                *audio_args,
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
+        else:
+            command = [
+                "ffmpeg", "-y", "-i", str(input_path),
+                "-vf", video_filter,
+                *build_final_video_encode_args(),
+                *audio_args,
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
         return run_ffmpeg_command(command).returncode == 0, 1080, 1920
 
     # Default "vertical": scene-aware — tracked crop for face shots, blurred-
@@ -2639,27 +2829,53 @@ def render_reframed_clip_ffmpeg(
         else:
             graph = video_filter
             map_label = "[vout]"
+        if logo_filter:
+            graph = f"{graph};{logo_filter}"
+            command = [
+                "ffmpeg", "-y", "-i", str(input_path),
+                logo_input,
+                "-filter_complex", graph,
+                "-map", "[v]", "-map", "0:a?",
+                *build_final_video_encode_args(),
+                *audio_args,
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
+        else:
+            command = [
+                "ffmpeg", "-y", "-i", str(input_path),
+                "-filter_complex", graph,
+                "-map", map_label, "-map", "0:a?",
+                *build_final_video_encode_args(),
+                *audio_args,
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
+        return run_ffmpeg_command(command).returncode == 0, 1080, 1920
+
+    if subs:
+        video_filter = f"{video_filter},{subs}"
+    if logo_filter:
+        video_filter = f"{video_filter};{logo_filter}"
         command = [
             "ffmpeg", "-y", "-i", str(input_path),
-            "-filter_complex", graph,
-            "-map", map_label, "-map", "0:a?",
+            logo_input,
+            "-filter_complex", video_filter,
+            "-map", "[v]", "-map", "0:a?",
             *build_final_video_encode_args(),
             *audio_args,
             "-movflags", "+faststart",
             str(output_path),
         ]
-        return run_ffmpeg_command(command).returncode == 0, 1080, 1920
-
-    if subs:
-        video_filter = f"{video_filter},{subs}"
-    command = [
-        "ffmpeg", "-y", "-i", str(input_path),
-        "-vf", video_filter,
-        *build_final_video_encode_args(),
-        *audio_args,
-        "-movflags", "+faststart",
-        str(output_path),
-    ]
+    else:
+        command = [
+            "ffmpeg", "-y", "-i", str(input_path),
+            "-vf", video_filter,
+            *build_final_video_encode_args(),
+            *audio_args,
+            "-movflags", "+faststart",
+            str(output_path),
+        ]
     return run_ffmpeg_command(command).returncode == 0, 1080, 1920
 
 
@@ -3157,6 +3373,22 @@ def create_optimized_clip(
     output_format: str = "vertical",
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
     hook_title: Optional[str] = None,
+    include_hook_titles: bool = True,
+    # Visual Identity - Logo
+    logo_path: Optional[Path] = None,
+    logo_position_x: float = 0.5,
+    logo_position_y: float = 0.9,
+    logo_size: float = 0.15,
+    logo_opacity: float = 1.0,
+    # Visual Identity - Theme/Title
+    theme_text: Optional[str] = None,
+    theme_font_family: str = "Anton-Regular",
+    theme_font_size: int = 72,
+    theme_font_color: str = "#FFFFFF",
+    theme_position: str = "center",
+    theme_alignment: str = "center",
+    theme_line_spacing: float = 1.2,
+    theme_margin: float = 0.08,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size)."""
     try:
@@ -3177,11 +3409,14 @@ def create_optimized_clip(
             logger.error(f"Invalid clip duration: {duration:.1f}s")
             return False
 
-        keep_original = output_format == "original"
-        logger.info(
-            f"Creating clip: {start_time:.1f}s - {end_time:.1f}s ({duration:.1f}s) "
-            f"subtitles={add_subtitles} template '{caption_template}' format={'original' if keep_original else 'vertical'}"
-        )
+keep_original = output_format == "original"
+    logger.info(
+        f"Creating clip: {start_time:.1f}s - {end_time:.1f}s ({duration:.1f}s) "
+        f"subtitles={add_subtitles} template '{caption_template}' format={'original' if keep_original else 'vertical'}"
+    )
+
+    if not include_hook_titles:
+        hook_title = None
 
         # Fast path: no subtitles + original = ffmpeg stream copy (no re-encoding)
         if not add_subtitles and keep_original and len(effective_keep_ranges) == 1:
@@ -3236,7 +3471,7 @@ def create_optimized_clip(
 
             burn_ass_path: Optional[Path] = None
             fonts_dir: Optional[Path] = None
-            if (add_subtitles or hook_title) and build_assemblyai_ass_subtitles(
+            if (add_subtitles or hook_title or theme_text) and build_assemblyai_ass_subtitles(
                 video_path,
                 start_time,
                 end_time,
@@ -3250,11 +3485,25 @@ def create_optimized_clip(
                 effective_keep_ranges,
                 hook_title=hook_title,
                 include_captions=add_subtitles,
+                # Visual Identity - Theme/Title
+                theme_text=theme_text,
+                theme_font_family=theme_font_family,
+                theme_font_size=theme_font_size,
+                theme_font_color=theme_font_color,
+                theme_position=theme_position,
+                theme_alignment=theme_alignment,
+                theme_line_spacing=theme_line_spacing,
+                theme_margin=theme_margin,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
                     font_family or get_template(caption_template)["font_family"]
                 )
+
+            # Prepare logo path
+            logo_abs_path = logo_path
+            if logo_abs_path and not logo_abs_path.is_absolute():
+                logo_abs_path = video_path.parent / logo_abs_path
 
             framed_ok, _, _ = render_reframed_clip_ffmpeg(
                 source_clip_path,
@@ -3262,6 +3511,12 @@ def create_optimized_clip(
                 reframe_format,
                 subtitle_ass_path=burn_ass_path,
                 fonts_dir=fonts_dir,
+                # Visual Identity - Logo
+                logo_path=logo_abs_path,
+                logo_position_x=logo_position_x,
+                logo_position_y=logo_position_y,
+                logo_size=logo_size,
+                logo_opacity=logo_opacity,
             )
             if not framed_ok:
                 raise RuntimeError("ffmpeg reframe render failed")
@@ -3285,6 +3540,7 @@ def create_clips_from_segments(
     caption_template: str = "default",
     output_format: str = "vertical",
     add_subtitles: bool = True,
+    include_hook_titles: bool = True,
     cleanup_settings: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Create optimized video clips from segments with template support."""
@@ -3358,6 +3614,7 @@ def create_clips_from_segments(
                 output_format,
                 keep_ranges,
                 hook_title=segment.get("hook_title"),
+                include_hook_titles=include_hook_titles,
             )
 
             if success:
@@ -3509,6 +3766,7 @@ def create_clips_with_transitions(
     caption_template: str = "default",
     output_format: str = "vertical",
     add_subtitles: bool = True,
+    include_hook_titles: bool = True,
     cleanup_settings: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Create standalone video clips without inter-clip transitions.
@@ -3531,6 +3789,7 @@ def create_clips_with_transitions(
         caption_template,
         output_format,
         add_subtitles,
+        include_hook_titles,
         cleanup_settings,
     )
 

@@ -63,6 +63,25 @@ CREATE TABLE tasks (
     -- Caption template and B-roll options
     caption_template VARCHAR(50) DEFAULT 'default',
     include_broll BOOLEAN DEFAULT false,
+    include_hook_titles BOOLEAN DEFAULT TRUE,
+
+    -- Visual Identity - Logo
+    logo_path VARCHAR(500),
+    logo_position_x FLOAT DEFAULT 0.5,
+    logo_position_y FLOAT DEFAULT 0.9,
+    logo_size FLOAT DEFAULT 0.15,
+    logo_opacity FLOAT DEFAULT 1.0,
+
+    -- Visual Identity - Theme/Title
+    theme_text TEXT,
+    theme_font_family VARCHAR(100) DEFAULT 'Anton-Regular',
+    theme_font_size INTEGER DEFAULT 72,
+    theme_font_color VARCHAR(7) DEFAULT '#FFFFFF',
+    theme_position VARCHAR(20) DEFAULT 'center',
+    theme_alignment VARCHAR(20) DEFAULT 'center',
+    theme_line_spacing FLOAT DEFAULT 1.2,
+    theme_margin FLOAT DEFAULT 0.08,
+
     processing_mode VARCHAR(20) NOT NULL DEFAULT 'fast',
     started_at TIMESTAMP WITH TIME ZONE,
     completed_at TIMESTAMP WITH TIME ZONE,

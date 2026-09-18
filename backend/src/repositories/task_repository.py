@@ -27,7 +27,23 @@ class TaskRepository:
         font_color: Optional[str] = None,
         caption_template: str = "default",
         include_broll: bool = False,
+        include_hook_titles: bool = True,
         processing_mode: str = "fast",
+        # Visual Identity - Logo
+        logo_path: Optional[str] = None,
+        logo_position_x: Optional[float] = None,
+        logo_position_y: Optional[float] = None,
+        logo_size: Optional[float] = None,
+        logo_opacity: Optional[float] = None,
+        # Visual Identity - Theme/Title
+        theme_text: Optional[str] = None,
+        theme_font_family: Optional[str] = None,
+        theme_font_size: Optional[int] = None,
+        theme_font_color: Optional[str] = None,
+        theme_position: Optional[str] = None,
+        theme_alignment: Optional[str] = None,
+        theme_line_spacing: Optional[float] = None,
+        theme_margin: Optional[float] = None,
     ) -> str:
         """Create a new task and return its ID."""
         task_id = str(uuid4())
@@ -36,12 +52,18 @@ class TaskRepository:
                 text("""
                     INSERT INTO tasks (
                         id, user_id, source_id, status, font_family, font_size, font_color,
-                        caption_template, include_broll, processing_mode,
+caption_template, include_broll, include_hook_titles, processing_mode,
+                        logo_path, logo_position_x, logo_position_y, logo_size, logo_opacity,
+                        theme_text, theme_font_family, theme_font_size, theme_font_color,
+                        theme_position, theme_alignment, theme_line_spacing, theme_margin,
                         created_at, updated_at
                     )
                     VALUES (
                         :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
-                        :caption_template, :include_broll, :processing_mode,
+                        :caption_template, :include_broll, :include_hook_titles, :processing_mode,
+                        logo_path, logo_position_x, logo_position_y, logo_size, logo_opacity,
+                        theme_text, theme_font_family, theme_font_size, theme_font_color,
+                        theme_position, theme_alignment, theme_line_spacing, theme_margin,
                         NOW(), NOW()
                     )
                     RETURNING id
@@ -56,7 +78,21 @@ class TaskRepository:
                     "font_color": font_color,
                     "caption_template": caption_template,
                     "include_broll": include_broll,
+                    "include_hook_titles": include_hook_titles,
                     "processing_mode": processing_mode,
+                    "logo_path": logo_path,
+                    "logo_position_x": logo_position_x,
+                    "logo_position_y": logo_position_y,
+                    "logo_size": logo_size,
+                    "logo_opacity": logo_opacity,
+                    "theme_text": theme_text,
+                    "theme_font_family": theme_font_family,
+                    "theme_font_size": theme_font_size,
+                    "theme_font_color": theme_font_color,
+                    "theme_position": theme_position,
+                    "theme_alignment": theme_alignment,
+                    "theme_line_spacing": theme_line_spacing,
+                    "theme_margin": theme_margin,
                 },
             )
         except Exception:
@@ -65,10 +101,18 @@ class TaskRepository:
                 text("""
                     INSERT INTO tasks (
                         id, user_id, source_id, status, font_family, font_size, font_color,
+caption_template, include_broll, include_hook_titles, processing_mode,
+                        logo_path, logo_position_x, logo_position_y, logo_size, logo_opacity,
+                        theme_text, theme_font_family, theme_font_size, theme_font_color,
+                        theme_position, theme_alignment, theme_line_spacing, theme_margin,
                         created_at, updated_at
                     )
                     VALUES (
                         :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
+                        :caption_template, :include_broll, :include_hook_titles, :processing_mode,
+                        logo_path, logo_position_x, logo_position_y, logo_size, logo_opacity,
+                        theme_text, theme_font_family, theme_font_size, theme_font_color,
+                        theme_position, theme_alignment, theme_line_spacing, theme_margin,
                         NOW(), NOW()
                     )
                     RETURNING id
@@ -81,6 +125,23 @@ class TaskRepository:
                     "font_family": font_family,
                     "font_size": font_size,
                     "font_color": font_color,
+                    "caption_template": caption_template,
+                    "include_broll": include_broll,
+                    "include_hook_titles": include_hook_titles,
+                    "processing_mode": processing_mode,
+                    "logo_path": logo_path,
+                    "logo_position_x": logo_position_x,
+                    "logo_position_y": logo_position_y,
+                    "logo_size": logo_size,
+                    "logo_opacity": logo_opacity,
+                    "theme_text": theme_text,
+                    "theme_font_family": theme_font_family,
+                    "theme_font_size": theme_font_size,
+                    "theme_font_color": theme_font_color,
+                    "theme_position": theme_position,
+                    "theme_alignment": theme_alignment,
+                    "theme_line_spacing": theme_line_spacing,
+                    "theme_margin": theme_margin,
                 },
             )
         await db.commit()
@@ -136,6 +197,7 @@ class TaskRepository:
             "font_color": row.font_color,
             "caption_template": getattr(row, "caption_template", "default"),
             "include_broll": getattr(row, "include_broll", False),
+            "include_hook_titles": getattr(row, "include_hook_titles", True),
             "processing_mode": getattr(row, "processing_mode", "fast"),
             "cache_hit": getattr(row, "cache_hit", False),
             "error_code": getattr(row, "error_code", None),
@@ -238,6 +300,22 @@ class TaskRepository:
         font_color: Optional[str],
         caption_template: str,
         include_broll: bool,
+        include_hook_titles: bool = True,
+        # Visual Identity - Logo
+        logo_path: Optional[str] = None,
+        logo_position_x: Optional[float] = None,
+        logo_position_y: Optional[float] = None,
+        logo_size: Optional[float] = None,
+        logo_opacity: Optional[float] = None,
+        # Visual Identity - Theme/Title
+        theme_text: Optional[str] = None,
+        theme_font_family: Optional[str] = None,
+        theme_font_size: Optional[int] = None,
+        theme_font_color: Optional[str] = None,
+        theme_position: Optional[str] = None,
+        theme_alignment: Optional[str] = None,
+        theme_line_spacing: Optional[float] = None,
+        theme_margin: Optional[float] = None,
     ) -> None:
         """Update task styling settings."""
         try:
@@ -250,6 +328,20 @@ class TaskRepository:
                         font_color = :font_color,
                         caption_template = :caption_template,
                         include_broll = :include_broll,
+                        include_hook_titles = :include_hook_titles,
+                        logo_path = :logo_path,
+                        logo_position_x = :logo_position_x,
+                        logo_position_y = :logo_position_y,
+                        logo_size = :logo_size,
+                        logo_opacity = :logo_opacity,
+                        theme_text = :theme_text,
+                        theme_font_family = :theme_font_family,
+                        theme_font_size = :theme_font_size,
+                        theme_font_color = :theme_font_color,
+                        theme_position = :theme_position,
+                        theme_alignment = :theme_alignment,
+                        theme_line_spacing = :theme_line_spacing,
+                        theme_margin = :theme_margin,
                         updated_at = NOW()
                     WHERE id = :task_id
                     """
@@ -261,6 +353,20 @@ class TaskRepository:
                     "font_color": font_color,
                     "caption_template": caption_template,
                     "include_broll": include_broll,
+                    "include_hook_titles": include_hook_titles,
+                    "logo_path": logo_path,
+                    "logo_position_x": logo_position_x,
+                    "logo_position_y": logo_position_y,
+                    "logo_size": logo_size,
+                    "logo_opacity": logo_opacity,
+                    "theme_text": theme_text,
+                    "theme_font_family": theme_font_family,
+                    "theme_font_size": theme_font_size,
+                    "theme_font_color": theme_font_color,
+                    "theme_position": theme_position,
+                    "theme_alignment": theme_alignment,
+                    "theme_line_spacing": theme_line_spacing,
+                    "theme_margin": theme_margin,
                 },
             )
         except Exception:

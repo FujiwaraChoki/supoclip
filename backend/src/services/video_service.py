@@ -171,7 +171,23 @@ class VideoService:
         caption_template: str = "default",
         output_format: str = "vertical",
         add_subtitles: bool = True,
+        include_hook_titles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        # Visual Identity - Logo
+        logo_path: Optional[Path] = None,
+        logo_position_x: float = 0.5,
+        logo_position_y: float = 0.9,
+        logo_size: float = 0.15,
+        logo_opacity: float = 1.0,
+        # Visual Identity - Theme/Title
+        theme_text: Optional[str] = None,
+        theme_font_family: str = "Anton-Regular",
+        theme_font_size: int = 72,
+        theme_font_color: str = "#FFFFFF",
+        theme_position: str = "center",
+        theme_alignment: str = "center",
+        theme_line_spacing: float = 1.2,
+        theme_margin: float = 0.08,
     ) -> List[Dict[str, Any]]:
         """
         Create standalone video clips from segments with optional subtitles.
@@ -194,7 +210,23 @@ class VideoService:
             caption_template,
             output_format,
             add_subtitles,
+            include_hook_titles,
             cleanup_settings,
+            # Visual Identity - Logo
+            logo_path,
+            logo_position_x,
+            logo_position_y,
+            logo_size,
+            logo_opacity,
+            # Visual Identity - Theme/Title
+            theme_text,
+            theme_font_family,
+            theme_font_size,
+            theme_font_color,
+            theme_position,
+            theme_alignment,
+            theme_line_spacing,
+            theme_margin,
         )
 
         logger.info(f"Successfully created {len(clips_info)} clips")
@@ -212,7 +244,23 @@ class VideoService:
         caption_template: str = "default",
         output_format: str = "vertical",
         add_subtitles: bool = True,
+        include_hook_titles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        # Visual Identity - Logo
+        logo_path: Optional[Path] = None,
+        logo_position_x: float = 0.5,
+        logo_position_y: float = 0.9,
+        logo_size: float = 0.15,
+        logo_opacity: float = 1.0,
+        # Visual Identity - Theme/Title
+        theme_text: Optional[str] = None,
+        theme_font_family: str = "Anton-Regular",
+        theme_font_size: int = 72,
+        theme_font_color: str = "#FFFFFF",
+        theme_position: str = "center",
+        theme_alignment: str = "center",
+        theme_line_spacing: float = 1.2,
+        theme_margin: float = 0.08,
     ) -> Optional[Dict[str, Any]]:
         """Render a single clip in the thread pool and return clip_info dict, or None on failure."""
         trace_id = segment.get('_trace_id', f'seg_{clip_index:02d}')
@@ -275,6 +323,22 @@ class VideoService:
                 output_format,
                 keep_ranges,
                 segment.get("hook_title"),
+                include_hook_titles,
+                # Visual Identity - Logo
+                logo_path,
+                logo_position_x,
+                logo_position_y,
+                logo_size,
+                logo_opacity,
+                # Visual Identity - Theme/Title
+                theme_text,
+                theme_font_family,
+                theme_font_size,
+                theme_font_color,
+                theme_position,
+                theme_alignment,
+                theme_line_spacing,
+                theme_margin,
             )
 
             if not success:

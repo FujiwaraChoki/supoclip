@@ -99,6 +99,7 @@ interface TaskDetails {
   font_size?: number | null;
   font_color?: string | null;
   caption_template?: string;
+  include_hook_titles?: boolean;
   cut_long_pauses?: boolean;
   pause_threshold_ms?: number;
   remove_filler_words?: boolean;
@@ -138,6 +139,7 @@ export default function TaskPage() {
   const [projectFontSize, setProjectFontSize] = useState<number | null>(null);
   const [projectFontColor, setProjectFontColor] = useState<string | null>(null);
   const [projectCaptionTemplate, setProjectCaptionTemplate] = useState("default");
+  const [projectIncludeHookTitles, setProjectIncludeHookTitles] = useState(true);
   const [projectCutLongPauses, setProjectCutLongPauses] = useState(false);
   const [projectPauseThresholdMs, setProjectPauseThresholdMs] = useState("900");
   const [projectRemoveFillerWords, setProjectRemoveFillerWords] = useState(false);
@@ -197,6 +199,7 @@ export default function TaskPage() {
         setProjectFontSize(typeof taskData.font_size === "number" ? taskData.font_size : null);
         setProjectFontColor(taskData.font_color ?? null);
         setProjectCaptionTemplate(taskData.caption_template || "default");
+        setProjectIncludeHookTitles(taskData.include_hook_titles !== false);
         setProjectCutLongPauses(Boolean(taskData.cut_long_pauses));
         setProjectPauseThresholdMs(String(taskData.pause_threshold_ms || 900));
         setProjectRemoveFillerWords(Boolean(taskData.remove_filler_words));
@@ -578,6 +581,7 @@ export default function TaskPage() {
         body: JSON.stringify({
           ...fontOptions,
           caption_template: projectCaptionTemplate,
+          include_hook_titles: projectIncludeHookTitles,
           cut_long_pauses: projectCutLongPauses,
           pause_threshold_ms: safePauseThreshold,
           remove_filler_words: projectRemoveFillerWords,
@@ -1210,6 +1214,20 @@ export default function TaskPage() {
                         {availableTemplates.length === 0 && <SelectItem value="default">Default</SelectItem>}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="rounded-lg border bg-gray-50 p-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">Hook title</div>
+                      <div className="text-xs text-gray-500">Show the AI headline at the top of regenerated clips.</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={projectIncludeHookTitles}
+                      onChange={(e) => setProjectIncludeHookTitles(e.target.checked)}
+                      disabled={isApplyingSettings}
+                      className="h-5 w-5 accent-stone-900"
+                    />
                   </div>
 
                   <div className="rounded-lg border bg-gray-50 p-3 space-y-3">

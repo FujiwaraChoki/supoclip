@@ -27,6 +27,7 @@ async def process_video_task(
     output_format: str = "vertical",
     add_subtitles: bool = True,
     cleanup_settings: Dict[str, Any] | None = None,
+    include_hook_titles: bool = True,
 ) -> Dict[str, Any]:
     """
     Background worker task to process a video.
@@ -92,6 +93,7 @@ async def process_video_task(
                 should_cancel=should_cancel,
                 clip_ready_callback=clip_ready_callback,
                 cleanup_settings=cleanup_settings,
+                include_hook_titles=include_hook_titles,
             )
 
             logger.info(f"Task {task_id} completed successfully")

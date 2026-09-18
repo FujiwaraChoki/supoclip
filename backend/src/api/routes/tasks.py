@@ -115,6 +115,7 @@ def _merge_task_source_metadata(
     source_type: Any = None,
     output_format: Any = None,
     add_subtitles: Any = None,
+    include_hook_titles: Any = None,
     cleanup_settings: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     merged = dict(existing or {})
@@ -127,6 +128,8 @@ def _merge_task_source_metadata(
         merged["output_format"] = output_format
     if isinstance(add_subtitles, bool):
         merged["add_subtitles"] = add_subtitles
+    if isinstance(include_hook_titles, bool):
+        merged["include_hook_titles"] = include_hook_titles
     if cleanup_settings:
         merged.update(cleanup_settings)
 
@@ -228,7 +231,31 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     font_size = _normalize_font_size(font_options.get("font_size"))
     font_color = _normalize_font_color(font_options.get("font_color"))
     caption_template = data.get("caption_template", "default")
-    include_broll = data.get("include_broll", False)
+    include_broll = bool(data.get("include_broll", False))
+    include_hook_titles = data.get("include_hook_titles", True)
+    if not isinstance(include_hook_titles, bool):
+        include_hook_titles = True
+    
+    # Visual Identity - Logo
+    visual_identity = data.get("visual_identity", {})
+    logo_options = visual_identity.get("logo", {})
+    logo_path = logo_options.get("path")
+    logo_position_x = float(logo_options.get("position_x", 0.5))
+    logo_position_y = float(logo_options.get("position_y", 0.9))
+    logo_size = float(logo_options.get("size", 0.15))
+    logo_opacity = float(logo_options.get("opacity", 1.0))
+    
+    # Visual Identity - Theme/Title
+    theme_options = visual_identity.get("theme", {})
+    theme_text = theme_options.get("text")
+    theme_font_family = _normalize_font_family(theme_options.get("font_family")) or "Anton-Regular"
+    theme_font_size = _normalize_font_size(theme_options.get("font_size")) or 72
+    theme_font_color = _normalize_font_color(theme_options.get("font_color")) or "#FFFFFF"
+    theme_position = theme_options.get("position", "center")
+    theme_alignment = theme_options.get("alignment", "center")
+    theme_line_spacing = float(theme_options.get("line_spacing", 1.2))
+    theme_margin = float(theme_options.get("margin", 0.08))
+    
     runtime_config = get_config()
     processing_mode = data.get(
         "processing_mode", runtime_config.default_processing_mode
@@ -266,7 +293,23 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             font_color=font_color,
             caption_template=caption_template,
             include_broll=include_broll,
+            include_hook_titles=include_hook_titles,
             processing_mode=processing_mode,
+            # Visual Identity - Logo
+            logo_path=logo_path,
+            logo_position_x=logo_position_x,
+            logo_position_y=logo_position_y,
+            logo_size=logo_size,
+            logo_opacity=logo_opacity,
+            # Visual Identity - Theme/Title
+            theme_text=theme_text,
+            theme_font_family=theme_font_family,
+            theme_font_size=theme_font_size,
+            theme_font_color=theme_font_color,
+            theme_position=theme_position,
+            theme_alignment=theme_alignment,
+            theme_line_spacing=theme_line_spacing,
+            theme_margin=theme_margin,
         )
 
         # Get source type for worker
@@ -291,6 +334,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             output_format,
             add_subtitles,
             cleanup_settings,
+            include_hook_titles,
         )
 
         # Save source metadata for resume/retries in environments without sources.url column
@@ -302,6 +346,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                 source_type=source_type,
                 output_format=output_format,
                 add_subtitles=add_subtitles,
+                include_hook_titles=include_hook_titles,
                 cleanup_settings=cleanup_settings,
             ),
         )
@@ -818,6 +863,9 @@ async def apply_task_settings(
         font_color = _normalize_font_color(payload.get("font_color"))
         caption_template = payload.get("caption_template", "default")
         include_broll = bool(payload.get("include_broll", False))
+        include_hook_titles = payload.get("include_hook_titles", True)
+        if not isinstance(include_hook_titles, bool):
+            include_hook_titles = True
         apply_to_existing = bool(payload.get("apply_to_existing", False))
         cleanup_settings = normalize_clip_cleanup_settings(
             payload.get("cut_long_pauses"),
@@ -825,6 +873,26 @@ async def apply_task_settings(
             payload.get("remove_filler_words"),
             payload.get("filtered_words"),
         )
+
+        # Visual Identity - Logo
+        visual_identity = payload.get("visual_identity", {})
+        logo_options = visual_identity.get("logo", {})
+        logo_path = logo_options.get("path")
+        logo_position_x = float(logo_options.get("position_x", 0.5))
+        logo_position_y = float(logo_options.get("position_y", 0.9))
+        logo_size = float(logo_options.get("size", 0.15))
+        logo_opacity = float(logo_options.get("opacity", 1.0))
+
+        # Visual Identity - Theme/Title
+        theme_options = visual_identity.get("theme", {})
+        theme_text = theme_options.get("text")
+        theme_font_family = _normalize_font_family(theme_options.get("font_family"))
+        theme_font_size = _normalize_font_size(theme_options.get("font_size"))
+        theme_font_color = _normalize_font_color(theme_options.get("font_color"))
+        theme_position = theme_options.get("position")
+        theme_alignment = theme_options.get("alignment")
+        theme_line_spacing = float(theme_options.get("line_spacing", 1.2))
+        theme_margin = float(theme_options.get("margin", 0.08))
 
         task_service = TaskService(db)
         await _require_task_owner(request, task_service, db, task_id)
@@ -844,8 +912,24 @@ async def apply_task_settings(
             font_color,
             caption_template,
             include_broll,
+            include_hook_titles,
             apply_to_existing,
             cleanup_settings,
+            # Visual Identity - Logo
+            logo_path=logo_path,
+            logo_position_x=logo_position_x,
+            logo_position_y=logo_position_y,
+            logo_size=logo_size,
+            logo_opacity=logo_opacity,
+            # Visual Identity - Theme/Title
+            theme_text=theme_text,
+            theme_font_family=theme_font_family,
+            theme_font_size=theme_font_size,
+            theme_font_color=theme_font_color,
+            theme_position=theme_position,
+            theme_alignment=theme_alignment,
+            theme_line_spacing=theme_line_spacing,
+            theme_margin=theme_margin,
         )
         metadata = await _load_task_source_metadata(task_id)
         await _save_task_source_metadata(
@@ -1005,6 +1089,10 @@ async def resume_task(
         asub = metadata.get("add_subtitles", add_subtitles)
         if isinstance(asub, bool):
             add_subtitles = asub
+        include_hook_titles = task.get("include_hook_titles", True)
+        iht = metadata.get("include_hook_titles", include_hook_titles)
+        if isinstance(iht, bool):
+            include_hook_titles = iht
         cleanup_settings = normalize_clip_cleanup_settings(
             metadata.get("cut_long_pauses"),
             metadata.get("pause_threshold_ms"),
@@ -1054,6 +1142,7 @@ async def resume_task(
             output_format,
             add_subtitles,
             cleanup_settings,
+            include_hook_titles,
         )
 
         return {"message": "Task resumed", "job_id": job_id}

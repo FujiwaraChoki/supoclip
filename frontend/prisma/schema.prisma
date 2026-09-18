@@ -88,6 +88,7 @@ model Task {
   font_color           String?   @default("#FFFFFF") @db.VarChar(7)
   caption_template     String?   @default("default") @db.VarChar(50)
   include_broll        Boolean?  @default(false)
+  include_hook_titles  Boolean?  @default(true)
 
   created_at           DateTime  @default(now()) @db.Timestamptz
   updated_at           DateTime  @default(now()) @updatedAt @db.Timestamptz

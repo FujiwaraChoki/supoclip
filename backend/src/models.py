@@ -158,6 +158,27 @@ class Task(Base):
     include_broll: Mapped[Optional[bool]] = mapped_column(
         Boolean, nullable=True, server_default=sql_text("'false'")
     )
+    include_hook_titles: Mapped[Optional[bool]] = mapped_column(
+        Boolean, nullable=True, server_default=sql_text("'true'")
+    )
+
+    # Visual Identity - Logo
+    logo_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    logo_position_x: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.5)
+    logo_position_y: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.9)
+    logo_size: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.15)
+    logo_opacity: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=1.0)
+
+    # Visual Identity - Theme/Title
+    theme_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    theme_font_family: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, default="Anton-Regular")
+    theme_font_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=72)
+    theme_font_color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True, default="#FFFFFF")
+    theme_position: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="center")
+    theme_alignment: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="center")
+    theme_line_spacing: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=1.2)
+    theme_margin: Mapped[Optional[float]] = mapped_column(Float, nullable=True, default=0.08)
+
     processing_mode: Mapped[str] = mapped_column(
         String(20), nullable=False, server_default=sql_text("'fast'")
     )
