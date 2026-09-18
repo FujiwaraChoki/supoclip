@@ -221,8 +221,8 @@ class ClipEditingMixin:
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
-        output_path = trim_clip_file(
-            input_path, Path(self.config.temp_dir) / "clips", start_offset, end_offset
+        output_path = await run_in_thread(
+            trim_clip_file, input_path, Path(self.config.temp_dir) / "clips", start_offset, end_offset
         )
         source_ranges = self._get_clip_source_ranges(clip)
         trimmed_ranges = trim_source_ranges(source_ranges, start_offset, end_offset)
@@ -232,6 +232,8 @@ class ClipEditingMixin:
             raise ValueError("Trimmed clip has no remaining source mapping")
         start_seconds, end_seconds = bounds
         save_clip_source_ranges(output_path, trimmed_ranges)
+        if settings := load_clip_caption_settings(input_path):
+            save_clip_caption_settings(output_path, settings)
 
         new_start = self._seconds_to_mmss(start_seconds)
         new_end = self._seconds_to_mmss(end_seconds)
@@ -260,8 +262,8 @@ class ClipEditingMixin:
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
-        first_path, second_path = split_clip_file(
-            input_path, Path(self.config.temp_dir) / "clips", split_time
+        first_path, second_path = await run_in_thread(
+            split_clip_file, input_path, Path(self.config.temp_dir) / "clips", split_time
         )
 
         clamped_split = max(0.2, min(split_time, float(clip["duration"]) - 0.2))
@@ -273,6 +275,9 @@ class ClipEditingMixin:
             raise ValueError("Split clip has invalid source mapping")
         save_clip_source_ranges(first_path, first_ranges)
         save_clip_source_ranges(second_path, second_ranges)
+        if settings := load_clip_caption_settings(input_path):
+            save_clip_caption_settings(first_path, settings)
+            save_clip_caption_settings(second_path, settings)
         first_duration = max(0.1, total_source_duration(first_ranges))
         second_duration = max(0.1, total_source_duration(second_ranges))
 
@@ -327,7 +332,8 @@ class ClipEditingMixin:
             clips.append(clip)
 
         ordered = sorted(clips, key=lambda c: c.get("clip_order", 0))
-        merged_path = merge_clip_files(
+        merged_path = await run_in_thread(
+            merge_clip_files,
             [Path(c["file_path"]) for c in ordered],
             Path(self.config.temp_dir) / "clips",
         )

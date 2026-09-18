@@ -14,6 +14,7 @@ import inspect
 import re
 import secrets
 import math
+from ...utils.async_helpers import run_in_thread
 
 from ...database import get_db
 from ...database import AsyncSessionLocal
@@ -945,7 +946,8 @@ async def export_clip(
         await db.close()
 
         runtime_config = get_config()
-        output_path = export_with_preset(
+        output_path = await run_in_thread(
+            export_with_preset,
             Path(clip["file_path"]),
             Path(runtime_config.temp_dir) / "exports",
             preset_name,
