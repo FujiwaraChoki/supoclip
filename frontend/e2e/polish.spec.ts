@@ -156,3 +156,15 @@ test("signed-in settings waits for preferences before showing the form", async (
   finish();
   await expect(page.getByRole("button", { name: /save preferences/i })).toBeVisible();
 });
+
+
+test("signed-out pages hydrate consistently after the shared session resolves", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/api/auth/get-session**", route => route.fulfill({ json: null }));
+  for (const path of ["/list", "/settings", "/settings/api-keys"]) {
+    await page.goto(path);
+    await expect(page.getByRole("link", { name: "Sign In", exact: true })).toBeVisible();
+  }
+  expect(errors).toEqual([]);
+});
