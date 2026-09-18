@@ -310,6 +310,21 @@ class ClipRepository:
         await db.commit()
 
     @staticmethod
+    async def make_room_for_clip(db: AsyncSession, task_id: str, clip_order: int) -> None:
+        """Shift following clips without colliding with the unique order key."""
+        result = await db.execute(
+            sa_text("SELECT id FROM generated_clips WHERE task_id = :task_id "
+                    "AND clip_order >= :clip_order ORDER BY clip_order DESC FOR UPDATE"),
+            {"task_id": task_id, "clip_order": clip_order},
+        )
+        for row in result.fetchall():
+            await db.execute(
+                sa_text("UPDATE generated_clips SET clip_order = clip_order + 1 WHERE id = :id"),
+                {"id": row.id},
+            )
+
+
+    @staticmethod
     async def reorder_task_clips(db: AsyncSession, task_id: str) -> None:
         """Normalize clip_order sequence after edits."""
         result = await db.execute(
