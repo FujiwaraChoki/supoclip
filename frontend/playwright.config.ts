@@ -15,6 +15,7 @@ const backendBaseUrl = `http://127.0.0.1:${backendPort}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: ["polish.spec.ts", "local-workflow.spec.ts"],
   fullyParallel: false,
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
@@ -24,10 +25,11 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
+    launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH },
   },
   webServer: [
     {
-      command: `cd ../backend && .venv/bin/uvicorn src.main_refactored:app --host 127.0.0.1 --port ${backendPort}`,
+      command: `cd ../backend && .venv/bin/uvicorn src.main:app --host 127.0.0.1 --port ${backendPort}`,
       url: `${backendBaseUrl}/health`,
       reuseExistingServer: !process.env.CI,
       env: {
@@ -41,7 +43,7 @@ export default defineConfig({
       },
     },
     {
-      command: `npm run dev -- --hostname 127.0.0.1 --port ${frontendPort}`,
+      command: `pnpm exec next dev --hostname 127.0.0.1 --port ${frontendPort}`,
       url: frontendBaseUrl,
       reuseExistingServer: !process.env.CI,
       env: {

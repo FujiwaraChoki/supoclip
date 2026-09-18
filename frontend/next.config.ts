@@ -1,12 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  distDir: process.env.NEXT_BUILD_DIR || ".next",
   output: 'standalone',
-  // Skip ESLint during builds (generated Prisma code causes lint errors)
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  // Skip TypeScript errors during builds for now
   typescript: {
     ignoreBuildErrors: false,
   },

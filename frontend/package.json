@@ -7,13 +7,16 @@
     "dev": "next dev --turbopack --port 3107",
     "build": "prisma generate && next build",
     "start": "next start --port 3107",
-    "lint": "next lint",
+    "lint": "eslint src --max-warnings 0",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "prisma migrate deploy && playwright test",
     "test:e2e:headed": "prisma migrate deploy && playwright test --headed",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "typecheck": "prisma generate && tsc --noEmit",
+    "test:polish": "playwright test --config playwright.polish.config.ts",
+    "test:local": "playwright test --config playwright.local.config.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",
