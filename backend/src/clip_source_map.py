@@ -104,6 +104,24 @@ def copy_clip_source_ranges(source_path: Path, target_path: Path) -> None:
     save_clip_source_ranges(target_path, ranges)
 
 
+def save_clip_caption_settings(clip_path: Path, settings: dict) -> None:
+    """Store editor settings alongside the existing source mapping."""
+    path = clip_source_map_path(clip_path)
+    payload = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {"version": SOURCE_MAP_VERSION}
+    payload["caption_settings"] = settings
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def load_clip_caption_settings(clip_path: Path) -> dict | None:
+    path = clip_source_map_path(clip_path)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        settings = payload.get("caption_settings")
+        return settings if isinstance(settings, dict) else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
 def slice_source_ranges(
     ranges: Iterable[tuple[float, float]] | None,
     output_start: float,

@@ -151,6 +151,14 @@ async def test_update_clip_captions_passes_stored_task_style(monkeypatch, tmp_pa
         return output_path
 
     monkeypatch.setattr(clip_service_module, "overlay_custom_captions", fake_overlay)
+    (tmp_path / "source.mp4").write_bytes(b"source")
+    service._load_task_source_settings = AsyncMock(return_value={"output_format": "original"})
+    rendered = []
+    def fake_render(*args, **kwargs):
+        rendered.append((args, kwargs))
+        args[3].write_bytes(b"clean")
+        return True
+    monkeypatch.setattr(clip_service_module, "create_optimized_clip", fake_render)
 
     await service.update_clip_captions(
         "task-1", "clip-1", "edited caption", "middle", ["edited"]
@@ -163,7 +171,12 @@ async def test_update_clip_captions_passes_stored_task_style(monkeypatch, tmp_pa
         "caption_template": "minimal",
         "transcript_video_path": tmp_path / "source.mp4",
         "source_ranges": [(10.0, 12.0)],
+        "position_y": None,
     }
+    assert captured["args"][0].name == "clean.mp4"
+    assert rendered[0][0][0] == tmp_path / "source.mp4"
+    assert rendered[0][1]["add_subtitles"] is False
+    assert rendered[0][1]["extend_to_sentence"] is False
 
 
 @pytest.mark.asyncio

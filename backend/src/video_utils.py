@@ -248,6 +248,7 @@ def create_optimized_clip(
     output_format: str = "vertical",
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
     hook_title: Optional[str] = None,
+    extend_to_sentence: bool = True,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size)."""
     try:
@@ -259,10 +260,10 @@ def create_optimized_clip(
                 for start, end in [(start_time, end_time)]
                 if min(end_time, end) - max(start_time, start) > 0.05
             ]
-        effective_keep_ranges = extend_keep_ranges_to_sentence_boundary(
-            video_path,
-            effective_keep_ranges,
-        )
+        if extend_to_sentence:
+            effective_keep_ranges = extend_keep_ranges_to_sentence_boundary(
+                video_path, effective_keep_ranges,
+            )
         duration = sum(end - start for start, end in effective_keep_ranges)
         if duration <= 0:
             logger.error(f"Invalid clip duration: {duration:.1f}s")
@@ -275,7 +276,7 @@ def create_optimized_clip(
         )
 
         # Fast path: no subtitles + original = ffmpeg stream copy (no re-encoding)
-        if not add_subtitles and keep_original and len(effective_keep_ranges) == 1:
+        if not add_subtitles and not hook_title and keep_original and len(effective_keep_ranges) == 1 and extend_to_sentence:
             fast_path_start, fast_path_end = effective_keep_ranges[0]
             result = subprocess.run(
                 [
