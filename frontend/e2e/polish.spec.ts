@@ -122,3 +122,37 @@ test("task completion retries a transient clip-read failure", async ({ page }) =
   expect(clipReads).toBeGreaterThanOrEqual(3);
   await expect(page.getByRole("heading", { name: "Something went wrong" })).toHaveCount(0);
 });
+
+
+test("signed-out settings displays the sign-in gate without loading preferences", async ({ page }) => {
+  let preferenceReads = 0;
+  await page.route("**/api/auth/get-session**", route => route.fulfill({ json: null }));
+  await page.route("**/api/preferences", route => {
+    preferenceReads++;
+    return route.fulfill({ status: 401, json: { error: "Unauthorized" } });
+  });
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "Sign In Required" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Sign In", exact: true })).toHaveAttribute("href", "/sign-in");
+  await expect(page.getByRole("button", { name: /save preferences/i })).toHaveCount(0);
+  expect(preferenceReads).toBe(0);
+});
+
+test("signed-in settings waits for preferences before showing the form", async ({ page }) => {
+  let finish!: () => void;
+  let started!: () => void;
+  const pending = new Promise<void>(resolve => finish = resolve);
+  const loading = new Promise<void>(resolve => started = resolve);
+  await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
+  await page.route("**/api/preferences", async route => {
+    started();
+    await pending;
+    await route.fulfill({ json: { fontFamily: "TikTokSans-Regular", fontSize: 24, fontColor: "#FFFFFF", notifyOnCompletion: true } });
+  });
+  await page.goto("/settings");
+  await loading;
+  await expect(page.getByRole("button", { name: /save preferences/i })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Sign In Required" })).toHaveCount(0);
+  finish();
+  await expect(page.getByRole("button", { name: /save preferences/i })).toBeVisible();
+});
