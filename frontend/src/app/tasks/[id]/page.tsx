@@ -153,7 +153,6 @@ export default function TaskPage() {
   >([]);
   const hasTriggeredAutoRefresh = useRef(false);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const taskApiUrl = "/api/tasks";
   const getClipUrl = (videoUrl: string) =>
     videoUrl.startsWith("/api/") ? videoUrl : `/api${videoUrl}`;
@@ -279,7 +278,7 @@ export default function TaskPage() {
 
     const loadTemplates = async () => {
       try {
-        const response = await fetch(`${apiUrl}/caption-templates`);
+        const response = await fetch('/api/caption-templates');
         if (response.ok) {
           const data = await response.json();
           setAvailableTemplates(data.templates || []);
@@ -289,7 +288,7 @@ export default function TaskPage() {
       }
     };
     void loadTemplates();
-  }, [apiUrl]);
+  }, []);
 
   // SSE effect - real-time progress updates
   useEffect(() => {
