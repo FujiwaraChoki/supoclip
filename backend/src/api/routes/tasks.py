@@ -1114,9 +1114,10 @@ async def resume_task(
 
 
 @router.get("/dead-letter/list")
-async def list_dead_letter_tasks():
+async def list_dead_letter_tasks(request: Request, db: AsyncSession = Depends(get_db)):
     """List tasks that exhausted retries and landed in dead-letter store."""
     runtime_config = get_config()
+    await require_admin_user(request, db, runtime_config)
     redis_client = redis.Redis(
         host=runtime_config.redis_host,
         port=runtime_config.redis_port,
