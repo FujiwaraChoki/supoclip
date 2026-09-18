@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text as sa_text
 from typing import List, Dict, Any, Optional
 import logging
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ class ClipRepository:
     ) -> str:
         """Create a new clip record and return its ID."""
         base_params = {
+            "id": str(uuid4()),
             "task_id": task_id,
             "filename": filename,
             "file_path": file_path,
@@ -51,12 +53,12 @@ class ClipRepository:
             result = await db.execute(
                 sa_text("""
                     INSERT INTO generated_clips
-                    (task_id, filename, file_path, start_time, end_time, duration,
+                    (id, task_id, filename, file_path, start_time, end_time, duration,
                      text, relevance_score, reasoning, clip_order,
                      virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
                      hook_title, created_at)
                     VALUES
-                    (:task_id, :filename, :file_path, :start_time, :end_time, :duration,
+                    (:id, :task_id, :filename, :file_path, :start_time, :end_time, :duration,
                      :text, :relevance_score, :reasoning, :clip_order,
                      :virality_score, :hook_score, :engagement_score, :value_score, :shareability_score, :hook_type,
                      :hook_title, NOW())
@@ -95,10 +97,10 @@ class ClipRepository:
             result = await db.execute(
                 sa_text("""
                     INSERT INTO generated_clips
-                    (task_id, filename, file_path, start_time, end_time, duration,
+                    (id, task_id, filename, file_path, start_time, end_time, duration,
                      text, relevance_score, reasoning, clip_order, created_at)
                     VALUES
-                    (:task_id, :filename, :file_path, :start_time, :end_time, :duration,
+                    (:id, :task_id, :filename, :file_path, :start_time, :end_time, :duration,
                      :text, :relevance_score, :reasoning, :clip_order, NOW())
                     ON CONFLICT (task_id, clip_order) DO UPDATE SET
                         filename = EXCLUDED.filename,
