@@ -624,6 +624,8 @@ async def delete_task(
 
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting task: {e}")
         raise HTTPException(status_code=500, detail=f"Error deleting task: {str(e)}")
@@ -652,13 +654,14 @@ async def delete_clip(
         if not clip or clip["task_id"] != task_id:
             raise HTTPException(status_code=404, detail="Clip not found")
 
-        await task_service.clip_repo.delete_clip(db, clip_id)
-        await task_service.clip_repo.reorder_task_clips(db, task_id)
+        await task_service.delete_clip(task_id, clip_id)
 
         return {"message": "Clip deleted successfully"}
 
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting clip: {e}")
         raise HTTPException(status_code=500, detail=f"Error deleting clip: {str(e)}")

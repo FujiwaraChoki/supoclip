@@ -3,6 +3,7 @@
 The mixin uses TaskService's repositories, configuration, and cache key contract.
 """
 
+from ..repositories.edit_transaction import serialized_task_edit
 from typing import Dict, Any, Optional
 import logging
 from pathlib import Path
@@ -35,6 +36,15 @@ logger = logging.getLogger(__name__)
 
 
 class ClipEditingMixin:
+    @serialized_task_edit
+    async def delete_clip(self, task_id: str, clip_id: str) -> None:
+        clip = await self.clip_repo.get_clip_by_id(self.db, clip_id)
+        if not clip or clip["task_id"] != task_id:
+            raise ValueError("Clip not found")
+        await self.clip_repo.delete_clip(self.db, clip_id)
+        await self.clip_repo.reorder_task_clips(self.db, task_id)
+
+    @serialized_task_edit
     async def update_task_settings(
         self,
         task_id: str,
@@ -70,6 +80,7 @@ class ClipEditingMixin:
         return await self.get_task_with_clips(task_id) or {}
 
 
+    @serialized_task_edit
     async def regenerate_all_clips_for_task(
         self,
         task_id: str,
@@ -206,6 +217,7 @@ class ClipEditingMixin:
         await self.task_repo.update_task_clips(self.db, task_id, clip_ids)
 
 
+    @serialized_task_edit
     async def trim_clip(
         self,
         task_id: str,
@@ -251,6 +263,7 @@ class ClipEditingMixin:
         return (await self.clip_repo.get_clip_by_id(self.db, clip_id)) or {}
 
 
+    @serialized_task_edit
     async def split_clip(
         self, task_id: str, clip_id: str, split_time: float
     ) -> Dict[str, Any]:
@@ -320,6 +333,7 @@ class ClipEditingMixin:
         return {"message": "Clip split successfully"}
 
 
+    @serialized_task_edit
     async def merge_clips(self, task_id: str, clip_ids: list[str]) -> Dict[str, Any]:
         if len(clip_ids) < 2 or len(set(clip_ids)) != len(clip_ids):
             raise ValueError("At least two distinct clips are required to merge")
@@ -372,6 +386,7 @@ class ClipEditingMixin:
         return {"message": "Clips merged successfully", "clip_id": first["id"]}
 
 
+    @serialized_task_edit
     async def update_clip_captions(
         self,
         task_id: str,
