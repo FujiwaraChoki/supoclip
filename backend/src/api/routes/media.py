@@ -79,6 +79,8 @@ async def get_available_fonts_route(
         logger.info(f"Found {len(fonts)} available fonts")
         return {"fonts": fonts}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error retrieving fonts: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error retrieving fonts: {str(e)}")

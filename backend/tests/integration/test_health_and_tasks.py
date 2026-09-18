@@ -289,3 +289,9 @@ async def test_create_task_rejects_malformed_payloads(client, auth_headers, payl
 async def test_clip_edit_rejects_invalid_values(client, auth_headers, suffix, method, payload):
     response = await getattr(client, method)(f"/tasks/missing{suffix}", headers=auth_headers, json=payload)
     assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_fonts_preserves_unauthorized_status(client):
+    response = await client.get("/fonts")
+    assert response.status_code == 401
