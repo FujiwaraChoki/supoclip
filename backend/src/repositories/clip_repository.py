@@ -341,4 +341,8 @@ class ClipRepository:
                 ),
                 {"clip_order": idx, "clip_id": cid},
             )
+        await db.execute(
+            sa_text("UPDATE tasks SET generated_clips_ids = :ids, updated_at = NOW() WHERE id = :task_id"),
+            {"ids": clip_ids, "task_id": task_id},
+        )
         await db.commit()
