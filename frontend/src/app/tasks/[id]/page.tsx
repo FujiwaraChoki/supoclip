@@ -984,7 +984,7 @@ export default function TaskPage() {
                     <CardContent className="p-0">
                       <div className="flex flex-col lg:flex-row">
                         <div className="relative flex-shrink-0 bg-black rounded-lg overflow-hidden m-3">
-                          <DynamicVideoPlayer src={getClipUrl(clip.video_url)} poster="/placeholder-video.jpg" />
+                          <DynamicVideoPlayer src={getClipUrl(clip.video_url)}  />
                         </div>
                         <div className="p-6 flex-1">
                           <div className="flex items-start justify-between mb-4">
@@ -1283,7 +1283,7 @@ export default function TaskPage() {
                   <div className="flex flex-col lg:flex-row">
                     {/* Video Player */}
                     <div className="relative flex-shrink-0 bg-black rounded-lg overflow-hidden m-3">
-                      <DynamicVideoPlayer src={getClipUrl(clip.video_url)} poster="/placeholder-video.jpg" />
+                      <DynamicVideoPlayer src={getClipUrl(clip.video_url)}  />
                     </div>
 
                     {/* Clip Details */}
