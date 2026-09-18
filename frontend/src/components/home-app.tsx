@@ -569,7 +569,7 @@ export default function HomeApp() {
                     ) : (
                       <>
                         <p className="text-sm font-medium text-stone-700">Drop a video file here or click to browse</p>
-                        <p className="text-xs text-stone-400 mt-1">MP4, MOV, AVI up to 500MB</p>
+                        <p className="text-xs text-stone-400 mt-1">MP4, MOV, AVI up to 12 GB</p>
                       </>
                     )}
                   </div>
