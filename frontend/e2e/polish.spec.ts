@@ -12,24 +12,6 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/tasks/one/clips/clip/file**", (route) => route.fulfill({ status: 404 }));
 });
 
-test("editor retains a failed edit and previews only rendered captions", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  await page.route("**/api/tasks/one/clips/clip/captions", (route) => route.fulfill({ status: 503, json: { detail: "Renderer temporarily unavailable" } }));
-  await page.goto("/tasks/one/edit?clip=clip");
-  await expect(page.getByRole("heading", { name: generation.source_title })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeVisible();
-  await page.getByRole("textbox", { name: "Subtitle text" }).fill("Keep this draft after a failed save.");
-  await page.getByRole("button", { name: "Save subtitle changes" }).click();
-  await expect(page.getByRole("textbox", { name: "Subtitle text" })).toHaveValue("Keep this draft after a failed save.");
-  await expect(page.getByText("Renderer temporarily unavailable").first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "Export Selected" })).toBeDisabled();
-  await expect(page.getByText("Subtitle preview", { exact: true })).toHaveCount(0);
-  expect(errors).toEqual([]);
-  await page.screenshot({ path: "test-results/editor-polish.png", fullPage: true });
-  await page.setViewportSize({ width: 390, height: 844 });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-});
 
 test("results send editing to the selected clip and expose one status badge", async ({ page }) => {
   await page.goto("/tasks/one");
@@ -52,58 +34,8 @@ test("generation list refreshes active jobs without losing selection", async ({ 
   await expect(page.getByRole("checkbox").last()).toBeChecked();
 });
 
-test("saved caption edits refresh the video before export becomes available", async ({ page }) => {
-  let saved = false;
-  await page.route("**/api/tasks/one/clips", (route) => route.fulfill({ json: { clips: [{ ...clip,
-    filename: saved ? "edited.mp4" : clip.filename,
-    text: saved ? "Updated words" : clip.text,
-    caption_settings: saved ? { font_size: 28, position: "middle", position_y: 0.52, highlight_words: [] } : null,
-  }] } }));
-  await page.route("**/api/tasks/one/clips/clip/captions", (route) => {
-    expect(route.request().postDataJSON().caption_text).toBe("Updated words");
-    saved = true;
-    return route.fulfill({ json: { clip } });
-  });
-  await page.goto("/tasks/one/edit?clip=clip");
-  await page.getByRole("textbox", { name: "Subtitle text" }).fill("Updated words");
-  await page.getByRole("button", { name: "Save subtitle changes" }).click();
-  await expect(page.getByRole("button", { name: "Export Selected" })).toBeEnabled();
-  await expect(page.locator("video")).toHaveAttribute("src", /v=edited.mp4$/);
-  await expect(page.getByRole("slider", { name: "Subtitle size" })).toHaveAttribute("aria-valuenow", "28");
-});
-
-test("resetting preview adjustments preserves unsaved caption changes", async ({ page }) => {
-  await page.goto("/tasks/one/edit?clip=clip");
-  await page.getByRole("textbox", { name: "Subtitle text" }).fill("Keep this unsaved caption.");
-  const size = page.getByRole("slider", { name: "Subtitle size" });
-  await size.focus();
-  await size.press("ArrowRight");
-  const draftSize = await size.getAttribute("aria-valuenow");
-  await page.getByRole("button", { name: "Reset Preview Adjustments" }).click();
-  await expect(page.getByRole("textbox", { name: "Subtitle text" })).toHaveValue("Keep this unsaved caption.");
-  await expect(size).toHaveAttribute("aria-valuenow", draftSize!);
-  await expect(page.getByRole("button", { name: "Save subtitle changes" })).toBeEnabled();
-  await expect(page.getByRole("button", { name: "Export Selected" })).toBeDisabled();
-});
 
 
-test("subtitle style cannot change while save is pending", async ({ page }) => {
-  let finish!: () => void;
-  let started!: () => void;
-  const pending = new Promise<void>(r => finish = r);
-  const saving = new Promise<void>(r => started = r);
-  await page.route("**/api/tasks/one/clips/clip/captions", async route => { started(); await pending; await route.fulfill({ json: { clip } }); });
-  await page.goto("/tasks/one/edit?clip=clip");
-  await page.getByLabel("Subtitle text").fill("Pending draft");
-  const size = page.getByRole("slider", { name: "Subtitle size", exact: true });
-  const before = await size.getAttribute("aria-valuenow");
-  await page.getByRole("button", { name: "Save subtitle changes" }).click();
-  await saving;
-  await size.dispatchEvent("keydown", { key: "ArrowRight", bubbles: true });
-  const after = await size.getAttribute("aria-valuenow");
-  finish();
-  expect(after).toBe(before);
-});
 
 test("task completion retries a transient clip-read failure", async ({ page }) => {
   let taskReads = 0;

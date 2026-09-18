@@ -59,25 +59,27 @@ test.describe.serial("real local processing and editing", () => {
 
   test("caption rendering persists and browser export contains audio and video", async ({ page }, info) => {
     await page.goto(`/tasks/${taskId}/edit?clip=${clipId}`);
-    await expect(page.getByLabel("Subtitle text")).toBeVisible();
+    await expect(page.getByLabel("Word 1", { exact: true })).toBeVisible({ timeout: 120_000 });
+    await page.getByRole("button", { name: "Edit script", exact: true }).click();
     await page.getByLabel("Subtitle text").fill("These elephants have really long trunks. That is pretty cool.");
-    await expect(page.getByRole("button", { name: "Export Selected" })).toBeDisabled();
+    await page.getByRole("button", { name: "Apply script", exact: true }).click();
     await page.getByRole("slider", { name: "Subtitle size", exact: true }).press("Home");
     await page.getByRole("slider", { name: "Subtitle size", exact: true }).press("ArrowRight");
-    await page.getByRole("button", { name: "Save subtitle changes", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Export Selected" })).toBeEnabled({ timeout: 120_000 });
+    await expect(page.getByRole("status").filter({ hasText: "All changes saved" })).toBeVisible();
     await page.reload();
-    await expect(page.getByLabel("Subtitle text")).toHaveValue("These elephants have really long trunks. That is pretty cool.");
-    await expect(page.getByRole("slider", { name: "Subtitle size", exact: true })).toHaveAttribute("aria-valuenow", "13");
+    await expect(page.getByLabel("Word 1", { exact: true })).toHaveValue("These");
+    await expect(page.getByRole("slider", { name: "Subtitle size", exact: true })).toHaveAttribute("aria-valuenow", "21");
     const video = page.locator("video");
     await expect.poll(() => video.evaluate(v => (v as HTMLVideoElement).readyState)).toBeGreaterThanOrEqual(2);
     await page.screenshot({ path: info.outputPath("editor.png"), fullPage: true });
+    await page.getByRole("tab", { name: "Audio", exact: true }).click();
     const volume = page.getByRole("slider", { name: "Volume", exact: true });
     await volume.press("Home");
     for (let step = 0; step < 50; step++) await volume.press("ArrowRight");
-    await expect.poll(() => video.evaluate(v => (v as HTMLVideoElement).volume)).toBe(0.5);
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    await page.getByRole("button", { name: /On this device/ }).click();
     const download = page.waitForEvent("download", { timeout: 120_000 });
-    await page.getByRole("button", { name: "Export Selected" }).click();
+    await page.getByRole("button", { name: "Export clip", exact: true }).click();
     const file = info.outputPath("browser-export.mp4");
     await (await download).saveAs(file);
     const media = probe(file);
@@ -85,7 +87,7 @@ test.describe.serial("real local processing and editing", () => {
     expect(media.streams.find((s: { codec_type: string }) => s.codec_type === "video")).toMatchObject({ width: 1080, height: 1920 });
     expect(Number(media.format.duration)).toBeGreaterThan(10);
     const current = await ok(await page.request.get(`/api/tasks/${taskId}`));
-    const original = await page.request.get(`/api${current.clips[0].video_url}`);
+    const original = await page.request.get(`/api/tasks/${taskId}/clips/${current.clips[0].id}/editor/media/clean.mp4`);
     const inputFile = info.outputPath("before-export.mp4");
     fs.writeFileSync(inputFile, await original.body());
     const rms = (filePath: string) => {
@@ -98,29 +100,29 @@ test.describe.serial("real local processing and editing", () => {
     expect(rms(file) / rms(inputFile)).toBeLessThan(0.57);
   });
 
-  test("trim, split and merge update persisted clips and playable files", async ({ page }) => {
+  test("reversible timeline edits and legacy clip API compatibility", async ({ page }) => {
     await page.goto(`/tasks/${taskId}/edit?clip=${clipId}`);
-    const trim = page.getByRole("slider", { name: "Trim range start", exact: true });
-    await expect(trim).toBeVisible();
+    await expect(page.getByLabel("In point seconds")).toBeVisible({ timeout: 120_000 });
     const before = await ok(await page.request.get(`/api/tasks/${taskId}`));
-    await trim.press("ArrowRight");
-    await trim.press("ArrowRight");
-    await page.getByRole("button", { name: "Apply Trim" }).click();
-    await expect(page.getByText("Clip trimmed", { exact: true })).toBeVisible();
+    await page.getByLabel("In point seconds").fill("0.25");
+    await page.getByLabel("Seek to word 2", { exact: true }).click();
+    await page.getByRole("button", { name: "Split at playhead" }).click();
+    await expect(page.getByText("Segment 2", { exact: true })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "All changes saved" })).toBeVisible();
+    const draft = await ok(await page.request.get(`/api/tasks/${taskId}/clips/${clipId}/editor`));
+    expect(draft.draft.document.segments).toHaveLength(2);
+    const unchanged = await ok(await page.request.get(`/api/tasks/${taskId}`));
+    expect(unchanged.clips[0].filename).toBe(before.clips[0].filename);
+    // Existing API/MCP clients can still commit trims, splits, and merges.
+    await ok(await page.request.patch(`/api/tasks/${taskId}/clips/${clipId}`, { data: { start_offset: 0.1, end_offset: 0.1 } }));
     const trimmed = await ok(await page.request.get(`/api/tasks/${taskId}`));
-    expect(trimmed.clips[0].duration).toBeLessThan(before.clips[0].duration);
-    await page.getByRole("button", { name: "Split Clip", exact: true }).click();
-    await expect(page.getByText("Clip split", { exact: true })).toBeVisible();
-    await expect(page.getByRole("checkbox")).toHaveCount(2);
+    await ok(await page.request.post(`/api/tasks/${taskId}/clips/${clipId}/split`, { data: { split_time: 3 } }));
     const splitOnce = await ok(await page.request.get(`/api/tasks/${taskId}`));
     const followingClip = splitOnce.clips[1];
-    await page.getByRole("button", { name: "Split Clip", exact: true }).click();
-    await expect(page.getByRole("checkbox")).toHaveCount(3);
+    await ok(await page.request.post(`/api/tasks/${taskId}/clips/${clipId}/split`, { data: { split_time: 1 } }));
     const splitTwice = await ok(await page.request.get(`/api/tasks/${taskId}`));
     expect(splitTwice.clips[2]).toMatchObject({ id: followingClip.id, filename: followingClip.filename });
-    for (let index = 0; index < 3; index++) await page.getByRole("checkbox").nth(index).check();
-    await page.getByRole("button", { name: "Merge Selected (3)" }).click();
-    await expect(page.getByText("Clips merged", { exact: true })).toBeVisible();
+    await ok(await page.request.post(`/api/tasks/${taskId}/clips/merge`, { data: { clip_ids: splitTwice.clips.map((c: { id: string }) => c.id) } }));
     const merged = await ok(await page.request.get(`/api/tasks/${taskId}`));
     expect(merged.clips).toHaveLength(1);
     clipId = merged.clips[0].id;

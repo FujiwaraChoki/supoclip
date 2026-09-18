@@ -103,6 +103,15 @@ Editing actions exposed in the UI map to backend operations:
 - Apply project-wide style settings to a task
 - Export with a platform preset such as TikTok
 
+### Clip Studio: `/tasks/[id]/edit`
+
+The clip studio provides a live canvas preview, thumbnail/audio timeline, reversible
+segment editing, timed caption corrections, crop and aspect controls, audio gain,
+and video effects. Drafts autosave without replacing generated originals.
+Background and browser exports are available, along with batch export and combining
+drafts into a new clip. See [Clip studio](./editor.md) for shortcuts, persistence,
+export compatibility, and deployment details.
+
 ### Settings: `/settings`
 
 The settings page stores user defaults and exposes billing actions when monetization is enabled.
