@@ -321,8 +321,8 @@ class ClipEditingMixin:
 
 
     async def merge_clips(self, task_id: str, clip_ids: list[str]) -> Dict[str, Any]:
-        if len(clip_ids) < 2:
-            raise ValueError("At least two clips are required to merge")
+        if len(clip_ids) < 2 or len(set(clip_ids)) != len(clip_ids):
+            raise ValueError("At least two distinct clips are required to merge")
 
         clips = []
         for clip_id in clip_ids:

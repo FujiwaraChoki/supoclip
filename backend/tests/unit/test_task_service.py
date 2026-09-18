@@ -538,3 +538,14 @@ async def test_processing_rolls_back_failed_write_before_recording_error():
     service.db.rollback.assert_awaited_once()
     assert service.task_repo.update_task_status.await_args.args[2] == "error"
 
+
+
+@pytest.mark.asyncio
+async def test_merge_rejects_duplicate_ids_before_modifying_clips():
+    service = build_task_service()
+    service.clip_repo.get_clip_by_id = AsyncMock()
+    service.clip_repo.delete_clip = AsyncMock()
+    with pytest.raises(ValueError, match="distinct"):
+        await service.merge_clips("task-1", ["clip-1", "clip-1"])
+    service.clip_repo.get_clip_by_id.assert_not_awaited()
+    service.clip_repo.delete_clip.assert_not_awaited()
