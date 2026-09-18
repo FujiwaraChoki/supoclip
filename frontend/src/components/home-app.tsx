@@ -91,7 +91,6 @@ export default function HomeApp() {
   const [latestTask, setLatestTask] = useState<LatestTask | null>(null);
   const [isLoadingLatest, setIsLoadingLatest] = useState(false);
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const taskApiUrl = "/api/tasks";
   const youtubeThumbnailUrl = sourceType === "youtube" ? getYouTubeThumbnailUrl(url) : null;
 
@@ -145,7 +144,7 @@ export default function HomeApp() {
   useEffect(() => {
     const loadTemplates = async () => {
       try {
-        const response = await fetch(`${apiUrl}/caption-templates`);
+        const response = await fetch("/api/caption-templates");
         if (response.ok) {
           const data = await response.json();
           setAvailableTemplates(data.templates || []);
@@ -156,7 +155,7 @@ export default function HomeApp() {
     };
 
     loadTemplates();
-  }, [apiUrl]);
+  }, []);
 
   // Load latest task
   useEffect(() => {
