@@ -33,11 +33,11 @@ docker-compose down
 
 ```bash
 cd frontend
-npm install
-npm run dev
-npm run build
-npm run start
-npm run lint
+pnpm install --frozen-lockfile
+pnpm run dev
+pnpm run build
+pnpm run start
+pnpm run lint
 ```
 
 ## Backend
@@ -47,7 +47,7 @@ cd backend
 uv venv .venv
 source .venv/bin/activate
 uv sync
-uvicorn src.main_refactored:app --reload --host 0.0.0.0 --port 8000
+uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Run the worker separately:
@@ -94,7 +94,7 @@ prisma generate && next build
 
 Important locations:
 
-- `backend/src/main_refactored.py`
+- `backend/src/main.py`
   - Active entry point
 - `backend/src/api/routes`
   - Route modules
@@ -240,8 +240,8 @@ Direct app-level commands:
 
 ```bash
 cd backend && uv sync --all-groups && .venv/bin/pytest
-cd frontend && npm install && npm run test:coverage
-cd frontend && npm run test:e2e
+cd frontend && pnpm install --frozen-lockfile && pnpm run test:coverage
+cd frontend && pnpm run test:e2e
 ```
 
 ### Local Test Environment
@@ -264,7 +264,7 @@ BETTER_AUTH_SECRET=supoclip_better_auth_test_secret
 ### Coverage and CI
 
 - Backend coverage thresholds are enforced during `pytest`.
-- Frontend coverage thresholds are enforced during `npm run test:coverage`.
+- Frontend coverage thresholds are enforced during `pnpm run test:coverage`.
 - GitHub Actions runs separate `backend`, `frontend`, and `e2e` jobs with Postgres and Redis service containers.
 - Playwright failures retain traces, screenshots, and videos for debugging.
 
@@ -308,7 +308,7 @@ docker-compose logs -f redis
 
 ## Safe Defaults for New Work
 
-- Prefer `backend/src/main_refactored.py` over `main.py`
+- Use `backend/src/main.py`; `main_refactored.py` is a compatibility import
 - Keep auth-sensitive browser requests behind frontend API routes
 - Preserve async behavior by keeping blocking work out of FastAPI request handlers
 - Use the worker for long-running media processing
@@ -318,3 +318,17 @@ docker-compose logs -f redis
 - [Architecture](./architecture.md)
 - [API Reference](./api-reference.md)
 - [Troubleshooting](./troubleshooting.md)
+
+### Isolated UI regression checks
+
+Run `cd frontend && pnpm exec playwright install chromium && pnpm run test:polish`
+for browser checks with mocked API responses. These cover failed caption saves,
+editor navigation, narrow layouts, and generation-list updates without a database.
+Run `make check` before submitting changes. Full database-backed smoke tests still
+use `make test-e2e`.
+
+### Real local processing checks
+
+See [Testing with local YouTube downloads](./testing-local.md) for the opt-in
+`pnpm run test:local` suite and real API/worker checks. These exercise yt-dlp,
+Whisper, Ollama, PostgreSQL, Redis and FFmpeg without Apify or mocked processing.

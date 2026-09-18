@@ -135,7 +135,7 @@ cd backend
 uv venv .venv
 source .venv/bin/activate
 uv sync
-uvicorn src.main_refactored:app --reload --host 0.0.0.0 --port 8000
+uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 In a second terminal:
@@ -150,8 +150,8 @@ arq src.workers.tasks.WorkerSettings
 
 ```bash
 cd frontend
-npm install
-npm run dev
+pnpm install --frozen-lockfile
+pnpm run dev
 ```
 
 ### Required local dependencies
