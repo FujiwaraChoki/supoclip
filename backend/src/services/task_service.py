@@ -18,7 +18,7 @@ from ..repositories.clip_repository import ClipRepository
 from ..repositories.cache_repository import CacheRepository
 from .video_service import VideoService
 from .clip_service import ClipEditingMixin
-from ..repositories.edit_transaction import serialized_task_edit
+from ..repositories.edit_transaction import serialized_task_edit, task_edit_transaction, TaskCancelled
 from .billing_service import BillingService
 from .task_completion_email_service import (
     TaskCompletionEmailService,
@@ -179,6 +179,9 @@ class TaskService(ClipEditingMixin):
         logger.info(f"Created task {task_id} for user {user_id}")
         return task_id
 
+    def _processing_transaction(self, task_id: str):
+        return task_edit_transaction(self.db, task_id, processing=True)
+
     async def process_task(
         self,
         task_id: str,
@@ -205,7 +208,15 @@ class TaskService(ClipEditingMixin):
         # success and error paths; multi-GB YouTube downloads otherwise pile up
         # in temp/ until the disk fills and later tasks fail.
         video_path: Optional[Path] = None
+        pending_clip_path: Optional[Path] = None
+        clips_output_dir = Path(self.config.temp_dir) / "clips"
+
+        async def check_cancelled():
+            if should_cancel and await should_cancel():
+                raise TaskCancelled()
+
         try:
+            await check_cancelled()
             logger.info(f"Starting processing for task {task_id}")
             started_at = datetime.utcnow()
             stage_timings: Dict[str, float] = {}
@@ -228,25 +239,25 @@ class TaskService(ClipEditingMixin):
             )
 
             # Update status to processing
-            await self.task_repo.update_task_status(
-                self.db,
-                task_id,
-                "processing",
-                progress=0,
+            started = await self.task_repo.update_task_status(
+                self.db, task_id, "processing", progress=0,
                 progress_message="Starting...",
+                expected_statuses=["queued", "processing", "error", "completed"],
             )
+            if started is False:
+                raise TaskCancelled()
 
             # Progress callback wrapper
             async def update_progress(
                 progress: int, message: str, status: str = "processing"
             ):
-                await self.task_repo.update_task_status(
-                    self.db,
-                    task_id,
-                    status,
-                    progress=progress,
-                    progress_message=message,
+                await check_cancelled()
+                changed = await self.task_repo.update_task_status(
+                    self.db, task_id, status, progress=progress,
+                    progress_message=message, expected_statuses=["processing"],
                 )
+                if changed is False:
+                    raise TaskCancelled()
                 if progress_callback:
                     await progress_callback(progress, message, status)
 
@@ -319,16 +330,17 @@ class TaskService(ClipEditingMixin):
 
             # Retries and regenerations should replace earlier clip rows instead of
             # accumulating duplicates for the same task.
-            await self.clip_repo.delete_clips_by_task(self.db, task_id)
-            await self.task_repo.update_task_clips(self.db, task_id, [])
+            async with self._processing_transaction(task_id):
+                await check_cancelled()
+                await self.clip_repo.delete_clips_by_task(self.db, task_id)
+                await self.task_repo.update_task_clips(self.db, task_id, [])
 
             clip_ids = []
             render_start = perf_counter()
 
             for i, segment in enumerate(segments_to_render):
                 # Check cancellation
-                if should_cancel and await should_cancel():
-                    raise Exception("Task cancelled")
+                await check_cancelled()
 
                 # Update progress: 70-95% spread across clips
                 clip_progress = 70 + int(
@@ -353,35 +365,41 @@ class TaskService(ClipEditingMixin):
                     add_subtitles,
                     normalized_cleanup_settings,
                 )
+                pending_clip_path = Path(clip_info["path"]) if clip_info else None
+                await check_cancelled()
                 if clip_info is None:
                     continue  # Skip failed clip
 
-                # Save to DB immediately
-                clip_id = await self.clip_repo.create_clip(
-                    self.db,
-                    task_id=task_id,
-                    filename=clip_info["filename"],
-                    file_path=clip_info["path"],
-                    start_time=clip_info["start_time"],
-                    end_time=clip_info["end_time"],
-                    duration=clip_info["duration"],
-                    text=clip_info.get("text", ""),
-                    relevance_score=clip_info.get("relevance_score", 0.0),
-                    reasoning=clip_info.get("reasoning", ""),
-                    clip_order=i + 1,
-                    virality_score=clip_info.get("virality_score", 0),
-                    hook_score=clip_info.get("hook_score", 0),
-                    engagement_score=clip_info.get("engagement_score", 0),
-                    value_score=clip_info.get("value_score", 0),
-                    shareability_score=clip_info.get("shareability_score", 0),
-                    hook_type=clip_info.get("hook_type"),
-                    hook_title=clip_info.get("hook_title"),
-                )
-                await self.db.commit()
-                clip_ids.append(clip_id)
+                async with self._processing_transaction(task_id):
+                    await check_cancelled()
+                    # Save to DB immediately
+                    clip_id = await self.clip_repo.create_clip(
+                        self.db,
+                        task_id=task_id,
+                        filename=clip_info["filename"],
+                        file_path=clip_info["path"],
+                        start_time=clip_info["start_time"],
+                        end_time=clip_info["end_time"],
+                        duration=clip_info["duration"],
+                        text=clip_info.get("text", ""),
+                        relevance_score=clip_info.get("relevance_score", 0.0),
+                        reasoning=clip_info.get("reasoning", ""),
+                        clip_order=i + 1,
+                        virality_score=clip_info.get("virality_score", 0),
+                        hook_score=clip_info.get("hook_score", 0),
+                        engagement_score=clip_info.get("engagement_score", 0),
+                        value_score=clip_info.get("value_score", 0),
+                        shareability_score=clip_info.get("shareability_score", 0),
+                        hook_type=clip_info.get("hook_type"),
+                        hook_title=clip_info.get("hook_title"),
+                    )
 
-                # Update task's clip IDs array
-                await self.task_repo.update_task_clips(self.db, task_id, clip_ids)
+                    # Update task's clip IDs array
+                    await self.task_repo.update_task_clips(self.db, task_id, [*clip_ids, clip_id])
+
+                    await check_cancelled()
+                pending_clip_path = None
+                clip_ids.append(clip_id)
 
                 # Notify frontend via SSE
                 if clip_ready_callback:
@@ -395,14 +413,18 @@ class TaskService(ClipEditingMixin):
                 perf_counter() - render_start, 3
             )
 
-            # Mark as completed
-            await self.task_repo.update_task_status(
+            # A cancellation committed after the final render must win over completion.
+            await check_cancelled()
+            completed = await self.task_repo.update_task_status(
                 self.db,
                 task_id,
                 "completed",
                 progress=100,
                 progress_message="Complete!",
+                expected_statuses=["processing"],
             )
+            if completed is False:
+                raise TaskCancelled()
 
             if progress_callback:
                 await progress_callback(100, "Complete!", "completed")
@@ -437,6 +459,13 @@ class TaskService(ClipEditingMixin):
             logger.error(f"Error processing task {task_id}: {e}")
             # Clear failed writes before recording the terminal error state.
             await self.db.rollback()
+            if pending_clip_path and pending_clip_path != video_path:
+                try:
+                    if pending_clip_path.resolve().is_relative_to(clips_output_dir.resolve()):
+                        pending_clip_path.unlink(missing_ok=True)
+                        pending_clip_path.with_suffix(".source_map.json").unlink(missing_ok=True)
+                except OSError:
+                    logger.warning("Could not remove unfinished clip %s", pending_clip_path)
             self._cleanup_source_video(video_path, source_type, url)
             if str(e) == "Task cancelled":
                 await self.task_repo.update_task_status(
@@ -445,11 +474,15 @@ class TaskService(ClipEditingMixin):
                     "cancelled",
                     progress=0,
                     progress_message="Cancelled by user",
+                    expected_statuses=["queued", "processing"],
                 )
                 raise
-            await self.task_repo.update_task_status(
-                self.db, task_id, "error", progress=0, progress_message=str(e)
+            failed = await self.task_repo.update_task_status(
+                self.db, task_id, "error", progress=0, progress_message=str(e),
+                expected_statuses=["queued", "processing"],
             )
+            if failed is False:
+                raise
             error_code = "task_error"
             message = str(e).lower()
             if "download" in message or "youtube" in message:

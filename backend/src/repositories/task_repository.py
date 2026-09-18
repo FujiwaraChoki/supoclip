@@ -300,7 +300,8 @@ class TaskRepository:
         status: str,
         progress: Optional[int] = None,
         progress_message: Optional[str] = None,
-    ) -> None:
+        expected_statuses: Optional[List[str]] = None,
+    ) -> bool:
         """Update task status and optional progress."""
         params = {
             "task_id": task_id,
@@ -322,12 +323,18 @@ class TaskRepository:
 
         query = f"UPDATE tasks SET {', '.join(set_parts)} WHERE id = :task_id"
 
-        await db.execute(text(query), params)
+        if expected_statuses is not None:
+            query += " AND status = ANY(:expected_statuses)"
+            params["expected_statuses"] = expected_statuses
+        result = await db.execute(text(query), params)
         await commit_unless_editing(db)
+        if result.rowcount == 0:
+            return False
         logger.info(
             f"Updated task {task_id} status to {status}"
             + (f" (progress: {progress}%)" if progress else "")
         )
+        return True
 
     @staticmethod
     async def update_task_clips(

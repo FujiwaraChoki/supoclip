@@ -1,5 +1,6 @@
 from src.services import clip_service as clip_service_module
 from datetime import datetime, timezone
+from contextlib import nullcontext
 import hashlib
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -66,6 +67,7 @@ def build_task_service() -> TaskService:
     config.aws_secret_access_key = "secret-test"
     config.ses_from_email = "SupoClip <noreply@example.com>"
     service = TaskService(db=AsyncMock(), config=config)
+    service._processing_transaction = lambda _task_id: nullcontext()
     service.cache_repo.get_cache = AsyncMock(return_value=None)
     service.cache_repo.upsert_cache = AsyncMock()
     service.task_repo.update_task_runtime_metadata = AsyncMock()
@@ -216,6 +218,7 @@ async def test_process_task_fails_when_no_clip_segments_are_selected():
         "error",
         progress=0,
         progress_message="No usable clip segments were selected for this video.",
+        expected_statuses=["queued", "processing"],
     )
     service.clip_repo.create_clip.assert_not_awaited()
 
