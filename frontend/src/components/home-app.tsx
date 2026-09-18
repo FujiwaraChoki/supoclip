@@ -404,12 +404,6 @@ export default function HomeApp() {
       setProgress(0);
       setStatusMessage("");
       setCurrentStep("");
-      setFileName(null);
-      fileRef.current = null;
-      setUrl("");
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     }
   };
 
