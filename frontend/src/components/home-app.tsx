@@ -279,7 +279,7 @@ export default function HomeApp() {
   useEffect(() => {
     const loadTemplates = async () => {
       try {
-        const response = await fetch(`${apiUrl}/caption-templates`);
+        const response = await fetch('/api/caption-templates');
         if (response.ok) {
           const data = await response.json();
           setAvailableTemplates(data.templates || []);
@@ -290,7 +290,7 @@ export default function HomeApp() {
     };
 
     loadTemplates();
-  }, [apiUrl]);
+  }, []);
 
   // Load latest task
   useEffect(() => {
