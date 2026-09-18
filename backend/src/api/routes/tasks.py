@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 from pathlib import Path
+from contextlib import aclosing
 import json
 import logging
 from typing import Dict, Any, Optional
@@ -536,7 +537,7 @@ async def get_task_progress_sse(task_id: str, request: Request):
         }
 
         # If task is already completed or error, close connection
-        if task.get("status") in ["completed", "error"]:
+        if task.get("status") in ["completed", "error", "cancelled"]:
             yield {"event": "close", "data": json.dumps({"status": task.get("status")})}
             return
 
@@ -551,22 +552,20 @@ async def get_task_progress_sse(task_id: str, request: Request):
 
         try:
             # Subscribe to progress updates
-            async for progress_data in ProgressTracker.subscribe_to_progress(
-                redis_client, task_id
-            ):
-                event_type = progress_data.get("event_type", "progress")
-                yield {"event": event_type, "data": json.dumps(progress_data)}
+            async with aclosing(ProgressTracker.subscribe_to_progress(redis_client, task_id)) as updates:
+                async for progress_data in updates:
+                    event_type = progress_data.get("event_type", "progress")
+                    yield {"event": event_type, "data": json.dumps(progress_data)}
 
-                # Close connection if task is done
-                if progress_data.get("status") in ["completed", "error"]:
-                    yield {
-                        "event": "close",
-                        "data": json.dumps({"status": progress_data.get("status")}),
-                    }
-                    break
-
+                    # Close connection if task is done
+                    if progress_data.get("status") in ["completed", "error", "cancelled"]:
+                        yield {
+                            "event": "close",
+                            "data": json.dumps({"status": progress_data.get("status")}),
+                        }
+                        break
         finally:
-            await redis_client.close()
+            await redis_client.aclose()
 
     return EventSourceResponse(event_generator())
 
@@ -1003,7 +1002,7 @@ async def cancel_task(
         try:
             await redis_client.setex(f"task_cancel:{task_id}", 3600, "1")
         finally:
-            await redis_client.close()
+            await redis_client.aclose()
 
         await task_service.task_repo.update_task_status(
             db,
@@ -1088,7 +1087,7 @@ async def resume_task(
         try:
             await redis_client.delete(f"task_cancel:{task_id}")
         finally:
-            await redis_client.close()
+            await redis_client.aclose()
 
         await task_service.task_repo.update_task_status(
             db,
@@ -1153,4 +1152,4 @@ async def list_dead_letter_tasks(request: Request, db: AsyncSession = Depends(ge
 
         return {"total": len(items), "tasks": items}
     finally:
-        await redis_client.close()
+        await redis_client.aclose()
