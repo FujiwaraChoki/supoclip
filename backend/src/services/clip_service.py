@@ -284,6 +284,9 @@ class ClipEditingMixin:
             clip.get("text") or "",
         )
 
+        await self.clip_repo.make_room_for_clip(
+            self.db, task_id, clip.get("clip_order", 1) + 1
+        )
         await self.clip_repo.create_clip(
             self.db,
             task_id=task_id,
