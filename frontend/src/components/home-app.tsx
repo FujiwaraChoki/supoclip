@@ -227,6 +227,7 @@ export default function HomeApp() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   const taskApiUrl = "/api/tasks";
+  const isNoneCaptionStyle = captionTemplate === "none";
   const youtubeThumbnailUrl = sourceType === "youtube" ? getYouTubeThumbnailUrl(url) : null;
 
   const refreshFonts = useCallback(async () => {
@@ -501,8 +502,8 @@ export default function HomeApp() {
           caption_template: captionTemplate,
           processing_mode: "fast",
           output_format: outputFormat,
-          add_subtitles: addSubtitles,
-          include_hook_titles: includeHookTitles,
+          add_subtitles: isNoneCaptionStyle ? false : addSubtitles,
+          include_hook_titles: isNoneCaptionStyle ? false : includeHookTitles,
           cut_long_pauses: cutLongPauses,
           pause_threshold_ms: normalizedPauseThreshold,
           remove_filler_words: removeFillerWords,
@@ -524,8 +525,8 @@ export default function HomeApp() {
         source_type: sourceType,
         caption_template: captionTemplate,
         output_format: outputFormat,
-        add_subtitles: addSubtitles,
-        include_hook_titles: includeHookTitles,
+        add_subtitles: isNoneCaptionStyle ? false : addSubtitles,
+        include_hook_titles: isNoneCaptionStyle ? false : includeHookTitles,
         cut_long_pauses: cutLongPauses,
         pause_threshold_ms: normalizedPauseThreshold,
         remove_filler_words: removeFillerWords,
@@ -1028,9 +1029,9 @@ export default function HomeApp() {
                       </div>
                     </div>
                     <Switch
-                      checked={addSubtitles}
+                      checked={isNoneCaptionStyle ? false : addSubtitles}
                       onCheckedChange={setAddSubtitles}
-                      disabled={generationControlsDisabled}
+                      disabled={generationControlsDisabled || isNoneCaptionStyle}
                     />
                   </div>
 
@@ -1044,9 +1045,9 @@ export default function HomeApp() {
                       </div>
                     </div>
                     <Switch
-                      checked={includeHookTitles}
+                      checked={isNoneCaptionStyle ? false : includeHookTitles}
                       onCheckedChange={setIncludeHookTitles}
-                      disabled={generationControlsDisabled}
+                      disabled={generationControlsDisabled || isNoneCaptionStyle}
                     />
                   </div>
 

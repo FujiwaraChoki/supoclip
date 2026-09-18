@@ -152,6 +152,7 @@ export default function TaskPage() {
     Array<{ id: string; name: string; description: string; animation: string }>
   >([]);
   const hasTriggeredAutoRefresh = useRef(false);
+  const isNoneCaptionStyle = projectCaptionTemplate === "none";
 
   const taskApiUrl = "/api/tasks";
   const getClipUrl = (videoUrl: string) =>
@@ -580,7 +581,9 @@ export default function TaskPage() {
         body: JSON.stringify({
           ...fontOptions,
           caption_template: projectCaptionTemplate,
-          include_hook_titles: projectIncludeHookTitles,
+          include_hook_titles: isNoneCaptionStyle
+            ? false
+            : projectIncludeHookTitles,
           cut_long_pauses: projectCutLongPauses,
           pause_threshold_ms: safePauseThreshold,
           remove_filler_words: projectRemoveFillerWords,
@@ -1222,9 +1225,9 @@ export default function TaskPage() {
                     </div>
                     <input
                       type="checkbox"
-                      checked={projectIncludeHookTitles}
+                      checked={isNoneCaptionStyle ? false : projectIncludeHookTitles}
                       onChange={(e) => setProjectIncludeHookTitles(e.target.checked)}
-                      disabled={isApplyingSettings}
+                      disabled={isApplyingSettings || isNoneCaptionStyle}
                       className="h-5 w-5 accent-stone-900"
                     />
                   </div>

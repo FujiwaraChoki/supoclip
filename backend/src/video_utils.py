@@ -3418,6 +3418,10 @@ def create_optimized_clip(
         if not include_hook_titles:
             hook_title = None
 
+        if caption_template == "none":
+            add_subtitles = False
+            hook_title = None
+
         # Fast path: no subtitles + original = ffmpeg stream copy (no re-encoding)
         if not add_subtitles and keep_original and len(effective_keep_ranges) == 1:
             fast_path_start, fast_path_end = effective_keep_ranges[0]
