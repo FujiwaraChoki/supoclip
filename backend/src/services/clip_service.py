@@ -458,6 +458,10 @@ class ClipEditingMixin:
                 output_format=settings.get("output_format", "vertical"),
                 keep_ranges=source_ranges,
                 hook_title=clip.get("hook_title"),
+                font_family=task.get("font_family") or None,
+                font_size=task.get("font_size") or None,
+                font_color=task.get("font_color") or None,
+                caption_template=task.get("caption_template") or "default",
                 extend_to_sentence=False,
             )
             if not rendered:
