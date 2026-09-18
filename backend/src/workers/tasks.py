@@ -5,6 +5,8 @@ Worker tasks - background jobs processed by arq workers.
 import logging
 from typing import Dict, Any, Optional
 import json
+from arq import Retry
+from ..repositories.task_run_guard import TaskRunBusy
 
 from ..observability import configure_logging, set_trace_id
 
@@ -98,6 +100,10 @@ async def process_video_task(
             logger.info(f"Task {task_id} completed successfully")
             return result
 
+        except TaskRunBusy:
+            # A resume request may still own the guard while publishing this job.
+            # Retry without rewriting task state or creating a dead-letter entry.
+            raise Retry(defer=2)
         except Exception as e:
             logger.error(f"Task {task_id} failed: {e}", exc_info=True)
             try:
