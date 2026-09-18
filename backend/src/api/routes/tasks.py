@@ -59,10 +59,20 @@ def _normalize_font_family(value: Any) -> Optional[str]:
     return None
 
 
+async def _read_json_object(request: Request) -> Dict[str, Any]:
+    try:
+        payload = await request.json()
+    except (ValueError, UnicodeDecodeError):
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Request body must be an object")
+    return payload
+
+
 def _finite_number(value: Any, name: str) -> float:
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         raise ValueError(f"{name} must be a finite number")
     if isinstance(value, bool) or not math.isfinite(number):
         raise ValueError(f"{name} must be a finite number")
@@ -229,13 +239,17 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     Create a new task and enqueue it for processing.
     Returns task_id immediately.
     """
-    data = await request.json()
+    data = await _read_json_object(request)
 
     raw_source = data.get("source")
+    if not isinstance(raw_source, dict) or not isinstance(raw_source.get("url"), str) or not raw_source["url"].strip():
+        raise HTTPException(status_code=400, detail="Source URL is required")
     user_id = await _get_user_id_from_headers(request, db)
 
     # Get font options
     font_options = data.get("font_options", {})
+    if not isinstance(font_options, dict):
+        raise HTTPException(status_code=400, detail="font_options must be an object")
     font_family = _normalize_font_family(font_options.get("font_family"))
     font_size = _normalize_font_size(font_options.get("font_size"))
     font_color = _normalize_font_color(font_options.get("font_color"))
@@ -563,10 +577,10 @@ async def update_task(
 ):
     """Update task details (title)."""
     try:
-        data = await request.json()
+        data = await _read_json_object(request)
         title = data.get("title")
 
-        if not title:
+        if not isinstance(title, str) or not title.strip():
             raise HTTPException(status_code=400, detail="Title is required")
 
         task_service = TaskService(db)
@@ -698,9 +712,9 @@ async def trim_clip(
 ):
     """Trim clip boundaries and regenerate clip file."""
     try:
-        payload = await request.json()
-        start_offset = float(payload.get("start_offset", 0))
-        end_offset = float(payload.get("end_offset", 0))
+        payload = await _read_json_object(request)
+        start_offset = _finite_number(payload.get("start_offset", 0), "start_offset")
+        end_offset = _finite_number(payload.get("end_offset", 0), "end_offset")
 
         if start_offset < 0 or end_offset < 0:
             raise HTTPException(status_code=400, detail="Offsets must be non-negative")
@@ -726,8 +740,8 @@ async def split_clip(
 ):
     """Split a clip into two clips."""
     try:
-        payload = await request.json()
-        split_time = float(payload.get("split_time", 0))
+        payload = await _read_json_object(request)
+        split_time = _finite_number(payload.get("split_time", 0), "split_time")
         if split_time <= 0:
             raise HTTPException(
                 status_code=400, detail="split_time must be greater than zero"
@@ -752,9 +766,9 @@ async def merge_clips(
 ):
     """Merge multiple clips into one clip."""
     try:
-        payload = await request.json()
+        payload = await _read_json_object(request)
         clip_ids = payload.get("clip_ids") or []
-        if not isinstance(clip_ids, list):
+        if not isinstance(clip_ids, list) or any(not isinstance(cid, str) or not cid for cid in clip_ids):
             raise HTTPException(status_code=400, detail="clip_ids must be an array")
 
         task_service = TaskService(db)
@@ -776,7 +790,7 @@ async def update_clip_captions(
 ):
     """Update clip caption text, timing style and highlighted words."""
     try:
-        payload = await request.json()
+        payload = await _read_json_object(request)
         caption_text = str(payload.get("caption_text", "")).strip()
         position = str(payload.get("position", "bottom"))
         highlight_words = payload.get("highlight_words") or []
@@ -828,9 +842,9 @@ async def regenerate_clip(
 ):
     """Regenerate a single clip after editing timing values."""
     try:
-        payload = await request.json()
-        start_offset = float(payload.get("start_offset", 0))
-        end_offset = float(payload.get("end_offset", 0))
+        payload = await _read_json_object(request)
+        start_offset = _finite_number(payload.get("start_offset", 0), "start_offset")
+        end_offset = _finite_number(payload.get("end_offset", 0), "end_offset")
 
         task_service = TaskService(db)
         await _require_task_owner(request, task_service, db, task_id)
@@ -855,7 +869,7 @@ async def apply_task_settings(
 ):
     """Update task-level styling settings and optionally apply to all existing clips."""
     try:
-        payload = await request.json()
+        payload = await _read_json_object(request)
         font_family = _normalize_font_family(payload.get("font_family"))
         font_size = _normalize_font_size(payload.get("font_size"))
         font_color = _normalize_font_color(payload.get("font_color"))
