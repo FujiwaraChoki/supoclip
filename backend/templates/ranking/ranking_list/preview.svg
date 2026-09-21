@@ -1,0 +1,10 @@
+<svg viewBox="0 0 320 180" xmlns="http://www.w3.org/2000/svg">
+  <rect width="320" height="180" fill="#fbfbfb" />
+  <rect x="16" y="16" width="180" height="148" fill="#0f0a01" />
+  <rect x="24" y="132" width="28" height="28" fill="#558a86" />
+  <text x="38" y="152" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#fbfbfb" text-anchor="middle">3</text>
+  <rect x="210" y="16" width="94" height="92" fill="#fbfbfb" stroke="#0f0a01" stroke-width="2" />
+  <text x="222" y="36" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#0f0a01">#5</text>
+  <text x="222" y="54" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#0f0a01">#4</text>
+  <text x="222" y="72" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#0f0a01">#3</text>
+</svg>

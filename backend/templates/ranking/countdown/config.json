@@ -1,0 +1,18 @@
+{
+  "name": "Countdown",
+  "description": "Plays worst to best, building suspense up to #1 — same bold number tile as Rapid Fire, just reversed.",
+  "layout": "full_screen",
+  "render_order": "descending",
+  "list_overlay": false,
+  "transition": "cut",
+  "transition_duration_seconds": 0.15,
+  "transition_sfx": "whoosh-sfx-1.mp3",
+  "number_overlay": {
+    "position": "bottom",
+    "color": "blue",
+    "animation": "pop"
+  },
+  "intro": null,
+  "outro": null,
+  "caption_placement": null
+}

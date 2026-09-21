@@ -170,6 +170,39 @@ refactor beyond token/type-scale swaps.
 Skeleton blocks (`components/ui/skeleton.tsx`) at `background`/`foreground`
 contrast, 300ms delay before showing (existing decision, unchanged).
 
+### Rank number tile — `backend/src/ranking_overlay.py` (burned-in), Ranking
+tool's ordering list (on-screen)
+A fixed square tile with a single centered digit — the sanctioned
+"structurally centered" exception from §1/§7. Tile fill is ink or teal
+(never blue/paper, so it always reads against either theme and against
+arbitrary video content once burned in); digit is paper on a teal/ink
+tile, ink on the (rare) paper-tile override. No new colors: this is the
+same ink/paper/teal vocabulary as everywhere else, just applied to a
+one-character label instead of a button or badge. Applies to the three
+tile-based templates (Rapid Fire, Countdown, Ranking List).
+
+### Gold #1 — Ranking tool's `ranking_classic` template only
+`build_ranking_overlay_ass`'s #1 rank tile/text render in gold (`#FFD700`),
+and the rank-select UI (`(rank)/rank/create/page.tsx`) previews that same
+gold on the #1 slot. This is the **one deliberate exception** to "no new
+colors" — but it's scoped to Ranking *video output* and the UI previewing
+that output, never to site chrome (buttons, nav, cards, status badges
+elsewhere stay strictly ink/paper/teal/blue). See DECISIONS.md's "Ranking
+videos use full color" entry for the reasoning; don't extend gold (or any
+other new color) to a site-UI element on the strength of this precedent.
+
+### Folder-based clip picker — `(rank)/rank/create/page.tsx`
+Three-step flow (folder → select → text), built from existing primitives
+only: a bordered drop zone (`border-border`, matches the editor's upload
+zones) with two `Button variant="outline"` triggers for the OS folder
+picker (`<input webkitdirectory>`) and a plain multi-file picker: a
+`grid grid-cols-2 sm:grid-cols-4` thumbnail grid (matches the template
+picker's grid pattern elsewhere in this tool); a `Badge variant="outline"`
+for "used N×" usage-count hints, reusing the same badge component and
+outline style as status badges on `/list`. No new component was added —
+this screen composes existing `Button`/`Input`/`Textarea`/`Badge`/
+`EmptyState` the same way `(clipping)/create` does.
+
 ## 6. Tokens Reference
 
 ### 6.1 Radius

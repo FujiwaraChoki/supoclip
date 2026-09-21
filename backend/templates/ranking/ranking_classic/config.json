@@ -1,0 +1,20 @@
+{
+  "name": "Classic Ranking",
+  "description": "5 to 1 always visible on the left, each rank's text reveals as its clip plays and stays on screen, #1 in gold, subtle bounce on reveal. The default template for the folder-based Ranking workflow.",
+  "layout": "full_screen",
+  "render_order": "descending",
+  "list_overlay": false,
+  "transition": "cut",
+  "transition_duration_seconds": 0,
+  "transition_sfx": null,
+  "use_global_sfx": true,
+  "number_overlay": {
+    "position": "center",
+    "color": "teal",
+    "animation": "bounce",
+    "style": "stacked"
+  },
+  "intro": null,
+  "outro": null,
+  "caption_placement": null
+}

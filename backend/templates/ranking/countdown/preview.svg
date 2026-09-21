@@ -1,0 +1,13 @@
+<svg viewBox="0 0 320 180" xmlns="http://www.w3.org/2000/svg">
+  <rect width="320" height="180" fill="#fbfbfb" />
+  <rect x="16" y="16" width="86" height="148" fill="#0f0a01" opacity="0.7" />
+  <rect x="117" y="16" width="86" height="148" fill="#0f0a01" opacity="0.85" />
+  <rect x="218" y="16" width="86" height="148" fill="#0f0a01" />
+  <rect x="24" y="132" width="28" height="28" fill="#08327d" />
+  <text x="38" y="152" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#fbfbfb" text-anchor="middle">3</text>
+  <rect x="125" y="132" width="28" height="28" fill="#08327d" />
+  <text x="139" y="152" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#fbfbfb" text-anchor="middle">2</text>
+  <rect x="226" y="132" width="28" height="28" fill="#08327d" />
+  <text x="240" y="152" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="#fbfbfb" text-anchor="middle">1</text>
+  <path d="M 260 32 L 284 32 L 272 48 Z" fill="#0f0a01" />
+</svg>

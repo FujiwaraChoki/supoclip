@@ -1,0 +1,17 @@
+{
+  "name": "Ranking List",
+  "description": "Counts down from worst to best with a growing corner list of every rank revealed so far — a proper \"Top N\" rundown.",
+  "layout": "full_screen",
+  "render_order": "descending",
+  "list_overlay": true,
+  "transition": "cut",
+  "transition_duration_seconds": 0.2,
+  "number_overlay": {
+    "position": "bottom",
+    "color": "teal",
+    "animation": "slide"
+  },
+  "intro": null,
+  "outro": null,
+  "caption_placement": null
+}

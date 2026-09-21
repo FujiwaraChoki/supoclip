@@ -64,6 +64,12 @@ CREATE TABLE tasks (
     caption_template VARCHAR(50) DEFAULT 'default',
     include_broll BOOLEAN DEFAULT false,
     processing_mode VARCHAR(20) NOT NULL DEFAULT 'fast',
+
+    -- Multi-tool platform: 'clipping' (one source -> many clips, the
+    -- original pipeline) or 'ranking' (N inputs -> one compilation). See
+    -- docs/architecture.md's "Multi-Tool Platform & Ranking Tool" section.
+    task_type VARCHAR(20) NOT NULL DEFAULT 'clipping' CHECK (task_type IN ('clipping', 'ranking')),
+    ranking_settings TEXT NULL, -- JSON-encoded {template_id, number_overlay, export_preset, target_lufs}
     started_at TIMESTAMP WITH TIME ZONE,
     completed_at TIMESTAMP WITH TIME ZONE,
     cache_hit BOOLEAN NOT NULL DEFAULT false,
@@ -110,6 +116,67 @@ CREATE TABLE generated_clips (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Ranking tool: the N source videos one ranking project holds (the inverse
+-- cardinality of clipping's one-source/many-clips model above). The rendered
+-- compilation itself reuses generated_clips as a single row (clip_order=0)
+-- rather than a parallel output table.
+CREATE TABLE ranking_inputs (
+    id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    task_id VARCHAR(36) NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    file_path VARCHAR(500) NOT NULL,
+    original_filename VARCHAR(500) NOT NULL,
+    duration_seconds FLOAT,
+    order_index INTEGER NOT NULL,
+    rank_position INTEGER NULL,
+    thumbnail_path VARCHAR(500) NULL,
+
+    -- Folder-library linkage (added for random/prefer-unused selection and
+    -- cross-ranking text memory): which library clip this input came from,
+    -- this ranking's own copy of that clip's display text (pre-filled from
+    -- ranking_folder_clips.saved_text but independently editable), and a
+    -- per-clip framing override for non-9:16 source footage.
+    folder_clip_id VARCHAR(36) NULL,
+    rank_text TEXT NULL,
+    framing VARCHAR(20) NOT NULL DEFAULT 'blur_fill' CHECK (framing IN ('blur_fill', 'crop_fill', 'letterbox')),
+
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_ranking_inputs_task_id ON ranking_inputs(task_id, order_index);
+
+-- A "folder" is a user-named batch of clips selected together (via a browser
+-- directory picker or a multi-file drop — there is no server filesystem path
+-- to scan, uploads are the only way a clip reaches the backend). Clips
+-- persist here across ranking projects so the same folder can be drawn from
+-- repeatedly with "prefer unused" selection and remembered per-clip text.
+CREATE TABLE ranking_folders (
+    id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, name)
+);
+
+CREATE TABLE ranking_folder_clips (
+    id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    folder_id VARCHAR(36) NOT NULL REFERENCES ranking_folders(id) ON DELETE CASCADE,
+    file_path VARCHAR(500) NOT NULL,
+    original_filename VARCHAR(500) NOT NULL,
+    duration_seconds FLOAT,
+    thumbnail_path VARCHAR(500) NULL,
+    -- Content identity so the same file re-selected/re-dropped later (even
+    -- under a different filename) resolves to the same library row instead
+    -- of duplicating it — "path + hash" per the text-memory spec.
+    content_hash VARCHAR(64) NOT NULL,
+    saved_text TEXT NULL,
+    use_count INTEGER NOT NULL DEFAULT 0,
+    last_used_at TIMESTAMP WITH TIME ZONE NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (folder_id, content_hash)
+);
+
+CREATE INDEX idx_ranking_folder_clips_folder_id ON ranking_folder_clips(folder_id, use_count);
 
 CREATE TABLE processing_cache (
     cache_key VARCHAR(255) PRIMARY KEY,

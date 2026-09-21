@@ -1,0 +1,14 @@
+<svg viewBox="0 0 240 160" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ranking tool">
+  <rect x="0.5" y="0.5" width="239" height="159" fill="#fbfbfb" stroke="#0f0a01"/>
+  <!-- three ranked bars, tallest first -->
+  <rect x="40" y="48" width="36" height="88" fill="#0f0a01"/>
+  <rect x="102" y="72" width="36" height="64" fill="#0f0a01" opacity="0.85"/>
+  <rect x="164" y="92" width="36" height="44" fill="#0f0a01" opacity="0.7"/>
+  <!-- number tiles -->
+  <rect x="46" y="112" width="24" height="24" fill="#558a86"/>
+  <text x="58" y="129" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#fbfbfb" text-anchor="middle">1</text>
+  <rect x="108" y="112" width="24" height="24" fill="#558a86"/>
+  <text x="120" y="129" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#fbfbfb" text-anchor="middle">2</text>
+  <rect x="170" y="112" width="24" height="24" fill="#558a86"/>
+  <text x="182" y="129" font-family="Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#fbfbfb" text-anchor="middle">3</text>
+</svg>

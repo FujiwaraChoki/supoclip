@@ -288,7 +288,15 @@ export default function TaskEditPage() {
     const initialCaptionSize = clamp(task?.font_size || 52, 28, 72);
     setSubtitleSize(initialCaptionSize);
     lastSavedCaptionSizeRef.current = initialCaptionSize;
-    setReactions(selectedClip.reactions ?? []);
+    setReactions(
+      (selectedClip.reactions ?? []).map((reaction) => ({
+        ...reaction,
+        position: {
+          x_pct: reaction.position.x_pct * 100,
+          y_pct: reaction.position.y_pct * 100,
+        },
+      })),
+    );
   }, [selectedClip, task?.font_size]);
 
   useEffect(() => {
@@ -462,7 +470,15 @@ export default function TaskEditPage() {
       const response = await fetch(`${taskApiUrl}/${task.id}/clips/${selectedClip.id}/reactions`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reactions }),
+        body: JSON.stringify({
+          reactions: reactions.map((reaction) => ({
+            ...reaction,
+            position: {
+              x_pct: reaction.position.x_pct / 100,
+              y_pct: reaction.position.y_pct / 100,
+            },
+          })),
+        }),
       });
       if (!response.ok) throw new Error(await buildSupportError(response, "Failed to save reactions"));
       toast.success("Reactions saved — re-rendering clip with new reactions.");

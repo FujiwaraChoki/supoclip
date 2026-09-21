@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,7 @@ class TaskRepository:
     async def create_task(
         db: AsyncSession,
         user_id: str,
-        source_id: str,
+        source_id: Optional[str],
         status: str = "processing",
         font_family: Optional[str] = None,
         font_size: Optional[int] = None,
@@ -28,20 +29,25 @@ class TaskRepository:
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
+        task_type: str = "clipping",
     ) -> str:
-        """Create a new task and return its ID."""
+        """Create a new task and return its ID.
+
+        `source_id` is nullable — a ranking task (`task_type="ranking"`) has
+        no single source; its N input videos live in `ranking_inputs` instead.
+        """
         task_id = str(uuid4())
         try:
             result = await db.execute(
                 text("""
                     INSERT INTO tasks (
                         id, user_id, source_id, status, font_family, font_size, font_color,
-                        caption_template, include_broll, processing_mode,
+                        caption_template, include_broll, processing_mode, task_type,
                         created_at, updated_at
                     )
                     VALUES (
                         :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
-                        :caption_template, :include_broll, :processing_mode,
+                        :caption_template, :include_broll, :processing_mode, :task_type,
                         NOW(), NOW()
                     )
                     RETURNING id
@@ -57,6 +63,7 @@ class TaskRepository:
                     "caption_template": caption_template,
                     "include_broll": include_broll,
                     "processing_mode": processing_mode,
+                    "task_type": task_type,
                 },
             )
         except Exception:
@@ -65,11 +72,11 @@ class TaskRepository:
                 text("""
                     INSERT INTO tasks (
                         id, user_id, source_id, status, font_family, font_size, font_color,
-                        created_at, updated_at
+                        task_type, created_at, updated_at
                     )
                     VALUES (
                         :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
-                        NOW(), NOW()
+                        :task_type, NOW(), NOW()
                     )
                     RETURNING id
                 """),
@@ -81,6 +88,7 @@ class TaskRepository:
                     "font_family": font_family,
                     "font_size": font_size,
                     "font_color": font_color,
+                    "task_type": task_type,
                 },
             )
         await db.commit()
@@ -135,6 +143,8 @@ class TaskRepository:
             "source_title": row.source_title,
             "source_type": row.source_type,
             "status": row.status,
+            "task_type": getattr(row, "task_type", "clipping"),
+            "ranking_settings": getattr(row, "ranking_settings", None),
             "progress": getattr(row, "progress", None),
             "progress_message": getattr(row, "progress_message", None),
             "generated_clips_ids": row.generated_clips_ids,
@@ -315,6 +325,25 @@ class TaskRepository:
         await db.commit()
 
     @staticmethod
+    async def update_ranking_settings(
+        db: AsyncSession, task_id: str, ranking_settings: Dict[str, Any]
+    ) -> None:
+        """Persist a ranking task's template/overlay/export settings (JSON-encoded
+        TEXT, same convention as generated_clips.reactions)."""
+        await db.execute(
+            text(
+                """
+                UPDATE tasks
+                SET ranking_settings = :ranking_settings,
+                    updated_at = NOW()
+                WHERE id = :task_id
+                """
+            ),
+            {"task_id": task_id, "ranking_settings": json.dumps(ranking_settings)},
+        )
+        await db.commit()
+
+    @staticmethod
     async def update_task_status(
         db: AsyncSession,
         task_id: str,
@@ -393,6 +422,7 @@ class TaskRepository:
                     "source_type": row.source_type,
                     "source_url": getattr(row, "source_url", None),
                     "status": row.status,
+                    "task_type": getattr(row, "task_type", "clipping"),
                     "progress": getattr(row, "progress", 0),
                     "progress_message": getattr(row, "progress_message", None),
                     "processing_mode": getattr(row, "processing_mode", "fast"),
@@ -406,6 +436,22 @@ class TaskRepository:
             )
 
         return tasks
+
+    @staticmethod
+    async def get_status_counts(db: AsyncSession, user_id: str) -> Dict[str, int]:
+        """Count of each non-deleted task status for a user — the cheap
+        aggregate the home screen's status strip needs (queue depth, active
+        jobs) without pulling full task rows."""
+        result = await db.execute(
+            text("""
+                SELECT status, COUNT(*) as count
+                FROM tasks
+                WHERE user_id = :user_id AND deleted_at IS NULL
+                GROUP BY status
+            """),
+            {"user_id": user_id},
+        )
+        return {row.status: row.count for row in result.fetchall()}
 
     @staticmethod
     async def list_deleted_tasks(
@@ -436,6 +482,7 @@ class TaskRepository:
                     "source_type": row.source_type,
                     "source_url": getattr(row, "source_url", None),
                     "status": row.status,
+                    "task_type": getattr(row, "task_type", "clipping"),
                     "processing_mode": getattr(row, "processing_mode", "fast"),
                     "clips_count": row.clips_count,
                     "deleted_at": getattr(row, "deleted_at", None),

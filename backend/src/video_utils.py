@@ -42,6 +42,19 @@ from .caption_templates import get_template, CAPTION_TEMPLATES
 from .emoji_captions import POWER_WORDS, annotate_caption_words, normalize_token
 from .font_registry import FONTS_DIR, find_font_path, get_font_family_name
 
+# Hook-only (not shared with captions' POWER_WORDS): glue words excluded from
+# the broadened hook highlight rule below, so the highlight colour lands on
+# most content words rather than only the sparser POWER_WORDS set.
+_HOOK_STOPWORDS = {
+    "a", "an", "the", "to", "of", "in", "on", "at", "by", "for", "and", "or",
+    "but", "if", "so", "is", "are", "was", "were", "be", "been", "being",
+    "with", "as", "from", "it", "its", "this", "that", "these", "those",
+    "my", "your", "his", "her", "their", "our", "i", "you", "he", "she",
+    "we", "they", "not", "no", "do", "does", "did", "will", "would", "can",
+    "could", "should", "than", "then", "when", "how", "what", "why", "who",
+    "up", "out", "into", "over", "about",
+}
+
 logger = logging.getLogger(__name__)
 TRANSCRIPT_CACHE_SCHEMA_VERSION = 2
 VALID_OUTPUT_FORMATS = {"vertical", "vertical_pan", "vertical_split", "original"}
@@ -1888,6 +1901,249 @@ def extend_keep_ranges_to_sentence_boundary(
     return [*normalized[:-1], (last_start, extended_end)]
 
 
+# The `subtitles`/libass filter can't rasterise colour-emoji glyphs at all
+# (verified — see CLAUDE.md's "Common Pitfalls"), but Pillow's
+# `embedded_color` text mode CAN render the same CBDT/COLR font directly.
+# Shared by the hook builder below and ranking_overlay.py: emoji are split
+# out of the ASS text, pre-rendered to standalone PNGs here, and composited
+# by the caller as `overlay` filter images instead — the same technique
+# emoji_reactions.py already uses for reaction emoji, generalized to
+# arbitrary user/AI-typed emoji instead of a curated PNG set.
+_EMOJI_RE = re.compile(
+    "["
+    "\U0001F1E6-\U0001F1FF"  # regional indicators (flags)
+    "\U0001F300-\U0001FAFF"  # symbols, pictographs, transport, supplemental
+    "\U00002600-\U000027BF"  # misc symbols, dingbats
+    "\U00002B00-\U00002BFF"  # misc symbols and arrows
+    "\U0001F000-\U0001F0FF"  # mahjong/dominoes/playing cards
+    "\uFE0F"  # variation selector-16
+    "\u200D"  # zero-width joiner
+    "]+"
+)
+
+
+def split_text_and_emoji(text: str) -> Tuple[str, str]:
+    """Split `text` into (clean_text_for_ass, emoji_cluster) — every emoji
+    run removed from the text and concatenated back together in the order
+    found. The two are rendered through different paths (ASS text vs. a
+    composited PNG, see render_emoji_cluster_png) and recombined visually
+    at render time by positioning the emoji cluster right after the text."""
+    emoji_cluster = "".join(_EMOJI_RE.findall(text or ""))
+    clean_text = _EMOJI_RE.sub("", text or "").strip()
+    return clean_text, emoji_cluster
+
+
+_EMOJI_FONT_PATH_CACHE: Optional[str] = None
+
+
+def _emoji_font_path() -> Optional[str]:
+    """Locate a colour-emoji font file via fontconfig for direct Pillow
+    rendering. Cached (one-shot, like emoji_rendering_supported()); returns
+    None if this environment has no colour-emoji font, in which case emoji
+    overlays are skipped entirely (same graceful degradation captions use)."""
+    global _EMOJI_FONT_PATH_CACHE
+    if _EMOJI_FONT_PATH_CACHE is not None:
+        return _EMOJI_FONT_PATH_CACHE or None
+    path = ""
+    try:
+        result = subprocess.run(
+            ["fc-match", "-f", "%{file}", "Noto Color Emoji"],
+            capture_output=True, text=True, timeout=5,
+        )
+        candidate = result.stdout.strip()
+        if candidate and Path(candidate).is_file():
+            path = candidate
+    except Exception:
+        path = ""
+    _EMOJI_FONT_PATH_CACHE = path
+    return path or None
+
+
+_FC_MATCH_FONT_PATH_CACHE: Dict[str, Optional[str]] = {}
+
+
+def _fc_match_font_path(font_name: str) -> Optional[str]:
+    if font_name in _FC_MATCH_FONT_PATH_CACHE:
+        return _FC_MATCH_FONT_PATH_CACHE[font_name]
+    path: Optional[str] = None
+    try:
+        result = subprocess.run(
+            ["fc-match", "-f", "%{file}", font_name],
+            capture_output=True, text=True, timeout=5,
+        )
+        candidate = result.stdout.strip()
+        if candidate and Path(candidate).is_file():
+            path = candidate
+    except Exception:
+        path = None
+    _FC_MATCH_FONT_PATH_CACHE[font_name] = path
+    return path
+
+
+def measure_text_width(text: str, font_family: Optional[str], font_name: str, px: int) -> float:
+    """Measure `text`'s rendered pixel width at `px`, so emoji placement can
+    position the emoji cluster right after real text instead of guessing
+    from character count. Prefers a bundled/uploaded font file (matching
+    what libass will actually use for a custom font_family); otherwise
+    resolves the ASS style's font_name via fontconfig, same as the system
+    font libass falls back to."""
+    if not text:
+        return 0.0
+    font_path = None
+    if font_family:
+        custom = find_font_path(font_family, allow_all_user_fonts=True)
+        if custom:
+            font_path = str(custom)
+    if not font_path:
+        font_path = _fc_match_font_path(font_name)
+    if font_path:
+        try:
+            from PIL import ImageFont
+
+            return ImageFont.truetype(font_path, px).getlength(text)
+        except Exception:
+            pass
+    return len(text) * px * 0.55  # rough fallback if fontconfig/Pillow fails
+
+
+# Bundled colour-emoji fonts (Noto Color Emoji, Apple Color Emoji, etc.) are
+# CBDT/sbix bitmap fonts with only a handful of fixed embedded strike sizes —
+# requesting any other size raises "invalid pixel size" rather than scaling.
+# Rendered once at whichever candidate size the font actually supports, then
+# resized in Pillow to the target size.
+_EMOJI_FONT_NATIVE_SIZES = (109, 136, 128, 160, 96, 64, 32)
+
+_EMOJI_PNG_CACHE: Dict[Tuple[str, int], Optional[Path]] = {}
+
+
+def render_emoji_cluster_png(emoji_text: str, px: int) -> Optional[Tuple[Path, int, int]]:
+    """Render `emoji_text` (one or more emoji characters) to a transparent
+    PNG using Pillow's `embedded_color` draw mode against the system's
+    colour-emoji font, at roughly `px`-tall glyphs. Cached to a temp file per
+    (text, size). Returns (path, width, height), or None if no colour-emoji
+    font is available in this environment.
+    """
+    if not emoji_text:
+        return None
+    cache_key = (emoji_text, px)
+    if cache_key in _EMOJI_PNG_CACHE:
+        cached = _EMOJI_PNG_CACHE[cache_key]
+        if cached is None:
+            return None
+        from PIL import Image
+
+        with Image.open(cached) as probe:
+            return cached, probe.width, probe.height
+
+    font_path = _emoji_font_path()
+    if not font_path:
+        _EMOJI_PNG_CACHE[cache_key] = None
+        return None
+
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+
+        font = None
+        native_size = None
+        for candidate in _EMOJI_FONT_NATIVE_SIZES:
+            try:
+                font = ImageFont.truetype(font_path, candidate)
+                native_size = candidate
+                break
+            except OSError:
+                continue
+        if font is None:
+            _EMOJI_PNG_CACHE[cache_key] = None
+            return None
+
+        pad = max(4, native_size // 8)
+        canvas = Image.new(
+            "RGBA",
+            (native_size * len(emoji_text) + pad * 2, native_size + pad * 2),
+            (0, 0, 0, 0),
+        )
+        draw = ImageDraw.Draw(canvas)
+        draw.text((pad, pad), emoji_text, font=font, embedded_color=True)
+        bbox = canvas.getbbox()
+        if not bbox:
+            _EMOJI_PNG_CACHE[cache_key] = None
+            return None
+        cropped = canvas.crop(bbox)
+        if native_size != px:
+            scale = px / native_size
+            new_size = (max(1, round(cropped.width * scale)), max(1, round(cropped.height * scale)))
+            cropped = cropped.resize(new_size, Image.LANCZOS)
+        out_path = Path(tempfile.mkstemp(suffix=".png", prefix="supoclip_emoji_")[1])
+        cropped.save(out_path)
+        _EMOJI_PNG_CACHE[cache_key] = out_path
+        return out_path, cropped.width, cropped.height
+    except Exception:
+        logger.warning("Emoji PNG render failed for %r", emoji_text, exc_info=True)
+        _EMOJI_PNG_CACHE[cache_key] = None
+        return None
+
+
+def overlay_image_overlays_ffmpeg(
+    input_path: Path,
+    output_path: Path,
+    image_overlays: List[Dict[str, Any]],
+) -> bool:
+    """Composite pre-rendered PNGs (see render_emoji_cluster_png) onto
+    `input_path`, each visible for its own [start, end) window with a short
+    fade in/out. Same post-render image-overlay pass emoji_reactions.py uses
+    for reaction emoji, generalized to any {path, width, height, x, y,
+    start, end} overlay spec — used for hook-title emoji, which can't be
+    burned in as ASS text either (see build_hook_title_ass)."""
+    if not image_overlays:
+        return False
+
+    has_audio = ffprobe_has_audio(input_path)
+    inputs: List[str] = ["-i", str(input_path)]
+    filter_parts: List[str] = []
+    last_label = "0:v"
+
+    for index, overlay in enumerate(image_overlays):
+        inputs.extend(["-loop", "1", "-i", str(overlay["path"])])
+        start = float(overlay["start"])
+        end = float(overlay["end"])
+        fade = min(0.25, max(0.05, (end - start) / 4))
+        img_label = f"img{index}"
+        overlay_label = f"ovr{index}"
+        filter_parts.append(
+            f"[{index + 1}:v]format=rgba,"
+            f"fade=t=in:st={start:.3f}:d={fade:.3f}:alpha=1,"
+            f"fade=t=out:st={max(start, end - fade):.3f}:d={fade:.3f}:alpha=1[{img_label}]"
+        )
+        filter_parts.append(
+            f"[{last_label}][{img_label}]overlay=x={overlay['x']}:y={overlay['y']}:"
+            f"enable='between(t,{start:.3f},{end:.3f})'[{overlay_label}]"
+        )
+        last_label = overlay_label
+
+    command = [
+        "ffmpeg", "-y",
+        *inputs,
+        "-filter_complex", ";".join(filter_parts),
+        "-map", f"[{last_label}]",
+    ]
+    if has_audio:
+        command += ["-map", "0:a", "-c:a", "copy"]
+    # The `-loop 1` image inputs never signal EOF on their own; `-shortest`
+    # alone doesn't reliably terminate this filter graph (observed hanging
+    # indefinitely without an explicit output duration, per
+    # emoji_reactions.py's own overlay pass), so cap it directly at the main
+    # video's real length.
+    duration = ffprobe_duration(input_path)
+    command += [
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-pix_fmt", "yuv420p",
+        "-t", f"{duration:.3f}",
+        str(output_path),
+    ]
+    result = run_ffmpeg_command(command, timeout=300)
+    return result.returncode == 0 and output_path.exists()
+
+
 def _balance_title_lines(words: List[str], max_chars: int) -> List[str]:
     """Split title words into one line, or two lines balanced around the middle."""
     text = " ".join(words)
@@ -1915,20 +2171,30 @@ def build_hook_title_ass(
     caption_font_px: int,
     hook_style: Optional[Dict[str, Any]] = None,
     highlight_words: Optional[List[str]] = None,
-) -> Tuple[str, List[str]]:
-    """Build the (style_line, dialogue_events) for a burned-in hook title.
+) -> Tuple[str, List[str], List[Dict[str, Any]]]:
+    """Build the (style_line, dialogue_events, image_overlays) for a
+    burned-in hook title.
 
     The title styling is derived from the caption template's hook_* defaults
     (see caption_templates.TEMPLATE_DEFAULTS), overridden by any non-None keys
     in ``hook_style`` (a per-task customization payload). With no overrides
     and a template's defaults, this renders identically to the original
     fixed top-of-frame fade+pop hook title.
+
+    Any emoji in ``hook_title`` (typically AI-appended at the very end, per
+    ai.py's HOOK_GENERATION_RULES) is split out and returned as
+    ``image_overlays`` instead of burned into the ASS text — this
+    environment's libass can't rasterise colour emoji (see CLAUDE.md), so the
+    caller composites these as a post-render image-overlay pass (see
+    overlay_image_overlays_ffmpeg), same as emoji_reactions.py already does
+    for reaction emoji.
     """
     effective = dict(template)
     for key, value in (hook_style or {}).items():
         if value is not None:
             effective[key] = value
 
+    hook_title, emoji_cluster = split_text_and_emoji(hook_title)
     uppercase = bool(template.get("uppercase"))
     title_text = hook_title.upper() if uppercase else hook_title
 
@@ -2001,9 +2267,11 @@ def build_hook_title_ass(
         f"1,0,0,0,100,100,0,0,{border_style},{outline_px},{shadow_px},{alignment},60,60,{margin_v},1"
     )
 
-    # Accent power words / numbers / user-requested keywords in the highlight
-    # colour — the same three triggers captions honour, so a keyword a user
-    # explicitly asks to highlight lights up in the hook too, not just captions.
+    # Accent power words / numbers / user-requested keywords / any other
+    # content word (i.e. not a short glue word) in the highlight colour, so
+    # the hook reads mostly yellow with only connective words left plain —
+    # a deliberately broader rule than captions' own (sparser) POWER_WORDS
+    # highlighting, since the hook only holds the frame for a few seconds.
     requested_highlights = {
         normalize_token(word) for word in (highlight_words or []) if normalize_token(word)
     }
@@ -2016,6 +2284,7 @@ def build_hook_title_ass(
                 token in POWER_WORDS
                 or any(c.isdigit() for c in token)
                 or token in requested_highlights
+                or token not in _HOOK_STOPWORDS
             )
             color = highlight if accented else primary
             spans.append(f"{{\\c{color}}}{escape_ass_text(word)}")
@@ -2027,6 +2296,52 @@ def build_hook_title_ass(
     end = min(hook_duration, max(HOOK_TITLE_MIN_SECONDS, output_duration - 0.25))
     if output_duration <= HOOK_TITLE_MIN_SECONDS:
         start, end = 0.0, max(0.5, output_duration)
+
+    image_overlays: List[Dict[str, Any]] = []
+    if emoji_cluster:
+        # render_emoji_cluster_png crops tight to the glyph's own bbox, and
+        # colour-emoji glyphs fill nearly their whole em-box (unlike text,
+        # whose cap-height is only ~0.7em) — asking for `hook_px`-tall emoji
+        # made them visibly larger than the surrounding letters. Sizing off
+        # cap-height instead makes the emoji read as part of the text.
+        glyph_px = round(hook_px * 0.78)
+        rendered = render_emoji_cluster_png(emoji_cluster, glyph_px)
+        if rendered:
+            emoji_path, emoji_w, emoji_h = rendered
+            line_height = round(hook_px * 1.2)
+            num_lines = max(1, len(lines))
+            last_line_text = lines[-1] if lines else ""
+            if alignment == 2:  # bottom-anchored (an2)
+                last_line_center_y = video_height - margin_v - line_height / 2
+            elif alignment == 5:  # vertically centered as a block (an5)
+                block_height = num_lines * line_height
+                block_top = video_height / 2 - block_height / 2
+                last_line_center_y = block_top + (num_lines - 1) * line_height + line_height / 2
+            else:  # top-anchored (an8)
+                last_line_center_y = margin_v + (num_lines - 1) * line_height + line_height / 2
+            # Text glyphs sit in the upper portion of the line box (baseline is
+            # well above the box's bottom, to leave descender room most hook
+            # words never use), so their visual cap-height center sits above
+            # the box's geometric center — nudge up to match, or the emoji
+            # reads as sitting low relative to the letters next to it.
+            cap_center_y = last_line_center_y - hook_px * 0.12
+            last_line_width = measure_text_width(
+                last_line_text, hook_font_family, hook_font_name, hook_px
+            )
+            gap = round(hook_px * 0.16)
+            emoji_x = round(video_width / 2 + last_line_width / 2 + gap)
+            emoji_y = round(cap_center_y - emoji_h / 2)
+            image_overlays.append(
+                {
+                    "path": emoji_path,
+                    "width": emoji_w,
+                    "height": emoji_h,
+                    "x": emoji_x,
+                    "y": emoji_y,
+                    "start": start,
+                    "end": end,
+                }
+            )
 
     hook_animation = effective.get("hook_animation") or "fade_pop"
     if hook_animation == "none":
@@ -2067,7 +2382,7 @@ def build_hook_title_ass(
         f"Dialogue: 1,{ass_timestamp(start)},{ass_timestamp(end)},Hook,,0,0,0,,"
         f"{override_tags}{text}"
     ]
-    return style_line, events
+    return style_line, events, image_overlays
 
 
 def build_social_overlay_ass(
@@ -2141,6 +2456,7 @@ def build_assemblyai_ass_subtitles(
     hook_style: Optional[Dict[str, Any]] = None,
     social_overlay: Optional[Dict[str, Any]] = None,
     reactions: Optional[List[Dict[str, Any]]] = None,
+    hook_image_overlays_out: Optional[List[Dict[str, Any]]] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -2149,7 +2465,10 @@ def build_assemblyai_ass_subtitles(
     scaled outline + drop shadow, and an optional pill behind the active word.
     When ``hook_title`` is set, an AI-written headline is burned into the top
     safe area while the hook plays out (it renders even when word-synced
-    captions are unavailable or disabled via ``include_captions``).
+    captions are unavailable or disabled via ``include_captions``). Any
+    emoji in the hook can't be burned in as ASS text (see build_hook_title_ass);
+    when found, they're appended to ``hook_image_overlays_out`` (if given) for
+    the caller to composite as a post-render image-overlay pass.
     """
     transcript_data = load_cached_transcript_data(video_path)
 
@@ -2251,7 +2570,7 @@ def build_assemblyai_ass_subtitles(
             output_duration = max(0.0, clip_end - clip_start)
 
         if hook_title:
-            hook_style_line, hook_events = build_hook_title_ass(
+            hook_style_line, hook_events, hook_image_overlays = build_hook_title_ass(
                 hook_title,
                 template,
                 video_width,
@@ -2263,6 +2582,8 @@ def build_assemblyai_ass_subtitles(
                 highlight_words,
             )
             hook_style_block = f"{hook_style_line}\n"
+            if hook_image_overlays_out is not None:
+                hook_image_overlays_out.extend(hook_image_overlays)
 
         if social_overlay_enabled:
             social_style_line, social_overlay_events = build_social_overlay_ass(
@@ -4135,6 +4456,7 @@ def create_optimized_clip(
             burn_ass_path: Optional[Path] = None
             fonts_dir: Optional[Path] = None
             social_overlay_enabled = bool(social_overlay and social_overlay.get("enabled"))
+            hook_image_overlays: List[Dict[str, Any]] = []
             if (
                 add_subtitles or hook_title or social_overlay_enabled or reactions
             ) and build_assemblyai_ass_subtitles(
@@ -4154,6 +4476,7 @@ def create_optimized_clip(
                 hook_style=hook_style,
                 social_overlay=social_overlay,
                 reactions=reactions,
+                hook_image_overlays_out=hook_image_overlays,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
@@ -4202,6 +4525,26 @@ def create_optimized_clip(
                             "Emoji reaction overlay pass failed for %s; clip kept without image-overlay reactions",
                             output_path,
                         )
+
+            if hook_image_overlays:
+                hook_emoji_out_path = temp_root / "with_hook_emoji.mp4"
+                try:
+                    hook_overlay_ok = overlay_image_overlays_ffmpeg(
+                        output_path, hook_emoji_out_path, hook_image_overlays
+                    )
+                except Exception:
+                    hook_overlay_ok = False
+                    logger.exception(
+                        "Hook emoji overlay pass raised for %s", output_path
+                    )
+                if hook_overlay_ok:
+                    shutil.move(str(hook_emoji_out_path), str(output_path))
+                    enforce_size_cap(output_path)
+                else:
+                    logger.warning(
+                        "Hook emoji overlay pass failed for %s; clip kept without hook emoji",
+                        output_path,
+                    )
 
             sfx_name = (hook_style or {}).get("hook_sfx") if hook_title else None
             sfx_path = find_sfx_path(sfx_name)
@@ -4379,6 +4722,36 @@ def find_sfx_path(name: Optional[str]) -> Optional[Path]:
     if path.suffix.lower() in SFX_EXTENSIONS and path.is_file():
         try:
             path.resolve().relative_to(SFX_DIR.resolve())
+        except ValueError:
+            return None
+        return path
+    return None
+
+
+MUSIC_DIR = Path(__file__).parent.parent / "music"
+MUSIC_EXTENSIONS = (".mp3", ".wav", ".m4a", ".ogg")
+
+
+def get_available_music() -> List[str]:
+    """Get list of available background-music beds (user-supplied; ships
+    empty, same licensing rationale as SFX_DIR — see backend/music/README.md)."""
+    if not MUSIC_DIR.exists():
+        return []
+    return sorted(
+        str(p) for p in MUSIC_DIR.iterdir() if p.suffix.lower() in MUSIC_EXTENSIONS
+    )
+
+
+def find_music_path(name: Optional[str]) -> Optional[Path]:
+    """Resolve a user-chosen music-bed name to a real file inside MUSIC_DIR
+    (no traversal) — mirrors find_sfx_path."""
+    if not name:
+        return None
+    candidate = Path(name).name
+    path = MUSIC_DIR / candidate
+    if path.suffix.lower() in MUSIC_EXTENSIONS and path.is_file():
+        try:
+            path.resolve().relative_to(MUSIC_DIR.resolve())
         except ValueError:
             return None
         return path

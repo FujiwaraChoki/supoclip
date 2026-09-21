@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ import { LOCAL_USER_ID } from "@/lib/local-user";
 import { formatBillingPlanName, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight, Mic, Music, SlidersHorizontal, Download, LayoutTemplate, ShieldAlert, Sparkles } from "lucide-react";
+import { Type, Palette, CheckCircle, AlertCircle, Settings, ArrowLeft, Mail, KeyRound, ChevronRight, Mic, Music, SlidersHorizontal, Download, LayoutTemplate, ShieldAlert, Sparkles, ListOrdered } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RuntimeSettingsForm, type RuntimeSetting } from "@/components/admin/runtime-settings-form";
 import { LlmConnectionTest } from "@/components/settings/llm-connection-test";
@@ -39,6 +39,8 @@ const EXPORT_SETTING_KEYS = new Set([
   "FAST_MODE_MAX_CLIPS",
   "GPU_ACCELERATION_ENABLED",
 ]);
+
+const RANKING_SETTING_KEYS = new Set(["RANKING_SFX_OFFSET_PCT", "RANKING_DEFAULT_FRAMING"]);
 
 const LLM_PROVIDER_SETTING_KEYS = new Set([
   "LLM_PROVIDER_MODE",
@@ -88,6 +90,8 @@ export default function SettingsPage() {
   const [llmStatus, setLlmStatus] = useState<{ ollama_connected: boolean; gemini_key_set: boolean } | null>(null);
   const [sfxFiles, setSfxFiles] = useState<SfxFile[]>([]);
   const [sfxError, setSfxError] = useState<string | null>(null);
+  const [isUploadingRankingSfx, setIsUploadingRankingSfx] = useState(false);
+  const rankingSfxInputRef = useRef<HTMLInputElement | null>(null);
   // Local-first: no login, so there's no real session — every user_id-shaped
   // value downstream just resolves to the single implicit local user.
   const session = { user: { id: LOCAL_USER_ID, name: "Local User", email: "", image: null as string | null } };
@@ -214,6 +218,28 @@ export default function SettingsPage() {
     loadRuntimeSettings();
   }, []);
 
+  const handleRankingSfxUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setIsUploadingRankingSfx(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/ranking/settings/sfx", { method: "POST", body: formData });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.detail || "Failed to upload SFX");
+      }
+      toast.success("Ranking transition SFX updated.");
+      await loadRuntimeSettings();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to upload SFX");
+    } finally {
+      setIsUploadingRankingSfx(false);
+    }
+  };
+
   useEffect(() => {
     const loadSfx = async () => {
       try {
@@ -238,11 +264,16 @@ export default function SettingsPage() {
   );
   const exportSettings = runtimeSettings.filter((setting) => EXPORT_SETTING_KEYS.has(setting.key));
   const llmProviderSettings = runtimeSettings.filter((setting) => LLM_PROVIDER_SETTING_KEYS.has(setting.key));
+  const rankingSettings = runtimeSettings.filter((setting) => RANKING_SETTING_KEYS.has(setting.key));
+  const rankingSfxFilename = runtimeSettings.find((setting) => setting.key === "RANKING_SFX_FILENAME")
+    ?.current_value;
   const advancedSettings = runtimeSettings.filter(
     (setting) =>
       !TRANSCRIPTION_SETTING_KEYS.has(setting.key) &&
       !EXPORT_SETTING_KEYS.has(setting.key) &&
-      !LLM_PROVIDER_SETTING_KEYS.has(setting.key),
+      !LLM_PROVIDER_SETTING_KEYS.has(setting.key) &&
+      !RANKING_SETTING_KEYS.has(setting.key) &&
+      setting.key !== "RANKING_SFX_FILENAME",
   );
 
   const handleBillingAction = async (selectedPlan?: BillingPlanId) => {
@@ -447,6 +478,53 @@ export default function SettingsPage() {
                   ))}
                 </ul>
               )}
+            </div>
+
+            <Separator />
+
+            {/* Ranking Section — transition SFX, offset, and default framing for the Ranking tool */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground mb-1 flex items-center gap-2">
+                  <ListOrdered className="w-4 h-4" />
+                  Ranking
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Defaults for the Ranking tool&apos;s compilation render — the transition sound
+                  effect, how early it starts before each cut, and how non-9:16 clips fill the
+                  frame by default.
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-background px-4 py-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Transition SFX</p>
+                  <p className="text-xs text-muted-foreground">
+                    {rankingSfxFilename ? rankingSfxFilename : "No SFX set — transitions are silent."}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isUploadingRankingSfx}
+                  onClick={() => rankingSfxInputRef.current?.click()}
+                >
+                  {isUploadingRankingSfx ? "Uploading…" : rankingSfxFilename ? "Replace" : "Upload"}
+                </Button>
+                <input
+                  ref={rankingSfxInputRef}
+                  type="file"
+                  accept="audio/mpeg,audio/wav,audio/mp4,audio/ogg,.mp3,.wav,.m4a,.ogg"
+                  className="hidden"
+                  onChange={handleRankingSfxUpload}
+                />
+              </div>
+              <div className="rounded-lg border border-border bg-background">
+                {runtimeSettingsError ? (
+                  <div className="px-4 py-5 text-sm text-foreground font-bold">{runtimeSettingsError}</div>
+                ) : (
+                  <RuntimeSettingsForm settings={rankingSettings} onSaved={loadRuntimeSettings} />
+                )}
+              </div>
             </div>
 
             <Separator />

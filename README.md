@@ -67,7 +67,8 @@ SupoClip gives you the same core pipeline without the leash:
 - **Optional GPU-accelerated rendering** — enable hardware encoding in Settings; it's automatically disabled with an explanation if no supported GPU is detected
 - **Recoverable deletes** — deleting a project moves it to Trash (the source video is never touched); restore it or delete it forever
 - **Light/dark theme** — follows your system preference by default, toggle persists across sessions
-- **Built as a platform** — a tool tab bar sits above the clipping screens; clipping is the first tool, with a "More Tools" placeholder marking where future tools (a ranking/compilation tool, a voiceover/animation tool, etc.) will plug in
+- **Built as a platform** — a tool tab bar sits above the product screens; Clipping and Ranking are the first two tools, with the same tab-bar shell ready to host future tools (a voiceover/animation tool, etc.)
+- **Ranking tool** — point at a folder of short clips (via a folder picker or drag-and-drop; flat, no nesting, MP4/MOV/MKV/WEBM, at least 5 clips), auto-select 5 at random (preferring clips you haven't used in a previous ranking from that folder), swap any of them, and write a short line of text per rank — reused automatically next time that same clip comes up. Renders one 9:16 compilation with all 5 ranks always visible on the left, each rank's text revealing (with a subtle bounce) as its clip plays and then staying on screen, #1 in gold; non-9:16 clips fill the frame with a blurred version of themselves by default rather than cropping the action out. An optional transition SFX plays before each cut and is timed so its final play ends exactly when the video does — no black frame. Four templates ship (Rapid Fire, Countdown, Ranking List, and the folder-workflow's Classic Ranking); exportable with the same platform presets as Clipping
 
 ## Quick Start
 

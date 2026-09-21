@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional
 import json
 
 from ..observability import configure_logging, set_trace_id
+from ..repositories.task_repository import TaskRepository
 
 configure_logging()
 
@@ -135,6 +136,63 @@ async def process_video_task(
             raise
 
 
+async def process_ranking_task(ctx: Dict[str, Any], task_id: str) -> Dict[str, Any]:
+    """Background worker job for the Ranking/Compilation tool: renders one
+    compilation video from a ranking task's ordered input videos (see
+    RankingService.process_ranking_complete). Mirrors process_video_task's
+    session/progress/error-handling shape."""
+    from ..database import AsyncSessionLocal
+    from ..runtime_settings import load_runtime_settings_cache
+    from ..services.ranking_service import RankingService
+    from ..workers.progress import ProgressTracker
+
+    set_trace_id(f"ranking-{task_id}")
+    logger.info(f"Worker processing ranking task {task_id}")
+
+    progress = ProgressTracker(ctx["redis"], task_id)
+
+    async with AsyncSessionLocal() as db:
+        await load_runtime_settings_cache(db)
+        ranking_service = RankingService(db)
+
+        async def update_progress(
+            percent: int, message: str, status: str = "processing", stage: str | None = None
+        ):
+            await progress.update(percent, message, status, stage=stage)
+            logger.info(f"Ranking task {task_id}: {percent}% - {message}")
+
+        try:
+            result = await ranking_service.process_ranking_complete(
+                task_id=task_id, progress_callback=update_progress
+            )
+            logger.info(f"Ranking task {task_id} completed successfully")
+            return result
+        except Exception as e:
+            logger.error(f"Ranking task {task_id} failed: {e}", exc_info=True)
+            try:
+                job_try = int(ctx.get("job_try", 1))
+                max_tries = int(getattr(WorkerSettings, "max_tries", 3))
+                if job_try >= max_tries:
+                    await db.rollback()
+                    await TaskRepository.update_task_status(
+                        db, task_id, "error", progress_message=str(e)
+                    )
+                    payload = {
+                        "task_id": task_id,
+                        "error": str(e),
+                        "tries": job_try,
+                    }
+                    await ctx["redis"].set(
+                        f"dead_letter:{task_id}", json.dumps(payload)
+                    )
+                    await ctx["redis"].sadd("tasks:dead_letter", task_id)
+                    await progress.error("Ranking task failed permanently after retries")
+            except Exception:
+                logger.exception("Failed to persist ranking task failure state")
+            # Error will be caught by arq and task status will be updated
+            raise
+
+
 async def process_batch_queue_task(ctx: Dict[str, Any], batch_queue_id: str) -> None:
     """Background worker job for a batch queue: walks its items sequentially
     (see BatchQueueService.run_batch). Pause/cancel is signaled the same way
@@ -176,7 +234,7 @@ class WorkerSettings:
     config = Config()
 
     # Functions to run
-    functions = [process_video_task, process_batch_queue_task]
+    functions = [process_video_task, process_batch_queue_task, process_ranking_task]
     queue_name = "supoclip_tasks"
 
     # Redis settings from environment

@@ -1,0 +1,15 @@
+{
+  "name": "Rapid Fire",
+  "description": "Quick-cut sequence of all clips in rank order with a bold number overlay on each — the simplest ranking format, no intro/outro or transition SFX.",
+  "layout": "full_screen",
+  "transition": "cut",
+  "transition_duration_seconds": 0.1,
+  "number_overlay": {
+    "position": "bottom",
+    "color": "teal",
+    "animation": "fade_pop"
+  },
+  "intro": null,
+  "outro": null,
+  "caption_placement": null
+}

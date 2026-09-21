@@ -88,7 +88,9 @@ services:
       - ./backend/fonts:/app/fonts
       - ./backend/transitions:/app/transitions
       - ./backend/sfx:/app/sfx
+      - ./backend/music:/app/music
       - ./backend/assets:/app/assets
+      - ./backend/templates:/app/templates
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -140,6 +142,13 @@ services:
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     depends_on:
       postgres:
         condition: service_healthy
@@ -196,7 +205,9 @@ services:
       - ./backend/fonts:/app/fonts
       - ./backend/transitions:/app/transitions
       - ./backend/sfx:/app/sfx
+      - ./backend/music:/app/music
       - ./backend/assets:/app/assets
+      - ./backend/templates:/app/templates
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -245,6 +256,13 @@ services:
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     depends_on:
       postgres:
         condition: service_healthy

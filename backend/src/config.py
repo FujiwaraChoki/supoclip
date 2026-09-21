@@ -146,6 +146,24 @@ class Config:
             self._get_runtime_setting("AUTO_GENERATE_METADATA_ENABLED") or "true"
         ).strip().lower() == "true"
 
+        # Ranking tool settings (Settings -> Ranking). The SFX file itself is
+        # uploaded via POST /ranking/settings/sfx into SFX_DIR (video_utils.py)
+        # under this reserved filename; this setting only remembers which
+        # filename (if any) is the configured default, same "settings row
+        # holds a reference, not the bytes" pattern as everything else here.
+        self.ranking_sfx_filename = self._get_runtime_setting("RANKING_SFX_FILENAME") or None
+        self.ranking_sfx_offset_pct = float(
+            self._get_runtime_setting("RANKING_SFX_OFFSET_PCT") or "10"
+        )
+        self.ranking_default_framing = self._normalize_ranking_framing(
+            self._get_runtime_setting("RANKING_DEFAULT_FRAMING") or "blur_fill"
+        )
+
+    @staticmethod
+    def _normalize_ranking_framing(value: str) -> str:
+        value = (value or "").strip().lower()
+        return value if value in {"blur_fill", "crop_fill", "letterbox"} else "blur_fill"
+
     def max_youtube_video_duration_for_plan(
         self, plan: str | None, subscription_status: str | None
     ) -> int:
@@ -210,6 +228,9 @@ class Config:
             "LLM_PROVIDER_MODE": self.llm_provider_mode,
             "OLLAMA_MODEL": self.ollama_model,
             "GEMINI_MODEL": self.gemini_model,
+            "RANKING_SFX_FILENAME": self.ranking_sfx_filename,
+            "RANKING_SFX_OFFSET_PCT": str(self.ranking_sfx_offset_pct),
+            "RANKING_DEFAULT_FRAMING": self.ranking_default_framing,
         }
 
     @staticmethod

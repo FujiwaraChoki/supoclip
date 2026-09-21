@@ -812,6 +812,12 @@ async def update_task(
 
         task = await _require_task_owner(request, task_service, db, task_id)
 
+        if not task.get("source_id"):
+            raise HTTPException(
+                status_code=400,
+                detail="This task has no source to rename (e.g. a ranking project)",
+            )
+
         # Update source title
         await task_service.source_repo.update_source_title(db, task["source_id"], title)
 

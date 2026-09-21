@@ -50,11 +50,26 @@ interface Task {
   source_type: string;
   source_url?: string | null;
   status: string;
+  task_type?: string;
   progress?: number;
   progress_message?: string | null;
   clips_count: number;
   created_at: string;
   updated_at: string;
+}
+
+/** Ranking projects have no single `source` row, so `source_title` comes
+ * back null from the API — fall back to a generic label rather than
+ * rendering blank. */
+function projectTitle(task: Task): string {
+  if (task.source_title) return task.source_title;
+  return task.task_type === "ranking" ? "Ranking compilation" : "Untitled";
+}
+
+/** Both project types share this one list (per CLAUDE.md's Ranking tool
+ * section) but open in their own tool's route. */
+function projectHref(task: Task): string {
+  return task.task_type === "ranking" ? `/rank/tasks/${task.id}` : `/tasks/${task.id}`;
 }
 
 /** YouTube thumbnail URL derived client-side from the source URL — no backend work needed. */
@@ -546,8 +561,8 @@ export default function ListPage() {
                         disabled={activeBatchAction !== null}
                         aria-label={
                           isSelected
-                            ? `Deselect ${task.source_title}`
-                            : `Select ${task.source_title}`
+                            ? `Deselect ${projectTitle(task)}`
+                            : `Select ${projectTitle(task)}`
                         }
                       />
                     </div>
@@ -569,16 +584,24 @@ export default function ListPage() {
                     </div>
 
                     {/* Content — links to task detail */}
-                    <Link href={`/tasks/${task.id}`} className="flex-1 min-w-0">
+                    <Link href={projectHref(task)} className="flex-1 min-w-0">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
                           <h3 className="truncate text-sm font-semibold text-foreground transition-colors group-hover:text-muted-foreground">
-                            {task.source_title}
+                            {projectTitle(task)}
                           </h3>
                           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                            <span className="uppercase tracking-wide font-medium text-muted-foreground">
-                              {task.source_type}
-                            </span>
+                            <Badge variant="outline" className="capitalize">
+                              {task.task_type === "ranking" ? "Ranking" : "Clipping"}
+                            </Badge>
+                            {task.task_type !== "ranking" && (
+                              <>
+                                <Separator orientation="vertical" className="h-3" />
+                                <span className="uppercase tracking-wide font-medium text-muted-foreground">
+                                  {task.source_type}
+                                </span>
+                              </>
+                            )}
                             <Separator orientation="vertical" className="h-3" />
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />

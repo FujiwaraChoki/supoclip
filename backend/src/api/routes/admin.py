@@ -125,6 +125,25 @@ SETTING_METADATA = {
         "input_type": "select",
         "options": ["true", "false"],
     },
+    "RANKING_SFX_FILENAME": {
+        "label": "Ranking transition SFX",
+        "description": "Filename of the sound effect played at every cut in a ranking compilation. "
+        "Set by uploading a file in Settings -> Ranking; leave blank for silent transitions.",
+        "input_type": "text",
+    },
+    "RANKING_SFX_OFFSET_PCT": {
+        "label": "Ranking SFX offset (%)",
+        "description": "How far before each cut the transition SFX starts, as a percentage of the "
+        "SFX's own length.",
+        "input_type": "text",
+    },
+    "RANKING_DEFAULT_FRAMING": {
+        "label": "Ranking default framing",
+        "description": "How a ranking clip that isn't already 9:16 fills the frame by default "
+        "(overridable per clip).",
+        "input_type": "select",
+        "options": ["blur_fill", "crop_fill", "letterbox"],
+    },
     "LLM_PROVIDER_MODE": {
         "label": "Local LLM provider mode",
         "description": "Ollama (local) is always tried first for content-policy/metadata features. "
@@ -149,8 +168,15 @@ SETTING_METADATA = {
     "GEMINI_MODEL": {
         "label": "Gemini model",
         "description": "Fallback model used when Ollama is unavailable and LLM_PROVIDER_MODE allows it. "
-        "Uses the same Google API key as the general LLM setting.",
-        "input_type": "text",
+        "Uses the same Google API key as the general LLM setting. Flash-lite variants are the "
+        "cheapest/fastest and are plenty for hook and metadata generation.",
+        "input_type": "select",
+        "options": [
+            "gemini-3.5-flash-lite",
+            "gemini-3-flash-lite",
+            "gemini-3.5-flash",
+            "gemini-3-flash-preview",
+        ],
     },
 }
 

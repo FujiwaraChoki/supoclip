@@ -1,324 +1,173 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Read this first. Full depth lives in `docs/` — this file is a map and a
+scan-list, not the source of truth. If this file and the code disagree, the
+code wins; fix this file in the same commit.
 
 ## Project Overview
 
-SupoClip is an open-source alternative to OpusClip — an AI-powered video clipping tool that transforms long-form content into viral short clips. AGPL-3.0 licensed. Hosted at supoclip.com; self-hostable via Docker Compose.
+SupoClip is an open-source (AGPL-3.0) OpusClip alternative: turns long-form
+video into AI-selected, captioned, vertical short clips. Local-first (no
+login/cloud required by default), self-hostable via Docker Compose, also
+hosted at supoclip.com. A multi-tool platform: Clipping (one source video in,
+many clips out) and Ranking (N input videos in, one ranked compilation video
+out) are the two tools live today, sharing one tab-bar shell; a voiceover/
+animation tool is the next planned addition. See
+[docs/architecture.md](docs/architecture.md#multi-tool-platform--ranking-tool)
+for how the shell and the ranking pipeline work.
 
-A `docs/` directory is the canonical deep-dive documentation (start at [docs/README.md](docs/README.md)): [architecture.md](docs/architecture.md), [configuration.md](docs/configuration.md), [api-reference.md](docs/api-reference.md), [app-guide.md](docs/app-guide.md), [development.md](docs/development.md), [troubleshooting.md](docs/troubleshooting.md). Prefer those for detail beyond what's below.
+## Tech Stack
 
-**[DESIGN.md](DESIGN.md) is required reading before touching any UI.** It defines the Swiss/International-Typographic-Style design system (locked 4-color palette, type scale, spacing/grid, and per-component rules) that every core-product screen (Home, Clipping tool, Settings) must follow. Frontend marketing/legal pages (`blog`, `terms`, `privacy`, `share`, the landing `[slug]` page) are exempt — they're slated for removal and intentionally out of scope for the design system.
+- Backend: Python 3.11+, FastAPI 0.121+, `pydantic-ai` 1.89+, `asyncpg`, ARQ (Redis-backed worker queue), `uv` for deps
+- Frontend: Next.js 15.4 (App Router, Turbopack), React 19.1, TypeScript 5.9, TailwindCSS v4, ShadCN/Radix, Prisma (Better Auth only), `pnpm`
+- Data: PostgreSQL 15, Redis
+- Media: ffmpeg + libass (rendering/subtitles), MediaPipe/OpenCV/Haar (face crop), AssemblyAI (transcription), Ollama (local LLM, primary) / Gemini (fallback) / OpenAI / Anthropic
+- Tests: pytest (backend), Vitest (frontend unit), Playwright (e2e)
 
-## Development Commands
+## Directory Structure
 
-### Docker (recommended)
+```
+backend/src/api/routes/     FastAPI route handlers (tasks, media, admin, templates, metadata, billing)
+backend/src/services/       Business logic (task orchestration, video pipeline, metadata, batch queue)
+backend/src/repositories/   Raw-SQL (asyncpg) DB access, one class per table family
+backend/src/workers/        ARQ job queue, task definitions, Redis progress pub/sub, GPU/LLM resource locks
+backend/src/migrations/sql/ Hand-written SQL migrations, timestamp-prefixed, applied in filename order
+backend/src/*.py            Domain modules — ai.py, video_utils.py, clip_editor.py, clip_cleanup.py, etc. (see Key Files)
+backend/fonts/              .ttf files, auto-served via GET /fonts
+backend/transitions/        .mp4 files, auto-served via GET /transitions
+backend/templates/          Folder-based templates for non-clipping tools (e.g. templates/ranking/<name>/config.json)
+backend/tests/              pytest suite
+frontend/src/app/           Next.js routes; (clipping)/ is a route group for /create /list /tasks/[id] /trash
+frontend/src/components/    React components; editor/, home/, ui/ (ShadCN primitives) subfolders
+frontend/src/lib/           Client-side helpers — one file per concern, no barrel exports
+frontend/src/tools/         Multi-tool shell: Tool type, registry.ts, per-tool descriptor folders
+frontend/prisma/            Better Auth schema (only exercised when REQUIRE_AUTH=true)
+frontend/e2e/               Playwright specs
+docs/                       Deep-dive docs — architecture, api-reference, configuration, development, troubleshooting, setup, app-guide
+mcp/                        Standalone MCP server (thin REST client), separate uv project
+init.sql                    Full Postgres schema (source of truth for table shapes)
+docker-compose.yml          Frontend/backend/worker/postgres/redis service definitions
+```
+
+## Key Files
+
+| File | Why you'll touch it |
+|---|---|
+| `backend/src/main_refactored.py` | Active FastAPI entry point (never `main.py`, legacy) |
+| `backend/src/api/routes/tasks.py` | Task CRUD, SSE progress, clip trim/split/merge/export endpoints |
+| `backend/src/services/task_service.py` | Per-task orchestration: calls video/metadata/content-policy in sequence |
+| `backend/src/services/video_service.py` | Download → transcribe → AI analysis → clip generation pipeline |
+| `backend/src/ai.py` | LLM prompts (segment selection, hook generation), Ollama/Gemini fallback logic |
+| `backend/src/video_utils.py` | ffmpeg cropping, subtitle/hook ASS generation, encode args, size cap |
+| `backend/src/clip_cleanup.py` | Pause/filler-word cut-range logic (sensitivity slider) |
+| `backend/src/clip_editor.py` | Trim/split/merge, `EXPORT_PRESETS` |
+| `backend/src/config.py` | `Config` class — all env vars + runtime-setting overrides |
+| `backend/src/runtime_settings.py` | Admin-configurable settings storage (DB-backed, env fallback) |
+| `backend/src/repositories/task_repository.py` | Raw SQL for `tasks` table |
+| `backend/src/repositories/clip_repository.py` | Raw SQL for `generated_clips`, metadata staleness check |
+| `backend/src/workers/tasks.py` | ARQ job entry point (`process_video_task`) |
+| `frontend/src/app/(clipping)/tasks/[id]/page.tsx` | Main project page: clip list, export, safe zones, metadata panel |
+| `frontend/src/app/(clipping)/tasks/[id]/edit/page.tsx` | Fine-controls editor: trim/FX/captions live preview |
+| `frontend/src/app/(clipping)/create/page.tsx` | New-task form |
+| `frontend/src/app/settings/page.tsx` | User-facing settings (runtime settings form + local-only prefs) |
+| `frontend/src/tools/registry.ts` | The list of tools shown in the tab bar |
+| `init.sql` | Postgres schema — check here before assuming a column exists |
+
+## How to Run Locally
 
 ```bash
-docker-compose up -d --build      # Start/rebuild all services
-docker-compose logs -f backend    # Debug backend
-docker-compose logs -f worker     # Debug video processing
-docker-compose down               # Stop all services
+docker-compose up -d --build      # everything (recommended)
+docker-compose logs -f backend    # or worker / frontend
 ```
 
-Services: Frontend (:3107 locally / :3001 on the host in Docker, container port 3107), Backend API (:8000, docs at `/docs`), Worker (ARQ), PostgreSQL (:5432), Redis (:6379).
+Backend only: `cd backend && uv sync && uvicorn src.main_refactored:app --reload --port 8000` + `arq src.workers.tasks.WorkerSettings` (worker required for processing).
+Frontend only: `cd frontend && pnpm install && pnpm run dev` (port 3107).
+Tests: `make test` (backend+frontend), `make test-backend`, `make test-frontend`, `make test-e2e` (needs `docker-compose up -d postgres redis`), `make test-ci` (all, as CI runs it).
+Single backend test: `cd backend && .venv/bin/pytest tests/unit/test_x.py -k name`. Single frontend test: `cd frontend && pnpm exec vitest run path/to/file.test.ts`.
 
-### Backend (local)
+## Where Things Live
 
-Uses `uv` (not pip/poetry). Requires Python 3.11+, ffmpeg, running PostgreSQL and Redis.
+- Design system → [DESIGN.md](DESIGN.md)
+- Roadmap → [future-plan.md](future-plan.md)
+- Decisions log (don't re-litigate) → [DECISIONS.md](DECISIONS.md)
+- Session history → [SESSION_LOG.md](SESSION_LOG.md)
+- Dev-session bug cache → [TROUBLESHOOTING.md](TROUBLESHOOTING.md) (root) — distinct from [docs/troubleshooting.md](docs/troubleshooting.md), which is the user/operator runbook (services won't start, docker/env issues)
+- Feature implementation gotchas (full detail) → [docs/development.md](docs/development.md#feature-implementation-notes-gotchas)
+- Architecture / data flow / DB schema → [docs/architecture.md](docs/architecture.md)
+- API endpoint list → [docs/api-reference.md](docs/api-reference.md)
+- Config schema → `backend/src/config.py` (`Config` class); admin-editable subset → `backend/src/runtime_settings.py`; full env var list → [docs/configuration.md](docs/configuration.md)
+- Ollama config → `backend/src/config.py` (`ollama_*` fields) + `backend/src/ollama_status.py` (`check_ollama_status`, live probe)
+- Metadata cache → `generated_clips.metadata_*` columns (`init.sql`), read/written via `backend/src/repositories/clip_repository.py`
+- Safe zones config → `frontend/src/lib/safe-zones.ts` (`PLATFORM_SAFE_ZONES`)
+- Settings templates (save/apply a project's settings) → `backend/src/api/routes/templates.py`, `project_templates` table
+- Caption style templates (font/animation presets) → `backend/src/caption_templates.py` (hardcoded dict, not folder-based)
+- Ranking-tool templates → `backend/templates/ranking/<name>/config.json`, loaded by `backend/src/ranking_templates.py` (four ship today — `rapid_fire`, `countdown`, `ranking_list`, `ranking_classic` — see `docs/architecture.md`). `ranking_classic` is the folder-workflow default: `number_overlay.style: "stacked"` (always-visible 5..1 column, #1 gold, per-rank text reveal/persist, bounce) and `use_global_sfx: true` (Settings-configured transition SFX + offset instead of a template-named file) dispatch to different code paths in `ranking_overlay.py`/`ranking_service.py` than the three tile-based templates — see Common Pitfalls below.
+- Ranking tool routes → `backend/src/api/routes/ranking.py`; render pipeline → `backend/src/services/ranking_service.py`; one project's N attached clips → `ranking_inputs` table (`backend/src/repositories/ranking_repository.py`)
+- Ranking folder library (random/prefer-unused selection + cross-ranking text memory) → `ranking_folders`/`ranking_folder_clips` tables, `backend/src/repositories/ranking_folder_repository.py`. A "folder" is a user-named batch of clips picked via the browser (directory picker or multi-file drop) under `POST /ranking/folders/scan`, keyed by `(folder, content_hash)` so re-adding the same file resolves to the same row. **Text memory** lives in `ranking_folder_clips.saved_text` (mirrored into that ranking's own `ranking_inputs.rank_text` on save/render — the input's copy is what actually renders, the library's copy is what pre-fills next time). **Usage tracking** is `ranking_folder_clips.use_count`/`last_used_at`, incremented in `RankingService.process_ranking_complete` when a ranking using that clip renders. Frontend at `frontend/src/app/(rank)/rank/`.
+- Ranking SFX/offset/default-framing settings → `RANKING_SFX_FILENAME`/`RANKING_SFX_OFFSET_PCT`/`RANKING_DEFAULT_FRAMING` in `backend/src/config.py` + `runtime_settings.py` (same admin-settings mechanism as everything else in Settings). The SFX file itself uploads via `POST /ranking/settings/sfx` into `backend/sfx/` (video_utils.py's `SFX_DIR`, same directory clipping's curated SFX ship from) under the reserved name `ranking_default.<ext>` — only the filename is a setting, not the bytes.
+- Cut logic (pause/filler removal) → `backend/src/clip_cleanup.py` (settings/thresholds) + `video_utils.py::build_clip_keep_ranges` (applies cuts)
+- Caption rendering → `video_utils.py::build_assemblyai_ass_subtitles` (captions), `build_hook_title_ass` (hooks)
+- Hook generation prompt → `backend/src/ai.py::HOOK_GENERATION_RULES`
 
-```bash
-cd backend
-uv venv .venv && source .venv/bin/activate
-uv sync
+## Common Pitfalls
 
-uvicorn src.main_refactored:app --reload --host 0.0.0.0 --port 8000  # API
-arq src.workers.tasks.WorkerSettings                                  # Worker (required for video processing)
-```
+One line each — full rationale in [docs/development.md](docs/development.md#feature-implementation-notes-gotchas).
 
-### Frontend (local)
+- Font/hook sizing scales off the *shorter* frame dimension, not width — width-only scaling balloons captions on 16:9/1:1 outputs.
+- `max_clips`/`target_duration_seconds` are per-request overrides threaded through 5 layers — `/resume` must forward them from saved metadata or silently drops them.
+- SSE initial status reads the cached Redis snapshot, not the DB row — the DB never persists `stage`. On error/cancel, progress freezes at last real % (never resets to 0).
+- Clip-cleanup pause threshold floor is 600ms, not 300ms — 300ms fell inside normal speech gaps and cut continuous speech. Cuts below 1.2s also require a sentence-boundary word before them.
+- Task delete is soft (`deleted_at`) — every task query must filter `deleted_at IS NULL`, or trashed tasks leak back into lists.
+- `enforce_size_cap()` and `build_audio_output_args()` are the *only* places that should re-encode-for-size or build `loudnorm` args — hand-rolling either at a new call site breaks the 300MB cap or loudness normalization silently.
+- `EXPORT_PRESETS` dict order is display order and `preset=` values are persisted externally — never reorder or rename existing entries.
+- ffmpeg/libass here cannot render color emoji glyphs at all (verified, not a font problem) — emoji reactions are PNG image overlays, not ASS text.
+- `HOOK_GENERATION_RULES` in `ai.py` is the single source for hook-writing rules, shared by both hook call sites — don't duplicate it.
+- `GET /tasks/` and `/trash` clamp `limit` to [1,500]; frontend requests `?limit=500` explicitly for "select all" to see everything.
+- `detect_gpu_encoder()` always re-verifies with a real NVENC encode attempt — never trust the saved setting or ffmpeg's compiled-encoder list.
+- Metadata generates once per video (not per clip) in one LLM call, auto-triggered at 98% progress, gated by `AUTO_GENERATE_METADATA_ENABLED`. User-edited metadata fields are never silently overwritten by passive regeneration (tracked via `*_user_edited` booleans) — only the explicit "Regenerate" button overwrites.
+- Ollama calls and video renders share one Redis-backed `"gpu"` semaphore (`workers/resource_locks.py`) — a new render or LLM call site must acquire it too, or VRAM contention returns.
+- Batch queue state lives in Postgres (`batch_queues`/`batch_queue_items`), not browser memory — that's what makes resume-after-restart possible.
+- Safe Zone Overlay is frontend-only (SVG, `pointer-events-none`) — it never reaches ffmpeg or the export. Not appearing in an exported file is correct behavior, not a bug.
+- Most pages still use literal Tailwind colors (`stone-*`), not the semantic theme tokens — dark mode only fully works on ShadCN primitives and page shells.
+- ASS `BorderStyle=3` (opaque box) fills using **OutlineColour**, not `BackColour`, on this project's libass build (verified directly, same "probe don't assume" caveat as the color-emoji pitfall above) — `ranking_overlay.py`'s rank-number tile sets `OutlineColour` to the tile fill color for this reason; don't "fix" it back to `BackColour`.
+- An ffmpeg filtergraph label produced by another filter (e.g. `[araw]` from `concat`) can only feed *one* downstream filter, unlike a raw `[N:a]`/`[N:v]` input pad — reusing it twice (ranking's background-music ducking needs the dialogue track as both the sidechain key and the final mix input) errors "Invalid stream specifier"/"matches no streams"; `asplit`/`split` it into separate labels first. Verified by actually running the graph, not assumed.
+- Ranking-tool `transition_sfx` mixes into the *main* render's `filter_complex` (extra `-i` per boundary + `adelay`/`amix`), not via `video_utils.py`'s `mix_sfx_into_clip` post-pass — that helper re-encodes the whole file per call, which would mean N-1 re-encodes for N-1 cut boundaries instead of one combined pass.
+- A ranking template's `render_order: "descending"` (Countdown, Ranking List) only flips *playback* order — `RankingService._resolve_ranks` computes each item's displayed digit off the ascending (#1-first) order before that reversal, so #1 always displays as "1" regardless of when it plays. Reversing before `_resolve_ranks` instead would make the digits themselves count backwards.
+- `loudnorm` (or any `-af`) can't be combined with `-filter_complex` on the same output stream — ffmpeg errors "Simple and complex filtering cannot be used together". Any ffmpeg command that already uses `-filter_complex` (e.g. `ranking_service.py`'s multi-input concat) must add loudnorm as a filter-graph step (`[in]loudnorm=...[out]`), not as a `-af` flag.
+- Ranking videos are explicitly exempt from the site's locked 4-color palette (DESIGN.md) — `ranking_overlay.py::build_ranking_overlay_ass`'s gold `#FFD700` for the #1 rank is the one deliberate departure, used only in rendered video output, never in site UI.
+- `ranking_service.py::_render_compilation`'s `use_global_sfx` flag (only `ranking_classic` sets it) changes SFX behavior in two ways at once: the offset-before-cut comes from `Config.ranking_sfx_offset_pct` instead of firing exactly on the boundary, and one *extra* SFX instance is appended whose start is timed so its tail lands exactly at video end (`total_duration - sfx_duration`) — the three tile-based templates' own `transition_sfx` keeps the original boundary-exact, no-extra-instance behavior unchanged so their existing tests/behavior don't shift.
+- Per-clip framing (`blur_fill`/`crop_fill`/`letterbox`, `ranking_inputs.framing`) is resolved and applied uniformly for every ranking template via `RankingService._framing_filter`, not just `ranking_classic` — `blur_fill` (the tool-wide default) preserves the whole source frame with a blurred, scaled-to-fill copy behind it, since ranking inputs are often chaotically-framed footage where a center-crop would cut the subject out.
+- A multi-file Next.js dev server edit across several new route files can leave Turbopack's HMR in a broken state (every route 500s, no logged stack trace) — a plain `restart` isn't enough since `.next`'s build cache survives it; use `docker compose up -d --force-recreate frontend` to get a clean container.
+- Route groups (`(clipping)/`, `(rank)/`) don't contribute a URL segment — two groups both containing e.g. `create/page.tsx` collide on `/create`. A second tool's pages need their own segment inside its group (e.g. `(rank)/rank/create/page.tsx` for `/rank/create`), not just a same-named file one level down.
 
-Package manager is **pnpm** (pinned via `packageManager` in `package.json`), not npm.
+## Coding Conventions
 
-```bash
-cd frontend
-pnpm install
-pnpm run dev          # Dev server with Turbopack, port 3107
-pnpm run build        # Prisma generate + Next.js build
-pnpm run lint
-```
+- Backend: Python 3.11+, 4-space indent, type hints, `snake_case`, all DB access via repository classes with raw SQL (no ORM), blocking work wrapped in `run_in_thread()`.
+- Frontend: TypeScript/React, 2-space indent, `PascalCase` components, `camelCase` vars, `@/*` imports, no global state library (hooks only), `toast` from `@/lib/toast` (never `"sonner"` directly).
+- No comments explaining *what* code does — only non-obvious *why*.
+- Don't add abstractions, fallbacks, or config flags for hypothetical future needs.
 
-### Tests
+## Constraints
 
-There is a real three-layer test suite (backend pytest, frontend Vitest, Playwright e2e), run via `make` from the repo root or directly per app. Postgres and Redis must be running for backend/e2e tests (`docker-compose up -d postgres redis` is enough).
+- Local-first: no login/cloud required by default (`REQUIRE_AUTH=false`); don't add features that assume a hosted backend.
+- Minimal deps: prefer stdlib/already-installed packages; justify any new dependency.
+- Backwards compat: DB migrations are additive; old task/clip rows without a new column must still work.
+- 4-color palette locked (ink/paper/teal/blue) for all core-product screens — see DESIGN.md. No new colors, gradients, shadows, or opacity tricks (one sanctioned scrim exception).
+- Ollama-first for LLM features, Gemini/cloud is opt-in fallback only — never the reverse default.
 
-```bash
-make test          # backend + frontend
-make test-backend  # cd backend && uv sync --all-groups && .venv/bin/pytest
-make test-frontend # cd frontend && npm install && npm run test:coverage (Makefile uses npm, not pnpm)
-make test-e2e      # Playwright smoke tests against real frontend+backend
-make test-ci       # everything, as CI runs it
-```
+## How to Add X
 
-Run a single backend test: `cd backend && .venv/bin/pytest tests/unit/test_ai_prompt.py -k some_test`.
-Run a single frontend test: `cd frontend && pnpm exec vitest run path/to/file.test.ts`.
-
-CI (`.github/workflows/tests.yml`) runs `backend`, `frontend`, and `e2e` as separate jobs against Postgres/Redis service containers.
-
-## Architecture
-
-### System Overview
-
-```
-User → Frontend (Next.js 15) → Backend API (FastAPI) → Redis Queue → ARQ Worker
-                                      ↓                                  ↓
-                               PostgreSQL ←───────────────────────────────┘
-```
-
-Task creation returns immediately (<100ms). Video processing happens asynchronously in the worker. Frontend connects via SSE for real-time progress updates.
-
-### Local-first auth model
-
-By default the app runs with **no login**: both frontend and backend resolve every request to a single implicit user (`LOCAL_USER_ID = "local"`), controlled by the `REQUIRE_AUTH` env var (must be set identically on both sides — see `backend/src/auth_headers.py` and `frontend/src/lib/local-user.ts` / `frontend/src/server/session.ts`). Set `REQUIRE_AUTH=true` to restore real multi-tenant Better Auth session checks (used for the hosted deployment). There are currently no `/sign-in`, `/sign-up`, or admin dashboard pages in the frontend — those are hosted-mode/legacy concerns; check `git log`/`docs/` before assuming they exist.
-
-Frontend-to-backend requests (when auth is required) are authenticated via HMAC-signed headers (`x-supoclip-user-id`, `x-supoclip-ts`, `x-supoclip-signature`), not raw session cookies. Programmatic clients (MCP server, API consumers) instead use a per-user API key (`Authorization: Bearer sk_...` or `x-api-key`), resolved by `auth_headers.resolve_authenticated_user_id` (API key → DB lookup, else falls back to signed session headers). Only the SHA-256 hash of an API key is stored (`api_keys` table); the frontend manages keys at `/settings/api-keys`.
-
-### Backend: Layered Architecture
-
-The backend was refactored from monolithic (`main.py`, legacy — do not use for new work) to layered (`main_refactored.py`, active):
-
-```
-api/routes/          → HTTP handlers (tasks.py, media.py)
-services/            → Business logic (task_service.py, video_service.py)
-repositories/        → Raw SQL via asyncpg (task_repository.py, clip_repository.py, source_repository.py)
-workers/             → ARQ job queue (tasks.py, job_queue.py, progress.py)
-utils/               → Thread pool helpers for blocking operations (async_helpers.py)
-```
-
-**Key patterns:**
-- All DB access goes through repository classes using raw SQL (`text()` queries), not SQLAlchemy ORM
-- Blocking operations (video processing, downloads, transcription) wrapped in `run_in_thread()` to avoid blocking the async event loop
-- Progress tracking uses Redis pub/sub → SSE to frontend
-- Task status flow: `queued → processing → completed/error/cancelled`
-
-### Video Processing Pipeline
-
-1. **Input** → YouTube URL (yt-dlp, or Apify as an alternate download/metadata provider) or uploaded file
-2. **Transcription** → AssemblyAI word-level timestamps (cached as `.transcript_cache.json`); alternate providers configurable
-3. **AI Analysis** → Pydantic AI selects 3-7 viral segments (10-45s each) with virality scoring
-4. **Clip Generation** → MoviePy creates clips (9:16 vertical, or original aspect ratio) with:
-   - Face-centered cropping: MediaPipe → OpenCV DNN → Haar cascade (fallback chain)
-   - Word-synced subtitles from AssemblyAI
-   - Custom fonts (TTF files in `backend/fonts/`)
-   - Optional transition effects (`backend/transitions/`)
-   - Optional B-roll overlays (Pexels API)
-   - Caption templates with animation styles
-5. **Storage** → Clips to `{TEMP_DIR}/clips/`, metadata to PostgreSQL
-
-### Frontend Architecture
-
-- **Next.js 15** with App Router, React 19, TailwindCSS v4
-- **ShadCN UI** (New York style, stone base color, Radix primitives)
-- **Better Auth** with Prisma adapter (only exercised when `REQUIRE_AUTH=true`)
-- **No global state library** — React hooks only (`useState`, `useEffect`, `useSession`)
-- Mostly client-side (`"use client"`) product pages — SSR is minimal
-- Prisma client generated to `frontend/src/generated/prisma/` (custom output path)
-- Build: `prisma generate && next build` (Prisma generate runs on both build and postinstall)
-
-### Multi-Tool Platform Shell
-
-SupoClip is architecturally a single tool (clipping) today, but the frontend has a light shell preparing for more tools later (a ranking/compilation tool, a voiceover/animation tool, etc., per product planning) without a rewrite when they arrive:
-
-- **`frontend/src/tools/types.ts`** defines the `Tool` shape every tool is described by: `id`, `name`, `icon`, `description`, plus either `mount(container): (() => void) | void` (a self-contained tool simple enough to render straight into a DOM node — see `tools/placeholder/`, which really implements this via a React root and a real unmount cleanup) or `href` + optional `matchPaths` (a **route-owning** tool, one big/stateful enough to be its own multi-page Next.js route subtree — Clipping is this shape, since create/list/tasks/trash are separate pages, not one screen). There's no plugin registry or dynamic loading — `frontend/src/tools/registry.ts` is a literal `Tool[]` array.
-- **`frontend/src/tools/clipping/index.ts`** — the descriptor for the existing clipping tool (`href: "/list"`, `matchPaths: ["/create", "/tasks", "/trash"]`). Its actual implementation is unchanged: the route files under `frontend/src/app/(clipping)/` (a Next.js **route group** — `(clipping)` doesn't appear in the URL, so `/create`, `/list`, `/tasks/[id]`, `/tasks/[id]/edit`, `/trash` are all identical to before this existed). `frontend/src/app/(clipping)/layout.tsx` is the one shared layout for that whole group (consolidates what used to be two near-identical per-route `layout.tsx` files) and renders `<ToolTabs />` above every clipping page.
-- **`frontend/src/tools/placeholder/index.tsx`** — the one generic "coming soon" stand-in for every future tool (deliberately not named after any specific one), reachable at `/tools/placeholder`. Real proof the `mount()` contract works, not a mock.
-- **`frontend/src/components/tool-tabs.tsx`** (the top tab bar, maps over `TOOLS` from the registry) and **`tool-mount.tsx`** (hosts a `mount()`-based tool inside a route, used by `/tools/placeholder`'s page) are the only two shell components.
-- **Shared vs. tool-specific** (what a new tool should and shouldn't need to touch): **shared** — `/settings` (admin runtime settings, templates system), the `tasks`/`generated_clips` Postgres schema's lifecycle columns (status/progress/started_at/share_token), the job queue (`workers/job_queue.py`, generic arq/Redis wrapper), font registry, export-preset dataclass shape, GPU config. **Clipping-specific** — `workers/tasks.py::process_video_task`, `caption_templates.py`, `clip_editor.py`'s `EXPORT_PRESETS` values, and most of `video_utils.py` (ffmpeg/font helpers are reusable; face-crop/hook/overlay ASS-builders are not). A future tool with a substantially different pipeline (e.g. voiceover generation has no "clip" concept at all) would likely want its own settings/output columns rather than overloading the `tasks` table — that reorganization hasn't been done since no second tool exists yet to design it against.
-
-**To add a new tool**: create `frontend/src/tools/<tool>/index.ts(x)` exporting a `Tool`; if it's route-based, add its pages under their own route group in `frontend/src/app/` (e.g. `(ranking)/`) the same way `(clipping)/` works; add the tool to `frontend/src/tools/registry.ts`. That's the whole integration surface for the shell — no other file needs to change. Backend-side, a substantially different pipeline (non-clipping input/output) should get its own worker task function and settings rather than extending `process_video_task`/the `tasks` table; the generic pieces above are ready to reuse.
-
-### Home Screen
-
-`/` (`frontend/src/components/home-app.tsx`, rendered via `home-router.tsx`) is an operations-dashboard launchpad for the multi-tool platform, not a marketing page and not a bare project list — that content lives at `/list` (the Clipping tool's full history, linked from Home's "View all"). Sections top to bottom, each its own component under `frontend/src/components/home/`:
-
-- **`home-top-bar.tsx`** — thin persistent header: wordmark left, icon-only Notifications/System Status/Settings/theme-toggle right. No search input by design. Notifications is stubbed with a "coming soon" toast; System Status scrolls to the status strip.
-- **`hero-actions.tsx`** — "Start something": New Clip (`/create`), Import Video (file picker → same pending-file handoff as drag-and-drop, below), and a "Continue" card for the last-opened project (only rendered when one exists).
-- **`recent-projects.tsx`** — up to 6 most-recent tasks as thumbnail cards (YouTube thumbnail or a Film-icon fallback, via `lib/youtube-thumbnail.ts`), "View all" links to `/list`. Empty state reuses `EmptyState`.
-- **`tools-grid.tsx`** + **`tool-card.tsx`** — one card per entry in `frontend/src/tools/registry.ts`; this is the primary discovery surface for future tools. A tool with `href` (route-owning, e.g. Clipping) is clickable with an "Open" button; a `mount`-only tool (e.g. Placeholder) renders disabled with "Coming soon" — this falls out of the existing `Tool` shape, no new fields needed for that part.
-- **`activity-feed.tsx`** — compact last-5-actions list derived from the same task fetch (no new backend aggregation — per-week clip/hour totals aren't tracked anywhere yet, so that's deferred rather than faked).
-- **`status-strip.tsx`** — bottom operator strip (queue depth, active jobs, GPU on/off/unavailable, disk free), polling `GET /tasks/system-status` (backend: `api/routes/tasks.py::get_system_status`, counts from `TaskRepository.get_status_counts`, GPU via the existing `detect_gpu_encoder()` cache, disk via `shutil.disk_usage(TEMP_DIR)`) every 10s. Routed to the backend automatically by the existing generic `frontend/src/app/api/tasks/[...path]/route.ts` proxy — no dedicated Next.js route file needed for a new `/tasks/*` backend endpoint.
-
-**Tool card thumbnails**: a `Tool` may set `thumbnail: "/assets/tools/<tool-id>.svg"` (see `tools/types.ts`) pointing at a static SVG under `frontend/public/assets/tools/` — plain files, never inlined/base64'd, so art can be swapped without a code change. `ToolCard` renders it in an `<img>` with an `onError` fallback to a plain CSS icon tile (`tool.icon` + name) so a missing/broken thumbnail never breaks the grid. **To add a thumbnail for a new tool**: drop `frontend/public/assets/tools/<tool-id>.svg` and set `thumbnail` on that tool's descriptor — nothing else changes.
-
-**Drag-and-drop and Import Video** hand a `File` to `/create` across a full route navigation via `frontend/src/lib/pending-file-transfer.ts` (a module-level variable — survives a Next.js client-side navigation, but not a hard reload) — `create/page.tsx` consumes it once on mount via `takePendingFile()`. **"Continue"** is backed by `frontend/src/lib/last-project.ts` (localStorage), written by `tasks/[id]/page.tsx` every time a project loads.
-
-### Database
-
-PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
-- `tasks`, `sources`, `generated_clips` → snake_case
-- `session`, `account`, `verification`, `users` → camelCase (Better Auth)
-- UUIDs stored as VARCHAR(36)
-- Auto-update triggers on `updated_at`/`updatedAt` columns
-
-## Key Backend Files
-
-| File | Purpose |
-|------|---------|
-| `src/main_refactored.py` | Active FastAPI entry point |
-| `src/main.py` | Legacy monolithic entry point (do not use for new work) |
-| `src/api/routes/tasks.py` | Task CRUD, SSE progress, clip editing endpoints |
-| `src/api/routes/media.py` | Fonts, transitions, uploads, templates |
-| `src/auth_headers.py` | Local-first bypass, HMAC session verification, API key auth |
-| `src/services/task_service.py` | Task orchestration, clip editing logic |
-| `src/services/video_service.py` | Video download, transcription, AI analysis, clip generation |
-| `src/workers/tasks.py` | ARQ worker task definitions |
-| `src/workers/job_queue.py` | Job queue management |
-| `src/workers/progress.py` | Real-time progress via Redis |
-| `src/ai.py` | Pydantic AI agents, system prompt, segment validation |
-| `src/video_utils.py` | Video processing, cropping, subtitles |
-| `src/clip_editor.py` | Clip trim, split, merge, export presets |
-| `src/broll.py` | Pexels API B-roll integration |
-| `src/caption_templates.py` | Caption template system |
-| `src/config.py` | Environment variable configuration |
-
-## API Endpoints (routes in `api/routes/`)
-
-**Task lifecycle:**
-- `POST /start-with-progress` — Create task, enqueue to worker (returns task_id)
-- `GET /tasks/` — List user tasks
-- `GET /tasks/system-status` — Queue depth, active/processing job counts, GPU state, disk space (home screen's status strip)
-- `GET /tasks/{id}` — Get task with clips
-- `GET /tasks/{id}/progress` — SSE real-time progress stream
-- `POST /tasks/{id}/cancel` — Cancel processing
-- `POST /tasks/{id}/resume` — Resume cancelled/errored task
-- `DELETE /tasks/{id}` — Delete task
-
-**Clip editing:**
-- `PATCH /tasks/{id}/clips/{clip_id}` — Trim clip
-- `POST /tasks/{id}/clips/{clip_id}/split` — Split at timestamp
-- `POST /tasks/{id}/clips/merge` — Merge selected clips
-- `PATCH /tasks/{id}/clips/{clip_id}/captions` — Update captions
-- `GET /tasks/{id}/clips/{clip_id}/export?preset=tiktok` — Export with platform preset
-
-**Media:**
-- `GET /fonts`, `GET /transitions`, `GET /caption-templates`, `GET /broll/status`
-- `POST /upload` — Upload video file
-- `GET /clips/{filename}` — Serve generated clips
-
-**API keys (programmatic access):**
-- `GET /api-keys/` — List the user's API keys (metadata only)
-- `POST /api-keys/` — Create a key (plaintext `sk_...` returned exactly once)
-- `DELETE /api-keys/{key_id}` — Revoke a key
-
-Full endpoint list including billing/admin/feedback routes: [docs/api-reference.md](docs/api-reference.md).
+- **New tool (tab):** create `frontend/src/tools/<tool>/index.ts(x)` exporting a `Tool`; add it to `frontend/src/tools/registry.ts`; if route-based, add pages under a new route group in `frontend/src/app/`. See `docs/architecture.md`.
+- **New ranking template:** if it fits `layout: "full_screen"` (the only layout `RankingService` renders) and reuses an existing `number_overlay.style` (`"tile"` or `"stacked"`), add a folder under `backend/templates/ranking/<name>/` with `config.json` (+ optional `preview.svg`) — no code change, `render_order`/`list_overlay`/`number_overlay`/`use_global_sfx` are already dispatched on. A new `layout` value (e.g. a future Head-to-Head/Tier List) or a genuinely new `number_overlay.style` needs a `RankingService`/`ranking_overlay.py` code change, it isn't data-driven.
+- **New setting:** add the field to `Config` in `backend/src/config.py`, add its metadata to `SETTING_METADATA` in `backend/src/api/routes/admin.py`, always expose `current_value` (never hide a non-secret behind "configured"/"unset").
+- **New export preset:** append (don't reorder) to `EXPORT_PRESETS` in `backend/src/clip_editor.py`, including `max_duration_seconds`/`safe_area_*_pct`/`target_lufs`.
+- **Update safe zones:** edit `PLATFORM_SAFE_ZONES` in `frontend/src/lib/safe-zones.ts` — nothing else needs to change.
 
 ## Environment Variables
 
-See [docs/configuration.md](docs/configuration.md) for the complete list. Core ones:
+Full list: [docs/configuration.md](docs/configuration.md). Core: `ASSEMBLY_AI_API_KEY`, `LLM` (`provider:model`), `GOOGLE_API_KEY`/`OPENAI_API_KEY`/`ANTHROPIC_API_KEY`, `OLLAMA_BASE_URL`, `REQUIRE_AUTH`, `PEXELS_API_KEY`, `REDIS_HOST`/`PORT`, `DATABASE_URL`, `TEMP_DIR`.
 
-```bash
-ASSEMBLY_AI_API_KEY=...              # Required: video transcription
-LLM=google-gla:gemini-3-flash-preview # Format: provider:model-name
-GOOGLE_API_KEY=...                   # Or OPENAI_API_KEY / ANTHROPIC_API_KEY
-OLLAMA_BASE_URL=http://localhost:11434/v1  # Optional for ollama:* models
-OLLAMA_API_KEY=...                   # Optional; required for Ollama Cloud
+## Other Subsystems
 
-REQUIRE_AUTH=false                   # Default: local-first, no login. Set true on both frontend and backend for hosted/multi-tenant mode
-PEXELS_API_KEY=...                   # Optional: B-roll stock footage
-REDIS_HOST=localhost                 # Default: localhost
-REDIS_PORT=6379                      # Default: 6379
-QUEUED_TASK_TIMEOUT_SECONDS=180      # Fail-safe for stuck tasks
-TEMP_DIR=/tmp                        # Temp file storage
-DATABASE_URL=postgresql+asyncpg://...
-BETTER_AUTH_SECRET=...               # Frontend auth secret (only used when REQUIRE_AUTH=true)
-```
-
-## Local LLM (Ollama)
-
-SupoClip's content-policy detection and metadata generation features (see [Conventions](#conventions)) default to a **local Ollama model as the primary LLM**, with Gemini Flash-Lite as an explicit opt-in fallback for users without a GPU — never the other way around. This keeps those features free, private, and unlimited by default.
-
-- **Install**: `curl -fsSL https://ollama.com/install.sh | sh` (Linux, installs+starts a systemd service), `brew install ollama` (macOS), `winget install --id Ollama.Ollama -e` (Windows). See `backend/src/ollama_status.py::check_ollama_status()` for the live reachability/model-list probe used by Settings' "Test connection" action and the `OLLAMA_MODEL` dropdown — it always makes a real request rather than trusting config, mirroring `video_utils.detect_gpu_encoder()`'s probe-don't-assume approach.
-- **Recommended models**: `qwen2.5:7b-instruct` (best structured-output quality — prefer this if it fits in VRAM, ~4.5GB at Q4), `qwen2.5:3b-instruct`/`llama3.2:3b` (lighter fallbacks for ~6GB VRAM or less), `gemma2:2b` (fastest, lowest VRAM). `OLLAMA_MODEL` (Settings → LLM Provider) lists all of these plus the legacy `qwen2.5:3b`. Pull with `ollama pull <name>`. LLM calls use `temperature=0.4`/`top_p=0.9` for consistent structured output (`ai.py::run_with_llm_fallback`'s `model_settings`) and no read timeout for Ollama specifically (only a 5s connect-timeout to fail fast into the Gemini fallback if the host is unreachable) — a real local generation is never cut off mid-response regardless of output size.
-- **`OLLAMA_KEEP_ALIVE=30s`**: set this in the environment the `ollama serve`/service process runs in (systemd drop-in on Linux: `systemctl edit ollama`; `launchctl setenv`/shell profile on macOS; `setx` + service restart on Windows). This auto-unloads the model after 30s idle so its VRAM is freed for video rendering between LLM calls.
-- **VRAM serialization rule**: Ollama inference and ffmpeg rendering (GPU-accelerated or not) can compete for the same GPU's VRAM. `backend/src/workers/resource_locks.py` provides a Redis-backed distributed semaphore (`resource_slot(redis, name, max_concurrent)`) reused across worker processes; both LLM call sites (`ai.py`) and render call sites (`video_service.py`/`video_utils.py`) acquire the shared `"gpu"` slot (max_concurrent=1) so a local LLM call is never in flight at the same time as a render job. Remote Gemini calls intentionally skip this slot — they don't touch local VRAM.
-- **Gemini fallback**: reuses the existing `GOOGLE_API_KEY` setting (no separate Gemini-specific key) plus a `GEMINI_MODEL` setting (default `gemini-3.5-flash-lite` — confirmed live via the Settings "Test Gemini connection" button that `gemini-2.0-flash-lite` is now retired by Google). Only used when Ollama is unreachable (or its output fails validation twice) *and* a Google API key is configured *and* the user has opted into the fallback (`LLM_PROVIDER_MODE=hybrid` or `gemini`). See `ai.py::run_with_llm_fallback()`.
-- **Provider selection**: Settings → LLM Provider (`Ollama (local)` / `Gemini` / `Hybrid`), with a live status indicator and "Test connection" actions for both providers.
-
-## Conventions
-
-- **Runtime settings must always show their current effective value.** `/admin/runtime-settings` (`src/api/routes/admin.py::_setting_status`) returns a `current_value` field for every non-`password` setting (decrypted admin value or the env fallback); the frontend (`RuntimeSettingsForm`) renders it next to the label and in the input's placeholder/default option. Password-type settings intentionally never expose their value. When adding a new runtime setting, keep this contract — never hide a non-secret value behind a generic "configured"/"unset" placeholder.
-- **Caption/hook font sizing scales off the shorter frame dimension**, not just width (`get_scaled_font_size(base, width, height)` in `video_utils.py`). Scaling by width alone made captions balloon on wide outputs (16:9, 1:1) relative to their shorter height and pushed them past the safe area. `get_safe_vertical_position` treats its return value as the vertical **center** of the text block (matching the ASS `Alignment 5` + `\pos` renderer), not a top-left corner — keep that anchor convention consistent if you touch subtitle positioning.
-- **`max_clips`/`target_duration_seconds` are per-request overrides**, threaded end-to-end: `api/routes/tasks.py::create_task` → `enqueue_processing_job` → `workers/tasks.py::process_video_task` → `TaskService.process_task` → `VideoService.process_video_complete` → `VideoService.analyze_transcript`, falling back to the global `MAX_CLIPS`/`CLIP_DURATION` config when unset. `POST /tasks/{id}/resume` must forward every one of these (plus `hook_style`/`social_overlay`) from the saved `task_source:{id}` metadata — it silently dropped them before; don't reintroduce that gap when touching resume.
-- **Progress SSE payloads carry a `stage` field** (`download`/`transcribe`/`analyze`/`render`/`policy_check`/`metadata`/`complete`, set in `VideoService.process_video_complete`'s and `TaskService.process_task`'s progress-callback calls) alongside the existing `progress`/`message`/`status`. There's also a `clip_progress` event (`ProgressTracker.clip_started`, distinct from `clip_ready`) fired before each clip starts rendering, so the frontend can show "rendering clip i/N" before it's done. The frontend falls back to guessing a stage from the percentage when `stage` is absent (older cached events) — keep both in sync if you add a new stage. The SSE endpoint's initial `status` event (`api/routes/tasks.py::get_task_progress_sse`) reads the last cached Redis progress snapshot (`ProgressTracker.get()`) rather than the `tasks` DB row, since the DB never persists `stage` — a page reopened mid-processing needs the real stage immediately, not a percentage-based guess. The frontend SSE client (`tasks/[id]/page.tsx`) reconnects with exponential backoff (1s→16s, 5 attempts) on a native connection error instead of freezing the bar; only a real server-sent error payload is treated as fatal. On task error/cancel, the last real progress percentage is frozen rather than reset to 0 (`TaskService.process_task`'s `last_progress` closure variable) — 0 reads as "nothing happened" even after a late-pipeline failure.
-- **Frontend auto-save pattern**: `useDebouncedEffect` (`frontend/src/lib/use-debounced-effect.ts`) debounces a save call after state settles, skipping the first render. When the watched state is also refreshed from the server (e.g. `fetchTaskStatus` reloading project settings), guard against re-saving unchanged data with a "last saved snapshot" ref comparison — see `tasks/[id]/page.tsx`'s `lastSavedProjectSettingsRef` for the pattern. On that page, auto-save persists settings cheaply (`apply_to_existing: false`) while the expensive "regenerate every clip" action stays an explicit button click.
-- **Clip cleanup (pause/filler removal) has a 0-100 `sensitivity` slider** (`clip_cleanup.py::normalize_clip_cleanup_settings`) that's the primary control when present: 0 disables cleanup, higher values lower the pause threshold and widen the filler-word list. Omitting it preserves the legacy explicit `cut_long_pauses`/`pause_threshold_ms`/`remove_filler_words` behavior for backward compatibility. `pause_threshold_ms` is clamped to **[600ms, 3000ms]** (`normalize_pause_threshold_ms`); the sensitivity slider maps to that same range, topping out at **600ms** at max sensitivity (`_SENSITIVITY_PAUSE_THRESHOLD_MS_AT_MAX`) — raised from an earlier 300ms floor that fell inside the range of ordinary inter-word gaps in natural speech and was misclassifying continuous speech as pauses. Pause-gap removal in `video_utils.py::build_clip_keep_ranges` also requires a sentence/phrase boundary before cutting a gap below 1.2s (`_pause_gap_is_safe_to_cut`: the word before the gap must end in `.`/`!`/`?`/`…`/`,`, or the gap must be ≥1.2s of obvious dead air) — a raw gap-length threshold alone (the old behavior) cut mid-sentence on ordinary breathing gaps at high sensitivity. Filler-word removal never cuts a match within 0.75s of the clip end, a sentence-final word, or one adjacent to `!`/`?` — don't reintroduce context-free literal matching there. Crossfade blending between stitched cuts uses a *per-junction* fade (`crossfade_fades_for_ranges`), not a single global one — every junction should dissolve smoothly regardless of segment count or a short neighboring fragment; anything consuming `crossfade_fade_for_ranges` for per-word/per-junction timing should use the plural per-junction variant instead.
-- **Task deletion is soft-delete, not a hard `DELETE`.** `DELETE /tasks/{id}` sets `tasks.deleted_at` (`TaskRepository.delete_task`); every existing list/get query filters `deleted_at IS NULL`. The row (and its `generated_clips`) only actually disappears via `DELETE /tasks/{id}/purge` (`TaskRepository.purge_task`), which best-effort removes the on-disk clip files first — source videos are never touched by either path. `GET /tasks/trash` / `POST /tasks/{id}/restore` round out the lifecycle; keep new task-scoped queries filtering `deleted_at` the same way, or soft-deleted tasks will leak back into normal listings.
-- **A shared `enforce_size_cap()` (`video_utils.py`) caps every finalized clip at 300MB**, called after each of the three independent final-encode sites (main render pass, subtitle-burn pass, `clip_editor.export_with_preset`): it only re-encodes (two-pass, bitrate computed from target size ÷ duration) when the CRF-quality output actually exceeds the cap, so quality is never sacrificed unless necessary. Loudness normalization is similarly centralized — `build_audio_output_args(has_audio, target_lufs=...)` is the only place that builds the `loudnorm` filter string; any new ffmpeg call site that finalizes a clip should route audio args through it (with the export preset's `target_lufs`) rather than hand-rolling `aac`/bitrate args, which is what caused normalization to silently not apply on two render paths before this was centralized.
-- **Export presets carry duration/safe-area/loudness metadata, not just resolution.** `ExportPreset` (`clip_editor.py`) has `max_duration_seconds`, `safe_area_top_pct`/`safe_area_bottom_pct`, and `target_lufs` alongside bitrate/dimensions; `GET /export-presets` returns all of them so the frontend can render preset options dynamically instead of hardcoding names. New presets are appended to `EXPORT_PRESETS` (dict insertion order = display order) — never reorder or replace the existing entries, since `preset=` values are persisted/referenced externally.
-- **Emoji reactions reuse the hook-title ASS/animation infrastructure**, not a new rendering path. `generated_clips.reactions` is a JSON-encoded `TEXT` column (same pattern as `hook_title_variants`); `emoji_reactions.build_emoji_reactions_ass()` emits ASS dialogue events using the same animation vocabulary as `caption_templates.HOOK_ANIMATIONS` and the same `\pos`/Alignment-5-center convention as `build_hook_title_ass`, appended into the same subtitle file already burned via libass. Saving reactions (`PATCH /tasks/{id}/clips/{clip_id}/reactions`, body `{"reactions": [...]}`) always triggers a real re-render from source — there's no cheap non-rendering update, since the reaction is burned into the frame.
-- **Most page content still uses literal Tailwind colors (`stone-*`, and previously some raw `bg-white`/`text-black`), not the semantic CSS-variable tokens** (`bg-background`/`text-foreground`/etc. in `globals.css`) that `next-themes`' `.dark` class toggling actually affects. The theme toggle and `ThemeProvider` are wired up and work correctly, but only shadcn primitives and the outer page shells fully adapt to dark mode today — a full pass replacing `stone-*`/hardcoded colors with theme tokens across every page is still open work.
-- **Hook title generation rules live in one place**: `backend/src/ai.py::HOOK_GENERATION_RULES`, an audience-first/curiosity-driven spec (topic clarity, emoji only at the end, banned generic phrases) shared verbatim by both hook-generation call sites — the per-segment `hook_title` produced as part of the cached transcript analysis (`transcript_analysis_system_prompt`), and the on-demand `generate_hook_title_variants()` used by the editor's "Regenerate Hook" button and the "Compare Hooks" A/B dialog. Changing hook-writing rules means editing this one constant, not both prompts separately. Analysis results (hook titles included) are cached by source URL + processing mode (`processing_cache` table, keyed off `TRANSCRIPT_ANALYSIS_CACHE_VERSION`) — bump that version string to invalidate old hooks after a rules change; `generate_hook_title_variants()` itself is never cached, since it's only called on an explicit user action.
-- **Hook title font size** (`build_hook_title_ass` in `video_utils.py`) clamps to 40-160px (scaled off the shorter frame dimension via `caption_font_px`, same convention as captions), with the frontend's Small/Default/Large/XL preset mapping to a `hook_font_size_scale` multiplier (0.65/null/1.0/1.3) rather than a raw pixel value.
-- **Captions wrap and auto-shrink to stay inside the frame.** `build_assemblyai_ass_subtitles` chunks words by estimated on-screen width as well as `max_words_per_line` (`_split_caption_chunks`), and shrinks the font (down to 18px) if even the single longest word in the clip wouldn't fit the horizontal safe area (`get_subtitle_max_width`, now actually wired in). Caption font size is also editable inline in the clip editor (not just the create/settings flow) via a debounced auto-save that persists to the task's `font_size` column through a partial update (`TaskRepository.update_task_font_size`) — it never touches `font_family`/`font_color`/`caption_template`, unlike the full-replace `POST /tasks/{id}/settings`.
-- **Reusable settings templates** (`project_templates` table, `api/routes/templates.py`) let a user save a project's current settings (font/caption/hook/social-overlay/B-roll/cleanup/export/duration/clip-count) as a named, versioned bundle and apply it onto any other project — REPLACE (full overwrite) or MERGE (template values win, unset template fields keep the project's current value). `TEMPLATE_SCHEMA_VERSION` + `migrate_template_settings()` is the upgrade path for future shape changes; version 1 is the only version that has ever existed, so it's currently a passthrough (re-normalized). Managed at `/settings/templates` (rename/duplicate/delete/export/import as JSON) plus "Save as Template"/"Load Template" controls in the per-project settings sheet.
-- **Toasts (`sonner`) go through `frontend/src/lib/toast.ts`, not `"sonner"` directly.** Success/info/warning auto-dismiss after 4s; errors stay until manually closed (`duration: Infinity`) since they usually need to be read or acted on. Import `toast` from `@/lib/toast` in any new call site instead of `"sonner"` so this stays the single place that decides dismiss behavior.
-- **"Export All Clips"** (`tasks/[id]/page.tsx::handleExportAllClips`) exports every clip at the project's export preset in sequence (not parallel — the backend renders one export at a time anyway), retrying a failed clip once automatically before marking it failed; one clip failing never stops the batch. A progress dialog tracks per-clip status with an inline retry for anything still failed, and finishes with one aggregate toast. It reuses the single-clip export path's "original" preset special case (a frontend-only sentinel meaning "download the rendered file as-is", not a real backend `EXPORT_PRESETS` entry).
-- **Hook highlighting is backend-correct; the frontend preview used to lie about it.** `build_hook_title_ass` (`video_utils.py`) has always colored power words/digits/user-requested `highlight_words` correctly once burned in — the bug was that `HookTitlePreview`, its use in `HookVariantCompare`, and a third duplicate inline preview in `create/page.tsx` never applied any per-word highlight logic (one showed a hardcoded sample, the others showed real hook text as one plain unstyled string). Fixed by `frontend/src/lib/hook-highlight.ts`, which mirrors the backend's exact `POWER_WORDS`/digit/`normalize_token` rules — keep it in sync if those change on the backend.
-- **`GET /tasks/` and `GET /tasks/trash` clamp `limit` to `[1, 500]`** (was an unbounded `int = 50` default with nothing stopping a caller from requesting more, but nothing asking for more either). `/list` and `/trash` now explicitly request `?limit=500` so "select all" actually sees every task — the previous bug wasn't the delete logic (already correct: per-id `Promise.allSettled`, immune to partial failures) but the fact that only the first 50 tasks were ever loaded to select from. `frontend/src/app/api/tasks/route.ts` (the base `/api/tasks/` proxy) forwards query params now; it silently dropped them before.
-- **This project's ffmpeg/libass build cannot render colour text glyphs at all** (verified directly: neither a system-installed Noto Color Emoji (CBDT/bitmap) nor a bundled Twemoji Mozilla (COLR/CPAL) font produces any pixels through the `subtitles`/`ass` filter, regardless of font format) — this isn't a missing-font problem, don't try bundling a "better" emoji font to fix it. Emoji reactions are burned as true-colour **image overlays** instead (`emoji_reactions.py::overlay_emoji_reactions_ffmpeg`, ffmpeg `overlay` filter + `-loop 1` PNG inputs — needs an explicit `-t <duration>` cap, since `-shortest` alone doesn't reliably terminate a filter graph built on infinite-duration looped image inputs), using 32 bundled Twemoji PNGs at `backend/assets/emoji/` (CC-BY 4.0, see `NOTICE.txt` there) matching `emoji-picker.tsx`'s `REACTION_EMOJIS`. Animation is simplified to fade in/out for this path — the full `_entrance_tags` scale-animation vocabulary stays ASS-text-only. Caption keyword-emoji (word-position-dependent, much harder to overlay correctly without real text-layout metrics) stays honestly disabled via `emoji_rendering_supported()`'s probe rather than claiming a fix that doesn't render.
-- **GPU-accelerated rendering** is opt-in via the `GPU_ACCELERATION_ENABLED` runtime setting (Settings → Export), wired into the single shared `build_final_video_encode_args()` (all 5 encode call sites in `render_reframed_clip_ffmpeg`) as an NVENC/libx264 switch. `detect_gpu_encoder()` always re-verifies with a real trivial NVENC encode attempt rather than trusting ffmpeg's compiled-encoder list or the saved setting — a render silently and correctly falls back to CPU if the hardware isn't actually there, and the admin settings UI shows the toggle disabled with the specific reason (`_setting_status`'s `disabled_reason` field) rather than leaving a user to wonder why it's not doing anything. Only NVENC is implemented; VAAPI/QSV each need their own hwupload/format-negotiation filter chain and are follow-up work, as are the 4 other standalone `libx264` call sites elsewhere in `video_utils.py` (two-pass/size-cap re-encodes) that don't route through the shared function.
-- **Progress UI shows real elapsed time and an honest ETA.** `tasks/[id]/page.tsx` ticks `elapsedSeconds` from the task's own `started_at` (survives a page refresh mid-render). The ETA is only ever computed from this run's own observed per-clip render speed once inside the `render` stage (real clips-done ÷ real elapsed-since-render-started) — every earlier stage shows "estimating…" rather than a fabricated number, and there's no historical-duration backend endpoint feeding this (the existing `/tasks/metrics/performance` is admin-only and aggregate, not per-task).
-- **Content policy detection is regex-first, LLM-optional.** `content_policy.py`'s word-boundary regex engine (`scan_text`/`DEFAULT_WORD_LISTS`, per-category `severe`/`borderline` tiers) is the only detector that runs by default; the optional Ollama borderline-phrase check (`ollama_borderline_check`, off by default, one call per video) only supplements it. Flags are cached per-clip on `generated_clips.content_policy_flags` (TEXT-JSON, same convention as `reactions`/`hook_title_variants`) so re-opening the editor never re-scans — a manual "Rescan" (`POST /tasks/{id}/clips/{id}/content-policy/rescan`) exists for after a word-list edit. Matched words are asterisked preserving **both** the first and last letter (`rewrite_flagged` — the spec's own worked example, `"cocaine" → "c*****e"`, does more than its prose "preserve first letter" alone implies); audio is never touched.
-- **Metadata (title/description/tags) is generated once per video, not per clip, and auto-generates by default.** `metadata_generation.py::generate_metadata_for_video` sends every clip's transcript excerpt (plus 3 few-shot examples in `METADATA_SYSTEM_PROMPT`) in a single prompt and maps the response back by `clip_index`; a separate, lighter `generate_metadata_for_single_clip` exists only for the per-clip "Regenerate" button, so that action doesn't re-run the whole video's batch. `TaskService.process_task` calls the batch generator automatically at 98% progress (stage `metadata`), right after the content-policy scan, gated by the `AUTO_GENERATE_METADATA_ENABLED` runtime setting (Settings → LLM Provider; default **on** — off falls back to manual-only via the "Regenerate Metadata" button). Results cache on `generated_clips.metadata_*` columns (never regenerated on render/preview/re-open) alongside `metadata_provider`/`metadata_generated_at`/`metadata_generation_ms` for the UI's provider badge and timing display, plus `metadata_source_text` — a snapshot of the transcript text metadata was generated from, used to compute a `metadata_stale` flag (`ClipRepository._is_metadata_stale`) by comparing it against the clip's current `text`. Deliberately **not** based on the `updated_at` column: a table-wide trigger (`update_generated_clips_updated_at`) bumps `updated_at` on every write to the row (reactions, content-policy scans, metadata edits included), so it can't distinguish a real re-cut from an unrelated write.
-- **Per-clip metadata is displayed and edited on `/tasks/[id]`**, reusing `components/editor/clip-metadata-panel.tsx::ClipMetadataPanel` (previously wired only into the `/tasks/[id]/edit` route) inside each clip's detail card. It shows a stale badge, per-field copy buttons (title/description/tags) plus "Copy all" (formatted `Title:\nDescription:\nTags:` block for YouTube paste), a quality dropdown (fast=`qwen2.5:3b-instruct`, balanced=`llama3.2:3b`, high=`qwen2.5:7b-instruct`, gemini=force Gemini — `ai.py::_QUALITY_OLLAMA_MODEL_OVERRIDES`, passed as `?quality=` on the per-clip regenerate route) before the Regenerate button, and a Save button for manual edits. The project page also shows an "X/Y clips have metadata" summary (plus a stale count) and an "Export All Metadata" button that downloads a `.txt` with every clip's title/description/tags in clip order — a pure client-side formatting of already-fetched clip data, no new endpoint.
-- **User edits to generated metadata are never silently overwritten** — a pattern new to this codebase (the closest prior precedent, `TaskService.select_hook_variant()`, actually does the opposite: it unconditionally overwrites `hook_title`). Three booleans (`metadata_title_user_edited`/`metadata_description_user_edited`/`metadata_tags_user_edited`) are set by the manual-edit path (`PATCH /tasks/{id}/clips/{id}/metadata` → `ClipRepository.update_clip_metadata_fields`) and checked by the passive-regeneration path (`MetadataService.maybe_regenerate_on_transcript_change`), which skips any field whose flag is set. The explicit "Regenerate" button is a deliberate user action and always overwrites everything, resetting all three flags — don't confuse the two paths if you touch either.
-- **Local LLM calls and video renders never overlap on the same GPU.** `workers/resource_locks.py` is this codebase's first lock/semaphore of any kind (confirmed via a full grep before adding it) — a Redis-backed counting semaphore (sorted-set, holder+expiry scored) rather than an in-process `asyncio.Semaphore`, since ARQ workers may run as more than one process. `ai.py::run_with_llm_fallback` acquires the shared `"llm"` and `"gpu"` slots (max 1 each) around every Ollama call; render call sites should acquire `"gpu"` too if you add new ones. Gemini calls skip the `"gpu"` slot (remote API, no local VRAM contention). Ollama's model_settings use `httpx.Timeout(300.0, connect=5.0)` — a flat single timeout would let a genuinely-unreachable host stall for as long as a real slow-but-connected generation, defeating the point of failing fast into the Gemini fallback.
-- **Batch processing state lives in Postgres, not browser memory** (`batch_queues`/`batch_queue_items`) — this is what makes "resume after an app/backend restart" possible at all; `ResumeBatchPrompt` (mounted on the home screen) just checks `GET /batch-queue/incomplete` on load, no client-side persistence needed. `BatchQueueService.run_batch` (the ARQ job body, `process_batch_queue_task`) walks items with a plain sequential loop — real concurrency-1 comes from awaiting each item fully before starting the next, not a separate lock — and never re-raises a single item's failure, so the batch always reaches `completed` regardless of individual item outcomes. Presets reuse `project_templates` directly (`batch_queues.template_id`); there is no second "preset" concept.
-- **Safe Zone Overlay is frontend-only and never touches the render.** Per-platform UI-coverage percentages (top/bottom/left/right, portrait 9:16 base) live in `frontend/src/lib/safe-zones.ts` (`PLATFORM_SAFE_ZONES`) — edit that one table to add a platform or tweak a value, nothing else needs to change. `SafeZoneOverlay` (`frontend/src/components/safe-zone-overlay.tsx`) draws it as a `pointer-events-none` SVG (viewBox `0 0 100 100`, so it scales with the preview) passed as the `overlay` prop into `DynamicVideoPlayer`; it never reaches ffmpeg or gets burned into an export. The toggle + platform `Select` live in the clipping project page's toolbar (`frontend/src/app/(clipping)/tasks/[id]/page.tsx`, next to "Export All Clips") — defaulting to whichever platform the current export preset targets (`platformForExportPreset`), or the user's global default (`getDefaultSafeZonePlatform`) — and persist per-project to `localStorage` via `frontend/src/lib/safe-zone-settings.ts` (no DB column; this is view state, not project state, and the app has no per-user backend to put it in anyway). "All" mode overlays every platform's dashed boundary plus their intersection (the actual common-safe area) as a solid line. DESIGN.md's locked 4-color palette has no amber/warning hue and bans opacity tricks outside one sanctioned scrim, so the overlay uses ink dashed hairlines for each platform's unsafe boundary and a teal solid hairline for the safe intersection — not the filled teal/amber zones a generic spec might suggest. `warnIfTextInUnsafeZone` (same page) does a rough band-overlap check (captions ~70-80% down, hook title ~0-15%) against the export preset's platform before a download/export and shows a non-blocking `toast.warning` — it never moves anything, the user decides.
-
-## Common Workflows
-
-### Adding fonts/transitions
-
-Drop `.ttf` files into `backend/fonts/` or `.mp4` files into `backend/transitions/`. They auto-appear via their respective `GET` endpoints.
-
-### Modifying AI clip selection
-
-Edit `backend/src/ai.py`: `simplified_system_prompt` controls selection criteria, `TranscriptSegment` defines the output model, `get_most_relevant_parts_by_transcript()` runs analysis with validation.
-
-### Video processing constraints
-
-- Output: 9:16 vertical (default) or original aspect ratio, H.264, even pixel dimensions (`round_to_even()`)
-- Subtitles positioned at 75% down the frame
-- Virality scoring: `hook_score`, `engagement_score`, `value_score`, `shareability_score` (0-25 each, summed to `virality_score` 0-100)
-- Each segment gets an AI-written `hook_title` (3-9 words) burned into the top safe area for the first ~4s (`build_hook_title_ass` in `video_utils.py`), persisted on `generated_clips.hook_title`
-  - Hook animation styles (`caption_templates.HOOK_ANIMATIONS`): `fade_pop`, `fade`, `slide_down`, `zoom_punch`, `bounce`, `pulse`, `none`
-  - Hook type labels (`caption_templates.HOOK_TYPES`, AI-classified but user-overridable): `question`, `statement`, `statistic`, `story`, `contrast`, `callout`, `warning`, `none`
-  - A/B hook comparison: `ai.generate_hook_title_variants()` generates alternative hook titles for an existing clip (stored as JSON in `generated_clips.hook_title_variants`); `TaskService.select_hook_variant()` applies a chosen variant/custom text and re-renders the clip from source (the hook is burned into the same frame as the crop/captions, so it can't be swapped without a re-render) — see `POST/PATCH /tasks/{id}/clips/{clip_id}/hook-variants[/select]`
-- Static talking-head crops get a slow ~5% Ken Burns punch-in (`kenburns_zoom_fragment`); tracked pans and split screens keep their own motion
-
-## iOS App
-
-A native iOS app ships on the App Store
-(https://apps.apple.com/us/app/supoclip/id6784760040, app id `6784760040`). Its
-source lives outside this repo. It talks to the hosted API and bills through
-RevenueCat, which is what `frontend/src/app/api/billing/revenuecat-webhook/`
-serves; App Store subscribers are blocked from Stripe checkout/portal by the
-"managed through the App Store" guard in the billing routes. The www references
-the app via `APP_STORE_ID`/`APP_STORE_URL` in `frontend/src/lib/site.ts`
-(Smart App Banner meta, JSON-LD `MobileApplication`, hero badge, footer link).
-
-## MCP Server
-
-`mcp/` is a standalone [MCP](https://modelcontextprotocol.io) server
-(`supoclip-mcp`, Python/FastMCP, stdio) that exposes SupoClip to MCP clients
-(Claude Desktop/Code, Cursor, …). It is a thin client over the REST API.
-
-- **Default target:** the hosted API `https://api.supoclip.com`. Override with
-  `SUPOCLIP_API_URL` for self-hosting (e.g. `http://localhost:8000`).
-- **Auth:** a per-user API key in `SUPOCLIP_API_KEY` (see API keys above).
-  Self-hosters may instead use `SUPOCLIP_USER_ID` (+ `SUPOCLIP_AUTH_SECRET` when
-  signing is enforced).
-- **Tools:** create/list/get/wait/cancel/resume/delete tasks, list/download/
-  export clips, and public discovery (templates, transitions, fonts, B-roll).
-- Run with `cd mcp && uv run supoclip-mcp`. Details in `mcp/README.md`.
+- iOS app → [docs/architecture.md#ios-app](docs/architecture.md#ios-app)
+- MCP server (`mcp/`) → [docs/architecture.md#mcp-server](docs/architecture.md#mcp-server)
