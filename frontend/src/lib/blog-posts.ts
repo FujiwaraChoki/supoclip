@@ -5,6 +5,7 @@ export { HOSTED_APP_URL, getSiteUrl } from "@/lib/site";
 
 export interface BlogPost {
   slug: string;
+  image?: { src: string; alt: string; width: number; height: number };
   title: string;
   description: string;
   eyebrow: string;
@@ -20,7 +21,8 @@ export interface BlogPost {
 export const blogPosts: BlogPost[] = [
   {
     slug: "supoclip-vs-supo-live",
-    title: "SupoClip vs supo.live: The Better Open-Source Alternative",
+    image: { src: "/blog/supoclip-open-source-clipping.webp", alt: "Editorial illustration of a podcast recording becoming three vertical video clips", width: 1672, height: 941 },
+    title: "SupoClip vs supo.live: Why Open Source Wins",
     description:
       "Compare SupoClip and supo.live for AI video clipping. See why SupoClip wins for open-source control, self-hosting, and customizable video workflows.",
     eyebrow: "Supo.live Alternative",
@@ -66,7 +68,7 @@ export function getBlogPostMetadata(post: BlogPost): Metadata {
   const url = `${siteUrl}/blog/${post.slug}`;
 
   return {
-    title: `${post.title} | SupoClip Blog`,
+    title: { absolute: `${post.title} | SupoClip` },
     description: post.description,
     keywords: post.keywords,
     alternates: {
@@ -82,9 +84,11 @@ export function getBlogPostMetadata(post: BlogPost): Metadata {
       modifiedTime: post.updatedAt,
       authors: [post.author],
       tags: post.keywords,
+      images: post.image ? [{ url: post.image.src, width: post.image.width, height: post.image.height, alt: post.image.alt }] : undefined,
     },
     twitter: {
       card: "summary_large_image",
+      images: post.image ? [{ url: post.image.src, alt: post.image.alt }] : undefined,
       title: post.title,
       description: post.description,
     },

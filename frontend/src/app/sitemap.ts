@@ -7,11 +7,12 @@ import { getSiteUrl } from "@/lib/site";
 export default function sitemap(): MetadataRoute.Sitemap {
   const siteUrl = getSiteUrl();
   const currentDate = new Date("2026-07-27T00:00:00.000Z");
+  const latestBlogUpdate = new Date(Math.max(...blogPosts.map(post => new Date(`${post.updatedAt}T00:00:00.000Z`).getTime())));
 
   return [
     {
       url: siteUrl,
-      lastModified: currentDate,
+      lastModified: new Date("2026-09-21T00:00:00.000Z"),
       changeFrequency: "weekly",
       priority: 1,
     },
@@ -23,12 +24,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     })),
     {
       url: `${siteUrl}/blog`,
-      lastModified: currentDate,
+      lastModified: latestBlogUpdate,
       changeFrequency: "weekly",
       priority: 0.8,
     },
     ...blogPosts.map((post) => ({
       url: `${siteUrl}/blog/${post.slug}`,
+      images: post.image ? [`${siteUrl}${post.image.src}`] : undefined,
       lastModified: new Date(`${post.updatedAt}T00:00:00.000Z`),
       changeFrequency: "monthly" as const,
       priority: 0.8,

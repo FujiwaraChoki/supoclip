@@ -184,6 +184,12 @@ const STEPS = [
 
 const SEO_RESOURCES = [
   {
+    href: "/blog/supoclip-vs-supo-live",
+    eyebrow: "Comparison",
+    title: "SupoClip vs supo.live: open-source control",
+    description: "Compare self-hosting, AI clipping, and editing workflows before choosing your next video tool.",
+  },
+  {
     href: "/ai-video-clipper",
     eyebrow: "AI Video Clipping",
     title: "AI video clipper for Shorts, Reels, and TikTok",

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import Image from "next/image";
+import { ArrowRight, Captions, Code2, Film, Github, ScanFace, Server, Sparkles, Upload, Check } from "lucide-react";
 import { type BlogPost, getSiteUrl, HOSTED_APP_URL } from "@/lib/blog-posts";
 
 const repository = "https://github.com/FujiwaraChoki/supoclip";
@@ -22,13 +24,24 @@ export function SupoLiveArticle({ post }: { post: BlogPost }) {
     "@context": "https://schema.org",
     "@graph": [
       {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Home", item: getSiteUrl() },
+          { "@type": "ListItem", position: 2, name: "Blog", item: `${getSiteUrl()}/blog` },
+          { "@type": "ListItem", position: 3, name: "SupoClip vs supo.live", item: `${getSiteUrl()}/blog/${post.slug}` },
+        ],
+      },
+      {
         "@type": "BlogPosting",
         headline: post.title,
         description: post.description,
         datePublished: post.publishedAt,
         dateModified: post.updatedAt,
         author: { "@type": "Organization", name: post.author },
-        publisher: { "@type": "Organization", name: "SupoClip" },
+        publisher: { "@type": "Organization", name: "SupoClip", url: getSiteUrl(), logo: { "@type": "ImageObject", url: `${getSiteUrl()}/logo.png` } },
+        image: post.image ? [`${getSiteUrl()}${post.image.src}`, `${getSiteUrl()}/blog/supoclip-editor.webp`] : undefined,
+        articleSection: post.category,
+        inLanguage: "en",
         mainEntityOfPage: `${getSiteUrl()}/blog/${post.slug}`,
       },
       {
@@ -47,18 +60,30 @@ export function SupoLiveArticle({ post }: { post: BlogPost }) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, "\\u003c") }} />
       <header className="border-b">
         <nav aria-label="Blog navigation" className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-6 py-5">
-          <Link href="/" className="text-xl font-bold">SupoClip</Link>
+          <Link href="/" className="flex items-center gap-2.5 text-xl font-bold"><Image src="/logo.png" alt="" width={30} height={30} className="rounded-lg" />SupoClip</Link>
           <Link href="/blog" className="text-sm underline underline-offset-4">All articles</Link>
         </nav>
       </header>
-      <article className="mx-auto max-w-4xl px-6 py-12 sm:py-20">
-        <header className="mb-10 space-y-5">
-          <p className="text-sm font-semibold text-muted-foreground">{post.eyebrow}</p>
-          <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">{post.title}</h1>
+      <article className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-16">
+        <nav aria-label="Breadcrumb" className="mb-8 flex flex-wrap gap-2 text-sm text-muted-foreground"><Link href="/">Home</Link><span aria-hidden="true">/</span><Link href="/blog">Blog</Link><span aria-hidden="true">/</span><span>SupoClip vs supo.live</span></nav>
+        <header className="mb-10 max-w-3xl space-y-5">
+          <p className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-widest"><Code2 className="h-4 w-4" />{post.eyebrow}</p>
+          <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl" style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), sans-serif" }}>{post.title}</h1>
           <p className="text-xl leading-8 text-muted-foreground">{post.summary}</p>
           <p className="text-sm text-muted-foreground">By SupoClip · Updated September 21, 2026 · {post.readingTime}</p>
         </header>
-        <div className="space-y-6 leading-8 [&_h2]:pt-6 [&_h2]:text-2xl [&_h2]:font-bold [&_h3]:text-lg [&_h3]:font-semibold [&_a]:underline [&_a]:underline-offset-4 [&_p]:text-muted-foreground">
+        {post.image && <figure className="mb-10 overflow-hidden rounded-2xl border bg-muted/30">
+          <Image src={post.image.src} alt={post.image.alt} width={post.image.width} height={post.image.height} priority sizes="(max-width: 1024px) 100vw, 960px" className="h-auto w-full" />
+          <figcaption className="px-5 py-3 text-xs leading-5 text-muted-foreground">One recording, more possibilities. AI-generated editorial illustration of the long-video-to-shorts workflow.</figcaption>
+        </figure>}
+        <section aria-labelledby="verdict" className="mb-10 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-6 sm:p-8">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">The quick verdict</p>
+          <h2 id="verdict" className="text-2xl font-bold tracking-tight">Choose SupoClip when control matters.</h2>
+          <p className="mt-3 max-w-2xl leading-7 text-muted-foreground">Open source. Your deployment. Your workflow. A strong foundation for turning recorded content into captioned shorts.</p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">{[{ icon: Github, text: "Inspect and extend the code" }, { icon: Server, text: "Self-host on your infrastructure" }, { icon: Captions, text: "Refine every finished clip" }].map(({ icon: Icon, text }) => <div key={text} className="flex items-center gap-3 rounded-xl border bg-background p-4 text-sm font-medium"><Icon className="h-5 w-5 shrink-0 text-emerald-600" />{text}</div>)}</div>
+        </section>
+        <nav aria-label="In this article" className="mb-10 flex flex-wrap gap-x-5 gap-y-2 border-y py-4 text-sm font-medium">{[["comparison", "Compare the tools"], ["workflow", "See the workflow"], ["control", "Why open source"], ["cost", "Understand the costs"], ["faq", "FAQ"]].map(([id, label]) => <a key={id} href={`#${id}`} className="underline-offset-4 hover:underline">{label}</a>)}</nav>
+        <div className="mx-auto max-w-3xl space-y-6 leading-8 [&_h2]:pt-6 [&_h2]:text-2xl [&_h2]:font-bold [&_h3]:text-lg [&_h3]:font-semibold [&_a]:underline [&_a]:underline-offset-4 [&_p]:text-muted-foreground">
           <p>
             Choosing an AI video clipper is also choosing how much control you keep over your production process.
             If you want to turn podcasts, interviews, talks, and stream recordings into short videos,
@@ -84,7 +109,7 @@ export function SupoLiveArticle({ post }: { post: BlogPost }) {
             to TikTok, YouTube Shorts, and X. That makes live publishing its clearest point of distinction.
             See the <a href="https://supo.live/">official supo.live feature overview</a>.
           </p>
-          <h2>SupoClip vs supo.live at a glance</h2>
+          <h2 id="comparison" className="scroll-mt-8">SupoClip vs supo.live at a glance</h2>
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full min-w-[540px] text-left text-sm leading-6">
               <caption className="sr-only">SupoClip and supo.live workflow comparison</caption>
@@ -103,7 +128,24 @@ export function SupoLiveArticle({ post }: { post: BlogPost }) {
             </table>
           </div>
           <p className="text-sm">Supo.live details reflect its <a href="https://supo.live/">homepage</a> checked September 21, 2026. Features and plans can change.</p>
-          <h2>Why SupoClip is the better open-source alternative</h2>
+          <h2 id="workflow" className="scroll-mt-8">From one recording to a repeatable workflow</h2>
+          <p>Let AI handle the first pass, then use your editorial judgment. Every clip should make sense on its own, retain the speaker’s context, and earn its place in your feed.</p>
+          <figure className="rounded-2xl border bg-muted/25 p-5 sm:p-7">
+            <ol className="grid gap-4 sm:grid-cols-2">
+              {[
+                { icon: Upload, title: "Bring a recording", detail: "Upload a video or use a supported YouTube link." },
+                { icon: Sparkles, title: "Discover the moments", detail: "Transcription and AI scoring create a shortlist." },
+                { icon: ScanFace, title: "Make the cut yours", detail: "Review timing, vertical framing, and captions." },
+                { icon: Film, title: "Export your shorts", detail: "Prepare the final clips for your social channels." },
+              ].map(({ icon: Icon, title, detail }, i) => <li key={title} className="rounded-xl border bg-background p-4"><div className="flex items-center justify-between"><Icon className="h-5 w-5 text-emerald-600" /><span className="font-mono text-xs text-muted-foreground">0{i + 1}</span></div><h3 className="mt-4">{title}</h3><p className="mt-1 text-sm leading-6">{detail}</p></li>)}
+            </ol>
+            <figcaption className="mt-4 text-xs leading-5 text-muted-foreground">SupoClip’s recorded-video workflow. AI suggests; you make the final editorial decision.</figcaption>
+          </figure>
+          <figure className="overflow-hidden rounded-2xl border">
+            <a href="/blog/supoclip-editor.webp" aria-label="View full-size SupoClip editor screenshot"><Image src="/blog/supoclip-editor.webp" alt="SupoClip editor with clip list, vertical preview, caption styling controls, and a timeline" width={1800} height={1109} sizes="(max-width: 768px) 100vw, 768px" className="h-auto w-full" /></a>
+            <figcaption className="bg-muted/25 px-5 py-4 text-sm leading-6 text-muted-foreground">Inside the SupoClip editor: adjust captions, framing, and timing before export. Actual product screenshot using sample test footage; click to enlarge.</figcaption>
+          </figure>
+          <h2 id="control" className="scroll-mt-8">Why SupoClip is the better open-source alternative</h2>
           <h3>1. You can shape the workflow around your content</h3>
           <p>
             A podcast studio and an educational channel may want very different clips. With SupoClip,
@@ -132,7 +174,16 @@ export function SupoLiveArticle({ post }: { post: BlogPost }) {
             For an agency processing recurring client recordings, that creates room to build a repeatable
             workflow around its own review process. The <a href={`${repository}/blob/main/docs/api-reference.md`}>API reference</a> explains the available endpoints.
           </p>
-          <h2>Cost: free source code, real operating costs</h2>
+          <figure className="rounded-2xl bg-zinc-950 p-6 text-zinc-50 sm:p-8">
+            <figcaption className="mb-6 font-semibold">What you control when you self-host</figcaption>
+            <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+              <div className="rounded-xl border border-emerald-400/40 bg-emerald-400/10 p-5"><Server className="mb-3 h-6 w-6 text-emerald-300" /><h3>Your deployment</h3><ul className="mt-3 space-y-2 text-sm text-zinc-300"><li>Application and source code</li><li>Storage and processing resources</li><li>Editorial customization</li></ul></div>
+              <ArrowRight className="mx-auto h-5 w-5 rotate-90 text-zinc-400 sm:rotate-0" aria-hidden="true" />
+              <div className="rounded-xl border border-zinc-700 p-5"><Sparkles className="mb-3 h-6 w-6 text-zinc-300" /><h3>Connected AI services</h3><ul className="mt-3 space-y-2 text-sm text-zinc-300"><li>AssemblyAI transcription</li><li>Hosted LLM or local Ollama</li><li>Provider costs and data flows</li></ul></div>
+            </div>
+            <div className="mt-5 text-xs leading-6 text-zinc-400">Self-hosting gives you deployment control. It does not make the entire pipeline offline.</div>
+          </figure>
+          <h2 id="cost" className="scroll-mt-8">Cost: free source code, real operating costs</h2>
           <p>
             SupoClip’s open-source code is free to self-host. Your actual costs depend on compute, storage,
             transcription, paid model usage, and the time needed to maintain the installation. Capacity follows
@@ -160,8 +211,13 @@ export function SupoLiveArticle({ post }: { post: BlogPost }) {
             Start with one representative recording, review the suggested clips, refine the captions and framing,
             and export the results. Then decide whether hosted convenience or your own deployment fits your workflow.
           </p>
-          <p><a href={HOSTED_APP_URL}>Try SupoClip</a> or <a href={repository}>get the open-source code on GitHub</a>.</p>
-          <h2>Frequently asked questions</h2>
+          <section className="rounded-2xl border bg-muted/30 p-6 sm:p-8" aria-label="Start with SupoClip">
+            <Image src="/logo.png" alt="SupoClip logo" width={40} height={40} className="mb-4 rounded-lg" />
+            <h3>Your next recording deserves a second life.</h3>
+            <ul className="my-5 space-y-2 text-sm">{["Start with a recording you know well", "Review the strongest suggested moments", "Refine the captions and export"].map(text => <li key={text} className="flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" />{text}</li>)}</ul>
+            <div className="flex flex-wrap gap-3"><a href={HOSTED_APP_URL} className="inline-flex items-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-semibold !text-background !no-underline">Try SupoClip<ArrowRight className="h-4 w-4" /></a><a href={repository} className="inline-flex items-center gap-2 rounded-lg border px-5 py-3 text-sm font-semibold !no-underline"><Github className="h-4 w-4" />Get the source</a></div>
+          </section>
+          <h2 id="faq" className="scroll-mt-8">Frequently asked questions</h2>
           {faqs.map(({ question, answer }) => <section key={question} className="space-y-2 rounded-lg border p-5"><h3>{question}</h3><p>{answer}</p></section>)}
           <p>Explore our <Link href="/open-source-video-clipper">open-source video clipper guide</Link> or read the <Link href="/blog/best-free-opusclip-alternative">SupoClip vs OpusClip comparison</Link>.</p>
         </div>

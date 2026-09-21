@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Captions, Clock, ExternalLink, Github, ScanFace, Sparkles, Wand2 } from "lucide-react";
+import { ArrowRight, Clock, ExternalLink, Github, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { HOSTED_APP_URL, blogPosts, getSiteUrl } from "@/lib/blog-posts";
 
 export const metadata: Metadata = {
-  title: "SupoClip Blog | AI Video Clipping Guides",
+  title: { absolute: "SupoClip Blog | AI Video Clipping Guides" },
   description:
-    "SEO guides, product comparisons, and creator workflows for turning long-form video into social-ready shorts with SupoClip.",
+    "Practical guides, product comparisons, and creator workflows for turning long-form video into social-ready shorts with SupoClip.",
   alternates: {
     canonical: `${getSiteUrl()}/blog`,
   },
@@ -58,7 +58,7 @@ export default function BlogIndexPage() {
           <div className="mb-5 flex flex-wrap gap-2">
             <Badge variant="secondary" className="gap-2">
               <Sparkles className="h-3.5 w-3.5" />
-              Creator SEO Guides
+              Creator Guides
             </Badge>
             <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
               <Badge variant="outline" className="gap-2">
@@ -116,29 +116,11 @@ export default function BlogIndexPage() {
             </div>
           </article>
 
-          <div className="rounded-lg border bg-muted/45 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              First guide
-            </p>
-            <div className="mt-6 space-y-4">
-              {[
-                { icon: Wand2, label: "Open-source setup" },
-                { icon: Sparkles, label: "AI clip scoring" },
-                { icon: ScanFace, label: "Face-aware 9:16 export" },
-                { icon: Captions, label: "Captioned social clips" },
-              ].map(({ icon: Icon, label }) => (
-                <div key={label} className="flex items-center justify-between gap-4 border-b pb-3 text-sm last:border-b-0">
-                  <span className="flex items-center gap-2">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
-                    {label}
-                  </span>
-                  <span className="font-mono text-xs text-muted-foreground">Included</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          {featuredPost.image ? <Image src={featuredPost.image.src} alt={featuredPost.image.alt} width={featuredPost.image.width} height={featuredPost.image.height} sizes="(max-width: 768px) 100vw, 420px" className="h-full w-full rounded-lg object-cover" /> : <div className="rounded-lg border bg-muted/45 p-5"><p className="font-semibold">Open-source clipping</p></div>}
+
         </Link>
 
+        {blogPosts.length > 1 && <section className="mt-12" aria-labelledby="more-articles"><h2 id="more-articles" className="text-2xl font-bold">More clipping guides</h2><div className="mt-6 grid gap-4 sm:grid-cols-2">{blogPosts.slice(1).map(post => <Link key={post.slug} href={`/blog/${post.slug}`} className="rounded-xl border p-6 hover:border-foreground/30"><p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{post.category}</p><h3 className="mt-3 text-xl font-bold">{post.title}</h3><p className="mt-3 text-sm leading-7 text-muted-foreground">{post.summary}</p><span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">Read article<ArrowRight className="h-4 w-4" /></span></Link>)}</div></section>}
         <section className="mt-14" aria-labelledby="product-guides-heading">
           <h2 id="product-guides-heading" className="text-2xl font-bold tracking-tight">
             Product guides
