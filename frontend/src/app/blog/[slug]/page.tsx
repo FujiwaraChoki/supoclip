@@ -1,3 +1,4 @@
+import { SupoLiveArticle } from "@/components/supo-live-article";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -98,6 +99,10 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
   if (!post) {
     notFound();
+  }
+
+  if (slug === "supoclip-vs-supo-live") {
+    return <SupoLiveArticle post={post} />;
   }
 
   const siteUrl = getSiteUrl();

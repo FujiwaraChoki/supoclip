@@ -19,6 +19,21 @@ export interface BlogPost {
 
 export const blogPosts: BlogPost[] = [
   {
+    slug: "supoclip-vs-supo-live",
+    title: "SupoClip vs supo.live: The Better Open-Source Alternative",
+    description:
+      "Compare SupoClip and supo.live for AI video clipping. See why SupoClip wins for open-source control, self-hosting, and customizable video workflows.",
+    eyebrow: "Supo.live Alternative",
+    category: "Comparison",
+    publishedAt: "2026-09-21",
+    updatedAt: "2026-09-21",
+    readingTime: "5 min read",
+    author: "SupoClip",
+    keywords: ["SupoClip vs supo.live", "supo.live alternative", "open-source video clipper", "self-hosted AI video clipping", "AI clip maker"],
+    summary:
+      "For creators and teams who want control over their clipping workflow, SupoClip is the better open-source alternative to supo.live.",
+  },
+  {
     slug: "best-free-opusclip-alternative",
     title: "Best, Free OpusClip Alternative",
     description:
