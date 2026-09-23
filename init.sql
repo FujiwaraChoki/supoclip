@@ -30,7 +30,8 @@ CREATE TABLE users (
     stripe_subscription_id VARCHAR(255) UNIQUE,
     billing_period_start TIMESTAMP WITH TIME ZONE,
     billing_period_end TIMESTAMP WITH TIME ZONE,
-    trial_ends_at TIMESTAMP WITH TIME ZONE
+    trial_ends_at TIMESTAMP WITH TIME ZONE,
+    subscription_cancel_at TIMESTAMP WITH TIME ZONE
 );
 
 -- Source table (created before tasks since tasks reference sources)

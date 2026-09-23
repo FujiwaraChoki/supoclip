@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
@@ -29,6 +30,7 @@ interface BillingSummary {
   plan: string;
   subscription_status: string;
   subscription_provider: string | null;
+  cancel_at?: string | null;
   usage_count: number;
   usage_limit: number | null;
   remaining: number | null;
@@ -480,6 +482,15 @@ export default function SettingsPage() {
                     Plan: {formatBillingPlanName(billingSummary.plan)} ({billingSummary.subscription_status})
                   </p>
                 </div>
+
+                {billingSummary.cancel_at && (
+                  <SubscriptionCancelBanner
+                    cancelAt={billingSummary.cancel_at}
+                    onRestarted={() =>
+                      setBillingSummary((prev) => (prev ? { ...prev, cancel_at: null } : prev))
+                    }
+                  />
+                )}
 
                 {isPaidBillingPlan(billingSummary.plan) ? (
                   billingSummary.subscription_provider === "apple" ? (
