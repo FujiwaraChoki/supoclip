@@ -322,3 +322,46 @@ def test_normalize_apify_quality_defaults_for_invalid_values():
     assert normalize_apify_quality("bad-value") == "1080"
     assert normalize_apify_quality("") == "1080"
     assert normalize_apify_quality(None) == "1080"
+
+
+@pytest.mark.parametrize(
+    ("run", "message"),
+    [
+        ({"status": "TIMED-OUT", "defaultDatasetId": "dataset-1"}, "timed out after 42s"),
+        (
+            {"status": "FAILED", "statusMessage": "boom", "defaultDatasetId": "dataset-1"},
+            "ended with status FAILED: boom",
+        ),
+    ],
+)
+def test_download_video_via_apify_reports_unsuccessful_run_status(
+    tmp_path, monkeypatch, run, message
+):
+    monkeypatch.setenv("APIFY_RUN_TIMEOUT_SECONDS", "42")
+
+    class FakeActor:
+        def call(self, run_input, **kwargs):
+            del run_input
+            del kwargs
+            return run
+
+    class FakeClient:
+        def __init__(self, token):
+            del token
+
+        def actor(self, actor_id):
+            del actor_id
+            return FakeActor()
+
+        def dataset(self, dataset_id):
+            raise AssertionError("dataset should not be read for unsuccessful runs")
+
+    monkeypatch.setattr("src.apify_youtube_downloader.ApifyClient", FakeClient)
+
+    with pytest.raises(ApifyDownloadError, match=message):
+        download_video_via_apify(
+            url="https://www.youtube.com/watch?v=abcdefghijk",
+            video_id="abcdefghijk",
+            temp_dir=tmp_path,
+            api_token="apify-token",
+        )
