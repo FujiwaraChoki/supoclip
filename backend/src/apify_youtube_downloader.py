@@ -199,6 +199,23 @@ def download_video_via_apify(
             run_input=_build_run_input(actor_id, url, resolved_quality),
             timeout_secs=config.apify_run_timeout_seconds,
         )
+        if not run:
+            raise ApifyDownloadError("Apify run did not return run details")
+
+        # A timed-out or failed run still has a (usually empty) dataset, so check
+        # the run status first to report the real cause.
+        run_status = str(run.get("status") or "").strip().upper()
+        if run_status in {"TIMED-OUT", "TIMING-OUT"}:
+            raise ApifyDownloadError(
+                f"Apify run timed out after {config.apify_run_timeout_seconds}s"
+            )
+        if run_status and run_status != "SUCCEEDED":
+            status_message = run.get("statusMessage")
+            raise ApifyDownloadError(
+                f"Apify run ended with status {run_status}"
+                + (f": {status_message}" if status_message else "")
+            )
+
         dataset_id = run.get("defaultDatasetId")
         if not dataset_id:
             raise ApifyDownloadError("Apify run did not return a dataset ID")

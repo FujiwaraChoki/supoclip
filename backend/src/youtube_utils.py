@@ -441,23 +441,52 @@ async def async_get_youtube_video_title(url: str) -> Optional[str]:
     return video_info.get("title") if video_info else None
 
 
+APIFY_LONG_VIDEO_MAX_QUALITY = "1080"
+
+
+def _resolve_apify_quality(url: str) -> str:
+    """Cap long videos at 1080p so the Apify run finishes before its timeout."""
+    config = get_config()
+    quality = config.apify_youtube_default_quality
+    if int(quality) <= int(APIFY_LONG_VIDEO_MAX_QUALITY):
+        return quality
+
+    try:
+        video_info = get_youtube_video_info(url)
+    except Exception as exc:
+        logger.warning("Could not fetch duration for Apify quality cap: %s", exc)
+        video_info = None
+
+    duration = (video_info or {}).get("duration") or 0
+    if duration > config.apify_long_video_seconds:
+        logger.info(
+            "Video is %ss long; capping Apify quality at %sp instead of %sp",
+            duration,
+            APIFY_LONG_VIDEO_MAX_QUALITY,
+            quality,
+        )
+        return APIFY_LONG_VIDEO_MAX_QUALITY
+    return quality
+
+
 def download_youtube_video_with_apify(
     url: str,
     video_id: str,
 ) -> Path:
     config = get_config()
     downloader = YouTubeDownloader()
+    quality = _resolve_apify_quality(url)
     logger.info(
         "Attempting Apify YouTube download for %s with quality %s",
         video_id,
-        config.apify_youtube_default_quality,
+        quality,
     )
     return download_video_via_apify(
         url=url,
         video_id=video_id,
         temp_dir=downloader.temp_dir,
         api_token=config.apify_api_token,
-        quality=config.apify_youtube_default_quality,
+        quality=quality,
     )
 
 

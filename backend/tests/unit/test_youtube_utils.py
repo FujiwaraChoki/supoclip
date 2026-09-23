@@ -1,3 +1,4 @@
+import pytest
 import requests
 
 from src.apify_youtube_downloader import ApifyDownloadError
@@ -11,6 +12,7 @@ from src.youtube_utils import (
     _parse_iso8601_duration_to_seconds,
     _pick_best_thumbnail,
     download_youtube_video,
+    download_youtube_video_with_apify,
     get_youtube_video_info,
 )
 
@@ -504,3 +506,41 @@ def test_cleanup_keeps_word_timings_for_cached_reprocessing(monkeypatch, tmp_pat
         (tmp_path / name).write_text("fixture")
     cleanup_downloaded_files("abcdefghijk")
     assert [p.name for p in tmp_path.iterdir()] == ["abcdefghijk.transcript_cache.json"]
+
+
+@pytest.mark.parametrize(
+    ("duration", "expected_quality"),
+    [(1200, "1440"), (5196, "1080"), (None, "1440")],
+)
+def test_download_youtube_video_with_apify_caps_quality_for_long_videos(
+    tmp_path, monkeypatch, duration, expected_quality
+):
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    config.apify_api_token = "apify-token"
+    config.apify_youtube_default_quality = "1440"
+    config.apify_long_video_seconds = 1800
+
+    captured = {}
+
+    def fake_download_via_apify(**kwargs):
+        captured.update(kwargs)
+        return tmp_path / "abcdefghijk.mp4"
+
+    set_config_override(config)
+    try:
+        monkeypatch.setattr(
+            "src.youtube_utils.get_youtube_video_info",
+            lambda url: {"duration": duration} if duration else None,
+        )
+        monkeypatch.setattr(
+            "src.youtube_utils.download_video_via_apify", fake_download_via_apify
+        )
+
+        download_youtube_video_with_apify(
+            "https://www.youtube.com/watch?v=abcdefghijk", "abcdefghijk"
+        )
+
+        assert captured["quality"] == expected_quality
+    finally:
+        set_config_override(None)

@@ -50,6 +50,10 @@ class Config:
         self.apify_run_timeout_seconds = int(
             os.getenv("APIFY_RUN_TIMEOUT_SECONDS", "900")
         )
+        # Long videos at >1080p don't finish within the Apify run timeout.
+        self.apify_long_video_seconds = int(
+            os.getenv("APIFY_LONG_VIDEO_SECONDS", "1800")
+        )
 
         self.max_video_duration = int(os.getenv("MAX_VIDEO_DURATION", "5400"))
         # YouTube sources can be longer on paid tiers. Uploads continue to use
