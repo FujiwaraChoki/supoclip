@@ -47,7 +47,8 @@ class BillingService:
                         subscription_provider,
                         billing_period_start,
                         billing_period_end,
-                        trial_ends_at
+                        trial_ends_at,
+                        subscription_cancel_at
                     FROM users
                     WHERE id = :user_id
                     """
@@ -69,6 +70,7 @@ class BillingService:
                 "billing_period_start": row.billing_period_start,
                 "billing_period_end": row.billing_period_end,
                 "trial_ends_at": row.trial_ends_at,
+                "cancel_at": row.subscription_cancel_at,
             }
         except Exception:
             now = datetime.now(timezone.utc)
@@ -80,6 +82,7 @@ class BillingService:
                 "billing_period_start": start,
                 "billing_period_end": end,
                 "trial_ends_at": None,
+                "cancel_at": None,
             }
 
     async def _count_tasks(
@@ -144,6 +147,7 @@ class BillingService:
                 "period_start": start,
                 "period_end": end,
                 "trial_ends_at": row.get("trial_ends_at"),
+                "cancel_at": row.get("cancel_at"),
                 "usage_count": usage_count,
                 "usage_limit": 0,
                 "remaining": 0,
@@ -168,6 +172,7 @@ class BillingService:
             "period_start": start,
             "period_end": end,
             "trial_ends_at": row.get("trial_ends_at"),
+            "cancel_at": row.get("cancel_at"),
             "usage_count": usage_count,
             "usage_limit": None if unlimited else usage_limit,
             "remaining": remaining,

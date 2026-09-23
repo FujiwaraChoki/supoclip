@@ -100,6 +100,7 @@ describe("/api/billing/revenuecat-webhook", () => {
         subscription_status: "active",
         subscription_provider: "apple",
         trial_ends_at: null,
+        subscription_cancel_at: null,
       }),
     });
     expect(fetchBackend).toHaveBeenCalled();
@@ -137,6 +138,7 @@ describe("/api/billing/revenuecat-webhook", () => {
         billing_period_start: null,
         billing_period_end: null,
         trial_ends_at: null,
+        subscription_cancel_at: null,
       },
     });
     expect(fetchBackend).toHaveBeenCalled();

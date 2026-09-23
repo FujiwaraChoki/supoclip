@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/app/status-badge";
@@ -37,6 +38,8 @@ interface BillingSummary {
   monetization_enabled: boolean;
   plan: string;
   subscription_status: string;
+  subscription_provider?: string | null;
+  cancel_at?: string | null;
   usage_count: number;
   usage_limit: number | null;
   remaining: number | null;
@@ -428,6 +431,16 @@ export default function HomeApp() {
 
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-6 py-10">
+        {billingSummary?.cancel_at && billingSummary.subscription_provider === "stripe" && (
+          <SubscriptionCancelBanner
+            cancelAt={billingSummary.cancel_at}
+            onRestarted={() =>
+              setBillingSummary((prev) => (prev ? { ...prev, cancel_at: null } : prev))
+            }
+            className="mb-6"
+          />
+        )}
+
         {/* Latest Generation Banner */}
         {latestTask && (
           <Link href={`/tasks/${latestTask.id}`} className="block mb-8">

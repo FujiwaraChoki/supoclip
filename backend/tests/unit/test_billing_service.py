@@ -21,7 +21,12 @@ class _FakeSession:
         return _FakeResult(self.rows.pop(0))
 
 
-def _billing_row(plan: str, status: str = "active", provider: str | None = None):
+def _billing_row(
+    plan: str,
+    status: str = "active",
+    provider: str | None = None,
+    cancel_at: datetime | None = None,
+):
     return type(
         "BillingRow",
         (),
@@ -32,6 +37,7 @@ def _billing_row(plan: str, status: str = "active", provider: str | None = None)
             "billing_period_start": datetime.now(timezone.utc),
             "billing_period_end": datetime.now(timezone.utc),
             "trial_ends_at": None,
+            "subscription_cancel_at": cancel_at,
         },
     )()
 
@@ -118,3 +124,20 @@ async def test_inactive_paid_plan_requires_upgrade():
     assert summary["plan"] == "scale"
     assert summary["can_create_task"] is False
     assert summary["upgrade_required"] is True
+
+
+@pytest.mark.asyncio
+async def test_billing_summary_exposes_scheduled_cancellation():
+    cancel_at = datetime(2026, 10, 21, tzinfo=timezone.utc)
+    service = BillingService(  # type: ignore[arg-type]
+        _FakeSession([_billing_row("pro", cancel_at=cancel_at), _count_row(1)])
+    )
+    service.config.self_host = False
+    service.config.monetization_enabled = True
+    service.config.pro_plan_task_limit = 50
+
+    summary = await service.get_usage_summary("user-1")
+
+    assert summary["plan"] == "pro"
+    assert summary["can_create_task"] is True
+    assert summary["cancel_at"] == cancel_at

@@ -46,6 +46,7 @@ model User {
   billing_period_start DateTime? @db.Timestamptz
   billing_period_end   DateTime? @db.Timestamptz
   trial_ends_at        DateTime? @db.Timestamptz
+  subscription_cancel_at DateTime? @db.Timestamptz
 
   // Relationships
   tasks         Task[]

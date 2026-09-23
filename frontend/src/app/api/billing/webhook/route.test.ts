@@ -275,6 +275,66 @@ describe("/api/billing/webhook", () => {
     );
   });
 
+  it("stores the scheduled cancellation date from a subscription update", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const stripe = {
+      webhooks: {
+        constructEvent: vi.fn().mockReturnValue({
+          id: "evt_cancel",
+          type: "customer.subscription.updated",
+          data: {
+            object: {
+              id: "sub_123",
+              customer: "cus_123",
+              status: "active",
+              trial_end: null,
+              cancel_at: null,
+              cancel_at_period_end: true,
+              items: {
+                data: [
+                  {
+                    price: { id: "price_pro" },
+                    current_period_start: 1770000000,
+                    current_period_end: 1772592000,
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      },
+    };
+
+    vi.mocked(getServerStripeClient).mockReturnValue(stripe as never);
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: {
+        create: vi.fn().mockResolvedValue({}),
+        delete: vi.fn().mockResolvedValue({}),
+      },
+      user: {
+        updateMany,
+      },
+    } as never);
+
+    const response = await POST(
+      new Request("http://localhost/api/billing/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          plan: "pro",
+          subscription_cancel_at: new Date(1772592000 * 1000),
+        }),
+      }),
+    );
+  });
+
   it("scopes non-paid subscription updates so they cannot clobber an Apple entitlement", async () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 0 });
     const stripe = {

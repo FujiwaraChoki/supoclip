@@ -14,13 +14,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["feedback"])
 
-VALID_CATEGORIES = {"bug", "feature", "general", "sales"}
+VALID_CATEGORIES = {"bug", "feature", "general", "sales", "cancellation"}
 
 CATEGORY_COLORS = {
     "bug": 0xEF4444,
     "feature": 0x3B82F6,
     "general": 0xA855F7,
     "sales": 0x22C55E,
+    "cancellation": 0xF59E0B,
 }
 
 CATEGORY_LABELS = {
@@ -28,6 +29,7 @@ CATEGORY_LABELS = {
     "feature": "Feature Request",
     "general": "General Feedback",
     "sales": "Sales Inquiry",
+    "cancellation": "Cancellation Reason",
 }
 
 # Sales category routes to its own webhook; everything else goes to the feedback webhook

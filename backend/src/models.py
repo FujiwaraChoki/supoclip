@@ -81,6 +81,9 @@ class User(Base):
     trial_ends_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    subscription_cancel_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Relationships
     tasks: Mapped[List["Task"]] = relationship(
