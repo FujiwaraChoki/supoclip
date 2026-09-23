@@ -38,6 +38,7 @@ interface BillingSummary {
   monetization_enabled: boolean;
   plan: string;
   subscription_status: string;
+  subscription_provider?: string | null;
   cancel_at?: string | null;
   usage_count: number;
   usage_limit: number | null;
@@ -430,7 +431,7 @@ export default function HomeApp() {
 
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-6 py-10">
-        {billingSummary?.cancel_at && (
+        {billingSummary?.cancel_at && billingSummary.subscription_provider === "stripe" && (
           <SubscriptionCancelBanner
             cancelAt={billingSummary.cancel_at}
             onRestarted={() =>

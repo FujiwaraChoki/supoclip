@@ -203,6 +203,8 @@ async function grantAppleSubscription(userId: string, event: RevenueCatEvent) {
       billing_period_start: toDate(event.purchased_at_ms),
       billing_period_end: expiration,
       trial_ends_at: isTrial ? expiration : null,
+      // Any scheduled cancellation belonged to the Stripe subscription Apple replaces.
+      subscription_cancel_at: null,
     },
   });
 
@@ -233,6 +235,7 @@ async function downgradeAppleSubscription(userId: string, eventExpiration?: Date
       billing_period_start: null,
       billing_period_end: null,
       trial_ends_at: null,
+      subscription_cancel_at: null,
     },
   });
 

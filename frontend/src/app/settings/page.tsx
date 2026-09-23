@@ -483,7 +483,7 @@ export default function SettingsPage() {
                   </p>
                 </div>
 
-                {billingSummary.cancel_at && (
+                {billingSummary.cancel_at && billingSummary.subscription_provider === "stripe" && (
                   <SubscriptionCancelBanner
                     cancelAt={billingSummary.cancel_at}
                     onRestarted={() =>
