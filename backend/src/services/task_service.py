@@ -628,7 +628,36 @@ class TaskService(ClipEditingMixin):
         self, user_id: str, limit: int = 50
     ) -> list[Dict[str, Any]]:
         """Get all tasks for a user."""
-        return await self.task_repo.get_user_tasks(self.db, user_id, limit)
+        tasks = await self.task_repo.get_user_tasks(self.db, user_id, limit)
+        # Sweep here too, not just in get_task_with_clips: the list view is the
+        # only endpoint some clients poll, so queued/processing fail-safes
+        # otherwise never fire (#2).
+        for task in tasks:
+            if self._is_stale_queued_task(task):
+                await self.task_repo.update_task_status(
+                    self.db,
+                    task["id"],
+                    "error",
+                    progress=0,
+                    progress_message=(
+                        "Task timed out while waiting in queue. "
+                        "Ensure the worker service is running and healthy (docker-compose logs -f worker)."
+                    ),
+                )
+                task["status"] = "error"
+            elif self._is_stale_processing_task(task):
+                await self.task_repo.update_task_status(
+                    self.db,
+                    task["id"],
+                    "error",
+                    progress=0,
+                    progress_message=(
+                        "Task stalled during processing (worker likely stopped or timed out). "
+                        "Check the worker logs (docker-compose logs -f worker) and try again."
+                    ),
+                )
+                task["status"] = "error"
+        return tasks
 
     @serialized_task_edit
     async def delete_task(self, task_id: str) -> None:
