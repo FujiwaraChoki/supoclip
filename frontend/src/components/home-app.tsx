@@ -46,6 +46,8 @@ interface BillingSummary {
   can_create_task: boolean;
   upgrade_required: boolean;
   reason: string | null;
+  max_youtube_duration_seconds?: number;
+  max_upload_duration_seconds?: number;
 }
 
 interface FontOption {
@@ -352,6 +354,7 @@ export default function HomeApp() {
       }
 
       // Step 1: Start the task (using new refactored endpoint)
+      if (sourceType === "youtube") setStatusMessage("Checking video length...");
       const startResponse = await fetch("/api/tasks/create", {
         method: 'POST',
         headers: {
@@ -549,17 +552,26 @@ export default function HomeApp() {
 
                 {/* URL / Upload Input */}
                 {sourceType === "youtube" ? (
-                  <div className="relative">
-                    <Youtube className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
-                    <Input
-                      id="youtube-url"
-                      type="url"
-                      placeholder="https://www.youtube.com/watch?v=..."
-                      value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      disabled={generationControlsDisabled}
-                      className="h-14 pl-12 text-base rounded-xl border-stone-300 focus:border-stone-500 placeholder:text-stone-400"
-                    />
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Youtube className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
+                      <Input
+                        id="youtube-url"
+                        type="url"
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        aria-describedby={billingSummary?.max_youtube_duration_seconds ? "youtube-duration-limit" : undefined}
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        disabled={generationControlsDisabled}
+                        className="h-14 pl-12 text-base rounded-xl border-stone-300 focus:border-stone-500 placeholder:text-stone-400"
+                      />
+                    </div>
+                    {billingSummary?.max_youtube_duration_seconds ? (
+                      <p id="youtube-duration-limit" className="text-sm text-stone-600">
+                        {formatBillingPlanName(billingSummary.plan)}: YouTube videos up to {billingSummary.max_youtube_duration_seconds / 60} minutes.
+                        {" "}We check the length before using a generation.
+                      </p>
+                    ) : null}
                   </div>
                 ) : (
                   <div
@@ -894,7 +906,7 @@ export default function HomeApp() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-stone-600">Processing</span>
+                      <span className="text-stone-600" role="status">{statusMessage || "Processing"}</span>
                       <span className="text-stone-900 font-medium">{progress}%</span>
                     </div>
                     <Progress value={progress} className="h-2" />

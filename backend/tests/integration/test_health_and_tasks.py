@@ -91,7 +91,13 @@ async def test_list_tasks_only_returns_owned_tasks(client, db_session, auth_head
 
 
 @pytest.mark.asyncio
-async def test_create_task_enqueues_a_job(client, db_session, auth_headers):
+async def test_create_task_enqueues_a_job(client, db_session, auth_headers, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.api.routes.tasks.async_get_youtube_video_info",
+        AsyncMock(return_value={"duration": 213, "title": "Test video"}),
+    )
     await create_user(db_session, user_id="user-1", email="owner@example.com")
 
     response = await client.post(

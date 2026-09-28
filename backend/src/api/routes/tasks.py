@@ -3,6 +3,7 @@ Task API routes using refactored architecture.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
@@ -15,6 +16,7 @@ import inspect
 import re
 import secrets
 import math
+import asyncio
 from ...utils.async_helpers import run_in_thread
 
 from ...repositories.task_run_guard import task_run_guard, TaskRunBusy
@@ -26,6 +28,7 @@ from ...auth_headers import resolve_authenticated_user_id
 from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import get_config
+from ...youtube_utils import async_get_youtube_video_info
 from ...font_registry import is_font_accessible
 from ...clip_cleanup import normalize_clip_cleanup_settings
 from ...video_utils import VALID_OUTPUT_FORMATS
@@ -35,6 +38,44 @@ from ...clip_editor import export_with_preset, EXPORT_PRESETS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+
+async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, Any]:
+    """Check duration before creating a task or consuming a generation."""
+    try:
+        metadata = await asyncio.wait_for(async_get_youtube_video_info(url), timeout=15)
+        duration = (metadata or {}).get("duration")
+        if isinstance(duration, bool) or not isinstance(duration, (int, float)):
+            raise ValueError("Missing video duration")
+        if not math.isfinite(duration) or duration <= 0:
+            raise ValueError("Invalid video duration")
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "VIDEO_METADATA_UNAVAILABLE",
+                "message": (
+                    "We couldn't verify this video's length. Please try again shortly "
+                    "or upload the video file. No generation was used."
+                ),
+            },
+        ) from None
+
+    if duration > duration_limit:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "VIDEO_TOO_LONG",
+                "message": (
+                    f"This video is {duration / 60:.1f} minutes long. Your plan allows "
+                    f"YouTube videos up to {duration_limit / 60:g} minutes. "
+                    "Choose a shorter video. No generation was used."
+                ),
+                "duration_seconds": duration,
+                "max_duration_seconds": duration_limit,
+            },
+        )
+    return metadata
 
 
 def _normalize_font_size(value: Any, default: int = 24) -> Optional[int]:
@@ -280,26 +321,29 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
 
     try:
         billing_service = BillingService(db)
-        await billing_service.assert_can_create_task(user_id)
+        billing = await billing_service.assert_can_create_task(user_id)
 
         task_service = TaskService(db)
+
+        source_type = task_service.video_service.determine_source_type(raw_source["url"])
+        source_title = raw_source.get("title")
+        if source_type == "youtube":
+            metadata = await _preflight_youtube_source(
+                raw_source["url"], billing["max_youtube_duration_seconds"]
+            )
+            source_title = source_title or metadata.get("title") or "YouTube Video"
 
         # Create task
         task_id = await task_service.create_task_with_source(
             user_id=user_id,
             url=raw_source["url"],
-            title=raw_source.get("title"),
+            title=source_title,
             font_family=font_family,
             font_size=font_size,
             font_color=font_color,
             caption_template=caption_template,
             include_broll=include_broll,
             processing_mode=processing_mode,
-        )
-
-        # Get source type for worker
-        source_type = task_service.video_service.determine_source_type(
-            raw_source["url"]
         )
 
         # Enqueue job for worker
@@ -342,6 +386,8 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             "message": "Task created and queued for processing",
         }
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except BillingLimitExceeded as e:
@@ -349,8 +395,8 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             status_code=402,
             detail={
                 "code": "SUBSCRIPTION_REQUIRED",
-                "message": "Choose a paid plan to process videos.",
-                "billing": e.summary,
+                "message": e.summary.get("reason") or "Choose a paid plan to process videos.",
+                "billing": jsonable_encoder(e.summary),
             },
         )
     except Exception as e:
@@ -1086,6 +1132,8 @@ async def resume_task(
             if not source_url or not source_type:
                 raise HTTPException(status_code=400, detail="Task source URL is missing")
 
+            await BillingService(db).assert_can_resume_task(task["user_id"], task_id)
+
             runtime_config = get_config()
             redis_client = redis.Redis(
                 host=runtime_config.redis_host,
@@ -1136,6 +1184,15 @@ async def resume_task(
                 raise
 
             return {"message": "Task resumed", "job_id": job_id}
+    except BillingLimitExceeded as e:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "SUBSCRIPTION_REQUIRED",
+                "message": e.summary.get("reason") or "Plan usage limit reached",
+                "billing": jsonable_encoder(e.summary),
+            },
+        )
     except TaskRunBusy as e:
         raise HTTPException(status_code=409, detail=str(e))
     except HTTPException:

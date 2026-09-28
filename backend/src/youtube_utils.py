@@ -16,6 +16,8 @@ from urllib.parse import parse_qs, urlparse
 import requests
 import yt_dlp
 
+from .oxylabs_youtube_downloader import download_video_via_oxylabs
+from .videoscale_youtube_downloader import download_video_via_videoscale
 from .apify_youtube_downloader import ApifyDownloadError, download_video_via_apify
 from .config import get_config
 
@@ -608,6 +610,12 @@ def download_youtube_video(
         logger.error("Could not extract video ID from URL: %s", url)
         return None
 
+    config = get_config()
+    if config.youtube_download_provider == "videoscale":
+        return download_video_via_videoscale(url, video_id)
+    if config.youtube_download_provider == "oxylabs":
+        return download_video_via_oxylabs(video_id)
+
     downloader = YouTubeDownloader()
     _remove_cached_downloads(downloader.temp_dir, video_id)
 
@@ -697,9 +705,17 @@ def is_video_suitable_for_processing(
     return True
 
 
-def cleanup_downloaded_files(video_id: str):
+def cleanup_downloaded_files(video_id: str, source_path: Optional[Path] = None):
     """Remove downloaded media while retaining word timings for cached jobs."""
     temp_dir = Path(get_config().temp_dir)
+    provider_dir = False
+    if source_path is not None and source_path.parent.name.startswith((f"oxy-{video_id}-", f"videoscale-{video_id}-")):
+        candidate = source_path.parent.resolve()
+        if candidate.parent != temp_dir.resolve():
+            logger.warning("Refusing source cleanup outside the configured download directory")
+            return
+        temp_dir = candidate
+        provider_dir = True
 
     for file_path in temp_dir.glob(f"{video_id}.*"):
         if file_path.name == f"{video_id}.transcript_cache.json":
@@ -710,6 +726,12 @@ def cleanup_downloaded_files(video_id: str):
                 logger.info(f"Cleaned up: {file_path.name}")
         except Exception as e:
             logger.warning(f"Failed to cleanup {file_path.name}: {e}")
+
+    if provider_dir:
+        try:
+            temp_dir.rmdir()
+        except OSError:
+            pass  # Keep a directory containing cached word timings or other files.
 
 
 # Backward compatibility functions

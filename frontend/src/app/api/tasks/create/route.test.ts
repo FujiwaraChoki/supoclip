@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { POST } from "./route";
 import { auth } from "@/lib/auth";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
+import { parseApiError } from "@/lib/api-error";
 
 vi.mock("next/headers", () => ({
   headers: vi.fn(),
@@ -80,5 +81,21 @@ describe("/api/tasks/create", () => {
       }),
     );
     expect(response.status).toBe(200);
+  });
+
+  it("preserves the duration rejection and actionable message for the form", async () => {
+    vi.mocked(auth.api.getSession).mockResolvedValue({ user: { id: "user-1" } } as never);
+    const message = "Your plan allows YouTube videos up to 90 minutes. No generation was used.";
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({
+      detail: { code: "VIDEO_TOO_LONG", message, max_duration_seconds: 5400 },
+    }), { status: 422, headers: { "Content-Type": "application/json" } }));
+
+    const response = await POST(new Request("http://localhost/api/tasks/create", {
+      method: "POST",
+      body: JSON.stringify({ source: { url: "https://youtu.be/abcdefghijk" } }),
+    }));
+
+    expect(response.status).toBe(422);
+    expect((await parseApiError(response, "Failed to process video")).message).toBe(message);
   });
 });

@@ -141,3 +141,16 @@ async def test_billing_summary_exposes_scheduled_cancellation():
     assert summary["plan"] == "pro"
     assert summary["can_create_task"] is True
     assert summary["cancel_at"] == cancel_at
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("plan,status,expected", [("pro", "active", 5400), ("scale", "trialing", 10800), ("scale", "inactive", 5400)])
+async def test_billing_summary_exposes_enforced_duration_limit(plan, status, expected):
+    service = BillingService(_FakeSession([_billing_row(plan, status), _count_row(0)]))
+    service.config.monetization_enabled = True
+    service.config.max_video_duration = 5400
+    service.config.pro_youtube_max_video_duration = 5400
+    service.config.scale_youtube_max_video_duration = 10800
+    summary = await service.get_usage_summary("user-1")
+    assert summary["max_youtube_duration_seconds"] == expected
+    assert summary["max_upload_duration_seconds"] == 5400

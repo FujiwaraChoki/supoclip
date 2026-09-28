@@ -37,6 +37,11 @@ SETTING_METADATA = {
         "description": "Required for openai:* models.",
         "input_type": "password",
     },
+    "OPENROUTER_API_KEY": {
+        "label": "OpenRouter API key",
+        "description": "Required for openrouter:* models, including Sonnet with Luna fallback.",
+        "input_type": "password",
+    },
     "GOOGLE_API_KEY": {
         "label": "Google API key",
         "description": "Required for google-gla:* models and fallback YouTube metadata.",

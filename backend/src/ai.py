@@ -6,12 +6,18 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Literal
 import asyncio
 import logging
+import random
 import re
 
-from pydantic_ai import Agent
+import httpx
+from pydantic_ai import Agent, NativeOutput
+from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model
 from pydantic_ai.models.ollama import OllamaModel
+from pydantic_ai.models.openrouter import OpenRouterModel
+from pydantic_ai.profiles.openai import OpenAIModelProfile
 from pydantic_ai.providers.ollama import OllamaProvider
+from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from .config import Config, get_config
@@ -24,6 +30,9 @@ IDEAL_CLIP_MAX_SECONDS = 50
 MIN_ACCEPTED_CLIP_SECONDS = 15
 MAX_ACCEPTED_CLIP_SECONDS = 60
 TRANSCRIPT_ANALYSIS_CACHE_VERSION = "hook-titles-v5-grounded"
+TRANSCRIPT_ANALYSIS_MAX_ATTEMPTS = 3
+TRANSCRIPT_ANALYSIS_TIMEOUT_SECONDS = 600
+TRANSIENT_MODEL_STATUS_CODES = {408, 429, 500, 502, 503, 504, 529}
 HOOK_TITLE_MAX_CHARS = 64
 HOOK_TITLE_MAX_WORDS = 10
 TRANSCRIPT_SPAN_RE = re.compile(
@@ -232,7 +241,7 @@ Your job is extraction and ranking, not creative rewriting. You must stay fully 
 OUTPUT CONTRACT:
 - Return valid JSON only. Do not output Markdown, headings, bullets, prose, code fences, explanations, or commentary outside the JSON object.
 - The top-level JSON object must include: "most_relevant_segments", "summary", and "key_topics".
-- Only include "broll_opportunities" when B-roll was requested.
+- Set "broll_opportunities" to null when B-roll was not requested.
 - Each item in "most_relevant_segments" must include: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", and "hook_title".
 - Do not use "segment" as an output field. Use "text".
 - "virality" must include: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", and "virality_reasoning".
@@ -360,7 +369,7 @@ Find 2-5 compelling segments that would work well as standalone clips. Quality o
 _transcript_agent: Optional[Agent[None, TranscriptAnalysis]] = None
 _transcript_agent_signature: Optional[tuple[str | None, ...]] = None
 
-SUPPORTED_LLM_PROVIDERS = {"google", "google-gla", "openai", "anthropic", "ollama"}
+SUPPORTED_LLM_PROVIDERS = {"google", "google-gla", "openai", "openrouter", "anthropic", "ollama"}
 
 
 def _split_llm_name(model_name: str) -> tuple[str, str | None]:
@@ -378,7 +387,7 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
     if provider not in SUPPORTED_LLM_PROVIDERS:
         return (
             f"Unsupported LLM provider '{provider}'. "
-            "Use google-gla:*, openai:*, anthropic:*, or ollama:*."
+            "Use google-gla:*, openai:*, openrouter:*, anthropic:*, or ollama:*."
         )
 
     if not provider_model_name:
@@ -392,6 +401,12 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
             "Selected LLM provider is Google, but GOOGLE_API_KEY is not set. "
             "Set GOOGLE_API_KEY or set LLM to openai:* / anthropic:* / ollama:* with the matching API key."
         )
+
+    if provider == "openrouter" and not runtime_config.openrouter_api_key:
+        return "Selected LLM provider is OpenRouter, but OPENROUTER_API_KEY is not set."
+
+    if provider == "openrouter" and "/" not in provider_model_name:
+        return "OpenRouter model must include its vendor, for example openrouter:anthropic/claude-sonnet-5.5."
 
     if provider == "openai" and not runtime_config.openai_api_key:
         return (
@@ -415,6 +430,26 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
 
 def _build_transcript_model(runtime_config: Config) -> Model | str:
     provider, provider_model_name = _split_llm_name(runtime_config.llm)
+    if provider == "openrouter":
+        fallback = runtime_config.openrouter_fallback_model
+        if not provider_model_name or "/" not in provider_model_name or "/" not in fallback:
+            raise RuntimeError("OpenRouter primary and fallback models must use vendor/model IDs.")
+        # The installed SDK predates Sonnet 5.5. Both selected models advertise
+        # native JSON schema output; require supporting endpoints when routing.
+        profile = OpenRouterProvider.model_profile(provider_model_name).update(
+            OpenAIModelProfile(supports_json_schema_output=True)
+        )
+        return OpenRouterModel(
+            provider_model_name,
+            provider=OpenRouterProvider(api_key=runtime_config.openrouter_api_key),
+            profile=profile,
+            settings={
+                "openrouter_models": [fallback] if fallback != provider_model_name else [],
+                "openrouter_provider": {"allow_fallbacks": True, "require_parameters": True, "data_collection": "deny"},
+                "openrouter_reasoning": {"effort": "low"},
+                "max_tokens": 8192,
+            },
+        )
     if provider != "ollama":
         return runtime_config.llm
 
@@ -441,6 +476,8 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
     signature = (
         runtime_config.llm,
         runtime_config.openai_api_key,
+        runtime_config.openrouter_api_key,
+        runtime_config.openrouter_fallback_model,
         runtime_config.google_api_key,
         runtime_config.anthropic_api_key,
         runtime_config.ollama_base_url,
@@ -454,7 +491,7 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
 
         _transcript_agent = Agent[None, TranscriptAnalysis](
             model=_build_transcript_model(runtime_config),
-            output_type=TranscriptAnalysis,
+            output_type=NativeOutput(TranscriptAnalysis, strict=True) if provider == "openrouter" else TranscriptAnalysis,
             system_prompt=transcript_analysis_system_prompt,
             # Some local Ollama/OpenAI-compatible endpoints can return formatted
             # prose before settling on schema-valid JSON. Keep retries limited
@@ -516,7 +553,7 @@ Critical accuracy requirements:
 JSON-only output requirements:
 - Return one valid JSON object and nothing else.
 - No Markdown, headings, bullets, code fences, or explanatory text outside JSON.
-- Top-level keys: "most_relevant_segments", "summary", "key_topics"{', "broll_opportunities"' if include_broll else ''}.
+- Top-level keys: "most_relevant_segments", "summary", "key_topics", "broll_opportunities".{' Set "broll_opportunities" to null.' if not include_broll else ''}
 - Segment keys: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", "hook_title".
 - "hook_title" is a 3-9 word plain-text headline for the clip, grounded in the segment (no hashtags, emojis, or quotes).
 - Virality keys: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", "virality_reasoning".
@@ -706,6 +743,74 @@ def _repair_segment_bounds(
     return repaired_start, repaired_end
 
 
+def _is_transient_model_error(error: Exception) -> bool:
+    """Recognize provider overload and transport failures, including SDK wrappers."""
+    current: BaseException | None = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, ModelHTTPError):
+            return current.status_code in TRANSIENT_MODEL_STATUS_CODES
+        if isinstance(
+            current,
+            (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError, TimeoutError),
+        ):
+            return True
+        current = current.__cause__
+    return False
+
+
+async def _run_transcript_analysis(agent: Agent, prompt: str) -> Any:
+    """Retry temporary failures on the configured model within one overall budget.
+
+    Agent output retries handle schema repair, not HTTP failures. Retrying only
+    the model step preserves completed downloads and transcription. SDK retries
+    also count against the wall-clock budget, and cancellation passes through.
+    """
+    try:
+        async with asyncio.timeout(TRANSCRIPT_ANALYSIS_TIMEOUT_SECONDS):
+            for attempt in range(1, TRANSCRIPT_ANALYSIS_MAX_ATTEMPTS + 1):
+                try:
+                    result = await agent.run(prompt)
+                    if hasattr(result, "response"):
+                        logger.info("AI analysis completed using model %s", result.response.model_name)
+                    return result
+                except Exception as error:
+                    if not _is_transient_model_error(error):
+                        raise
+                    if attempt == TRANSCRIPT_ANALYSIS_MAX_ATTEMPTS:
+                        logger.error(
+                            "AI analysis unavailable after %s attempts (%s, HTTP status %s)",
+                            attempt,
+                            type(error).__name__,
+                            getattr(error, "status_code", None),
+                        )
+                        raise RuntimeError(
+                            "The AI analysis service is temporarily unavailable after "
+                            "several attempts. Please try again shortly."
+                        ) from None
+
+                    delay = 5 * 2 ** (attempt - 1) + random.uniform(0, 1)
+                    # Do not log provider bodies: they may contain transcript data.
+                    logger.warning(
+                        "Temporary AI analysis failure (%s, HTTP status %s); "
+                        "retrying attempt %s/%s in %.1fs",
+                        type(error).__name__,
+                        getattr(error, "status_code", None),
+                        attempt + 1,
+                        TRANSCRIPT_ANALYSIS_MAX_ATTEMPTS,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+    except TimeoutError:
+        logger.error(
+            "AI analysis exceeded the %ss time budget", TRANSCRIPT_ANALYSIS_TIMEOUT_SECONDS
+        )
+        raise RuntimeError(
+            "The AI analysis service took too long to respond. Please try again shortly."
+        ) from None
+
+
 async def get_most_relevant_parts_by_transcript(
     transcript: str, include_broll: bool = False, clip_signals: str | None = None
 ) -> TranscriptAnalysis:
@@ -718,7 +823,8 @@ async def get_most_relevant_parts_by_transcript(
         agent = get_transcript_agent()
         transcript_lines = _parse_transcript_lines(transcript)
 
-        result = await agent.run(
+        result = await _run_transcript_analysis(
+            agent,
             build_transcript_analysis_prompt(
                 transcript=transcript,
                 include_broll=include_broll,

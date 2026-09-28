@@ -88,14 +88,24 @@ class BillingService:
     async def _count_tasks(
         self, user_id: str, period_start: datetime, period_end: datetime
     ) -> int:
+        # Active jobs reserve an allowance slot. Release it when a job ends
+        # unsuccessfully without any saved clips, including historical failures.
+        # EXISTS keeps partially successful jobs counted once, regardless of how
+        # many clips were delivered. Completed jobs retain their existing charge.
         result = await self.db.execute(
             text(
                 """
                 SELECT COUNT(*) AS total
-                FROM tasks
-                WHERE user_id = :user_id
-                  AND created_at >= :period_start
-                  AND created_at <= :period_end
+                FROM tasks t
+                WHERE t.user_id = :user_id
+                  AND t.created_at >= :period_start
+                  AND t.created_at <= :period_end
+                  AND (
+                      COALESCE(t.status, '') NOT IN ('error', 'failed', 'cancelled', 'canceled')
+                      OR EXISTS (
+                          SELECT 1 FROM generated_clips c WHERE c.task_id = t.id
+                      )
+                  )
                 """
             ),
             {
@@ -112,6 +122,8 @@ class BillingService:
             return {
                 "monetization_enabled": False,
                 "plan": "self_host",
+                "max_youtube_duration_seconds": self.config.max_video_duration,
+                "max_upload_duration_seconds": self.config.max_video_duration,
                 "subscription_status": "inactive",
                 "subscription_provider": None,
                 "period_start": None,
@@ -142,6 +154,10 @@ class BillingService:
             return {
                 "monetization_enabled": True,
                 "plan": plan,
+                "max_youtube_duration_seconds": self.config.max_youtube_video_duration_for_plan(
+                    plan, status
+                ),
+                "max_upload_duration_seconds": self.config.max_video_duration,
                 "subscription_status": status,
                 "subscription_provider": row.get("subscription_provider"),
                 "period_start": start,
@@ -167,6 +183,10 @@ class BillingService:
         return {
             "monetization_enabled": True,
             "plan": plan,
+            "max_youtube_duration_seconds": self.config.max_youtube_video_duration_for_plan(
+                plan, status
+            ),
+            "max_upload_duration_seconds": self.config.max_video_duration,
             "subscription_status": status,
             "subscription_provider": row.get("subscription_provider"),
             "period_start": start,
@@ -181,8 +201,48 @@ class BillingService:
             "reason": reason,
         }
 
-    async def assert_can_create_task(self, user_id: str) -> None:
+    async def assert_can_create_task(self, user_id: str) -> dict[str, Any]:
         summary = await self.get_usage_summary(user_id)
         if summary.get("can_create_task"):
-            return
+            return summary
+        raise BillingLimitExceeded(summary)
+
+    async def assert_can_resume_task(
+        self, user_id: str, task_id: str
+    ) -> dict[str, Any]:
+        """Require a slot for a refunded failure, without charging partial output twice."""
+        summary = await self.get_usage_summary(user_id)
+        if summary.get("can_create_task"):
+            return summary
+
+        if (
+            summary.get("plan") in PAID_PLAN_LIMIT_CONFIG
+            and summary.get("subscription_status") in PAID_PLAN_STATUSES
+        ):
+            # A partially delivered task already occupies a current-period slot.
+            # It can resume even at the cap, but unrelated/historical output
+            # must not allow an uncounted task to bypass the cap.
+            result = await self.db.execute(
+                text(
+                    """
+                    SELECT 1
+                    FROM tasks t
+                    WHERE t.id = :task_id
+                      AND t.user_id = :user_id
+                      AND t.created_at >= :period_start
+                      AND t.created_at <= :period_end
+                      AND EXISTS (
+                          SELECT 1 FROM generated_clips c WHERE c.task_id = t.id
+                      )
+                    """
+                ),
+                {
+                    "task_id": task_id,
+                    "user_id": user_id,
+                    "period_start": summary["period_start"],
+                    "period_end": summary["period_end"],
+                },
+            )
+            if result.fetchone() is not None:
+                return summary
         raise BillingLimitExceeded(summary)

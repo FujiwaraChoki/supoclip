@@ -112,7 +112,7 @@ class TaskService(ClipEditingMixin):
             try:
                 video_id = extract_video_id(url)
                 if video_id:
-                    cleanup_downloaded_files(video_id)
+                    cleanup_downloaded_files(video_id, source_path=video_path)
                     logger.info("Cleaned up YouTube source artifacts for %s", video_id)
                     return
             except Exception as e:

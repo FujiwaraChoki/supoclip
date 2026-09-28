@@ -13,6 +13,8 @@ DOCKER_OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
 class Config:
     def __init__(self):
         self.openai_api_key = self._get_runtime_setting("OPENAI_API_KEY")
+        self.openrouter_api_key = self._get_runtime_setting("OPENROUTER_API_KEY")
+        self.openrouter_fallback_model = self._get_optional_env("OPENROUTER_FALLBACK_MODEL") or "openai/gpt-6-luna"
         self.anthropic_api_key = self._get_runtime_setting("ANTHROPIC_API_KEY")
         self.google_api_key = self._get_runtime_setting("GOOGLE_API_KEY")
         self.youtube_data_api_key = self._get_runtime_setting("YOUTUBE_DATA_API_KEY")
@@ -29,6 +31,27 @@ class Config:
             os.getenv("ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS", "900")
         )
         self.pexels_api_key = self._get_runtime_setting("PEXELS_API_KEY")
+        self.oxylabs_username = self._get_optional_env("OXYLABS_USERNAME")
+        self.oxylabs_password = self._get_optional_env("OXYLABS_PASSWORD")
+        self.oxylabs_video_quality = os.getenv("OXYLABS_VIDEO_QUALITY", "720")
+        if self.oxylabs_video_quality not in {"144", "360", "480", "720", "1080", "1440", "2160", "4320"}:
+            self.oxylabs_video_quality = "720"
+        self.oxylabs_download_timeout_seconds = int(os.getenv("OXYLABS_DOWNLOAD_TIMEOUT_SECONDS", "3600"))
+        self.oxylabs_transfer_timeout_seconds = int(os.getenv("OXYLABS_TRANSFER_TIMEOUT_SECONDS", "900"))
+        self.oxylabs_storage_bucket = self._get_optional_env("OXYLABS_STORAGE_BUCKET")
+        self.oxylabs_storage_prefix = os.getenv("OXYLABS_STORAGE_PREFIX", "youtube")
+        self.oxylabs_storage_endpoint = self._get_optional_env("OXYLABS_STORAGE_ENDPOINT")
+        self.oxylabs_storage_region = os.getenv("OXYLABS_STORAGE_REGION", "us-east-1")
+        self.oxylabs_storage_read_key = self._get_optional_env("OXYLABS_STORAGE_READ_KEY")
+        self.oxylabs_storage_read_secret = self._get_optional_env("OXYLABS_STORAGE_READ_SECRET")
+        self.oxylabs_storage_write_key = self._get_optional_env("OXYLABS_STORAGE_WRITE_KEY")
+        self.oxylabs_storage_write_secret = self._get_optional_env("OXYLABS_STORAGE_WRITE_SECRET")
+        self.videoscale_username = self._get_optional_env("VIDEOSCALE_USERNAME")
+        self.videoscale_password = self._get_optional_env("VIDEOSCALE_PASSWORD")
+        videoscale_quality = os.getenv("VIDEOSCALE_VIDEO_QUALITY", "720").strip()
+        self.videoscale_video_quality = int(videoscale_quality) if videoscale_quality in {"720", "1080"} else 720
+        self.videoscale_download_timeout_seconds = int(os.getenv("VIDEOSCALE_DOWNLOAD_TIMEOUT_SECONDS", "3600"))
+        self.videoscale_transfer_timeout_seconds = int(os.getenv("VIDEOSCALE_TRANSFER_TIMEOUT_SECONDS", "900"))
         self.apify_api_token = self._get_runtime_setting("APIFY_API_TOKEN")
         self.youtube_download_provider = self._normalize_youtube_download_provider(
             os.getenv("YOUTUBE_DOWNLOAD_PROVIDER", "yt_dlp")
@@ -48,7 +71,7 @@ class Config:
             or "epctex/youtube-video-downloader"
         )
         self.apify_run_timeout_seconds = int(
-            os.getenv("APIFY_RUN_TIMEOUT_SECONDS", "900")
+            os.getenv("APIFY_RUN_TIMEOUT_SECONDS", "3600")
         )
         # Long videos at >1080p don't finish within the Apify run timeout.
         self.apify_long_video_seconds = int(
@@ -161,6 +184,7 @@ class Config:
             "ASSEMBLY_AI_API_KEY": self.assembly_ai_api_key,
             "LLM": self.llm,
             "OPENAI_API_KEY": self.openai_api_key,
+            "OPENROUTER_API_KEY": self.openrouter_api_key,
             "GOOGLE_API_KEY": self.google_api_key,
             "ANTHROPIC_API_KEY": self.anthropic_api_key,
             "OLLAMA_BASE_URL": self.ollama_base_url,
@@ -213,8 +237,8 @@ class Config:
     @staticmethod
     def _normalize_youtube_download_provider(value: str | None) -> str:
         normalized = (value or "").strip().lower().replace("-", "_")
-        if normalized == "apify":
-            return "apify"
+        if normalized in {"apify", "oxylabs", "videoscale"}:
+            return normalized
         return "yt_dlp"
 
     def resolve_youtube_data_api_key(self) -> str | None:
@@ -240,6 +264,8 @@ class Config:
             return "openai:gpt-5.2"
         if self.anthropic_api_key:
             return "anthropic:claude-4-sonnet"
+        if self.openrouter_api_key:
+            return "openrouter:anthropic/claude-sonnet-5.5"
         return "google-gla:gemini-3-flash-preview"
 
 
