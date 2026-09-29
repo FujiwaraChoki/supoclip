@@ -141,51 +141,55 @@ class ClipEditingMixin:
             if not video_path.exists():
                 raise ValueError("Source video file no longer exists")
 
-        segments = []
-        for clip in clips:
-            source_ranges = self._get_clip_source_ranges(clip)
-            bounds = source_range_bounds(source_ranges)
-            if bounds:
-                start_time = self._seconds_to_mmss(bounds[0])
-                end_time = self._seconds_to_mmss(bounds[1])
-            else:
-                start_time = clip["start_time"]
-                end_time = clip["end_time"]
+        try:
+            segments = []
+            for clip in clips:
+                source_ranges = self._get_clip_source_ranges(clip)
+                bounds = source_range_bounds(source_ranges)
+                if bounds:
+                    start_time = self._seconds_to_mmss(bounds[0])
+                    end_time = self._seconds_to_mmss(bounds[1])
+                else:
+                    start_time = clip["start_time"]
+                    end_time = clip["end_time"]
 
-            segments.append(
-                {
-                    "start_time": start_time,
-                    "end_time": end_time,
-                    **(
-                        {"source_ranges": source_ranges}
-                        if should_recompute_cleanup
-                        else {"keep_ranges": source_ranges}
-                    ),
-                    "text": clip.get("text") or "",
-                    "relevance_score": clip.get("relevance_score", 0.5),
-                    "reasoning": clip.get("reasoning")
-                    or "Regenerated with updated settings",
-                    "virality_score": clip.get("virality_score", 0),
-                    "hook_score": clip.get("hook_score", 0),
-                    "engagement_score": clip.get("engagement_score", 0),
-                    "value_score": clip.get("value_score", 0),
-                    "shareability_score": clip.get("shareability_score", 0),
-                    "hook_type": clip.get("hook_type"),
-                    "hook_title": clip.get("hook_title"),
-                }
+                segments.append(
+                    {
+                        "start_time": start_time,
+                        "end_time": end_time,
+                        **(
+                            {"source_ranges": source_ranges}
+                            if should_recompute_cleanup
+                            else {"keep_ranges": source_ranges}
+                        ),
+                        "text": clip.get("text") or "",
+                        "relevance_score": clip.get("relevance_score", 0.5),
+                        "reasoning": clip.get("reasoning")
+                        or "Regenerated with updated settings",
+                        "virality_score": clip.get("virality_score", 0),
+                        "hook_score": clip.get("hook_score", 0),
+                        "engagement_score": clip.get("engagement_score", 0),
+                        "value_score": clip.get("value_score", 0),
+                        "shareability_score": clip.get("shareability_score", 0),
+                        "hook_type": clip.get("hook_type"),
+                        "hook_title": clip.get("hook_title"),
+                    }
+                )
+
+            clips_info = await self.video_service.create_video_clips(
+                video_path,
+                segments,
+                font_family,
+                font_size,
+                font_color,
+                caption_template,
+                output_format,
+                add_subtitles,
+                normalized_cleanup_settings,
             )
-
-        clips_info = await self.video_service.create_video_clips(
-            video_path,
-            segments,
-            font_family,
-            font_size,
-            font_color,
-            caption_template,
-            output_format,
-            add_subtitles,
-            normalized_cleanup_settings,
-        )
+        finally:
+            if source_type == "youtube":
+                self._cleanup_source_video(video_path, source_type, source_url)
 
         await self.clip_repo.delete_clips_by_task(self.db, task_id)
 
@@ -434,49 +438,55 @@ class ClipEditingMixin:
 
         # Always render from the source; overlaying an already captioned clip
         # stacks old and new captions and compounds quality loss on every save.
+        downloaded_source: Optional[Path] = None
         if not transcript_video_path or not transcript_video_path.exists():
             if source_type == "youtube" and source_url:
                 downloaded = await self.video_service.download_video(source_url)
                 transcript_video_path = Path(downloaded) if downloaded else None
+                downloaded_source = transcript_video_path
             elif source_url:
                 transcript_video_path = self.video_service.resolve_local_video_path(source_url)
         if not transcript_video_path or not transcript_video_path.exists():
             raise ValueError("The source video is no longer available. Upload it again to edit captions.")
 
-        settings = await self._load_task_source_settings(task_id)
-        source_ranges = self._get_clip_source_ranges(clip)
-        bounds = source_range_bounds(source_ranges)
-        if not bounds:
-            raise ValueError("Clip source timing is unavailable")
-        output_dir = Path(self.config.temp_dir) / "clips"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="caption_edit_", dir=output_dir) as temporary:
-            clean_path = Path(temporary) / "clean.mp4"
-            rendered = await run_in_thread(
-                create_optimized_clip, transcript_video_path, bounds[0], bounds[1], clean_path,
-                add_subtitles=False,
-                output_format=settings.get("output_format", "vertical"),
-                keep_ranges=source_ranges,
-                hook_title=clip.get("hook_title"),
-                font_family=task.get("font_family") or None,
-                font_size=task.get("font_size") or None,
-                font_color=task.get("font_color") or None,
-                caption_template=task.get("caption_template") or "default",
-                extend_to_sentence=False,
-            )
-            if not rendered:
-                raise ValueError("Could not prepare the clip for caption editing")
-            output_path = await run_in_thread(
-                overlay_custom_captions,
-                clean_path, output_dir, caption_text, position, highlight_words,
-                font_family=task.get("font_family") or None,
-                font_size=font_size if font_size is not None else task.get("font_size") or None,
-                font_color=task.get("font_color") or None,
-                caption_template=task.get("caption_template") or "default",
-                transcript_video_path=transcript_video_path,
-                source_ranges=source_ranges,
-                position_y=position_y,
-            )
+        try:
+            settings = await self._load_task_source_settings(task_id)
+            source_ranges = self._get_clip_source_ranges(clip)
+            bounds = source_range_bounds(source_ranges)
+            if not bounds:
+                raise ValueError("Clip source timing is unavailable")
+            output_dir = Path(self.config.temp_dir) / "clips"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(prefix="caption_edit_", dir=output_dir) as temporary:
+                clean_path = Path(temporary) / "clean.mp4"
+                rendered = await run_in_thread(
+                    create_optimized_clip, transcript_video_path, bounds[0], bounds[1], clean_path,
+                    add_subtitles=False,
+                    output_format=settings.get("output_format", "vertical"),
+                    keep_ranges=source_ranges,
+                    hook_title=clip.get("hook_title"),
+                    font_family=task.get("font_family") or None,
+                    font_size=task.get("font_size") or None,
+                    font_color=task.get("font_color") or None,
+                    caption_template=task.get("caption_template") or "default",
+                    extend_to_sentence=False,
+                )
+                if not rendered:
+                    raise ValueError("Could not prepare the clip for caption editing")
+                output_path = await run_in_thread(
+                    overlay_custom_captions,
+                    clean_path, output_dir, caption_text, position, highlight_words,
+                    font_family=task.get("font_family") or None,
+                    font_size=font_size if font_size is not None else task.get("font_size") or None,
+                    font_color=task.get("font_color") or None,
+                    caption_template=task.get("caption_template") or "default",
+                    transcript_video_path=transcript_video_path,
+                    source_ranges=source_ranges,
+                    position_y=position_y,
+                )
+        finally:
+            if downloaded_source is not None:
+                self._cleanup_source_video(downloaded_source, "youtube", source_url)
         save_clip_source_ranges(output_path, source_ranges)
         save_clip_caption_settings(output_path, {
             "font_size": font_size if font_size is not None else task.get("font_size"),

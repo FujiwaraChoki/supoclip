@@ -120,6 +120,8 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     from ..clip_source_map import load_clip_caption_settings
 
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
+    downloaded_source = None
+    source_url = None
     try:
         async with AsyncSessionLocal() as db:
             service = TaskService(db)
@@ -146,9 +148,9 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             await db.close()
             if not source or not source.exists():
                 if source_type == "youtube":
-                    source = Path(
-                        await service.video_service.download_video(source_url)
-                    )
+                    downloaded = await service.video_service.download_video(source_url)
+                    source = Path(downloaded) if downloaded else None
+                    downloaded_source = source
                 else:
                     source = service.video_service.resolve_local_video_path(source_url)
             if not source or not source.exists():
@@ -236,6 +238,9 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 "error": "Could not prepare the source video. Check that the source is available, then retry.",
             },
         )
+    finally:
+        if downloaded_source is not None:
+            service._cleanup_source_video(downloaded_source, "youtube", source_url)
 
 
 async def export_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: str):
