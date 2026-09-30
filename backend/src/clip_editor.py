@@ -310,9 +310,9 @@ def overlay_custom_captions(
             font_family or get_template(caption_template)["font_family"]
         )
         fonts_dir = ass_fonts_dir(effective_font_family)
-        subtitle_filter = f"subtitles=filename={_escape_filter_path(ass_path)}"
+        subtitle_filter = f"subtitles=filename='{_escape_filter_path(ass_path)}'"
         if fonts_dir:
-            subtitle_filter += f":fontsdir={_escape_filter_path(fonts_dir)}"
+            subtitle_filter += f":fontsdir='{_escape_filter_path(fonts_dir)}'"
         _run(
             [
                 "ffmpeg",

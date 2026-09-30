@@ -5,6 +5,7 @@ import pytest
 
 from src import video_utils
 from src.media import timeline
+from src.media.ffmpeg import ffmpeg_escape_filter_value
 
 
 def test_get_scaled_font_size_preserves_visible_ui_range():
@@ -272,7 +273,8 @@ def test_burn_ass_subtitles_passes_selected_fonts_dir(tmp_path):
 
     assert success is True
     video_filter = commands[0][commands[0].index("-vf") + 1]
-    assert f"fontsdir={tmp_path / 'fonts'}" in video_filter
+    expected_fonts = ffmpeg_escape_filter_value(str(tmp_path / "fonts"))
+    assert f"fontsdir='{expected_fonts}'" in video_filter
     assert video_filter.endswith(",setsar=1")
 
 
