@@ -12,6 +12,7 @@ import tempfile
 import uuid
 
 from .caption_templates import get_template
+from .media.ffmpeg import ffmpeg_escape_filter_path
 from .video_utils import (
     ass_fonts_dir,
     build_assemblyai_ass_subtitles,
@@ -137,13 +138,7 @@ def _escape_ass_text(value: str) -> str:
 
 
 def _escape_filter_path(path: Path) -> str:
-    return (
-        str(path)
-        .replace("\\", "\\\\")
-        .replace(":", "\\:")
-        .replace("'", "\\'")
-        .replace(" ", "\\ ")
-    )
+    return ffmpeg_escape_filter_path(path)
 
 
 def trim_clip_file(

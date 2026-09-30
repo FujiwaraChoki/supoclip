@@ -5,6 +5,7 @@ from typing import Optional
 from pathlib import Path
 from typing import Tuple
 from ..clip_source_map import normalize_source_ranges
+import re
 import subprocess
 from .common import (
     AUDIO_BITRATE,
@@ -105,26 +106,22 @@ def ffprobe_duration(video_path: Path) -> float:
         raise RuntimeError(f"Invalid duration for {video_path}") from exc
 
 
-def ffmpeg_escape_filter_path(path: Path) -> str:
-    """Escape a path for use inside an ffmpeg filter argument."""
-    return (
-        str(path)
-        .replace("\\", "\\\\")
-        .replace(":", "\\:")
-        .replace("'", "\\'")
-        .replace(" ", "\\ ")
-    )
-
-
 def ffmpeg_escape_filter_value(value: str) -> str:
-    """Escape an ffmpeg filter option value."""
-    return (
-        str(value)
-        .replace("\\", "\\\\")
-        .replace(":", "\\:")
-        .replace("'", "\\'")
-        .replace(" ", "\\ ")
-    )
+    """Escape a value for use as a filter option inside an ffmpeg filtergraph.
+
+    ffmpeg unescapes filter arguments twice: once when splitting the
+    filtergraph (special: backslash, quote, ``[ ] , ;``) and once when
+    splitting a filter's ``key=value:...`` options (special: backslash,
+    quote, colon). Escaping for both levels keeps Windows drive colons,
+    backslashes, apostrophes and brackets in paths intact.
+    """
+    option_level = re.sub(r"([\\':])", r"\\\1", str(value))
+    return re.sub(r"([\\'\[\],;])", r"\\\1", option_level)
+
+
+def ffmpeg_escape_filter_path(path: Path) -> str:
+    """Escape a filesystem path for use as an ffmpeg filter option value."""
+    return ffmpeg_escape_filter_value(str(path))
 
 
 def build_final_video_encode_args(
@@ -162,7 +159,7 @@ def subtitles_filter_fragment(
     """ffmpeg `subtitles` filter fragment burning an ASS file (with fonts dir)."""
     fragment = f"subtitles=filename={ffmpeg_escape_filter_path(ass_path)}"
     if fonts_dir:
-        fragment += f":fontsdir={ffmpeg_escape_filter_value(str(fonts_dir))}"
+        fragment += f":fontsdir={ffmpeg_escape_filter_path(fonts_dir)}"
     return fragment
 
 
@@ -352,10 +349,7 @@ def burn_ass_subtitles_ffmpeg(
     output_path: Path,
     fonts_dir: Optional[Path] = None,
 ) -> bool:
-    subtitles_filter = f"subtitles=filename={ffmpeg_escape_filter_path(ass_path)}"
-    if fonts_dir:
-        subtitles_filter += f":fontsdir={ffmpeg_escape_filter_value(str(fonts_dir))}"
-    video_filter = f"{subtitles_filter},setsar=1"
+    video_filter = f"{subtitles_filter_fragment(ass_path, fonts_dir)},setsar=1"
 
     command = [
         "ffmpeg",

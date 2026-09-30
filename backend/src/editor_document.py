@@ -333,7 +333,7 @@ def render_document(directory: Path, job_id: str, document: EditDocument, preset
     write_ass(ass, document, width, height)
     fonts = ass_fonts_dir(document.captions.font)
     filters.append(
-        f"[video]{geometry},{effects},ass='{_escape_filter_path(ass)}':fontsdir='{_escape_filter_path(fonts or Path('fonts'))}'[outv]"
+        f"[video]{geometry},{effects},ass={_escape_filter_path(ass)}:fontsdir={_escape_filter_path(fonts or Path('fonts'))}[outv]"
     )
     if audio:
         filters.append(
