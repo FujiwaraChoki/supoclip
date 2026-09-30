@@ -433,8 +433,8 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-3">
                     <KeyRound className="w-5 h-5 text-black" />
                     <div>
-                      <p className="text-sm font-medium text-black">API Keys</p>
-                      <p className="text-xs text-gray-500">Create and manage API keys</p>
+                      <p className="text-sm font-medium text-black">Agents &amp; API</p>
+                      <p className="text-xs text-gray-500">API keys for AI agents (MCP) and the REST API</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-400" />
