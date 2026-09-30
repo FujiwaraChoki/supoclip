@@ -357,8 +357,11 @@ class TaskRepository:
         """Get all tasks for a user."""
         result = await db.execute(
             text("""
-                SELECT t.*, s.title as source_title, s.type as source_type,
-                       (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count
+                SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url,
+                       (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count,
+                       (SELECT MAX(virality_score) FROM generated_clips WHERE task_id = t.id) as top_virality_score,
+                       (SELECT id FROM generated_clips WHERE task_id = t.id
+                        ORDER BY virality_score DESC NULLS LAST, clip_order ASC LIMIT 1) as cover_clip_id
                 FROM tasks t
                 LEFT JOIN sources s ON t.source_id = s.id
                 WHERE t.user_id = :user_id
@@ -383,6 +386,9 @@ class TaskRepository:
                         row, "completion_notification_sent_at", None
                     ),
                     "clips_count": row.clips_count,
+                    "source_url": row.source_url,
+                    "top_virality_score": row.top_virality_score,
+                    "cover_clip_id": row.cover_clip_id,
                     "created_at": row.created_at,
                     "updated_at": row.updated_at,
                 }

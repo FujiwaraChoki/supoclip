@@ -5,7 +5,6 @@ import { signIn } from "../../lib/auth-client";
 import { track } from "@/lib/datafast";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 import { useRouter } from "next/navigation";
 
 export function SignIn() {
@@ -45,14 +44,13 @@ export function SignIn() {
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader>
-        <CardTitle>Sign In</CardTitle>
-        <CardDescription>Sign in to your account</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="w-full">
+      <h1 className="font-display text-3xl font-bold tracking-tight">Welcome back</h1>
+      <p className="mt-2 text-sm text-muted-foreground">Sign in to pick up where you left off.</p>
+      <div className="mt-8">
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
+            className="h-11"
             type="email"
             placeholder="Email"
             value={email}
@@ -61,6 +59,7 @@ export function SignIn() {
             disabled={loading}
           />
           <Input
+            className="h-11"
             type="password"
             placeholder="Password"
             value={password}
@@ -68,7 +67,7 @@ export function SignIn() {
             required
             disabled={loading}
           />
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="h-11 w-full" disabled={loading}>
             {loading ? "Signing In..." : "Sign In"}
           </Button>
         </form>
@@ -77,7 +76,7 @@ export function SignIn() {
             {message}
           </p>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

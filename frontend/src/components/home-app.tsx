@@ -1,54 +1,32 @@
 "use client";
 
-import { CaptionSizeControl } from "@/components/caption-size-control";
-
 import { useState, useRef, useEffect, useCallback } from "react";
+import Link from "next/link";
+import {
+  AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Crop, FileVideo,
+  Loader2, Paintbrush, Paperclip, Upload, Wand2, X, Youtube,
+} from "lucide-react";
+import { CaptionSizeControl } from "@/components/caption-size-control";
 import { FONT_SEARCH_THRESHOLD, getYouTubeThumbnailUrl, uploadVideoFile } from "@/lib/video-upload";
-import { AppHeader } from "@/components/app/app-header";
+import { AppShell } from "@/components/app/app-shell";
+import { GenerationCard } from "@/components/app/generation-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
-
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
-import { StatusBadge } from "@/components/app/status-badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Kbd } from "@/components/ui/kbd";
 import { useSession } from "@/lib/auth-client";
+import { useBillingSummary } from "@/hooks/use-billing-summary";
 import { formatBillingPlanName, isPaidBillingPlan } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
-import Link from "next/link";
-import { ArrowRight, Youtube, CheckCircle, AlertCircle, Loader2, Palette, Type, Paintbrush, Film, Sparkles, Upload, Monitor } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-
-interface LatestTask {
-  id: string;
-  source_title: string;
-  source_type: string;
-  status: string;
-  clips_count: number;
-  created_at: string;
-}
-
-interface BillingSummary {
-  monetization_enabled: boolean;
-  plan: string;
-  subscription_status: string;
-  subscription_provider?: string | null;
-  cancel_at?: string | null;
-  usage_count: number;
-  usage_limit: number | null;
-  remaining: number | null;
-  can_create_task: boolean;
-  upgrade_required: boolean;
-  reason: string | null;
-  max_youtube_duration_seconds?: number;
-  max_upload_duration_seconds?: number;
-}
+import { fetchGenerations, greeting, type GenerationSummary } from "@/lib/generations";
+import { cn } from "@/lib/utils";
 
 interface FontOption {
   name: string;
@@ -56,35 +34,56 @@ interface FontOption {
   format?: string;
 }
 
+interface CaptionTemplate {
+  id: string;
+  name: string;
+  description: string;
+  animation: string;
+  font_family?: string;
+  font_size?: number;
+  font_color?: string;
+}
+
 type OutputFormat = "vertical" | "vertical_pan" | "vertical_split" | "original";
+
+const FRAMINGS: { id: OutputFormat; label: string; hint: string }[] = [
+  { id: "vertical", label: "Auto 9:16", hint: "Face-tracked vertical crop" },
+  { id: "vertical_pan", label: "Speaker pan", hint: "Follows whoever is talking" },
+  { id: "vertical_split", label: "Split-screen", hint: "Two speakers stacked" },
+  { id: "original", label: "Original", hint: "Keep the source aspect ratio" },
+];
+
+const COLOR_SWATCHES = ["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"];
+
+function formatBytes(bytes: number) {
+  if (bytes > 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
+  return `${Math.max(1, Math.round(bytes / 1e6))} MB`;
+}
 
 export default function HomeApp() {
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
-  const [currentStep, setCurrentStep] = useState("");
-  const [sourceType, setSourceType] = useState<"youtube" | "upload">("youtube");
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sourceTitle, setSourceTitle] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const urlInputRef = useRef<HTMLInputElement | null>(null);
   const { data: session, isPending } = useSession();
+  const sourceType: "youtube" | "upload" = file ? "upload" : "youtube";
 
   // Font customization states — null means "use the caption template's own value"
   const [fontFamily, setFontFamily] = useState<string | null>(null);
   const [fontSize, setFontSize] = useState<number | null>(null);
   const [fontColor, setFontColor] = useState<string | null>(null);
   const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
-  const [showCustomizeCaptions, setShowCustomizeCaptions] = useState(false);
   const [fontSearch, setFontSearch] = useState("");
   const [fontLoadError, setFontLoadError] = useState<string | null>(null);
   const [isUploadingFont, setIsUploadingFont] = useState(false);
   const fontUploadInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Caption template state
   const [captionTemplate, setCaptionTemplate] = useState("default");
-  const [availableTemplates, setAvailableTemplates] = useState<Array<{ id: string, name: string, description: string, animation: string, font_family?: string, font_size?: number, font_color?: string }>>([]);
+  const [availableTemplates, setAvailableTemplates] = useState<CaptionTemplate[]>([]);
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("vertical");
   const [addSubtitles, setAddSubtitles] = useState(true);
   const [cutLongPauses, setCutLongPauses] = useState(false);
@@ -92,48 +91,29 @@ export default function HomeApp() {
   const [removeFillerWords, setRemoveFillerWords] = useState(false);
   const [filteredWords, setFilteredWords] = useState("");
 
-  // Latest task state
-  const [latestTask, setLatestTask] = useState<LatestTask | null>(null);
-  const [isLoadingLatest, setIsLoadingLatest] = useState(false);
-  const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
-  const taskApiUrl = "/api/tasks";
+  const [recent, setRecent] = useState<GenerationSummary[] | null>(null);
+  const [billingSummary, updateBillingSummary] = useBillingSummary(Boolean(session?.user?.id));
   const youtubeThumbnailUrl = sourceType === "youtube" ? getYouTubeThumbnailUrl(url) : null;
 
   const refreshFonts = useCallback(async () => {
     try {
       setFontLoadError(null);
-      const response = await fetch("/api/fonts", {
-        cache: "no-store",
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to load fonts (${response.status})`);
-      }
-
+      const response = await fetch("/api/fonts", { cache: "no-store" });
+      if (!response.ok) throw new Error(`Failed to load fonts (${response.status})`);
       const data = await response.json();
       const fonts: FontOption[] = data.fonts || [];
       setAvailableFonts(fonts);
 
-      const fontFaceStyles = fonts.map((font) => {
-        const format = font.format === "otf" ? "opentype" : "truetype";
-        return `
-          @font-face {
-            font-family: '${font.name}';
-            src: url('/api/fonts/${font.name}') format('${format}');
-            font-weight: normal;
-            font-style: normal;
-          }
-        `;
-      }).join("\n");
-
       const styleElement = document.createElement("style");
       styleElement.id = "custom-fonts";
-      styleElement.innerHTML = fontFaceStyles;
-
-      const existingStyle = document.getElementById("custom-fonts");
-      if (existingStyle) {
-        existingStyle.remove();
-      }
-
+      styleElement.innerHTML = fonts.map((font) => `
+        @font-face {
+          font-family: '${font.name}';
+          src: url('/api/fonts/${font.name}') format('${font.format === "otf" ? "opentype" : "truetype"}');
+          font-weight: normal;
+          font-style: normal;
+        }`).join("\n");
+      document.getElementById("custom-fonts")?.remove();
       document.head.appendChild(styleElement);
     } catch (error) {
       console.error("Failed to load fonts:", error);
@@ -141,102 +121,40 @@ export default function HomeApp() {
     }
   }, []);
 
-  useEffect(() => {
-    void refreshFonts();
-  }, [refreshFonts]);
+  useEffect(() => { void refreshFonts(); }, [refreshFonts]);
 
-  // Load caption templates
   useEffect(() => {
-    const loadTemplates = async () => {
-      try {
-        const response = await fetch("/api/caption-templates");
-        if (response.ok) {
-          const data = await response.json();
-          setAvailableTemplates(data.templates || []);
-        }
-      } catch (error) {
-        console.error('Failed to load caption templates:', error);
-      }
-    };
-
-    loadTemplates();
+    fetch("/api/caption-templates")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => { if (data) setAvailableTemplates(data.templates || []); })
+      .catch((error) => console.error("Failed to load caption templates:", error));
   }, []);
 
-  // Load latest task
   useEffect(() => {
-    const fetchLatestTask = async () => {
-      if (!session?.user?.id) return;
-
-      try {
-        setIsLoadingLatest(true);
-        const response = await fetch(`${taskApiUrl}/`, {
-          cache: "no-store",
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.tasks && data.tasks.length > 0) {
-            setLatestTask(data.tasks[0]); // Get the first (latest) task
-          }
-        }
-      } catch (error) {
-        console.error('Failed to load latest task:', error);
-      } finally {
-        setIsLoadingLatest(false);
-      }
-    };
-
-    fetchLatestTask();
-  }, [session?.user?.id, taskApiUrl]);
-
-  useEffect(() => {
-    const fetchBillingSummary = async () => {
-      if (!session?.user?.id) return;
-
-      try {
-        const response = await fetch("/api/tasks/billing-summary", {
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const data: BillingSummary = await response.json();
-        setBillingSummary(data);
-      } catch (error) {
-        console.error("Failed to load billing summary:", error);
-      }
-    };
-
-    fetchBillingSummary();
+    if (!session?.user?.id) return;
+    fetchGenerations()
+      .then((tasks) => setRecent(tasks.slice(0, 8)))
+      .catch((error) => { console.error("Failed to load recent generations:", error); setRecent([]); });
   }, [session?.user?.id]);
 
-  // Always treat file input as uncontrolled, and store file in a ref
-  const fileRef = useRef<File | null>(null);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    fileRef.current = file;
-    setFileName(file ? file.name : null);
-  };
-
-  const handleTemplateChange = (templateId: string) => {
-    setCaptionTemplate(templateId);
-    // Font family/size/color are left as-is: null stays null (meaning "use
-    // this template's own style"), and any explicit customization the user
-    // made carries over to the newly selected template.
+  const attachFile = (next: File | null) => {
+    if (next && !next.type.startsWith("video/") && !/\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(next.name)) {
+      setError("That doesn't look like a video file. Try MP4, MOV, MKV or WebM.");
+      return;
+    }
+    setError(null);
+    setFile(next);
+    if (!next && fileInputRef.current) fileInputRef.current.value = "";
+    if (!next) requestAnimationFrame(() => urlInputRef.current?.focus());
   };
 
   const handleFontUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const fontFile = event.target.files?.[0];
     event.target.value = "";
-    if (!file) {
-      return;
-    }
+    if (!fontFile) return;
 
-    const isSupported = file.name.toLowerCase().endsWith(".ttf") || file.name.toLowerCase().endsWith(".otf");
-    if (!isSupported) {
+    const lower = fontFile.name.toLowerCase();
+    if (!lower.endsWith(".ttf") && !lower.endsWith(".otf")) {
       setError("Only .ttf and .otf files are supported for custom fonts.");
       return;
     }
@@ -245,23 +163,14 @@ export default function HomeApp() {
       setIsUploadingFont(true);
       setError(null);
       const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetch("/api/fonts/upload", {
-        method: "POST",
-        body: formData,
-      });
-
+      formData.append("file", fontFile);
+      const response = await fetch("/api/fonts/upload", { method: "POST", body: formData });
       if (!response.ok) {
-        const parsed = await parseApiError(response, "Failed to upload font");
-        setError(formatSupportMessage(parsed));
+        setError(formatSupportMessage(await parseApiError(response, "Failed to upload font")));
         return;
       }
-
       const data = await response.json();
-      if (data?.font?.name) {
-        setFontFamily(data.font.name);
-      }
+      if (data?.font?.name) setFontFamily(data.font.name);
       await refreshFonts();
     } catch (uploadError) {
       console.error("Failed to upload font:", uploadError);
@@ -273,98 +182,57 @@ export default function HomeApp() {
 
   const filteredFonts = availableFonts.filter((font) => {
     const keyword = fontSearch.toLowerCase().trim();
-    if (!keyword) {
-      return true;
-    }
-
-    return font.display_name.toLowerCase().includes(keyword) || font.name.toLowerCase().includes(keyword);
+    return !keyword || font.display_name.toLowerCase().includes(keyword) || font.name.toLowerCase().includes(keyword);
   });
 
   const canUploadCustomFonts =
     !billingSummary?.monetization_enabled ||
     (isPaidBillingPlan(billingSummary.plan) && ["active", "trialing"].includes(billingSummary.subscription_status));
 
-  // Effective values for the live preview only — falls back to the selected
-  // template's own style (or a sane default) whenever the user hasn't
-  // explicitly customized a field. The actual submitted payload keeps nulls.
+  // Effective values for the live preview only — the submitted payload keeps nulls.
   const selectedTemplate = availableTemplates.find((template) => template.id === captionTemplate);
   const previewFontFamily = fontFamily ?? selectedTemplate?.font_family ?? "TikTokSans-Regular";
   const previewFontSize = fontSize ?? selectedTemplate?.font_size ?? 24;
   const previewFontColor = fontColor ?? selectedTemplate?.font_color ?? "#FFFFFF";
-  const generationRequiresUpgrade =
-    Boolean(billingSummary?.monetization_enabled && !billingSummary.can_create_task);
-  const generationGateMessage =
-    billingSummary?.reason || "Choose a paid plan to process videos.";
-  const generationControlsDisabled = isLoading || generationRequiresUpgrade;
+  const generationRequiresUpgrade = Boolean(billingSummary?.monetization_enabled && !billingSummary.can_create_task);
+  const generationGateMessage = billingSummary?.reason || "Choose a paid plan to process videos.";
+  const controlsDisabled = isLoading || generationRequiresUpgrade;
+  const hasSource = sourceType === "upload" ? Boolean(file) : Boolean(url.trim());
+  const cleanupCount = [cutLongPauses, removeFillerWords, filteredWords.trim().length > 0].filter(Boolean).length;
+  const customized = fontFamily !== null || fontSize !== null || fontColor !== null;
 
-
-
-  const getStepIcon = (step: string) => {
-    const iconMap: Record<string, React.ReactElement> = {
-      validation: <Loader2 className="w-4 h-4 animate-spin text-blue-500" />,
-      user_check: <Loader2 className="w-4 h-4 animate-spin text-blue-500" />,
-      source_analysis: <Loader2 className="w-4 h-4 animate-spin text-blue-500" />,
-      youtube_info: <Youtube className="w-4 h-4 text-red-500" />,
-      database_save: <Loader2 className="w-4 h-4 animate-spin text-blue-500" />,
-      download: <Loader2 className="w-4 h-4 animate-spin text-green-500" />,
-      transcript: <Loader2 className="w-4 h-4 animate-spin text-purple-500" />,
-      ai_analysis: <Loader2 className="w-4 h-4 animate-spin text-orange-500" />,
-      clip_generation: <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />,
-      save_clips: <Loader2 className="w-4 h-4 animate-spin text-pink-500" />,
-      complete: <CheckCircle className="w-4 h-4 text-green-500" />,
-    };
-    return iconMap[step] || <Loader2 className="w-4 h-4 animate-spin text-gray-500" />;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (sourceType === "upload" && !fileRef.current) return;
-    if (sourceType === "youtube" && !url.trim()) return;
-    if (!session?.user?.id) return;
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!hasSource || isLoading || !session?.user?.id) return;
     if (generationRequiresUpgrade) {
       setError(generationGateMessage);
       return;
     }
 
     setIsLoading(true);
-    setProgress(0);
     setError(null);
     setStatusMessage("");
-    setCurrentStep("");
-    setSourceTitle(null);
 
     const fontOptions = buildFontOptionsPayload(fontFamily, fontSize, fontColor);
 
     try {
-      let videoUrl = url;
+      let videoUrl = url.trim();
       const normalizedPauseThreshold = Number.isFinite(Number(pauseThresholdMs))
         ? Math.max(250, Math.min(3000, Math.round(Number(pauseThresholdMs))))
         : 900;
-      const normalizedFilteredWords = filteredWords
-        .split(",")
-        .map((word) => word.trim().toLowerCase())
-        .filter(Boolean);
+      const normalizedFilteredWords = filteredWords.split(",").map((word) => word.trim().toLowerCase()).filter(Boolean);
 
-      // If uploading file, upload it first
-      if (sourceType === "upload" && fileRef.current) {
-        setStatusMessage("Uploading video file...");
-        setProgress(5);
-        videoUrl = await uploadVideoFile(fileRef.current);
+      if (sourceType === "upload" && file) {
+        setStatusMessage("Uploading video…");
+        videoUrl = await uploadVideoFile(file);
       }
 
-      // Step 1: Start the task (using new refactored endpoint)
-      if (sourceType === "youtube") setStatusMessage("Checking video length...");
+      setStatusMessage(sourceType === "youtube" ? "Checking video length…" : "Starting generation…");
       const startResponse = await fetch("/api/tasks/create", {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          source: {
-            url: videoUrl,
-            title: null
-          },
+          source: { url: videoUrl, title: null },
           font_options: fontOptions,
           caption_template: captionTemplate,
           processing_mode: "fast",
@@ -378,15 +246,10 @@ export default function HomeApp() {
       });
 
       if (!startResponse.ok) {
-        const startError = await parseApiError(
-          startResponse,
-          `API error: ${startResponse.status}`
-        );
-        throw new Error(formatSupportMessage(startError));
+        throw new Error(formatSupportMessage(await parseApiError(startResponse, `API error: ${startResponse.status}`)));
       }
 
       const startResult = await startResponse.json();
-      const taskIdFromStart = startResult.task_id;
       track("task_created", {
         source_type: sourceType,
         caption_template: captionTemplate,
@@ -398,819 +261,422 @@ export default function HomeApp() {
         filtered_words: normalizedFilteredWords,
         processing_mode: "fast",
       });
-      // Redirect immediately to the task page
-      window.location.href = `/tasks/${taskIdFromStart}`;
-
+      window.location.href = `/tasks/${startResult.task_id}`;
     } catch (error) {
-      console.error('Error processing video:', error);
-      setError(error instanceof Error ? error.message : 'Failed to process video. Please try again.');
-    } finally {
+      console.error("Error processing video:", error);
+      setError(error instanceof Error ? error.message : "Failed to process video. Please try again.");
       setIsLoading(false);
-      setProgress(0);
       setStatusMessage("");
-      setCurrentStep("");
     }
   };
 
   if (isPending || !session?.user) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
-        <div className="space-y-4">
-          <Skeleton className="h-4 w-32 mx-auto" />
-          <Skeleton className="h-4 w-48 mx-auto" />
-          <Skeleton className="h-4 w-24 mx-auto" />
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="w-full max-w-2xl space-y-4">
+          <Skeleton className="mx-auto h-9 w-64" />
+          <Skeleton className="h-36 w-full rounded-2xl" />
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-white">
-      <AppHeader>
-        {billingSummary?.monetization_enabled && <Link href="/settings" className="text-xs text-muted-foreground">
-          {billingSummary.upgrade_required ? "Choose a plan" : `${formatBillingPlanName(billingSummary.plan)} · ${billingSummary.usage_count}${billingSummary.usage_limit ? `/${billingSummary.usage_limit}` : ""} used`}
-        </Link>}
-      </AppHeader>
+  const limitNote = billingSummary?.max_youtube_duration_seconds
+    ? `${formatBillingPlanName(billingSummary.plan)}: YouTube videos up to ${billingSummary.max_youtube_duration_seconds / 60} minutes. We check the length before using a generation.`
+    : null;
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-6 py-10">
+  return (
+    <AppShell>
+      <main className="mx-auto w-full max-w-5xl px-4 pb-20 pt-10 sm:px-8 md:pt-[12vh]">
         {billingSummary?.cancel_at && billingSummary.subscription_provider === "stripe" && (
           <SubscriptionCancelBanner
             cancelAt={billingSummary.cancel_at}
-            onRestarted={() =>
-              setBillingSummary((prev) => (prev ? { ...prev, cancel_at: null } : prev))
-            }
-            className="mb-6"
+            onRestarted={() => updateBillingSummary({ cancel_at: null })}
+            className="mb-8"
           />
         )}
 
-        {/* Latest Generation Banner */}
-        {latestTask && (
-          <Link href={`/tasks/${latestTask.id}`} className="block mb-8">
-            <div className="flex items-center justify-between p-4 rounded-xl border border-stone-200 bg-stone-50/50 hover:bg-stone-50 transition-colors group">
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-stone-900 flex items-center justify-center">
-                  <Film className="w-5 h-5 text-white" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-stone-900 truncate">
-                    {latestTask.source_title}
-                  </p>
-                  <div className="flex items-center gap-2 text-xs text-stone-500 mt-0.5">
-                    <span className="capitalize">{latestTask.source_type}</span>
-                    <span>&middot;</span>
-                    <span>{new Date(latestTask.created_at).toLocaleDateString()}</span>
-                    <span>&middot;</span>
-                    <span>{latestTask.clips_count} {latestTask.clips_count === 1 ? "clip" : "clips"}</span>
+        <div className="mx-auto max-w-3xl animate-rise">
+          <h1 className="text-center font-display text-3xl font-bold tracking-tight sm:text-[2.6rem] sm:leading-tight">
+            {greeting(session.user.name)}
+          </h1>
+          <p className="mt-2 text-center text-muted-foreground">
+            {generationRequiresUpgrade
+              ? "Video processing is available on paid plans."
+              : "Drop in a long video. Get back captioned, ready-to-post clips."}
+          </p>
+
+          {generationRequiresUpgrade && (
+            <Alert className="mt-6 border-amber-200 bg-amber-50">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-sm text-amber-900">
+                <span className="font-medium">{generationGateMessage}</span>{" "}
+                Free accounts can browse SupoClip, but video generation requires a paid plan.
+                <Link href="/settings" className="ml-1 font-semibold underline underline-offset-2">Upgrade in settings</Link>.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <form
+            onSubmit={handleSubmit}
+            onDragOver={(event) => { event.preventDefault(); if (!controlsDisabled) setIsDragging(true); }}
+            onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setIsDragging(false); }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setIsDragging(false);
+              if (!controlsDisabled) attachFile(event.dataTransfer.files?.[0] ?? null);
+            }}
+            className={cn(
+              "relative mt-8 rounded-2xl border bg-background shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_40px_-12px_rgb(0_0_0/0.12)] transition-all focus-within:border-foreground/25 focus-within:shadow-[0_1px_2px_rgb(0_0_0/0.04),0_16px_48px_-12px_rgb(0_0_0/0.18)]",
+              isDragging && "border-brand ring-4 ring-brand/15",
+            )}
+          >
+            <input
+              id="video-upload"
+              type="file"
+              accept="video/*"
+              ref={fileInputRef}
+              onChange={(event) => attachFile(event.target.files?.[0] ?? null)}
+              disabled={controlsDisabled}
+              className="hidden"
+            />
+
+            {isDragging && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl bg-background/95 text-sm font-medium">
+                <Upload className="size-6 text-brand" />Drop to upload your video
+              </div>
+            )}
+
+            <div className="flex items-start gap-3 p-3 pb-2 sm:p-4 sm:pb-2">
+              {file ? (
+                <div className="flex min-w-0 flex-1 items-center gap-3 rounded-xl bg-muted/60 p-2 pr-3">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-foreground text-background"><FileVideo className="size-5" /></span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatBytes(file.size)} · ready to upload</p>
                   </div>
+                  <button type="button" onClick={() => attachFile(null)} disabled={isLoading} aria-label="Remove file" className="rounded-md p-1 text-muted-foreground hover:bg-background hover:text-foreground">
+                    <X className="size-4" />
+                  </button>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <StatusBadge status={latestTask.status} />
-                <ArrowRight className="w-4 h-4 text-stone-400 group-hover:text-stone-600 transition-colors" />
-              </div>
-            </div>
-          </Link>
-        )}
-
-        {isLoadingLatest && (
-          <div className="mb-8 p-4 rounded-xl border border-stone-200">
-            <div className="flex items-center gap-4">
-              <Skeleton className="w-10 h-10 rounded-lg" />
-              <div>
-                <Skeleton className="h-4 w-48 mb-1.5" />
-                <Skeleton className="h-3 w-32" />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Two Column Layout */}
-        <div className="flex flex-col lg:flex-row gap-10 items-start">
-          {/* Left Column — Form */}
-          <div className="flex-1 min-w-0">
-            <div className="mb-8">
-              <h2 className="text-2xl font-bold text-stone-900 mb-2">
-                Create New Clip
-              </h2>
-              <p className="text-stone-500">
-                {generationRequiresUpgrade
-                  ? "Video processing is available on paid plans."
-                  : "Paste a YouTube link or upload a video — AI handles the rest."}
-              </p>
+              ) : (
+                <>
+                  {youtubeThumbnailUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={youtubeThumbnailUrl} alt="" className="mt-0.5 hidden h-11 w-[78px] shrink-0 rounded-lg object-cover sm:block" />
+                  ) : (
+                    <span className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground"><Youtube className="size-5" /></span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <label htmlFor="youtube-url" className="sr-only">YouTube URL</label>
+                    <input
+                      id="youtube-url"
+                      ref={urlInputRef}
+                      type="url"
+                      autoFocus
+                      autoComplete="off"
+                      placeholder="Paste a YouTube link, or drop a video file"
+                      aria-describedby={limitNote ? "youtube-duration-limit" : undefined}
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void handleSubmit(); }}
+                      disabled={controlsDisabled}
+                      className="h-11 w-full bg-transparent text-base outline-none placeholder:text-muted-foreground/80 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {generationRequiresUpgrade && (
-                <Alert className="border-amber-200 bg-amber-50">
-                  <AlertCircle className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-sm text-amber-900">
-                    <span className="font-medium">{generationGateMessage}</span>{" "}
-                    Free accounts can browse SupoClip, but video generation requires a paid plan.
-                    <Link href="/settings" className="ml-1 font-semibold underline underline-offset-2">
-                      Upgrade in settings
-                    </Link>.
-                  </AlertDescription>
-                </Alert>
+            <div className="flex flex-wrap items-center gap-1.5 px-3 pb-3 sm:px-4">
+              {!file && (
+                <Chip onClick={() => fileInputRef.current?.click()} disabled={controlsDisabled} aria-label="Upload a video file">
+                  <Paperclip className="size-3.5" /><span className="hidden sm:inline">Upload</span>
+                </Chip>
               )}
 
-              {/* Source Type Tabs */}
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSourceType("youtube");
-                      setFileName(null);
-                      fileRef.current = null;
-                      if (fileInputRef.current) fileInputRef.current.value = "";
-                    }}
-                    disabled={generationControlsDisabled}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      sourceType === "youtube"
-                        ? "bg-stone-900 text-white shadow-sm"
-                        : "bg-stone-100 text-stone-600 hover:bg-stone-200"
-                    }`}
-                  >
-                    <Youtube className="w-4 h-4" />
-                    YouTube URL
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSourceType("upload")}
-                    disabled={generationControlsDisabled}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                      sourceType === "upload"
-                        ? "bg-stone-900 text-white shadow-sm"
-                        : "bg-stone-100 text-stone-600 hover:bg-stone-200"
-                    }`}
-                  >
-                    <Upload className="w-4 h-4" />
-                    Upload Video
-                  </button>
-                </div>
-
-                {/* URL / Upload Input */}
-                {sourceType === "youtube" ? (
-                  <div className="space-y-2">
-                    <div className="relative">
-                      <Youtube className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
-                      <Input
-                        id="youtube-url"
-                        type="url"
-                        placeholder="https://www.youtube.com/watch?v=..."
-                        aria-describedby={billingSummary?.max_youtube_duration_seconds ? "youtube-duration-limit" : undefined}
-                        value={url}
-                        onChange={(e) => setUrl(e.target.value)}
-                        disabled={generationControlsDisabled}
-                        className="h-14 pl-12 text-base rounded-xl border-stone-300 focus:border-stone-500 placeholder:text-stone-400"
-                      />
-                    </div>
-                    {billingSummary?.max_youtube_duration_seconds ? (
-                      <p id="youtube-duration-limit" className="text-sm text-stone-600">
-                        {formatBillingPlanName(billingSummary.plan)}: YouTube videos up to {billingSummary.max_youtube_duration_seconds / 60} minutes.
-                        {" "}We check the length before using a generation.
-                      </p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div
-                    className="relative border-2 border-dashed border-stone-300 rounded-xl p-8 text-center hover:border-stone-400 transition-colors cursor-pointer"
-                    onClick={() => !generationControlsDisabled && fileInputRef.current?.click()}
-                  >
-                    <input
-                      id="video-upload"
-                      type="file"
-                      accept="video/*"
-                      ref={fileInputRef}
-                      onChange={handleFileChange}
-                      disabled={generationControlsDisabled}
-                      className="hidden"
-                    />
-                    <Upload className="w-8 h-8 text-stone-400 mx-auto mb-3" />
-                    {fileName ? (
-                      <p className="text-sm font-medium text-stone-900">{fileName}</p>
-                    ) : (
-                      <>
-                        <p className="text-sm font-medium text-stone-700">Drop a video file here or click to browse</p>
-                        <p className="text-xs text-stone-400 mt-1">MP4, MOV, AVI up to 12 GB</p>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Caption & Style Section */}
-              <Card className="border-stone-200">
-                <CardContent className="px-4 pt-0 pb-2.5 space-y-2.5">
-                  <div className="flex items-center gap-2 text-sm font-medium text-stone-900">
-                    <Sparkles className="w-4 h-4" />
-                    Style & Captions
-                  </div>
-
-                  {/* Caption Template Selector — the main style choice */}
-                  <div className="space-y-2">
-                    <label className="text-sm text-stone-600">
-                      Caption Style
-                    </label>
-                    <Select value={captionTemplate} onValueChange={handleTemplateChange} disabled={generationControlsDisabled}>
-                      <SelectTrigger className="w-full h-11">
-                        <SelectValue>
-                          {availableTemplates.find(t => t.id === captionTemplate)?.name || "Select style"}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableTemplates.length > 0 ? (
-                          availableTemplates.map((template) => (
-                            <SelectItem key={template.id} value={template.id} className="py-3">
-                              <span className="flex flex-col">
-                                <span>
-                                  <span className="font-medium">{template.name}</span>
-                                  <span className="text-xs text-gray-500 ml-2">{template.description}</span>
-                                </span>
-                                {(template.font_family || template.font_size || template.font_color) && (
-                                  <span className="flex items-center gap-1.5 text-[11px] text-stone-400 mt-0.5">
-                                    {template.font_color && (
-                                      <span
-                                        className="w-2.5 h-2.5 rounded-full border border-stone-300 shrink-0"
-                                        style={{ backgroundColor: template.font_color }}
-                                      />
-                                    )}
-                                    {[template.font_family, template.font_size ? `${template.font_size}px` : null]
-                                      .filter(Boolean)
-                                      .join(" · ")}
-                                  </span>
-                                )}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Chip disabled={controlsDisabled || !addSubtitles} active={customized}>
+                    <Paintbrush className="size-3.5" />{selectedTemplate?.name || "Default"}<ChevronDown className="size-3 opacity-60" />
+                  </Chip>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[min(92vw,560px)] rounded-2xl p-0">
+                  <div className="grid gap-0 sm:grid-cols-[minmax(0,1fr)_180px]">
+                    <div className="max-h-[420px] min-w-0 space-y-4 overflow-y-auto p-4">
+                      <div>
+                        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Caption style</p>
+                        <div className="flex flex-col gap-1" role="radiogroup" aria-label="Caption style">
+                          {(availableTemplates.length ? availableTemplates : [{ id: "default", name: "Default", description: "Word-by-word captions", animation: "" } as CaptionTemplate]).map((template) => (
+                            <button
+                              key={template.id}
+                              type="button"
+                              role="radio"
+                              aria-checked={captionTemplate === template.id}
+                              onClick={() => setCaptionTemplate(template.id)}
+                              className={cn("flex w-full min-w-0 items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-accent", captionTemplate === template.id && "bg-accent")}
+                            >
+                              <span className="size-3 shrink-0 rounded-full border" style={{ backgroundColor: template.font_color || "#fff" }} />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-medium">{template.name}</span>
+                                <span className="block truncate text-xs text-muted-foreground">{template.description}</span>
                               </span>
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="default">Default</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Output format */}
-                  <div className="flex items-center justify-between gap-4 p-3 border rounded-lg bg-stone-50">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <Monitor className="w-4 h-4 text-blue-500" />
-                      <div>
-                        <h3 className="text-sm font-medium text-stone-900">Framing</h3>
-                        <p className="text-xs text-stone-500">Choose how clips are reframed for social video</p>
-                      </div>
-                    </div>
-                    <Select
-                      value={outputFormat}
-                      onValueChange={(value) => setOutputFormat(value as OutputFormat)}
-                      disabled={generationControlsDisabled}
-                    >
-                      <SelectTrigger className="w-[180px] bg-white">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="vertical">Auto 9:16</SelectItem>
-                        <SelectItem value="vertical_pan">Speaker pan</SelectItem>
-                        <SelectItem value="vertical_split">Split-screen</SelectItem>
-                        <SelectItem value="original">Original</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Add subtitles */}
-                  <div className="flex items-center justify-between p-3 border rounded-lg bg-stone-50">
-                    <div className="flex items-center gap-3">
-                      <Type className="w-4 h-4 text-emerald-500" />
-                      <div>
-                        <h3 className="text-sm font-medium text-stone-900">Add subtitles</h3>
-                        <p className="text-xs text-stone-500">Burn captions onto clips (disable for faster processing)</p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={addSubtitles}
-                      onCheckedChange={setAddSubtitles}
-                      disabled={generationControlsDisabled}
-                    />
-                  </div>
-
-                  <div className="rounded-lg border bg-stone-50 p-3 space-y-3">
-                    <div>
-                      <h3 className="text-sm font-medium text-stone-900">Clip cleanup</h3>
-                      <p className="text-xs text-stone-500">Remove dead air and common filler phrases while rendering.</p>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-medium text-stone-900">Cut long pauses</div>
-                        <div className="text-xs text-stone-500">Split out silence gaps longer than your threshold.</div>
-                      </div>
-                      <Switch
-                        checked={cutLongPauses}
-                        onCheckedChange={setCutLongPauses}
-                        disabled={generationControlsDisabled}
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-stone-500">Pause threshold (ms)</label>
-                      <Input
-                        type="number"
-                        min={250}
-                        max={3000}
-                        step={50}
-                        value={pauseThresholdMs}
-                        onChange={(e) => setPauseThresholdMs(e.target.value)}
-                        disabled={generationControlsDisabled || !cutLongPauses}
-                        placeholder="900"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-medium text-stone-900">Remove filler words</div>
-                        <div className="text-xs text-stone-500">Uses a safe default list like “um”, “uh”, and “you know”.</div>
-                      </div>
-                      <Switch
-                        checked={removeFillerWords}
-                        onCheckedChange={setRemoveFillerWords}
-                        disabled={generationControlsDisabled}
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-stone-500">Extra filtered words or phrases</label>
-                      <Input
-                        value={filteredWords}
-                        onChange={(e) => setFilteredWords(e.target.value)}
-                        disabled={generationControlsDisabled}
-                        placeholder="basically, literally, to be honest"
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Customize Captions Section — collapsed by default; template default applies unless changed */}
-              <div
-                className={`transition-all duration-500 ease-in-out overflow-hidden ${
-                  addSubtitles
-                    ? "max-h-[800px] opacity-100"
-                    : "max-h-0 opacity-0 pointer-events-none"
-                }`}
-              >
-              <Card className="border-stone-200">
-                <CardContent className="px-4 pt-0 pb-2.5 space-y-2.5">
-                  <button
-                    type="button"
-                    className="flex items-center justify-between w-full cursor-pointer"
-                    onClick={() => setShowCustomizeCaptions(!showCustomizeCaptions)}
-                  >
-                    <div className="flex items-center gap-2 text-sm font-medium text-stone-900">
-                      <Paintbrush className="w-4 h-4" />
-                      Customize captions
-                    </div>
-                    <span className="text-xs text-stone-500 hover:text-stone-700 transition-colors">
-                      {showCustomizeCaptions ? "Hide" : "Show"}
-                    </span>
-                  </button>
-
-                  {showCustomizeCaptions && (
-                    <div className="space-y-5 pt-1">
-                      {/* Font Family Selector */}
-                      <div className="space-y-2">
-                        <label className="text-sm text-stone-600 flex items-center gap-2">
-                          <Type className="w-3.5 h-3.5" />
-                          Font Family
-                        </label>
-                        <div className="flex items-center justify-between gap-3 text-xs text-stone-500">
-                          <span>{availableFonts.length} font{availableFonts.length === 1 ? "" : "s"} available</span>
-                          <input
-                            ref={fontUploadInputRef}
-                            type="file"
-                            accept=".ttf,.otf"
-                            onChange={handleFontUpload}
-                            className="hidden"
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={generationControlsDisabled || isUploadingFont || !canUploadCustomFonts}
-                            onClick={() => fontUploadInputRef.current?.click()}
-                          >
-                            {isUploadingFont ? "Uploading..." : "Upload Font"}
-                          </Button>
+                              {captionTemplate === template.id && <Check className="size-4" />}
+                            </button>
+                          ))}
                         </div>
-                        {!canUploadCustomFonts && (
-                          <p className="text-xs text-amber-700">Custom font upload is available on paid plans.</p>
-                        )}
-                        {availableFonts.length > FONT_SEARCH_THRESHOLD && (
-                          <Input
-                            type="text"
-                            value={fontSearch}
-                            onChange={(e) => setFontSearch(e.target.value)}
-                            placeholder="Search fonts"
-                            disabled={generationControlsDisabled}
-                          />
-                        )}
-                        <Select
-                          value={fontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE}
-                          onValueChange={(value) => setFontFamily(value === FONT_TEMPLATE_DEFAULT_VALUE ? null : value)}
-                          disabled={generationControlsDisabled}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Template default" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
-                            {filteredFonts.map((font) => (
-                              <SelectItem key={font.name} value={font.name}>
-                                <span style={{ fontFamily: `'${font.name}', system-ui, sans-serif` }}>
-                                  {font.display_name}
-                                </span>
-                              </SelectItem>
-                            ))}
-                            {availableFonts.length > 0 && filteredFonts.length === 0 && (
-                              <SelectItem value="__no_match__" disabled>
-                                No fonts match your search
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        {fontLoadError && (
-                          <p className="text-xs text-amber-700">{fontLoadError}</p>
-                        )}
                       </div>
 
-                      <CaptionSizeControl value={fontSize} onChange={setFontSize} disabled={generationControlsDisabled} />
-
-                      {/* Font Color Picker */}
-                      <div className="space-y-2">
+                      <div className="space-y-3 border-t pt-4">
                         <div className="flex items-center justify-between">
-                          <label className="text-sm text-stone-600 flex items-center gap-1.5">
-                            <Palette className="w-3.5 h-3.5" />
-                            Color
-                          </label>
-                          <label className="flex items-center gap-1.5 text-xs text-stone-500 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={fontColor === null}
-                              onChange={(e) => setFontColor(e.target.checked ? null : "#FFFFFF")}
-                              disabled={generationControlsDisabled}
-                              className="rounded border-stone-300"
-                            />
-                            Template default
-                          </label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={fontColor ?? "#FFFFFF"}
-                            onChange={(e) => setFontColor(e.target.value)}
-                            disabled={generationControlsDisabled || fontColor === null}
-                            className="w-10 h-8 rounded border border-stone-300 cursor-pointer disabled:cursor-not-allowed"
-                          />
-                          <Input
-                            type="text"
-                            value={fontColor ?? ""}
-                            onChange={(e) => setFontColor(e.target.value)}
-                            disabled={generationControlsDisabled || fontColor === null}
-                            placeholder="Template default"
-                            className="flex-1 h-8 text-xs"
-                            pattern="^#[0-9A-Fa-f]{6}$"
-                          />
-                        </div>
-                        {fontColor !== null && (
-                          <div className="flex gap-1.5 mt-1">
-                            {["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"].map((color) => (
-                              <button
-                                key={color}
-                                type="button"
-                                onClick={() => setFontColor(color)}
-                                disabled={generationControlsDisabled}
-                                className="w-5 h-5 rounded border-2 border-stone-300 cursor-pointer hover:scale-110 transition-transform disabled:cursor-not-allowed"
-                                style={{ backgroundColor: color }}
-                                title={color}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-              </div>
-
-              {isLoading && (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-stone-600" role="status">{statusMessage || "Processing"}</span>
-                      <span className="text-stone-900 font-medium">{progress}%</span>
-                    </div>
-                    <Progress value={progress} className="h-2" />
-                  </div>
-
-                  {currentStep && statusMessage && (
-                    <div className="bg-stone-50 rounded-xl p-4 space-y-3 border border-stone-200">
-                      <div className="flex items-center gap-3">
-                        {getStepIcon(currentStep)}
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-stone-900">{statusMessage}</p>
-                          {sourceTitle && (
-                            <p className="text-xs text-stone-500 mt-1">Processing: {sourceTitle}</p>
+                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Customize</p>
+                          {customized && (
+                            <button type="button" className="text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => { setFontFamily(null); setFontSize(null); setFontColor(null); }}>
+                              Reset to template
+                            </button>
                           )}
                         </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${currentStep === 'validation' || currentStep === 'user_check' ? 'bg-blue-100' : progress > 15 ? 'bg-green-100' : 'bg-stone-100'}`}>
-                          <CheckCircle className={`w-3 h-3 ${progress > 15 ? 'text-green-500' : 'text-stone-400'}`} />
-                          <span className={progress > 15 ? 'text-green-700' : 'text-stone-600'}>Validation</span>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <label className="text-sm">Font</label>
+                            <input ref={fontUploadInputRef} type="file" accept=".ttf,.otf" onChange={handleFontUpload} className="hidden" />
+                            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" disabled={controlsDisabled || isUploadingFont || !canUploadCustomFonts} onClick={() => fontUploadInputRef.current?.click()}>
+                              <Upload className="size-3" />{isUploadingFont ? "Uploading…" : "Upload font"}
+                            </Button>
+                          </div>
+                          {!canUploadCustomFonts && <p className="text-xs text-amber-700">Custom font upload is available on paid plans.</p>}
+                          {availableFonts.length > FONT_SEARCH_THRESHOLD && (
+                            <Input value={fontSearch} onChange={(e) => setFontSearch(e.target.value)} placeholder="Search fonts" className="h-8" />
+                          )}
+                          <Select value={fontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE} onValueChange={(value) => setFontFamily(value === FONT_TEMPLATE_DEFAULT_VALUE ? null : value)}>
+                            <SelectTrigger className="w-full"><SelectValue placeholder="Template default" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
+                              {filteredFonts.map((font) => (
+                                <SelectItem key={font.name} value={font.name}>
+                                  <span style={{ fontFamily: `'${font.name}', system-ui, sans-serif` }}>{font.display_name}</span>
+                                </SelectItem>
+                              ))}
+                              {availableFonts.length > 0 && filteredFonts.length === 0 && <SelectItem value="__no_match__" disabled>No fonts match your search</SelectItem>}
+                            </SelectContent>
+                          </Select>
+                          {fontLoadError && <p className="text-xs text-amber-700">{fontLoadError}</p>}
                         </div>
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${currentStep === 'download' || currentStep === 'youtube_info' ? 'bg-green-100' : progress > 30 ? 'bg-green-100' : 'bg-stone-100'}`}>
-                          <CheckCircle className={`w-3 h-3 ${progress > 30 ? 'text-green-500' : 'text-stone-400'}`} />
-                          <span className={progress > 30 ? 'text-green-700' : 'text-stone-600'}>Download</span>
-                        </div>
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${currentStep === 'transcript' ? 'bg-purple-100' : progress > 45 ? 'bg-green-100' : 'bg-stone-100'}`}>
-                          <CheckCircle className={`w-3 h-3 ${progress > 45 ? 'text-green-500' : 'text-stone-400'}`} />
-                          <span className={progress > 45 ? 'text-green-700' : 'text-stone-600'}>Transcript</span>
-                        </div>
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${currentStep === 'ai_analysis' ? 'bg-orange-100' : progress > 60 ? 'bg-green-100' : 'bg-stone-100'}`}>
-                          <CheckCircle className={`w-3 h-3 ${progress > 60 ? 'text-green-500' : 'text-stone-400'}`} />
-                          <span className={progress > 60 ? 'text-green-700' : 'text-stone-600'}>AI Analysis</span>
-                        </div>
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${currentStep === 'clip_generation' ? 'bg-indigo-100' : progress > 75 ? 'bg-green-100' : 'bg-stone-100'}`}>
-                          <CheckCircle className={`w-3 h-3 ${progress > 75 ? 'text-green-500' : 'text-stone-400'}`} />
-                          <span className={progress > 75 ? 'text-green-700' : 'text-stone-600'}>Create Clips</span>
-                        </div>
-                        <div className={`flex items-center gap-2 p-2 rounded-lg ${currentStep === 'complete' ? 'bg-green-100' : progress >= 100 ? 'bg-green-100' : 'bg-stone-100'}`}>
-                          <CheckCircle className={`w-3 h-3 ${progress >= 100 ? 'text-green-500' : 'text-stone-400'}`} />
-                          <span className={progress >= 100 ? 'text-green-700' : 'text-stone-600'}>Complete</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {error && (
-                <Alert className="border-red-200 bg-red-50">
-                  <AlertCircle className="h-4 w-4 text-red-500" />
-                  <AlertDescription className="text-sm text-red-700">
-                    {error}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <p className="text-xs text-stone-500">
-                Completion emails use your user preference in{" "}
-                <Link href="/settings" className="font-medium text-stone-700 underline underline-offset-2">
-                  Settings
-                </Link>.
-              </p>
-
-              <Button
-                type="submit"
-                className="w-full h-12 text-base rounded-xl"
-                disabled={
-                  (sourceType === "youtube" && !url.trim()) ||
-                  (sourceType === "upload" && !fileRef.current) ||
-                  generationRequiresUpgrade ||
-                  isLoading
-                }
-              >
-                {isLoading ? "Processing..." : generationRequiresUpgrade ? "Choose a Paid Plan" : "Process Video"}
-              </Button>
-            </form>
-          </div>
-
-          {/* Right Column — Phone Preview */}
-          <div
-            className={`hidden lg:block flex-shrink-0 overflow-hidden transition-all duration-500 ease-in-out ${
-              sourceType === "upload"
-                ? "w-0 opacity-0"
-                : "w-[340px] opacity-100"
-            }`}
-          >
-            <div
-              className={`w-[340px] transition-all duration-500 ease-in-out ${
-                sourceType === "upload"
-                  ? "translate-x-6 scale-[0.97] opacity-0"
-                  : "translate-x-0 scale-100 opacity-100"
-              }`}
-            >
-            <div className="lg:sticky lg:top-8">
-              <div className="flex items-center justify-center gap-2 mb-5 text-sm text-stone-400">
-                <Monitor className="w-4 h-4" />
-                <span>Live Preview</span>
-              </div>
-
-              {/* Phone Frame — realistic iPhone style */}
-              <div className="mx-auto" style={{ maxWidth: "300px" }}>
-                <div
-                  className="relative bg-stone-950"
-                  style={{ borderRadius: "3rem", padding: "12px" }}
-                >
-                  {/* Screen with inner radius */}
-                  <div
-                    className="relative overflow-hidden bg-black"
-                    style={{ borderRadius: "2.25rem", height: "580px" }}
-                  >
-                    {/* Status bar */}
-                    <div className="absolute top-0 left-0 right-0 z-20 px-6 pt-3 flex justify-between items-center">
-                      <span className="text-white text-xs font-semibold">9:41</span>
-                      {/* Dynamic Island */}
-                      <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-24 h-7 bg-black rounded-full" />
-                      <div className="flex items-center gap-1">
-                        {/* Signal */}
-                        <svg width="16" height="12" viewBox="0 0 16 12" className="text-white">
-                          <rect x="0" y="8" width="3" height="4" rx="0.5" fill="currentColor" />
-                          <rect x="4.5" y="5" width="3" height="7" rx="0.5" fill="currentColor" />
-                          <rect x="9" y="2" width="3" height="10" rx="0.5" fill="currentColor" />
-                          <rect x="13.5" y="0" width="3" height="12" rx="0.5" fill="currentColor" opacity="0.3" />
-                        </svg>
-                        {/* WiFi */}
-                        <svg width="14" height="12" viewBox="0 0 14 12" className="text-white ml-0.5">
-                          <path d="M7 10.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" fill="currentColor" />
-                          <path d="M3.5 8.5a5 5 0 017 0" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                          <path d="M1 5.5a8.5 8.5 0 0112 0" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-                        </svg>
-                        {/* Battery */}
-                        <svg width="26" height="12" viewBox="0 0 26 12" className="text-white ml-0.5">
-                          <rect x="0" y="1" width="22" height="10" rx="2" stroke="currentColor" strokeWidth="1" fill="none" />
-                          <rect x="2" y="3" width="16" height="6" rx="1" fill="currentColor" />
-                          <rect x="23" y="4" width="2" height="4" rx="0.5" fill="currentColor" opacity="0.4" />
-                        </svg>
-                      </div>
-                    </div>
-
-                    {/* Video background */}
-                    {youtubeThumbnailUrl ? (
-                      <div
-                        className="absolute inset-0 bg-cover bg-center scale-105 blur-sm"
-                        style={{ backgroundImage: `url(${youtubeThumbnailUrl})` }}
-                      />
-                    ) : (
-                      <div className="absolute inset-0 bg-gradient-to-b from-stone-600 via-stone-500 to-stone-700" />
-                    )}
-                    <div className="absolute inset-0 bg-black/20" />
-                    {/* Bottom gradient for readability over lower UI */}
-                    <div className="absolute inset-x-0 bottom-0 h-60 bg-gradient-to-t from-black/70 via-black/30 to-transparent z-[1]" />
-
-                    {/* TikTok-style top navigation */}
-                    <div className="absolute top-12 left-0 right-0 z-10 flex justify-center items-center gap-5">
-                      <span className="text-white/50 text-xs font-medium">Following</span>
-                      <span className="text-white text-xs font-semibold relative">
-                        For You
-                        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-white rounded-full" />
-                      </span>
-                    </div>
-
-                    {/* Right side action buttons — TikTok style */}
-                    <div className="absolute right-3 space-y-5 z-10" style={{ bottom: "260px" }}>
-                      {/* Profile */}
-                      <div className="flex flex-col items-center gap-1">
-                        <div className="w-9 h-9 rounded-full bg-white/20 border-2 border-white/40" />
-                        <div className="w-4 h-4 rounded-full bg-red-500 -mt-3 border border-black flex items-center justify-center">
-                          <span className="text-white text-[7px] font-bold">+</span>
-                        </div>
-                      </div>
-                      {/* Heart */}
-                      <div className="flex flex-col items-center gap-0.5">
-                        <svg width="26" height="26" viewBox="0 0 24 24" fill="white" className="opacity-90">
-                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                        </svg>
-                        <span className="text-white text-[10px] font-semibold">24.5K</span>
-                      </div>
-                      {/* Comment */}
-                      <div className="flex flex-col items-center gap-0.5">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="white" className="opacity-90">
-                          <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
-                        </svg>
-                        <span className="text-white text-[10px] font-semibold">482</span>
-                      </div>
-                      {/* Share */}
-                      <div className="flex flex-col items-center gap-0.5">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="white" className="opacity-90">
-                          <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
-                        </svg>
-                        <span className="text-white text-[10px] font-semibold">Share</span>
-                      </div>
-                    </div>
-
-                    {/* Subtitle area — positioned above creator info */}
-                    <div className="absolute left-0 right-0 z-10" style={{ bottom: "195px" }}>
-                      <div className="mx-4">
-                        <p
-                          style={{
-                            color: previewFontColor,
-                            fontSize: `${Math.max(Math.min(previewFontSize * 0.6, 22), 11)}px`,
-                            fontFamily: `'${previewFontFamily}', system-ui, -apple-system, sans-serif`,
-                            textAlign: 'center',
-                            lineHeight: '1.5',
-                            textShadow: '0 2px 8px rgba(0,0,0,0.8), 0 0px 2px rgba(0,0,0,0.9)',
-                          }}
-                          className="font-bold"
-                        >
-                          Your subtitle will look like this
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Bottom left — creator info */}
-                    <div className="absolute left-3 z-10 max-w-[60%]" style={{ bottom: "110px" }}>
-                      <p className="text-white text-xs font-bold mb-1">@creator_name</p>
-                      <p className="text-white/80 text-[10px] leading-snug">
-                        Check out this amazing clip generated by AI
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-2">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="white" className="opacity-70">
-                          <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-                        </svg>
-                        <span className="text-white/70 text-[9px]">Original Sound - creator_name</span>
-                      </div>
-                    </div>
-
-                    {/* Bottom nav bar */}
-                    <div className="absolute bottom-0 left-0 right-0 z-20 bg-black px-2 pt-2 pb-5">
-                      <div className="flex items-center justify-around">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
-                            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-                          </svg>
-                          <span className="text-white text-[8px]">Home</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-0.5">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="white" opacity="0.5">
-                            <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5z"/>
-                          </svg>
-                          <span className="text-white/50 text-[8px]">Discover</span>
-                        </div>
-                        <div className="relative -mt-3">
-                          <div className="w-10 h-7 rounded-lg bg-white flex items-center justify-center">
-                            <span className="text-black text-lg font-bold leading-none">+</span>
+                        <CaptionSizeControl value={fontSize} onChange={setFontSize} disabled={controlsDisabled} />
+                        <div className="space-y-2">
+                          <p className="text-sm">Color</p>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button type="button" onClick={() => setFontColor(null)} className={cn("h-7 rounded-full border px-2.5 text-xs", fontColor === null ? "border-foreground bg-foreground text-background" : "hover:bg-accent")}>Template</button>
+                            {COLOR_SWATCHES.map((color) => (
+                              <button key={color} type="button" onClick={() => setFontColor(color)} title={color} aria-label={`Caption color ${color}`}
+                                className={cn("size-7 rounded-full border-2 transition-transform hover:scale-110", fontColor === color ? "border-foreground" : "border-border")}
+                                style={{ backgroundColor: color }} />
+                            ))}
+                            <label className="relative size-7 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-border" title="Custom color">
+                              <input type="color" value={fontColor ?? "#FFFFFF"} onChange={(e) => setFontColor(e.target.value)} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Custom caption color" />
+                              <span className="absolute inset-1 rounded-full bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]" />
+                            </label>
                           </div>
                         </div>
-                        <div className="flex flex-col items-center gap-0.5">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="white" opacity="0.5">
-                            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
-                          </svg>
-                          <span className="text-white/50 text-[8px]">Inbox</span>
-                        </div>
-                        <div className="flex flex-col items-center gap-0.5">
-                          <div className="w-5 h-5 rounded-full bg-white/30" />
-                          <span className="text-white/50 text-[8px]">Me</span>
-                        </div>
                       </div>
-                      {/* Home indicator */}
-                      <div className="w-28 h-1 bg-white/40 rounded-full mx-auto mt-2" />
                     </div>
-                  </div>
-                </div>
 
-                {/* Caption info below phone */}
-                <div className="mt-6 space-y-3 px-2">
-                  <div className="flex items-center justify-between text-xs text-stone-500">
-                    <span>Font</span>
-                    <span className="text-stone-700 font-medium">
-                      {fontFamily
-                        ? availableFonts.find(f => f.name === fontFamily)?.display_name || fontFamily
-                        : `${previewFontFamily} (template default)`}
-                    </span>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between text-xs text-stone-500">
-                    <span>Size</span>
-                    <span className="text-stone-700 font-medium">
-                      {fontSize ? `${fontSize}px` : `${previewFontSize}px (template default)`}
-                    </span>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between text-xs text-stone-500">
-                    <span>Color</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full border border-stone-300" style={{ backgroundColor: previewFontColor }} />
-                      <span className="text-stone-700 font-medium">
-                        {fontColor ? fontColor : `${previewFontColor} (template default)`}
-                      </span>
+                    <div className="hidden border-l bg-muted/40 p-4 sm:block">
+                      <CaptionPreview
+                        thumbnail={youtubeThumbnailUrl}
+                        fontFamily={previewFontFamily}
+                        fontSize={previewFontSize}
+                        color={previewFontColor}
+                      />
+                      <p className="mt-3 text-center text-[11px] text-muted-foreground">Live preview</p>
                     </div>
                   </div>
-                  <Separator />
-                  <div className="flex items-center justify-between text-xs text-stone-500">
-                    <span>Template</span>
-                    <span className="text-stone-700 font-medium">
-                      {availableTemplates.find(t => t.id === captionTemplate)?.name || "Default"}
-                    </span>
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Chip disabled={controlsDisabled}>
+                    <Crop className="size-3.5" />{FRAMINGS.find((f) => f.id === outputFormat)?.label}<ChevronDown className="size-3 opacity-60" />
+                  </Chip>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[min(92vw,420px)] rounded-2xl p-3">
+                  <p className="mb-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">Framing</p>
+                  <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Framing">
+                    {FRAMINGS.map((framing) => (
+                      <button
+                        key={framing.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={outputFormat === framing.id}
+                        onClick={() => setOutputFormat(framing.id)}
+                        className={cn("rounded-xl border p-3 text-left transition-colors hover:bg-accent", outputFormat === framing.id && "border-foreground ring-1 ring-foreground")}
+                      >
+                        <FramingGlyph kind={framing.id} />
+                        <span className="mt-2 block text-sm font-medium">{framing.label}</span>
+                        <span className="block text-xs text-muted-foreground">{framing.hint}</span>
+                      </button>
+                    ))}
                   </div>
-                </div>
+                </PopoverContent>
+              </Popover>
+
+              <Chip onClick={() => setAddSubtitles((value) => !value)} disabled={controlsDisabled} aria-pressed={addSubtitles} active={!addSubtitles}>
+                {addSubtitles ? <Captions className="size-3.5" /> : <CaptionsOff className="size-3.5" />}
+                {addSubtitles ? "Captions" : "No captions"}
+              </Chip>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Chip disabled={controlsDisabled} active={cleanupCount > 0}>
+                    <Wand2 className="size-3.5" />Cleanup{cleanupCount > 0 && <span className="rounded-full bg-foreground px-1.5 text-[10px] text-background">{cleanupCount}</span>}
+                    <ChevronDown className="size-3 opacity-60" />
+                  </Chip>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[min(92vw,340px)] space-y-4 rounded-2xl">
+                  <div>
+                    <p className="text-sm font-medium">Clip cleanup</p>
+                    <p className="text-xs text-muted-foreground">Remove dead air and common filler phrases while rendering.</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <label htmlFor="cut-pauses" className="text-sm font-medium">Cut long pauses</label>
+                      <p className="text-xs text-muted-foreground">Split out silence gaps longer than</p>
+                    </div>
+                    <Switch id="cut-pauses" checked={cutLongPauses} onCheckedChange={setCutLongPauses} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Input type="number" min={250} max={3000} step={50} value={pauseThresholdMs} onChange={(e) => setPauseThresholdMs(e.target.value)} disabled={!cutLongPauses} aria-label="Pause threshold (ms)" className="h-8 w-24" />
+                    <span className="text-xs text-muted-foreground">milliseconds</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <label htmlFor="filler-words" className="text-sm font-medium">Remove filler words</label>
+                      <p className="text-xs text-muted-foreground">“um”, “uh”, “you know” and friends</p>
+                    </div>
+                    <Switch id="filler-words" checked={removeFillerWords} onCheckedChange={setRemoveFillerWords} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="filtered-words" className="text-xs font-medium text-muted-foreground">Extra words or phrases to cut</label>
+                    <Input id="filtered-words" value={filteredWords} onChange={(e) => setFilteredWords(e.target.value)} placeholder="basically, literally, to be honest" className="h-8" />
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              <div className="ml-auto flex items-center gap-2">
+                <span className="hidden text-xs text-muted-foreground sm:inline-flex sm:items-center sm:gap-1">
+                  {isLoading ? <span role="status">{statusMessage || "Working…"}</span> : hasSource ? <><Kbd>⌘</Kbd><Kbd>↵</Kbd></> : null}
+                </span>
+                <Button
+                  type="submit"
+                  size="icon"
+                  aria-label={generationRequiresUpgrade ? "Choose a paid plan" : "Generate clips"}
+                  disabled={!hasSource || generationRequiresUpgrade || isLoading}
+                  className="size-9 rounded-full bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+                >
+                  {isLoading ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
+                </Button>
               </div>
             </div>
-            </div>
-          </div>
+          </form>
+
+          {isLoading && statusMessage && <p role="status" className="mt-3 text-center text-sm text-muted-foreground sm:hidden">{statusMessage}</p>}
+
+          {error && (
+            <Alert className="mt-4 border-red-200 bg-red-50">
+              <AlertCircle className="h-4 w-4 text-red-500" />
+              <AlertDescription className="text-sm text-red-700">{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <p id="youtube-duration-limit" className="mt-4 text-center text-xs text-muted-foreground">
+            {limitNote ? `${limitNote} ` : ""}
+            Completion emails follow your preference in{" "}
+            <Link href="/settings" className="font-medium text-foreground underline-offset-2 hover:underline">Settings</Link>.
+          </p>
         </div>
-      </div>
+
+        <section className="mt-16 md:mt-24" aria-labelledby="recent-heading">
+          <div className="mb-4 flex items-end justify-between">
+            <h2 id="recent-heading" className="font-display text-lg font-bold tracking-tight">Recent</h2>
+            {recent && recent.length > 0 && (
+              <Link href="/list" className="group flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+                View library<ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            )}
+          </div>
+          {recent === null ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {[0, 1, 2, 3].map((key) => <Skeleton key={key} className="aspect-[3/4] rounded-xl" />)}
+            </div>
+          ) : recent.length === 0 ? (
+            <div className="rounded-2xl border border-dashed p-10 text-center text-sm text-muted-foreground">
+              Your clips will show up here. Paste a link above to make your first batch.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4">
+              {recent.map((generation) => <GenerationCard key={generation.id} generation={generation} />)}
+            </div>
+          )}
+        </section>
+      </main>
+    </AppShell>
+  );
+}
+
+function Chip({ active, className, children, ...props }: React.ComponentProps<"button"> & { active?: boolean }) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-[state=open]:bg-accent",
+        active && "border-foreground/30 bg-accent text-foreground",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+function CaptionPreview({ thumbnail, fontFamily, fontSize, color }: { thumbnail: string | null; fontFamily: string; fontSize: number; color: string }) {
+  return (
+    <div className="relative mx-auto aspect-[9/16] w-full overflow-hidden rounded-xl bg-stone-800 shadow-inner">
+      {thumbnail ? (
+        <div className="absolute inset-0 scale-110 bg-cover bg-center blur-[2px]" style={{ backgroundImage: `url(${thumbnail})` }} />
+      ) : (
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,oklch(0.55_0.05_50),oklch(0.22_0.01_50))]" />
+      )}
+      <div className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-black/40 to-transparent" />
+      <p className="absolute inset-x-2 top-[10%] text-center text-[10px] font-bold leading-tight text-white drop-shadow">Your hook title lands here</p>
+      <p
+        className="absolute inset-x-2 top-[72%] text-center font-bold leading-snug"
+        style={{
+          color,
+          fontFamily: `'${fontFamily}', system-ui, sans-serif`,
+          fontSize: `${Math.max(Math.min(fontSize * 0.5, 18), 10)}px`,
+          textShadow: "0 2px 6px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.9)",
+        }}
+      >
+        This is how your captions look
+      </p>
     </div>
+  );
+}
+
+function FramingGlyph({ kind }: { kind: OutputFormat }) {
+  return (
+    <span className="flex h-12 items-center justify-center rounded-lg bg-muted" aria-hidden>
+      {kind === "original" ? (
+        <span className="h-6 w-10 rounded-[3px] border-2 border-foreground/70" />
+      ) : kind === "vertical_split" ? (
+        <span className="flex h-9 w-5 flex-col gap-0.5 rounded-[3px] border-2 border-foreground/70 p-0.5"><span className="flex-1 rounded-[1px] bg-foreground/30" /><span className="flex-1 rounded-[1px] bg-foreground/30" /></span>
+      ) : (
+        <span className="relative flex h-9 w-5 items-center justify-center rounded-[3px] border-2 border-foreground/70">
+          <span className={cn("size-2 rounded-full bg-brand", kind === "vertical_pan" && "motion-safe:animate-[pulse_1.4s_ease-in-out_infinite]")} />
+        </span>
+      )}
+    </span>
   );
 }

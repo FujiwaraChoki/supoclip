@@ -8,9 +8,7 @@ import { useTaskProgress } from "@/hooks/use-task-progress";
 import { StatusBadge, ACTIVE_TASK_STATUSES } from "@/components/app/status-badge";
 import { getClipUrl, requestAction, downloadBlob, EXPORT_PRESETS } from "@/lib/clip-actions";
 import { useParams, useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { PageLoading, PageError } from "@/components/app/page-state";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,29 +34,28 @@ import { useSession } from "@/lib/auth-client";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import {
-  ArrowLeft,
-  Download,
-  Star,
   AlertCircle,
-  Trash2,
-  Edit2,
-  X,
+  ArrowLeft,
   Check,
-  Zap,
-  MessageSquare,
-  TrendingUp,
-  Share2,
-  Link2Off,
-  Clock,
-  Scissors,
-  Settings2,
   Clapperboard,
+  Clock,
+  Edit2,
+  Link2Off,
+  Loader2,
+  PauseCircle,
+  RotateCcw,
+  Settings2,
+  Share2,
+  Trash2,
+  Upload,
+  X,
+  Youtube,
 } from "lucide-react";
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import Link from "next/link";
-import DynamicVideoPlayer from "@/components/dynamic-video-player";
-import { TranscriptPreview } from "@/components/transcript-preview";
+import { ClipTile, ClipFocus, ProcessingPanel, EmptyState } from "@/components/app/clip-wall";
+import { timeAgo } from "@/lib/generations";
+import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 
 interface Clip {
@@ -144,6 +141,8 @@ export default function TaskPage() {
   >([]);
   const [fontToDelete, setFontToDelete] = useState<FontOption | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"score" | "timeline">("score");
+  const [focusIndex, setFocusIndex] = useState<number | null>(null);
 
   const taskApiUrl = "/api/tasks";
 
@@ -301,26 +300,6 @@ export default function TaskPage() {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  const getScoreColor = (score: number) => {
-    if (score >= 0.8) return "bg-green-100 text-green-800";
-    if (score >= 0.6) return "bg-yellow-100 text-yellow-800";
-    return "bg-red-100 text-red-800";
-  };
-
-  const getViralityColor = (score: number) => {
-    if (score >= 80) return "text-green-600";
-    if (score >= 60) return "text-yellow-600";
-    if (score >= 40) return "text-orange-600";
-    return "text-red-600";
-  };
-
-  const getViralityBgColor = (score: number) => {
-    if (score >= 80) return "bg-green-500";
-    if (score >= 60) return "bg-yellow-500";
-    if (score >= 40) return "bg-orange-500";
-    return "bg-red-500";
   };
 
   const getHookTypeLabel = (hookType: string | null) => {
@@ -561,662 +540,347 @@ export default function TaskPage() {
   if (isLoading) return <PageLoading />;
   if (error) return <PageError message={error} retry={() => void fetchTaskStatus()} />;
 
+  const isActive = task?.status === "processing" || task?.status === "queued";
+  const sortedClips = sortBy === "score"
+    ? [...clips].sort((a, b) => (b.virality_score ?? 0) - (a.virality_score ?? 0) || a.clip_order - b.clip_order)
+    : clips;
+  const focusedClip = focusIndex !== null ? sortedClips[focusIndex] : null;
+  const bestScore = clips.reduce((best, clip) => Math.max(best, clip.virality_score || 0), 0);
+  const totalSeconds = clips.reduce((sum, clip) => sum + (clip.duration || 0), 0);
+
+  const renderTile = (clip: Clip, index: number) => (
+    <ClipTile
+      key={clip.id}
+      clip={clip}
+      taskId={task?.id ?? String(params.id)}
+      busy={pendingAction === clip.id}
+      best={bestScore > 0 && clip.virality_score === bestScore}
+      onOpen={() => setFocusIndex(index)}
+      onDownload={() => handleDownloadClip(clip)}
+      onDelete={() => setDeletingClipId(clip.id)}
+      editable={task?.status === "completed"}
+    />
+  );
+
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="border-b bg-white">
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <div className="flex items-center gap-4 mb-4">
-            <Link href="/">
-              <Button variant="ghost" size="sm">
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </Button>
-            </Link>
+    <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-8 md:py-8">
+      <Link href="/list" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="size-3.5" />Library
+      </Link>
+
+      {task && (
+        <header className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1">
+            {isEditing ? (
+              <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); void handleEditTitle(); }}>
+                <Input
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Escape") { setIsEditing(false); setEditedTitle(task.source_title); } }}
+                  className="h-auto py-1 font-display text-2xl font-bold md:text-3xl"
+                  aria-label="Generation title"
+                  autoFocus
+                />
+                <Button type="submit" aria-label="Save title" size="icon" disabled={!editedTitle.trim()}><Check className="size-4" /></Button>
+                <Button type="button" size="icon" variant="ghost" aria-label="Cancel title edit" onClick={() => { setIsEditing(false); setEditedTitle(task.source_title); }}><X className="size-4" /></Button>
+              </form>
+            ) : (
+              <div className="group flex items-start gap-2">
+                <h1 className={cn("min-w-0 break-words font-display text-2xl font-bold tracking-tight md:text-3xl", isActive && "shimmer")}>{task.source_title}</h1>
+                <Button size="icon-sm" variant="ghost" aria-label="Edit title" className="mt-0.5 shrink-0 text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+                  onClick={() => { setIsEditing(true); setEditedTitle(task.source_title); }}>
+                  <Edit2 className="size-4" />
+                </Button>
+              </div>
+            )}
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+              <StatusBadge status={task.status} />
+              <span className="flex items-center gap-1.5 capitalize">{task.source_type === "youtube" ? <Youtube className="size-3.5" /> : <Upload className="size-3.5" />}{task.source_type}</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="flex cursor-default items-center gap-1.5"><Clock className="size-3.5" />{timeAgo(task.created_at)}</span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {new Date(task.created_at).toLocaleString(undefined, { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}
+                </TooltipContent>
+              </Tooltip>
+              {clips.length > 0 && <span className="tabular-nums">{clips.length} {clips.length === 1 ? "clip" : "clips"} · {formatDuration(totalSeconds)} total</span>}
+            </div>
           </div>
 
-          {task && (
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                {isEditing ? (
-                  <div className="flex items-center gap-2 flex-1">
-                    <Input
-                      value={editedTitle}
-                      onChange={(e) => setEditedTitle(e.target.value)}
-                      className="text-2xl font-bold h-auto py-1"
-                      autoFocus
-                    />
-                    <Button aria-label="Save title" size="sm" onClick={handleEditTitle} disabled={!editedTitle.trim()}>
-                      <Check className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      aria-label="Cancel title edit"
-                      onClick={() => {
-                        setIsEditing(false);
-                        setEditedTitle(task.source_title);
-                      }}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <h1 className={`min-w-0 break-words font-[var(--font-syne)] text-2xl font-bold text-black ${task.status === "processing" || task.status === "queued" ? "shimmer" : ""}`}>{task.source_title}</h1>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        aria-label="Edit title"
-                        onClick={() => {
-                          setIsEditing(true);
-                          setEditedTitle(task.source_title);
-                        }}
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        aria-label="Delete generation"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => setShowDeleteDialog(true)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-                <Badge variant="outline" className="capitalize">
-                  {task.source_type}
-                </Badge>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="flex items-center gap-1 cursor-default">
-                        <Clock className="w-4 h-4" />
-                        {new Date(task.created_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
-                      </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {new Date(task.created_at).toLocaleString(undefined, {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                        timeZoneName: "short",
-                      })}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                <StatusBadge status={task.status} />
-                {task.status === "completed" && <span>{clips.length} {clips.length === 1 ? "clip" : "clips"} generated</span>}
-                {task.status === "completed" && clips.length > 0 && (
-                  <Link href={`/tasks/${task.id}/edit`}>
-                    <Button size="sm" variant="outline">
-                      <Clapperboard className="w-4 h-4" />
-                      Open Editor
-                    </Button>
-                  </Link>
-                )}
-                {task.status === "completed" && clips.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleCopyShareLink}
-                    disabled={shareState === "copying"}
-                    aria-live="polite"
-                  >
-                    {shareState === "copied" ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      <Share2 className="w-4 h-4" />
-                    )}
-                    {shareState === "copying"
-                      ? "Creating link…"
-                      : shareState === "copied"
-                        ? "Link copied"
-                        : "Copy share link"}
+          <div className="flex flex-wrap items-center gap-2">
+            {isActive && (
+              <Button size="sm" variant="outline" disabled={pendingAction !== null}
+                onClick={() => void runAction("cancel", async () => {
+                  await requestAction(`${taskApiUrl}/${task.id}/cancel`, "POST");
+                  await fetchTaskStatus();
+                  toast.success("Generation cancelled");
+                })}>
+                Cancel
+              </Button>
+            )}
+            {(task.status === "cancelled" || task.status === "error") && (
+              <Button size="sm" disabled={pendingAction !== null}
+                onClick={() => void runAction("resume", async () => {
+                  await requestAction(`${taskApiUrl}/${task.id}/resume`, "POST");
+                  await fetchTaskStatus();
+                  toast.success("Generation resumed");
+                })}>
+                <RotateCcw className="size-4" />Resume
+              </Button>
+            )}
+            {task.status === "completed" && clips.length > 0 && (
+              <>
+                <Button size="sm" variant="outline" onClick={() => setSettingsSheetOpen(true)}>
+                  <Settings2 className="size-4" /><span className="hidden sm:inline">Restyle</span>
+                </Button>
+                <div className="inline-flex items-center rounded-md border shadow-xs">
+                  <Button size="sm" variant="ghost" className="rounded-r-none" onClick={handleCopyShareLink} disabled={shareState === "copying"} aria-live="polite">
+                    {shareState === "copied" ? <Check className="size-4" /> : <Share2 className="size-4" />}
+                    <span className="max-sm:sr-only">{shareState === "copying" ? "Creating link…" : shareState === "copied" ? "Link copied" : "Copy share link"}</span>
                   </Button>
-                )}
-                {task.status === "completed" && task.share_enabled && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleRevokeShareLink}
-                    disabled={isRevokingShare}
-                  >
-                    <Link2Off className="w-4 h-4" />
-                    {isRevokingShare ? "Disabling…" : "Disable share link"}
-                  </Button>
-                )}
-                {(task.status === "queued" || task.status === "processing") && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={pendingAction !== null}
-                    onClick={() => void runAction("cancel", async () => {
-                      await requestAction(`${taskApiUrl}/${task.id}/cancel`, "POST");
-                      await fetchTaskStatus();
-                      toast.success("Generation cancelled");
-                    })}
-                  >
-                    Cancel
-                  </Button>
-                )}
-                {(task.status === "cancelled" || task.status === "error") && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={pendingAction !== null}
-                    onClick={() => void runAction("resume", async () => {
-                      await requestAction(`${taskApiUrl}/${task.id}/resume`, "POST");
-                      await fetchTaskStatus();
-                      toast.success("Generation resumed");
-                    })}
-                  >
-                    Resume
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+                  {task.share_enabled && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button size="icon-sm" variant="ghost" className="rounded-l-none border-l" onClick={handleRevokeShareLink} disabled={isRevokingShare} aria-label={isRevokingShare ? "Disabling…" : "Disable share link"}>
+                          <Link2Off className="size-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Disable share link</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+                <Button size="sm" asChild>
+                  <Link href={`/tasks/${task.id}/edit`}><Clapperboard className="size-4" />Open Editor</Link>
+                </Button>
+              </>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon-sm" variant="ghost" aria-label="Delete generation" className="text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={() => setShowDeleteDialog(true)}>
+                  <Trash2 className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Delete generation</TooltipContent>
+            </Tooltip>
+          </div>
+        </header>
+      )}
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="mt-8">
         {reconnecting && <p role="status" className="mb-4 text-sm text-muted-foreground">Reconnecting to live updates. Your video is still processing.</p>}
-        {task?.status === "processing" || task?.status === "queued" ? (
+
+        {isActive && task ? (
           <div className="space-y-8">
-            {/* Progress indicator */}
-            <div className="flex flex-col items-center py-8">
-              {/* Minimal animated dots */}
-              <div className="relative group flex items-center gap-1.5 mb-8 cursor-default">
-                <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_infinite]" />
-                <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
-                <span className="w-2 h-2 bg-neutral-800 rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
-                <div className="absolute top-full mt-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md opacity-0 scale-95 transition-all group-hover:opacity-100 group-hover:scale-100 pointer-events-none">
-                  ☕&nbsp;&nbsp;Grab a coffee, and come back to ready-to-post clips.
-                </div>
-              </div>
-
-              {/* Status message */}
-              <p className="shimmer text-neutral-600/60 text-sm tracking-wide mb-8">
-                {progressMessage || (task.status === "queued" ? "Waiting in queue" : "Processing")}
-              </p>
-
-              {/* Minimal progress bar */}
-              {progress > 0 && (
-                <div className="w-48">
-                  <div className="h-px bg-neutral-200 w-full relative overflow-hidden">
-                    <div
-                      className="absolute inset-y-0 left-0 bg-neutral-800 transition-all duration-700 ease-out"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                  <p className="text-[11px] text-neutral-400 text-center mt-3 tabular-nums">{progress}%</p>
-                </div>
-              )}
-            </div>
-
-            {/* Live clips grid — shows clips as they render */}
+            <ProcessingPanel status={task.status} progress={progress} message={progressMessage} readyCount={clips.length} />
             {clips.length > 0 && (
-              <div className="grid gap-6">
-                <p className="text-sm text-neutral-500 text-center">
-                  {clips.length} clip{clips.length !== 1 ? "s" : ""} ready
-                </p>
-                {clips.map((clip) => (
-                  <Card key={clip.id} className="overflow-hidden">
-                    <CardContent className="p-0">
-                      <div className="flex flex-col lg:flex-row">
-                        <div className="relative flex-shrink-0 bg-black rounded-lg overflow-hidden m-3">
-                          <DynamicVideoPlayer src={getClipUrl(clip.video_url, clip.filename)} />
-                        </div>
-                        <div className="p-6 flex-1">
-                          <div className="flex items-start justify-between mb-4">
-                            <div>
-                              <h3 className="font-semibold text-lg text-black mb-1">
-                                {clip.hook_title || `Clip ${clip.clip_order}`}
-                              </h3>
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <span>Clip {clip.clip_order}</span>
-                                <span>•</span>
-                                <span>{clip.start_time} - {clip.end_time}</span>
-                                <span>•</span>
-                                <span>{formatDuration(clip.duration)}</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {clip.virality_score > 0 && (
-                                <Badge className={`${getViralityBgColor(clip.virality_score)} text-white`}>
-                                  <Zap className="w-3 h-3 mr-1" />
-                                  {clip.virality_score}
-                                </Badge>
-                              )}
-                              <Badge className={getScoreColor(clip.relevance_score)}>
-                                <Star className="w-3 h-3 mr-1" />
-                                {(clip.relevance_score * 100).toFixed(0)}%
-                              </Badge>
-                            </div>
-                          </div>
-                          {clip.text && (
-                            <TranscriptPreview text={clip.text} clipTitle={`Clip ${clip.clip_order}`} />
-                          )}
-                          <Button size="sm" variant="outline" asChild>
-                            <a href={getClipUrl(clip.video_url, clip.filename)} download={clip.filename}>
-                              <Download className="w-4 h-4" />
-                              Download
-                            </a>
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {sortedClips.map(renderTile)}
               </div>
             )}
           </div>
         ) : !task ? (
-          <div className="flex flex-col items-center justify-center min-h-[50vh] py-16">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 bg-neutral-300 rounded-full animate-[pulse_1.4s_ease-in-out_infinite]" />
-              <span className="w-2 h-2 bg-neutral-300 rounded-full animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
-              <span className="w-2 h-2 bg-neutral-300 rounded-full animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
-            </div>
-          </div>
-        ) : task?.status === "cancelled" && clips.length === 0 ? (
-          <Card><CardContent className="p-8 text-center space-y-3">
-            <h2 className="text-xl font-semibold">Generation cancelled</h2>
-            <p className="text-muted-foreground">Resume this generation when you are ready to continue.</p>
-          </CardContent></Card>
-        ) : task?.status === "error" ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <div className="text-red-600 mb-4">
-                <AlertCircle className="w-12 h-12 mx-auto mb-2" />
-                <h2 className="text-xl font-semibold">Processing Failed</h2>
-              </div>
-              <p className="text-gray-600 mb-4">There was an error processing your video. Please try again.</p>
-              <Link href="/">
-                <Button>
-                  <ArrowLeft className="w-4 h-4" />
-                  Back to Home
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+          <div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
+        ) : task.status === "cancelled" && clips.length === 0 ? (
+          <EmptyState icon={<PauseCircle className="size-7" />} title="Generation cancelled" body="Resume this generation when you are ready to continue." />
+        ) : task.status === "error" ? (
+          <EmptyState tone="error" icon={<AlertCircle className="size-7" />} title="Processing Failed" body="There was an error processing your video. Resume to retry from where it stopped, or try another video.">
+            <Button asChild variant="outline"><Link href="/"><ArrowLeft className="size-4" />Back to Home</Link></Button>
+          </EmptyState>
         ) : clips.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              {task?.status === "completed" ? (
-                <>
-                  <div className="text-yellow-600 mb-4">
-                    <AlertCircle className="w-12 h-12 mx-auto mb-2" />
-                    <h2 className="text-xl font-semibold">No Clips Generated</h2>
-                  </div>
-                  <p className="text-gray-600 mb-4">
-                    The generation completed but no clips were generated. The video may not have had suitable content for
-                    clipping.
-                  </p>
-                  <Link href="/">
-                    <Button>
-                      <ArrowLeft className="w-4 h-4" />
-                      Try Another Video
-                    </Button>
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Clock className="w-8 h-8 text-blue-500 animate-pulse" />
-                  </div>
-                  <h2 className="text-xl font-semibold text-black mb-2">Still Generating...</h2>
-                  <p className="text-gray-600">
-                    Your clips are being generated. They will appear here as soon as they are ready.
-                  </p>
-                </>
-              )}
-            </CardContent>
-          </Card>
+          <EmptyState icon={<AlertCircle className="size-7" />} title="No Clips Generated" body="The generation completed but no clips were generated. The video may not have had suitable content for clipping.">
+            <Button asChild><Link href="/"><ArrowLeft className="size-4" />Try Another Video</Link></Button>
+          </EmptyState>
         ) : (
-          <div className="grid gap-6">
-            <div className="flex items-center justify-between">
-              <Button variant="outline" size="sm" onClick={() => setSettingsSheetOpen(true)}>
-                <Settings2 className="w-4 h-4" />
-                Generation settings
-              </Button>
-
+          <>
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <div className="inline-flex rounded-lg border bg-background p-0.5" role="tablist" aria-label="Sort clips">
+                {([["score", "Best first"], ["timeline", "Timeline"]] as const).map(([value, label]) => (
+                  <button key={value} type="button" role="tab" aria-selected={sortBy === value} onClick={() => setSortBy(value)}
+                    className={cn("h-7 rounded-md px-3 text-xs font-medium transition-colors", sortBy === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="hidden sm:inline">Download as</span>
+                <Select value={exportPreset} onValueChange={setExportPreset}>
+                  <SelectTrigger size="sm" aria-label="Download format" className="h-8 min-w-[112px] bg-background"><SelectValue /></SelectTrigger>
+                  <SelectContent align="end">
+                    <SelectItem value="original">Original</SelectItem>
+                    {EXPORT_PRESETS.map((preset) => <SelectItem key={preset.id} value={preset.id}>{preset.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-
-            <Sheet open={settingsSheetOpen} onOpenChange={setSettingsSheetOpen}>
-              <SheetContent side="right" className="sm:max-w-md overflow-y-auto">
-                <SheetHeader>
-                  <SheetTitle className="flex items-center gap-2">
-                    <Settings2 className="w-4 h-4" />
-                    Generation settings
-                  </SheetTitle>
-                  <SheetDescription>
-                    Configure font, caption, and cleanup settings for this generation&apos;s clips.
-                  </SheetDescription>
-                </SheetHeader>
-
-                <div className="space-y-5 px-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-500">Font</label>
-                    <Select
-                      value={projectFontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE}
-                      onValueChange={(value) =>
-                        setProjectFontFamily(value === FONT_TEMPLATE_DEFAULT_VALUE ? null : value)
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Template default" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
-                        {availableFonts.map((font) => (
-                          <FontSelectOption
-                            key={font.name}
-                            font={font}
-                            isDeleting={deletingFontName === font.name}
-                            onDelete={setFontToDelete}
-                          />
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <CaptionSizeControl value={projectFontSize} onChange={setProjectFontSize} disabled={isApplyingSettings} />
-
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-medium text-gray-500">Color</label>
-                      <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={projectFontColor === null}
-                          onChange={(e) => setProjectFontColor(e.target.checked ? null : "#FFFFFF")}
-                          className="rounded"
-                        />
-                        Template default
-                      </label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={projectFontColor ?? "#FFFFFF"}
-                        onChange={(e) => setProjectFontColor(e.target.value)}
-                        disabled={projectFontColor === null}
-                        className="h-9 w-9 rounded border border-gray-300 cursor-pointer disabled:cursor-not-allowed"
-                      />
-                      <Input
-                        value={projectFontColor ?? ""}
-                        onChange={(e) => setProjectFontColor(e.target.value)}
-                        disabled={projectFontColor === null}
-                        placeholder="Template default"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-gray-500">Caption Template</label>
-                    <Select value={projectCaptionTemplate} onValueChange={setProjectCaptionTemplate}>
-                      <SelectTrigger>
-                        <SelectValue>
-                          {availableTemplates.find((t) => t.id === projectCaptionTemplate)?.name || "Select style"}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableTemplates.map((template) => (
-                          <SelectItem key={template.id} value={template.id}>
-                            <div>
-                              <div className="font-medium">{template.name}</div>
-                              <div className="text-xs text-gray-500">{template.description}</div>
-                            </div>
-                          </SelectItem>
-                        ))}
-                        {availableTemplates.length === 0 && <SelectItem value="default">Default</SelectItem>}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">Clip cleanup</div>
-                      <div className="text-xs text-gray-500">Apply silence and filler-word cuts to regenerated clips.</div>
-                    </div>
-
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={projectCutLongPauses}
-                        onChange={(e) => setProjectCutLongPauses(e.target.checked)}
-                        className="rounded"
-                      />
-                      Cut long pauses
-                    </label>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-gray-500">Pause threshold (ms)</label>
-                      <Input
-                        type="number"
-                        min={250}
-                        max={3000}
-                        step={50}
-                        value={projectPauseThresholdMs}
-                        onChange={(e) => setProjectPauseThresholdMs(e.target.value)}
-                        disabled={!projectCutLongPauses}
-                      />
-                    </div>
-
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={projectRemoveFillerWords}
-                        onChange={(e) => setProjectRemoveFillerWords(e.target.checked)}
-                        className="rounded"
-                      />
-                      Remove filler words
-                    </label>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-gray-500">Extra filtered words or phrases</label>
-                      <Input
-                        value={projectFilteredWords}
-                        onChange={(e) => setProjectFilteredWords(e.target.value)}
-                        placeholder="basically, literally, to be honest"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <SheetFooter>
-                  <Button
-                    className="w-full"
-                    onClick={handleApplyProjectSettings}
-                    disabled={isApplyingSettings}
-                  >
-                    {isApplyingSettings ? "Applying..." : "Apply to All Clips"}
-                  </Button>
-                </SheetFooter>
-              </SheetContent>
-            </Sheet>
-
-            {clips.map((clip) => (
-              <Card key={clip.id} className="overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="flex flex-col lg:flex-row">
-                    {/* Video Player */}
-                    <div className="relative flex-shrink-0 bg-black rounded-lg overflow-hidden m-3">
-                      <DynamicVideoPlayer src={getClipUrl(clip.video_url, clip.filename)} />
-                    </div>
-
-                    {/* Clip Details */}
-                    <div className="p-6 flex-1">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h3 className="font-semibold text-lg text-black mb-1">
-                            {clip.hook_title || `Clip ${clip.clip_order}`}
-                          </h3>
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <span>Clip {clip.clip_order}</span>
-                            <span>•</span>
-                            <span>
-                              {clip.start_time} - {clip.end_time}
-                            </span>
-                            <span>•</span>
-                            <span>{formatDuration(clip.duration)}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {/* Virality Score Badge */}
-                          {clip.virality_score > 0 && (
-                            <Badge className={`${getViralityBgColor(clip.virality_score)} text-white`}>
-                              <Zap className="w-3 h-3 mr-1" />
-                              {clip.virality_score}
-                            </Badge>
-                          )}
-                          <Badge className={getScoreColor(clip.relevance_score)}>
-                            <Star className="w-3 h-3 mr-1" />
-                            {(clip.relevance_score * 100).toFixed(0)}%
-                          </Badge>
-                        </div>
-                      </div>
-
-                      {/* Virality Score Breakdown */}
-                      {clip.virality_score > 0 && (
-                        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center justify-between mb-3">
-                            <h4 className="font-medium text-black text-sm flex items-center gap-2">
-                              <Zap className="w-4 h-4" />
-                              Virality Score
-                            </h4>
-                            <span className={`text-lg font-bold ${getViralityColor(clip.virality_score)}`}>
-                              {clip.virality_score}/100
-                            </span>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3 text-xs">
-                            {/* Hook Score */}
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-gray-600">
-                                  <MessageSquare className="w-3 h-3" />
-                                  Hook
-                                </span>
-                                <span className="font-medium">{clip.hook_score}/25</span>
-                              </div>
-                              <Progress value={(clip.hook_score / 25) * 100} className="h-1.5" />
-                            </div>
-
-                            {/* Engagement Score */}
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-gray-600">
-                                  <TrendingUp className="w-3 h-3" />
-                                  Engagement
-                                </span>
-                                <span className="font-medium">{clip.engagement_score}/25</span>
-                              </div>
-                              <Progress value={(clip.engagement_score / 25) * 100} className="h-1.5" />
-                            </div>
-
-                            {/* Value Score */}
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-gray-600">
-                                  <Star className="w-3 h-3" />
-                                  Value
-                                </span>
-                                <span className="font-medium">{clip.value_score}/25</span>
-                              </div>
-                              <Progress value={(clip.value_score / 25) * 100} className="h-1.5" />
-                            </div>
-
-                            {/* Shareability Score */}
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between">
-                                <span className="flex items-center gap-1 text-gray-600">
-                                  <Share2 className="w-3 h-3" />
-                                  Shareability
-                                </span>
-                                <span className="font-medium">{clip.shareability_score}/25</span>
-                              </div>
-                              <Progress value={(clip.shareability_score / 25) * 100} className="h-1.5" />
-                            </div>
-                          </div>
-
-                          {clip.hook_type && clip.hook_type !== "none" && (
-                            <div className="mt-3 pt-2 border-t">
-                              <Badge variant="outline" className="text-xs">
-                                {getHookTypeLabel(clip.hook_type)}
-                              </Badge>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {clip.text && (
-                        <TranscriptPreview text={clip.text} clipTitle={`Clip ${clip.clip_order}`} />
-                      )}
-
-                      <div className="flex items-center gap-2">
-                        <div className="inline-flex items-stretch h-8 rounded-md border border-input bg-background shadow-xs overflow-hidden">
-                          <button
-                            type="button"
-                            disabled={pendingAction === clip.id}
-                            onClick={() => handleDownloadClip(clip)}
-                            className="inline-flex items-center gap-1.5 px-3 text-sm font-medium hover:bg-accent transition-colors focus-visible:outline-none focus-visible:bg-accent"
-                          >
-                            <Download className="w-4 h-4" />
-                            Download
-                          </button>
-                          <Select value={exportPreset} onValueChange={setExportPreset}>
-                            <SelectTrigger
-                              size="sm"
-                              aria-label="Download format"
-                              className="h-8 min-w-[112px] rounded-none border-0 border-l border-input shadow-none focus-visible:ring-0 focus-visible:border-input bg-transparent"
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent align="end">
-                              <SelectItem value="original">Original</SelectItem>
-                              {EXPORT_PRESETS.map((preset) => <SelectItem key={preset.id} value={preset.id}>{preset.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <Button size="sm" variant="outline" asChild>
-                          <Link href={`/tasks/${task.id}/edit?clip=${clip.id}`}><Scissors className="w-4 h-4" />Edit</Link>
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          aria-label="Delete clip"
-                          className="ml-auto text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => setDeletingClipId(clip.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-
-
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {sortedClips.map(renderTile)}
+            </div>
+          </>
         )}
       </div>
 
+      <ClipFocus
+        clip={focusedClip}
+        taskId={task?.id ?? String(params.id)}
+        index={focusIndex ?? 0}
+        total={sortedClips.length}
+        busy={focusedClip ? pendingAction === focusedClip.id : false}
+        editable={task?.status === "completed"}
+        onNavigate={(delta) => setFocusIndex((i) => (i === null ? i : (i + delta + sortedClips.length) % sortedClips.length))}
+        onClose={() => setFocusIndex(null)}
+        onDownload={() => focusedClip && handleDownloadClip(focusedClip)}
+        onDelete={() => { if (focusedClip) { setDeletingClipId(focusedClip.id); setFocusIndex(null); } }}
+        hookTypeLabel={getHookTypeLabel}
+      />
+
+      <Sheet open={settingsSheetOpen} onOpenChange={setSettingsSheetOpen}>
+        <SheetContent side="right" className="overflow-y-auto sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2"><Settings2 className="size-4" />Generation settings</SheetTitle>
+            <SheetDescription>Configure font, caption, and cleanup settings for this generation&apos;s clips.</SheetDescription>
+          </SheetHeader>
+            <div className="space-y-5 px-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500">Font</label>
+                <Select
+                  value={projectFontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE}
+                  onValueChange={(value) =>
+                    setProjectFontFamily(value === FONT_TEMPLATE_DEFAULT_VALUE ? null : value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Template default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
+                    {availableFonts.map((font) => (
+                      <FontSelectOption
+                        key={font.name}
+                        font={font}
+                        isDeleting={deletingFontName === font.name}
+                        onDelete={setFontToDelete}
+                      />
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <CaptionSizeControl value={projectFontSize} onChange={setProjectFontSize} disabled={isApplyingSettings} />
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-gray-500">Color</label>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={projectFontColor === null}
+                      onChange={(e) => setProjectFontColor(e.target.checked ? null : "#FFFFFF")}
+                      className="rounded"
+                    />
+                    Template default
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={projectFontColor ?? "#FFFFFF"}
+                    onChange={(e) => setProjectFontColor(e.target.value)}
+                    disabled={projectFontColor === null}
+                    className="h-9 w-9 rounded border border-gray-300 cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  <Input
+                    value={projectFontColor ?? ""}
+                    onChange={(e) => setProjectFontColor(e.target.value)}
+                    disabled={projectFontColor === null}
+                    placeholder="Template default"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-500">Caption Template</label>
+                <Select value={projectCaptionTemplate} onValueChange={setProjectCaptionTemplate}>
+                  <SelectTrigger>
+                    <SelectValue>
+                      {availableTemplates.find((t) => t.id === projectCaptionTemplate)?.name || "Select style"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        <div>
+                          <div className="font-medium">{template.name}</div>
+                          <div className="text-xs text-gray-500">{template.description}</div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                    {availableTemplates.length === 0 && <SelectItem value="default">Default</SelectItem>}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
+                <div>
+                  <div className="text-sm font-medium text-gray-900">Clip cleanup</div>
+                  <div className="text-xs text-gray-500">Apply silence and filler-word cuts to regenerated clips.</div>
+                </div>
+
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={projectCutLongPauses}
+                    onChange={(e) => setProjectCutLongPauses(e.target.checked)}
+                    className="rounded"
+                  />
+                  Cut long pauses
+                </label>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-gray-500">Pause threshold (ms)</label>
+                  <Input
+                    type="number"
+                    min={250}
+                    max={3000}
+                    step={50}
+                    value={projectPauseThresholdMs}
+                    onChange={(e) => setProjectPauseThresholdMs(e.target.value)}
+                    disabled={!projectCutLongPauses}
+                  />
+                </div>
+
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={projectRemoveFillerWords}
+                    onChange={(e) => setProjectRemoveFillerWords(e.target.checked)}
+                    className="rounded"
+                  />
+                  Remove filler words
+                </label>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-gray-500">Extra filtered words or phrases</label>
+                  <Input
+                    value={projectFilteredWords}
+                    onChange={(e) => setProjectFilteredWords(e.target.value)}
+                    placeholder="basically, literally, to be honest"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <SheetFooter>
+              <Button
+                className="w-full"
+                onClick={handleApplyProjectSettings}
+                disabled={isApplyingSettings}
+              >
+                {isApplyingSettings ? "Applying..." : "Apply to All Clips"}
+              </Button>
+            </SheetFooter>
+        </SheetContent>
+      </Sheet>
       <AlertDialog open={fontToDelete !== null} onOpenChange={(open) => { if (!open) setFontToDelete(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>Delete font?</AlertDialogTitle>
@@ -1266,6 +930,6 @@ export default function TaskPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </main>
   );
 }

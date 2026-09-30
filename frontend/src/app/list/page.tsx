@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { StatusBadge, ACTIVE_TASK_STATUSES, RESUMABLE_TASK_STATUSES } from "@/components/app/status-badge";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { ACTIVE_TASK_STATUSES, RESUMABLE_TASK_STATUSES } from "@/components/app/status-badge";
 import { PageLoading } from "@/components/app/page-state";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Kbd } from "@/components/ui/kbd";
+import { GenerationCard } from "@/components/app/generation-card";
+import { fetchGenerations, type GenerationSummary } from "@/lib/generations";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
@@ -29,9 +32,9 @@ import { useSession } from "@/lib/auth-client";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import {
-  ArrowLeft,
-  Clock,
   PlayCircle,
+  Plus,
+  Search,
   AlertCircle,
   CheckCircle,
   Loader2,
@@ -42,32 +45,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-interface Task {
-  id: string;
-  user_id: string;
-  source_id: string;
-  source_title: string;
-  source_type: string;
-  status: string;
-  clips_count: number;
-  created_at: string;
-  updated_at: string;
-}
+type Task = GenerationSummary;
 
 type BatchAction = "cancel" | "resume" | "delete" | null;
 
-async function fetchTasksList() {
-  const response = await fetch("/api/tasks/", {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch tasks: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return (data.tasks || []) as Task[];
-}
+const fetchTasksList = fetchGenerations;
 
 async function buildSupportError(response: Response, fallbackMessage: string) {
   const parsed = await parseApiError(response, fallbackMessage);
@@ -86,6 +68,21 @@ export default function ListPage() {
   } | null>(null);
   const [activeBatchAction, setActiveBatchAction] = useState<BatchAction>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "ready" | "active" | "attention">("all");
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (event.key === "/" && !target?.closest("input, textarea, select, [contenteditable=true]")) {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -152,16 +149,6 @@ export default function ListPage() {
   ).length;
   const allVisibleSelected = tasks.length > 0 && tasks.every((task) => selectedTaskIds.includes(task.id));
   const someSelected = selectedCount > 0 && !allVisibleSelected;
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date);
-  };
 
   const handleToggleTask = (taskId: string) => {
     setBatchNotice(null);
@@ -328,94 +315,93 @@ export default function ListPage() {
 
   /* ── Main render ──────────────────────────────────────────── */
 
+  const query = search.trim().toLowerCase();
+  const visibleTasks = tasks.filter((task) => {
+    if (query && !task.source_title.toLowerCase().includes(query)) return false;
+    if (filter === "ready") return task.status === "completed";
+    if (filter === "active") return ACTIVE_TASK_STATUSES.includes(task.status);
+    if (filter === "attention") return RESUMABLE_TASK_STATUSES.includes(task.status);
+    return true;
+  });
+  const filters: { id: typeof filter; label: string; count: number }[] = [
+    { id: "all", label: "All", count: tasks.length },
+    { id: "ready", label: "Ready", count: completedCount },
+    { id: "active", label: "In progress", count: activeCount },
+    { id: "attention", label: "Needs attention", count: attentionCount },
+  ];
+
   return (
-    <div className="min-h-screen bg-stone-50/50">
-      {/* ── Page header ──────────────────────────────────────── */}
-      <div className="border-b border-stone-200 bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5">
-          <div className="flex items-center gap-3 mb-4">
-            <Link href="/">
-              <Button variant="ghost" size="sm" className="text-stone-500 hover:text-stone-900">
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </Button>
-            </Link>
+    <main className={cn("mx-auto w-full max-w-7xl px-4 py-8 sm:px-8 md:py-10", selectedCount > 0 && "pb-32")}>
+      <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="font-display text-3xl font-bold tracking-tight">Library</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {tasks.length} {tasks.length === 1 ? "generation" : "generations"} · hover to preview, select to batch-manage
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 md:w-72 md:flex-none">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              ref={searchRef}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by title"
+              aria-label="Search generations"
+              className="h-9 rounded-lg bg-background pl-9 pr-8"
+            />
+            <Kbd className="absolute right-2 top-1/2 -translate-y-1/2">/</Kbd>
           </div>
-
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h1 className="font-[var(--font-syne)] text-2xl font-bold tracking-tight text-stone-950">
-                Generations
-              </h1>
-              <p className="mt-1 text-sm text-stone-500">
-                {tasks.length} total &middot; manage and review your clips
-              </p>
-            </div>
-
-            {!isLoading && !error && tasks.length > 0 && (
-              <div className="flex items-center gap-2">
-                {completedCount > 0 && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200/60 px-2.5 py-1 text-xs font-medium text-emerald-800">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    {completedCount} done
-                  </span>
-                )}
-                {activeCount > 0 && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200/60 px-2.5 py-1 text-xs font-medium text-blue-800">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-                    {activeCount} active
-                  </span>
-                )}
-                {attentionCount > 0 && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 border border-red-200/60 px-2.5 py-1 text-xs font-medium text-red-700">
-                    <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                    {attentionCount} need attention
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
+          <Button asChild size="sm" className="h-9 rounded-lg">
+            <Link href="/"><Plus className="size-4" /><span className="hidden sm:inline">New</span></Link>
+          </Button>
         </div>
       </div>
 
-      {/* ── Content ──────────────────────────────────────────── */}
-      <div className={cn("max-w-5xl mx-auto px-4 sm:px-6 py-6", selectedCount > 0 && "pb-28")}>
-        {/* Batch notice */}
-        {batchNotice && (
-          <Alert
-            className={cn(
-              "mb-4",
-              batchNotice.tone === "success"
-                ? "border-emerald-200 bg-emerald-50/50"
-                : "border-red-200 bg-red-50/50",
-            )}
-          >
-            {batchNotice.tone === "success" ? (
-              <CheckCircle className="h-4 w-4 text-emerald-600" />
-            ) : (
-              <AlertCircle className="h-4 w-4 text-red-600" />
-            )}
-            <AlertDescription className="text-sm">
-              {batchNotice.message}
-            </AlertDescription>
-          </Alert>
-        )}
+      {!isLoading && !error && tasks.length > 0 && (
+        <div className="scrollbar-none -mx-4 mt-6 flex items-center gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0" role="tablist" aria-label="Filter generations">
+          {filters.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={filter === item.id}
+              onClick={() => setFilter(item.id)}
+              className={cn(
+                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+                filter === item.id ? "border-foreground bg-foreground text-background" : "bg-background text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {item.label}
+              <span className={cn("tabular-nums", filter === item.id ? "opacity-70" : "opacity-60")}>{item.count}</span>
+            </button>
+          ))}
+          <div className="ml-auto hidden items-center gap-2 pl-4 sm:flex">
+            <Checkbox
+              id="select-all"
+              checked={allVisibleSelected ? true : someSelected ? "indeterminate" : false}
+              onCheckedChange={handleToggleAllVisible}
+              disabled={activeBatchAction !== null}
+              aria-label="Select all generations"
+            />
+            <label htmlFor="select-all" className="text-xs text-muted-foreground">
+              {selectedCount > 0 ? `${selectedCount} of ${tasks.length} selected` : "Select all"}
+            </label>
+          </div>
+        </div>
+      )}
 
+      {batchNotice && (
+        <Alert className={cn("mt-6", batchNotice.tone === "success" ? "border-emerald-200 bg-emerald-50/50" : "border-red-200 bg-red-50/50")}>
+          {batchNotice.tone === "success" ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-red-600" />}
+          <AlertDescription className="text-sm">{batchNotice.message}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="mt-6">
         {isLoading ? (
-          <div className="space-y-3">
-            {[1, 2, 3, 4].map((i) => (
-              <div
-                key={i}
-                className="flex items-center gap-4 rounded-xl border border-stone-200 bg-white p-4"
-              >
-                <Skeleton className="h-5 w-5 rounded" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-4 w-64" />
-                  <Skeleton className="h-3 w-40" />
-                </div>
-                <Skeleton className="h-6 w-20 rounded-full" />
-              </div>
-            ))}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="aspect-[3/4] rounded-xl" />)}
           </div>
         ) : error ? (
           <Alert>
@@ -423,113 +409,36 @@ export default function ListPage() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : tasks.length === 0 ? (
-          <Card className="border-stone-200">
-            <CardContent className="p-12 text-center">
-              <div className="w-16 h-16 bg-stone-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <PlayCircle className="w-8 h-8 text-stone-400" />
-              </div>
-              <h2 className="text-xl font-semibold text-stone-950 mb-2">No generations yet</h2>
-              <p className="text-stone-500 mb-6 text-sm">
-                Start by processing your first video to create clips.
-              </p>
-              <Link href="/">
-                <Button>Create New Generation</Button>
-              </Link>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col items-center rounded-2xl border border-dashed px-6 py-20 text-center">
+            <span className="flex size-14 items-center justify-center rounded-2xl bg-muted"><PlayCircle className="size-7 text-muted-foreground" /></span>
+            <h2 className="mt-4 text-lg font-semibold">No generations yet</h2>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground">Paste a YouTube link or upload a video and your clips will land here.</p>
+            <Button asChild className="mt-6"><Link href="/">Create New Generation</Link></Button>
+          </div>
+        ) : visibleTasks.length === 0 ? (
+          <p className="rounded-2xl border border-dashed px-6 py-16 text-center text-sm text-muted-foreground">
+            Nothing matches{query ? ` “${search.trim()}”` : " this filter"}.
+          </p>
         ) : (
-          <>
-            {/* ── Table header row ────────────────────────────── */}
-            <div className="mb-2 flex items-center gap-4 px-4 py-2">
-              <Checkbox
-                checked={allVisibleSelected ? true : someSelected ? "indeterminate" : false}
-                onCheckedChange={handleToggleAllVisible}
-                disabled={activeBatchAction !== null}
-                aria-label="Select all generations"
-                className="data-[state=indeterminate]:bg-stone-400 data-[state=indeterminate]:border-stone-400"
+          <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {visibleTasks.map((task) => (
+              <GenerationCard
+                key={task.id}
+                generation={task}
+                showStatus
+                selected={selectedTaskIds.includes(task.id)}
+                onToggle={() => handleToggleTask(task.id)}
+                selectionDisabled={activeBatchAction !== null}
               />
-              <span className="text-xs font-medium uppercase tracking-widest text-stone-400">
-                {selectedCount > 0 ? `${selectedCount} of ${tasks.length} selected` : "Select"}
-              </span>
-            </div>
-
-            {/* ── Task list ───────────────────────────────────── */}
-            <div className="space-y-2">
-              {tasks.map((task) => {
-                const isSelected = selectedTaskIds.includes(task.id);
-
-                return (
-                  <div
-                    key={task.id}
-                    className={cn(
-                      "group relative flex items-start gap-4 rounded-xl border bg-white p-4 transition-all duration-150",
-                      isSelected
-                        ? "border-stone-900/20 bg-stone-50 shadow-sm ring-1 ring-stone-900/5"
-                        : "border-stone-200 hover:border-stone-300 hover:shadow-sm",
-                    )}
-                  >
-                    {/* Selection indicator bar */}
-                    <div
-                      className={cn(
-                        "absolute left-0 top-3 bottom-3 w-0.5 rounded-full transition-all duration-150",
-                        isSelected ? "bg-stone-900" : "bg-transparent",
-                      )}
-                    />
-
-                    {/* Checkbox */}
-                    <div className="pt-0.5 pl-1">
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => handleToggleTask(task.id)}
-                        disabled={activeBatchAction !== null}
-                        aria-label={
-                          isSelected
-                            ? `Deselect ${task.source_title}`
-                            : `Select ${task.source_title}`
-                        }
-                      />
-                    </div>
-
-                    {/* Content — links to task detail */}
-                    <Link href={`/tasks/${task.id}`} className="flex-1 min-w-0">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0">
-                          <h3 className="truncate text-sm font-semibold text-stone-950 transition-colors group-hover:text-stone-600">
-                            {task.source_title}
-                          </h3>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-400">
-                            <span className="uppercase tracking-wide font-medium text-stone-500">
-                              {task.source_type}
-                            </span>
-                            <Separator orientation="vertical" className="h-3" />
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {formatDate(task.created_at)}
-                            </span>
-                            <Separator orientation="vertical" className="h-3" />
-                            <span>
-                              {task.clips_count} {task.clips_count === 1 ? "clip" : "clips"}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex-shrink-0">
-                          <StatusBadge status={task.status} />
-                        </div>
-                      </div>
-                    </Link>
-                  </div>
-                );
-              })}
-            </div>
-          </>
+            ))}
+          </div>
         )}
       </div>
 
       {/* ── Floating batch command bar ────────────────────────── */}
       {selectedCount > 0 && (
         <div
-          className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-5 pointer-events-none"
+          className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-50 flex justify-center px-4 pb-4 pointer-events-none md:bottom-0 md:pb-6 md:pl-64"
           style={{ animation: "command-bar-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both" }}
         >
           <div
@@ -688,6 +597,6 @@ export default function ListPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </main>
   );
 }

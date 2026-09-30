@@ -1,8 +1,8 @@
-import { AppHeader } from "@/components/app/app-header";
+import { AppShell } from "@/components/app/app-shell";
 import { noIndexMetadata } from "@/lib/seo";
 
 export const metadata = noIndexMetadata;
 
 export default function TasksLayout({ children }: { children: React.ReactNode }) {
-  return <><AppHeader />{children}</>;
+  return <AppShell>{children}</AppShell>;
 }
