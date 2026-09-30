@@ -4,6 +4,22 @@ This is a practical reference for the API surface used by SupoClip. It combines 
 
 For exact schemas and interactive testing, also use FastAPI docs at `http://localhost:8000/docs`.
 
+## Authenticating with API keys
+
+Agents and scripts authenticate with a personal API key. Create one in the app under **Agents & API** (`/settings/api-keys`); the plaintext `sk_...` key is shown exactly once, and only its SHA-256 hash is stored.
+
+Send it to the backend (hosted: `https://api.supoclip.com`, self-hosted: your backend URL) with either header:
+
+```bash
+curl https://api.supoclip.com/tasks/ \
+  -H "Authorization: Bearer sk_..."
+
+curl https://api.supoclip.com/tasks/ \
+  -H "x-api-key: sk_..."
+```
+
+API keys authenticate `/tasks/*`, `/fonts` and `/upload`. Revoking a key in the app takes effect immediately. For AI agents (Claude, Cursor and other MCP clients), use the [SupoClip MCP server](../mcp/README.md), which wraps this API.
+
 ## API Layers
 
 SupoClip has two relevant layers:

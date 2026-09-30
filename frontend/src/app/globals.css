@@ -39,6 +39,11 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+  --color-canvas: var(--canvas);
+  --font-display: var(--font-syne);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -46,7 +51,11 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
+  --brand: oklch(0.64 0.2 38);
+  --brand-foreground: oklch(0.99 0.005 60);
+  --brand-soft: oklch(0.96 0.03 50);
+  --canvas: oklch(0.985 0.002 75);
   --background: oklch(1 0 0);
   --foreground: oklch(0.147 0.004 49.25);
   --card: oklch(1 0 0);
@@ -70,7 +79,7 @@
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0.001 106.423);
+  --sidebar: oklch(0.975 0.002 75);
   --sidebar-foreground: oklch(0.147 0.004 49.25);
   --sidebar-primary: oklch(0.216 0.006 56.043);
   --sidebar-primary-foreground: oklch(0.985 0.001 106.423);
@@ -81,6 +90,10 @@
 }
 
 .dark {
+  --brand: oklch(0.7 0.19 42);
+  --brand-foreground: oklch(0.18 0.02 40);
+  --brand-soft: oklch(0.3 0.06 40);
+  --canvas: oklch(0.13 0.004 49.25);
   --background: oklch(0.147 0.004 49.25);
   --foreground: oklch(0.985 0.001 106.423);
   --card: oklch(0.216 0.006 56.043);
@@ -161,3 +174,26 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* App shell polish */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-rise { animation: rise-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes progress-sheen {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+.progress-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.55), transparent);
+  animation: progress-sheen 1.6s ease-in-out infinite;
+}
+
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }

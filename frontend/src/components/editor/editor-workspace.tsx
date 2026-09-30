@@ -291,7 +291,7 @@ export function EditorWorkspace({
                 <span aria-hidden>/</span>
                 <span className="text-foreground">Clip {clip.clip_order}</span>
               </p>
-              <h1 className="truncate font-[var(--font-syne)] text-xl font-bold tracking-tight">
+              <h1 className="truncate font-display text-xl font-bold tracking-tight">
                 {title}
               </h1>
             </div>
@@ -588,7 +588,7 @@ export function EditorWorkspace({
                 <Film className="size-6 text-muted-foreground" />
               )}
             </div>
-            <h2 className="font-[var(--font-syne)] text-xl font-bold">
+            <h2 className="font-display text-xl font-bold">
               {editor.error
                 ? "Let’s get your preview back"
                 : "Preparing your editing canvas"}

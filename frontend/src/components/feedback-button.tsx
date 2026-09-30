@@ -72,7 +72,7 @@ export function FeedbackButton() {
       <PopoverTrigger asChild>
         <Button
           size="icon"
-          className="fixed bottom-5 right-5 z-50 h-11 w-11 rounded-full shadow-lg"
+          className="fixed bottom-5 right-5 z-50 h-11 w-11 rounded-full shadow-lg max-md:[body:has([data-app-shell])_&]:bottom-[calc(5rem+env(safe-area-inset-bottom))]"
         >
           <MessageSquare className="h-5 w-5" />
         </Button>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, KeyRound, Copy, Check, Trash2, AlertCircle, Plus } from "lucide-react";
+import { ArrowUpRight, Bot, Braces, Copy, Check, Trash2, AlertCircle, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,22 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSession } from "@/lib/auth-client";
+import { GITHUB_URL } from "@/lib/site";
+
+const DOCS = [
+  {
+    title: "Connect an agent",
+    description: "Set up the MCP server in Claude, Cursor and other MCP clients.",
+    href: `${GITHUB_URL}/blob/main/mcp/README.md`,
+    icon: Bot,
+  },
+  {
+    title: "REST API reference",
+    description: "Endpoints, authentication and examples for direct API access.",
+    href: `${GITHUB_URL}/blob/main/docs/api-reference.md#authenticating-with-api-keys`,
+    icon: Braces,
+  },
+];
 
 interface ApiKey {
   id: string;
@@ -127,32 +143,36 @@ export default function ApiKeysPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="border-b bg-white">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <Link href="/settings">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="w-4 h-4" />
-              Settings
-            </Button>
-          </Link>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 py-16">
-        <div className="max-w-xl mx-auto">
+    <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 md:py-10">
+        <div>
           <div className="mb-8">
-            <div className="flex items-center gap-2 mb-2">
-              <KeyRound className="w-6 h-6 text-black" />
-              <h1 className="text-2xl font-bold text-black">API Keys</h1>
-            </div>
-            <p className="text-gray-600">
-              Create keys for programmatic access — for example the{" "}
-              <span className="font-medium">SupoClip MCP server</span>. Treat keys
-              like passwords; they grant full access to your account.
+            <h1 className="font-display text-3xl font-bold tracking-tight">Agents &amp; API</h1>
+            <p className="mt-2 text-muted-foreground">
+              Let Claude, Cursor and other AI agents clip videos for you through the{" "}
+              <span className="font-medium text-foreground">SupoClip MCP server</span>, or call the REST API
+              from your own code. Treat keys like passwords; they grant full access to your account.
             </p>
+          </div>
+
+          <div className="mb-8 grid gap-3 sm:grid-cols-2">
+            {DOCS.map((doc) => (
+              <a
+                key={doc.href}
+                href={doc.href}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex items-start gap-3 rounded-xl border bg-background p-4 transition-colors hover:border-foreground/25"
+              >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted"><doc.icon className="size-4" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1 text-sm font-semibold">
+                    {doc.title}
+                    <ArrowUpRight className="size-3.5 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">{doc.description}</span>
+                </span>
+              </a>
+            ))}
           </div>
 
           {error && (
@@ -248,7 +268,6 @@ export default function ApiKeysPage() {
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </main>
   );
 }

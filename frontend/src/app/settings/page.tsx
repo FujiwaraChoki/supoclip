@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,7 +15,8 @@ import { useSession } from "@/lib/auth-client";
 import { formatBillingPlanName, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { Type, Palette, CheckCircle, AlertCircle, Settings, Mail, KeyRound, ChevronRight } from "lucide-react";
+import { AlertCircle, Bot, Check, ChevronRight, CreditCard, Loader2, Mail, Type } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface UserPreferences {
   fontFamily: string;
@@ -48,6 +48,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [isBillingActionLoading, setIsBillingActionLoading] = useState(false);
   const { data: session, isPending } = useSession();
 
@@ -109,6 +110,7 @@ export default function SettingsPage() {
           setFontSize(data.fontSize);
           setFontColor(data.fontColor);
           setCompletionEmails(data.notifyOnCompletion ?? true);
+          setSavedSnapshot(JSON.stringify([data.fontFamily, data.fontSize, data.fontColor, data.notifyOnCompletion ?? true]));
         }
       } catch (error) {
         console.error('Failed to load preferences:', error);
@@ -212,6 +214,7 @@ export default function SettingsPage() {
       }
 
       track("preferences_saved");
+      setSavedSnapshot(JSON.stringify([fontFamily, fontSize, fontColor, completionEmails]));
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
@@ -226,320 +229,226 @@ export default function SettingsPage() {
 
   if (isPending || (session?.user && isFetching)) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
-        <div className="space-y-4">
-          <Skeleton className="h-4 w-32 mx-auto" />
-          <Skeleton className="h-4 w-48 mx-auto" />
-          <Skeleton className="h-4 w-24 mx-auto" />
-        </div>
+      <div role="status" aria-label="Loading" className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8 sm:px-8 md:py-10">
+        <Skeleton className="h-9 w-40" />
+        {[0, 1, 2].map((key) => <Skeleton key={key} className="h-40 w-full rounded-2xl" />)}
       </div>
     );
   }
 
   if (!session?.user) {
     return (
-      <div className="min-h-screen bg-white">
-        <div className="max-w-4xl mx-auto px-4 py-24">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-black mb-4">
-              Sign In Required
-            </h1>
-            <p className="text-gray-600 mb-8">
-              You need to sign in to access your settings
-            </p>
-            <Link href="/sign-in">
-              <Button size="lg">Sign In</Button>
-            </Link>
-          </div>
-        </div>
+      <div className="mx-auto max-w-md px-4 py-24 text-center">
+        <h1 className="font-display text-3xl font-bold tracking-tight">Sign In Required</h1>
+        <p className="mb-8 mt-3 text-muted-foreground">You need to sign in to access your settings</p>
+        <Link href="/sign-in">
+          <Button size="lg">Sign In</Button>
+        </Link>
       </div>
     );
   }
 
+  const dirty = savedSnapshot !== null && savedSnapshot !== JSON.stringify([fontFamily, fontSize, fontColor, completionEmails]);
+  const usagePct = billingSummary?.usage_limit ? Math.min(100, (billingSummary.usage_count / billingSummary.usage_limit) * 100) : 0;
+
   return (
-    <div className="min-h-screen bg-white">
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-4 py-16">
-        <div className="max-w-xl mx-auto">
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-2">
-              <Settings className="w-6 h-6 text-black" />
-              <h2 className="text-2xl font-bold text-black">
-                Settings
-              </h2>
-            </div>
-            <p className="text-gray-600">
-              Configure your default preferences for video clip generation
-            </p>
-          </div>
+    <main className="mx-auto w-full max-w-3xl px-4 pb-32 pt-8 sm:px-8 md:pt-10">
+      <h1 className="font-display text-3xl font-bold tracking-tight">Settings</h1>
+      <p className="mt-1 text-sm text-muted-foreground">Defaults for new generations, notifications and your plan.</p>
 
-          <Separator className="my-8" />
-
-          <div className="space-y-8">
-            {/* Font Preferences Section */}
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-black mb-1">
-                  Default Font Settings
-                </h3>
-                <p className="text-sm text-gray-600">
-                  These settings will be applied to all new generations
-                </p>
-              </div>
-
-              {/* Font Family Selector */}
+      <div className="mt-8 space-y-6">
+        <Section icon={<Type className="size-4" />} title="Caption defaults" description="Applied to every new generation. You can still change them per video.">
+          <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_150px]">
+            <div className="space-y-5">
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-black flex items-center gap-2">
-                  <Type className="w-4 h-4" />
-                  Font Family
-                </Label>
+                <Label className="text-sm">Font</Label>
                 <Select value={fontFamily} onValueChange={setFontFamily} disabled={isLoading}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select font" />
-                  </SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select font" /></SelectTrigger>
                   <SelectContent>
                     {availableFonts.map((font) => (
                       <SelectItem key={font.name} value={font.name}>
-                        {font.display_name}
+                        <span style={{ fontFamily: `'${font.name}', system-ui, sans-serif` }}>{font.display_name}</span>
                       </SelectItem>
                     ))}
-                    {availableFonts.length === 0 && (
-                      <SelectItem value="TikTokSans-Regular">TikTok Sans Regular</SelectItem>
-                    )}
+                    {availableFonts.length === 0 && <SelectItem value="TikTokSans-Regular">TikTok Sans Regular</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Font Size Slider */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-black">
-                  Font Size: {fontSize}px
-                </Label>
-                <div className="px-2">
-                  <Slider
-                    value={[fontSize]}
-                    onValueChange={(value) => setFontSize(value[0])}
-                    max={48}
-                    min={12}
-                    step={2}
-                    disabled={isLoading}
-                    className="w-full"
-                  />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Size</Label>
+                  <span className="text-xs tabular-nums text-muted-foreground">{fontSize}px</span>
                 </div>
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>12px</span>
-                  <span>48px</span>
-                </div>
+                <Slider value={[fontSize]} onValueChange={(value) => setFontSize(value[0])} max={48} min={12} step={2} disabled={isLoading} aria-label="Font size" />
               </div>
 
-              {/* Font Color Picker */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-black flex items-center gap-2">
-                  <Palette className="w-4 h-4" />
-                  Font Color
-                </Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={fontColor}
-                    onChange={(e) => setFontColor(e.target.value)}
-                    disabled={isLoading}
-                    className="w-12 h-10 rounded border border-gray-300 cursor-pointer disabled:cursor-not-allowed"
-                  />
-                  <Input
-                    type="text"
-                    value={fontColor}
-                    onChange={(e) => setFontColor(e.target.value)}
-                    disabled={isLoading}
-                    placeholder="#FFFFFF"
-                    className="flex-1 h-10"
-                    pattern="^#[0-9A-Fa-f]{6}$"
-                  />
-                </div>
-                <div className="flex gap-2 mt-2">
+                <Label className="text-sm">Color</Label>
+                <div className="flex flex-wrap items-center gap-1.5">
                   {["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"].map((color) => (
                     <button
                       key={color}
                       type="button"
                       onClick={() => setFontColor(color)}
                       disabled={isLoading}
-                      className="w-8 h-8 rounded border-2 border-gray-300 cursor-pointer hover:scale-110 transition-transform disabled:cursor-not-allowed"
-                      style={{ backgroundColor: color }}
                       title={color}
+                      aria-label={`Caption color ${color}`}
+                      className={cn("size-8 rounded-full border-2 transition-transform hover:scale-110 disabled:cursor-not-allowed", fontColor.toUpperCase() === color ? "border-foreground" : "border-border")}
+                      style={{ backgroundColor: color }}
                     />
                   ))}
-                </div>
-              </div>
-
-              {/* Preview */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-black">Preview</Label>
-                <div className="p-6 bg-black rounded-lg flex items-center justify-center min-h-[100px]">
-                  <p
-                    style={{
-                      color: fontColor,
-                      fontSize: `${Math.min(fontSize, 32)}px`,
-                      fontFamily: `'${fontFamily}', system-ui, -apple-system, sans-serif`,
-                      textAlign: 'center',
-                      lineHeight: '1.4'
-                    }}
-                    className="font-medium"
-                  >
-                    Your subtitle will look like this
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Notifications Section */}
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-black mb-1">
-                  Notifications
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Manage how you receive updates about your clips
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <Label htmlFor="completion-emails" className="flex items-center gap-2 text-sm font-medium text-black cursor-pointer">
-                  <Mail className="w-4 h-4" />
-                  Completion emails
-                  <span className="text-gray-500 font-normal">— get notified when clips are ready</span>
-                </Label>
-                <Switch
-                  id="completion-emails"
-                  checked={completionEmails}
-                  onCheckedChange={setCompletionEmails}
-                  disabled={isLoading}
-                />
-              </div>
-            </div>
-
-            {/* Developer Section */}
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-semibold text-black mb-1">
-                  Developer
-                </h3>
-                <p className="text-sm text-gray-600">
-                  Programmatic access for tools like the SupoClip MCP server
-                </p>
-              </div>
-
-              <Link href="/settings/api-keys" className="block">
-                <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <KeyRound className="w-5 h-5 text-black" />
-                    <div>
-                      <p className="text-sm font-medium text-black">API Keys</p>
-                      <p className="text-xs text-gray-500">Create and manage API keys</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-gray-400" />
-                </div>
-              </Link>
-            </div>
-
-            <Separator className="mb-4" />
-
-            {/* Success/Error Messages */}
-            {success && (
-              <Alert className="border-green-200 bg-green-50">
-                <CheckCircle className="h-4 w-4 text-green-500" />
-                <AlertDescription className="text-sm text-green-700">
-                  Preferences saved successfully!
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {error && (
-              <Alert className="border-red-200 bg-red-50">
-                <AlertCircle className="h-4 w-4 text-red-500" />
-                <AlertDescription className="text-sm text-red-700">
-                  {error}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Save Button */}
-            {billingSummary?.monetization_enabled && (
-              <div className="border rounded-lg p-4 bg-gray-50 space-y-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-black">Billing</h3>
-                  {!isPaidBillingPlan(billingSummary.plan) && (
-                    <p className="text-sm text-gray-600">Video processing requires a paid plan.</p>
-                  )}
-                  <p className="text-sm text-gray-600">
-                    {billingSummary.upgrade_required
-                      ? "Current plan cannot create generations."
-                      : billingSummary.usage_limit === null
-                      ? `${billingSummary.usage_count} generations in this billing period`
-                      : `${billingSummary.usage_count}/${billingSummary.usage_limit} generations used this period`}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Plan: {formatBillingPlanName(billingSummary.plan)} ({billingSummary.subscription_status})
-                  </p>
-                </div>
-
-                {billingSummary.cancel_at && billingSummary.subscription_provider === "stripe" && (
-                  <SubscriptionCancelBanner
-                    cancelAt={billingSummary.cancel_at}
-                    onRestarted={() =>
-                      setBillingSummary((prev) => (prev ? { ...prev, cancel_at: null } : prev))
-                    }
+                  <label className="relative size-8 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-border" title="Custom color">
+                    <input type="color" value={fontColor} onChange={(e) => setFontColor(e.target.value)} disabled={isLoading} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Custom caption color" />
+                    <span className="absolute inset-1 rounded-full bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]" />
+                  </label>
+                  <Input
+                    type="text"
+                    value={fontColor}
+                    onChange={(e) => setFontColor(e.target.value)}
+                    disabled={isLoading}
+                    placeholder="#FFFFFF"
+                    aria-label="Caption color hex"
+                    className="ml-1 h-8 w-24 font-mono text-xs"
+                    pattern="^#[0-9A-Fa-f]{6}$"
                   />
-                )}
-
-                {isPaidBillingPlan(billingSummary.plan) ? (
-                  billingSummary.subscription_provider === "apple" ? (
-                    <p className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600">
-                      Managed through the App Store
-                    </p>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => handleBillingAction()}
-                      disabled={isBillingActionLoading}
-                      className="w-full"
-                    >
-                      {isBillingActionLoading ? "Loading..." : "Manage Billing"}
-                    </Button>
-                  )
-                ) : (
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {paidPlans.map((plan) => (
-                      <Button
-                        key={plan.id}
-                        type="button"
-                        variant={plan.highlighted ? "default" : "outline"}
-                        onClick={() => handleBillingAction(plan.id)}
-                        disabled={isBillingActionLoading}
-                        className="h-auto min-h-12 flex-col gap-0.5 py-2"
-                      >
-                        <span>{isBillingActionLoading ? "Loading..." : plan.cta}</span>
-                        <span className="text-xs font-normal opacity-80">
-                          ${plan.priceMonthly}/mo · {plan.generationLimit} generations
-                        </span>
-                      </Button>
-                    ))}
-                  </div>
-                )}
+                </div>
               </div>
-            )}
+            </div>
 
-            <Button
-              onClick={handleSavePreferences}
-              disabled={isLoading}
-              className="w-full h-11"
-            >
-              {isLoading ? "Saving..." : "Save Preferences"}
-            </Button>
+            <div className="relative mx-auto aspect-[9/16] w-full max-w-[150px] overflow-hidden rounded-xl bg-[radial-gradient(circle_at_50%_30%,oklch(0.5_0.05_50),oklch(0.2_0.01_50))]" aria-label="Caption preview">
+              <p
+                className="absolute inset-x-2 top-[70%] text-center font-bold leading-snug"
+                style={{
+                  color: fontColor,
+                  fontFamily: `'${fontFamily}', system-ui, sans-serif`,
+                  fontSize: `${Math.max(Math.min(fontSize * 0.5, 18), 9)}px`,
+                  textShadow: "0 2px 6px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.9)",
+                }}
+              >
+                Your subtitle will look like this
+              </p>
+            </div>
           </div>
+        </Section>
+
+        <Section icon={<Mail className="size-4" />} title="Notifications" description="How we let you know your clips are ready.">
+          <div className="flex items-center justify-between gap-4">
+            <Label htmlFor="completion-emails" className="flex-col items-start gap-0.5">
+              <span className="text-sm font-medium">Completion emails</span>
+              <span className="text-xs font-normal text-muted-foreground">Get an email as soon as a generation finishes.</span>
+            </Label>
+            <Switch id="completion-emails" checked={completionEmails} onCheckedChange={setCompletionEmails} disabled={isLoading} />
+          </div>
+        </Section>
+
+        {billingSummary?.monetization_enabled && (
+          <Section icon={<CreditCard className="size-4" />} title="Plan & billing" description={isPaidBillingPlan(billingSummary.plan) ? "Manage your subscription and invoices." : "Video processing requires a paid plan."}>
+            <div className="space-y-4">
+              <div className="rounded-xl bg-muted/50 p-4">
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="font-semibold">
+                    {formatBillingPlanName(billingSummary.plan)}
+                    <span className="ml-2 text-xs font-normal capitalize text-muted-foreground">{billingSummary.subscription_status}</span>
+                  </p>
+                  <p className="text-sm tabular-nums text-muted-foreground">
+                    {billingSummary.usage_limit === null ? `${billingSummary.usage_count} this period` : `${billingSummary.usage_count} / ${billingSummary.usage_limit}`}
+                  </p>
+                </div>
+                {billingSummary.usage_limit !== null && (
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-brand" style={{ width: `${usagePct}%` }} /></div>
+                )}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {billingSummary.upgrade_required
+                    ? "Current plan cannot create generations."
+                    : billingSummary.usage_limit === null
+                    ? `${billingSummary.usage_count} generations in this billing period`
+                    : `${billingSummary.usage_count}/${billingSummary.usage_limit} generations used this period`}
+                </p>
+              </div>
+
+              {billingSummary.cancel_at && billingSummary.subscription_provider === "stripe" && (
+                <SubscriptionCancelBanner
+                  cancelAt={billingSummary.cancel_at}
+                  onRestarted={() => setBillingSummary((prev) => (prev ? { ...prev, cancel_at: null } : prev))}
+                />
+              )}
+
+              {isPaidBillingPlan(billingSummary.plan) ? (
+                billingSummary.subscription_provider === "apple" ? (
+                  <p className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">Managed through the App Store</p>
+                ) : (
+                  <Button type="button" variant="outline" onClick={() => handleBillingAction()} disabled={isBillingActionLoading}>
+                    {isBillingActionLoading ? "Loading..." : "Manage Billing"}
+                  </Button>
+                )
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {paidPlans.map((plan) => (
+                    <button
+                      key={plan.id}
+                      type="button"
+                      onClick={() => handleBillingAction(plan.id)}
+                      disabled={isBillingActionLoading}
+                      className={cn(
+                        "rounded-xl border p-4 text-left transition-colors hover:border-foreground/30 disabled:opacity-60",
+                        plan.highlighted && "border-foreground ring-1 ring-foreground",
+                      )}
+                    >
+                      <span className="block text-sm font-semibold">{isBillingActionLoading ? "Loading..." : plan.cta}</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">${plan.priceMonthly}/mo · {plan.generationLimit} generations</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Section>
+        )}
+
+        <Link href="/settings/api-keys" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
+          <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Bot className="size-4" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">Agents &amp; API</span>
+            <span className="block text-xs text-muted-foreground">API keys for AI agents (MCP) and the REST API</span>
+          </span>
+          <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        </Link>
+
+        {error && (
+          <Alert className="border-red-200 bg-red-50">
+            <AlertCircle className="h-4 w-4 text-red-500" />
+            <AlertDescription className="text-sm text-red-700">{error}</AlertDescription>
+          </Alert>
+        )}
+      </div>
+
+      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-4 pb-4 pointer-events-none md:bottom-0 md:pb-6 md:pl-64">
+        <div className="pointer-events-auto flex w-full max-w-3xl items-center justify-between gap-4 rounded-2xl border bg-background/95 px-4 py-3 shadow-lg backdrop-blur max-md:mr-14">
+          <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+            {success ? <><Check className="size-4 text-emerald-600" />Preferences saved successfully!</>
+              : dirty ? <><span className="size-2 rounded-full bg-brand" />Unsaved changes</>
+              : "All changes saved"}
+          </p>
+          <Button onClick={handleSavePreferences} disabled={isLoading}>
+            {isLoading ? <><Loader2 className="size-4 animate-spin" />Saving...</> : "Save Preferences"}
+          </Button>
         </div>
       </div>
-    </div>
+    </main>
+  );
+}
+
+function Section({ icon, title, description, children }: { icon: React.ReactNode; title: string; description: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl border bg-background">
+      <div className="flex items-start gap-3 border-b px-5 py-4">
+        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">{icon}</span>
+        <div>
+          <h2 className="text-sm font-semibold">{title}</h2>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
   );
 }
