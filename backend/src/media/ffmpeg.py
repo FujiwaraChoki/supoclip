@@ -159,10 +159,14 @@ def build_audio_output_args(has_audio: bool, loudnorm: bool = True) -> List[str]
 def subtitles_filter_fragment(
     ass_path: Path, fonts_dir: Optional[Path] = None
 ) -> str:
-    """ffmpeg `subtitles` filter fragment burning an ASS file (with fonts dir)."""
-    fragment = f"subtitles=filename={ffmpeg_escape_filter_path(ass_path)}"
+    """ffmpeg `subtitles` filter fragment burning an ASS file (with fonts dir).
+
+    Values are quoted so the filtergraph parser keeps the option-level escapes
+    intact; unquoted, a Windows drive colon splits the option.
+    """
+    fragment = f"subtitles=filename='{ffmpeg_escape_filter_path(ass_path)}'"
     if fonts_dir:
-        fragment += f":fontsdir={ffmpeg_escape_filter_value(str(fonts_dir))}"
+        fragment += f":fontsdir='{ffmpeg_escape_filter_value(str(fonts_dir))}'"
     return fragment
 
 
@@ -352,10 +356,7 @@ def burn_ass_subtitles_ffmpeg(
     output_path: Path,
     fonts_dir: Optional[Path] = None,
 ) -> bool:
-    subtitles_filter = f"subtitles=filename={ffmpeg_escape_filter_path(ass_path)}"
-    if fonts_dir:
-        subtitles_filter += f":fontsdir={ffmpeg_escape_filter_value(str(fonts_dir))}"
-    video_filter = f"{subtitles_filter},setsar=1"
+    video_filter = f"{subtitles_filter_fragment(ass_path, fonts_dir)},setsar=1"
 
     command = [
         "ffmpeg",
