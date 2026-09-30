@@ -26,10 +26,10 @@ type RuntimeSettingsFormProps = {
 
 function sourceBadge(setting: RuntimeSetting) {
   if (setting.source === "environment") {
-    return <Badge className="bg-black text-white">Environment</Badge>;
+    return <Badge className="bg-foreground text-background">Environment</Badge>;
   }
   if (setting.source === "admin") {
-    return <Badge className="bg-blue-100 text-blue-800">Admin setting</Badge>;
+    return <Badge className="bg-brand-soft text-brand">Admin setting</Badge>;
   }
   return <Badge variant="outline">Unset</Badge>;
 }
@@ -114,7 +114,7 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className="divide-y divide-gray-200">
+      <div className="divide-y">
         {settings.map((setting) => (
           <div
             key={setting.key}
@@ -122,10 +122,10 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
           >
             <div>
               <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-black">{setting.label}</p>
+                <p className="text-sm font-medium">{setting.label}</p>
                 {sourceBadge(setting)}
               </div>
-              <p className="mt-1 text-xs font-mono text-gray-500">{setting.key}</p>
+              <p className="mt-1 text-xs font-mono text-muted-foreground">{setting.key}</p>
             </div>
 
             <div>
@@ -141,10 +141,10 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
                 placeholder={
                   setting.configured ? "Configured value is hidden" : "Add value"
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-black outline-none focus:border-black"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none transition-shadow placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 autoComplete="off"
               />
-              <p className="mt-1 text-xs text-gray-600">{setting.description}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{setting.description}</p>
               {setting.overridden_by_env && (
                 <p className="mt-1 text-xs text-amber-700">
                   The saved admin value is present but ignored while the env var is set.
@@ -152,7 +152,7 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
               )}
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-gray-700 lg:justify-end">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground lg:justify-end">
               <input
                 type="checkbox"
                 checked={
@@ -165,12 +165,12 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
                     [setting.key]: event.target.checked,
                   }))
                 }
-                className="h-4 w-4 rounded border-gray-300"
+                className="h-4 w-4 rounded border-border accent-foreground"
               />
               Prefer saved
             </label>
 
-            <label className="flex items-center gap-2 text-sm text-gray-700 lg:justify-end">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground lg:justify-end">
               <input
                 type="checkbox"
                 checked={Boolean(deleteKeys[setting.key])}
@@ -181,7 +181,7 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
                     [setting.key]: event.target.checked,
                   }))
                 }
-                className="h-4 w-4 rounded border-gray-300"
+                className="h-4 w-4 rounded border-border accent-foreground"
               />
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               Clear saved
@@ -190,7 +190,7 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-4 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-4">
         <div className="text-sm">
           {error && <p className="text-red-700">{error}</p>}
           {message && <p className="text-green-700">{message}</p>}
@@ -198,7 +198,7 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
         <button
           type="submit"
           disabled={!hasChanges || isPending || isSaving}
-          className="inline-flex items-center gap-2 rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-9 items-center gap-2 rounded-lg bg-foreground px-4 text-sm font-medium text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Save className="h-4 w-4" aria-hidden="true" />
           {isPending || isSaving ? "Saving" : "Save settings"}

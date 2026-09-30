@@ -46,7 +46,7 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
   editable: boolean;
   onOpen: () => void;
   onDownload: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
 }) {
   return (
     <article className="group @container animate-rise">
@@ -89,9 +89,11 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
               <Link href={`/tasks/${taskId}/edit?clip=${clip.id}`}><Scissors className="size-3.5" />Edit</Link>
             </Button>
           )}
-          <Button size="icon-sm" variant="ghost" className="size-7 text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={onDelete} aria-label="Delete clip">
-            <Trash2 className="size-3.5" />
-          </Button>
+          {onDelete && (
+            <Button size="icon-sm" variant="ghost" className="size-7 text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={onDelete} aria-label="Delete clip">
+              <Trash2 className="size-3.5" />
+            </Button>
+          )}
         </div>
       </div>
     </article>
@@ -115,7 +117,7 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
   onNavigate: (delta: number) => void;
   onClose: () => void;
   onDownload: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   hookTypeLabel: (hookType: string | null) => string;
 }) {
   useEffect(() => {
@@ -165,7 +167,7 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                         </p>
                       </div>
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3">
+                    {BREAKDOWN.some(({ key }) => clip[key] > 0) && <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3">
                       {BREAKDOWN.map(({ key, label, icon: Icon }) => (
                         <div key={key} className="space-y-1.5">
                           <div className="flex items-center justify-between text-xs">
@@ -177,7 +179,7 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                           </div>
                         </div>
                       ))}
-                    </div>
+                    </div>}
                   </section>
                 )}
 
@@ -192,9 +194,11 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                     <Link href={`/tasks/${taskId}/edit?clip=${clip.id}`}><Scissors className="size-4" />Open in editor</Link>
                   </Button>
                 )}
-                <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={onDelete}>
-                  <Trash2 className="size-4" />Delete
-                </Button>
+                {onDelete && (
+                  <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={onDelete}>
+                    <Trash2 className="size-4" />Delete
+                  </Button>
+                )}
               </div>
             </div>
           </>

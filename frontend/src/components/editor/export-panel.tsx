@@ -251,7 +251,7 @@ export function ExportPanel({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-h-[90vh] gap-5 overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="font-[var(--font-syne)] text-2xl">
+          <DialogTitle className="font-display text-2xl">
             Ready for the feed
           </DialogTitle>
           <DialogDescription>
