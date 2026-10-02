@@ -45,6 +45,7 @@ The backend can infer a default LLM from whichever API key is present, but setti
 | `FRONTEND_PORT` | `3001` (legacy fallback); `.env.example` sets `3107` | Docker host port; the container always listens on `3107`. Preserve the existing port in production |
 | `NEXT_PUBLIC_APP_URL` | `http://localhost:3107` | Browser-facing app URL; use the public HTTPS URL behind a reverse proxy |
 | `BETTER_AUTH_URL` | `http://localhost:3107` | Browser-facing auth URL; use the public HTTPS URL behind a reverse proxy |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | unset | Additional explicit comma-separated HTTP(S) browser origins for authentication; no wildcard support |
 | `BETTER_AUTH_SECRET` | Dev secret | Frontend auth secret; must be changed in non-local environments |
 | `DISABLE_SIGN_UP` | `false` | Prevents creation of new user accounts when set |
 | `NEXT_PUBLIC_LANDING_ONLY_MODE` | `false` | Restricts the UI to the landing page only |

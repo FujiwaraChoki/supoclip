@@ -27,6 +27,21 @@ The self-hosting template uses `3107`; older `.env` files without
 `Running` means the container has started; check its health and frontend logs
 if the correct URL still fails.
 
+## Login Says Invalid Origin
+
+Use the exact browser origin for `NEXT_PUBLIC_APP_URL` and `BETTER_AUTH_URL`,
+including its scheme and port. `localhost` and `127.0.0.1` are different origins.
+The frontend accepts local self-hosted origins on ports 3107 and legacy 3001.
+For another hostname or port, set a comma-separated
+`BETTER_AUTH_TRUSTED_ORIGINS` list of explicit HTTP(S) origins. It does not
+support wildcards. Restart the frontend after changing auth settings; rebuild
+production images after changing `NEXT_PUBLIC_*` values. Configure
+`CORS_ORIGINS` separately for direct browser uploads to the backend.
+
+Keep production's public HTTPS URLs and proxy port. Do not disable origin or
+CSRF checks to make login work. If the error persists, share the browser URL,
+commit, build target, and auth error from `docker compose logs frontend`.
+
 ## Services Fail to Start
 
 ### Symptom
