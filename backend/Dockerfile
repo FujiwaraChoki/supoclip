@@ -26,8 +26,14 @@ WORKDIR /app
 # Copy pyproject.toml and uv.lock for dependency installation
 COPY pyproject.toml uv.lock* ./
 
-# Create virtual environment and install dependencies using uv sync
-RUN uv venv .venv && uv sync
+# New self-hosted setups can select CPU wheels without changing legacy builds.
+ARG BACKEND_CPU_ONLY=false
+RUN uv venv .venv && \
+    if [ "$BACKEND_CPU_ONLY" = "true" ]; then \
+      uv sync --frozen --extra cpu; \
+    else \
+      uv sync --frozen --extra cuda; \
+    fi
 
 # Force update yt-dlp to the absolute latest version to handle YouTube API changes
 # Also install from git to get the very latest commits
