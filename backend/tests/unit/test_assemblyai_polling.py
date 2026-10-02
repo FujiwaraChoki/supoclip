@@ -12,7 +12,10 @@ def polling_job(monkeypatch, handler):
     client = httpx.Client(base_url="https://api.assemblyai.com", transport=httpx.MockTransport(handler))
     sdk_client = SimpleNamespace(http_client=client)
     submitted = SimpleNamespace(id="existing-job", _client=sdk_client)
-    transcriber = SimpleNamespace(submit=Mock(return_value=submitted))
+    transcriber = SimpleNamespace(
+        upload_file=Mock(return_value="https://cdn.assemblyai.com/audio"),
+        submit=Mock(return_value=submitted),
+    )
     # The real SDK response parser runs; only the final cache-rich Transcript is stubbed.
     monkeypatch.setattr(transcription.aai.Transcript, "from_response", lambda **kwargs: kwargs["response"])
     monkeypatch.setattr(transcription.time, "sleep", lambda _: None)
@@ -67,3 +70,39 @@ def test_transcription_timeout_does_not_resubmit_paid_job(monkeypatch, tmp_path)
     with pytest.raises(TimeoutError):
         transcription._get_transcript_with_assemblyai(tmp_path / "video.mp4", "universal", runtime_config)
     helper.assert_called_once()
+
+
+def test_upload_timeout_retries_before_single_paid_submission(monkeypatch):
+    transcriber, client = polling_job(monkeypatch, lambda _: response("completed"))
+    audio_url = "https://cdn.assemblyai.com/audio"
+    transcriber.upload_file.side_effect = [httpx.ReadTimeout("upload timeout"), audio_url]
+    try:
+        transcription._submit_and_wait_for_assemblyai_transcript(transcriber, Path("audio.mp3"), None, 900)
+    finally:
+        client.close()
+    assert transcriber.upload_file.call_count == 2
+    transcriber.submit.assert_called_once_with(audio_url, config=None)
+
+
+def test_exhausted_upload_retries_do_not_submit_transcript(monkeypatch):
+    transcriber, client = polling_job(monkeypatch, lambda _: response("completed"))
+    transcriber.upload_file.side_effect = httpx.ConnectError("upload unavailable")
+    try:
+        with pytest.raises(httpx.ConnectError):
+            transcription._submit_and_wait_for_assemblyai_transcript(transcriber, Path("audio.mp3"), None, 900)
+    finally:
+        client.close()
+    assert transcriber.upload_file.call_count == 3
+    transcriber.submit.assert_not_called()
+
+
+def test_submission_timeout_is_not_retried(monkeypatch):
+    transcriber, client = polling_job(monkeypatch, lambda _: response("completed"))
+    transcriber.submit.side_effect = httpx.ReadTimeout("submission response lost")
+    try:
+        with pytest.raises(httpx.ReadTimeout):
+            transcription._submit_and_wait_for_assemblyai_transcript(transcriber, Path("audio.mp3"), None, 900)
+    finally:
+        client.close()
+    transcriber.upload_file.assert_called_once()
+    transcriber.submit.assert_called_once()

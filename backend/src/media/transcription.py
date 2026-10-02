@@ -79,7 +79,18 @@ def _submit_and_wait_for_assemblyai_transcript(
     timeout_seconds: int,
 ):
     """Submit a transcript job and poll with a total timeout."""
-    submitted = transcriber.submit(str(media_path), config=config_obj)
+    # Uploads are safe to retry: they do not create a paid transcript. Keep the
+    # transcript POST outside this loop because a timeout may hide its success.
+    for attempt in range(1, 4):
+        try:
+            audio_url = transcriber.upload_file(str(media_path))
+            break
+        except httpx.TransportError:
+            if attempt == 3:
+                raise
+            logger.warning("AssemblyAI audio upload failed; retrying upload (%s/3)", attempt)
+            time.sleep(2.0)
+    submitted = transcriber.submit(audio_url, config=config_obj)
     if not submitted.id:
         raise RuntimeError("AssemblyAI did not return a transcript ID")
 
