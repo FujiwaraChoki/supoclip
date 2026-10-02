@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://www.supoclip.com">
-    <img src="assets/banner.png" alt="SupoClip" width="100%" />
+    <img src="assets/banner.jpg" alt="SupoClip dashboard with video input, caption controls, and recent clips" width="100%" />
   </a>
 </p>
 
