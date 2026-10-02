@@ -86,12 +86,31 @@ def _submit_and_wait_for_assemblyai_transcript(
     logger.info("AssemblyAI transcript submitted: %s", submitted.id)
     deadline = time.monotonic() + timeout_seconds
     next_log_at = 0.0
+    consecutive_timeouts = 0
 
     while True:
-        response = aai.api.get_transcript(
-            submitted._client.http_client,  # noqa: SLF001 - AssemblyAI exposes no timeout-aware poller.
-            submitted.id,
-        )
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError(
+                f"AssemblyAI transcript {submitted.id} did not complete within {timeout_seconds}s"
+            )
+        # The SDK poller uses the upload timeout (often 900s) for every GET.
+        # Bound each poll without changing the shared client's timeout.
+        try:
+            response = submitted._client.http_client.get(  # noqa: SLF001
+                f"{aai.api.ENDPOINT_TRANSCRIPT}/{submitted.id}",
+                timeout=min(30.0, remaining),
+            )
+            response.raise_for_status()
+            response = aai.types.TranscriptResponse(**response.json())
+            consecutive_timeouts = 0
+        except httpx.TimeoutException:
+            consecutive_timeouts += 1
+            if consecutive_timeouts >= 3:
+                raise TimeoutError("AssemblyAI status polling timed out repeatedly") from None
+            logger.warning("AssemblyAI status polling timed out; retrying the existing transcript")
+            time.sleep(min(2.0, max(0.0, deadline - time.monotonic())))
+            continue
         transcript = aai.Transcript.from_response(
             client=submitted._client,  # noqa: SLF001
             response=response,
@@ -117,7 +136,7 @@ def _submit_and_wait_for_assemblyai_transcript(
             )
             next_log_at = now + 30
 
-        time.sleep(aai.settings.polling_interval)
+        time.sleep(min(aai.settings.polling_interval, max(0.0, deadline - now)))
 
 
 def _assemblyai_speech_models_value(speech_model: str) -> List[str]:
@@ -316,23 +335,14 @@ def _get_transcript_with_assemblyai(
     try:
         logger.info("Starting AssemblyAI transcription")
         transcription_media_path = _prepare_audio_for_transcription(video_path)
-        transcript = None
-        for attempt in range(1, 4):
-            try:
-                transcript = _submit_and_wait_for_assemblyai_transcript(
-                    transcriber,
-                    transcription_media_path,
-                    config_obj,
-                    runtime_config.assembly_ai_http_timeout_seconds,
-                )
-                break
-            except (httpx.TimeoutException, TimeoutError):
-                logger.warning(
-                    "AssemblyAI transcription timed out on attempt %s/3",
-                    attempt,
-                )
-                if attempt == 3:
-                    raise
+        # Once submitted, a polling timeout must not submit another paid job or
+        # restart the full transcription budget. Retry status GETs above instead.
+        transcript = _submit_and_wait_for_assemblyai_transcript(
+            transcriber,
+            transcription_media_path,
+            config_obj,
+            runtime_config.assembly_ai_http_timeout_seconds,
+        )
 
         if transcript is None:
             raise RuntimeError("AssemblyAI transcription did not return a transcript")

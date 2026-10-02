@@ -86,6 +86,7 @@ Task creation succeeds, but progress never moves beyond `queued`.
 docker-compose logs -f worker
 docker-compose logs -f redis
 docker-compose ps
+curl -f http://localhost:8000/health/worker
 ```
 
 Also inspect:
@@ -98,8 +99,26 @@ Also inspect:
 
 - Start or restart the worker
 - Confirm Redis is healthy
+- Confirm the worker is healthy, not merely running. Its ARQ heartbeat expires
+  after roughly 31 seconds without an update. `/health/worker` returns 503
+  when it is missing or Redis cannot be reached.
 - Confirm the task was actually enqueued
 - Review worker exceptions around download, transcription, or rendering
+
+### Processing stays at 30% or 50%
+
+At 30%, inspect backend/worker logs for transcription; at 50%, inspect them for
+AI analysis. Repeated frontend GET requests returning 200 do not establish
+processing progress. Include video duration, selected providers, commit, and
+the task's actual error when reporting a remaining stall.
+
+AssemblyAI status polling uses one budget based on
+`ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS` after submission, with each status request
+bounded to 30 seconds or the remaining budget. A poll timeout retries the same
+transcript rather than submitting another paid job. Upload requests still use
+the configured HTTP timeout. Increase the setting for long media only after
+checking the logs. AI analysis already has a 600-second overall budget and
+up to three attempts for transient provider/network errors.
 
 ## Backend Starts But Clip Generation Fails
 

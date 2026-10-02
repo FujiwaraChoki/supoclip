@@ -291,6 +291,13 @@ services:
       backend:
         condition: service_healthy
 
+    healthcheck:
+      test: ["CMD", ".venv/bin/arq", "--check", "src.workers.tasks.WorkerSettings"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
   # Redis for caching and job queues (useful for video processing)
   redis:
     image: redis:7-alpine
