@@ -81,7 +81,9 @@ Then start everything:
 docker-compose up -d
 ```
 
-First startup takes a few minutes; watch it with `docker-compose logs -f`. Once healthy, open [http://localhost:3000](http://localhost:3000), create an account, and start clipping. The backend API lives at [http://localhost:8000](http://localhost:8000) with interactive docs at `/docs`.
+First startup takes a few minutes; watch it with `docker-compose logs -f`. Once healthy, open [http://localhost:3107](http://localhost:3107), create an account, and start clipping. The backend API lives at [http://localhost:8000](http://localhost:8000) with interactive docs at `/docs`.
+
+The template sets `FRONTEND_PORT=3107`. Existing deployments without this setting keep port `3001`; preserve that port if your production reverse proxy uses it. See the [setup guide](docs/setup.md) for custom ports and public URLs.
 
 To use a different LLM provider, self-host with Ollama, or configure the optional pieces (B-roll, analytics, emails, YouTube metadata), see the [configuration guide](docs/configuration.md). If something misbehaves, the [troubleshooting guide](docs/troubleshooting.md) covers the common failure modes.
 

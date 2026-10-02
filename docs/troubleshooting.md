@@ -15,9 +15,17 @@ docker-compose logs -f worker
 
 Also verify:
 
-- `http://localhost:3000` loads
+- `http://localhost:3107` loads
 - `http://localhost:8000/health` responds
 - `http://localhost:8000/docs` opens
+
+### Browser cannot connect to the frontend
+
+Check the published host port with `docker-compose port frontend 3107`.
+The self-hosting template uses `3107`; older `.env` files without
+`FRONTEND_PORT` retain port `3001`. Open the reported port, rather than `3000`.
+`Running` means the container has started; check its health and frontend logs
+if the correct URL still fails.
 
 ## Services Fail to Start
 

@@ -61,9 +61,13 @@ LLM=openai:gpt-4
 
 ### 3. Access the Application
 
-- **Frontend**: http://localhost:3000
+- **Frontend**: http://localhost:3107
 - **Backend API**: http://localhost:8000
 - **API Documentation**: http://localhost:8000/docs
+
+These URLs assume the copied `.env.example`, which sets `FRONTEND_PORT=3107`.
+Existing `.env` files without that setting keep Docker host port `3001`.
+Preserve your existing port when using a production reverse proxy.
 
 ## Manual Docker Commands
 
@@ -200,7 +204,7 @@ docker-compose up -d
 
 SupoClip runs 4 Docker containers:
 
-1. **Frontend** (Next.js 15) - Port 3000
+1. **Frontend** (Next.js 15) - Port 3107
 2. **Backend** (FastAPI + Python) - Port 8000
 3. **PostgreSQL** - Port 5432
 4. **Redis** - Port 6379

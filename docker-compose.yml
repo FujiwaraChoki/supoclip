@@ -18,7 +18,9 @@ services:
         - NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST=${NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST:-false}
     container_name: supoclip-frontend
     ports:
-      - "127.0.0.1:3001:3107"
+      # Keep the legacy port for deployments whose proxy already uses 3001.
+      # .env.example selects 3107 for new self-hosted installations.
+      - "127.0.0.1:${FRONTEND_PORT:-3001}:3107"
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
