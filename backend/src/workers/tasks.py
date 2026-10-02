@@ -139,6 +139,7 @@ class WorkerSettings:
     # Functions to run
     functions = [process_video_task, prepare_editor, export_editor, combine_editor]
     queue_name = "supoclip_tasks"
+    health_check_interval = 30
 
     # Redis settings from environment
     redis_settings = RedisSettings(

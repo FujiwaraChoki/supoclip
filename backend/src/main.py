@@ -224,6 +224,24 @@ def create_app(
                 "error": str(e),
             }
 
+    @app.get("/health/worker")
+    async def check_worker_health():
+        """Check ARQ's expiring heartbeat, not just Redis connectivity."""
+        from arq.constants import health_check_key_suffix
+        from .workers.job_queue import DEFAULT_QUEUE_NAME
+
+        try:
+            pool = await app.state.queue_adapter.get_pool()
+            heartbeat = await pool.get(DEFAULT_QUEUE_NAME + health_check_key_suffix)
+            if heartbeat:
+                return {"status": "healthy", "worker": "connected"}
+        except Exception:
+            logger.exception("Worker heartbeat check failed")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "worker": "unavailable"},
+        )
+
     return app
 
 
