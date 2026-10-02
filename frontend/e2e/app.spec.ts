@@ -24,7 +24,11 @@ test("regular user can browse seeded tasks and save preferences", async ({ page 
   await expect(page.getByText(seed.completedSourceTitle)).toBeVisible();
 
   await page.goto(`/tasks/${seed.completedTaskId}`);
-  await expect(page.getByText("This is a seeded clip")).toBeVisible();
+  await page.getByRole("button", { name: "Preview Clip 1", exact: true }).click();
+  const preview = page.getByRole("dialog");
+  await expect(preview.getByText("This is a seeded clip", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(preview).not.toBeVisible();
 
   await page.goto("/settings");
   await page.getByRole("button", { name: /save preferences/i }).click();
