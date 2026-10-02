@@ -34,6 +34,9 @@ fi
 # Check if required API keys are set
 source .env
 
+# Match Compose's host port, including its legacy deployment fallback.
+FRONTEND_LOCAL_URL="http://localhost:${FRONTEND_PORT:-3001}"
+
 if [ -n "${LLM:-}" ]; then
     case "$LLM" in
         google:*|google-gla:*|openai:*|anthropic:*|ollama:*)
@@ -108,7 +111,7 @@ echo ""
 echo -e "${GREEN}SupoClip is starting up!${NC}"
 echo ""
 echo "Services will be available at:"
-echo "  - Frontend:  http://localhost:3107"
+echo "  - Frontend:  $FRONTEND_LOCAL_URL"
 echo "  - Backend:   http://localhost:8000"
 echo "  - API Docs:  http://localhost:8000/docs"
 echo ""
@@ -128,7 +131,7 @@ if $DOCKER_COMPOSE ps | grep -q "Up"; then
     echo -e "${GREEN}Services are starting successfully!${NC}"
     echo ""
     echo "You can now:"
-    echo "  1. Open http://localhost:3107 in your browser"
+    echo "  1. Open $FRONTEND_LOCAL_URL in your browser"
     echo "  2. View logs: $DOCKER_COMPOSE logs -f"
     echo "  3. Stop services: $DOCKER_COMPOSE down"
 else

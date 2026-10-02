@@ -89,16 +89,27 @@ You should see these services:
 
 ### 5. Open the application
 
-- Frontend: `http://localhost:3000`
+- Frontend: `http://localhost:3107`
 - Backend API: `http://localhost:8000`
 - FastAPI docs: `http://localhost:8000/docs`
+
+The template sets `FRONTEND_PORT=3107`. Existing `.env` files without this
+setting retain the legacy Docker host port `3001`; use `http://localhost:3001`
+or add `FRONTEND_PORT=3107` and recreate the frontend. The container always
+listens on `3107`.
+
+For production, preserve the port your reverse proxy uses (for example,
+`FRONTEND_PORT=3001`). Keep `NEXT_PUBLIC_APP_URL`, `BETTER_AUTH_URL`, and
+`CORS_ORIGINS` set to your public HTTPS origin. For local custom ports, set
+those URLs/origins to match the port you chose. Changing `NEXT_PUBLIC_*`
+values for a production image requires rebuilding the frontend.
 
 ## What Docker Starts
 
 The default Compose stack contains five services:
 
 - `frontend`
-  - Next.js application on port `3000`
+  - Next.js application on port `3107`
   - Proxies authenticated requests to the backend
 - `backend`
   - FastAPI API on port `8000`
@@ -115,7 +126,7 @@ The default Compose stack contains five services:
 
 After the stack is up:
 
-1. Load the homepage at `http://localhost:3000`.
+1. Load the homepage at `http://localhost:3107`.
 2. Create an account or sign in.
 3. Submit a YouTube URL or upload a video file.
 4. Open the task page and confirm progress updates appear.

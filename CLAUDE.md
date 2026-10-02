@@ -18,7 +18,7 @@ docker-compose logs -f worker     # Debug video processing
 docker-compose down               # Stop all services
 ```
 
-Services: Frontend (:3000), Backend API (:8000, docs at /docs), Worker (ARQ), PostgreSQL (:5432), Redis (:6379)
+Services: Frontend (:3107), Backend API (:8000, docs at /docs), Worker (ARQ), PostgreSQL (:5432), Redis (:6379)
 
 ### Backend (local)
 
