@@ -33,6 +33,10 @@ dependencies = [
     "cryptography>=42.0.0",
 ]
 
+[project.optional-dependencies]
+cpu = ["torch==2.11.0"]
+cuda = ["torch==2.11.0"]
+
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
@@ -43,6 +47,23 @@ dev = [
 
 [tool.uv]
 package = true
+conflicts = [[{ extra = "cpu" }, { extra = "cuda" }]]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu", marker = "sys_platform == 'linux'" },
+    { index = "pypi", extra = "cuda" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

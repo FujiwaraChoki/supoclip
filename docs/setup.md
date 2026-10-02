@@ -106,6 +106,24 @@ values for a production image requires rebuilding the frontend.
 
 ## What Docker Starts
 
+### CPU-only Docker builds (including Apple Silicon)
+
+The current template sets `BACKEND_CPU_ONLY=true`, selecting the locked
+CPU-only Torch wheels for both backend and worker. Existing `.env` files
+without the setting keep the legacy CUDA dependency path. To opt in:
+
+```env
+BACKEND_CPU_ONLY=true
+```
+
+Then run `docker compose up -d --build backend worker`. Changing
+`TRANSCRIPTION_PROVIDER` alone does not change the installed Torch variant.
+The backend and worker still use `linux/amd64` on Apple Silicon via emulation;
+this option avoids NVIDIA downloads but does not enable Apple GPU acceleration.
+GPU deployments should retain `BACKEND_CPU_ONLY=false` and their existing
+GPU runtime configuration. Local Python users can select `uv sync --extra cpu`
+or `uv sync --extra cuda`; these extras are mutually exclusive.
+
 The default Compose stack contains five services:
 
 - `frontend`
