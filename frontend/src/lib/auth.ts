@@ -3,6 +3,7 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import prisma from "@/lib/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { getAuthTrustedOrigins } from "@/lib/auth-origins";
+import { prepareAccountDeletion } from "@/server/account-deletion";
 import { fetchBackend } from "@/server/backend-api";
 
 const disableSignUp = ["1", "true", "yes"].includes(
@@ -40,6 +41,9 @@ export const auth = betterAuth({
   user: {
     deleteUser: {
       enabled: true,
+      beforeDelete: async (user) => {
+        await prepareAccountDeletion(user.id);
+      },
     },
     additionalFields: {
       is_admin: {
