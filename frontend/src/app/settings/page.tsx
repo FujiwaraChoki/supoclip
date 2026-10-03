@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
+import { DeleteAccountSection } from "@/components/delete-account-section";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
@@ -413,6 +414,14 @@ export default function SettingsPage() {
           </span>
           <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
         </Link>
+
+        <DeleteAccountSection
+          email={session.user.email}
+          hasAppStoreSubscription={
+            billingSummary?.subscription_provider === "apple" &&
+            ["active", "trialing", "past_due"].includes(billingSummary.subscription_status)
+          }
+        />
 
         {error && (
           <Alert className="border-red-200 bg-red-50">
