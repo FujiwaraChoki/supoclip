@@ -3,10 +3,28 @@ import { prismaAdapter } from "better-auth/adapters/prisma";
 import prisma from "@/lib/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { getAuthTrustedOrigins } from "@/lib/auth-origins";
+import { fetchBackend } from "@/server/backend-api";
 
 const disableSignUp = ["1", "true", "yes"].includes(
   (process.env.DISABLE_SIGN_UP ?? "").toLowerCase()
 );
+
+async function sendPasswordResetEmail(userId: string, url: string) {
+  const response = await fetchBackend("/account/password-reset-email", {
+    method: "POST",
+    userId,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      `Backend password reset email failed with ${response.status}: ${detail || "unknown error"}`
+    );
+  }
+}
 
 const trustedOrigins = getAuthTrustedOrigins({
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
@@ -34,6 +52,13 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     disableSignUp,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, url }) => {
+      // Not awaited so response timing doesn't reveal whether an account exists.
+      void sendPasswordResetEmail(user.id, url).catch((error) => {
+        console.error("Failed to send password reset email", error);
+      });
+    },
   },
   plugins: [
     nextCookies(), // Enable Next.js cookie handling

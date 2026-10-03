@@ -73,6 +73,7 @@ Notes:
 - `SES_FROM_EMAIL` must be a verified identity/domain in Amazon SES.
 - The thank-you email is triggered after a successful Stripe checkout.
 - The cancellation email is triggered after Stripe subscription deletion.
+- Password reset links ("Forgot password?" on sign-in) are sent via `POST /account/password-reset-email`, which only accepts the frontend's signed session headers. Without SES configured, reset requests succeed silently but no email is sent.
 
 ## YouTube Downloads
 

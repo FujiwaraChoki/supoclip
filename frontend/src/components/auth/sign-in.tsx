@@ -6,6 +6,7 @@ import { track } from "@/lib/datafast";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export function SignIn() {
   const [email, setEmail] = useState("");
@@ -67,6 +68,11 @@ export function SignIn() {
             required
             disabled={loading}
           />
+          <div className="flex justify-end">
+            <Link href="/forgot-password" className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <Button type="submit" className="h-11 w-full" disabled={loading}>
             {loading ? "Signing In..." : "Sign In"}
           </Button>

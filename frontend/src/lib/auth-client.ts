@@ -3,7 +3,7 @@ import { useSyncExternalStore } from "react";
 
 export const authClient = createAuthClient();
 
-export const { signIn, signOut, signUp } = authClient;
+export const { signIn, signOut, signUp, requestPasswordReset, resetPassword } = authClient;
 
 const subscribeToHydration = () => () => {};
 const clientSnapshot = () => true;
