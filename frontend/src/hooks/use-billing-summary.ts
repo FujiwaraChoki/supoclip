@@ -8,6 +8,7 @@ export interface BillingSummary {
   subscription_status: string;
   subscription_provider?: string | null;
   cancel_at?: string | null;
+  period_end?: string | null;
   usage_count: number;
   usage_limit: number | null;
   remaining: number | null;

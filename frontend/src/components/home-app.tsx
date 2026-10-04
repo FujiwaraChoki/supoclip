@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
-  AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Crop, FileVideo,
+  AlertCircle, ArrowRight, ArrowUp, Sparkles, Captions, CaptionsOff, Check, ChevronDown, Crop, FileVideo,
   Loader2, Paintbrush, Paperclip, Upload, Wand2, X, Youtube,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
+import { UpgradeDialog, UpgradeNudge, getUpgradeState, upgradeReasonForError, type UpgradeReason } from "@/components/billing/upgrade-prompt";
+import { getPublicBillingPlans } from "@/lib/billing-plans";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -93,6 +95,12 @@ export default function HomeApp() {
 
   const [recent, setRecent] = useState<GenerationSummary[] | null>(null);
   const [billingSummary, updateBillingSummary] = useBillingSummary(Boolean(session?.user?.id));
+  const [upgradeReason, setUpgradeReason] = useState<UpgradeReason | null>(null);
+  const [lastUpgradeReason, setLastUpgradeReason] = useState<UpgradeReason>({ kind: "start" });
+  const openUpgrade = useCallback((reason: UpgradeReason) => {
+    setLastUpgradeReason(reason);
+    setUpgradeReason(reason);
+  }, []);
   const youtubeThumbnailUrl = sourceType === "youtube" ? getYouTubeThumbnailUrl(url) : null;
 
   const refreshFonts = useCallback(async () => {
@@ -195,8 +203,9 @@ export default function HomeApp() {
   const previewFontSize = fontSize ?? selectedTemplate?.font_size ?? 24;
   const previewFontColor = fontColor ?? selectedTemplate?.font_color ?? "#FFFFFF";
   const generationRequiresUpgrade = Boolean(billingSummary?.monetization_enabled && !billingSummary.can_create_task);
-  const generationGateMessage = billingSummary?.reason || "Choose a paid plan to process videos.";
-  const controlsDisabled = isLoading || generationRequiresUpgrade;
+  const upgradeState = billingSummary?.monetization_enabled ? getUpgradeState(billingSummary) : null;
+  // Users can explore every option; the plan prompt only appears when they hit Generate.
+  const controlsDisabled = isLoading;
   const hasSource = sourceType === "upload" ? Boolean(file) : Boolean(url.trim());
   const cleanupCount = [cutLongPauses, removeFillerWords, filteredWords.trim().length > 0].filter(Boolean).length;
   const customized = fontFamily !== null || fontSize !== null || fontColor !== null;
@@ -205,7 +214,7 @@ export default function HomeApp() {
     e?.preventDefault();
     if (!hasSource || isLoading || !session?.user?.id) return;
     if (generationRequiresUpgrade) {
-      setError(generationGateMessage);
+      openUpgrade({ kind: upgradeState?.isPaid ? "limit" : "start" });
       return;
     }
 
@@ -246,7 +255,15 @@ export default function HomeApp() {
       });
 
       if (!startResponse.ok) {
-        throw new Error(formatSupportMessage(await parseApiError(startResponse, `API error: ${startResponse.status}`)));
+        const info = await parseApiError(startResponse, `API error: ${startResponse.status}`);
+        const upgradeForError = upgradeReasonForError(info.code, info.detail, upgradeState?.nextPlan?.youtubeMaxMinutes);
+        if (upgradeForError) {
+          openUpgrade(upgradeForError);
+          setIsLoading(false);
+          setStatusMessage("");
+          return;
+        }
+        throw new Error(formatSupportMessage(info));
       }
 
       const startResult = await startResponse.json();
@@ -301,21 +318,10 @@ export default function HomeApp() {
             {greeting(session.user.name)}
           </h1>
           <p className="mt-2 text-center text-muted-foreground">
-            {generationRequiresUpgrade
-              ? "Video processing is available on paid plans."
-              : "Drop in a long video. Get back captioned, ready-to-post clips."}
+            Drop in a long video. Get back captioned, ready-to-post clips.
           </p>
 
-          {generationRequiresUpgrade && (
-            <Alert className="mt-6 border-amber-200 bg-amber-50">
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-sm text-amber-900">
-                <span className="font-medium">{generationGateMessage}</span>{" "}
-                Free accounts can browse SupoClip, but video generation requires a paid plan.
-                <Link href="/settings" className="ml-1 font-semibold underline underline-offset-2">Upgrade in settings</Link>.
-              </AlertDescription>
-            </Alert>
-          )}
+          {upgradeState && <PlanStatusNudge state={upgradeState} onUpgrade={openUpgrade} />}
 
           <form
             onSubmit={handleSubmit}
@@ -440,11 +446,15 @@ export default function HomeApp() {
                           <div className="flex items-center justify-between gap-2">
                             <label className="text-sm">Font</label>
                             <input ref={fontUploadInputRef} type="file" accept=".ttf,.otf" onChange={handleFontUpload} className="hidden" />
-                            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" disabled={controlsDisabled || isUploadingFont || !canUploadCustomFonts} onClick={() => fontUploadInputRef.current?.click()}>
+                            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" disabled={controlsDisabled || isUploadingFont} onClick={() => canUploadCustomFonts ? fontUploadInputRef.current?.click() : openUpgrade({ kind: "custom_fonts" })}>
                               <Upload className="size-3" />{isUploadingFont ? "Uploading…" : "Upload font"}
                             </Button>
                           </div>
-                          {!canUploadCustomFonts && <p className="text-xs text-amber-700">Custom font upload is available on paid plans.</p>}
+                          {!canUploadCustomFonts && (
+                            <button type="button" onClick={() => openUpgrade({ kind: "custom_fonts" })} className="flex items-center gap-1 text-xs font-medium text-brand underline-offset-2 hover:underline">
+                              <Sparkles className="size-3" />Use your brand fonts with a paid plan
+                            </button>
+                          )}
                           {availableFonts.length > FONT_SEARCH_THRESHOLD && (
                             <Input value={fontSearch} onChange={(e) => setFontSearch(e.target.value)} placeholder="Search fonts" className="h-8" />
                           )}
@@ -570,8 +580,8 @@ export default function HomeApp() {
                 <Button
                   type="submit"
                   size="icon"
-                  aria-label={generationRequiresUpgrade ? "Choose a paid plan" : "Generate clips"}
-                  disabled={!hasSource || generationRequiresUpgrade || isLoading}
+                  aria-label="Generate clips"
+                  disabled={!hasSource || isLoading}
                   className="size-9 rounded-full bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
                 >
                   {isLoading ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
@@ -620,6 +630,13 @@ export default function HomeApp() {
           )}
         </section>
       </main>
+      <UpgradeDialog
+        open={upgradeReason !== null}
+        onOpenChange={(open) => { if (!open) setUpgradeReason(null); }}
+        reason={upgradeReason ?? lastUpgradeReason}
+        billing={billingSummary}
+        source="home"
+      />
     </AppShell>
   );
 }
@@ -679,4 +696,54 @@ function FramingGlyph({ kind }: { kind: OutputFormat }) {
       )}
     </span>
   );
+}
+
+function PlanStatusNudge({
+  state,
+  onUpgrade,
+}: {
+  state: NonNullable<ReturnType<typeof getUpgradeState>>;
+  onUpgrade: (reason: UpgradeReason) => void;
+}) {
+  const { nextPlan, resetsOn } = state;
+  const refreshes = resetsOn ? `Refreshes on ${resetsOn}.` : "Refreshes next billing period.";
+
+  if (!state.isPaid) {
+    const entry = getPublicBillingPlans()[0];
+    return (
+      <UpgradeNudge
+        className="mt-6"
+        title="Pick a plan to start clipping"
+        description={entry ? `From $${entry.priceMonthly}/mo for ${entry.generationLimit} videos. Feel free to set everything up first.` : undefined}
+        action="See plans"
+        onAction={() => onUpgrade({ kind: "start" })}
+      />
+    );
+  }
+
+  if (state.atLimit) {
+    return (
+      <UpgradeNudge
+        className="mt-6"
+        title={`You've clipped all ${state.limit} videos this period`}
+        description={nextPlan ? `${refreshes} Or keep going with ${nextPlan.name}: ${nextPlan.generationLimit} a month.` : state.managedByAppStore ? `${refreshes} You can change plans in the SupoClip iOS app.` : refreshes}
+        action={nextPlan ? `Get ${nextPlan.name}` : undefined}
+        onAction={nextPlan ? () => onUpgrade({ kind: "limit" }) : undefined}
+      />
+    );
+  }
+
+  if (state.nearLimit && state.remaining !== null) {
+    return (
+      <UpgradeNudge
+        className="mt-6"
+        title={`${state.remaining} ${state.remaining === 1 ? "video" : "videos"} left this period`}
+        description={nextPlan ? `${refreshes} Need more room? ${nextPlan.name} gives you ${nextPlan.generationLimit} a month.` : refreshes}
+        action={nextPlan ? "Upgrade" : undefined}
+        onAction={nextPlan ? () => onUpgrade({ kind: "explore" }) : undefined}
+      />
+    );
+  }
+
+  return null;
 }

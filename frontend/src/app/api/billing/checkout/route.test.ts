@@ -128,4 +128,88 @@ describe("/api/billing/checkout", () => {
 
     expect(response.status).toBe(500);
   });
+
+  describe("for an active Stripe subscriber", () => {
+    beforeEach(() => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        stripe_customer_id: "cus_123",
+        stripe_subscription_id: "sub_123",
+        subscription_provider: "stripe",
+        subscription_status: "active",
+      } as never);
+    });
+
+    function stripeWithSubscription(priceId: string, portalCreate = vi.fn().mockResolvedValue({ url: "https://portal.example/upgrade" })) {
+      return {
+        checkout: { sessions: { create: vi.fn() } },
+        subscriptions: {
+          retrieve: vi.fn().mockResolvedValue({ items: { data: [{ id: "si_1", price: { id: priceId } }] } }),
+        },
+        billingPortal: { sessions: { create: portalCreate } },
+      };
+    }
+
+    it("confirms the plan change in the billing portal instead of opening a second checkout", async () => {
+      const stripe = stripeWithSubscription("price_pro");
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await POST(
+        new Request("http://localhost/api/billing/checkout", {
+          method: "POST",
+          body: JSON.stringify({ plan: "scale" }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ url: "https://portal.example/upgrade" });
+      expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+      expect(stripe.billingPortal.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer: "cus_123",
+          flow_data: expect.objectContaining({
+            type: "subscription_update_confirm",
+            subscription_update_confirm: {
+              subscription: "sub_123",
+              items: [{ id: "si_1", price: "price_scale", quantity: 1 }],
+            },
+          }),
+        }),
+      );
+    });
+
+    it("rejects switching to the plan they already have", async () => {
+      const stripe = stripeWithSubscription("price_scale");
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await POST(
+        new Request("http://localhost/api/billing/checkout", {
+          method: "POST",
+          body: JSON.stringify({ plan: "scale" }),
+        }),
+      );
+
+      expect(response.status).toBe(409);
+      expect(stripe.billingPortal.sessions.create).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the plain portal when plan switching is not enabled", async () => {
+      const portalCreate = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("subscription_update is disabled"))
+        .mockResolvedValueOnce({ url: "https://portal.example/home" });
+      const stripe = stripeWithSubscription("price_pro", portalCreate);
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const response = await POST(
+        new Request("http://localhost/api/billing/checkout", {
+          method: "POST",
+          body: JSON.stringify({ plan: "scale" }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ url: "https://portal.example/home" });
+    });
+  });
 });

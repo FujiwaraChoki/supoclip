@@ -141,7 +141,7 @@ function getPlans() {
       description: plan.description,
       features: [
         `${plan.generationLimit} generations per month`,
-        "Everything in Free",
+        "Face tracking, captions and virality scoring",
         "B-Roll overlays",
         "Caption templates",
         "Platform export presets",
@@ -645,8 +645,8 @@ export default function LandingPage() {
               Simple pricing, no surprises
             </h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Start free. Upgrade when you need more generations.
-              Self-hosters get everything free, always.
+              Pick the plan that matches how much you clip. Change or cancel
+              anytime. Self-hosters get everything free, always.
             </p>
           </ScrollReveal>
 

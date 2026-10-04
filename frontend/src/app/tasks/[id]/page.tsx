@@ -31,7 +31,9 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { useSession } from "@/lib/auth-client";
-import { formatSupportMessage, parseApiError } from "@/lib/api-error";
+import { ApiRequestError, formatSupportMessage, parseApiError } from "@/lib/api-error";
+import { useBillingSummary } from "@/hooks/use-billing-summary";
+import { UpgradeDialog, upgradeReasonForError, type UpgradeReason } from "@/components/billing/upgrade-prompt";
 import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import {
   AlertCircle,
@@ -141,6 +143,8 @@ export default function TaskPage() {
   >([]);
   const [fontToDelete, setFontToDelete] = useState<FontOption | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [billingSummary] = useBillingSummary(Boolean(session?.user?.id));
+  const [upgradeReason, setUpgradeReason] = useState<UpgradeReason | null>(null);
   const [sortBy, setSortBy] = useState<"score" | "timeline">("score");
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
 
@@ -622,7 +626,14 @@ export default function TaskPage() {
             {(task.status === "cancelled" || task.status === "error") && (
               <Button size="sm" disabled={pendingAction !== null}
                 onClick={() => void runAction("resume", async () => {
-                  await requestAction(`${taskApiUrl}/${task.id}/resume`, "POST");
+                  try {
+                    await requestAction(`${taskApiUrl}/${task.id}/resume`, "POST");
+                  } catch (err) {
+                    const reason = err instanceof ApiRequestError ? upgradeReasonForError(err.code, err.detail, undefined) : null;
+                    if (!reason) throw err;
+                    setUpgradeReason(reason);
+                    return;
+                  }
                   await fetchTaskStatus();
                   toast.success("Generation resumed");
                 })}>
@@ -930,6 +941,13 @@ export default function TaskPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <UpgradeDialog
+        open={upgradeReason !== null}
+        onOpenChange={(open) => { if (!open) setUpgradeReason(null); }}
+        reason={upgradeReason ?? { kind: "limit" }}
+        billing={billingSummary}
+        source="task_resume"
+      />
     </main>
   );
 }
