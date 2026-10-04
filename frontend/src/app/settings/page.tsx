@@ -390,7 +390,7 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 {billingSummary.usage_limit !== null && (
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background"><div className={cn("h-full rounded-full", upgradeState?.atLimit || upgradeState?.nearLimit ? "bg-amber-500" : "bg-brand")} style={{ width: `${usagePct}%` }} /></div>
+                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-brand" style={{ width: `${usagePct}%` }} /></div>
                 )}
                 <p className="mt-2 text-xs text-muted-foreground">
                   {!upgradeState?.isPaid
@@ -443,22 +443,22 @@ export default function SettingsPage() {
                       disabled={isBillingActionLoading}
                       className={cn(
                         "rounded-xl border p-4 text-left transition-colors hover:border-foreground/30 disabled:opacity-60",
-                        plan.highlighted && "border-brand ring-1 ring-brand",
+                        plan.highlighted && "border-foreground ring-1 ring-foreground",
                       )}
                     >
                       <span className="flex items-center justify-between gap-2">
                         <span className="text-sm font-semibold">{plan.name}</span>
-                        {plan.highlighted && <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-medium text-brand-foreground">Popular</span>}
+                        {plan.highlighted && <span className="text-xs text-muted-foreground">Most popular</span>}
                       </span>
                       <span className="mt-1 block text-2xl font-bold tracking-tight">${plan.priceMonthly}<span className="text-xs font-normal text-muted-foreground">/mo</span></span>
                       <span className="mt-3 block space-y-1.5">
                         {plan.highlights.map((highlight) => (
                           <span key={highlight} className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                            <Check className="mt-0.5 size-3 shrink-0 text-brand" />{highlight}
+                            <Check className="mt-0.5 size-3 shrink-0" />{highlight}
                           </span>
                         ))}
                       </span>
-                      <span className={cn("mt-4 flex h-9 items-center justify-center rounded-lg text-sm font-medium", plan.highlighted ? "bg-brand text-brand-foreground" : "bg-muted")}>
+                      <span className={cn("mt-4 flex h-9 items-center justify-center rounded-lg text-sm font-medium", plan.highlighted ? "bg-primary text-primary-foreground" : "bg-muted")}>
                         {isBillingActionLoading ? "Opening checkout…" : `Choose ${plan.name}`}
                       </span>
                     </button>

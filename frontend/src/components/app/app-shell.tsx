@@ -184,12 +184,12 @@ function UsageCard({ billing }: { billing: NonNullable<ReturnType<typeof useBill
       </div>
       {limit ? (
         <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
-          <div className={cn("h-full rounded-full transition-all", upgrade?.atLimit || upgrade?.nearLimit ? "bg-amber-500" : "bg-brand")} style={{ width: `${pct}%` }} />
+          <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
         </div>
       ) : null}
       {nudge ? (
-        <p className="mt-2 flex items-center gap-1 font-medium text-brand">
-          <Sparkles className="size-3" />{nudge}
+        <p className="mt-2 flex items-center gap-1 font-medium text-foreground">
+          {nudge}
           <ArrowRight className="ml-auto size-3 transition-transform group-hover:translate-x-0.5" />
         </p>
       ) : (

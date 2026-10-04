@@ -37,7 +37,8 @@ test("free users explore first and see plans when they generate", async ({ page 
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("Turn long videos into ready-to-post clips")).toBeVisible();
   await expect(dialog.getByRole("radio")).toHaveCount(2);
-  await page.screenshot({ path: "test-results/upgrade-dialog-free.png", animations: "disabled" });
+  await page.waitForTimeout(2200);
+  await page.screenshot({ path: "test-results/upgrade-dialog-free.png" });
 
   await dialog.getByRole("button", { name: "Maybe later" }).click();
   await expect(dialog).toHaveCount(0);
@@ -52,7 +53,8 @@ test("Pro users at their limit are offered Scale, not told to pay", async ({ pag
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("Current plan")).toBeVisible();
   await expect(dialog.getByRole("button", { name: /Continue with Scale/ })).toBeVisible();
-  await page.screenshot({ path: "test-results/upgrade-dialog-limit.png", animations: "disabled" });
+  await page.waitForTimeout(2200);
+  await page.screenshot({ path: "test-results/upgrade-dialog-limit.png" });
 });
 
 test("a too-long video opens the Scale prompt instead of a dead-end error", async ({ page }) => {
@@ -65,7 +67,8 @@ test("a too-long video opens the Scale prompt instead of a dead-end error", asyn
   await page.getByRole("textbox").first().fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
   await page.getByRole("button", { name: "Generate clips" }).click();
   await expect(page.getByRole("dialog").getByText("Scale can take this 2 h video")).toBeVisible();
-  await page.screenshot({ path: "test-results/upgrade-dialog-too-long.png", animations: "disabled" });
+  await page.waitForTimeout(2200);
+  await page.screenshot({ path: "test-results/upgrade-dialog-too-long.png" });
 });
 
 test("settings shows Pro users the step up to Scale", async ({ page }) => {
@@ -98,9 +101,10 @@ test("locked custom fonts open a font-specific prompt", async ({ page }) => {
   await mockApp(page, free);
   await page.goto("/");
   await page.getByRole("button", { name: "Default" }).click();
-  await page.getByRole("button", { name: /Use your brand fonts/ }).click();
+  await page.getByRole("button", { name: /Use your own fonts/ }).click();
   await expect(page.getByRole("dialog").getByText("Captions in your brand's own font")).toBeVisible();
-  await page.screenshot({ path: "test-results/upgrade-dialog-fonts.png", animations: "disabled" });
+  await page.waitForTimeout(2200);
+  await page.screenshot({ path: "test-results/upgrade-dialog-fonts.png" });
 });
 
 test("sign-up shows the long-video-to-clips animation", async ({ page }) => {
@@ -108,5 +112,6 @@ test("sign-up shows the long-video-to-clips animation", async ({ page }) => {
   await page.route("**/api/auth/get-session**", (route) => route.fulfill({ json: null }));
   await page.goto("/sign-up");
   await expect(page.getByText("podcast-episode-42.mp4", { exact: false })).toBeAttached();
-  await page.screenshot({ path: "test-results/auth-sign-up.png", animations: "disabled" });
+  await page.waitForTimeout(6500);
+  await page.screenshot({ path: "test-results/auth-sign-up.png" });
 });

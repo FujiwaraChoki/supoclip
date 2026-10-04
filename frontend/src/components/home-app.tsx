@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
-  AlertCircle, ArrowRight, ArrowUp, Sparkles, Captions, CaptionsOff, Check, ChevronDown, Crop, FileVideo,
+  AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Crop, FileVideo,
   Loader2, Paintbrush, Paperclip, Upload, Wand2, X, Youtube,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
@@ -451,8 +451,8 @@ export default function HomeApp() {
                             </Button>
                           </div>
                           {!canUploadCustomFonts && (
-                            <button type="button" onClick={() => openUpgrade({ kind: "custom_fonts" })} className="flex items-center gap-1 text-xs font-medium text-brand underline-offset-2 hover:underline">
-                              <Sparkles className="size-3" />Use your brand fonts with a paid plan
+                            <button type="button" onClick={() => openUpgrade({ kind: "custom_fonts" })} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                              Use your own fonts with a paid plan
                             </button>
                           )}
                           {availableFonts.length > FONT_SEARCH_THRESHOLD && (

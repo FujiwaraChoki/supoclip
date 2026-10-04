@@ -1,165 +1,215 @@
-import { Scissors } from "lucide-react";
-import { ScoreRing } from "@/components/app/clip-cover";
+"use client";
+
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 /**
- * A looping story of what SupoClip does: a long video is scanned, its best
- * moments light up, scissors cut them out, and they drop into vertical clips.
- *
- * Every element shares one 8s timeline; keyframes are generated per element so
- * they stay in sync. Base styles are the finished state, which is what
- * reduced-motion users see.
+ * Line-art loop of what SupoClip does: a long video is scanned, its best
+ * moments are marked, scissors cut them out, and they become vertical clips.
+ * Everything is drawn in currentColor.
  */
-const DURATION = 8;
-const FRAMES = 8;
-const BARS = 72;
 
-// Highlighted moments as [start, end] fractions of the timeline.
-const MOMENTS = [
-  { start: 0.08, end: 0.26, title: "The one habit that doubled my output", caption: "and that's why", score: 94, hue: 38, rotate: -6 },
-  { start: 0.41, end: 0.59, title: "Nobody talks about this pricing mistake", caption: "it changed everything", score: 88, hue: 260, rotate: 0 },
-  { start: 0.72, end: 0.9, title: "Why most startups die in year two", caption: "here's the thing", score: 81, hue: 160, rotate: 6 },
+const STRIP = { x: 20, y: 44, width: 440, height: 56 };
+const SEGMENTS = [
+  { from: 56, to: 132 },
+  { from: 196, to: 284 },
+  { from: 340, to: 420 },
 ];
+const CLIP = { y: 176, width: 76, height: 136 };
+const CLIP_X = [82, 202, 322];
 
-// Scissors sweep the strip between these points of the loop.
-const CUT_FROM = 0.34;
-const CUT_TO = 0.58;
-const cutTimeAt = (x: number) => CUT_FROM + (CUT_TO - CUT_FROM) * x;
-const pct = (fraction: number) => `${(fraction * 100).toFixed(2)}%`;
+const SCAN_MS = 1500;
+const CUT_MS = 1800;
+// When each phase starts within one loop.
+const PHASES = { scan: 0, mark: 1500, cut: 2300, clips: 4300, fade: 7600, restart: 8200 };
+type Phase = keyof typeof PHASES;
 
-function waveHeight(i: number) {
-  const value = Math.abs(Math.sin(i * 0.9) * 0.55 + Math.sin(i * 0.37 + 1) * 0.35 + Math.sin(i * 2.1) * 0.1);
-  return 18 + Math.round(value * 82);
-}
+const cutDelay = (x: number) => ((x - STRIP.x) / STRIP.width) * (CUT_MS / 1000);
 
-function keyframes() {
-  const rules: string[] = [
-    // Playhead scans the whole video first.
-    `@keyframes cc-playhead { 0% { left: 0%; opacity: 0 } 3% { opacity: 1 } 26% { left: 100%; opacity: 1 } 29%, 100% { left: 100%; opacity: 0 } }`,
-    `@keyframes cc-scissors { 0%, ${pct(CUT_FROM - 0.03)} { transform: translateX(-4%); opacity: 0 } ${pct(CUT_FROM)} { transform: translateX(0%); opacity: 1 } ${pct(CUT_TO)} { transform: translateX(100%); opacity: 1 } ${pct(CUT_TO + 0.03)}, 100% { transform: translateX(104%); opacity: 0 } }`,
-    `@keyframes cc-source-label { 0%, 58% { opacity: 1 } 62%, 92% { opacity: 0 } 97%, 100% { opacity: 1 } }`,
-    `@keyframes cc-result-label { 0%, 60% { opacity: 0 } 66%, 90% { opacity: 1 } 95%, 100% { opacity: 0 } }`,
-    `@keyframes cc-strip { 0% { opacity: 0; transform: translateY(6px) } 4%, 90% { opacity: 1; transform: none } 97%, 100% { opacity: 0; transform: translateY(-4px) } }`,
-  ];
-
-  MOMENTS.forEach((moment, index) => {
-    const lit = 0.12 + index * 0.05;
-    const cutEnd = cutTimeAt(moment.end);
-    rules.push(
-      // The moment lights up, then lifts out of the strip once both edges are cut.
-      `@keyframes cc-moment-${index} { 0%, ${pct(lit)} { opacity: 0; transform: none } ${pct(lit + 0.04)} { opacity: 1; transform: none } ${pct(cutEnd + 0.01)} { opacity: 1; transform: translateY(0) } ${pct(cutEnd + 0.06)} { opacity: 0; transform: translateY(26px) scale(0.9) } 100% { opacity: 0 } }`,
-      `@keyframes cc-gap-${index} { 0%, ${pct(cutEnd + 0.02)} { opacity: 0 } ${pct(cutEnd + 0.05)}, 89% { opacity: 1 } 94%, 100% { opacity: 0 } }`,
-      `@keyframes cc-clip-${index} { 0%, ${pct(cutEnd + 0.03)} { opacity: 0; transform: translateY(-130px) scale(0.35) rotate(0deg) } ${pct(cutEnd + 0.12)} { opacity: 1; transform: translateY(0) scale(1) rotate(${moment.rotate}deg) } 90% { opacity: 1; transform: translateY(0) scale(1) rotate(${moment.rotate}deg) } 96%, 100% { opacity: 0; transform: translateY(10px) scale(0.96) rotate(${moment.rotate}deg) } }`,
-    );
-    [moment.start, moment.end].forEach((edge, edgeIndex) => {
-      const at = cutTimeAt(edge);
-      rules.push(
-        `@keyframes cc-cut-${index}-${edgeIndex} { 0%, ${pct(at - 0.005)} { opacity: 0; transform: scaleY(0) } ${pct(at + 0.01)} { opacity: 1; transform: scaleY(1) } 88% { opacity: 1; transform: scaleY(1) } 94%, 100% { opacity: 0; transform: scaleY(1) } }`,
-      );
-    });
-  });
-
-  return `${rules.join("\n")}
-.cc-anim { animation-duration: ${DURATION}s; animation-iteration-count: infinite; animation-timing-function: cubic-bezier(.4,0,.2,1); animation-fill-mode: both; }
-@media (prefers-reduced-motion: reduce) { .cc-anim { animation: none !important; } }`;
-}
-
-const css = keyframes();
+const WAVE = Array.from({ length: 54 }, (_, i) => {
+  const x = STRIP.x + 10 + i * 7.8;
+  const amp = 4 + Math.abs(Math.sin(i * 0.9) * 9 + Math.sin(i * 0.37 + 1) * 6);
+  return `M${x.toFixed(1)} ${(72 - amp).toFixed(1)}V${(72 + amp).toFixed(1)}`;
+}).join("");
 
 export function ClipCutAnimation() {
-  return (
-    <div className="relative mx-auto w-full max-w-[34rem] select-none" aria-hidden>
-      <style>{css}</style>
+  const reduceMotion = useReducedMotion();
+  const [cycle, setCycle] = useState(0);
+  const [phase, setPhase] = useState<Phase>("scan");
 
-      <div className="cc-anim relative" style={{ animationName: "cc-strip" }}>
-        {/* Source video: a filmstrip of talking-head frames over a waveform. */}
-        <div className="relative rounded-xl bg-white/5 p-1.5 ring-1 ring-white/10">
-          <div className="relative flex h-16 gap-1 overflow-hidden rounded-lg">
-            {Array.from({ length: FRAMES }, (_, i) => (
-              <div
-                key={i}
-                className="relative flex-1 overflow-hidden rounded-[5px]"
-                style={{ background: `linear-gradient(160deg, oklch(0.36 0.05 ${i % 2 ? 250 : 45}), oklch(0.2 0.02 ${i % 2 ? 250 : 45}))` }}
-              >
-                <span className="absolute bottom-0 left-1/2 h-5 w-9 -translate-x-1/2 rounded-t-full bg-white/15" />
-                <span className="absolute bottom-[1.15rem] left-1/2 size-3.5 -translate-x-1/2 rounded-full bg-white/20" />
-              </div>
+  useEffect(() => {
+    if (reduceMotion) return;
+    const timers = (Object.keys(PHASES) as Phase[]).map((name) =>
+      window.setTimeout(() => {
+        if (name === "restart") {
+          setPhase("scan");
+          setCycle((value) => value + 1);
+        } else {
+          setPhase(name);
+        }
+      }, PHASES[name]),
+    );
+    return () => timers.forEach(window.clearTimeout);
+  }, [cycle, reduceMotion]);
+
+  const shown: Phase = reduceMotion ? "clips" : phase;
+  const at = (name: Phase) => PHASES[shown] >= PHASES[name];
+  const label = at("clips") ? "3 clips · captioned · ready to post" : "podcast-episode-42.mp4 · 1:24:10";
+
+  return (
+    <motion.svg
+      key={cycle}
+      viewBox="0 0 480 330"
+      className="mx-auto w-full max-w-[36rem] select-none overflow-visible"
+      aria-hidden
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      animate={{ opacity: shown === "fade" ? 0 : 1 }}
+      transition={{ duration: 0.5 }}
+    >
+      {/* The source video: a long strip of frames over a waveform. */}
+      <rect {...STRIP} rx={10} strokeOpacity={0.55} strokeWidth={1.5} />
+      {Array.from({ length: 7 }, (_, i) => (
+        <line key={i} x1={STRIP.x + (i + 1) * 55} x2={STRIP.x + (i + 1) * 55} y1={STRIP.y} y2={STRIP.y + STRIP.height} strokeOpacity={0.12} />
+      ))}
+      <path d={WAVE} strokeOpacity={0.4} strokeWidth={2} />
+
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.text
+          key={label}
+          x={STRIP.x}
+          y={STRIP.y + STRIP.height + 26}
+          fill="currentColor"
+          stroke="none"
+          fontSize={11}
+          className="font-mono"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.55 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25 }}
+        >
+          {label}
+        </motion.text>
+      </AnimatePresence>
+
+      {!reduceMotion && shown === "scan" && (
+        <motion.line
+          x1={STRIP.x}
+          x2={STRIP.x}
+          y1={STRIP.y - 8}
+          y2={STRIP.y + STRIP.height + 8}
+          strokeWidth={2}
+          initial={{ x: 0 }}
+          animate={{ x: STRIP.width }}
+          transition={{ duration: SCAN_MS / 1000, ease: "linear" }}
+        />
+      )}
+
+      {SEGMENTS.map((segment, index) => {
+        const lifted = at("clips");
+        return (
+          <g key={index}>
+            {/* The marked moment; once lifted out it leaves a dashed hole. */}
+            <motion.rect
+              x={segment.from}
+              y={STRIP.y}
+              width={segment.to - segment.from}
+              height={STRIP.height}
+              rx={6}
+              strokeWidth={1.5}
+              initial={{ opacity: 0 }}
+              animate={{
+                opacity: at("mark") ? 1 : 0,
+                fillOpacity: lifted ? 0 : 0.14,
+                strokeOpacity: lifted ? 0.35 : 1,
+              }}
+              fill="currentColor"
+              strokeDasharray={lifted ? "4 5" : undefined}
+              transition={{ duration: 0.4, delay: lifted ? 0 : index * 0.15 }}
+            />
+
+            {[segment.from, segment.to].map((x) => (
+              <motion.line
+                key={x}
+                x1={x}
+                x2={x}
+                y1={STRIP.y - 10}
+                y2={STRIP.y + STRIP.height + 10}
+                strokeWidth={1.5}
+                strokeDasharray="3 4"
+                initial={{ opacity: 0, scaleY: 0 }}
+                animate={at("cut") ? { opacity: 0.8, scaleY: 1 } : { opacity: 0, scaleY: 0 }}
+                style={{ originY: "0px" }}
+                transition={{ duration: 0.2, delay: reduceMotion ? 0 : cutDelay(x) }}
+              />
             ))}
 
-          </div>
-
-          <div className="mt-1.5 flex h-7 items-center gap-[2px] px-0.5">
-            {Array.from({ length: BARS }, (_, i) => {
-              const at = i / BARS;
-              const inMoment = MOMENTS.some((moment) => at >= moment.start && at < moment.end);
-              return (
-                <span
-                  key={i}
-                  className={inMoment ? "flex-1 rounded-full bg-brand/80" : "flex-1 rounded-full bg-white/25"}
-                  style={{ height: `${waveHeight(i)}%` }}
+            {/* The clip the moment becomes. */}
+            {lifted && (
+              <g>
+                <motion.rect
+                  rx={10}
+                  strokeWidth={1.5}
+                  initial={{ x: segment.from, y: STRIP.y, width: segment.to - segment.from, height: STRIP.height }}
+                  animate={{ x: CLIP_X[index], y: CLIP.y, width: CLIP.width, height: CLIP.height }}
+                  transition={reduceMotion ? { duration: 0 } : { type: "spring", stiffness: 140, damping: 18, delay: index * 0.18 }}
                 />
-              );
-            })}
-          </div>
+                <motion.g
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: reduceMotion ? 0 : 0.55 + index * 0.18 }}
+                >
+                  <ClipContents x={CLIP_X[index]} />
+                </motion.g>
+              </g>
+            )}
+          </g>
+        );
+      })}
 
-          {/* Each moment lights up, and once cut, lifts out and leaves a hole behind. */}
-          {MOMENTS.map((moment, index) => {
-            const box = { left: `calc(0.375rem + (100% - 0.75rem) * ${moment.start})`, width: `calc((100% - 0.75rem) * ${moment.end - moment.start})` };
-            return (
-              <div key={moment.title}>
-                <div className="cc-anim absolute inset-y-1.5 rounded-md border border-dashed border-white/25 bg-stone-950" style={{ ...box, animationName: `cc-gap-${index}` }} />
-                <div className="cc-anim absolute inset-y-1.5 rounded-md bg-brand/30 ring-2 ring-inset ring-brand" style={{ ...box, animationName: `cc-moment-${index}`, opacity: 0 }} />
-              </div>
-            );
-          })}
+      {!reduceMotion && shown === "cut" && (
+        <motion.g initial={{ x: STRIP.x }} animate={{ x: STRIP.x + STRIP.width }} transition={{ duration: CUT_MS / 1000, ease: "linear" }}>
+          <Scissors />
+        </motion.g>
+      )}
+    </motion.svg>
+  );
+}
 
-          {/* Cut marks appear the moment the scissors pass each edge. */}
-          {MOMENTS.flatMap((moment, index) =>
-            [moment.start, moment.end].map((edge, edgeIndex) => (
-              <span
-                key={`${index}-${edgeIndex}`}
-                className="cc-anim absolute -inset-y-2 w-0 origin-top border-l-2 border-dashed border-white"
-                style={{ left: `calc(0.375rem + (100% - 0.75rem) * ${edge})`, animationName: `cc-cut-${index}-${edgeIndex}` }}
-              />
-            )),
-          )}
+/** A speaker silhouette, a hook title, a score dot and captions inside a clip at `x`. */
+function ClipContents({ x }: { x: number }) {
+  const cx = x + CLIP.width / 2;
+  const top = CLIP.y;
+  return (
+    <g strokeWidth={1.5}>
+      <line x1={x + 12} x2={x + CLIP.width - 12} y1={top + 14} y2={top + 14} strokeOpacity={0.5} />
+      <line x1={x + 20} x2={x + CLIP.width - 20} y1={top + 21} y2={top + 21} strokeOpacity={0.5} />
+      <circle cx={x + CLIP.width - 13} cy={top + 36} r={6} strokeOpacity={0.7} />
+      <circle cx={cx} cy={top + 74} r={11} strokeOpacity={0.6} />
+      <path d={`M${cx - 24} ${top + CLIP.height} C${cx - 24} ${top + 96} ${cx + 24} ${top + 96} ${cx + 24} ${top + CLIP.height}`} strokeOpacity={0.6} />
+      <line x1={x + 14} x2={x + CLIP.width - 14} y1={top + 106} y2={top + 106} strokeWidth={3} />
+      <line x1={x + 22} x2={x + CLIP.width - 22} y1={top + 114} y2={top + 114} strokeWidth={3} />
+    </g>
+  );
+}
 
-          <span className="cc-anim absolute -inset-y-1 w-0.5 rounded-full bg-white shadow-[0_0_12px_white]" style={{ animationName: "cc-playhead", opacity: 0 }} />
-
-          <div className="pointer-events-none absolute -top-5 left-1.5 right-1.5">
-            <div className="cc-anim" style={{ animationName: "cc-scissors", opacity: 0 }}>
-              <span className="-ml-[1.125rem] flex size-9 items-center justify-center rounded-full bg-white text-stone-950 shadow-lg shadow-black/40">
-                <Scissors className="size-4 rotate-90" />
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative mt-3 h-4 font-mono text-[11px] text-white/50">
-          <span className="cc-anim absolute inset-0" style={{ animationName: "cc-source-label", opacity: 0 }}>podcast-episode-42.mp4 · 1:24:10</span>
-          <span className="cc-anim absolute inset-0 text-white/80" style={{ animationName: "cc-result-label" }}>3 clips found · captioned · ready to post</span>
-        </div>
-      </div>
-
-      <div className="mt-8 flex items-start justify-center gap-4">
-        {MOMENTS.map((moment, index) => (
-          <div
-            key={moment.title}
-            className="cc-anim relative aspect-[9/16] w-32 overflow-hidden rounded-2xl shadow-2xl ring-1 ring-white/10 xl:w-36"
-            style={{
-              animationName: `cc-clip-${index}`,
-              transform: `rotate(${moment.rotate}deg)`,
-              background: `linear-gradient(160deg, oklch(0.55 0.14 ${moment.hue}), oklch(0.2 0.04 ${moment.hue}))`,
-              marginTop: moment.rotate === 0 ? 0 : "1.25rem",
-            }}
-          >
-            <span className="absolute bottom-0 left-1/2 h-16 w-24 -translate-x-1/2 rounded-t-full bg-black/20" />
-            <span className="absolute bottom-[3.6rem] left-1/2 size-11 -translate-x-1/2 rounded-full bg-black/20" />
-            <div className="absolute inset-x-2.5 top-3 text-center text-[10px] font-bold leading-tight text-white">{moment.title}</div>
-            <div className="absolute right-1.5 top-12 rounded-full bg-black/50 backdrop-blur"><ScoreRing score={moment.score} size={28} /></div>
-            <div className="absolute inset-x-2 bottom-[24%] text-center text-[11px] font-extrabold uppercase leading-tight text-yellow-300 [text-shadow:0_2px_6px_rgb(0_0_0/0.7)]">{moment.caption}</div>
-          </div>
-        ))}
-      </div>
-    </div>
+/** Scissors pointing down at the strip, blades snipping around the pivot as they travel. */
+function Scissors() {
+  const blade = (side: 1 | -1) => (
+    <g>
+      {/* SMIL rotates around the local origin, which is the pivot screw. */}
+      <animateTransform attributeName="transform" type="rotate" values={`0;${side * 12};0`} dur="0.4s" repeatCount="indefinite" />
+      <circle cx={side * -9} cy={-22} r={6} strokeWidth={1.8} />
+      <line x1={side * -6} y1={-17} x2={side * 5} y2={16} strokeWidth={1.8} />
+    </g>
+  );
+  return (
+    <g transform={`translate(0 ${STRIP.y - 4})`}>
+      {blade(1)}
+      {blade(-1)}
+      <circle r={1.8} fill="currentColor" />
+    </g>
   );
 }

@@ -16,7 +16,7 @@ export function AuthFrame({ children, footer }: { children: React.ReactNode; foo
         </div>
       </div>
       <div className="relative hidden overflow-hidden bg-stone-950 lg:block">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,oklch(0.45_0.12_40/0.55),transparent_60%),radial-gradient(ellipse_at_80%_90%,oklch(0.4_0.1_260/0.45),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,rgb(255_255_255/0.07),transparent_60%)]" />
         <div className="relative flex h-full flex-col justify-between p-12 text-white">
           <p className="max-w-md font-display text-3xl font-bold leading-tight tracking-tight">
             One long video in.<br /><span className="text-white/60">A week of clips out.</span>
