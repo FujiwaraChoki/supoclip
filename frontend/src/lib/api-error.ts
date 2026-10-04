@@ -1,7 +1,28 @@
 export type ApiErrorInfo = {
   message: string;
   traceId: string | null;
+  /** Machine-readable `detail.code` from the backend, e.g. SUBSCRIPTION_REQUIRED. */
+  code?: string | null;
+  /** The full `detail` object, for codes that carry extra fields. */
+  detail?: Record<string, unknown> | null;
 };
+
+/** Thrown by request helpers so callers can react to specific backend codes. */
+export class ApiRequestError extends Error {
+  readonly code: string | null;
+  readonly detail: Record<string, unknown> | null;
+
+  constructor(info: ApiErrorInfo) {
+    super(formatSupportMessage(info));
+    this.name = "ApiRequestError";
+    this.code = info.code ?? null;
+    this.detail = info.detail ?? null;
+  }
+}
+
+export function isUpgradeErrorCode(code: string | null | undefined): boolean {
+  return code === "SUBSCRIPTION_REQUIRED" || code === "VIDEO_TOO_LONG";
+}
 
 type ErrorPayload = {
   detail?: unknown;
@@ -54,9 +75,16 @@ export async function parseApiError(
       ? payload.trace_id
       : null;
 
+  const detail =
+    payload.detail && typeof payload.detail === "object"
+      ? (payload.detail as Record<string, unknown>)
+      : null;
+
   return {
     message: normalizeMessage(payload, fallbackMessage),
     traceId: traceHeader || traceFromBody,
+    code: typeof detail?.code === "string" ? detail.code : null,
+    detail,
   };
 }
 

@@ -31,6 +31,7 @@ test("regular user can browse seeded tasks and save preferences", async ({ page 
   await expect(preview).not.toBeVisible();
 
   await page.goto("/settings");
+  await page.getByRole("switch", { name: /completion emails/i }).click();
   await page.getByRole("button", { name: /save preferences/i }).click();
   await expect(page.getByText(/preferences saved/i)).toBeVisible();
 

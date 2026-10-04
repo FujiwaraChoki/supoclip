@@ -1,4 +1,4 @@
-import { formatSupportMessage, parseApiError } from "@/lib/api-error";
+import { ApiRequestError, parseApiError } from "@/lib/api-error";
 
 export const EXPORT_PRESETS = [
   { id: "tiktok", label: "TikTok", width: 1080, height: 1920, bitrate: 10_000_000 },
@@ -20,7 +20,7 @@ export async function requestAction(url: string, method: string, body?: unknown)
     }),
   });
   if (!response.ok) {
-    throw new Error(formatSupportMessage(await parseApiError(response, "Could not save changes. Please try again.")));
+    throw new ApiRequestError(await parseApiError(response, "Could not save changes. Please try again."));
   }
   return response;
 }

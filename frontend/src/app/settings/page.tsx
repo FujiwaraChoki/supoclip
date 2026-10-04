@@ -13,7 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useSession } from "@/lib/auth-client";
-import { formatBillingPlanName, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
+import { formatBillingPlanName, formatMinutes, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
+import { UpgradeNudge, getUpgradeState } from "@/components/billing/upgrade-prompt";
+import { startUpgrade } from "@/lib/start-upgrade";
+import { toast } from "sonner";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
 import { AlertCircle, Bot, Check, ChevronRight, CreditCard, Loader2, Mail, Type } from "lucide-react";
@@ -32,6 +35,7 @@ interface BillingSummary {
   subscription_status: string;
   subscription_provider: string | null;
   cancel_at?: string | null;
+  period_end?: string | null;
   usage_count: number;
   usage_limit: number | null;
   remaining: number | null;
@@ -54,6 +58,33 @@ export default function SettingsPage() {
   const { data: session, isPending } = useSession();
 
   const paidPlans = getPublicBillingPlans();
+  const upgradeState = getUpgradeState(billingSummary);
+  const currentPaidPlan = paidPlans.find((plan) => plan.id === billingSummary?.plan);
+
+  // Stripe sends people back here after checkout or a plan change.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get("billing");
+    if (outcome === "success" || outcome === "upgraded") {
+      toast.success(outcome === "upgraded" ? "Your plan has been upgraded. Enjoy the extra room!" : "You're all set. Time to make some clips!");
+    }
+    if (outcome) {
+      params.delete("billing");
+      const query = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+    }
+  }, []);
+
+  const handleUpgradeToNextPlan = async () => {
+    if (!upgradeState?.nextPlan) return;
+    setIsBillingActionLoading(true);
+    try {
+      await startUpgrade(upgradeState.nextPlan.id, "settings");
+    } catch (upgradeError) {
+      toast.error(upgradeError instanceof Error ? upgradeError.message : "We couldn't open checkout. Please try again.");
+      setIsBillingActionLoading(false);
+    }
+  };
 
   // Load available fonts from backend and inject them into the page
   useEffect(() => {
@@ -250,10 +281,12 @@ export default function SettingsPage() {
   }
 
   const dirty = savedSnapshot !== null && savedSnapshot !== JSON.stringify([fontFamily, fontSize, fontColor, completionEmails]);
+  // The save bar only appears once there's something to save (and briefly to confirm it).
+  const showSaveBar = dirty || isLoading || success;
   const usagePct = billingSummary?.usage_limit ? Math.min(100, (billingSummary.usage_count / billingSummary.usage_limit) * 100) : 0;
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 pb-32 pt-8 sm:px-8 md:pt-10">
+    <main className={cn("mx-auto w-full max-w-3xl px-4 pt-8 sm:px-8 md:pt-10", showSaveBar ? "pb-32" : "pb-16")}>
       <h1 className="font-display text-3xl font-bold tracking-tight">Settings</h1>
       <p className="mt-1 text-sm text-muted-foreground">Defaults for new generations, notifications and your plan.</p>
 
@@ -344,7 +377,7 @@ export default function SettingsPage() {
         </Section>
 
         {billingSummary?.monetization_enabled && (
-          <Section icon={<CreditCard className="size-4" />} title="Plan & billing" description={isPaidBillingPlan(billingSummary.plan) ? "Manage your subscription and invoices." : "Video processing requires a paid plan."}>
+          <Section id="plan" icon={<CreditCard className="size-4" />} title="Plan & billing" description={isPaidBillingPlan(billingSummary.plan) ? "Manage your subscription and invoices." : "Pick the plan that fits how much you clip."}>
             <div className="space-y-4">
               <div className="rounded-xl bg-muted/50 p-4">
                 <div className="flex items-baseline justify-between gap-3">
@@ -360,11 +393,13 @@ export default function SettingsPage() {
                   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-brand" style={{ width: `${usagePct}%` }} /></div>
                 )}
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {billingSummary.upgrade_required
-                    ? "Current plan cannot create generations."
+                  {!upgradeState?.isPaid
+                    ? "No videos included yet. Choose a plan below to start clipping."
                     : billingSummary.usage_limit === null
-                    ? `${billingSummary.usage_count} generations in this billing period`
-                    : `${billingSummary.usage_count}/${billingSummary.usage_limit} generations used this period`}
+                    ? `${billingSummary.usage_count} videos clipped this period`
+                    : upgradeState.atLimit
+                    ? `All ${billingSummary.usage_limit} videos used${upgradeState.resetsOn ? `, refreshes on ${upgradeState.resetsOn}` : " this period"}`
+                    : `${billingSummary.usage_count} of ${billingSummary.usage_limit} videos used${upgradeState.resetsOn ? ` · refreshes on ${upgradeState.resetsOn}` : " this period"}`}
                 </p>
               </div>
 
@@ -379,9 +414,24 @@ export default function SettingsPage() {
                 billingSummary.subscription_provider === "apple" ? (
                   <p className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">Managed through the App Store</p>
                 ) : (
-                  <Button type="button" variant="outline" onClick={() => handleBillingAction()} disabled={isBillingActionLoading}>
-                    {isBillingActionLoading ? "Loading..." : "Manage Billing"}
-                  </Button>
+                  <div className="space-y-3">
+                    {upgradeState?.nextPlan && (
+                      <UpgradeNudge
+                        title={
+                          currentPaidPlan
+                            ? `Get ${Math.max(2, Math.round(upgradeState.nextPlan.generationLimit / currentPaidPlan.generationLimit))}× more videos with ${upgradeState.nextPlan.name}`
+                            : `Do more with ${upgradeState.nextPlan.name}`
+                        }
+                        description={`$${upgradeState.nextPlan.priceMonthly}/mo · ${upgradeState.nextPlan.generationLimit} videos · YouTube up to ${formatMinutes(upgradeState.nextPlan.youtubeMaxMinutes)}`}
+                        action="Upgrade"
+                        onAction={handleUpgradeToNextPlan}
+                        loading={isBillingActionLoading}
+                      />
+                    )}
+                    <Button type="button" variant="outline" onClick={() => handleBillingAction()} disabled={isBillingActionLoading}>
+                      {isBillingActionLoading ? "Loading..." : "Manage Billing"}
+                    </Button>
+                  </div>
                 )
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -396,8 +446,21 @@ export default function SettingsPage() {
                         plan.highlighted && "border-foreground ring-1 ring-foreground",
                       )}
                     >
-                      <span className="block text-sm font-semibold">{isBillingActionLoading ? "Loading..." : plan.cta}</span>
-                      <span className="mt-1 block text-xs text-muted-foreground">${plan.priceMonthly}/mo · {plan.generationLimit} generations</span>
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold">{plan.name}</span>
+                        {plan.highlighted && <span className="text-xs text-muted-foreground">Most popular</span>}
+                      </span>
+                      <span className="mt-1 block text-2xl font-bold tracking-tight">${plan.priceMonthly}<span className="text-xs font-normal text-muted-foreground">/mo</span></span>
+                      <span className="mt-3 block space-y-1.5">
+                        {plan.highlights.map((highlight) => (
+                          <span key={highlight} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                            <Check className="mt-0.5 size-3 shrink-0" />{highlight}
+                          </span>
+                        ))}
+                      </span>
+                      <span className={cn("mt-4 flex h-9 items-center justify-center rounded-lg text-sm font-medium", plan.highlighted ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                        {isBillingActionLoading ? "Opening checkout…" : `Choose ${plan.name}`}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -431,25 +494,26 @@ export default function SettingsPage() {
         )}
       </div>
 
-      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-4 pb-4 pointer-events-none md:bottom-0 md:pb-6 md:pl-64">
-        <div className="pointer-events-auto flex w-full max-w-3xl items-center justify-between gap-4 rounded-2xl border bg-background/95 px-4 py-3 shadow-lg backdrop-blur max-md:mr-14">
-          <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-            {success ? <><Check className="size-4 text-emerald-600" />Preferences saved successfully!</>
-              : dirty ? <><span className="size-2 rounded-full bg-brand" />Unsaved changes</>
-              : "All changes saved"}
-          </p>
-          <Button onClick={handleSavePreferences} disabled={isLoading}>
-            {isLoading ? <><Loader2 className="size-4 animate-spin" />Saving...</> : "Save Preferences"}
-          </Button>
+      {showSaveBar && (
+        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-4 pb-4 pointer-events-none md:bottom-0 md:pb-6 md:pl-64">
+          <div className="pointer-events-auto flex w-full max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-200 items-center justify-between gap-4 rounded-2xl border bg-background/95 px-4 py-3 shadow-lg backdrop-blur max-md:mr-14">
+            <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+              {success ? <><Check className="size-4 text-emerald-600" />Preferences saved successfully!</>
+                : <><span className="size-2 rounded-full bg-brand" />Unsaved changes</>}
+            </p>
+            <Button onClick={handleSavePreferences} disabled={isLoading}>
+              {isLoading ? <><Loader2 className="size-4 animate-spin" />Saving...</> : "Save Preferences"}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }
 
-function Section({ icon, title, description, children }: { icon: React.ReactNode; title: string; description: string; children: React.ReactNode }) {
+function Section({ id, icon, title, description, children }: { id?: string; icon: React.ReactNode; title: string; description: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border bg-background">
+    <section id={id} className="scroll-mt-6 rounded-2xl border bg-background">
       <div className="flex items-start gap-3 border-b px-5 py-4">
         <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">{icon}</span>
         <div>

@@ -86,6 +86,10 @@ test("signed-in settings waits for preferences before showing the form", async (
   await expect(page.getByRole("button", { name: /save preferences/i })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Sign In Required" })).toHaveCount(0);
   finish();
+  await expect(page.getByRole("heading", { name: "Caption defaults" })).toBeVisible();
+  // Nothing to save until a preference changes.
+  await expect(page.getByRole("button", { name: /save preferences/i })).toHaveCount(0);
+  await page.getByRole("switch").first().click();
   await expect(page.getByRole("button", { name: /save preferences/i })).toBeVisible();
 });
 

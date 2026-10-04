@@ -5,12 +5,13 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Bot, CornerDownLeft, Film, LogOut, Plus, Search, Settings, Shield, Sparkles,
+  ArrowRight, Bot, CornerDownLeft, Film, LogOut, Plus, Search, Settings, Shield, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { signOut, useSession } from "@/lib/auth-client";
 import { useBillingSummary } from "@/hooks/use-billing-summary";
 import { formatBillingPlanName } from "@/lib/billing-plans";
+import { getUpgradeState } from "@/components/billing/upgrade-prompt";
 import { fetchGenerations, timeAgo, type GenerationSummary } from "@/lib/generations";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -169,14 +170,31 @@ function SidebarLink({ href, label, active, compact, shortcut, className, childr
 function UsageCard({ billing }: { billing: NonNullable<ReturnType<typeof useBillingSummary>[0]> }) {
   const limit = billing.usage_limit;
   const pct = limit ? Math.min(100, (billing.usage_count / limit) * 100) : 0;
+  const upgrade = getUpgradeState(billing);
+  const nudge = !upgrade?.isPaid
+    ? "Pick a plan to start clipping"
+    : upgrade.nextPlan && (upgrade.atLimit || upgrade.nearLimit)
+    ? `Get more with ${upgrade.nextPlan.name}`
+    : null;
   return (
-    <Link href="/settings" className="block rounded-xl border border-sidebar-border bg-background p-3 text-xs transition-colors hover:border-foreground/20">
+    <Link href="/settings#plan" className="group block rounded-xl border border-sidebar-border bg-background p-3 text-xs transition-colors hover:border-foreground/20">
       <div className="flex items-center justify-between">
         <span className="font-semibold">{formatBillingPlanName(billing.plan)}</span>
         <span className="text-muted-foreground tabular-nums">{billing.usage_count}{limit ? ` / ${limit}` : ""}</span>
       </div>
-      {limit ? <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} /></div> : null}
-      <p className="mt-2 text-muted-foreground">{billing.upgrade_required ? "Choose a plan to keep clipping" : "generations used this period"}</p>
+      {limit ? (
+        <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
+        </div>
+      ) : null}
+      {nudge ? (
+        <p className="mt-2 flex items-center gap-1 font-medium text-foreground">
+          {nudge}
+          <ArrowRight className="ml-auto size-3 transition-transform group-hover:translate-x-0.5" />
+        </p>
+      ) : (
+        <p className="mt-2 text-muted-foreground">{limit && upgrade?.remaining !== null ? `${upgrade?.remaining} left this period` : "videos this period"}</p>
+      )}
     </Link>
   );
 }

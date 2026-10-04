@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { monetizationEnabled } from "@/lib/monetization";
 import { getStripeClient } from "@/lib/stripe";
 import { getServerBillingPlan } from "@/server/billing-plans";
+import type Stripe from "stripe";
 
 const APP_STORE_MANAGED_MESSAGE = "Your subscription is managed through the App Store";
 const PAID_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
     where: { id: session.user.id },
     select: {
       stripe_customer_id: true,
+      stripe_subscription_id: true,
       subscription_provider: true,
       subscription_status: true,
     },
@@ -67,6 +69,20 @@ export async function POST(request: Request) {
 
   const stripe = getStripeClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3107";
+
+  // Existing subscribers change plans in place; a second Checkout would bill them twice.
+  if (
+    user?.stripe_customer_id &&
+    user.stripe_subscription_id &&
+    PAID_SUBSCRIPTION_STATUSES.has(user.subscription_status)
+  ) {
+    return createPlanChangeSession(stripe, {
+      customerId: user.stripe_customer_id,
+      subscriptionId: user.stripe_subscription_id,
+      priceId,
+      appUrl,
+    });
+  }
 
   let customerId = user?.stripe_customer_id || null;
   if (!customerId) {
@@ -100,4 +116,52 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ url: checkoutSession.url });
+}
+
+async function createPlanChangeSession(
+  stripe: Stripe,
+  {
+    customerId,
+    subscriptionId,
+    priceId,
+    appUrl,
+  }: { customerId: string; subscriptionId: string; priceId: string; appUrl: string }
+) {
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  const item = subscription.items.data[0];
+  if (!item) {
+    return NextResponse.json({ error: "Subscription has no items" }, { status: 500 });
+  }
+  if (item.price.id === priceId) {
+    return NextResponse.json({ error: "You're already on this plan" }, { status: 409 });
+  }
+
+  const returnUrl = `${appUrl}/settings`;
+  try {
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: returnUrl,
+      flow_data: {
+        type: "subscription_update_confirm",
+        subscription_update_confirm: {
+          subscription: subscriptionId,
+          items: [{ id: item.id, price: priceId, quantity: 1 }],
+        },
+        after_completion: {
+          type: "redirect",
+          redirect: { return_url: `${appUrl}/settings?billing=upgraded` },
+        },
+      },
+    });
+    return NextResponse.json({ url: portalSession.url });
+  } catch (error) {
+    // Portal configs without plan switching enabled reject the flow; the plain
+    // portal still lets the customer manage their subscription.
+    console.error("Failed to create plan change portal session", error);
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: returnUrl,
+    });
+    return NextResponse.json({ url: portalSession.url });
+  }
 }
