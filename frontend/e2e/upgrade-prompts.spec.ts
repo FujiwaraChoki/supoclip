@@ -72,7 +72,12 @@ test("settings shows Pro users the step up to Scale", async ({ page }) => {
   await mockApp(page, { ...summary, usage_count: 46, remaining: 4 });
   await page.goto("/settings#plan");
   await expect(page.getByText("Get 6× more videos with Scale")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save Preferences" })).toHaveCount(0);
   await page.locator("#plan").screenshot({ path: "test-results/upgrade-settings-pro.png" });
+
+  await page.getByRole("switch").first().click();
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save Preferences" })).toBeVisible();
 });
 
 test("resuming past the limit opens the upgrade dialog", async ({ page }) => {
@@ -87,4 +92,21 @@ test("resuming past the limit opens the upgrade dialog", async ({ page }) => {
   await page.goto("/tasks/one");
   await page.getByRole("button", { name: "Resume" }).click();
   await expect(page.getByRole("dialog").getByText("You've clipped all 50 videos on Pro")).toBeVisible();
+});
+
+test("locked custom fonts open a font-specific prompt", async ({ page }) => {
+  await mockApp(page, free);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Default" }).click();
+  await page.getByRole("button", { name: /Use your brand fonts/ }).click();
+  await expect(page.getByRole("dialog").getByText("Captions in your brand's own font")).toBeVisible();
+  await page.screenshot({ path: "test-results/upgrade-dialog-fonts.png", animations: "disabled" });
+});
+
+test("sign-up shows the long-video-to-clips animation", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.route("**/api/auth/get-session**", (route) => route.fulfill({ json: null }));
+  await page.goto("/sign-up");
+  await expect(page.getByText("podcast-episode-42.mp4", { exact: false })).toBeAttached();
+  await page.screenshot({ path: "test-results/auth-sign-up.png", animations: "disabled" });
 });

@@ -179,7 +179,7 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false} className="max-w-3xl gap-0 overflow-hidden p-0 sm:grid-cols-[1.1fr_1fr]">
-        <DialogClose className="absolute right-4 top-4 z-10 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted sm:text-brand-foreground/80 sm:hover:bg-white/15 sm:hover:text-brand-foreground">
+        <DialogClose className="absolute right-4 top-4 z-10 rounded-full p-1.5 text-muted-foreground transition-colors hover:bg-muted sm:text-white/60 sm:hover:bg-white/10 sm:hover:text-white">
           <X className="size-4" />
           <span className="sr-only">Close</span>
         </DialogClose>
@@ -231,7 +231,7 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
           )}
         </div>
 
-        <PlanShowcase plan={target ?? currentPlan} />
+        <PlanShowcase reason={reason} plan={target ?? currentPlan} currentPlan={currentPlan} />
       </DialogContent>
     </Dialog>
   );
@@ -299,50 +299,177 @@ function PlanOption({
   );
 }
 
-/** The illustrated right-hand panel: a stack of clips plus what the plan includes. */
-function PlanShowcase({ plan }: { plan: PublicBillingPlan | undefined }) {
+const VISUAL_CSS = `
+@keyframes uv-pop { from { opacity: 0; transform: scale(0.3) } to { opacity: 1; transform: none } }
+@keyframes uv-grow { from { width: 0 } }
+.uv-pop { animation: uv-pop 360ms cubic-bezier(.2,.9,.3,1.3) both }
+.uv-grow { animation: uv-grow 1.4s cubic-bezier(.3,.7,.2,1) 200ms both }
+@media (prefers-reduced-motion: reduce) { .uv-pop, .uv-grow { animation: none } }
+`;
+
+/** The right-hand panel: a visual tailored to why the prompt opened, plus what the plan includes. */
+function PlanShowcase({
+  reason,
+  plan,
+  currentPlan,
+}: {
+  reason: UpgradeReason;
+  plan: PublicBillingPlan | undefined;
+  currentPlan: PublicBillingPlan | undefined;
+}) {
   return (
-    <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-brand via-brand/85 to-[oklch(0.45_0.17_25)] p-8 text-brand-foreground sm:flex">
-      <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 size-64 rounded-full bg-white/15 blur-3xl" />
-      <div aria-hidden className="relative mx-auto flex h-48 items-end justify-center">
-        {[-10, 0, 10].map((rotate, index) => (
-          <div
-            key={rotate}
-            className={cn(
-              "relative h-40 w-[5.6rem] rounded-2xl border border-white/30 bg-white/15 shadow-xl backdrop-blur-sm",
-              index === 0 && "-mr-6 translate-y-2",
-              index === 2 && "-ml-6 translate-y-2",
-              index === 1 && "z-10 h-44 w-24 bg-white/25",
-            )}
-            style={{ transform: `rotate(${rotate}deg)` }}
-          >
-            <div className="absolute inset-x-2 top-2 h-1.5 rounded-full bg-white/50" />
-            <div className="absolute inset-x-3 bottom-5 space-y-1">
-              <div className="h-1.5 rounded-full bg-white/80" />
-              <div className="mx-auto h-1.5 w-2/3 rounded-full bg-white/60" />
-            </div>
-            {index === 1 && (
-              <span className="absolute -right-3 top-6 rounded-full bg-background px-2 py-0.5 text-[10px] font-bold text-foreground shadow">92</span>
-            )}
-          </div>
-        ))}
+    <div className="relative hidden flex-col overflow-hidden bg-stone-950 p-8 text-white sm:flex">
+      <style>{VISUAL_CSS}</style>
+      <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_20%_0%,oklch(0.45_0.12_40/0.5),transparent_60%),radial-gradient(ellipse_at_90%_100%,oklch(0.4_0.1_260/0.35),transparent_55%)]" />
+
+      <div className="relative flex flex-1 flex-col justify-center" aria-hidden>
+        {plan &&
+          (reason.kind === "video_too_long" ? (
+            <LengthRuler plan={plan} currentPlan={currentPlan} durationSeconds={reason.durationSeconds} maxSeconds={reason.maxSeconds} />
+          ) : reason.kind === "custom_fonts" ? (
+            <FontSpecimen />
+          ) : (
+            <CapacityGrid key={plan.id} plan={plan} currentPlan={currentPlan} />
+          ))}
       </div>
 
       {plan && (
-        <div className="relative mt-8">
-          <p className="text-xs font-semibold uppercase tracking-wider text-brand-foreground/70">{plan.name} includes</p>
-          <ul className="mt-3 space-y-2.5">
-            {plan.highlights.map((highlight) => (
-              <li key={highlight} className="flex items-start gap-2 text-sm">
-                <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-white/25">
-                  <Check className="size-2.5" strokeWidth={3} />
-                </span>
-                {highlight}
-              </li>
-            ))}
-          </ul>
+        <ul className="relative mt-8 space-y-2 border-t border-white/10 pt-5">
+          {plan.highlights.map((highlight) => (
+            <li key={highlight} className="flex items-start gap-2 text-sm text-white/80">
+              <Check className="mt-0.5 size-3.5 shrink-0 text-brand" strokeWidth={3} />
+              {highlight}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** One tile per video: what you have today in white, what the plan adds popping in. */
+function CapacityGrid({ plan, currentPlan }: { plan: PublicBillingPlan; currentPlan: PublicBillingPlan | undefined }) {
+  const total = plan.generationLimit;
+  const existing = Math.min(currentPlan?.generationLimit ?? 0, total);
+  // Small plans get clip-shaped tiles; big ones a denser grid that still fits the panel.
+  const columns = total <= 60 ? 10 : 25;
+  const step = Math.min(8, 1200 / Math.max(1, total - existing));
+  return (
+    <div>
+      <p className="font-display text-5xl font-bold tracking-tight tabular-nums">{total}</p>
+      <p className="mt-1 text-sm text-white/60">
+        {existing ? `videos a month, up from ${existing} on ${currentPlan?.name}` : `videos a month with ${plan.name}`}
+      </p>
+      <div className={cn("mt-6 grid", total <= 60 ? "max-w-[15rem] gap-1" : "gap-[3px]")} style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+        {Array.from({ length: total }, (_, i) => (
+          <span
+            key={i}
+            className={cn(
+              total <= 60 ? "aspect-[9/16] rounded-[4px]" : "aspect-[3/4] rounded-[2px]",
+              i < existing ? "bg-white/25" : "uv-pop bg-gradient-to-b from-brand to-brand/70",
+            )}
+            style={i < existing ? undefined : { animationDelay: `${Math.round((i - existing) * step)}ms` }}
+          />
+        ))}
+      </div>
+      {existing > 0 && (
+        <div className="mt-3 flex gap-4 text-[11px] text-white/50">
+          <span className="flex items-center gap-1.5"><span className="size-2 rounded-[2px] bg-white/30" />{currentPlan?.name} today</span>
+          <span className="flex items-center gap-1.5"><span className="size-2 rounded-[2px] bg-brand" />Added with {plan.name}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+/** The video's length on a ruler that runs to the bigger plan's limit, with today's limit marked. */
+function LengthRuler({
+  plan,
+  currentPlan,
+  durationSeconds,
+  maxSeconds,
+}: {
+  plan: PublicBillingPlan;
+  currentPlan: PublicBillingPlan | undefined;
+  durationSeconds: number;
+  maxSeconds: number;
+}) {
+  const span = Math.max(plan.youtubeMaxMinutes * 60, durationSeconds);
+  const at = (seconds: number) => `${Math.min(100, (seconds / span) * 100)}%`;
+  return (
+    <div>
+      <p className="font-display text-5xl font-bold tracking-tight">{formatRuntime(durationSeconds)}</p>
+      <p className="mt-1 text-sm text-white/60">fits comfortably in {plan.name}</p>
+
+      <div className="relative mt-10 pb-10 pt-7">
+        <div className="relative h-3 rounded-full bg-white/10">
+          <div className="absolute inset-y-0 left-0 rounded-full bg-white/15" style={{ width: at(maxSeconds) }} />
+          <div className="uv-grow absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-brand/70 to-brand shadow-[0_0_18px_var(--color-brand)]" style={{ width: at(durationSeconds) }} />
+        </div>
+
+        <span className="absolute top-0 -translate-x-1/2 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-stone-950" style={{ left: at(durationSeconds) }}>
+          Your video
+        </span>
+        <span className="absolute top-5 h-7 w-px bg-white/60" style={{ left: at(maxSeconds) }} />
+        <span className="absolute bottom-2 -translate-x-1/2 whitespace-nowrap text-[11px] text-white/60" style={{ left: at(maxSeconds) }}>
+          {currentPlan?.name ?? "Today"} · {formatMinutes(Math.round(maxSeconds / 60))}
+        </span>
+        <span className="absolute bottom-2 right-0 whitespace-nowrap text-[11px] font-medium text-brand">
+          {plan.name} · {formatMinutes(plan.youtubeMaxMinutes)}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+const SPECIMENS = [
+  { label: "Your brand serif", style: { fontFamily: "Georgia, 'Times New Roman', serif", fontStyle: "italic", textTransform: "none" as const } },
+  { label: "Your display face", style: { fontFamily: "var(--font-syne), var(--font-display), system-ui", fontWeight: 800 } },
+  { label: "Your mono", style: { fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontWeight: 700 } },
+];
+
+/** A clip whose caption cycles through typefaces, standing in for the user's own fonts. */
+function FontSpecimen() {
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => setActive((index) => (index + 1) % SPECIMENS.length), 1600);
+    return () => window.clearInterval(timer);
+  }, []);
+  return (
+    <div className="flex items-center justify-center gap-6">
+      <div className="relative aspect-[9/16] w-36 overflow-hidden rounded-2xl bg-gradient-to-b from-stone-700 to-stone-900 shadow-2xl ring-1 ring-white/10">
+        <span className="absolute bottom-0 left-1/2 h-16 w-28 -translate-x-1/2 rounded-t-full bg-black/30" />
+        <span className="absolute bottom-[3.6rem] left-1/2 size-12 -translate-x-1/2 rounded-full bg-black/30" />
+        <div className="absolute inset-x-2 bottom-[30%] h-10">
+          {SPECIMENS.map((specimen, index) => (
+            <span
+              key={specimen.label}
+              className={cn(
+                "absolute inset-0 flex items-center justify-center text-center text-sm uppercase leading-tight text-yellow-300 transition-all duration-500 [text-shadow:0_2px_6px_rgb(0_0_0/0.7)]",
+                index === active ? "translate-y-0 opacity-100" : "translate-y-1.5 opacity-0",
+              )}
+              style={specimen.style}
+            >
+              and that&apos;s why
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-2">
+        {SPECIMENS.map((specimen, index) => (
+          <p
+            key={specimen.label}
+            className={cn(
+              "rounded-lg px-3 py-2 text-xs ring-1 transition-colors duration-500",
+              index === active ? "bg-white/10 text-white ring-brand" : "bg-white/5 text-white/60 ring-white/10",
+            )}
+          >
+            <span className="block text-base text-white" style={{ ...specimen.style, textTransform: "none" }}>Aa</span>
+            {specimen.label}
+          </p>
+        ))}
+      </div>
     </div>
   );
 }

@@ -281,10 +281,12 @@ export default function SettingsPage() {
   }
 
   const dirty = savedSnapshot !== null && savedSnapshot !== JSON.stringify([fontFamily, fontSize, fontColor, completionEmails]);
+  // The save bar only appears once there's something to save (and briefly to confirm it).
+  const showSaveBar = dirty || isLoading || success;
   const usagePct = billingSummary?.usage_limit ? Math.min(100, (billingSummary.usage_count / billingSummary.usage_limit) * 100) : 0;
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 pb-32 pt-8 sm:px-8 md:pt-10">
+    <main className={cn("mx-auto w-full max-w-3xl px-4 pt-8 sm:px-8 md:pt-10", showSaveBar ? "pb-32" : "pb-16")}>
       <h1 className="font-display text-3xl font-bold tracking-tight">Settings</h1>
       <p className="mt-1 text-sm text-muted-foreground">Defaults for new generations, notifications and your plan.</p>
 
@@ -492,18 +494,19 @@ export default function SettingsPage() {
         )}
       </div>
 
-      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-4 pb-4 pointer-events-none md:bottom-0 md:pb-6 md:pl-64">
-        <div className="pointer-events-auto flex w-full max-w-3xl items-center justify-between gap-4 rounded-2xl border bg-background/95 px-4 py-3 shadow-lg backdrop-blur max-md:mr-14">
-          <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-            {success ? <><Check className="size-4 text-emerald-600" />Preferences saved successfully!</>
-              : dirty ? <><span className="size-2 rounded-full bg-brand" />Unsaved changes</>
-              : "All changes saved"}
-          </p>
-          <Button onClick={handleSavePreferences} disabled={isLoading}>
-            {isLoading ? <><Loader2 className="size-4 animate-spin" />Saving...</> : "Save Preferences"}
-          </Button>
+      {showSaveBar && (
+        <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-4 pb-4 pointer-events-none md:bottom-0 md:pb-6 md:pl-64">
+          <div className="pointer-events-auto flex w-full max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-200 items-center justify-between gap-4 rounded-2xl border bg-background/95 px-4 py-3 shadow-lg backdrop-blur max-md:mr-14">
+            <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+              {success ? <><Check className="size-4 text-emerald-600" />Preferences saved successfully!</>
+                : <><span className="size-2 rounded-full bg-brand" />Unsaved changes</>}
+            </p>
+            <Button onClick={handleSavePreferences} disabled={isLoading}>
+              {isLoading ? <><Loader2 className="size-4 animate-spin" />Saving...</> : "Save Preferences"}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }
