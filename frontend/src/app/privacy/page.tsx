@@ -5,7 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HOSTED_APP_URL, getSiteUrl } from "@/lib/blog-posts";
 
-const LAST_UPDATED = "June 25, 2026";
+const LAST_UPDATED = "October 5, 2026";
 const CONTACT_EMAIL = "privacy@supoclip.com";
 
 export const metadata: Metadata = {
@@ -115,6 +115,23 @@ export default function PrivacyPolicyPage() {
               privacy-friendly analytics provider that does not build cross-site advertising
               profiles.
             </p>
+            <p className="font-medium text-foreground">Campaign and referral information.</p>
+            <p>
+              When you visit our website, your browser keeps a record of how you first arrived, for
+              up to 90 days. It stores this in your browser&apos;s local storage, not in a cookie.
+              The record includes campaign tags in the link you followed (such as{" "}
+              <code>utm_source</code>, <code>utm_campaign</code>, or a <code>ref</code> code), the
+              domain of the referring website (not the full address), the page you landed on, and
+              the time of that visit.
+            </p>
+            <p>
+              If you create an account, we save this record to your account once, shortly after
+              sign-up. We also note when you first download or export a clip. We use this to learn
+              which channels bring people who find SupoClip useful. If analytics are enabled, the
+              sign-up and clip-export events we send to our analytics provider include the same
+              campaign fields. We don&apos;t use this information for advertising or sell it. You can
+              remove the record from your browser by clearing site data for supoclip.com.
+            </p>
           </Section>
 
           <Section title="How We Use Your Information">
@@ -124,6 +141,7 @@ export default function PrivacyPolicyPage() {
               <li>Process payments and manage subscriptions.</li>
               <li>Send transactional email (for example sign-up confirmation, completion notices, and billing receipts).</li>
               <li>Maintain, debug, secure, and improve the Service.</li>
+              <li>Understand which campaigns and referring sites lead to sign-ups and first clip exports.</li>
               <li>Comply with legal obligations and enforce our terms.</li>
             </ul>
           </Section>
@@ -139,6 +157,7 @@ export default function PrivacyPolicyPage() {
               <li><span className="text-foreground">Stripe</span> &mdash; payment processing.</li>
               <li><span className="text-foreground">Email delivery</span> &mdash; transactional emails.</li>
               <li><span className="text-foreground">Hosting &amp; infrastructure</span> &mdash; to run the Service.</li>
+              <li><span className="text-foreground">Analytics</span> &mdash; when enabled, to measure site visits, sign-ups, and clip exports.</li>
             </ul>
             <p>
               We do not sell your personal information, and we do not use it for cross-context
@@ -149,7 +168,8 @@ export default function PrivacyPolicyPage() {
 
           <Section title="Data Retention">
             <p>
-              We retain your account information for as long as your account is active. Your tasks,
+              We retain your account information, including any campaign and referral information
+              saved at sign-up, for as long as your account is active. Your tasks,
               uploaded videos, and generated clips are retained until you delete them or delete your
               account. Temporary processing files are deleted automatically after processing. We may
               retain limited records as required for legal, security, or accounting purposes.

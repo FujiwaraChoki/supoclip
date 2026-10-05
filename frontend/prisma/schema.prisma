@@ -53,8 +53,30 @@ model User {
   sessions      Session[]
   accounts      Account[]
   app_settings  AppSetting[]
+  acquisition   UserAcquisition?
 
   @@map("users")
+}
+
+// First-touch campaign attribution, written once shortly after sign-up.
+model UserAcquisition {
+  user_id                String    @id @db.VarChar(36)
+  utm_source             String?   @db.VarChar(100)
+  utm_medium             String?   @db.VarChar(100)
+  utm_campaign           String?   @db.VarChar(100)
+  utm_content            String?   @db.VarChar(100)
+  utm_term               String?   @db.VarChar(100)
+  ref                    String?   @db.VarChar(100)
+  referrer_host          String?   @db.VarChar(255)
+  landing_path           String?   @db.VarChar(512)
+  first_seen_at          DateTime? @db.Timestamptz
+  first_clip_exported_at DateTime? @db.Timestamptz
+  created_at             DateTime  @default(now()) @db.Timestamptz
+
+  user                   User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([utm_source, utm_campaign])
+  @@map("user_acquisition")
 }
 
 model AppSetting {
