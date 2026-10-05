@@ -48,6 +48,7 @@
     "tw-shimmer": "^0.4.9"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@eslint/eslintrc": "^3.3.4",
     "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4.2.1",

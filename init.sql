@@ -188,8 +188,25 @@ CREATE TABLE api_keys (
     revoked_at TIMESTAMP WITH TIME ZONE
 );
 
+-- First-touch campaign attribution, written once shortly after sign-up
+CREATE TABLE user_acquisition (
+    user_id VARCHAR(36) PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    utm_source VARCHAR(100),
+    utm_medium VARCHAR(100),
+    utm_campaign VARCHAR(100),
+    utm_content VARCHAR(100),
+    utm_term VARCHAR(100),
+    ref VARCHAR(100),
+    referrer_host VARCHAR(255),
+    landing_path VARCHAR(512),
+    first_seen_at TIMESTAMP WITH TIME ZONE,
+    first_clip_exported_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for better performance
 CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX user_acquisition_utm_source_utm_campaign_idx ON user_acquisition(utm_source, utm_campaign);
 CREATE INDEX idx_tasks_user_id ON tasks(user_id);
 CREATE INDEX idx_tasks_source_id ON tasks(source_id);
 CREATE INDEX idx_tasks_status ON tasks(status);

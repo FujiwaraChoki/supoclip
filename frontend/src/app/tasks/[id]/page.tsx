@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useTaskProgress } from "@/hooks/use-task-progress";
 import { StatusBadge, ACTIVE_TASK_STATUSES } from "@/components/app/status-badge";
 import { getClipUrl, requestAction, downloadBlob, EXPORT_PRESETS } from "@/lib/clip-actions";
+import { trackClipExport } from "@/lib/clip-export-tracking";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { PageLoading, PageError } from "@/components/app/page-state";
@@ -468,6 +469,7 @@ export default function TaskPage() {
 
     const blob = await response.blob();
     downloadBlob(blob, `${fallbackFilename.replace(/\.mp4$/i, "")}_${exportPreset}.mp4`);
+    void trackClipExport({ userId: session.user.id, surface: "task", format: exportPreset });
   };
 
   const handleDownloadClip = (clip: Clip) => {
@@ -478,6 +480,7 @@ export default function TaskPage() {
       document.body.appendChild(link);
       link.click();
       link.remove();
+      if (session?.user?.id) void trackClipExport({ userId: session.user.id, surface: "task", format: "original" });
       return;
     }
     void runAction(clip.id, () => handleExportClip(clip.id, clip.filename));

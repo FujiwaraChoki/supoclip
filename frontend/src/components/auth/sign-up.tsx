@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { signUp } from "../../lib/auth-client";
+import { attributionMetadata, getAnonymousAttribution } from "@/lib/attribution";
 import { track } from "@/lib/datafast";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -32,6 +33,7 @@ export function SignUp() {
 
     track("signup_completed", {
       auth_method: "email",
+      ...attributionMetadata(getAnonymousAttribution()),
     });
     setMessage("Account created successfully! Signing you in...");
     setLoading(false);
@@ -45,7 +47,7 @@ export function SignUp() {
   return (
     <div className="w-full">
       <h1 className="font-display text-3xl font-bold tracking-tight">Create your account</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Start turning long videos into clips in minutes.</p>
+      <p className="mt-2 text-sm text-muted-foreground">Start turning long videos into vertical, captioned clips.</p>
       <div className="mt-8">
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input

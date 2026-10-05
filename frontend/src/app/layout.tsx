@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Syne } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import { AttributionTracker } from "@/components/attribution-tracker";
 import { DataFastIdentity } from "@/components/datafast-identity";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -106,6 +107,7 @@ export default function RootLayout({
         <TooltipProvider>
           {children}
           <DataFastIdentity />
+          <AttributionTracker />
           <FeedbackButton />
           <Toaster />
         </TooltipProvider>
