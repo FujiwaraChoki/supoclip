@@ -177,6 +177,7 @@ sudo systemctl edit ollama
 #   [Service]
 #   Environment="OLLAMA_HOST=0.0.0.0:11434"
 sudo systemctl restart ollama
+ollama pull gpt-oss:20b
 `}</CodeBlock>
       <p>
         That also exposes port 11434 on your network interfaces. Ollama has no authentication, so block that port from
@@ -205,15 +206,22 @@ docker compose up -d ollama
 docker compose exec ollama ollama pull gpt-oss:20b
 docker compose up -d backend worker   # pick up the new .env value
 `}</CodeBlock>
-      <p>Whichever setup you choose, test from inside the worker before submitting a video:</p>
+      <p>
+        Whichever setup you choose, test from inside the worker before submitting a video. The check looks for{" "}
+        <code>gpt-oss:20b</code> because that is the model in the example <code>LLM</code> value. If you chose another model,
+        replace it with the exact name after <code>ollama:</code> in your <code>LLM</code> setting. Ollama lists a model pulled
+        without a tag as <code>name:latest</code>, so use that form in the check.
+      </p>
       <CodeBlock label="terminal">{`
 # Host Ollama:
-docker compose exec worker curl -s http://host.docker.internal:11434/api/tags
+docker compose exec worker curl -s http://host.docker.internal:11434/api/tags | grep -q '"gpt-oss:20b"' && echo "model ready"
 # Ollama container:
-docker compose exec worker curl -s http://ollama:11434/api/tags
+docker compose exec worker curl -s http://ollama:11434/api/tags | grep -q '"gpt-oss:20b"' && echo "model ready"
 `}</CodeBlock>
       <p>
-        A JSON list of your models means the worker can reach Ollama. Smaller Whisper models trade accuracy for speed,
+        <code>model ready</code> means the worker can reach Ollama and the model you searched for is installed. No
+        output means either the connection failed or the model is missing, so rerun the command without the{" "}
+        <code>grep</code> to see which. Smaller Whisper models trade accuracy for speed,
         and clip quality depends on the LLM. Compare a local model against a hosted one on a recording you know before
         switching your whole backlog.
       </p>
@@ -255,9 +263,10 @@ docker compose logs -f worker           # watch a job move through the pipeline
           <code>CORS_ORIGINS</code>. <code>NEXT_PUBLIC_*</code> values are baked in at build time, so rebuild the frontend after changing them.
         </li>
         <li>
-          <strong>Change the database password.</strong> <code>docker-compose.yml</code> sets <code>supoclip_password</code> directly
-          in the <code>postgres</code> service and in both <code>DATABASE_URL</code> values. Editing <code>POSTGRES_PASSWORD</code> in{" "}
-          <code>.env</code> alone does not change it. Override all three.
+          <strong>Change the database password.</strong> <code>docker-compose.yml</code> hardcodes <code>supoclip_password</code> in
+          four places: <code>POSTGRES_PASSWORD</code> in the <code>postgres</code> service and <code>DATABASE_URL</code> in the{" "}
+          <code>frontend</code>, <code>backend</code>, and <code>worker</code> services. Editing <code>POSTGRES_PASSWORD</code> in{" "}
+          <code>.env</code> alone changes none of them. Override all four, as shown below.
         </li>
         <li><strong>Set <code>REDIS_PASSWORD</code></strong>; the Redis container enables AUTH when it is non-empty.</li>
         <li><strong>Close sign-ups</strong> with <code>DISABLE_SIGN_UP=true</code> if the instance is just for your team.</li>
@@ -272,21 +281,72 @@ services:
     volumes: !reset []   # the runner image already contains the build
 `}</CodeBlock>
       <p>
+        For the database password, put a new value in <code>POSTGRES_PASSWORD</code> in <code>.env</code>. Generate it with{" "}
+        <code>openssl rand -hex 24</code>, because hex needs no escaping inside a URL. Then point all four settings at it in the
+        same override file:
+      </p>
+      <CodeBlock label="docker-compose.override.yml (merge into any override you already have)">{`
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
+  frontend:
+    environment:
+      DATABASE_URL: postgresql://supoclip:\${POSTGRES_PASSWORD}@postgres:5432/supoclip
+  backend:
+    environment:
+      DATABASE_URL: postgresql+asyncpg://supoclip:\${POSTGRES_PASSWORD}@postgres:5432/supoclip
+  worker:
+    environment:
+      DATABASE_URL: postgresql+asyncpg://supoclip:\${POSTGRES_PASSWORD}@postgres:5432/supoclip
+`}</CodeBlock>
+      <p>
+        Postgres reads <code>POSTGRES_PASSWORD</code> only when it initializes an empty data volume. On an install that already
+        has a database, changing that variable does not change the actual password. Rotate it inside Postgres first, using
+        the same value as in <code>.env</code>. Then recreate the services so they use the new URLs:
+      </p>
+      <CodeBlock label="terminal (existing database)">{`
+docker compose exec -T postgres psql -U supoclip -d supoclip \\
+  -c "ALTER USER supoclip PASSWORD 'your_new_password'"
+docker compose up -d
+`}</CodeBlock>
+      <p>
         <a href={docs("docs/configuration.md")}>docs/configuration.md</a> lists every variable, and{" "}
         <a href={docs("docs/setup.md")}>docs/setup.md</a> covers custom ports and public URLs.
       </p>
 
       <h2 id="upgrade">Upgrades and backups</h2>
       <p>
-        <code>init.sql</code> creates the schema only when the Postgres volume is first initialized. Before pulling a new
-        version, back up the database and check the release for migrations under <code>frontend/prisma/migrations</code>{" "}
-        and <code>backend/migrations</code>:
+        <code>init.sql</code> creates the schema only when the Postgres volume is first initialized. After that, nothing
+        updates the schema automatically. If a new version adds files under <code>frontend/prisma/migrations</code> or{" "}
+        <code>backend/migrations</code>, apply them yourself before you restart the app. New code running against the old
+        schema fails on missing columns and tables. Back up first, and stop the app services so they don&apos;t pick up new
+        code early. The development frontend hot-reloads mounted source.
       </p>
       <CodeBlock label="terminal">{`
-docker compose exec postgres pg_dump -U supoclip supoclip > supoclip-$(date +%F).sql
+docker compose exec -T postgres pg_dump -U supoclip supoclip > supoclip-$(date +%F).sql
+docker compose stop frontend backend worker
+old=$(git rev-parse HEAD)
 git pull
+git diff --name-only --diff-filter=A "$old" HEAD -- \\
+  'backend/migrations/*.sql' 'frontend/prisma/migrations/*/migration.sql'
+`}</CodeBlock>
+      <p>
+        Read each listed file, then apply it in a single transaction. Apply Prisma migrations in timestamp order and backend
+        migrations in number order:
+      </p>
+      <CodeBlock label="terminal">{`
+docker compose exec -T postgres psql -U supoclip -d supoclip -v ON_ERROR_STOP=1 -1 \\
+  < frontend/prisma/migrations/<new_migration>/migration.sql
 docker compose up -d --build
 `}</CodeBlock>
+      <p>
+        A database created by <code>init.sql</code> has no Prisma migration history. Don&apos;t run{" "}
+        <code>prisma migrate deploy</code> against it: Prisma would replay every migration from the first one and fail on
+        tables that already exist. If you want Prisma to manage migrations from now on, first baseline it with{" "}
+        <code>prisma migrate resolve --applied &lt;migration&gt;</code>, but only for migrations whose changes are already in
+        your schema. Prisma permanently skips any migration you mark as applied, even if its changes are missing.
+      </p>
       <p>
         Back up the <code>clips</code> and <code>uploads</code> volumes too if you need to keep rendered videos. Never run{" "}
         <code>docker compose down -v</code> on an instance you care about: it deletes every volume, including the database.
