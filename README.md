@@ -26,13 +26,15 @@
 
 SupoClip is an open-source, AI-powered video clipping tool. Give it a long video — a podcast, a talk, a stream VOD — and it finds the most viral-worthy moments, scores them, and renders them as vertical 9:16 clips with face-centered cropping, word-synced subtitles, hook titles, and optional B-roll. Run it yourself, customize it, inspect it — or use the hosted version and skip the setup.
 
+**See it first:** [watch real clips SupoClip generated](https://www.supoclip.com/demo) from a long-form interview, or follow the [self-hosting tutorial](https://www.supoclip.com/blog/self-host-supoclip-docker) to run it on your own machine.
+
 ## Ways to Use SupoClip
 
 | | |
 |---|---|
 | **Hosted web app** | [www.supoclip.com](https://www.supoclip.com) — no infrastructure to run |
 | **iOS app** | [SupoClip on the App Store](https://apps.apple.com/us/app/supoclip/id6784760040) — the same hosted pipeline, from your iPhone |
-| **Self-host** | Docker Compose setup below — AGPL-3.0, unlimited usage on your own hardware |
+| **Self-host** | Docker Compose setup below, or the step-by-step [self-hosting tutorial](https://www.supoclip.com/blog/self-host-supoclip-docker) — AGPL-3.0, unlimited usage on your own hardware |
 | **MCP server** | [`mcp/`](mcp/) — use SupoClip from Claude, Cursor, and other MCP clients |
 | **REST API** | API keys from `/settings/api-keys` authenticate the backend directly — see the [API reference](docs/api-reference.md) |
 
@@ -85,7 +87,7 @@ First startup takes a few minutes; watch it with `docker-compose logs -f`. Once 
 
 The template sets `FRONTEND_PORT=3107`. Existing deployments without this setting keep port `3001`; preserve that port if your production reverse proxy uses it. See the [setup guide](docs/setup.md) for custom ports and public URLs.
 
-To use a different LLM provider, self-host with Ollama, or configure the optional pieces (B-roll, analytics, emails, YouTube metadata), see the [configuration guide](docs/configuration.md). If something misbehaves, the [troubleshooting guide](docs/troubleshooting.md) covers the common failure modes.
+To run fully local with Whisper and Ollama (including the Docker networking Ollama needs), see the [self-hosting tutorial](https://www.supoclip.com/blog/self-host-supoclip-docker#local). To use a different LLM provider or configure the optional pieces (B-roll, analytics, emails, YouTube metadata), see the [configuration guide](docs/configuration.md). If something misbehaves, the [troubleshooting guide](docs/troubleshooting.md) covers the common failure modes.
 
 ## Documentation
 

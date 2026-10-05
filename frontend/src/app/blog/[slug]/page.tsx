@@ -1,3 +1,8 @@
+import { formatArticleDate } from "@/components/articles/article-shell";
+import { OpusClipComparisonArticle } from "@/components/articles/opusclip-comparison-article";
+import { SelfHostingGuideArticle } from "@/components/articles/self-hosting-guide-article";
+import { RelatedGuides } from "@/components/marketing/related-guides";
+import { SiteFooter } from "@/components/marketing/site-footer";
 import { SupoLiveArticle } from "@/components/supo-live-article";
 import type { Metadata } from "next";
 import Image from "next/image";
@@ -20,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { HOSTED_APP_URL, blogPosts, getBlogPost, getBlogPostMetadata, getSiteUrl } from "@/lib/blog-posts";
+import { OPUSCLIP_COMPARISON_HREF, SELF_HOSTING_GUIDE_HREF } from "@/lib/marketing-links";
 
 interface BlogPostPageProps {
   params: Promise<{
@@ -31,7 +37,7 @@ const comparisonRows = [
   {
     icon: ShieldCheck,
     feature: "Free usage model",
-    supoclip: "Open source and self-hostable. Your main costs are your own compute and API keys.",
+    supoclip: "Open source and self-hostable with no plan limits. Your costs are your own compute and API keys. The hosted app is paid.",
     opusClip: "Free plan exists, but exports can include an OpusClip watermark.",
   },
   {
@@ -65,13 +71,13 @@ const faqs = [
     icon: ShieldCheck,
     question: "Is SupoClip completely free?",
     answer:
-      "The SupoClip codebase is free and open source. If you self-host it, you still need to account for your own infrastructure, transcription, and LLM provider costs.",
+      "The SupoClip codebase is free and open source, and self-hosted installs have no plan limits. You still pay for your own infrastructure and any transcription or LLM provider you configure. The hosted app requires a paid plan.",
   },
   {
     icon: Captions,
     question: "Does SupoClip add a watermark?",
     answer:
-      "SupoClip is designed for self-hosted control, so watermarking is not a forced platform limitation in the open-source workflow.",
+      "No. SupoClip's rendering pipeline has no watermark step, whether you use the hosted app or a self-hosted install.",
   },
 ];
 
@@ -103,6 +109,12 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
   if (slug === "supoclip-vs-supo-live") {
     return <SupoLiveArticle post={post} />;
+  }
+  if (slug === "supoclip-vs-opusclip") {
+    return <OpusClipComparisonArticle post={post} />;
+  }
+  if (slug === "self-host-supoclip-docker") {
+    return <SelfHostingGuideArticle post={post} />;
   }
 
   const siteUrl = getSiteUrl();
@@ -211,7 +223,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <span>{post.author}</span>
-                <span>Updated {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(post.updatedAt))}</span>
+                <span>Updated <time dateTime={post.updatedAt}>{formatArticleDate(post.updatedAt)}</time></span>
                 <span className="flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5" />
                   {post.readingTime}
@@ -259,10 +271,10 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 the underlying system. You can also
                 {" "}
                 <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
-                  try the hosted SupoClip product
+                  use hosted SupoClip
                 </a>
                 {" "}
-                if you want to skip local setup.
+                on a paid plan if you want to skip setup entirely.
               </p>
 
               <h2 id="quick-verdict">Quick Verdict</h2>
@@ -313,10 +325,15 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
               <p>
                 That makes the tradeoff clear. You take on setup, but you gain ownership. You can
                 inspect the code, adapt it to your workflow, and decide which hosted AI providers
-                or local models to use.
+                or local models to use. The <Link href={SELF_HOSTING_GUIDE_HREF}>self-hosting guide</Link>{" "}
+                walks through the setup, including a fully local Whisper + Ollama option.
               </p>
 
               <h2 id="supoclip-vs-opusclip">SupoClip vs OpusClip</h2>
+              <p>
+                The summary below covers the essentials. For a row-by-row comparison with a source
+                for every claim, read <Link href={OPUSCLIP_COMPARISON_HREF}>SupoClip vs OpusClip: a sourced comparison</Link>.
+              </p>
             </div>
 
             <div className="my-8 overflow-hidden rounded-lg border">
@@ -368,7 +385,8 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 <div>
                   <p className="flex items-center gap-2 text-sm font-medium text-background/70">
                     <ListChecks className="h-4 w-4" />
-                    Ready to try the free route?
+                    Free if you self-host, paid plans if you don&apos;t
+
                   </p>
                   <h2
                     className="mt-2 text-2xl font-bold tracking-tight"
@@ -378,12 +396,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                   </h2>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
-                    <Button variant="secondary">
-                      Hosted SupoClip
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </a>
+                  <Link href={SELF_HOSTING_GUIDE_HREF}>
+                    <Button variant="secondary">Self-hosting guide</Button>
+                  </Link>
                   <Link href="/sign-up">
                     <Button variant="secondary">
                       Open app
@@ -418,20 +433,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
             <Separator className="my-10" />
 
-            <section aria-labelledby="related-guides-heading">
-              <h2 id="related-guides-heading" className="text-xl font-semibold">Related SupoClip guides</h2>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                {[
-                  ["/ai-video-clipper", "AI video clipper"],
-                  ["/open-source-video-clipper", "Open-source video clipper"],
-                  ["/youtube-shorts-clipper", "YouTube Shorts clipper"],
-                ].map(([href, title]) => (
-                  <Link key={href} href={href} className="rounded-lg border p-4 text-sm font-medium hover:border-foreground/30">
-                    {title}
-                  </Link>
-                ))}
-              </div>
-            </section>
+            <RelatedGuides href={`/blog/${post.slug}`} heading="Related SupoClip guides" />
 
             <Separator className="my-10" />
 
@@ -484,6 +486,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           </aside>
         </section>
       </article>
+      <SiteFooter />
     </main>
   );
 }

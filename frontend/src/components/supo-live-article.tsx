@@ -1,7 +1,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Captions, Code2, Film, Github, ScanFace, Server, Sparkles, Upload, Check } from "lucide-react";
+import { formatArticleDate } from "@/components/articles/article-shell";
+import { RelatedGuides } from "@/components/marketing/related-guides";
+import { SiteFooter } from "@/components/marketing/site-footer";
 import { type BlogPost, getSiteUrl, HOSTED_APP_URL } from "@/lib/blog-posts";
+import { OPUSCLIP_COMPARISON_HREF, SELF_HOSTING_GUIDE_HREF } from "@/lib/marketing-links";
 
 const repository = "https://github.com/FujiwaraChoki/supoclip";
 const faqs = [
@@ -70,7 +74,7 @@ export function SupoLiveArticle({ post }: { post: BlogPost }) {
           <p className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-widest"><Code2 className="h-4 w-4" />{post.eyebrow}</p>
           <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-6xl" style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), sans-serif" }}>{post.title}</h1>
           <p className="text-xl leading-8 text-muted-foreground">{post.summary}</p>
-          <p className="text-sm text-muted-foreground">By SupoClip · Updated September 21, 2026 · {post.readingTime}</p>
+          <p className="text-sm text-muted-foreground">By SupoClip · Updated <time dateTime={post.updatedAt}>{formatArticleDate(post.updatedAt)}</time> · {post.readingTime}</p>
         </header>
         {post.image && <figure className="mb-10 overflow-hidden rounded-2xl border bg-muted/30">
           <Image src={post.image.src} alt={post.image.alt} width={post.image.width} height={post.image.height} priority sizes="(max-width: 1024px) 100vw, 960px" className="h-auto w-full" />
@@ -157,15 +161,15 @@ export function SupoLiveArticle({ post }: { post: BlogPost }) {
           <p>
             Self-hosting gives you control over the application’s infrastructure, storage configuration, and
             maintenance schedule. You can build clipping into an existing production environment and keep a
-            deployment you manage. Transcription and hosted AI providers still receive the data needed for their
-            work, so self-hosting does not mean all processing is offline.
+            deployment you manage. If you use cloud transcription or a hosted LLM, those providers still receive the
+            data they need. Switching to local Whisper and Ollama keeps that analysis on your own hardware too.
           </p>
           <h3>3. You have a practical choice of AI providers</h3>
           <p>
             SupoClip supports LLM configurations for Google, OpenAI, Anthropic, and local Ollama models.
-            That lets you evaluate providers against your own content and budget. The documented transcription
-            pipeline uses AssemblyAI; using a local LLM does not remove that dependency.
-            See the <a href={`${repository}/blob/main/docs/configuration.md`}>configuration guide</a> for setup options.
+            That lets you evaluate providers against your own content and budget. Transcription defaults to AssemblyAI,
+            and can switch to local Whisper or, for YouTube links, existing captions.
+            The <Link href={SELF_HOSTING_GUIDE_HREF}>self-hosting guide</Link> walks through a fully local setup.
           </p>
           <h3>4. Your clipping workflow can grow into your own tools</h3>
           <p>
@@ -179,9 +183,9 @@ export function SupoLiveArticle({ post }: { post: BlogPost }) {
             <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
               <div className="rounded-xl border border-emerald-400/40 bg-emerald-400/10 p-5"><Server className="mb-3 h-6 w-6 text-emerald-300" /><h3>Your deployment</h3><ul className="mt-3 space-y-2 text-sm text-zinc-300"><li>Application and source code</li><li>Storage and processing resources</li><li>Editorial customization</li></ul></div>
               <ArrowRight className="mx-auto h-5 w-5 rotate-90 text-zinc-400 sm:rotate-0" aria-hidden="true" />
-              <div className="rounded-xl border border-zinc-700 p-5"><Sparkles className="mb-3 h-6 w-6 text-zinc-300" /><h3>Connected AI services</h3><ul className="mt-3 space-y-2 text-sm text-zinc-300"><li>AssemblyAI transcription</li><li>Hosted LLM or local Ollama</li><li>Provider costs and data flows</li></ul></div>
+              <div className="rounded-xl border border-zinc-700 p-5"><Sparkles className="mb-3 h-6 w-6 text-zinc-300" /><h3>Connected AI services</h3><ul className="mt-3 space-y-2 text-sm text-zinc-300"><li>AssemblyAI or local Whisper</li><li>Hosted LLM or local Ollama</li><li>Provider costs and data flows</li></ul></div>
             </div>
-            <div className="mt-5 text-xs leading-6 text-zinc-400">Self-hosting gives you deployment control. It does not make the entire pipeline offline.</div>
+            <div className="mt-5 text-xs leading-6 text-zinc-400">Cloud providers are optional: Whisper and Ollama keep transcription and clip selection local.</div>
           </figure>
           <h2 id="cost" className="scroll-mt-8">Cost: free source code, real operating costs</h2>
           <p>
@@ -219,9 +223,13 @@ export function SupoLiveArticle({ post }: { post: BlogPost }) {
           </section>
           <h2 id="faq" className="scroll-mt-8">Frequently asked questions</h2>
           {faqs.map(({ question, answer }) => <section key={question} className="space-y-2 rounded-lg border p-5"><h3>{question}</h3><p>{answer}</p></section>)}
-          <p>Explore our <Link href="/open-source-video-clipper">open-source video clipper guide</Link> or read the <Link href="/blog/best-free-opusclip-alternative">SupoClip vs OpusClip comparison</Link>.</p>
+          <p>Explore our <Link href="/open-source-video-clipper">open-source video clipper guide</Link> or read the <Link href={OPUSCLIP_COMPARISON_HREF}>SupoClip vs OpusClip comparison</Link>.</p>
+        </div>
+        <div className="mx-auto mt-16 max-w-5xl border-t pt-12">
+          <RelatedGuides href={`/blog/${post.slug}`} heading="Keep reading" />
         </div>
       </article>
+      <SiteFooter />
     </main>
   );
 }

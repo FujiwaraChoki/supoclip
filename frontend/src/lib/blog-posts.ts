@@ -28,7 +28,7 @@ export const blogPosts: BlogPost[] = [
     eyebrow: "Supo.live Alternative",
     category: "Comparison",
     publishedAt: "2026-09-21",
-    updatedAt: "2026-09-21",
+    updatedAt: "2026-10-05",
     readingTime: "5 min read",
     author: "SupoClip",
     keywords: ["SupoClip vs supo.live", "supo.live alternative", "open-source video clipper", "self-hosted AI video clipping", "AI clip maker"],
@@ -36,14 +36,56 @@ export const blogPosts: BlogPost[] = [
       "For creators and teams who want control over their clipping workflow, SupoClip is the better open-source alternative to supo.live.",
   },
   {
-    slug: "best-free-opusclip-alternative",
-    title: "Best, Free OpusClip Alternative",
+    slug: "supoclip-vs-opusclip",
+    title: "SupoClip vs OpusClip: A Sourced Comparison",
     description:
-      "Looking for a free OpusClip alternative? SupoClip is an open-source AI clip maker that turns long videos into captioned, vertical shorts you can self-host.",
+      "SupoClip vs OpusClip compared on deployment, pricing model, watermarks, model choice, and workflow, with a source linked for every claim.",
+    eyebrow: "OpusClip Comparison",
+    category: "Comparison",
+    publishedAt: "2026-10-05",
+    updatedAt: "2026-10-05",
+    readingTime: "7 min read",
+    author: "SupoClip",
+    keywords: [
+      "SupoClip vs OpusClip",
+      "OpusClip alternative",
+      "OpusClip vs open source",
+      "self-hosted OpusClip alternative",
+      "OpusClip watermark",
+    ],
+    summary:
+      "A side-by-side of what each product documents, where the two differ, and which one fits your workflow.",
+  },
+  {
+    slug: "self-host-supoclip-docker",
+    title: "How to Self-Host SupoClip with Docker Compose",
+    description:
+      "Self-host SupoClip, the open-source AI video clipper: requirements, .env setup, a fully local Whisper + Ollama option, first-run checks, and a production checklist.",
+    eyebrow: "Self-Hosting Guide",
+    category: "Guide",
+    publishedAt: "2026-10-05",
+    updatedAt: "2026-10-05",
+    readingTime: "9 min read",
+    author: "SupoClip",
+    keywords: [
+      "self-host SupoClip",
+      "self-hosted AI video clipper",
+      "open-source video clipper Docker",
+      "self-hosted OpusClip alternative",
+      "Whisper Ollama video clipping",
+    ],
+    summary:
+      "A practical walkthrough of the repository's Docker Compose stack: what each service does, which keys you need, how to run without cloud AI, and what to harden before production.",
+  },
+  {
+    slug: "best-free-opusclip-alternative",
+    title: "Best Free, Self-Hosted OpusClip Alternative",
+    description:
+      "Looking for a free OpusClip alternative? SupoClip is an open-source AI clip maker you can self-host for free. It turns long videos into captioned, vertical shorts.",
     eyebrow: "OpusClip Alternative",
     category: "Comparison",
     publishedAt: "2026-05-07",
-    updatedAt: "2026-05-07",
+    updatedAt: "2026-10-05",
     readingTime: "6 min read",
     author: "SupoClip",
     keywords: [
@@ -55,7 +97,7 @@ export const blogPosts: BlogPost[] = [
       "YouTube shorts clipper",
     ],
     summary:
-      "SupoClip is built for creators who want OpusClip-style AI clipping without committing to another credit-based subscription.",
+      "SupoClip is built for creators who want OpusClip-style AI clipping on their own infrastructure, without another credit-based subscription.",
   },
 ];
 

@@ -33,6 +33,7 @@ services:
       - NEXT_PUBLIC_SELF_HOST=${SELF_HOST:-true}
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3107}
       - NEXT_PUBLIC_LANDING_ONLY_MODE=${NEXT_PUBLIC_LANDING_ONLY_MODE:-false}
+      - DISABLE_SIGN_UP=${DISABLE_SIGN_UP:-false}
       - BACKEND_AUTH_SECRET=${BACKEND_AUTH_SECRET}
       - APP_SETTINGS_ENCRYPTION_KEY=${APP_SETTINGS_ENCRYPTION_KEY}
       - DATABASE_URL=postgresql://supoclip:supoclip_password@postgres:5432/supoclip

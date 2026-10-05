@@ -1,7 +1,14 @@
+export interface SeoPageLink {
+  href: string;
+  label: string;
+}
+
 export interface SeoPageSection {
   heading: string;
   paragraphs: string[];
   bullets?: string[];
+  /** Contextual internal links rendered under the section. */
+  links?: SeoPageLink[];
 }
 
 export interface SeoPageFaq {
@@ -44,7 +51,7 @@ export const seoPages: SeoPage[] = [
       "AI shorts generator",
     ],
     publishedAt: "2026-07-27",
-    updatedAt: "2026-07-27",
+    updatedAt: "2026-10-05",
     tableCaption: "SupoClip AI clipping capability matrix",
     tableHeaders: ["Workflow stage", "Manual approach", "SupoClip approach"],
     tableRows: [
@@ -73,12 +80,20 @@ export const seoPages: SeoPage[] = [
           "Paste a YouTube URL or upload a source file. SupoClip transcribes the recording, proposes clip boundaries, and presents the strongest candidates for review. Selected moments can then be rendered as vertical, captioned videos for short-form platforms.",
           "Because SupoClip is open source, teams can inspect the pipeline, choose supported hosted or local language models, and adapt processing to their own infrastructure. A hosted version is also available for creators who do not want to manage deployment.",
         ],
+        links: [
+          { href: "/youtube-shorts-clipper", label: "Step-by-step: turn a YouTube video into Shorts" },
+          { href: "/blog/self-host-supoclip-docker", label: "Run the pipeline yourself with Docker" },
+        ],
       },
       {
         heading: "Who this is built for",
         paragraphs: [
           "The workflow fits podcasters, educators, founders, agencies, and video teams that already produce long-form recordings and need a repeatable way to publish more short-form clips.",
           "It is especially useful when ownership matters: self-hosters retain control of the application and can modify the source instead of depending entirely on a closed editing platform.",
+        ],
+        links: [
+          { href: "/blog/supoclip-vs-opusclip", label: "How SupoClip compares with OpusClip" },
+          { href: "/open-source-video-clipper", label: "Why teams choose an open-source clipper" },
         ],
       },
     ],
@@ -117,7 +132,7 @@ export const seoPages: SeoPage[] = [
       "open-source OpusClip alternative",
     ],
     publishedAt: "2026-07-27",
-    updatedAt: "2026-07-27",
+    updatedAt: "2026-10-05",
     tableCaption: "Hosted-only and open-source clipping workflows",
     tableHeaders: ["Decision", "Hosted-only tool", "Self-hosted SupoClip"],
     tableRows: [
@@ -146,12 +161,17 @@ export const seoPages: SeoPage[] = [
           "Protect secrets and authenticated routes",
           "Monitor processing jobs and generated media",
         ],
+        links: [{ href: "/blog/self-host-supoclip-docker", label: "Production checklist in the self-hosting guide" }],
       },
       {
         heading: "Start with Docker, customize when needed",
         paragraphs: [
           "The quickest setup is to clone the repository, copy the environment template, add the required provider credentials, and start the stack with Docker Compose. Developers can then change the scoring logic, caption presets, interface, or deployment model as their workflow evolves.",
           "Creators who prefer not to operate infrastructure can use the hosted SupoClip application while keeping the open-source repository available as a migration path.",
+        ],
+        links: [
+          { href: "/blog/self-host-supoclip-docker", label: "Self-host SupoClip with Docker Compose" },
+          { href: "/blog/supoclip-vs-opusclip", label: "Self-hosted SupoClip vs hosted OpusClip" },
         ],
       },
     ],
@@ -164,7 +184,7 @@ export const seoPages: SeoPage[] = [
       {
         question: "Can SupoClip use a local language model?",
         answer:
-          "Yes. SupoClip supports Ollama configuration in addition to supported hosted model providers.",
+          "Yes. SupoClip supports Ollama for clip selection, and TRANSCRIPTION_PROVIDER=whisper transcribes locally instead of calling AssemblyAI.",
       },
       {
         question: "Does SupoClip require Docker?",
@@ -190,7 +210,7 @@ export const seoPages: SeoPage[] = [
       "YouTube highlight generator",
     ],
     publishedAt: "2026-07-27",
-    updatedAt: "2026-07-27",
+    updatedAt: "2026-10-05",
     tableCaption: "Long-video to YouTube Shorts workflow",
     tableHeaders: ["Step", "Input", "Output"],
     tableRows: [
@@ -219,6 +239,7 @@ export const seoPages: SeoPage[] = [
           "SupoClip uses word-level timing to create synchronized captions and can track faces when converting landscape footage to a vertical frame. Caption templates provide a consistent starting point, while font, color, and output settings can be adjusted before rendering.",
           "Automated crops still deserve a visual review, especially when multiple people appear, screen shares are important, or the speaker moves quickly through the frame.",
         ],
+        links: [{ href: "/ai-video-clipper", label: "What the AI clipper automates, stage by stage" }],
       },
       {
         heading: "Build a repeatable repurposing workflow",
@@ -226,6 +247,7 @@ export const seoPages: SeoPage[] = [
           "Treat each long video as a source library rather than a one-time upload. Process the recording, group clips by theme, and connect each Short back to the longer video or a relevant product page.",
           "Track which topics earn watch time and engagement, then use those results to guide future recordings. SupoClip's scores help prioritize candidates; publishing data should determine what the audience actually values.",
         ],
+        links: [{ href: "/blog/supoclip-vs-opusclip", label: "Choosing between SupoClip and OpusClip" }],
       },
     ],
     faqs: [

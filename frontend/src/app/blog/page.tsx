@@ -4,7 +4,9 @@ import Link from "next/link";
 import { ArrowRight, Clock, ExternalLink, Github, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SiteFooter } from "@/components/marketing/site-footer";
 import { HOSTED_APP_URL, blogPosts, getSiteUrl } from "@/lib/blog-posts";
+import { getMarketingLinks } from "@/lib/marketing-links";
 
 export const metadata: Metadata = {
   title: { absolute: "SupoClip Blog | AI Video Clipping Guides" },
@@ -75,7 +77,7 @@ export default function BlogIndexPage() {
               Practical guides for turning long videos into better shorts.
             </h1>
             <p className="mt-5 text-base leading-8 text-muted-foreground sm:text-lg">
-              Comparisons, workflows, and editing advice for creators who want faster clipping,
+              Comparisons, workflows, and editing advice for creators who want a repeatable clipping workflow,
               cleaner captions, and more control over their video pipeline.
             </p>
           </div>
@@ -125,20 +127,17 @@ export default function BlogIndexPage() {
           <h2 id="product-guides-heading" className="text-2xl font-bold tracking-tight">
             Product guides
           </h2>
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {[
-              ["/ai-video-clipper", "AI video clipper", "How automated highlight detection, captions, and exports fit together."],
-              ["/open-source-video-clipper", "Open-source video clipper", "What self-hosting changes about control, providers, and infrastructure."],
-              ["/youtube-shorts-clipper", "YouTube Shorts clipper", "A practical workflow for turning long YouTube videos into vertical clips."],
-            ].map(([href, title, description]) => (
+          <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[...getMarketingLinks("product"), ...getMarketingLinks("guide").filter((link) => !link.href.startsWith("/blog/"))].map(({ href, label, description }) => (
               <Link key={href} href={href} className="rounded-lg border p-5 transition-colors hover:border-foreground/30">
-                <h3 className="font-semibold">{title}</h3>
+                <h3 className="font-semibold">{label}</h3>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
               </Link>
             ))}
           </div>
         </section>
       </section>
+      <SiteFooter />
     </main>
   );
 }
