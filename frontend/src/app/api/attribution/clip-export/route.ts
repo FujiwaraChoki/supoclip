@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getPrismaClient } from "@/server/prisma";
 import { getServerSession } from "@/server/session";
+import { isWithinSignupWindow, prismaSqlExecutor, recordFirstClipExport } from "@/server/user-acquisition";
 
 // POST /api/attribution/clip-export - mark the user's first clip export, exactly once
 export async function POST() {
@@ -11,30 +12,17 @@ export async function POST() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const prisma = getPrismaClient();
     const exportedAt = new Date();
-    // Conditional update is atomic, so concurrent exports can't both count as first.
-    const { count } = await prisma.userAcquisition.updateMany({
-      where: { user_id: session.user.id, first_clip_exported_at: null },
-      data: { first_clip_exported_at: exportedAt },
+    // New accounts may export before their attribution has synced; older
+    // accounts without a row predate tracking and are never counted.
+    const attribution = await recordFirstClipExport(prismaSqlExecutor(getPrismaClient()), session.user.id, exportedAt, {
+      allowInsert: isWithinSignupWindow(session.user.createdAt, exportedAt),
     });
-    if (count === 0) {
+    if (!attribution) {
       return NextResponse.json({ first_export: false });
     }
 
-    const attribution = await prisma.userAcquisition.findUnique({
-      where: { user_id: session.user.id },
-      select: {
-        utm_source: true,
-        utm_medium: true,
-        utm_campaign: true,
-        utm_content: true,
-        ref: true,
-        referrer_host: true,
-      },
-    });
     const createdAt = new Date(session.user.createdAt).getTime();
-
     return NextResponse.json({
       first_export: true,
       attribution,

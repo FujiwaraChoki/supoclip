@@ -1,10 +1,17 @@
 import {
   ATTRIBUTION_STORAGE_KEY,
   attributionMetadata,
-  captureAttribution,
-  getStoredAttribution,
+  captureAnonymousAttribution,
+  attributionVisitKey,
+  claimAnonymousAttribution,
+  confirmAccountAttribution,
+  getAccountAttribution,
+  getAnonymousAttribution,
+  getPendingAttribution,
+  isAccountAttributionConfirmed,
   hasCampaignSignal,
   mergeAttribution,
+  normalizeLandingPath,
   parseAttribution,
   sanitizeAttribution,
 } from "./attribution";
@@ -86,32 +93,142 @@ describe("attributionMetadata", () => {
   });
 });
 
-describe("captureAttribution", () => {
+describe("normalizeLandingPath", () => {
+  // token_urlsafe(32), the format the backend uses for share links.
+  const shareToken = "kQ3v_Zr8-Xb1yTq0pLmN4sHcW7aEoU2fDgJiVnRtYxM";
+
+  it.each([
+    [`/share/${shareToken}`, "/share/:token"],
+    ["/share/abcdefabcdef", "/share/:token"],
+    ["/tasks/3f2a9c1e-8b4d-4e6f-9a0b-1c2d3e4f5a6b", "/tasks/:id"],
+    ["/tasks/3f2a9c1e-8b4d-4e6f-9a0b-1c2d3e4f5a6b/edit", "/tasks/:id/edit"],
+    ["/settings/api-keys/12345", "/settings/api-keys/:id"],
+    ["/anything/9f86d081884c7d659a2feaa0c55ad015", "/anything/:token"],
+    [`/x/${shareToken}?utm_source=y#frag`, "/x/:token"],
+  ])("masks secrets and IDs in %s", (path, expected) => {
+    expect(normalizeLandingPath(path)).toBe(expected);
+  });
+
+  it.each([
+    "/",
+    "/demo",
+    "/blog/self-host-supoclip-docker",
+    "/blog/top-10-clipping-tips-2026",
+    "/open-source-video-clipper",
+    "/tasks",
+  ])("keeps marketing and static paths like %s", (path) => {
+    expect(normalizeLandingPath(path)).toBe(path);
+  });
+
+  it("is applied to untrusted input, including previously stored raw paths", () => {
+    expect(sanitizeAttribution({ captured_at: now.toISOString(), landing_path: `/share/${shareToken}` })?.landing_path).toBe(
+      "/share/:token",
+    );
+    expect(sanitizeAttribution({ captured_at: now.toISOString(), landing_path: "https://evil.example/x" })?.landing_path).toBeUndefined();
+  });
+
+  it("never records a share token from a captured visit", () => {
+    const attribution = parseAttribution(new URL(`https://www.supoclip.com/share/${shareToken}?utm_source=x`), "", now);
+    expect(JSON.stringify(attribution)).not.toContain(shareToken);
+    expect(attribution.landing_path).toBe("/share/:token");
+  });
+});
+
+describe("browser attribution storage", () => {
+  const storage = new Map<string, string>();
+
   beforeEach(() => {
-    const storage = new Map<string, string>();
+    storage.clear();
     vi.stubGlobal("localStorage", {
       getItem: (key: string) => storage.get(key) ?? null,
       setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
     });
-    window.history.replaceState(null, "", "/");
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("persists the first touch across later visits", () => {
-    window.history.replaceState(null, "", "/demo?utm_source=x&utm_campaign=launch");
-    captureAttribution();
-    window.history.replaceState(null, "", "/pricing?utm_source=newsletter");
-    captureAttribution();
+  it("persists the first anonymous touch across later visits", () => {
+    captureAnonymousAttribution("https://www.supoclip.com/demo?utm_source=x&utm_campaign=launch", "");
+    captureAnonymousAttribution("https://www.supoclip.com/pricing?utm_source=newsletter", "");
 
-    expect(getStoredAttribution()).toMatchObject({ utm_source: "x", utm_campaign: "launch", landing_path: "/demo" });
+    expect(getAnonymousAttribution()).toMatchObject({ utm_source: "x", utm_campaign: "launch", landing_path: "/demo" });
   });
 
   it("ignores corrupt storage", () => {
-    window.localStorage.setItem(ATTRIBUTION_STORAGE_KEY, "{not json");
-    expect(getStoredAttribution()).toBeNull();
-    expect(captureAttribution()).toMatchObject({ landing_path: "/" });
+    storage.set(ATTRIBUTION_STORAGE_KEY, "{not json");
+    expect(getAnonymousAttribution()).toBeNull();
+    expect(captureAnonymousAttribution("https://www.supoclip.com/", "")).toMatchObject({ landing_path: "/" });
+  });
+
+  const visitAt = (href: string) => captureAnonymousAttribution(href, "")!;
+
+  it("claims the anonymous visit synchronously into one account's pending slot", () => {
+    const visit = visitAt("https://www.supoclip.com/?utm_source=reddit");
+
+    expect(claimAnonymousAttribution("user-a")).toEqual(visit);
+
+    expect(getAnonymousAttribution()).toBeNull();
+    expect(getPendingAttribution("user-a")).toEqual(visit);
+    expect(claimAnonymousAttribution("user-b")).toBeNull();
+    expect(getAccountAttribution("user-b")).toBeNull();
+  });
+
+  it("keeps exports attributed while the claim is pending", () => {
+    visitAt("https://www.supoclip.com/?utm_source=reddit");
+    claimAnonymousAttribution("user-a");
+
+    expect(isAccountAttributionConfirmed("user-a")).toBe(false);
+    expect(getAccountAttribution("user-a")).toMatchObject({ utm_source: "reddit" });
+  });
+
+  it("re-sends an earlier unconfirmed claim instead of claiming a newer visit", () => {
+    const first = visitAt("https://www.supoclip.com/?utm_source=reddit");
+    claimAnonymousAttribution("user-a");
+    visitAt("https://www.supoclip.com/?utm_source=newsletter");
+
+    expect(claimAnonymousAttribution("user-a")).toEqual(first);
+  });
+
+  it("consumes only the exact claimed visit when the server confirms", () => {
+    const sent = visitAt("https://www.supoclip.com/?utm_source=reddit");
+    claimAnonymousAttribution("user-a");
+    // User A signs out and a new anonymous journey starts before the response arrives.
+    const newer = visitAt("https://www.supoclip.com/?utm_source=newsletter");
+
+    confirmAccountAttribution("user-a", sent, sent);
+
+    expect(getPendingAttribution("user-a")).toBeNull();
+    expect(getAccountAttribution("user-a")).toMatchObject({ utm_source: "reddit" });
+    expect(getAnonymousAttribution()).toEqual(newer);
+  });
+
+  it("does not let a stale response consume a different pending visit", () => {
+    const stale = sanitizeAttribution({ captured_at: "2026-10-01T00:00:00.000Z", utm_source: "old" })!;
+    const current = visitAt("https://www.supoclip.com/?utm_source=reddit");
+    claimAnonymousAttribution("user-a");
+
+    confirmAccountAttribution("user-a", stale, stale);
+
+    expect(getPendingAttribution("user-a")).toEqual(current);
+    expect(attributionVisitKey(stale)).not.toBe(attributionVisitKey(current));
+  });
+
+  it("has a confirmed account discard anonymous visits so later accounts can't inherit them", () => {
+    confirmAccountAttribution("user-a", null, null);
+    visitAt("https://www.supoclip.com/?utm_source=reddit");
+
+    expect(claimAnonymousAttribution("user-a")).toBeNull();
+    expect(getAnonymousAttribution()).toBeNull();
+    expect(claimAnonymousAttribution("user-b")).toBeNull();
+  });
+
+  it("records a confirmed unattributed account as done", () => {
+    confirmAccountAttribution("user-a", null, null);
+
+    expect(isAccountAttributionConfirmed("user-a")).toBe(true);
+    expect(getAccountAttribution("user-a")).toBeNull();
   });
 });

@@ -215,16 +215,29 @@ which hardware or plan produced it.
 
 ### How attribution works
 
-1. On the first visit with a campaign signal (UTM tags, `?ref=`/`?via=`, or an
-   external referrer), the browser stores it for 90 days. A later signal does
-   not replace it (first touch). A direct visit is replaced by the first real
-   source.
-2. Within 24 hours of sign-up, it's saved once to the `user_acquisition` table.
-   Older accounts are never re-attributed.
+1. Only while signed out, the first visit with a campaign signal (UTM tags,
+   `?ref=`/`?via=`, or an external referrer) is stored in the browser for 90
+   days. A later signal does not replace it (first touch). A direct visit is
+   replaced by the first real source. Landing paths are reduced to routes
+   (`/share/:token`, `/tasks/:id`), so share tokens and IDs are never stored.
+2. The first account to sign in on that browser claims the record
+   immediately, before any network call: it moves into that account's
+   pending slot, so no other account can take it. The claim is then synced;
+   new accounts (within 24 hours of sign-up) get it saved once to the
+   `user_acquisition` table, and older accounts are never re-attributed. A
+   confirmed answer is kept for the account and consumes only the exact visit
+   that was sent, so a late response can't erase a newer journey. An empty
+   answer for a new account isn't final and is retried on later page loads.
+   Exports made while the sync is pending use the claimed visit.
 3. The first time the user downloads or exports a clip (task page or editor),
    `first_clip_exported_at` is set atomically and the browser sends
-   `first_clip_exported` to DataFast, using the stored attribution even on a
-   different device.
+   `first_clip_exported` to DataFast with that account's frozen attribution
+   (from the server, so it works across devices).
+4. Steps 2 and 3 can happen in either order. If a new account exports before
+   its attribution is saved, the export is still recorded once, and the later
+   save fills in the campaign fields without touching the export time.
+   (`frontend/src/server/user-acquisition.ts`; covered by
+   `user-acquisition.integration.test.ts`.)
 
 ### DataFast goals
 

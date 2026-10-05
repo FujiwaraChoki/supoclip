@@ -117,16 +117,18 @@ export default function PrivacyPolicyPage() {
             </p>
             <p className="font-medium text-foreground">Campaign and referral information.</p>
             <p>
-              When you visit our website, your browser keeps a record of how you first arrived, for
-              up to 90 days. It stores this in your browser&apos;s local storage, not in a cookie.
-              The record includes campaign tags in the link you followed (such as{" "}
+              When you visit our website while signed out, your browser keeps a record of how you
+              first arrived, for up to 90 days. It stores this in your browser&apos;s local storage,
+              not in a cookie. The record includes campaign tags in the link you followed (such as{" "}
               <code>utm_source</code>, <code>utm_campaign</code>, or a <code>ref</code> code), the
               domain of the referring website (not the full address), the page you landed on, and
-              the time of that visit.
+              the time of that visit. Page addresses are reduced to their route, so share links and
+              project IDs are never recorded. Nothing is recorded while you are signed in.
             </p>
             <p>
-              If you create an account, we save this record to your account once, shortly after
-              sign-up. We also note when you first download or export a clip. We use this to learn
+              The first account to sign in on that browser claims the record, and it is then deleted
+              from the browser so no other account can use it. If that account is new, we save the
+              record to it once, shortly after sign-up. We also note when you first download or export a clip. We use this to learn
               which channels bring people who find SupoClip useful. If analytics are enabled, the
               sign-up and clip-export events we send to our analytics provider include the same
               campaign fields. We don&apos;t use this information for advertising or sell it. You can

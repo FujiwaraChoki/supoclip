@@ -28,6 +28,7 @@ import {
   type EditorState,
   type ExportJob,
 } from "@/lib/editor/document";
+import { useSession } from "@/lib/auth-client";
 import { trackClipExport } from "@/lib/clip-export-tracking";
 import { exportDraft } from "@/lib/editor/export-draft";
 import { editorRequest } from "./use-editor";
@@ -86,6 +87,7 @@ export function ExportPanel({
   asset,
   save,
 }: Props) {
+  const userId = useSession().data?.user?.id;
   const [preset, setPreset] = useState("tiktok"),
     [mode, setMode] = useState("server"),
     [progress, setProgress] = useState<number | null>(null),
@@ -183,7 +185,7 @@ export function ExportPanel({
           control.signal,
           setProgress,
         );
-        void trackClipExport({ surface: "editor", format: preset });
+        if (userId) void trackClipExport({ userId, surface: "editor", format: preset });
         toast.success("Video exported");
       } else {
         for (const c of batch ? clips : [clip]) {
@@ -410,7 +412,7 @@ export function ExportPanel({
                       <a
                         href={`${job.endpoint}/exports/${job.id}/file`}
                         download
-                        onClick={() => void trackClipExport({ surface: "editor_queue", format: "queued_render" })}
+                        onClick={() => { if (userId) void trackClipExport({ userId, surface: "editor_queue", format: "queued_render" }); }}
                       >
                         <Download />
                         Download

@@ -1,6 +1,7 @@
 import { POST } from "./route";
 import { getPrismaClient } from "@/server/prisma";
 import { getServerSession } from "@/server/session";
+import { recordFirstClipExport } from "@/server/user-acquisition";
 
 vi.mock("@/server/session", () => ({
   getServerSession: vi.fn(),
@@ -10,13 +11,15 @@ vi.mock("@/server/prisma", () => ({
   getPrismaClient: vi.fn(),
 }));
 
-describe("POST /api/attribution/clip-export", () => {
-  const updateMany = vi.fn();
-  const findUnique = vi.fn();
+vi.mock("@/server/user-acquisition", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/user-acquisition")>()),
+  recordFirstClipExport: vi.fn(),
+}));
 
+describe("POST /api/attribution/clip-export", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.mocked(getPrismaClient).mockReturnValue({ userAcquisition: { updateMany, findUnique } } as never);
+    vi.mocked(getPrismaClient).mockReturnValue({ $queryRawUnsafe: vi.fn() } as never);
   });
 
   it("returns 401 without a session", async () => {
@@ -24,24 +27,34 @@ describe("POST /api/attribution/clip-export", () => {
     expect((await POST()).status).toBe(401);
   });
 
-  it("reports a repeat or unattributed export as not first", async () => {
+  it("reports a repeat or untracked export as not first", async () => {
     vi.mocked(getServerSession).mockResolvedValue({ user: { id: "user-1", createdAt: new Date() } } as never);
-    updateMany.mockResolvedValue({ count: 0 });
+    vi.mocked(recordFirstClipExport).mockResolvedValue(null);
 
     await expect((await POST()).json()).resolves.toEqual({ first_export: false });
-    expect(updateMany).toHaveBeenCalledWith({
-      where: { user_id: "user-1", first_clip_exported_at: null },
-      data: { first_clip_exported_at: expect.any(Date) },
-    });
-    expect(findUnique).not.toHaveBeenCalled();
+  });
+
+  it("lets new accounts record an export before attribution syncs, but not older ones", async () => {
+    vi.mocked(recordFirstClipExport).mockResolvedValue(null);
+
+    vi.mocked(getServerSession).mockResolvedValue({ user: { id: "user-1", createdAt: new Date() } } as never);
+    await POST();
+    vi.mocked(getServerSession).mockResolvedValue({
+      user: { id: "user-1", createdAt: new Date(Date.now() - 3 * 24 * 36e5) },
+    } as never);
+    await POST();
+
+    expect(vi.mocked(recordFirstClipExport).mock.calls.map((call) => call[3])).toEqual([
+      { allowInsert: true },
+      { allowInsert: false },
+    ]);
   });
 
   it("returns stored attribution and time to activation on the first export", async () => {
     vi.mocked(getServerSession).mockResolvedValue({
       user: { id: "user-1", createdAt: new Date(Date.now() - 3 * 36e5) },
     } as never);
-    updateMany.mockResolvedValue({ count: 1 });
-    findUnique.mockResolvedValue({ utm_source: "reddit", utm_campaign: "launch" });
+    vi.mocked(recordFirstClipExport).mockResolvedValue({ utm_source: "reddit", utm_campaign: "launch" });
 
     await expect((await POST()).json()).resolves.toEqual({
       first_export: true,

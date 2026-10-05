@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { signUp } from "../../lib/auth-client";
-import { attributionMetadata, getStoredAttribution } from "@/lib/attribution";
+import { attributionMetadata, getAnonymousAttribution } from "@/lib/attribution";
 import { track } from "@/lib/datafast";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -33,7 +33,7 @@ export function SignUp() {
 
     track("signup_completed", {
       auth_method: "email",
-      ...attributionMetadata(getStoredAttribution()),
+      ...attributionMetadata(getAnonymousAttribution()),
     });
     setMessage("Account created successfully! Signing you in...");
     setLoading(false);

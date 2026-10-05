@@ -469,7 +469,7 @@ export default function TaskPage() {
 
     const blob = await response.blob();
     downloadBlob(blob, `${fallbackFilename.replace(/\.mp4$/i, "")}_${exportPreset}.mp4`);
-    void trackClipExport({ surface: "task", format: exportPreset });
+    void trackClipExport({ userId: session.user.id, surface: "task", format: exportPreset });
   };
 
   const handleDownloadClip = (clip: Clip) => {
@@ -480,7 +480,7 @@ export default function TaskPage() {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      void trackClipExport({ surface: "task", format: "original" });
+      if (session?.user?.id) void trackClipExport({ userId: session.user.id, surface: "task", format: "original" });
       return;
     }
     void runAction(clip.id, () => handleExportClip(clip.id, clip.filename));
