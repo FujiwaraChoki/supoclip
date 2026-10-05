@@ -4,6 +4,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, CalendarDays, Check, ExternalLink, Github } from "lucide-react";
 
+import { RelatedGuides } from "@/components/marketing/related-guides";
+import { SiteFooter } from "@/components/marketing/site-footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GITHUB_URL, getSiteUrl } from "@/lib/site";
@@ -58,7 +60,9 @@ export default async function SeoLandingPage({ params }: SeoLandingPageProps) {
 
   const siteUrl = getSiteUrl();
   const url = `${siteUrl}/${page.slug}`;
-  const relatedPages = seoPages.filter((candidate) => candidate.slug !== page.slug);
+  const updatedLabel = new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "UTC" }).format(
+    new Date(`${page.updatedAt}T00:00:00.000Z`),
+  );
   const jsonLd = [
     {
       "@context": "https://schema.org",
@@ -109,6 +113,7 @@ export default async function SeoLandingPage({ params }: SeoLandingPageProps) {
           </Link>
           <nav className="flex items-center gap-2" aria-label="Primary navigation">
             <Link href="/blog"><Button variant="ghost" size="sm">Blog</Button></Link>
+            <Link href="/blog/self-host-supoclip-docker" className="hidden sm:block"><Button variant="ghost" size="sm">Self-host</Button></Link>
             <Link href="/sign-up"><Button size="sm">Start clipping</Button></Link>
           </nav>
         </div>
@@ -131,7 +136,7 @@ export default async function SeoLandingPage({ params }: SeoLandingPageProps) {
               <span>SupoClip Team</span>
               <span className="flex items-center gap-1.5">
                 <CalendarDays className="h-4 w-4" />
-                Updated <time dateTime={page.updatedAt}>July 27, 2026</time>
+                Updated <time dateTime={page.updatedAt}>{updatedLabel}</time>
               </span>
             </div>
             <div className="mt-9 flex flex-wrap gap-3">
@@ -164,7 +169,7 @@ export default async function SeoLandingPage({ params }: SeoLandingPageProps) {
               </table>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              First-party product data from the SupoClip repository and hosted application, verified July 27, 2026.
+              First-party product data from the SupoClip repository and hosted application, verified {updatedLabel}.
             </p>
           </section>
 
@@ -184,6 +189,15 @@ export default async function SeoLandingPage({ params }: SeoLandingPageProps) {
                     ))}
                   </ul>
                 ) : null}
+                {section.links ? (
+                  <p className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+                    {section.links.map((link) => (
+                      <Link key={link.href} href={link.href} className="inline-flex items-center gap-1.5 font-medium underline underline-offset-4">
+                        {link.label} <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    ))}
+                  </p>
+                ) : null}
               </section>
             ))}
           </div>
@@ -200,21 +214,9 @@ export default async function SeoLandingPage({ params }: SeoLandingPageProps) {
             </div>
           </section>
 
-          <section className="mt-16 border-t pt-12" aria-labelledby="related-heading">
-            <h2 id="related-heading" className="text-2xl font-bold">Continue exploring</h2>
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              {relatedPages.map((related) => (
-                <Link key={related.slug} href={`/${related.slug}`} className="rounded-lg border p-5 transition-colors hover:border-foreground/30">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{related.eyebrow}</p>
-                  <h3 className="mt-2 font-semibold">{related.heading}</h3>
-                </Link>
-              ))}
-              <Link href="/blog/best-free-opusclip-alternative" className="rounded-lg border p-5 transition-colors hover:border-foreground/30">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Comparison</p>
-                <h3 className="mt-2 font-semibold">Best free OpusClip alternative</h3>
-              </Link>
-            </div>
-          </section>
+          <div className="mt-16 border-t pt-12">
+            <RelatedGuides href={`/${page.slug}`} />
+          </div>
 
           <aside className="mt-14 rounded-lg bg-muted/45 p-6 text-sm text-muted-foreground">
             <p className="font-semibold text-foreground">Sources and review policy</p>
@@ -225,6 +227,7 @@ export default async function SeoLandingPage({ params }: SeoLandingPageProps) {
           </aside>
         </div>
       </article>
+      <SiteFooter />
     </main>
   );
 }

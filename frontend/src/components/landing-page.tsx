@@ -32,6 +32,14 @@ import {
 } from "lucide-react";
 import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
 import { getPublicBillingPlans } from "@/lib/billing-plans";
+import { SiteFooter } from "@/components/marketing/site-footer";
+import {
+  OPUSCLIP_COMPARISON_HREF,
+  SELF_HOSTING_GUIDE_HREF,
+  getMarketingLink,
+  type MarketingLink,
+} from "@/lib/marketing-links";
+import { DEMO_CLIPS, DEMO_SOURCE } from "@/lib/demo";
 import { APP_STORE_URL, GITHUB_URL, HOSTED_APP_URL } from "@/lib/site";
 
 function ScrollReveal({
@@ -182,38 +190,15 @@ const STEPS = [
   },
 ];
 
+// Featured on the landing page; the footer links every marketing page.
 const SEO_RESOURCES = [
-  {
-    href: "/blog/supoclip-vs-supo-live",
-    eyebrow: "Comparison",
-    title: "SupoClip vs supo.live: open-source control",
-    description: "Compare self-hosting, AI clipping, and editing workflows before choosing your next video tool.",
-  },
-  {
-    href: "/ai-video-clipper",
-    eyebrow: "AI Video Clipping",
-    title: "AI video clipper for Shorts, Reels, and TikTok",
-    description: "See how SupoClip finds moments, scores candidates, reframes faces, and adds captions.",
-  },
-  {
-    href: "/open-source-video-clipper",
-    eyebrow: "Self-Hosting",
-    title: "Open-source video clipper you can control",
-    description: "Compare hosted-only workflows with SupoClip's inspectable, self-hosted pipeline.",
-  },
-  {
-    href: "/youtube-shorts-clipper",
-    eyebrow: "YouTube to Shorts",
-    title: "Repurpose long YouTube videos into Shorts",
-    description: "Follow a practical workflow for selecting, captioning, reframing, and reviewing clips.",
-  },
-  {
-    href: "/blog/best-free-opusclip-alternative",
-    eyebrow: "Comparison",
-    title: "Best free OpusClip alternative",
-    description: "Compare SupoClip's open-source approach with a managed, credit-based clipping tool.",
-  },
-];
+  OPUSCLIP_COMPARISON_HREF,
+  SELF_HOSTING_GUIDE_HREF,
+  "/ai-video-clipper",
+  "/youtube-shorts-clipper",
+  "/open-source-video-clipper",
+  "/blog/supoclip-vs-supo-live",
+].map((href) => getMarketingLink(href)).filter((link): link is MarketingLink => Boolean(link));
 
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
@@ -789,12 +774,12 @@ export default function LandingPage() {
           <ScrollReveal delay={0.3}>
             <p className="text-center text-xs text-muted-foreground mt-10 max-w-md mx-auto">
               Self-hosting? All features are free and unlimited.{" "}
-              <a
-                href="#open-source"
+              <Link
+                href={SELF_HOSTING_GUIDE_HREF}
                 className="underline underline-offset-2 hover:text-foreground transition-colors"
               >
-                See setup instructions
-              </a>
+                See the self-hosting guide
+              </Link>
               .
             </p>
           </ScrollReveal>
@@ -827,7 +812,7 @@ export default function LandingPage() {
             <Card className="py-0 gap-0">
               <CardContent className="p-6 md:p-8">
                 <p className="text-xs font-medium text-muted-foreground mb-3">
-                  Get running in 30 seconds:
+                  Self-host with Docker Compose:
                 </p>
                 <div className="bg-primary text-primary-foreground rounded-lg p-5 font-mono text-sm leading-loose overflow-x-auto">
                   <div>
@@ -839,12 +824,12 @@ export default function LandingPage() {
                   </div>
                   <div>
                     <span className="opacity-50">$</span>{" "}
-                    cd{" "}
-                    <span className="opacity-40">supoclip</span>
+                    cd supoclip && cp .env.example .env
                   </div>
+                  <div className="opacity-40"># add a transcription + LLM provider to .env</div>
                   <div>
                     <span className="opacity-50">$</span>{" "}
-                    docker-compose up -d
+                    docker compose up -d --build
                   </div>
                 </div>
 
@@ -860,6 +845,9 @@ export default function LandingPage() {
                       <ExternalLink className="w-3.5 h-3.5 opacity-50" />
                     </Button>
                   </a>
+                  <Link href={SELF_HOSTING_GUIDE_HREF}>
+                    <Button variant="outline">Self-hosting guide</Button>
+                  </Link>
                   {authEnabled ? (
                     <Link href="/sign-up">
                       <Button variant="outline">
@@ -933,13 +921,13 @@ export default function LandingPage() {
             Ready to clip?
           </h2>
           <p className="text-base text-muted-foreground mb-8">
-            Turn your next video into scroll-stopping shorts. Free, open source,
-            no credit card required.
+            Turn your next video into scroll-stopping shorts. Use the hosted app,
+            or self-host the open-source version for free.
           </p>
           {authEnabled ? (
             <Link href="/sign-up">
               <Button size="lg" className="px-10 h-12 text-sm">
-                Get Started Free
+                Get Started
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
@@ -955,82 +943,12 @@ export default function LandingPage() {
       </section>
 
 
-      {/* ─── FOOTER ─── */}
-      <footer className="border-t py-8 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Image
-              src="/logo.png"
-              alt="SupoClip"
-              width={24}
-              height={24}
-              className="rounded-md"
-            />
-            <span
-              className="text-sm font-semibold"
-              style={{ fontFamily: "var(--font-syne), system-ui" }}
-            >
-              SupoClip
-            </span>
-          </div>
-          <nav aria-label="Footer navigation" className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <Link href="/ai-video-clipper" className="hover:text-foreground transition-colors">AI clipper</Link>
-            <Link href="/open-source-video-clipper" className="hover:text-foreground transition-colors">Open source</Link>
-            <Link href="/youtube-shorts-clipper" className="hover:text-foreground transition-colors">YouTube Shorts</Link>
-            <Link href="/blog" className="hover:text-foreground transition-colors">Blog</Link>
-            <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
-            <Link href="/terms" className="hover:text-foreground transition-colors">Terms</Link>
-            <a
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors"
-            >
-              GitHub
-            </a>
-            <a
-              href={APP_STORE_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors"
-            >
-              iOS App
-            </a>
-            <span>&copy; {new Date().getFullYear()}</span>
-          </nav>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
 
 /* ─── Hero Visual ─── */
-
-/**
- * Real SupoClip output. Clips were generated from the source video below and
- * trimmed to 15s previews for the landing page (see public/clips/).
- */
-const DEMO_SOURCE = {
-  title: "Sam Altman — How to Start a Startup",
-  url: "https://www.youtube.com/watch?v=Vv3CEAS_w34",
-};
-
-const DEMO_CLIPS = [
-  {
-    src: "/clips/demo-2.mp4",
-    poster: "/clips/demo-2.jpg",
-    hook: "Why chaos management is not teachable",
-    range: "05:04 – 05:54",
-    duration: "0:50",
-  },
-  {
-    src: "/clips/demo-1.mp4",
-    poster: "/clips/demo-1.jpg",
-    hook: "Why your 10 week old startup is failing",
-    range: "00:14 – 00:39",
-    duration: "0:25",
-  },
-];
 
 function HeroVisual() {
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
@@ -1224,6 +1142,13 @@ function HeroVisual() {
               </button>
             ))}
           </div>
+          <Link
+            href="/demo"
+            className="mt-3 flex items-center justify-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            How these clips were made
+            <ArrowRight className="w-3 h-3" />
+          </Link>
         </CardContent>
       </Card>
 

@@ -15,11 +15,15 @@ SupoClip can be used as a hosted web application, as a native iOS app, or self-h
 - [AI video clipper](https://www.supoclip.com/ai-video-clipper): AI-assisted highlight detection, virality scoring, captions, and exports.
 - [Open-source video clipper](https://www.supoclip.com/open-source-video-clipper): Self-hosting, source access, provider choice, and deployment tradeoffs.
 - [YouTube Shorts clipper](https://www.supoclip.com/youtube-shorts-clipper): Workflow for repurposing long YouTube videos into vertical Shorts.
+- [Demo](https://www.supoclip.com/demo): Real clips generated from a long-form interview, with source timestamps and pipeline steps.
 
 ## Guides and comparisons
 
 - [SupoClip Blog](https://www.supoclip.com/blog): Product comparisons and practical video-clipping workflows.
-- [Best free OpusClip alternative](https://www.supoclip.com/blog/best-free-opusclip-alternative): Comparison of SupoClip's open-source workflow with OpusClip.
+- [Self-host SupoClip with Docker Compose](https://www.supoclip.com/blog/self-host-supoclip-docker): Requirements, environment setup, fully local Whisper + Ollama option, and production checklist.
+- [SupoClip vs OpusClip](https://www.supoclip.com/blog/supoclip-vs-opusclip): Sourced comparison of deployment, pricing model, watermarks, and workflow.
+- [Best free, self-hosted OpusClip alternative](https://www.supoclip.com/blog/best-free-opusclip-alternative): When self-hosting the open-source app beats a credit-based tool.
+- [SupoClip vs supo.live](https://www.supoclip.com/blog/supoclip-vs-supo-live): Open-source control compared with a hosted live-clipping service.
 
 ## Key capabilities
 
@@ -30,11 +34,15 @@ SupoClip can be used as a hosted web application, as a native iOS app, or self-h
 - Export presets for YouTube Shorts, TikTok, and Instagram Reels.
 - Hosted web usage, an iOS app, or AGPL-3.0 self-hosting.
 - Support for configured hosted language-model providers or Ollama.
+- Transcription via AssemblyAI (default), local Whisper, or YouTube captions.
+- REST API with per-user API keys, and an MCP server for AI clients.
+- No watermark on exported clips.
 
 ## Important qualifications
 
 - Virality scores prioritize candidates; they do not guarantee audience performance.
 - The source code is free, but self-hosters provide their own infrastructure and any paid transcription or model-provider usage.
+- The hosted service requires a paid plan (Pro or Scale) to process videos; self-hosted installs have no plan limits.
 - Users should process only videos they own or have permission to repurpose.
 - Product capabilities and pricing can change; use the canonical website and repository for current details.
 
@@ -44,4 +52,4 @@ SupoClip can be used as a hosted web application, as a native iOS app, or self-h
 - Website: https://www.supoclip.com/
 - Source: https://github.com/FujiwaraChoki/supoclip
 - Contact: support@supoclip.com
-- Last reviewed: 2026-07-27
+- Last reviewed: 2026-10-05
