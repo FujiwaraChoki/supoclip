@@ -29,12 +29,7 @@ import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import { fetchGenerations, greeting, type GenerationSummary } from "@/lib/generations";
 import { cn } from "@/lib/utils";
-
-interface FontOption {
-  name: string;
-  display_name: string;
-  format?: string;
-}
+import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 
 interface CaptionTemplate {
   id: string;
@@ -463,9 +458,7 @@ export default function HomeApp() {
                             <SelectContent>
                               <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>Template default</SelectItem>
                               {filteredFonts.map((font) => (
-                                <SelectItem key={font.name} value={font.name}>
-                                  <span style={{ fontFamily: `'${font.name}', system-ui, sans-serif` }}>{font.display_name}</span>
-                                </SelectItem>
+                                <FontSelectOption key={font.name} font={font} />
                               ))}
                               {availableFonts.length > 0 && filteredFonts.length === 0 && <SelectItem value="__no_match__" disabled>No fonts match your search</SelectItem>}
                             </SelectContent>

@@ -63,7 +63,9 @@ def test_expired_budget_stops_before_another_poll(monkeypatch):
 
 
 def test_transcription_timeout_does_not_resubmit_paid_job(monkeypatch, tmp_path):
-    runtime_config = SimpleNamespace(assembly_ai_api_key="test", assembly_ai_http_timeout_seconds=2)
+    runtime_config = SimpleNamespace(
+        assembly_ai_api_key="test", assembly_ai_http_timeout_seconds=2, transcription_language=""
+    )
     helper = Mock(side_effect=TimeoutError("deadline exceeded"))
     monkeypatch.setattr(transcription, "_submit_and_wait_for_assemblyai_transcript", helper)
     monkeypatch.setattr(transcription, "_prepare_audio_for_transcription", lambda path: path)
@@ -106,3 +108,23 @@ def test_submission_timeout_is_not_retried(monkeypatch):
         client.close()
     transcriber.upload_file.assert_called_once()
     transcriber.submit.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    ("language", "expected_code", "expected_detection"),
+    [("", None, True), ("es", "es", None)],
+)
+def test_language_is_detected_unless_configured(
+    monkeypatch, tmp_path, language, expected_code, expected_detection
+):
+    runtime_config = SimpleNamespace(
+        assembly_ai_api_key="test", assembly_ai_http_timeout_seconds=2, transcription_language=language
+    )
+    helper = Mock(side_effect=TimeoutError("stop after submit"))
+    monkeypatch.setattr(transcription, "_submit_and_wait_for_assemblyai_transcript", helper)
+    monkeypatch.setattr(transcription, "_prepare_audio_for_transcription", lambda path: path)
+    with pytest.raises(TimeoutError):
+        transcription._get_transcript_with_assemblyai(tmp_path / "video.mp4", "universal", runtime_config)
+    config = helper.call_args.args[2]
+    assert config.language_code == expected_code
+    assert config.language_detection is expected_detection

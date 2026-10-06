@@ -93,6 +93,59 @@ test("signed-in settings waits for preferences before showing the form", async (
   await expect(page.getByRole("button", { name: /save preferences/i })).toBeVisible();
 });
 
+test("font info stays open in a real selector and preserves the selected font", async ({ page }) => {
+  await page.route("**/api/fonts", route => route.fulfill({ json: { fonts: [
+    { name: "TikTokSans-Regular", display_name: "TikTok Sans Regular", scope: "system", supported_languages: ["en", "pt", "es", "fr", "de", "it", "pl", "tr", "vi", "el", "ru", "uk", "af"] },
+    { name: "custom", display_name: "Custom Font", scope: "user", supported_languages: ["hi"] },
+  ] } }));
+  await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
+  await page.route("**/api/preferences", route => route.fulfill({ json: { fontFamily: "TikTokSans-Regular", fontSize: 24, fontColor: "#FFFFFF", notifyOnCompletion: true } }));
+  await page.goto("/settings");
+  const selector = page.getByRole("combobox").first();
+  await selector.click();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("button", { name: "Language support for TikTok Sans Regular" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "TikTok Sans Regular: language support" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("option", { name: "TikTok Sans Regular", exact: true })).toHaveAttribute("data-state", "checked");
+  await page.getByRole("button", { name: "Language support for Custom Font" }).click();
+  await expect(page.getByRole("heading", { name: "Custom Font: language support" })).toBeVisible();
+  await expect(page.getByText(/^Supported:\s*Hindi$/)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("heading", { name: "Custom Font: language support" })).toHaveCount(0);
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await page.getByRole("option", { name: "Custom Font", exact: true }).click();
+  await expect(selector).toHaveText("Custom Font");
+  await expect(page.getByRole("button", { name: /save preferences/i })).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await selector.click();
+  await page.getByRole("button", { name: "Language support for TikTok Sans Regular" }).click();
+  await expect(page.getByRole("heading", { name: "TikTok Sans Regular: language support" })).toBeVisible();
+  await page.screenshot({ path: "test-results/font-language-info.png" });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+for (const path of ["/", "/tasks/one"]) {
+  test(`font info works inside caption controls at ${path}`, async ({ page }) => {
+    await page.route("**/api/fonts", route => route.fulfill({ json: { fonts: [
+      { name: "Inter", display_name: "Inter", scope: "system", supported_languages: ["en", "pt"] },
+    ] } }));
+    await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
+    await page.route(/\/api\/tasks\/?(\?.*)?$/, route => route.fulfill({ json: { tasks: [] } }));
+    await page.goto(path);
+    await page.getByRole("button", { name: path === "/" ? "Default" : "Restyle", exact: true }).click();
+    await page.getByRole("combobox").first().click();
+    await page.getByRole("button", { name: "Language support for Inter" }).click();
+    await expect(page.getByRole("heading", { name: "Inter: language support" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await page.getByRole("option", { name: "Inter", exact: true }).click();
+    await expect(page.getByRole("combobox").first()).toHaveText("Inter");
+  });
+}
+
 
 test("signed-out pages hydrate consistently after the shared session resolves", async ({ page }) => {
   const errors: string[] = [];

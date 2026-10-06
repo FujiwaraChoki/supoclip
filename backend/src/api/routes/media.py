@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from pathlib import Path
 from typing import Any, cast
 import logging
+import asyncio
 import uuid
 import aiofiles
 
@@ -75,7 +76,8 @@ async def get_available_fonts_route(
         if not FONTS_DIR.exists():
             return {"fonts": [], "message": "Fonts directory not found"}
 
-        fonts = list_available_fonts(user_id=user_id)
+        # Coverage queries launch Fontconfig; keep cold scans off the API loop.
+        fonts = await asyncio.to_thread(list_available_fonts, user_id=user_id)
         logger.info(f"Found {len(fonts)} available fonts")
         return {"fonts": fonts}
 
