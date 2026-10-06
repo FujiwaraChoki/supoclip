@@ -68,12 +68,15 @@ def test_prepare_audio_for_transcription_extracts_compact_mp3(tmp_path):
         Path(command[-1]).write_bytes(b"audio")
         return Result()
 
-    with patch("src.media.transcription.run_ffmpeg_command", side_effect=fake_run):
+    with patch("src.media.transcription.run_ffmpeg_command", side_effect=fake_run), patch(
+        "src.media.transcription.select_audio_stream_index", return_value=1
+    ):
         audio_path = video_utils._prepare_audio_for_transcription(video_path)
 
     assert audio_path.name == "source.transcription.mp3"
     assert audio_path.read_bytes() == b"audio"
     assert commands[0][0] == "ffmpeg"
+    assert commands[0][commands[0].index("-map") + 1] == "0:a:1"
     assert "-vn" in commands[0]
     assert "64k" in commands[0]
 

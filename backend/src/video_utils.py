@@ -19,11 +19,13 @@ from .media.common import (
     uuid,
 )
 from .media.ffmpeg import (
+    audio_stream_map_args,
     ffprobe_duration,
     ffprobe_video_size,
     render_source_ranges_ffmpeg,
     round_to_even,
     run_ffmpeg_command,
+    select_audio_stream_index,
 )
 from .media.transcription import (
     get_video_transcript,
@@ -284,6 +286,7 @@ def create_optimized_clip(
                     "-y",
                     "-ss", str(fast_path_start),
                     "-i", str(video_path),
+                    *audio_stream_map_args(select_audio_stream_index(video_path)),
                     "-t", str(fast_path_end - fast_path_start),
                     "-c", "copy",
                     "-movflags", "+faststart",

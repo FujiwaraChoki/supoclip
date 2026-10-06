@@ -319,6 +319,7 @@ HOOK TITLES ("hook_title" per segment):
 - Stay grounded: only promise what the clip actually delivers; never invent facts or numbers
 - Do not simply repeat the first spoken words verbatim; reframe them as a headline
 - Plain text only: no hashtags, no emojis, no quotes around the title
+- Write it in the same language as the transcript
 - Good examples: "The $40k mistake I keep seeing", "Why nobody tells you this about VC", "Do this before your next interview"
 
 HOOK TYPES to identify:
@@ -555,7 +556,7 @@ JSON-only output requirements:
 - No Markdown, headings, bullets, code fences, or explanatory text outside JSON.
 - Top-level keys: "most_relevant_segments", "summary", "key_topics", "broll_opportunities".{' Set "broll_opportunities" to null.' if not include_broll else ''}
 - Segment keys: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", "hook_title".
-- "hook_title" is a 3-9 word plain-text headline for the clip, grounded in the segment (no hashtags, emojis, or quotes).
+- "hook_title" is a 3-9 word plain-text headline for the clip, in the transcript's language, grounded in the segment (no hashtags, emojis, or quotes).
 - Virality keys: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", "virality_reasoning".
 - Do not return segments shorter than {MIN_ACCEPTED_CLIP_SECONDS} seconds or longer than {MAX_ACCEPTED_CLIP_SECONDS} seconds.
 

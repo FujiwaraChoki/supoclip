@@ -174,6 +174,7 @@ Required in `.env` (root) or `backend/.env`:
 
 ```bash
 ASSEMBLY_AI_API_KEY=...              # Required: video transcription
+TRANSCRIPTION_LANGUAGE=              # Optional: empty = auto-detect; e.g. es, de, en_us forces it
 LLM=google-gla:gemini-3-flash-preview # Format: provider:model-name
 GOOGLE_API_KEY=...                   # Or OPENAI_API_KEY / ANTHROPIC_API_KEY
 OLLAMA_BASE_URL=http://localhost:11434/v1  # Optional for ollama:* models
