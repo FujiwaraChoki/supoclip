@@ -1,7 +1,9 @@
 from pathlib import Path
 from typing import Any
+from functools import lru_cache
 import re
 import struct
+import subprocess
 
 SUPPORTED_FONT_EXTENSIONS = (".ttf", ".otf")
 FONTS_DIR = Path(__file__).parent.parent / "fonts"
@@ -12,6 +14,41 @@ TTF_NAME_ID_FULL_NAME = 4
 
 def _display_name(font_stem: str) -> str:
     return font_stem.replace("-", " ").replace("_", " ").strip().title()
+
+
+@lru_cache(maxsize=256)
+def _query_font_languages(path: str, modified_ns: int, size: int) -> tuple[str, ...] | None:
+    """Fontconfig compares this file's glyph coverage with language orthographies.
+
+    The stat arguments invalidate cached results when an uploaded font changes.
+    None means unavailable/invalid; an empty tuple means no covered orthographies.
+    """
+    try:
+        result = subprocess.run(
+            ["fc-query", "--format=%{lang}\\n", path],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    # Variable fonts can return several faces with the same coverage. Only report
+    # languages covered by every face so the note is true for any selected weight.
+    faces = [set(line.strip().split("|")) - {""} for line in result.stdout.splitlines()]
+    if not faces:
+        return None
+    return tuple(sorted(set.intersection(*faces)))
+
+
+def get_font_languages(font_path: Path) -> list[str] | None:
+    try:
+        stat = font_path.stat()
+    except OSError:
+        return None
+    languages = _query_font_languages(str(font_path.resolve()), stat.st_mtime_ns, stat.st_size)
+    return list(languages) if languages is not None else None
 
 
 def sanitize_user_id_for_path(user_id: str) -> str:
@@ -63,6 +100,7 @@ def _collect_fonts_from_dir(font_dir: Path, scope: str) -> list[dict[str, Any]]:
                     "format": extension.lstrip("."),
                     "file_path": str(font_path),
                     "scope": scope,
+                    "supported_languages": get_font_languages(font_path),
                 }
             )
 

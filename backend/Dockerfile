@@ -2,11 +2,14 @@
 FROM python:3.11-slim
 
 # Install system dependencies including ffmpeg and unzip (for deno).
-# fonts-noto-color-emoji lets libass render colour emojis in burned captions.
+# Noto provides fallback glyphs for multilingual captions (including Hindi)
+# and colour emoji. libass/fontconfig selects them when a chosen font lacks glyphs.
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
     unzip \
+    fonts-noto-core \
+    fonts-noto-cjk \
     fonts-noto-color-emoji \
     fontconfig \
     && fc-cache -f \
