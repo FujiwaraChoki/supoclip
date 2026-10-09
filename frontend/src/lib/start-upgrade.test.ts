@@ -4,7 +4,7 @@ import { startUpgrade } from "./start-upgrade";
 vi.mock("@/lib/datafast", () => ({ track: vi.fn() }));
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
-const bodies = (fetch: ReturnType<typeof vi.spyOn>) =>
+const bodies = (fetch: { mock: { calls: unknown[][] } }) =>
   fetch.mock.calls.map(([, init]) => JSON.parse(String((init as RequestInit).body)));
 
 const storage = new Map<string, string>();

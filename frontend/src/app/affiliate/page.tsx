@@ -10,6 +10,12 @@ import { getPublicBillingPlans } from "@/lib/billing-plans";
 import { getSiteUrl } from "@/lib/site";
 
 const APPLY_HREF = "/settings/creator-program";
+const VIDEO = {
+  src: "/videos/creator-program.mp4",
+  poster: "/videos/creator-program-poster.jpg",
+  durationSeconds: 28,
+  uploadDate: "2026-10-09",
+};
 
 const title = "SupoClip Creator Program: Get Pro Free for Making Videos";
 const description =
@@ -25,6 +31,8 @@ export const metadata: Metadata = {
     url: `${getSiteUrl()}/affiliate`,
     siteName: "SupoClip",
     type: "website",
+    images: [{ url: `${getSiteUrl()}${VIDEO.poster}`, width: 1920, height: 1080 }],
+    videos: [{ url: `${getSiteUrl()}${VIDEO.src}`, width: 1920, height: 1080, type: "video/mp4" }],
   },
   twitter: { card: "summary_large_image", title, description },
 };
@@ -87,6 +95,15 @@ export default function AffiliatePage() {
         ],
       },
       {
+        "@type": "VideoObject",
+        name: "How the SupoClip creator program works",
+        description: "Apply, pick your code, and your audience gets their first month free, then 20% off forever. Approved creators get SupoClip Pro for free.",
+        thumbnailUrl: `${siteUrl}${VIDEO.poster}`,
+        contentUrl: `${siteUrl}${VIDEO.src}`,
+        uploadDate: VIDEO.uploadDate,
+        duration: `PT${VIDEO.durationSeconds}S`,
+      },
+      {
         "@type": "FAQPage",
         mainEntity: faqs.map((faq) => ({
           "@type": "Question",
@@ -127,6 +144,20 @@ export default function AffiliatePage() {
             <Link href={APPLY_HREF}><Button size="lg">Apply now <ArrowRight className="h-4 w-4" /></Button></Link>
             <span className="text-sm text-muted-foreground">No follower minimum.</span>
           </div>
+          <video
+            src={VIDEO.src}
+            poster={VIDEO.poster}
+            autoPlay
+            muted
+            loop
+            playsInline
+            controls
+            preload="metadata"
+            width={1920}
+            height={1080}
+            className="mt-12 aspect-video w-full rounded-2xl border bg-muted shadow-lg"
+            aria-label="Creator program explainer: apply, pick your code, and your audience gets their first month free"
+          />
         </div>
       </section>
 
