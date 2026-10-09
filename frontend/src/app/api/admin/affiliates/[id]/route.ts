@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   creatorCouponId,
+  deactivatePromotionCode,
   grantAffiliatePro,
   revokeAffiliatePro,
   sendAffiliateEmail,
@@ -105,10 +106,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return NextResponse.json({ error: "Only approved creators can be revoked" }, { status: 409 });
       }
 
-      if (affiliate.stripe_promotion_code_id) {
-        await getStripeClient().promotionCodes.update(affiliate.stripe_promotion_code_id, { active: false });
-      }
+      // Remove Pro before touching Stripe so a Stripe failure can't leave a revoked creator on free Pro.
+      // Checkout only honours approved codes, so the Stripe deactivation is best effort.
       await revokeAffiliatePro(prisma, affiliate.user_id);
+      if (affiliate.stripe_promotion_code_id) {
+        await deactivatePromotionCode(affiliate.stripe_promotion_code_id);
+      }
       return NextResponse.json({ status: "revoked" });
     }
 

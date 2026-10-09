@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { restoreAffiliateProIfApproved } from "@/server/affiliates";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 import { monetizationEnabled } from "@/lib/monetization";
 import { fetchBackend } from "@/server/backend-api";
@@ -119,6 +120,8 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   });
 
   if (user?.id && result.count > 0) {
+    // Approved creators fall back to their free Pro; they haven't lost access, so no "unsubscribed" email.
+    if (await restoreAffiliateProIfApproved(prisma, user.id)) return;
     await sendSubscriptionEmailBestEffort(user.id, "unsubscribed");
   }
 }

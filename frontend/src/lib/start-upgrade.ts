@@ -10,7 +10,7 @@ async function requestCheckout(plan: BillingPlanId, code: string | null) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(code ? { plan, code } : { plan }),
   });
-  const data: { url?: string; error?: string } = await response.json().catch(() => ({}));
+  const data: { url?: string; error?: string; code?: string } = await response.json().catch(() => ({}));
   return { response, data };
 }
 
@@ -23,7 +23,8 @@ async function requestCheckout(plan: BillingPlanId, code: string | null) {
 export async function startUpgrade(plan: BillingPlanId, source: string): Promise<void> {
   const code = getStoredCreatorCode();
   let { response, data } = await requestCheckout(plan, code);
-  if (code && response.status === 400) {
+  // Must match INVALID_CREATOR_CODE in server/affiliates.ts (server-only module).
+  if (code && data.code === "invalid_creator_code") {
     clearCreatorCode();
     ({ response, data } = await requestCheckout(plan, null));
   }

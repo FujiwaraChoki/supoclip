@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { restoreAffiliateProIfApproved } from "@/server/affiliates";
 import { NextResponse } from "next/server";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 import { fetchBackend } from "@/server/backend-api";
@@ -240,6 +241,7 @@ async function downgradeAppleSubscription(userId: string, eventExpiration?: Date
   });
 
   if (result.count > 0) {
+    if (await restoreAffiliateProIfApproved(getPrismaClient(), userId)) return;
     await sendSubscriptionEmailBestEffort(userId, "unsubscribed");
   }
 }

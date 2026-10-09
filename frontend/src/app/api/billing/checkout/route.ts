@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 import { monetizationEnabled } from "@/lib/monetization";
 import { getStripeClient } from "@/lib/stripe";
 import { getServerBillingPlan } from "@/server/billing-plans";
-import { findCreatorOffer, type CreatorOffer } from "@/server/affiliates";
+import { findCreatorOffer, INVALID_CREATOR_CODE, type CreatorOffer } from "@/server/affiliates";
 import type Stripe from "stripe";
 
 const APP_STORE_MANAGED_MESSAGE = "Your subscription is managed through the App Store";
@@ -109,10 +109,10 @@ export async function POST(request: Request) {
   if (enteredCode) {
     offer = await findCreatorOffer(prisma, enteredCode);
     if (!offer) {
-      return NextResponse.json({ error: "That creator code isn't valid" }, { status: 400 });
+      return NextResponse.json({ error: "That creator code isn't valid", code: INVALID_CREATOR_CODE }, { status: 400 });
     }
     if (offer.affiliateUserId === session.user.id) {
-      return NextResponse.json({ error: "You can't use your own creator code" }, { status: 400 });
+      return NextResponse.json({ error: "You can't use your own creator code", code: INVALID_CREATOR_CODE }, { status: 400 });
     }
   } else {
     const acquisition = await prisma.userAcquisition.findUnique({

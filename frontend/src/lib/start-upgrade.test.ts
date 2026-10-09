@@ -40,13 +40,22 @@ describe("startUpgrade", () => {
     storeCreatorCode("MAYA");
     const fetch = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(json(400, { error: "That creator code isn't valid" }))
+      .mockResolvedValueOnce(json(400, { error: "That creator code isn't valid", code: "invalid_creator_code" }))
       .mockResolvedValueOnce(json(200, { url: "#checkout" }));
 
     await startUpgrade("scale", "test");
 
     expect(bodies(fetch)).toEqual([{ plan: "scale", code: "MAYA" }, { plan: "scale" }]);
     expect(getStoredCreatorCode()).toBeNull();
+  });
+
+  it("keeps a valid code when checkout fails for another reason", async () => {
+    storeCreatorCode("MAYA");
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(json(400, { error: "Unknown billing plan" }));
+
+    await expect(startUpgrade("pro", "test")).rejects.toThrow("Unknown billing plan");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(getStoredCreatorCode()).toBe("MAYA");
   });
 
   it("surfaces checkout errors without a code", async () => {

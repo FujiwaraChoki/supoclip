@@ -112,6 +112,19 @@ describe("/api/admin/affiliates/[id]", () => {
     });
   });
 
+  it("still removes the free Pro when Stripe can't deactivate the code", async () => {
+    affiliate.findUnique.mockResolvedValue({ ...pending, status: "approved", stripe_promotion_code_id: "promo_1" });
+    promotionCodes.update.mockRejectedValue(new Error("Stripe is down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await review({ action: "revoke" });
+
+    expect(response.status).toBe(200);
+    expect(user.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { plan: "free", subscription_status: "inactive", subscription_provider: null } }),
+    );
+  });
+
   it("rejects unknown actions", async () => {
     expect((await review({ action: "promote" })).status).toBe(400);
   });

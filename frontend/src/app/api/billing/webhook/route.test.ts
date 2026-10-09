@@ -97,6 +97,7 @@ describe("/api/billing/webhook", () => {
         create: vi.fn().mockResolvedValue({}),
         delete: deleteEvent,
       },
+      affiliate: { findUnique: vi.fn().mockResolvedValue(null) },
       user: {
         findFirst: vi.fn().mockResolvedValue({ id: "user-1", subscription_provider: "stripe" }),
         updateMany,
@@ -130,6 +131,43 @@ describe("/api/billing/webhook", () => {
     expect(deleteEvent).not.toHaveBeenCalled();
   });
 
+  it("returns an approved creator to their free Pro when their paid plan is deleted", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    vi.mocked(getServerStripeClient).mockReturnValue({
+      webhooks: {
+        constructEvent: vi.fn().mockReturnValue({
+          id: "evt_creator",
+          type: "customer.subscription.deleted",
+          data: { object: { customer: "cus_123" } },
+        }),
+      },
+    } as never);
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: { create: vi.fn().mockResolvedValue({}), delete: vi.fn() },
+      affiliate: { findUnique: vi.fn().mockResolvedValue({ status: "approved" }) },
+      user: {
+        findFirst: vi.fn().mockResolvedValue({ id: "user-1", subscription_provider: "stripe" }),
+        updateMany,
+      },
+    } as never);
+
+    const response = await POST(
+      new Request("http://localhost/api/billing/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: { plan: "pro", subscription_status: "active", subscription_provider: "affiliate" },
+      }),
+    );
+    expect(fetchBackend).not.toHaveBeenCalled();
+  });
+
   it("acknowledges subscription deletions even when backend email delivery fails", async () => {
     const deleteEvent = vi.fn().mockResolvedValue({});
     const stripe = {
@@ -152,6 +190,7 @@ describe("/api/billing/webhook", () => {
         create: vi.fn().mockResolvedValue({}),
         delete: deleteEvent,
       },
+      affiliate: { findUnique: vi.fn().mockResolvedValue(null) },
       user: {
         findFirst: vi.fn().mockResolvedValue({ id: "user-1", subscription_provider: "stripe" }),
         updateMany: vi.fn().mockResolvedValue({ count: 1 }),

@@ -151,7 +151,7 @@ describe("/api/billing/checkout", () => {
       const response = await checkout({ plan: "pro", code: "MAYA" });
 
       expect(response.status).toBe(400);
-      await expect(response.json()).resolves.toEqual({ error: "That creator code isn't valid" });
+      await expect(response.json()).resolves.toEqual({ error: "That creator code isn't valid", code: "invalid_creator_code" });
       expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
     });
 

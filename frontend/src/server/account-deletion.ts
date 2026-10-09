@@ -1,5 +1,6 @@
 import { APIError } from "better-auth/api";
 import { monetizationEnabled } from "@/lib/monetization";
+import { deactivatePromotionCode } from "@/server/affiliates";
 import { getPrismaClient } from "@/server/prisma";
 
 // Stripe keeps billing (and retrying failed charges) in these states.
@@ -40,6 +41,15 @@ export async function prepareAccountDeletion(userId: string): Promise<void> {
     ) {
       throw new APIError("BAD_REQUEST", { message: ACTIVE_STRIPE_SUBSCRIPTION_MESSAGE });
     }
+  }
+
+  // The affiliates row cascades away with the user; free its code in Stripe so it can be reused.
+  const affiliate = await prisma.affiliate.findUnique({
+    where: { user_id: userId },
+    select: { stripe_promotion_code_id: true },
+  });
+  if (affiliate?.stripe_promotion_code_id) {
+    await deactivatePromotionCode(affiliate.stripe_promotion_code_id);
   }
 
   // Only sources no other user's task points at.

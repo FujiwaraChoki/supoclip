@@ -1,5 +1,6 @@
 import { ACTIVE_STRIPE_SUBSCRIPTION_MESSAGE, prepareAccountDeletion } from "./account-deletion";
 import { getPrismaClient } from "@/server/prisma";
+import { getStripeClient } from "@/lib/stripe";
 
 vi.mock("@/lib/monetization", () => ({
   monetizationEnabled: true,
@@ -9,10 +10,15 @@ vi.mock("@/server/prisma", () => ({
   getPrismaClient: vi.fn(),
 }));
 
-function mockPrisma(user: Record<string, unknown> | null) {
+vi.mock("@/lib/stripe", () => ({
+  getStripeClient: vi.fn(),
+}));
+
+function mockPrisma(user: Record<string, unknown> | null, affiliate: Record<string, unknown> | null = null) {
   const deleteMany = vi.fn().mockResolvedValue({ count: 1 });
   vi.mocked(getPrismaClient).mockReturnValue({
     user: { findUnique: vi.fn().mockResolvedValue(user) },
+    affiliate: { findUnique: vi.fn().mockResolvedValue(affiliate) },
     source: { deleteMany },
   } as never);
   return { deleteMany };
@@ -70,5 +76,26 @@ describe("prepareAccountDeletion", () => {
         },
       },
     });
+  });
+
+  it("frees an approved creator's code in Stripe before the account is deleted", async () => {
+    const update = vi.fn().mockResolvedValue({});
+    vi.mocked(getStripeClient).mockReturnValue({ promotionCodes: { update } } as never);
+    const { deleteMany } = mockPrisma(null, { stripe_promotion_code_id: "promo_1" });
+
+    await expect(prepareAccountDeletion("user-1")).resolves.toBeUndefined();
+    expect(update).toHaveBeenCalledWith("promo_1", { active: false });
+    expect(deleteMany).toHaveBeenCalled();
+  });
+
+  it("still deletes the account when Stripe can't deactivate the code", async () => {
+    vi.mocked(getStripeClient).mockImplementation(() => {
+      throw new Error("STRIPE_SECRET_KEY is not configured");
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { deleteMany } = mockPrisma(null, { stripe_promotion_code_id: "promo_1" });
+
+    await expect(prepareAccountDeletion("user-1")).resolves.toBeUndefined();
+    expect(deleteMany).toHaveBeenCalled();
   });
 });

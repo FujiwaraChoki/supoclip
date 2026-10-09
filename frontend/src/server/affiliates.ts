@@ -1,3 +1,4 @@
+import { getStripeClient } from "@/lib/stripe";
 import { fetchBackend } from "@/server/backend-api";
 import type { getPrismaClient } from "@/server/prisma";
 
@@ -17,6 +18,8 @@ export const AUDIENCE_SIZES = ["under-1k", "1k-10k", "10k-100k", "100k-plus"] as
 export const REAPPLY_AFTER_DAYS = 30;
 /** Entitlement owner for Pro granted by the program (see the Stripe/Apple webhooks' provider filters). */
 export const AFFILIATE_PROVIDER = "affiliate";
+/** Error `code` checkout returns when a creator code can't be applied; the client then drops it. */
+export const INVALID_CREATOR_CODE = "invalid_creator_code";
 
 const RESERVED_SLUGS = new Set([
   "admin", "affiliate", "affiliates", "api", "billing", "creator", "creators", "free", "help",
@@ -152,6 +155,26 @@ export async function grantAffiliatePro(prisma: PrismaClient, userId: string) {
     },
     data: { plan: "pro", subscription_status: "active", subscription_provider: AFFILIATE_PROVIDER },
   });
+}
+
+/**
+ * When a paid Stripe or App Store plan ends, an approved creator falls back to
+ * their free Pro instead of Free. Returns whether it was restored.
+ */
+export async function restoreAffiliateProIfApproved(prisma: PrismaClient, userId: string) {
+  const affiliate = await prisma.affiliate.findUnique({ where: { user_id: userId }, select: { status: true } });
+  if (affiliate?.status !== "approved") return false;
+  await grantAffiliatePro(prisma, userId);
+  return true;
+}
+
+/** Best effort: an inactive code is never applied by our checkout anyway, this just frees it in Stripe. */
+export async function deactivatePromotionCode(promotionCodeId: string) {
+  try {
+    await getStripeClient().promotionCodes.update(promotionCodeId, { active: false });
+  } catch (error) {
+    console.error(`Failed to deactivate Stripe promotion code ${promotionCodeId}`, error);
+  }
 }
 
 export async function revokeAffiliatePro(prisma: PrismaClient, userId: string) {
