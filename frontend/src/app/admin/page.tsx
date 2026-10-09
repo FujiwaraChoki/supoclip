@@ -11,9 +11,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/app/status-badge";
 import { cn } from "@/lib/utils";
+import { APP_STORE_ID } from "@/lib/site";
 import { fetchBackend } from "@/server/backend-api";
 
 const ACTIVE_TASK_STATUSES = ["queued", "processing", "pending"];
+/** App Store Connect page holding the Pro subscription's "Creator offer" (custom codes are added there). */
+const APP_STORE_CREATOR_OFFER_URL = `https://appstoreconnect.apple.com/apps/${APP_STORE_ID}/distribution/subscriptions/6786756790/pricing/offer-codes`;
 
 const th = "px-5 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground";
 const td = "px-5 py-3 text-sm";
@@ -222,6 +225,7 @@ export default async function AdminPage({
         audience_size: true,
         video_url: true,
         promotion_plan: true,
+        app_store_code_added_at: true,
         created_at: true,
         user: { select: { email: true, name: true } },
       },
@@ -265,7 +269,8 @@ export default async function AdminPage({
       <div id="affiliates" className="scroll-mt-6">
         <Panel
           title="Creator Program"
-          description={`${pendingAffiliates} pending application${pendingAffiliates === 1 ? "" : "s"}. Approving creates the Stripe code and gives the creator Pro.`}
+          description={`${pendingAffiliates} pending application${pendingAffiliates === 1 ? "" : "s"}. Approving creates the Stripe code and gives the creator Pro. For iPhone, add their code to the App Store "Creator offer", then mark it added.`}
+          action={<a href={APP_STORE_CREATOR_OFFER_URL} target="_blank" rel="noopener noreferrer" className="text-xs font-medium underline-offset-4 hover:underline">App Store offer codes</a>}
         >
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y">
@@ -292,7 +297,7 @@ export default async function AdminPage({
                     </td>
                     <td className={cn(td, "max-w-xs text-xs text-muted-foreground")}>{affiliate.promotion_plan || "—"}</td>
                     <td className={cn(td, "text-right")}>
-                      <AffiliateReviewActions affiliateId={affiliate.id} status={affiliate.status} />
+                      <AffiliateReviewActions affiliateId={affiliate.id} status={affiliate.status} appStoreCodeAdded={Boolean(affiliate.app_store_code_added_at)} />
                     </td>
                   </tr>
                 ))}

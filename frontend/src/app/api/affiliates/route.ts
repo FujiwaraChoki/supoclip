@@ -17,6 +17,7 @@ const APPLICATION_SELECT = {
   video_url: true,
   promotion_plan: true,
   decline_reason: true,
+  app_store_code_added_at: true,
   reviewed_at: true,
   created_at: true,
 } as const;

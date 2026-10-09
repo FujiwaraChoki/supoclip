@@ -62,7 +62,7 @@ function getFaqs(proPrice: string) {
     },
     {
       question: "What does my audience get?",
-      answer: "Anyone who signs up through your link or enters your code at checkout gets 20% off their first 3 months on any plan. It applies to web checkout, not purchases in the iOS app.",
+      answer: "Anyone who signs up through your link or enters your code at checkout gets 20% off their first 3 months. On the web it works on any plan. On iPhone it applies to Pro: people tap “Have a creator code?” in the app or open your iPhone link.",
     },
     {
       question: "Can I pick my own code?",

@@ -26,7 +26,10 @@ async function requireAdmin() {
 
 const ALREADY_REVIEWED = NextResponse.json({ error: "This application was already reviewed" }, { status: 409 });
 
-/** Review a creator application: `{ action: "approve" | "decline" | "revoke", reason? }`. */
+/**
+ * Review a creator application: `{ action: "approve" | "decline" | "revoke" | "app_store_code_added", reason? }`.
+ * `app_store_code_added` records that the creator's custom code was added to the App Store "Creator offer".
+ */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const adminCheck = await requireAdmin();
@@ -115,7 +118,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ status: "revoked" });
     }
 
-    return NextResponse.json({ error: "action must be approve, decline or revoke" }, { status: 400 });
+    if (body.action === "app_store_code_added") {
+      const { count } = await prisma.affiliate.updateMany({
+        where: { id, status: "approved" },
+        data: { app_store_code_added_at: new Date() },
+      });
+      if (count === 0) {
+        return NextResponse.json({ error: "Only approved creators have an App Store code" }, { status: 409 });
+      }
+      return NextResponse.json({ status: "approved" });
+    }
+
+    return NextResponse.json({ error: "action must be approve, decline, revoke or app_store_code_added" }, { status: 400 });
   } catch (error) {
     console.error("Failed to review affiliate application:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

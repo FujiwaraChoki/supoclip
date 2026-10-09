@@ -68,6 +68,7 @@ class AffiliateEmailService:
                 f'<p><strong>Your link:</strong> <a href="{escape(link)}">{escape(link)}</a><br>'
                 f"<strong>Your code:</strong> {escape(code)}</p>"
                 f"<p>Anyone who signs up through your link or enters your code gets {OFFER_TEXT}.</p>"
+                "<p>Your iPhone link (for the SupoClip iOS app) will show up on your creator page once your code is live on the App Store.</p>"
                 "<p>As a thank-you, your account now has SupoClip Pro for free while you're in the program.</p>"
                 "<p>Please mark sponsored posts as such (for example #ad), and don't run ads on the SupoClip name "
                 "or post your code on coupon sites.</p>"
@@ -79,6 +80,7 @@ class AffiliateEmailService:
                 f"Your link: {link}\n"
                 f"Your code: {code}\n\n"
                 f"Anyone who signs up through your link or enters your code gets {OFFER_TEXT}.\n\n"
+                "Your iPhone link (for the SupoClip iOS app) will show up on your creator page once your code is live on the App Store.\n\n"
                 "As a thank-you, your account now has SupoClip Pro for free while you're in the program.\n\n"
                 "Please mark sponsored posts as such (for example #ad), and don't run ads on the SupoClip name "
                 "or post your code on coupon sites.\n\n"

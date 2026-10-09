@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS "affiliates" (
     "promotion_plan" VARCHAR(1000),
     "decline_reason" VARCHAR(1000),
     "stripe_promotion_code_id" VARCHAR(255),
+    "app_store_code_added_at" TIMESTAMPTZ,
     "terms_accepted_at" TIMESTAMPTZ NOT NULL,
     "reviewed_at" TIMESTAMPTZ,
     "reviewed_by" VARCHAR(36),

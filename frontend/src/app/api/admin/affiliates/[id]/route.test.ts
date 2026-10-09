@@ -125,6 +125,24 @@ describe("/api/admin/affiliates/[id]", () => {
     );
   });
 
+  it("records that an approved creator's App Store code was added", async () => {
+    affiliate.findUnique.mockResolvedValue({ ...pending, status: "approved", stripe_promotion_code_id: "promo_1" });
+
+    const response = await review({ action: "app_store_code_added" });
+
+    expect(response.status).toBe(200);
+    expect(affiliate.updateMany).toHaveBeenCalledWith({
+      where: { id: "aff-1", status: "approved" },
+      data: { app_store_code_added_at: expect.any(Date) },
+    });
+  });
+
+  it("only marks App Store codes for approved creators", async () => {
+    affiliate.updateMany.mockResolvedValue({ count: 0 });
+
+    expect((await review({ action: "app_store_code_added" })).status).toBe(409);
+  });
+
   it("rejects unknown actions", async () => {
     expect((await review({ action: "promote" })).status).toBe(400);
   });

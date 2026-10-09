@@ -95,6 +95,8 @@ model Affiliate {
   promotion_plan           String?   @db.VarChar(1000)
   decline_reason           String?   @db.VarChar(1000)
   stripe_promotion_code_id String?   @db.VarChar(255)
+  /// When an admin added the creator's custom code to the App Store "Creator offer".
+  app_store_code_added_at  DateTime? @db.Timestamptz
   terms_accepted_at        DateTime  @db.Timestamptz
   reviewed_at              DateTime? @db.Timestamptz
   reviewed_by              String?   @db.VarChar(36)

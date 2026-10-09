@@ -5,6 +5,11 @@ export const GITHUB_URL = "https://github.com/FujiwaraChoki/supoclip";
 export const APP_STORE_ID = "6784760040";
 export const APP_STORE_URL = `https://apps.apple.com/us/app/supoclip/id${APP_STORE_ID}`;
 
+/** Opens the App Store's offer-code redemption for a creator's custom code (the "Creator offer"). */
+export function appStoreRedeemUrl(code: string) {
+  return `https://apps.apple.com/redeem?ctx=offercodes&id=${APP_STORE_ID}&code=${encodeURIComponent(code.toUpperCase())}`;
+}
+
 export function getSiteUrl() {
   try {
     return new URL(process.env.NEXT_PUBLIC_APP_URL || DEFAULT_SITE_URL).origin;

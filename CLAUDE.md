@@ -184,6 +184,12 @@ table (one per user, `slug` cleared on decline).
   (`lib/creator-code.ts`).
 - **Emails** go through the backend `POST /account/affiliate-email` (SES): new
   applications to every `is_admin` user, decisions to the applicant.
+- **iOS:** creators' free Pro reaches the app through the billing summary
+  (`subscription_provider: "affiliate"`). The audience discount on iPhone is an
+  App Store offer code: custom codes on the Pro subscription's "Creator offer"
+  (20% off for 3 months), added by hand in App Store Connect; admins then mark
+  "App Store code added" and the creator page shows `appStoreRedeemUrl(code)`.
+  The app's paywall opens Apple's redeem sheet ("Have a creator code?").
 
 ## Environment Variables
 

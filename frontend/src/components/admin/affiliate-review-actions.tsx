@@ -5,14 +5,15 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-type Action = "approve" | "decline" | "revoke";
+type Action = "approve" | "decline" | "revoke" | "app_store_code_added";
 
 interface AffiliateReviewActionsProps {
   affiliateId: string;
   status: string;
+  appStoreCodeAdded: boolean;
 }
 
-export function AffiliateReviewActions({ affiliateId, status }: AffiliateReviewActionsProps) {
+export function AffiliateReviewActions({ affiliateId, status, appStoreCodeAdded }: AffiliateReviewActionsProps) {
   const [pending, setPending] = useState<Action | null>(null);
   const [confirming, setConfirming] = useState<"decline" | "revoke" | null>(null);
   const [reason, setReason] = useState("");
@@ -59,6 +60,9 @@ export function AffiliateReviewActions({ affiliateId, status }: AffiliateReviewA
             {pending ? "Saving..." : confirming === "decline" ? "Decline" : "Revoke"}
           </Button>
         </div>
+        {confirming === "revoke" && appStoreCodeAdded && (
+          <span className="text-xs text-muted-foreground">Also deactivate their code in App Store Connect.</span>
+        )}
         {error && <span className="text-xs text-red-600">{error}</span>}
       </div>
     );
@@ -76,6 +80,14 @@ export function AffiliateReviewActions({ affiliateId, status }: AffiliateReviewA
           </Button>
         </>
       )}
+      {status === "approved" &&
+        (appStoreCodeAdded ? (
+          <span className="text-xs text-muted-foreground">App Store code added</span>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => review("app_store_code_added")} disabled={pending !== null}>
+            {pending === "app_store_code_added" ? "Saving..." : "Mark App Store code added"}
+          </Button>
+        ))}
       {status === "approved" && (
         <Button variant="outline" size="sm" onClick={() => setConfirming("revoke")} disabled={pending !== null}>
           Revoke
