@@ -13,13 +13,13 @@ const APPLY_HREF = "/settings/creator-program";
 const VIDEO = {
   src: "/videos/creator-program.mp4",
   poster: "/videos/creator-program-poster.jpg",
-  durationSeconds: 28,
+  durationSeconds: 27,
   uploadDate: "2026-10-09",
 };
 
 const title = "SupoClip Creator Program: Get Pro Free for Making Videos";
 const description =
-  "Make Shorts, Reels, TikToks or videos about SupoClip and get SupoClip Pro for free. Your audience gets their first month free, then 20% off forever with your code.";
+  "Make Shorts, Reels, TikToks or videos about SupoClip and get SupoClip Pro for free. Your audience gets 20% off their first 3 months with your code.";
 
 export const metadata: Metadata = {
   title: { absolute: title },
@@ -62,7 +62,7 @@ function getFaqs(proPrice: string) {
     },
     {
       question: "What does my audience get?",
-      answer: "Anyone who signs up through your link or enters your code at checkout gets their first month free, then 20% off every month after that, for as long as they stay subscribed. It applies to web checkout, not purchases in the iOS app.",
+      answer: "Anyone who signs up through your link or enters your code at checkout gets 20% off their first 3 months on any plan. It applies to web checkout, not purchases in the iOS app.",
     },
     {
       question: "Can I pick my own code?",
@@ -97,7 +97,7 @@ export default function AffiliatePage() {
       {
         "@type": "VideoObject",
         name: "How the SupoClip creator program works",
-        description: "Apply, pick your code, and your audience gets their first month free, then 20% off forever. Approved creators get SupoClip Pro for free.",
+        description: "Apply, pick your code, and your audience gets 20% off their first 3 months. Approved creators get SupoClip Pro for free.",
         thumbnailUrl: `${siteUrl}${VIDEO.poster}`,
         contentUrl: `${siteUrl}${VIDEO.src}`,
         uploadDate: VIDEO.uploadDate,
@@ -156,7 +156,7 @@ export default function AffiliatePage() {
             width={1920}
             height={1080}
             className="mt-12 aspect-video w-full rounded-2xl border bg-muted shadow-lg"
-            aria-label="Creator program explainer: apply, pick your code, and your audience gets their first month free"
+            aria-label="Creator program explainer: apply, pick your code, and your audience gets 20% off their first 3 months"
           />
         </div>
       </section>
@@ -175,10 +175,9 @@ export default function AffiliatePage() {
             </div>
             <div className="rounded-2xl border p-6">
               <Percent className="h-5 w-5" />
-              <h3 className="mt-4 text-lg font-semibold">Your audience gets their first month free</h3>
+              <h3 className="mt-4 text-lg font-semibold">Your audience gets 20% off</h3>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Then 20% off every month after that, for as long as they stay subscribed. It works through your link or by typing your
-                code at checkout.
+                For their first 3 months on any plan. It works through your link or by typing your code at checkout.
               </p>
             </div>
           </div>

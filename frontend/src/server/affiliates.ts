@@ -1,4 +1,3 @@
-import type Stripe from "stripe";
 import { fetchBackend } from "@/server/backend-api";
 import type { getPrismaClient } from "@/server/prisma";
 
@@ -9,15 +8,13 @@ type PrismaClient = ReturnType<typeof getPrismaClient>;
  *
  * A signed-in user applies with a slug (`maya`). An admin approves it, which
  * creates the Stripe promotion code `MAYA` on the shared creator coupon (20%
- * off forever) and gives the creator Pro for free. Their audience reaches
- * checkout through `?ref=maya` or by typing the code, and gets a free first
- * month (a trial) on top of the coupon.
+ * off for 3 months) and gives the creator Pro for free. Their audience gets
+ * the discount through `?ref=maya` or by typing the code at checkout.
  */
 
 export const AFFILIATE_PLATFORMS = ["tiktok", "youtube", "instagram", "x", "other"] as const;
 export const AUDIENCE_SIZES = ["under-1k", "1k-10k", "10k-100k", "100k-plus"] as const;
 export const REAPPLY_AFTER_DAYS = 30;
-export const CREATOR_TRIAL_DAYS = 30;
 /** Entitlement owner for Pro granted by the program (see the Stripe/Apple webhooks' provider filters). */
 export const AFFILIATE_PROVIDER = "affiliate";
 
@@ -28,7 +25,7 @@ const RESERVED_SLUGS = new Set([
 const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,18})[a-z0-9]$/;
 
 export function creatorCouponId() {
-  return process.env.STRIPE_CREATOR_COUPON_ID || "creator-20-forever";
+  return process.env.STRIPE_CREATOR_COUPON_ID || "creator-20-3mo";
 }
 
 export type SlugCheck = { ok: true; slug: string } | { ok: false; error: string };
@@ -141,12 +138,6 @@ export async function findCreatorOffer(prisma: PrismaClient, rawCode: string): P
     code: slug.slug.toUpperCase(),
     promotionCodeId: affiliate.stripe_promotion_code_id,
   };
-}
-
-/** The free month is for first-time subscribers only, not for cancel-and-resubscribe. */
-export async function hasHadStripeSubscription(stripe: Stripe, customerId: string) {
-  const { data } = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 1 });
-  return data.length > 0;
 }
 
 /** Gives Pro to a creator who isn't already paying; never touches a paid Stripe or App Store plan. */

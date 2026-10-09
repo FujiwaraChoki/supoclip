@@ -93,12 +93,11 @@ describe("/api/billing/checkout", () => {
   describe("creator codes", () => {
     const approvedMaya = { user_id: "creator-1", status: "approved", stripe_promotion_code_id: "promo_maya" };
 
-    function stripeWithHistory(priorSubscriptions: unknown[] = []) {
+    function stripeForCheckout() {
       return {
         checkout: {
           sessions: { create: vi.fn().mockResolvedValue({ url: "https://checkout.example/creator" }) },
         },
-        subscriptions: { list: vi.fn().mockResolvedValue({ data: priorSubscriptions }) },
       };
     }
 
@@ -111,36 +110,33 @@ describe("/api/billing/checkout", () => {
       );
     }
 
-    it("applies the discount and free month for a signup that came through a creator link", async () => {
+    it("applies the creator discount for a signup that came through a creator link", async () => {
       vi.mocked(prisma.userAcquisition.findUnique).mockResolvedValue({ ref: "Maya" } as never);
       vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(approvedMaya as never);
-      const stripe = stripeWithHistory();
+      const stripe = stripeForCheckout();
       vi.mocked(getStripeClient).mockReturnValue(stripe as never);
 
       const response = await checkout({ plan: "pro" });
 
       expect(response.status).toBe(200);
       expect(prisma.affiliate.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { slug: "maya" } }));
-      expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          discounts: [{ promotion_code: "promo_maya" }],
-          subscription_data: { trial_period_days: 30 },
-          metadata: { userId: "user-1", plan: "pro", creator_code: "MAYA" },
-        }),
-      );
+      const params = stripe.checkout.sessions.create.mock.calls[0][0];
+      expect(params).toMatchObject({
+        discounts: [{ promotion_code: "promo_maya" }],
+        metadata: { userId: "user-1", plan: "pro", creator_code: "MAYA" },
+      });
+      expect(params.subscription_data).toBeUndefined();
     });
 
-    it("keeps the discount but skips the free month for returning subscribers", async () => {
+    it("applies a typed code", async () => {
       vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(approvedMaya as never);
-      const stripe = stripeWithHistory([{ id: "sub_old" }]);
+      const stripe = stripeForCheckout();
       vi.mocked(getStripeClient).mockReturnValue(stripe as never);
 
-      const response = await checkout({ plan: "pro", code: "MAYA" });
+      const response = await checkout({ plan: "scale", code: "MAYA" });
 
       expect(response.status).toBe(200);
-      const params = stripe.checkout.sessions.create.mock.calls[0][0];
-      expect(params.discounts).toEqual([{ promotion_code: "promo_maya" }]);
-      expect(params.subscription_data).toBeUndefined();
+      expect(stripe.checkout.sessions.create.mock.calls[0][0].discounts).toEqual([{ promotion_code: "promo_maya" }]);
     });
 
     it.each([
@@ -149,7 +145,7 @@ describe("/api/billing/checkout", () => {
       ["was revoked", { ...approvedMaya, status: "revoked" }],
     ])("rejects a typed code that %s", async (_label, affiliate) => {
       vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(affiliate as never);
-      const stripe = stripeWithHistory();
+      const stripe = stripeForCheckout();
       vi.mocked(getStripeClient).mockReturnValue(stripe as never);
 
       const response = await checkout({ plan: "pro", code: "MAYA" });
@@ -161,7 +157,7 @@ describe("/api/billing/checkout", () => {
 
     it("rejects a creator's own code", async () => {
       vi.mocked(prisma.affiliate.findUnique).mockResolvedValue({ ...approvedMaya, user_id: "user-1" } as never);
-      vi.mocked(getStripeClient).mockReturnValue(stripeWithHistory() as never);
+      vi.mocked(getStripeClient).mockReturnValue(stripeForCheckout() as never);
 
       const response = await checkout({ plan: "pro", code: "maya" });
 
@@ -171,7 +167,7 @@ describe("/api/billing/checkout", () => {
     it("checks out at full price when the signup ref is not a creator code", async () => {
       vi.mocked(prisma.userAcquisition.findUnique).mockResolvedValue({ ref: "producthunt" } as never);
       vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(null as never);
-      const stripe = stripeWithHistory();
+      const stripe = stripeForCheckout();
       vi.mocked(getStripeClient).mockReturnValue(stripe as never);
 
       const response = await checkout({ plan: "pro" });

@@ -46,7 +46,7 @@ describe("/api/admin/affiliates/[id]", () => {
 
     expect(response.status).toBe(200);
     expect(promotionCodes.create).toHaveBeenCalledWith({
-      promotion: { type: "coupon", coupon: "creator-20-forever" },
+      promotion: { type: "coupon", coupon: "creator-20-3mo" },
       code: "MAYA",
       metadata: { affiliate_id: "aff-1", user_id: "creator-1" },
     });

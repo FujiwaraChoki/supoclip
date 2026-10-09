@@ -28,7 +28,7 @@ def test_approved_email_contains_link_and_code():
 
     assert "https://supoclip.com/?ref=maya" in content.text
     assert "MAYA" in content.html
-    assert "first month free, then 20% off forever" in content.text
+    assert "20% off their first 3 months" in content.text
 
 
 def test_declined_email_includes_escaped_reason_only_when_given():

@@ -5,12 +5,7 @@ import prisma from "@/lib/prisma";
 import { monetizationEnabled } from "@/lib/monetization";
 import { getStripeClient } from "@/lib/stripe";
 import { getServerBillingPlan } from "@/server/billing-plans";
-import {
-  CREATOR_TRIAL_DAYS,
-  findCreatorOffer,
-  hasHadStripeSubscription,
-  type CreatorOffer,
-} from "@/server/affiliates";
+import { findCreatorOffer, type CreatorOffer } from "@/server/affiliates";
 import type Stripe from "stripe";
 
 const APP_STORE_MANAGED_MESSAGE = "Your subscription is managed through the App Store";
@@ -130,13 +125,6 @@ export async function POST(request: Request) {
     }
   }
 
-  const trialDays =
-    offer &&
-    user?.subscription_provider !== "apple" &&
-    !(await hasHadStripeSubscription(stripe, customerId))
-      ? CREATOR_TRIAL_DAYS
-      : null;
-
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
@@ -147,7 +135,6 @@ export async function POST(request: Request) {
     },
     line_items: [{ price: priceId, quantity: 1 }],
     ...(offer ? { discounts: [{ promotion_code: offer.promotionCodeId }] } : {}),
-    ...(trialDays ? { subscription_data: { trial_period_days: trialDays } } : {}),
     success_url: `${appUrl}/settings?billing=success`,
     cancel_url: `${appUrl}/settings?billing=cancelled`,
   });

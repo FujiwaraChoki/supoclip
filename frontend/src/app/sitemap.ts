@@ -58,10 +58,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
       videos: [
         {
           title: "How the SupoClip creator program works",
-          description: "Apply, pick your code, and your audience gets their first month free, then 20% off forever.",
+          description: "Apply, pick your code, and your audience gets 20% off their first 3 months.",
           thumbnail_loc: `${siteUrl}/videos/creator-program-poster.jpg`,
           content_loc: `${siteUrl}/videos/creator-program.mp4`,
-          duration: 28,
+          duration: 27,
           publication_date: "2026-10-09",
         },
       ],

@@ -176,12 +176,12 @@ lives in `frontend/src/server/affiliates.ts`; applications are the `affiliates`
 table (one per user, `slug` cleared on decline).
 
 - **Approve** creates Stripe promotion code `SLUG` on the shared coupon
-  `STRIPE_CREATOR_COUPON_ID` (default `creator-20-forever`, 20% off forever) and
+  `STRIPE_CREATOR_COUPON_ID` (default `creator-20-3mo`, 20% off for 3 months) and
   grants Pro with `subscription_provider = "affiliate"` (Stripe/Apple webhooks
   never clobber it with a non-paid state).
-- **Checkout** applies the offer from a typed/remembered code (`body.code`) or the
-  signup `user_acquisition.ref`, adding a 30-day trial for first-time Stripe
-  subscribers. The browser remembers validated `?ref=` codes (`lib/creator-code.ts`).
+- **Checkout** applies the coupon from a typed/remembered code (`body.code`) or the
+  signup `user_acquisition.ref`. The browser remembers validated `?ref=` codes
+  (`lib/creator-code.ts`).
 - **Emails** go through the backend `POST /account/affiliate-email` (SES): new
   applications to every `is_admin` user, decisions to the applicant.
 

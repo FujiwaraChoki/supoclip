@@ -179,7 +179,7 @@ export default function CreatorProgramPage() {
         <h1 className="font-display text-3xl font-bold tracking-tight">Creator program</h1>
         <p className="mt-2 text-muted-foreground">
           Making videos about SupoClip? Get your own code: your audience gets their{" "}
-          <span className="font-medium text-foreground">first month free, then 20% off forever</span>, and you get SupoClip Pro for free.{" "}
+          <span className="font-medium text-foreground">20% off their first 3 months</span>, and you get SupoClip Pro for free.{" "}
           <Link href="/affiliate" className="underline underline-offset-4 hover:text-foreground">How it works</Link>
         </p>
       </div>

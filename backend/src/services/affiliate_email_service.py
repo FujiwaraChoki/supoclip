@@ -7,7 +7,7 @@ from ..config import Config
 from ..models import User
 from .email_service import EmailContent, SesEmailService, first_name_for
 
-OFFER_TEXT = "first month free, then 20% off forever"
+OFFER_TEXT = "20% off their first 3 months"
 
 
 class AffiliateEmailService:
@@ -67,7 +67,7 @@ class AffiliateEmailService:
                 "<p>Your creator program application was approved. Thanks for spreading the word about SupoClip!</p>"
                 f'<p><strong>Your link:</strong> <a href="{escape(link)}">{escape(link)}</a><br>'
                 f"<strong>Your code:</strong> {escape(code)}</p>"
-                f"<p>Anyone who signs up through your link or enters your code gets the {OFFER_TEXT}.</p>"
+                f"<p>Anyone who signs up through your link or enters your code gets {OFFER_TEXT}.</p>"
                 "<p>As a thank-you, your account now has SupoClip Pro for free while you're in the program.</p>"
                 "<p>Please mark sponsored posts as such (for example #ad), and don't run ads on the SupoClip name "
                 "or post your code on coupon sites.</p>"
@@ -78,7 +78,7 @@ class AffiliateEmailService:
                 "Your creator program application was approved. Thanks for spreading the word about SupoClip!\n\n"
                 f"Your link: {link}\n"
                 f"Your code: {code}\n\n"
-                f"Anyone who signs up through your link or enters your code gets the {OFFER_TEXT}.\n\n"
+                f"Anyone who signs up through your link or enters your code gets {OFFER_TEXT}.\n\n"
                 "As a thank-you, your account now has SupoClip Pro for free while you're in the program.\n\n"
                 "Please mark sponsored posts as such (for example #ad), and don't run ads on the SupoClip name "
                 "or post your code on coupon sites.\n\n"
