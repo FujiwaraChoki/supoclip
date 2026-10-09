@@ -51,6 +51,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     })),
     {
+      url: `${siteUrl}/affiliate`,
+      lastModified: new Date("2026-10-09T00:00:00.000Z"),
+      changeFrequency: "monthly",
+      priority: 0.6,
+    },
+    {
       url: `${siteUrl}/privacy`,
       lastModified: new Date("2026-10-05T00:00:00.000Z"),
       changeFrequency: "yearly",

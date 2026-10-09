@@ -5,6 +5,7 @@ import { ArrowRight, Check, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { CreatorCodeField } from "@/components/billing/creator-code-field";
 import { CapacityIllustration, FontIllustration, LengthIllustration } from "@/components/billing/upgrade-illustrations";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { BillingSummary } from "@/hooks/use-billing-summary";
@@ -207,6 +208,8 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
               ))}
             </div>
           )}
+
+          {target && !state?.isPaid && <CreatorCodeField className="mt-4 self-start" />}
 
           <div className="mt-6 flex flex-col gap-2">
             {target && !state?.managedByAppStore && (

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { signIn } from "../../lib/auth-client";
+import { postAuthPath } from "@/lib/auth-redirect";
 import { track } from "@/lib/datafast";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -39,7 +40,7 @@ export function SignIn() {
 
     // Redirect after successful sign in
     setTimeout(() => {
-      router.push("/");
+      router.push(postAuthPath(window.location.search));
       router.refresh();
     }, 500);
   };

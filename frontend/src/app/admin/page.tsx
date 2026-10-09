@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { AdminUserToggle } from "@/components/admin/admin-user-toggle";
+import { AffiliateReviewActions } from "@/components/admin/affiliate-review-actions";
 import {
   RuntimeSettingsForm,
   type RuntimeSetting,
@@ -108,6 +109,7 @@ export default async function AdminPage({
     tasksByUser,
     selectedUser,
     selectedUserTasks,
+    affiliates,
   ] = await Promise.all([
     loadRuntimeSettings(),
     prisma.user.count(),
@@ -207,7 +209,30 @@ export default async function AdminPage({
           },
         })
       : Promise.resolve([]),
+    prisma.affiliate.findMany({
+      where: { status: { in: ["pending", "approved"] } },
+      orderBy: { created_at: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        slug: true,
+        status: true,
+        platform: true,
+        profile_url: true,
+        audience_size: true,
+        video_url: true,
+        promotion_plan: true,
+        created_at: true,
+        user: { select: { email: true, name: true } },
+      },
+    }),
   ]);
+
+  // Pending applications first; each group newest first.
+  const sortedAffiliates = [...affiliates].sort(
+    (a, b) => Number(b.status === "pending") - Number(a.status === "pending"),
+  );
+  const pendingAffiliates = affiliates.filter((affiliate) => affiliate.status === "pending").length;
 
   const generationCountByUser = new Map(tasksByUser.map((item) => [item.user_id, item._count._all]));
 
@@ -236,6 +261,46 @@ export default async function AdminPage({
           </div>
         ))}
       </section>
+
+      <div id="affiliates" className="scroll-mt-6">
+        <Panel
+          title="Creator Program"
+          description={`${pendingAffiliates} pending application${pendingAffiliates === 1 ? "" : "s"}. Approving creates the Stripe code and gives the creator Pro.`}
+        >
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y">
+              <thead className="bg-muted/40"><tr><th className={th}>Creator</th><th className={th}>Code</th><th className={th}>Channel</th><th className={th}>Pitch</th><th className={cn(th, "text-right")}>Action</th></tr></thead>
+              <tbody className="divide-y">
+                {sortedAffiliates.length === 0 ? (
+                  <tr><td className={cn(td, "text-muted-foreground")} colSpan={5}>No applications yet.</td></tr>
+                ) : sortedAffiliates.map((affiliate) => (
+                  <tr key={affiliate.id} className="align-top hover:bg-muted/30">
+                    <td className={td}>
+                      <p className="flex items-center gap-2 font-medium">
+                        {affiliate.user.name || "Unnamed user"}
+                        <Badge variant={affiliate.status === "pending" ? "default" : "outline"} className="capitalize">{affiliate.status}</Badge>
+                      </p>
+                      <p className="text-xs text-muted-foreground">{affiliate.user.email} · applied {affiliate.created_at.toLocaleDateString()}</p>
+                    </td>
+                    <td className={cn(td, "font-mono")}>{affiliate.slug?.toUpperCase()}</td>
+                    <td className={td}>
+                      <a href={affiliate.profile_url} target="_blank" rel="noopener noreferrer" className="font-medium capitalize underline-offset-4 hover:underline">{affiliate.platform}</a>
+                      <p className="text-xs text-muted-foreground">{affiliate.audience_size} followers</p>
+                      {affiliate.video_url && (
+                        <a href={affiliate.video_url} target="_blank" rel="noopener noreferrer" className="text-xs underline-offset-4 hover:underline">SupoClip video</a>
+                      )}
+                    </td>
+                    <td className={cn(td, "max-w-xs text-xs text-muted-foreground")}>{affiliate.promotion_plan || "—"}</td>
+                    <td className={cn(td, "text-right")}>
+                      <AffiliateReviewActions affiliateId={affiliate.id} status={affiliate.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      </div>
 
       <Panel title="Currently Processing Tasks" description="Live queue across all users.">
         <div className="overflow-x-auto">

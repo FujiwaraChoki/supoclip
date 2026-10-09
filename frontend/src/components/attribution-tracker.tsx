@@ -10,6 +10,7 @@ import {
   sanitizeAttribution,
 } from "@/lib/attribution";
 import { useSession } from "@/lib/auth-client";
+import { captureCreatorCodeFromUrl } from "@/lib/creator-code";
 
 /**
  * Captures campaign data only for signed-out visits. When an account is
@@ -26,6 +27,8 @@ export function AttributionTracker() {
 
   useEffect(() => {
     landing.current = { href: window.location.href, referrer: document.referrer };
+    // Remember a creator's ?ref= code on any landing page for checkout.
+    void captureCreatorCodeFromUrl();
   }, []);
 
   useEffect(() => {

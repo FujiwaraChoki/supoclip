@@ -204,9 +204,30 @@ CREATE TABLE user_acquisition (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Creator (affiliate) program: one application per user, reviewed by admins
+CREATE TABLE affiliates (
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    slug VARCHAR(20) UNIQUE,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    platform VARCHAR(20) NOT NULL,
+    profile_url VARCHAR(500) NOT NULL,
+    audience_size VARCHAR(20) NOT NULL,
+    video_url VARCHAR(500),
+    promotion_plan VARCHAR(1000),
+    decline_reason VARCHAR(1000),
+    stripe_promotion_code_id VARCHAR(255),
+    terms_accepted_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    reviewed_by VARCHAR(36) REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for better performance
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX user_acquisition_utm_source_utm_campaign_idx ON user_acquisition(utm_source, utm_campaign);
+CREATE INDEX affiliates_status_created_at_idx ON affiliates(status, created_at);
 CREATE INDEX idx_tasks_user_id ON tasks(user_id);
 CREATE INDEX idx_tasks_source_id ON tasks(source_id);
 CREATE INDEX idx_tasks_status ON tasks(status);

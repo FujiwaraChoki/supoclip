@@ -168,6 +168,23 @@ API keys authenticate `/tasks/*`, `/fonts` and `/upload` directly via
 back to the frontend's HMAC-signed session headers). Only the SHA-256 hash is
 stored (`api_keys` table). The frontend manages keys at `/settings/api-keys`.
 
+## Creator (affiliate) program
+
+Creators apply at `/settings/creator-program` (public pitch page: `/affiliate`).
+Admins approve/decline/revoke in the `/admin` "Creator Program" panel. Logic
+lives in `frontend/src/server/affiliates.ts`; applications are the `affiliates`
+table (one per user, `slug` cleared on decline).
+
+- **Approve** creates Stripe promotion code `SLUG` on the shared coupon
+  `STRIPE_CREATOR_COUPON_ID` (default `creator-20-forever`, 20% off forever) and
+  grants Pro with `subscription_provider = "affiliate"` (Stripe/Apple webhooks
+  never clobber it with a non-paid state).
+- **Checkout** applies the offer from a typed/remembered code (`body.code`) or the
+  signup `user_acquisition.ref`, adding a 30-day trial for first-time Stripe
+  subscribers. The browser remembers validated `?ref=` codes (`lib/creator-code.ts`).
+- **Emails** go through the backend `POST /account/affiliate-email` (SES): new
+  applications to every `is_admin` user, decisions to the applicant.
+
 ## Environment Variables
 
 Required in `.env` (root) or `backend/.env`:
