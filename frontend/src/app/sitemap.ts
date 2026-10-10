@@ -51,6 +51,22 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     })),
     {
+      url: `${siteUrl}/affiliate`,
+      lastModified: new Date("2026-10-09T00:00:00.000Z"),
+      changeFrequency: "monthly",
+      priority: 0.6,
+      videos: [
+        {
+          title: "How the SupoClip creator program works",
+          description: "Apply, pick your code, and your audience gets 20% off their first 3 months.",
+          thumbnail_loc: `${siteUrl}/videos/creator-program-poster.jpg`,
+          content_loc: `${siteUrl}/videos/creator-program.mp4`,
+          duration: 27,
+          publication_date: "2026-10-09",
+        },
+      ],
+    },
+    {
       url: `${siteUrl}/privacy`,
       lastModified: new Date("2026-10-05T00:00:00.000Z"),
       changeFrequency: "yearly",

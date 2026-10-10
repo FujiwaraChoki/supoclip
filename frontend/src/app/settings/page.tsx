@@ -16,10 +16,11 @@ import { useSession } from "@/lib/auth-client";
 import { formatBillingPlanName, formatMinutes, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
 import { UpgradeNudge, getUpgradeState } from "@/components/billing/upgrade-prompt";
 import { startUpgrade } from "@/lib/start-upgrade";
+import { CreatorCodeField } from "@/components/billing/creator-code-field";
 import { toast } from "sonner";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { AlertCircle, Bot, Check, ChevronRight, CreditCard, Loader2, Mail, Type } from "lucide-react";
+import { AlertCircle, Bot, Check, ChevronRight, CreditCard, Loader2, Mail, Megaphone, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 
@@ -182,20 +183,23 @@ export default function SettingsPage() {
     if (!billingSummary?.monetization_enabled) return;
 
     const isPaid = isPaidBillingPlan(billingSummary.plan);
-    const route = isPaid ? "/api/billing/portal" : "/api/billing/checkout";
-    const body = !isPaid && selectedPlan ? JSON.stringify({ plan: selectedPlan }) : undefined;
+
+    if (!isPaid) {
+      // Checkout goes through startUpgrade so a remembered creator code is applied.
+      try {
+        setIsBillingActionLoading(true);
+        track("billing_checkout_started", { plan: billingSummary.plan, selected_plan: selectedPlan });
+        await startUpgrade(selectedPlan ?? "pro", "settings");
+      } catch (billingError) {
+        setError(billingError instanceof Error ? billingError.message : "Billing action failed");
+        setIsBillingActionLoading(false);
+      }
+      return;
+    }
 
     try {
       setIsBillingActionLoading(true);
-      const response = await fetch(route, {
-        method: "POST",
-        ...(body
-          ? {
-              headers: { "Content-Type": "application/json" },
-              body,
-            }
-          : {}),
-      });
+      const response = await fetch("/api/billing/portal", { method: "POST" });
       const responseText = await response.text();
       let data: { url?: string; error?: string } = {};
       if (responseText) {
@@ -210,10 +214,7 @@ export default function SettingsPage() {
         throw new Error(data.error || "Unable to open billing");
       }
 
-      track(isPaid ? "billing_portal_opened" : "billing_checkout_started", {
-        plan: billingSummary.plan,
-        selected_plan: selectedPlan,
-      });
+      track("billing_portal_opened", { plan: billingSummary.plan });
       window.location.href = data.url;
     } catch (billingError) {
       setError(billingError instanceof Error ? billingError.message : "Billing action failed");
@@ -427,9 +428,13 @@ export default function SettingsPage() {
                         loading={isBillingActionLoading}
                       />
                     )}
-                    <Button type="button" variant="outline" onClick={() => handleBillingAction()} disabled={isBillingActionLoading}>
-                      {isBillingActionLoading ? "Loading..." : "Manage Billing"}
-                    </Button>
+                    {billingSummary.subscription_provider === "affiliate" ? (
+                      <p className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">Free through the creator program</p>
+                    ) : (
+                      <Button type="button" variant="outline" onClick={() => handleBillingAction()} disabled={isBillingActionLoading}>
+                        {isBillingActionLoading ? "Loading..." : "Manage Billing"}
+                      </Button>
+                    )}
                   </div>
                 )
               ) : (
@@ -462,6 +467,7 @@ export default function SettingsPage() {
                       </span>
                     </button>
                   ))}
+                  <CreatorCodeField className="justify-self-start sm:col-span-2" />
                 </div>
               )}
             </div>
@@ -473,6 +479,15 @@ export default function SettingsPage() {
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold">Agents &amp; API</span>
             <span className="block text-xs text-muted-foreground">API keys for AI agents (MCP) and the REST API</span>
+          </span>
+          <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        </Link>
+
+        <Link href="/settings/creator-program" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
+          <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Megaphone className="size-4" /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">Creator program</span>
+            <span className="block text-xs text-muted-foreground">Make videos about SupoClip, get Pro free and a code for your audience</span>
           </span>
           <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
         </Link>

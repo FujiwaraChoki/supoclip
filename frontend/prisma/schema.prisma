@@ -54,6 +54,8 @@ model User {
   accounts      Account[]
   app_settings  AppSetting[]
   acquisition   UserAcquisition?
+  affiliate     Affiliate?  @relation("AffiliateApplicant")
+  reviewed_affiliates Affiliate[] @relation("AffiliateReviewer")
 
   @@map("users")
 }
@@ -77,6 +79,35 @@ model UserAcquisition {
 
   @@index([utm_source, utm_campaign])
   @@map("user_acquisition")
+}
+
+/// Creator program application. `slug` is the lowercase ref/code; it is
+/// cleared on decline so the name becomes available again.
+model Affiliate {
+  id                       String    @id @default(uuid()) @db.VarChar(36)
+  user_id                  String    @unique @db.VarChar(36)
+  slug                     String?   @unique @db.VarChar(20)
+  status                   String    @default("pending") @db.VarChar(20)
+  platform                 String    @db.VarChar(20)
+  profile_url              String    @db.VarChar(500)
+  audience_size            String    @db.VarChar(20)
+  video_url                String?   @db.VarChar(500)
+  promotion_plan           String?   @db.VarChar(1000)
+  decline_reason           String?   @db.VarChar(1000)
+  stripe_promotion_code_id String?   @db.VarChar(255)
+  /// When an admin added the creator's custom code to the App Store "Creator offer".
+  app_store_code_added_at  DateTime? @db.Timestamptz
+  terms_accepted_at        DateTime  @db.Timestamptz
+  reviewed_at              DateTime? @db.Timestamptz
+  reviewed_by              String?   @db.VarChar(36)
+  created_at               DateTime  @default(now()) @db.Timestamptz
+  updated_at               DateTime  @default(now()) @updatedAt @db.Timestamptz
+
+  user     User  @relation("AffiliateApplicant", fields: [user_id], references: [id], onDelete: Cascade)
+  reviewer User? @relation("AffiliateReviewer", fields: [reviewed_by], references: [id], onDelete: SetNull)
+
+  @@index([status, created_at])
+  @@map("affiliates")
 }
 
 model AppSetting {

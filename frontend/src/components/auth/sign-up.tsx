@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signUp } from "../../lib/auth-client";
 import { attributionMetadata, getAnonymousAttribution } from "@/lib/attribution";
+import { postAuthPath } from "@/lib/auth-redirect";
 import { track } from "@/lib/datafast";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -40,7 +41,7 @@ export function SignUp() {
 
     // Automatically sign in after successful sign up
     setTimeout(() => {
-      window.location.href = "/";
+      window.location.href = postAuthPath(window.location.search);
     }, 1000);
   };
 

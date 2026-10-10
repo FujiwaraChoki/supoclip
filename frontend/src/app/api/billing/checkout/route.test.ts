@@ -25,6 +25,12 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    userAcquisition: {
+      findUnique: vi.fn(),
+    },
+    affiliate: {
+      findUnique: vi.fn(),
+    },
   },
 }));
 
@@ -82,6 +88,95 @@ describe("/api/billing/checkout", () => {
       }),
     );
     await expect(response.json()).resolves.toEqual({ url: "https://checkout.example/scale" });
+  });
+
+  describe("creator codes", () => {
+    const approvedMaya = { user_id: "creator-1", status: "approved", stripe_promotion_code_id: "promo_maya" };
+
+    function stripeForCheckout() {
+      return {
+        checkout: {
+          sessions: { create: vi.fn().mockResolvedValue({ url: "https://checkout.example/creator" }) },
+        },
+      };
+    }
+
+    function checkout(body: Record<string, unknown>) {
+      return POST(
+        new Request("http://localhost/api/billing/checkout", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+    }
+
+    it("applies the creator discount for a signup that came through a creator link", async () => {
+      vi.mocked(prisma.userAcquisition.findUnique).mockResolvedValue({ ref: "Maya" } as never);
+      vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(approvedMaya as never);
+      const stripe = stripeForCheckout();
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout({ plan: "pro" });
+
+      expect(response.status).toBe(200);
+      expect(prisma.affiliate.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { slug: "maya" } }));
+      const params = stripe.checkout.sessions.create.mock.calls[0][0];
+      expect(params).toMatchObject({
+        discounts: [{ promotion_code: "promo_maya" }],
+        metadata: { userId: "user-1", plan: "pro", creator_code: "MAYA" },
+      });
+      expect(params.subscription_data).toBeUndefined();
+    });
+
+    it("applies a typed code", async () => {
+      vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(approvedMaya as never);
+      const stripe = stripeForCheckout();
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout({ plan: "scale", code: "MAYA" });
+
+      expect(response.status).toBe(200);
+      expect(stripe.checkout.sessions.create.mock.calls[0][0].discounts).toEqual([{ promotion_code: "promo_maya" }]);
+    });
+
+    it.each([
+      ["doesn't exist", null],
+      ["is still pending review", { ...approvedMaya, status: "pending", stripe_promotion_code_id: null }],
+      ["was revoked", { ...approvedMaya, status: "revoked" }],
+    ])("rejects a typed code that %s", async (_label, affiliate) => {
+      vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(affiliate as never);
+      const stripe = stripeForCheckout();
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout({ plan: "pro", code: "MAYA" });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: "That creator code isn't valid", code: "invalid_creator_code" });
+      expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+
+    it("rejects a creator's own code", async () => {
+      vi.mocked(prisma.affiliate.findUnique).mockResolvedValue({ ...approvedMaya, user_id: "user-1" } as never);
+      vi.mocked(getStripeClient).mockReturnValue(stripeForCheckout() as never);
+
+      const response = await checkout({ plan: "pro", code: "maya" });
+
+      expect(response.status).toBe(400);
+    });
+
+    it("checks out at full price when the signup ref is not a creator code", async () => {
+      vi.mocked(prisma.userAcquisition.findUnique).mockResolvedValue({ ref: "producthunt" } as never);
+      vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(null as never);
+      const stripe = stripeForCheckout();
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout({ plan: "pro" });
+
+      expect(response.status).toBe(200);
+      const params = stripe.checkout.sessions.create.mock.calls[0][0];
+      expect(params.discounts).toBeUndefined();
+      expect(params.subscription_data).toBeUndefined();
+    });
   });
 
   it("rejects an unknown billing plan", async () => {

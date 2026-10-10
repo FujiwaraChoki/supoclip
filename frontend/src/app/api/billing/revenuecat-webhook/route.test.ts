@@ -113,6 +113,7 @@ describe("/api/billing/revenuecat-webhook", () => {
         create: vi.fn().mockResolvedValue({}),
         delete: vi.fn().mockResolvedValue({}),
       },
+      affiliate: { findUnique: vi.fn().mockResolvedValue(null) },
       user: {
         findUnique: vi.fn().mockResolvedValue({ id: "user-1" }),
         updateMany,
@@ -142,6 +143,31 @@ describe("/api/billing/revenuecat-webhook", () => {
       },
     });
     expect(fetchBackend).toHaveBeenCalled();
+  });
+
+  it("returns an approved creator to their free Pro when their App Store plan expires", async () => {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    vi.mocked(getPrismaClient).mockReturnValue({
+      revenueCatWebhookEvent: {
+        create: vi.fn().mockResolvedValue({}),
+        delete: vi.fn().mockResolvedValue({}),
+      },
+      affiliate: { findUnique: vi.fn().mockResolvedValue({ status: "approved" }) },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ id: "user-1" }),
+        updateMany,
+      },
+    } as never);
+
+    const response = await POST(createRequest(event({ type: "EXPIRATION" })));
+
+    expect(response.status).toBe(200);
+    expect(updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: { plan: "pro", subscription_status: "active", subscription_provider: "affiliate" },
+      }),
+    );
+    expect(fetchBackend).not.toHaveBeenCalled();
   });
 
   it("does not treat PRODUCT_CHANGE as an immediate grant", async () => {

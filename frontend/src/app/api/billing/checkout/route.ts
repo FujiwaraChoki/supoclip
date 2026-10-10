@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { monetizationEnabled } from "@/lib/monetization";
 import { getStripeClient } from "@/lib/stripe";
 import { getServerBillingPlan } from "@/server/billing-plans";
+import { findCreatorOffer, INVALID_CREATOR_CODE, type CreatorOffer } from "@/server/affiliates";
 import type Stripe from "stripe";
 
 const APP_STORE_MANAGED_MESSAGE = "Your subscription is managed through the App Store";
@@ -21,10 +22,14 @@ export async function POST(request: Request) {
   }
 
   let requestedPlan = "pro";
+  let enteredCode: string | null = null;
   try {
     const body = await request.json();
     if (typeof body?.plan === "string") {
       requestedPlan = body.plan;
+    }
+    if (typeof body?.code === "string" && body.code.trim()) {
+      enteredCode = body.code.trim();
     }
   } catch {
     requestedPlan = "pro";
@@ -99,14 +104,37 @@ export async function POST(request: Request) {
     });
   }
 
+  // A typed code must be valid; a code from the signup ?ref= link is applied when it matches one.
+  let offer: CreatorOffer | null = null;
+  if (enteredCode) {
+    offer = await findCreatorOffer(prisma, enteredCode);
+    if (!offer) {
+      return NextResponse.json({ error: "That creator code isn't valid", code: INVALID_CREATOR_CODE }, { status: 400 });
+    }
+    if (offer.affiliateUserId === session.user.id) {
+      return NextResponse.json({ error: "You can't use your own creator code", code: INVALID_CREATOR_CODE }, { status: 400 });
+    }
+  } else {
+    const acquisition = await prisma.userAcquisition.findUnique({
+      where: { user_id: session.user.id },
+      select: { ref: true },
+    });
+    if (acquisition?.ref) {
+      offer = await findCreatorOffer(prisma, acquisition.ref);
+      if (offer?.affiliateUserId === session.user.id) offer = null;
+    }
+  }
+
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
     metadata: {
       userId: session.user.id,
       plan: billingPlan.id,
+      ...(offer ? { creator_code: offer.code } : {}),
     },
     line_items: [{ price: priceId, quantity: 1 }],
+    ...(offer ? { discounts: [{ promotion_code: offer.promotionCodeId }] } : {}),
     success_url: `${appUrl}/settings?billing=success`,
     cancel_url: `${appUrl}/settings?billing=cancelled`,
   });
