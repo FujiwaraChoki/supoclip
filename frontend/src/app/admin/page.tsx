@@ -15,8 +15,8 @@ import { APP_STORE_ID } from "@/lib/site";
 import { fetchBackend } from "@/server/backend-api";
 
 const ACTIVE_TASK_STATUSES = ["queued", "processing", "pending"];
-/** App Store Connect page holding the Pro subscription's "Creator offer" (custom codes are added there). */
-const APP_STORE_CREATOR_OFFER_URL = `https://appstoreconnect.apple.com/apps/${APP_STORE_ID}/distribution/subscriptions/6786756790/pricing/offer-codes`;
+/** The Pro subscription's "Creator offer" in App Store Connect; add each creator's custom code there. */
+const APP_STORE_CREATOR_OFFER_URL = `https://appstoreconnect.apple.com/apps/${APP_STORE_ID}/distribution/subscriptions/6786756790/pricing/offer-codes/e3b69863-0319-4852-a9c8-204bd84a8183`;
 
 const th = "px-5 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground";
 const td = "px-5 py-3 text-sm";
