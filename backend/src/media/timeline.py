@@ -20,6 +20,7 @@ from .ffmpeg import (
     crossfade_fade_for_ranges,
     ffprobe_duration,
     run_ffmpeg_command,
+    select_audio_stream_index,
 )
 from .transcription import (
     _join_transcript_tokens,
@@ -167,12 +168,16 @@ def parse_transcript_lines(transcript: str) -> List[Dict[str, Any]]:
 
 def detect_audio_peak_times(video_path: Path, max_peaks: int = 8) -> List[float]:
     """Find approximate one-second audio energy peaks with ffmpeg astats."""
+    audio_stream = select_audio_stream_index(video_path)
+    if audio_stream is None:
+        return []
     result = run_ffmpeg_command(
         [
             "ffmpeg",
             "-i",
             str(video_path),
-            "-vn",
+            "-map",
+            f"0:a:{audio_stream}",
             "-af",
             "astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level",
             "-f",

@@ -243,6 +243,7 @@ def test_create_optimized_clip_fast_path_uses_keep_range_start(monkeypatch, tmp_
         return _CompletedProcess()
 
     monkeypatch.setattr("subprocess.run", fake_run)
+    monkeypatch.setattr("src.video_utils.select_audio_stream_index", lambda _path: 1)
 
     success = create_optimized_clip(
         video_path=Path("/tmp/demo.mp4"),
@@ -258,3 +259,4 @@ def test_create_optimized_clip_fast_path_uses_keep_range_start(monkeypatch, tmp_
     command = captured["command"]
     assert command[command.index("-ss") + 1] == "10.5"
     assert command[command.index("-t") + 1] == "9.5"
+    assert "0:a:1" in command

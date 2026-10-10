@@ -32,4 +32,21 @@ describe("FontSelectOption", () => {
 
     expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
   });
+
+  it("shows file coverage and fallback warnings for bundled and uploaded fonts", () => {
+    render(<FontSelectOption font={{ name: "Inter", display_name: "Inter", scope: "system", supported_languages: ["en", "pt"] }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Language support for Inter" }));
+
+    expect(screen.getByText(/English, Portuguese/)).toBeInTheDocument();
+    expect(screen.getByText(/Hindi/)).toBeInTheDocument();
+    expect(screen.getByText(/Missing characters use a fallback font/)).toBeInTheDocument();
+  });
+
+  it("does not claim unsupported languages when coverage is unavailable", () => {
+    render(<FontSelectOption font={{ name: "custom", display_name: "Custom", scope: "user", supported_languages: null }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Language support for Custom" }));
+
+    expect(screen.getByText(/Language coverage could not be checked/)).toBeInTheDocument();
+    expect(screen.queryByText(/Not fully supported/)).not.toBeInTheDocument();
+  });
 });

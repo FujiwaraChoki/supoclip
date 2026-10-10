@@ -27,6 +27,7 @@ from .common import (
 )
 from .ffmpeg import (
     run_ffmpeg_command,
+    select_audio_stream_index,
 )
 
 
@@ -36,11 +37,14 @@ def _prepare_audio_for_transcription(video_path: Path) -> Path:
     if audio_path.exists() and audio_path.stat().st_size > 0:
         return audio_path
 
+    # Transcribe the same track the renderer cuts, not ffmpeg's implicit pick.
+    audio_stream = select_audio_stream_index(video_path)
     command = [
         "ffmpeg",
         "-y",
         "-i",
         str(video_path),
+        *(["-map", f"0:a:{audio_stream}"] if audio_stream is not None else []),
         "-vn",
         "-ac",
         "1",
@@ -179,12 +183,23 @@ def _get_whisper_model(model_name: str = "base"):
     return _WHISPER_MODEL_CACHE[model_name]
 
 
-def transcribe_with_whisper(video_path: Path, model_name: str = "base") -> Dict[str, Any]:
-    """Transcribe video using local Whisper with word-level timestamps."""
+def transcribe_with_whisper(
+    video_path: Path, model_name: str = "base", language: Optional[str] = None
+) -> Dict[str, Any]:
+    """Transcribe video using local Whisper with word-level timestamps.
+
+    ``language`` None lets Whisper detect it; AssemblyAI-style codes such as
+    ``en_us`` are reduced to the ISO 639-1 base Whisper expects.
+    """
     audio_path = _prepare_audio_for_transcription(video_path)
     model = _get_whisper_model(model_name)
-    logger.info("Starting Whisper transcription with model: %s", model_name)
-    return model.transcribe(str(audio_path), word_timestamps=True, language=None)
+    whisper_language = language.split("_", 1)[0] if language else None
+    logger.info(
+        "Starting Whisper transcription with model: %s (language: %s)",
+        model_name,
+        whisper_language or "auto",
+    )
+    return model.transcribe(str(audio_path), word_timestamps=True, language=whisper_language)
 
 
 def _whisper_result_to_transcript_data(whisper_result: Dict[str, Any]) -> Dict[str, Any]:
@@ -336,11 +351,16 @@ def _get_transcript_with_assemblyai(
     # `best`/`nano`/`universal` values were deprecated server-side.
     speech_models_value = _assemblyai_speech_models_value(speech_model)
 
+    # Without a language, AssemblyAI assumes US English and garbles everything
+    # else; detection also routes to the first listed model that supports it.
+    language = runtime_config.transcription_language
     config_obj = aai.TranscriptionConfig(
         speaker_labels=True,
         punctuate=True,
         format_text=True,
         speech_models=speech_models_value,
+        language_code=language or None,
+        language_detection=None if language else True,
     )
 
     try:
@@ -362,6 +382,13 @@ def _get_transcript_with_assemblyai(
             logger.error(f"AssemblyAI transcription failed: {transcript.error}")
             raise Exception(f"Transcription failed: {transcript.error}")
 
+        response = getattr(transcript, "json_response", None) or {}
+        logger.info(
+            "AssemblyAI transcript language: %s (confidence: %s)",
+            response.get("language_code") or language or "unknown",
+            response.get("language_confidence"),
+        )
+
         formatted_lines = format_transcript_for_analysis(transcript)
         cache_transcript_data(video_path, transcript)
 
@@ -380,7 +407,9 @@ def _get_transcript_with_whisper(video_path: Path, runtime_config) -> str:
     """Get transcript using local Whisper with word-level timestamps."""
     model_name = runtime_config.whisper_model
     logger.info("Starting Whisper transcription with model: %s", model_name)
-    whisper_result = transcribe_with_whisper(video_path, model_name)
+    whisper_result = transcribe_with_whisper(
+        video_path, model_name, runtime_config.transcription_language or None
+    )
 
     formatted_lines = format_transcript_for_analysis(whisper_result)
     cache_transcript_data(video_path, whisper_result)

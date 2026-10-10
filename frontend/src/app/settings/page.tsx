@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
 import { DeleteAccountSection } from "@/components/delete-account-section";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useSession } from "@/lib/auth-client";
@@ -22,6 +22,7 @@ import { track } from "@/lib/datafast";
 import Link from "next/link";
 import { AlertCircle, Bot, Check, ChevronRight, CreditCard, Loader2, Mail, Megaphone, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 
 interface UserPreferences {
   fontFamily: string;
@@ -48,7 +49,7 @@ export default function SettingsPage() {
   const [fontSize, setFontSize] = useState(24);
   const [fontColor, setFontColor] = useState("#FFFFFF");
   const [completionEmails, setCompletionEmails] = useState(true);
-  const [availableFonts, setAvailableFonts] = useState<Array<{ name: string, display_name: string }>>([]);
+  const [availableFonts, setAvailableFonts] = useState<FontOption[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -301,11 +302,9 @@ export default function SettingsPage() {
                   <SelectTrigger className="w-full"><SelectValue placeholder="Select font" /></SelectTrigger>
                   <SelectContent>
                     {availableFonts.map((font) => (
-                      <SelectItem key={font.name} value={font.name}>
-                        <span style={{ fontFamily: `'${font.name}', system-ui, sans-serif` }}>{font.display_name}</span>
-                      </SelectItem>
+                      <FontSelectOption key={font.name} font={font} />
                     ))}
-                    {availableFonts.length === 0 && <SelectItem value="TikTokSans-Regular">TikTok Sans Regular</SelectItem>}
+                    {availableFonts.length === 0 && <FontSelectOption font={{ name: "TikTokSans-Regular", display_name: "TikTok Sans Regular", scope: "system" }} />}
                   </SelectContent>
                 </Select>
               </div>

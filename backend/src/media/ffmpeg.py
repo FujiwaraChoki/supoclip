@@ -5,6 +5,8 @@ from typing import Optional
 from pathlib import Path
 from typing import Tuple
 from ..clip_source_map import normalize_source_ranges
+from ..config import get_config
+import json
 import re
 import subprocess
 from .common import (
@@ -60,6 +62,88 @@ def ffprobe_has_audio(video_path: Path) -> bool:
         timeout=60,
     )
     return result.returncode == 0 and "audio" in result.stdout
+
+
+# ISO 639-1 → ISO 639-2 (B and T forms) for the languages container tags most
+# often carry, so an explicit TRANSCRIPTION_LANGUAGE can pick the matching track.
+_ISO_639_2_CODES = {
+    "ar": {"ara"}, "bg": {"bul"}, "ca": {"cat"}, "cs": {"ces", "cze"},
+    "da": {"dan"}, "de": {"deu", "ger"}, "el": {"ell", "gre"}, "en": {"eng"},
+    "es": {"spa"}, "fa": {"fas", "per"}, "fi": {"fin"}, "fr": {"fra", "fre"},
+    "he": {"heb"}, "hi": {"hin"}, "hr": {"hrv"}, "hu": {"hun"}, "id": {"ind"},
+    "it": {"ita"}, "ja": {"jpn"}, "ko": {"kor"}, "ms": {"msa", "may"},
+    "nl": {"nld", "dut"}, "no": {"nor", "nob", "nno"}, "pl": {"pol"},
+    "pt": {"por"}, "ro": {"ron", "rum"}, "ru": {"rus"}, "sk": {"slk", "slo"},
+    "sv": {"swe"}, "th": {"tha"}, "tr": {"tur"}, "uk": {"ukr"}, "ur": {"urd"},
+    "vi": {"vie"}, "zh": {"zho", "chi"},
+}
+# Commentary, audio-description and dub tracks are never the primary dialogue.
+_SECONDARY_AUDIO_DISPOSITIONS = ("comment", "visual_impaired", "hearing_impaired", "dub")
+
+
+def _audio_language_matches(tag: str, preferred_language: str) -> bool:
+    tag = tag.strip().lower()
+    base = preferred_language.strip().lower().replace("-", "_").split("_", 1)[0]
+    return tag == base or tag in _ISO_639_2_CODES.get(base, set())
+
+
+def select_audio_stream_index(
+    video_path: Path, preferred_language: Optional[str] = None
+) -> Optional[int]:
+    """Pick the dialogue audio track, as an index for ``0:a:N``, or None if silent.
+
+    Transcription and every render of the source must read the same track;
+    ffmpeg's implicit choice (most channels) and ``[0:a]`` (first track) can
+    differ on multi-track uploads, desyncing captions from the audio.
+    ``preferred_language`` defaults to the configured TRANSCRIPTION_LANGUAGE.
+    """
+    if preferred_language is None:
+        preferred_language = get_config().transcription_language
+    result = run_ffmpeg_command(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "a",
+            "-show_entries",
+            "stream=index:stream_tags=language:stream_disposition",
+            "-of",
+            "json",
+            str(video_path),
+        ],
+        timeout=60,
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        streams = json.loads(result.stdout or "{}").get("streams") or []
+    except ValueError:
+        return None
+    if not streams:
+        return None
+
+    def rank(item: Tuple[int, dict]) -> Tuple[int, int, int, int]:
+        position, stream = item
+        disposition = stream.get("disposition") or {}
+        language = (stream.get("tags") or {}).get("language") or ""
+        language_miss = int(
+            bool(preferred_language)
+            and not _audio_language_matches(language, preferred_language or "")
+        )
+        secondary = int(any(disposition.get(key) for key in _SECONDARY_AUDIO_DISPOSITIONS))
+        not_primary = int(not (disposition.get("default") or disposition.get("original")))
+        return language_miss, secondary, not_primary, position
+
+    return min(enumerate(streams), key=rank)[0]
+
+
+def audio_stream_map_args(audio_stream: Optional[int]) -> List[str]:
+    """Explicit ``-map`` args for the first video track plus the chosen audio."""
+    args = ["-map", "0:v:0"]
+    if audio_stream is not None:
+        args += ["-map", f"0:a:{audio_stream}"]
+    return args
 
 
 def ffprobe_video_size(video_path: Path) -> Tuple[int, int]:
@@ -183,7 +267,7 @@ def render_ranges_crossfade_ffmpeg(
     video_path: Path,
     keep_ranges: List[Tuple[float, float]],
     output_path: Path,
-    has_audio: bool,
+    audio_stream: Optional[int],
     transition: str = "fade",
 ) -> bool:
     """Stitch kept ranges together with short crossfades instead of hard cuts.
@@ -200,6 +284,7 @@ def render_ranges_crossfade_ffmpeg(
     fade = crossfade_fade_for_ranges(keep_ranges)
     if fade <= 0:
         return False
+    has_audio = audio_stream is not None
 
     parts: List[str] = []
     for idx, (start, end) in enumerate(keep_ranges):
@@ -209,7 +294,7 @@ def render_ranges_crossfade_ffmpeg(
         )
         if has_audio:
             parts.append(
-                f"[0:a]atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS[a{idx}]"
+                f"[0:a:{audio_stream}]atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS[a{idx}]"
             )
 
     cur_v = "[v0]"
@@ -256,6 +341,9 @@ def render_source_ranges_ffmpeg(
     if not keep_ranges:
         return False
 
+    audio_stream = select_audio_stream_index(video_path)
+    has_audio = audio_stream is not None
+
     if len(keep_ranges) == 1:
         start, end = keep_ranges[0]
         command = [
@@ -265,6 +353,7 @@ def render_source_ranges_ffmpeg(
             f"{start:.3f}",
             "-i",
             str(video_path),
+            *audio_stream_map_args(audio_stream),
             "-t",
             f"{end - start:.3f}",
             "-c:v",
@@ -285,13 +374,11 @@ def render_source_ranges_ffmpeg(
         ]
         return run_ffmpeg_command(command).returncode == 0
 
-    has_audio = ffprobe_has_audio(video_path)
-
     # Smooth a handful of substantial internal cuts with crossfades; fall back to
     # a hard concat for many tiny fragments (heavy filler edits) or on failure.
     if crossfade_fade_for_ranges(keep_ranges) > 0:
         if render_ranges_crossfade_ffmpeg(
-            video_path, keep_ranges, output_path, has_audio
+            video_path, keep_ranges, output_path, audio_stream
         ):
             return True
         logger.info("Crossfade stitch failed; falling back to hard concat")
@@ -305,7 +392,7 @@ def render_source_ranges_ffmpeg(
         concat_inputs.append(f"[v{idx}]")
         if has_audio:
             filter_parts.append(
-                f"[0:a]atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS[a{idx}]"
+                f"[0:a:{audio_stream}]atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS[a{idx}]"
             )
             concat_inputs.append(f"[a{idx}]")
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, Check, Loader2, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Check, Loader2, Server, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -105,7 +106,7 @@ function copyFor(reason: UpgradeReason, billing: UpgradeBilling | null | undefin
       return {
         eyebrow: "Ready when you are",
         title: "Turn long videos into ready-to-post clips",
-        body: "Pick a plan and SupoClip gets to work: it finds the best moments, frames the speaker and adds captions for you.",
+        body: "Choose a hosted plan and we handle the processing, or self-host the open-source app on your own computer for free.",
       };
     case "limit":
       return {
@@ -180,7 +181,7 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="max-w-3xl gap-0 overflow-hidden p-0 sm:grid-cols-[1.1fr_1fr]">
+      <DialogContent showCloseButton={false} className="max-h-[calc(100dvh-2rem)] max-w-3xl gap-0 overflow-x-hidden overflow-y-auto p-0 sm:grid-cols-[1.1fr_1fr]">
         <DialogClose className="absolute right-4 top-4 z-10 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <X className="size-4" />
           <span className="sr-only">Close</span>
@@ -206,6 +207,26 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
                   onSelect={() => setSelected(plan.id)}
                 />
               ))}
+            </div>
+          )}
+
+          {!state?.isPaid && (
+            <div className="mt-3 rounded-lg border bg-muted/30 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <Server className="size-4 shrink-0 text-muted-foreground" />
+                <p className="flex-1 text-sm font-semibold">Self-hosted</p>
+                <span className="text-sm font-semibold">Free</span>
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                Run SupoClip on your own computer with no subscription or monthly video limit.
+                Setup required; you provide the hardware and any paid AI services you choose.
+              </p>
+              <Link
+                href="/blog/self-host-supoclip-docker"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-medium underline underline-offset-4 hover:text-muted-foreground"
+              >
+                Self-hosting guide <ArrowRight className="size-3.5" />
+              </Link>
             </div>
           )}
 

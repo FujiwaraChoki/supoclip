@@ -25,6 +25,11 @@ class Config:
         self.transcription_provider = self._normalize_transcription_provider(
             os.getenv("TRANSCRIPTION_PROVIDER", "assemblyai")
         )
+        # Empty means auto-detect the spoken language; otherwise an AssemblyAI
+        # language code such as "es" or "en_us" forces it.
+        self.transcription_language = self._normalize_transcription_language(
+            os.getenv("TRANSCRIPTION_LANGUAGE")
+        )
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
         self.assembly_ai_http_timeout_seconds = int(
@@ -226,6 +231,11 @@ class Config:
         if normalized in ("whisper", "youtube_captions"):
             return normalized
         return "assemblyai"
+
+    @staticmethod
+    def _normalize_transcription_language(value: str | None) -> str:
+        normalized = (value or "").strip().lower().replace("-", "_")
+        return "" if normalized in ("", "auto") else normalized
 
     @staticmethod
     def _normalize_youtube_metadata_provider(value: str | None) -> str:
