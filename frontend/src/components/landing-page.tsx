@@ -274,6 +274,12 @@ export default function LandingPage() {
             >
               Blog
             </Link>
+            <Link
+              href="/affiliate"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Affiliate
+            </Link>
           </div>
 
           {/* Desktop auth buttons */}
@@ -349,6 +355,13 @@ export default function LandingPage() {
                 className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
               >
                 Blog
+              </Link>
+              <Link
+                href="/affiliate"
+                onClick={() => setMobileNavOpen(false)}
+                className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                Affiliate
               </Link>
               <Separator className="my-2" />
               <div className="flex flex-col gap-2 px-3 pt-1">
