@@ -130,7 +130,7 @@ function getPlans() {
       name: "Self-Hosted",
       price: "$0",
       period: "forever",
-      description: "Run on your own infrastructure with full control.",
+      description: "Run on your own computer. No subscription or monthly video limit.",
       features: [
         "Face-centered cropping",
         "Word-synced subtitles",
@@ -630,8 +630,8 @@ export default function LandingPage() {
               Simple pricing, no surprises
             </h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Pick the plan that matches how much you clip. Change or cancel
-              anytime. Self-hosters get everything free, always.
+              Free to self-host. Hosted plans start at $10/month, with processing
+              and hosting handled for you. Change or cancel anytime.
             </p>
           </ScrollReveal>
 
@@ -715,21 +715,27 @@ export default function LandingPage() {
                     </ul>
 
                     {plan.ctaHref ? (
-                      <a
-                        href={plan.ctaHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Button
-                          className="w-full h-11 text-sm"
-                          variant="outline"
-                          size="lg"
+                      <div className="flex flex-col gap-3">
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          Setup required. You provide the hardware and any paid AI services you choose.
+                        </p>
+                        <Link href={SELF_HOSTING_GUIDE_HREF}>
+                          <Button className="w-full h-11 text-sm" variant="outline" size="lg">
+                            Self-hosting guide
+                            <ArrowRight className="w-4 h-4" />
+                          </Button>
+                        </Link>
+                        <a
+                          href={plan.ctaHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-2 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
                         >
-                          <Github className="w-4 h-4" />
+                          <Github className="w-3.5 h-3.5" />
                           {plan.cta}
                           <ExternalLink className="w-3.5 h-3.5 opacity-50" />
-                        </Button>
-                      </a>
+                        </a>
+                      </div>
                     ) : authEnabled ? (
                       <Link href="/sign-up">
                         <Button
