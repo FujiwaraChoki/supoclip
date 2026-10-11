@@ -4,8 +4,8 @@
  * previews (see public/clips/). Keep these facts in sync with the files.
  */
 export const DEMO_SOURCE = {
-  title: "Sam Altman — How to Start a Startup",
-  url: "https://www.youtube.com/watch?v=Vv3CEAS_w34",
+  title: "Steven Bartlett — How I Make $1.2 Million A Year From This Podcast",
+  url: "https://www.youtube.com/watch?v=OpANpfEjNw8",
 };
 
 export interface DemoClip {
@@ -24,29 +24,29 @@ export interface DemoClip {
 
 export const DEMO_CLIPS: DemoClip[] = [
   {
-    id: "chaos-management",
-    src: "/clips/demo-2.mp4",
-    poster: "/clips/demo-2.jpg",
-    hook: "Why chaos management is not teachable",
-    range: "05:04 – 05:54",
-    startSeconds: 304,
-    duration: "0:50",
+    id: "publish-every-monday",
+    src: "/clips/podcast-1.mp4",
+    poster: "/clips/podcast-1.jpg",
+    hook: "Publishing every Monday grew listeners 10x",
+    range: "04:11 – 05:03",
+    startSeconds: 251,
+    duration: "0:55",
     previewSeconds: 9,
   },
   {
-    id: "ten-week-startup",
-    src: "/clips/demo-1.mp4",
-    poster: "/clips/demo-1.jpg",
-    hook: "Why your 10 week old startup is failing",
-    range: "00:14 – 00:39",
-    startSeconds: 14,
-    duration: "0:25",
-    previewSeconds: 12,
+    id: "views-nobody-remembered",
+    src: "/clips/podcast-2.mp4",
+    poster: "/clips/podcast-2.jpg",
+    hook: "10 million views each, yet nobody remembered",
+    range: "22:38 – 23:28",
+    startSeconds: 1358,
+    duration: "0:53",
+    previewSeconds: 7,
   },
 ];
 
 /** Date the demo clips were committed; used for structured data. */
-export const DEMO_PUBLISHED_AT = "2026-07-27";
+export const DEMO_PUBLISHED_AT = "2026-10-11";
 
 export function getDemoSourceMomentUrl(clip: DemoClip) {
   return `${DEMO_SOURCE.url}&t=${clip.startSeconds}s`;
