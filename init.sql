@@ -55,6 +55,7 @@ CREATE TABLE tasks (
     -- Progress tracking fields
     progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
     progress_message TEXT,
+    source_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
 
     -- Font customization fields
     font_family VARCHAR(100) DEFAULT 'TikTokSans-Regular',

@@ -69,6 +69,25 @@ CLIP_END_SENTENCE_EXTENSION_SECONDS = 3.0
 
 CLIP_END_PADDING_SECONDS = 0.35
 
+# Long pauses are compressed rather than cut out, so speech keeps a natural
+# breath between phrases. A junction keeps PAUSE_EDGE_PADDING_SECONDS of silence
+# on each side of the cut; with the junction crossfade (at most
+# CROSSFADE_MAX_SECONDS, which overlaps the two sides) about
+# PAUSE_RETAINED_SILENCE_SECONDS of silence remains audible. The padding is never
+# shorter than the crossfade, so the fade only ever blends silence, never words.
+PAUSE_RETAINED_SILENCE_SECONDS = 0.2
+
+CROSSFADE_MAX_SECONDS = 0.15
+
+PAUSE_EDGE_PADDING_SECONDS = (PAUSE_RETAINED_SILENCE_SECONDS + CROSSFADE_MAX_SECONDS) / 2
+
+# Dead air kept before the first word and after the last word of a clip. The
+# tail is a little longer because word end timings often land before the final
+# consonant has decayed.
+PAUSE_LEAD_IN_SECONDS = 0.1
+
+PAUSE_TAIL_SECONDS = 0.25
+
 SENTENCE_END_RE = re.compile(r"""[.!?]["')\]}]*$""")
 
 HOOK_TITLE_SECONDS = 4.0
