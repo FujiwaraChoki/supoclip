@@ -153,6 +153,8 @@ class Config:
         self.fast_mode_transcript_model = os.getenv(
             "FAST_MODE_TRANSCRIPT_MODEL", "universal"
         )
+        # Open clips with the AI-picked hook line as a short cold-open teaser.
+        self.hook_first_teaser = self._get_bool_env("HOOK_FIRST_TEASER", True)
 
     def max_youtube_video_duration_for_plan(
         self, plan: str | None, subscription_status: str | None
