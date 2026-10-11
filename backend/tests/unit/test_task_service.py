@@ -584,6 +584,7 @@ async def test_process_task_fails_when_every_clip_render_fails(tmp_path):
         for call in service.task_repo.update_task_status.await_args_list
     )
     assert not any(call.args[2] == "completed" for call in callback.await_args_list)
+    callback.assert_any_await(0, "No clips could be rendered. Please try again.", "error")
     service.task_repo.update_task_status.assert_any_await(
         service.db, "task-1", "error", progress=0,
         progress_message="No clips could be rendered. Please try again.",
@@ -610,3 +611,22 @@ async def test_process_task_keeps_successful_output_when_one_render_fails(tmp_pa
         service.db, "task-1", "completed", progress=100,
         progress_message="Complete!", expected_statuses=["processing"],
     )
+
+
+@pytest.mark.asyncio
+async def test_failure_notification_error_preserves_render_failure(tmp_path):
+    service = build_task_service()
+    service.config.temp_dir = str(tmp_path)
+    service.video_service.create_single_clip = AsyncMock(return_value=None)
+
+    async def notify(progress, message, status):
+        if status == "error":
+            raise RuntimeError("Redis unavailable")
+
+    with pytest.raises(ValueError, match="No clips could be rendered"):
+        await service.process_task(
+            task_id="task-1", url="upload://source.mp4", source_type="video_url",
+            progress_callback=notify,
+        )
+
+    assert service.task_repo.update_task_status.await_args.args[2] == "error"

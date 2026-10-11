@@ -508,6 +508,11 @@ class TaskService(ClipEditingMixin):
                 completed_at=datetime.utcnow(),
                 error_code=error_code,
             )
+            if progress_callback:
+                try:
+                    await progress_callback(0, str(e), "error")
+                except Exception:
+                    logger.exception("Could not publish task failure for %s", task_id)
             raise
 
     async def _send_completion_notification_if_needed(
