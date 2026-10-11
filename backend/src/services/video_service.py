@@ -302,10 +302,10 @@ class VideoService:
             keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
             clip_text = segment.get("text", "")
             if not provided_keep_ranges and not source_ranges:
-                body_ranges = keep_ranges
                 keep_ranges = apply_segment_hook_teaser(video_path, keep_ranges, segment)
-                if len(keep_ranges) > len(body_ranges):
-                    clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
+                # Snapping, cleanup and the teaser change what is spoken; keep
+                # the stored text word-for-word with the rendered timeline.
+                clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
 
             success = await run_in_thread(
                 create_optimized_clip,

@@ -159,7 +159,9 @@ def test_clip_creation_snaps_start_and_extends_end(video_path, tmp_path, monkeyp
     info, ranges = _render_segments(video_path, tmp_path, monkeypatch, {})
     assert ranges == [(pytest.approx(10.6), pytest.approx(32.55))]
     assert info["keep_ranges"] == ranges
-    assert info["text"] == "body text"
+    # Text follows the snapped/extended timeline, not the raw labels.
+    assert info["text"].startswith("So here is the thing.")
+    assert info["text"].endswith("And that changed everything for me.")
 
 
 def test_clip_creation_teaser_comes_first_with_matching_text(
@@ -287,10 +289,10 @@ def test_caption_words_follow_teaser_order(transcript_data):
     assert texts[:6] == ["I", "lost", "forty", "thousand", "dollars.", "So"]
     starts = [word["start"] for word in words]
     assert starts == sorted(starts)
-    fade = crossfade_fade_for_ranges(ranges)
-    assert fade > 0
-    # Body words start right after the teaser, pulled in by the crossfade.
-    assert words[5]["start"] == pytest.approx((21.85 - 19.92) - fade + (10.7 - 10.6))
+    # Hard cut out of the teaser keeps source maps (plain concatenation) exact.
+    assert crossfade_fade_for_ranges(ranges) == 0.0
+    assert crossfade_fade_for_ranges([(10.6, 20.45), (20.6, 32.55)]) > 0
+    assert words[5]["start"] == pytest.approx((21.85 - 19.92) + (10.7 - 10.6))
 
 
 def test_source_map_round_trip_keeps_teaser_order(tmp_path):
