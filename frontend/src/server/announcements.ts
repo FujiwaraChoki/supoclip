@@ -9,8 +9,14 @@ export async function requireAnnouncementAdmin(request?: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const origin = request?.headers.get("origin");
+  const trustedOrigins = getAuthTrustedOrigins({
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+    BETTER_AUTH_TRUSTED_ORIGINS: process.env.BETTER_AUTH_TRUSTED_ORIGINS,
+    NEXT_PUBLIC_SELF_HOST: process.env.NEXT_PUBLIC_SELF_HOST,
+  });
   // Standalone Next.js sees its internal host behind the production proxy.
-  if (request && origin && origin !== new URL(request.url).origin && !getAuthTrustedOrigins(process.env).includes(origin)) {
+  if (request && origin && origin !== new URL(request.url).origin && !trustedOrigins.includes(origin)) {
     return NextResponse.json({ error: "Cross-origin writes are not allowed" }, { status: 403 });
   }
   return null;
