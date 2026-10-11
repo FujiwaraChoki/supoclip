@@ -19,6 +19,7 @@ import math
 import asyncio
 from ...utils.async_helpers import run_in_thread
 
+from ...repositories.generation_allowance_guard import generation_allowance_guard, GenerationAllowanceBusy
 from ...repositories.task_run_guard import task_run_guard, TaskRunBusy
 from ...repositories.task_repository import TaskRepository
 from ...database import get_db
@@ -341,71 +342,77 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             )
             source_title = source_title or metadata.get("title") or "YouTube Video"
 
-        # Create task
-        task_id = await task_service.create_task_with_source(
-            user_id=user_id,
-            url=raw_source["url"],
-            title=source_title,
-            font_family=font_family,
-            font_size=font_size,
-            font_color=font_color,
-            caption_template=caption_template,
-            include_broll=include_broll,
-            processing_mode=processing_mode,
-        )
-
-        try:
-            # Persist retry options before submitting the job; Redis remains a legacy cache.
-            processing_job_id = f"{task_id}:{secrets.token_hex(16)}"
-            await _save_task_source_metadata(
-                task_id,
-                _merge_task_source_metadata(
-                    {"processing_job_id": processing_job_id},
-                    source_url=raw_source["url"],
-                    source_type=source_type,
-                    output_format=output_format,
-                    add_subtitles=add_subtitles,
-                    cleanup_settings=cleanup_settings,
-                ),
-                db=db,
+        async with generation_allowance_guard(
+            db, user_id, enabled=runtime_config.monetization_enabled
+        ):
+            await billing_service.assert_can_create_task(user_id)
+            # Create task
+            task_id = await task_service.create_task_with_source(
+                user_id=user_id,
+                url=raw_source["url"],
+                title=source_title,
+                font_family=font_family,
+                font_size=font_size,
+                font_color=font_color,
+                caption_template=caption_template,
+                include_broll=include_broll,
+                processing_mode=processing_mode,
             )
 
-            # Enqueue job for worker
-            queue_adapter = getattr(request.app.state, "queue_adapter", JobQueue)
-            job_id = await queue_adapter.enqueue_processing_job(
-                "process_video_task",
-                processing_mode,
-                task_id,
-                raw_source["url"],
-                source_type,
-                user_id,
-                font_family,
-                font_size,
-                font_color,
-                caption_template,
-                processing_mode,
-                output_format,
-                add_subtitles,
-                cleanup_settings,
-                _job_id=processing_job_id,
-            )
+            try:
+                # Persist retry options before submitting the job; Redis remains a legacy cache.
+                processing_job_id = f"{task_id}:{secrets.token_hex(16)}"
+                await _save_task_source_metadata(
+                    task_id,
+                    _merge_task_source_metadata(
+                        {"processing_job_id": processing_job_id},
+                        source_url=raw_source["url"],
+                        source_type=source_type,
+                        output_format=output_format,
+                        add_subtitles=add_subtitles,
+                        cleanup_settings=cleanup_settings,
+                    ),
+                    db=db,
+                )
 
-        except Exception:
-            await task_service.task_repo.update_task_status(
-                db, task_id, "error", progress=0,
-                progress_message="Unable to queue processing. Please retry this generation.",
-                expected_statuses=["queued"],
-            )
-            raise
+                # Enqueue job for worker
+                queue_adapter = getattr(request.app.state, "queue_adapter", JobQueue)
+                job_id = await queue_adapter.enqueue_processing_job(
+                    "process_video_task",
+                    processing_mode,
+                    task_id,
+                    raw_source["url"],
+                    source_type,
+                    user_id,
+                    font_family,
+                    font_size,
+                    font_color,
+                    caption_template,
+                    processing_mode,
+                    output_format,
+                    add_subtitles,
+                    cleanup_settings,
+                    _job_id=processing_job_id,
+                )
 
-        logger.info(f"Task {task_id} created and job {job_id} enqueued")
+            except Exception:
+                await task_service.task_repo.update_task_status(
+                    db, task_id, "error", progress=0,
+                    progress_message="Unable to queue processing. Please retry this generation.",
+                    expected_statuses=["queued"],
+                )
+                raise
 
-        return {
-            "task_id": task_id,
-            "job_id": job_id,
-            "message": "Task created and queued for processing",
-        }
+            logger.info(f"Task {task_id} created and job {job_id} enqueued")
 
+            return {
+                "task_id": task_id,
+                "job_id": job_id,
+                "message": "Task created and queued for processing",
+            }
+
+    except GenerationAllowanceBusy as e:
+        raise HTTPException(status_code=409, detail=str(e), headers={"Retry-After": "1"})
     except HTTPException:
         raise
     except ValueError as e:
@@ -1154,62 +1161,67 @@ async def resume_task(
             if not source_url or not source_type:
                 raise HTTPException(status_code=400, detail="Task source URL is missing")
 
-            await BillingService(db).assert_can_resume_task(task["user_id"], task_id)
+            async with generation_allowance_guard(
+                db, task["user_id"], enabled=get_config().monetization_enabled
+            ):
+                await BillingService(db).assert_can_resume_task(task["user_id"], task_id)
 
-            runtime_config = get_config()
-            redis_client = redis.Redis(
-                host=runtime_config.redis_host,
-                port=runtime_config.redis_port,
-                password=runtime_config.redis_password,
-                decode_responses=True,
-            )
-            try:
-                await redis_client.delete(f"task_cancel:{task_id}")
-            finally:
-                await redis_client.aclose()
-
-            await task_service.task_repo.update_task_status(
-                db,
-                task_id,
-                "queued",
-                progress=0,
-                progress_message="Re-queued by user",
-            )
-
-            processing_mode = (
-                task.get("processing_mode") or runtime_config.default_processing_mode
-            )
-
-            try:
-                processing_job_id = f"{task_id}:{secrets.token_hex(16)}"
-                metadata["processing_job_id"] = processing_job_id
-                await _save_task_source_metadata(task_id, metadata, db=db)
-                job_id = await JobQueue.enqueue_processing_job(
-                    "process_video_task",
-                    processing_mode,
-                    task_id,
-                    source_url,
-                    source_type,
-                    task["user_id"],
-                    task.get("font_family"),
-                    task.get("font_size"),
-                    task.get("font_color"),
-                    task.get("caption_template") or "default",
-                    processing_mode,
-                    output_format,
-                    add_subtitles,
-                    cleanup_settings,
-                    _job_id=processing_job_id,
+                runtime_config = get_config()
+                redis_client = redis.Redis(
+                    host=runtime_config.redis_host,
+                    port=runtime_config.redis_port,
+                    password=runtime_config.redis_password,
+                    decode_responses=True,
                 )
-            except Exception:
+                try:
+                    await redis_client.delete(f"task_cancel:{task_id}")
+                finally:
+                    await redis_client.aclose()
+
                 await task_service.task_repo.update_task_status(
-                    db, task_id, task["status"],
-                    progress_message="Could not enqueue resume. Please retry.",
-                    expected_statuses=["queued"],
+                    db,
+                    task_id,
+                    "queued",
+                    progress=0,
+                    progress_message="Re-queued by user",
                 )
-                raise
 
-            return {"message": "Task resumed", "job_id": job_id}
+                processing_mode = (
+                    task.get("processing_mode") or runtime_config.default_processing_mode
+                )
+
+                try:
+                    processing_job_id = f"{task_id}:{secrets.token_hex(16)}"
+                    metadata["processing_job_id"] = processing_job_id
+                    await _save_task_source_metadata(task_id, metadata, db=db)
+                    job_id = await JobQueue.enqueue_processing_job(
+                        "process_video_task",
+                        processing_mode,
+                        task_id,
+                        source_url,
+                        source_type,
+                        task["user_id"],
+                        task.get("font_family"),
+                        task.get("font_size"),
+                        task.get("font_color"),
+                        task.get("caption_template") or "default",
+                        processing_mode,
+                        output_format,
+                        add_subtitles,
+                        cleanup_settings,
+                        _job_id=processing_job_id,
+                    )
+                except Exception:
+                    await task_service.task_repo.update_task_status(
+                        db, task_id, task["status"],
+                        progress_message="Could not enqueue resume. Please retry.",
+                        expected_statuses=["queued"],
+                    )
+                    raise
+
+                return {"message": "Task resumed", "job_id": job_id}
+    except GenerationAllowanceBusy as e:
+        raise HTTPException(status_code=409, detail=str(e), headers={"Retry-After": "1"})
     except BillingLimitExceeded as e:
         raise HTTPException(
             status_code=402,

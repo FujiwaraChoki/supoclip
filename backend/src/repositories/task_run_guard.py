@@ -9,6 +9,8 @@ from functools import wraps
 
 from sqlalchemy import text
 
+from .session_lock_connection import session_lock_connection
+
 
 class TaskRunBusy(Exception):
     pass
@@ -16,8 +18,7 @@ class TaskRunBusy(Exception):
 
 @asynccontextmanager
 async def task_run_guard(db, task_id: str):
-    connection = await db.bind.connect()
-    try:
+    async with session_lock_connection(db) as connection:
         locked = await connection.scalar(
             text("SELECT pg_try_advisory_lock(hashtextextended(:task_id, 913461))"),
             {"task_id": task_id},
@@ -26,11 +27,7 @@ async def task_run_guard(db, task_id: str):
         if not locked:
             raise TaskRunBusy("The previous worker is still stopping. Retry resume in a moment.")
         yield
-    finally:
-        # Never return a session-level lock to the pool. Invalidation closes the
-        # physical connection and also releases ownership on error/cancellation.
-        await connection.invalidate()
-        await connection.close()
+
 
 
 def exclusive_task_run(method):
