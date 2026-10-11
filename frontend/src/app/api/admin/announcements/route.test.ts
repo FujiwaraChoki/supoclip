@@ -16,12 +16,15 @@ const announcement = { findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn() }
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://www.supoclip.com");
   vi.mocked(getServerSession).mockResolvedValue({ user: { id: "admin", is_admin: true } } as never);
   vi.mocked(getPrismaClient).mockReturnValue({ announcement } as never);
   announcement.findMany.mockResolvedValue([]);
   announcement.create.mockResolvedValue({ id: "stored-id", ...body });
   announcement.updateMany.mockResolvedValue({ count: 1 });
 });
+
+afterEach(() => vi.unstubAllEnvs());
 
 it.each([null, { user: { id: "user", is_admin: false } }])("restricts management to admins", async session => {
   vi.mocked(getServerSession).mockResolvedValue(session as never);
@@ -36,6 +39,21 @@ it.each([null, { user: { id: "user", is_admin: false } }])("restricts management
 
 it("rejects cross-origin writes even for an admin", async () => {
   expect((await POST(request(body, "https://other.example"))).status).toBe(403);
+  expect(announcement.create).not.toHaveBeenCalled();
+});
+
+it("allows the configured public origin behind a reverse proxy", async () => {
+  const proxied = new Request("https://0.0.0.0:3107/api/admin/announcements", {
+    method: "POST", headers: { "Content-Type": "application/json", origin: "https://www.supoclip.com" }, body: JSON.stringify(body),
+  });
+  expect((await POST(proxied)).status).toBe(201);
+});
+
+it("does not trust a spoofed forwarded host to allow a cross-origin write", async () => {
+  const proxied = new Request("https://0.0.0.0:3107/api/admin/announcements", {
+    method: "POST", headers: { "Content-Type": "application/json", origin: "https://other.example", "x-forwarded-host": "other.example" }, body: JSON.stringify(body),
+  });
+  expect((await POST(proxied)).status).toBe(403);
   expect(announcement.create).not.toHaveBeenCalled();
 });
 

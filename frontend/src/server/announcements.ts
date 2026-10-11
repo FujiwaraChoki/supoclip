@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAuthTrustedOrigins } from "@/lib/auth-origins";
 import { getServerSession } from "@/server/session";
 
 export async function requireAnnouncementAdmin(request?: Request) {
@@ -8,7 +9,8 @@ export async function requireAnnouncementAdmin(request?: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   const origin = request?.headers.get("origin");
-  if (request && origin && origin !== new URL(request.url).origin) {
+  // Standalone Next.js sees its internal host behind the production proxy.
+  if (request && origin && origin !== new URL(request.url).origin && !getAuthTrustedOrigins(process.env).includes(origin)) {
     return NextResponse.json({ error: "Cross-origin writes are not allowed" }, { status: 403 });
   }
   return null;
