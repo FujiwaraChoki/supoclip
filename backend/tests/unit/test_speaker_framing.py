@@ -257,15 +257,16 @@ def test_step_expression_hard_cuts_at_turn_boundary():
     assert frames[10:].min() > 225
 
 
-def test_vertical_plan_uses_speaker_chain(monkeypatch, tmp_path):
+def _face_track(duration=10.0, fps=3.0, cx=960.0):
+    return [(i / fps, cx, 0.02) for i in range(int(duration * fps))]
+
+
+def test_vertical_plan_uses_speaker_chain_for_all_face_clips(monkeypatch, tmp_path):
     monkeypatch.setattr(reframing, "ffprobe_duration", lambda _: 10.0)
+    monkeypatch.setattr(reframing, "analyze_vertical_clip", lambda *_: (_face_track(), []))
     monkeypatch.setattr(
         speaker_framing, "build_speaker_crop_chain",
         lambda *args, **kwargs: "crop=606:1080:x='0':y=0,scale=1080:1920",
-    )
-    monkeypatch.setattr(
-        reframing, "analyze_vertical_clip",
-        lambda *_: pytest.fail("dominant-face analysis should be skipped"),
     )
     turns = [{"speaker": "A", "start": 0, "end": 5}, {"speaker": "B", "start": 5, "end": 10}]
 
@@ -279,35 +280,30 @@ def test_vertical_plan_uses_speaker_chain(monkeypatch, tmp_path):
 
 def test_vertical_plan_falls_back_when_speaker_mapping_fails(monkeypatch, tmp_path):
     monkeypatch.setattr(reframing, "ffprobe_duration", lambda _: 10.0)
+    monkeypatch.setattr(reframing, "analyze_vertical_clip", lambda *_: (_face_track(), []))
     monkeypatch.setattr(speaker_framing, "build_speaker_crop_chain", lambda *a, **k: None)
-    calls = []
-
-    def fake_analyze(path):
-        calls.append(path)
-        return [], []
-
-    monkeypatch.setattr(reframing, "analyze_vertical_clip", fake_analyze)
-    monkeypatch.setattr(reframing, "detect_optimal_crop_region", lambda *a: (650, 0, 606, 1080))
     turns = [{"speaker": "A", "start": 0, "end": 5}, {"speaker": "B", "start": 5, "end": 10}]
 
     chain, mode = reframing.build_vertical_filter_plan(
         tmp_path / "clip.mp4", 1920, 1080, turns, [_word(0, 1, "A")]
     )
 
-    assert calls, "fell back to dominant-face tracking"
-    assert "crop=606:1080:650:0" in chain
+    assert mode == "vf"
+    assert "crop=606:1080:656:0" in chain  # dominant face centred at x=960
 
 
-def test_speaker_chain_skips_clips_with_content_shots(monkeypatch, tmp_path):
-    samples = [(t / 3, []) for t in range(30)]  # no faces at all -> content shot
+def test_vertical_plan_keeps_compositor_for_content_shots(monkeypatch, tmp_path):
+    monkeypatch.setattr(reframing, "ffprobe_duration", lambda _: 10.0)
+    track = _face_track(5.0) + [(5.0 + i / 3.0, None, 0.0) for i in range(15)]
+    monkeypatch.setattr(reframing, "analyze_vertical_clip", lambda *_: (track, []))
     monkeypatch.setattr(
-        speaker_framing, "analyze_speaker_clip",
-        lambda *a: {"face_samples": samples, "scene_cuts": [], "motion": np.zeros((1, 1, 1))},
+        speaker_framing, "build_speaker_crop_chain",
+        lambda *a, **k: pytest.fail("content clips must not use speaker framing"),
     )
     turns = [{"speaker": "A", "start": 0, "end": 5}, {"speaker": "B", "start": 5, "end": 10}]
 
-    chain = speaker_framing.build_speaker_crop_chain(
-        tmp_path / "clip.mp4", 1920, 1080, 606, 1080, 10.0, turns, []
+    _, mode = reframing.build_vertical_filter_plan(
+        tmp_path / "clip.mp4", 1920, 1080, turns, [_word(0, 1, "A")]
     )
 
-    assert chain is None
+    assert mode == "complex"

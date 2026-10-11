@@ -12,7 +12,8 @@ Scope, deliberately conservative so a wrong guess never ships:
   speaker cuts. Single-face shots of a multi-camera edit keep a per-shot face
   crop.
 - Clips with content shots (no faces: slides, tweets, screen recordings) are
-  left to the scene-aware compositor in ``reframing``.
+  left to the scene-aware compositor in ``reframing``; the caller only asks
+  for speaker framing when its layout plan is all faces.
 - When the speaker-to-face mapping is not clearly better than the alternatives,
   the caller falls back to dominant-face tracking.
 """
@@ -550,9 +551,10 @@ def build_speaker_crop_chain(
     turns: Sequence[Dict[str, Any]],
     words: Sequence[Dict[str, Any]],
 ) -> Optional[str]:
-    """ffmpeg -vf chain cutting between speakers, or None to use the default."""
-    from .reframing import build_layout_plan
+    """ffmpeg -vf chain cutting between speakers, or None to use the default.
 
+    The caller only invokes this for clips without content shots.
+    """
     if len(turns) < 2 or crop_w >= width or duration <= 0:
         return None
     analysis = analyze_speaker_clip(input_path, width, height)
@@ -561,18 +563,6 @@ def build_speaker_crop_chain(
     face_samples = analysis["face_samples"]
     scene_cuts = analysis["scene_cuts"]
     shots = split_shots(scene_cuts, duration)
-
-    # Content shots need the blurred-fit compositor; leave those clips alone.
-    track = []
-    for t, faces in face_samples:
-        if faces:
-            x, _, w, h = max(faces, key=lambda f: f[2] * f[3])
-            track.append((t, x + w / 2, (w * h) / float(width * height)))
-        else:
-            track.append((t, None, 0.0))
-    if any(seg["kind"] == "fit" for seg in build_layout_plan(track, scene_cuts, duration)):
-        logger.info("Speaker framing skipped: clip has content shots")
-        return None
 
     wide_shots = find_wide_shots(face_samples, shots, crop_w)
     if not wide_shots:
@@ -593,8 +583,10 @@ def build_speaker_crop_chain(
     shot_x: Dict[Tuple[float, float], int] = {}
     for shot in shots:
         centres = [
-            x + w / 2 for t, faces in face_samples if shot[0] <= t < shot[1]
-            for x, _, w, _ in [max(faces, key=lambda f: f[2] * f[3])] if faces
+            x + w / 2
+            for t, faces in face_samples
+            if faces and shot[0] <= t < shot[1]
+            for x, _, w, _ in [max(faces, key=lambda f: f[2] * f[3])]
         ]
         if centres:
             shot_x[shot] = clamp_even(int(np.median(centres) - crop_w / 2), 0, max_x)

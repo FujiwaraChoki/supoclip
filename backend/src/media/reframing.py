@@ -1185,20 +1185,6 @@ def build_vertical_filter_plan(
         tail = kenburns_zoom_fragment(duration) or "scale=1080:1920:flags=lanczos,setsar=1"
         return (f"crop={sw}:{sh}:{sx}:{sy},{tail}", "vf")
 
-    if speaker_turns and speaker_words:
-        from .speaker_framing import build_speaker_crop_chain
-
-        try:
-            speaker_chain = build_speaker_crop_chain(
-                input_path, width, height, crop_w, crop_h, duration,
-                speaker_turns, speaker_words,
-            )
-        except Exception as exc:
-            logger.warning("Speaker framing failed (%s); tracking dominant face", exc)
-            speaker_chain = None
-        if speaker_chain:
-            return (speaker_chain, "vf")
-
     # One fast decode pass yields both the face track and the scene cuts.
     try:
         track, scene_cuts = analyze_vertical_clip(input_path)
@@ -1230,6 +1216,22 @@ def build_vertical_filter_plan(
     # Decide the layout over time. All-face clips skip the compositor (cheaper).
     plan = build_layout_plan(track, scene_cuts, duration)
     fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "fit"]
+    if not fit_intervals and speaker_turns and speaker_words:
+        # All-face clip with diarized speakers: cut to whoever is talking on
+        # multi-person wide shots. Clips with content shots keep the
+        # compositor below, so slides/tweets are never cropped.
+        from .speaker_framing import build_speaker_crop_chain
+
+        try:
+            speaker_chain = build_speaker_crop_chain(
+                input_path, width, height, crop_w, crop_h, duration,
+                speaker_turns, speaker_words,
+            )
+        except Exception as exc:
+            logger.warning("Speaker framing failed (%s); tracking dominant face", exc)
+            speaker_chain = None
+        if speaker_chain:
+            return (speaker_chain, "vf")
     if not fit_intervals:
         # Static, all-face clip: add the slow Ken Burns punch-in. (The moving
         # tracked crop and the compositor path keep the plain chain — they
