@@ -42,7 +42,7 @@ import {
   type MarketingLink,
 } from "@/lib/marketing-links";
 import { DEMO_CLIPS, DEMO_SOURCE } from "@/lib/demo";
-import { APP_STORE_URL, GITHUB_URL, HOSTED_APP_URL } from "@/lib/site";
+import { APP_STORE_URL, GITHUB_URL, HOSTED_APP_URL, PRODUCT_HUNT_BADGE_URL, PRODUCT_HUNT_URL } from "@/lib/site";
 
 function ScrollReveal({
   children,
@@ -506,6 +506,25 @@ export default function LandingPage() {
                   </div>
                 ))}
               </div>
+
+              <a
+                href={PRODUCT_HUNT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-8 inline-block"
+                style={{
+                  animation: "landing-fade-in-up 0.6s ease-out 0.5s both",
+                }}
+              >
+                {/* PH's dark badge sits with the App Store badge; its light one is brand orange. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={PRODUCT_HUNT_BADGE_URL}
+                  alt="SupoClip - Open-source AI clipper: long videos into viral shorts | Product Hunt"
+                  width={250}
+                  height={54}
+                />
+              </a>
             </div>
 
             {/* Right: Visual */}
