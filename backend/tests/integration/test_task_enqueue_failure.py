@@ -109,6 +109,19 @@ async def test_retry_preserves_source_options_when_redis_metadata_is_unavailable
     assert settings["cut_long_pauses"] is True
     assert settings["filtered_words"] == ["basically"]
 
+    # A styling-only update must read PostgreSQL before merging omitted fields,
+    # including after the cleanup-defaults change on main.
+    updated = await client.post(
+        f"/tasks/{task.id}/settings", headers=auth_headers, json={"font_size": 72}
+    )
+    assert updated.status_code == 200, updated.text
+    saved = await tasks.TaskRepository.load_source_metadata(db_session, task.id)
+    assert saved["output_format"] == "original"
+    assert saved["add_subtitles"] is False
+    assert saved["pause_threshold_ms"] == 1200
+    assert saved["filtered_words"] == ["basically"]
+    assert saved["url"] == "upload://source.mp4"
+
     enqueue = AsyncMock(return_value="retry-job")
     monkeypatch.setattr(tasks.JobQueue, "enqueue_processing_job", enqueue)
     resumed = await client.post(f"/tasks/{task.id}/resume", headers=auth_headers)
