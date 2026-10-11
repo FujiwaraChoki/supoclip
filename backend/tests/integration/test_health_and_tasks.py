@@ -112,7 +112,7 @@ async def test_create_task_enqueues_a_job(client, db_session, auth_headers, monk
     assert response.status_code == 200
     payload = response.json()
     assert payload["task_id"]
-    assert payload["job_id"] == "job-test-1"
+    assert payload["job_id"].startswith(payload["task_id"] + ":")
 
 
 @pytest.mark.asyncio

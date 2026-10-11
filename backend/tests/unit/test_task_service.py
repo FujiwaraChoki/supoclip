@@ -630,3 +630,42 @@ async def test_failure_notification_error_preserves_render_failure(tmp_path):
         )
 
     assert service.task_repo.update_task_status.await_args.args[2] == "error"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("job_exists,redis_error,expected_status", [
+    (True, False, "queued"), (False, True, "queued"), (False, False, "error"),
+])
+async def test_old_queued_task_keeps_reservation_while_job_exists_or_redis_unknown(
+    monkeypatch, job_exists, redis_error, expected_status
+):
+    from datetime import timedelta
+    from types import SimpleNamespace
+    service = TaskService(db=AsyncMock())
+    now = datetime.now(timezone.utc)
+    task = {"id": "queued-task", "status": "queued", "created_at": now - timedelta(hours=1)}
+    service.task_repo.get_task_by_id = AsyncMock(side_effect=[task, {**task, "status": "error"}])
+    service.task_repo.update_task_status = AsyncMock()
+    service.clip_repo.get_clips_by_task = AsyncMock(return_value=[])
+    service._load_task_source_settings = AsyncMock(return_value={})
+    service.task_repo.load_source_metadata = AsyncMock(return_value={"processing_job_id": "job-1"})
+    pool = SimpleNamespace(exists=AsyncMock(
+        return_value=job_exists, side_effect=RuntimeError("Redis down") if redis_error else None
+    ))
+    monkeypatch.setattr(task_service_module.JobQueue, "get_pool", AsyncMock(return_value=pool))
+    result = await service.get_task_with_clips(task["id"])
+    assert result["status"] == expected_status
+    if expected_status == "queued":
+        service.task_repo.update_task_status.assert_not_awaited()
+    else:
+        assert service.task_repo.update_task_status.await_args.kwargs["expected_statuses"] == ["queued"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("age_hours,missing", [(1, False), (25, True)])
+async def test_legacy_queue_reservations_keep_full_arq_retention_window(age_hours, missing):
+    from datetime import timedelta
+    service = TaskService(db=AsyncMock())
+    service.task_repo.load_source_metadata = AsyncMock(return_value={})
+    task = {"id": "legacy", "created_at": datetime.now(timezone.utc) - timedelta(hours=age_hours)}
+    assert await service._queued_job_is_missing(task) is missing

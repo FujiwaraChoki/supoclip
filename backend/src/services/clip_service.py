@@ -535,34 +535,39 @@ class ClipEditingMixin:
             "add_subtitles": True,
             **normalize_clip_cleanup_settings(),
         }
-        redis_client = redis.Redis(
-            host=self.config.redis_host,
-            port=self.config.redis_port,
-            password=self.config.redis_password,
-            decode_responses=True,
+        parsed = (
+            await self.task_repo.load_source_metadata(self.db, task_id)
+            if self.db is not None else {}
         )
-        try:
-            payload = await redis_client.get(f"task_source:{task_id}")
-        except Exception as exc:
-            logger.warning(
-                "Falling back to default task source settings for task %s: %s",
-                task_id,
-                exc,
+        if not parsed:
+            redis_client = redis.Redis(
+                host=self.config.redis_host,
+                port=self.config.redis_port,
+                password=self.config.redis_password,
+                decode_responses=True,
             )
-            return defaults
-        finally:
             try:
-                await redis_client.aclose()
-            except Exception:
-                pass
+                payload = await redis_client.get(f"task_source:{task_id}")
+            except Exception as exc:
+                logger.warning(
+                    "Falling back to default task source settings for task %s: %s",
+                    task_id, exc,
+                )
+                return defaults
+            finally:
+                try:
+                    await redis_client.aclose()
+                except Exception:
+                    pass
 
-        if not payload:
-            return defaults
-
-        try:
-            parsed = json.loads(payload)
-        except json.JSONDecodeError:
-            return defaults
+            if not payload:
+                return defaults
+            try:
+                parsed = json.loads(payload)
+            except json.JSONDecodeError:
+                return defaults
+            if not isinstance(parsed, dict):
+                return defaults
 
         output_format = parsed.get("output_format", defaults["output_format"])
         if output_format not in VALID_OUTPUT_FORMATS:

@@ -13,6 +13,7 @@ from sqlalchemy import text
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,27 @@ class TaskRepository:
             raise RuntimeError("Failed to create task: no ID returned")
         logger.info(f"Created task {task_id} for user {user_id}")
         return str(task_id)
+
+    @staticmethod
+    async def save_source_metadata(db: AsyncSession, task_id: str, metadata: Dict[str, Any]) -> None:
+        try:
+            await db.execute(
+                text("UPDATE tasks SET source_metadata = source_metadata || CAST(:metadata AS JSONB) WHERE id = :task_id"),
+                {"task_id": task_id, "metadata": json.dumps(metadata)},
+            )
+            await commit_unless_editing(db)
+        except BaseException:
+            await db.rollback()
+            raise
+
+    @staticmethod
+    async def load_source_metadata(db: AsyncSession, task_id: str) -> Dict[str, Any]:
+        result = await db.execute(
+            text("SELECT source_metadata FROM tasks WHERE id = :task_id"),
+            {"task_id": task_id},
+        )
+        metadata = result.scalar_one_or_none()
+        return metadata if isinstance(metadata, dict) else {}
 
     @staticmethod
     async def get_task_by_id(

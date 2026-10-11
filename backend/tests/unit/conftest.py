@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 import pytest
+from unittest.mock import AsyncMock
 
 
 @pytest.fixture
@@ -15,4 +16,9 @@ def isolated_clip_edits(monkeypatch):
 
     monkeypatch.setattr(
         "src.repositories.edit_transaction.task_edit_transaction", transaction
+    )
+
+    monkeypatch.setattr(
+        "src.repositories.task_repository.TaskRepository.load_source_metadata",
+        AsyncMock(return_value={}),
     )

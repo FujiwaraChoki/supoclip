@@ -36,7 +36,7 @@ class FakeQueueAdapter:
         return None
 
     @classmethod
-    async def enqueue_processing_job(cls, function_name: str, processing_mode: str, *args):
+    async def enqueue_processing_job(cls, function_name: str, processing_mode: str, *args, **kwargs):
         cls.enqueued_jobs.append(
           {
             "function_name": function_name,
@@ -44,7 +44,7 @@ class FakeQueueAdapter:
             "args": args,
           }
         )
-        return "job-test-1"
+        return kwargs.get("_job_id", "job-test-1")
 
 
 @pytest.fixture(scope="session")
