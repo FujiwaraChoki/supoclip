@@ -1,7 +1,7 @@
 """Timeline helpers for the video pipeline."""
 
 from typing import Any
-from ..clip_cleanup import DEFAULT_FILTERED_WORDS, DEFAULT_PAUSE_THRESHOLD_MS
+from ..clip_cleanup import DEFAULT_PAUSE_THRESHOLD_MS, default_filtered_words
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -357,11 +357,13 @@ def _normalize_cleanup_token(value: str) -> str:
 
 
 def _build_cleanup_phrases(
-    remove_filler_words: bool, filtered_words: Optional[List[str]]
+    remove_filler_words: bool,
+    filtered_words: Optional[List[str]],
+    language_code: Optional[str] = "en",
 ) -> List[List[str]]:
     raw_phrases: List[str] = []
     if remove_filler_words:
-        raw_phrases.extend(DEFAULT_FILTERED_WORDS)
+        raw_phrases.extend(default_filtered_words(language_code))
     raw_phrases.extend(filtered_words or [])
 
     normalized_phrases: List[List[str]] = []
@@ -441,6 +443,7 @@ def build_clip_keep_ranges(
     phrase_tokens = _build_cleanup_phrases(
         bool(settings.get("remove_filler_words")),
         settings.get("filtered_words"),
+        transcript_data.get("language_code"),
     )
     if phrase_tokens:
         normalized_words = [
@@ -475,7 +478,10 @@ def build_clip_keep_ranges(
     spoken_words = [
         word for index, word in enumerate(relevant_words) if index not in filler_indices
     ]
-    if cut_long_pauses and spoken_words:
+    if not spoken_words:
+        # Nothing but filtered words: cutting them would leave only dead air.
+        return [(clip_start, clip_end)]
+    if cut_long_pauses:
         # Compress long pauses instead of cutting them out entirely: keep a
         # short breath of silence on each side so the edit doesn't sound
         # clipped and the junction crossfade only blends silence.

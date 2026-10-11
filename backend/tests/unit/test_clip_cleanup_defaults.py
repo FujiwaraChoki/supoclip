@@ -1,5 +1,6 @@
 from src.clip_cleanup import (
     DEFAULT_FILTERED_WORDS,
+    default_filtered_words,
     DEFAULT_PAUSE_THRESHOLD_MS,
     new_task_cleanup_settings,
     normalize_clip_cleanup_settings,
@@ -56,3 +57,15 @@ def test_default_fillers_are_pure_disfluencies():
     for phrase in ("you know", "i mean", "sort of", "kind of", "like"):
         assert phrase not in DEFAULT_FILTERED_WORDS
     assert {"um", "uh"} <= set(DEFAULT_FILTERED_WORDS)
+
+
+def test_default_fillers_depend_on_transcript_language():
+    assert "um" in default_filtered_words("en_us")
+    assert "um" in default_filtered_words("en")
+    for language in ("de", "fr", "es", None, ""):
+        words = default_filtered_words(language)
+        assert "um" not in words
+        assert "er" not in words
+        assert "uh" in words
+    assert "ähm" in default_filtered_words("de")
+    assert "euh" in default_filtered_words("fr")
