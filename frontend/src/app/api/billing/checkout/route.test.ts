@@ -93,11 +93,12 @@ describe("/api/billing/checkout", () => {
   describe("creator codes", () => {
     const approvedMaya = { user_id: "creator-1", status: "approved", stripe_promotion_code_id: "promo_maya" };
 
-    function stripeForCheckout() {
+    function stripeForCheckout(promotionCodes: unknown[] = []) {
       return {
         checkout: {
           sessions: { create: vi.fn().mockResolvedValue({ url: "https://checkout.example/creator" }) },
         },
+        promotionCodes: { list: vi.fn().mockResolvedValue({ data: promotionCodes }) },
       };
     }
 
@@ -164,7 +165,63 @@ describe("/api/billing/checkout", () => {
       expect(response.status).toBe(400);
     });
 
-    it("checks out at full price when the signup ref is not a creator code", async () => {
+    describe("house codes", () => {
+      const houseCode = { id: "promo_ph", promotion: { type: "coupon", coupon: "creator-20-3mo" }, expires_at: null };
+
+      it("applies an active Stripe promotion code on the creator coupon that no creator owns", async () => {
+        vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(null as never);
+        const stripe = stripeForCheckout([houseCode]);
+        vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+        const response = await checkout({ plan: "pro", code: "ProductHunt" });
+
+        expect(response.status).toBe(200);
+        expect(stripe.promotionCodes.list).toHaveBeenCalledWith({ code: "PRODUCTHUNT", active: true, limit: 1 });
+        expect(stripe.checkout.sessions.create.mock.calls[0][0]).toMatchObject({
+          discounts: [{ promotion_code: "promo_ph" }],
+          metadata: { creator_code: "PRODUCTHUNT" },
+        });
+      });
+
+      it("applies a house code from the signup ref", async () => {
+        vi.mocked(prisma.userAcquisition.findUnique).mockResolvedValue({ ref: "producthunt" } as never);
+        vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(null as never);
+        const stripe = stripeForCheckout([houseCode]);
+        vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+        const response = await checkout({ plan: "pro" });
+
+        expect(response.status).toBe(200);
+        expect(stripe.checkout.sessions.create.mock.calls[0][0].discounts).toEqual([{ promotion_code: "promo_ph" }]);
+      });
+
+      it.each([
+        ["is on another coupon", { ...houseCode, promotion: { type: "coupon", coupon: { id: "staff-100" } } }],
+        ["has expired", { ...houseCode, expires_at: Math.floor(Date.now() / 1000) - 60 }],
+      ])("rejects a Stripe promotion code that %s", async (_label, promotionCode) => {
+        vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(null as never);
+        const stripe = stripeForCheckout([promotionCode]);
+        vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+        const response = await checkout({ plan: "pro", code: "PRODUCTHUNT" });
+
+        expect(response.status).toBe(400);
+        expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+      });
+
+      it("never falls back to Stripe for a code a creator holds", async () => {
+        vi.mocked(prisma.affiliate.findUnique).mockResolvedValue({ ...approvedMaya, status: "revoked" } as never);
+        const stripe = stripeForCheckout([houseCode]);
+        vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+        const response = await checkout({ plan: "pro", code: "MAYA" });
+
+        expect(response.status).toBe(400);
+        expect(stripe.promotionCodes.list).not.toHaveBeenCalled();
+      });
+    });
+
+    it("checks out at full price when the signup ref is not a creator or house code", async () => {
       vi.mocked(prisma.userAcquisition.findUnique).mockResolvedValue({ ref: "producthunt" } as never);
       vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(null as never);
       const stripe = stripeForCheckout();

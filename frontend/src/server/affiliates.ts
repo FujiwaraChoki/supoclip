@@ -122,12 +122,13 @@ export function applyAvailableAt(existing: ExistingApplication, now = new Date()
 }
 
 export type CreatorOffer = {
-  affiliateUserId: string;
+  /** Null for a house code, which no creator owns. */
+  affiliateUserId: string | null;
   code: string;
   promotionCodeId: string;
 };
 
-/** The approved affiliate behind a ref/code, or null. */
+/** The approved affiliate (or house code) behind a ref/code, or null. */
 export async function findCreatorOffer(prisma: PrismaClient, rawCode: string): Promise<CreatorOffer | null> {
   const slug = validateSlug(rawCode);
   if (!slug.ok) return null;
@@ -135,12 +136,29 @@ export async function findCreatorOffer(prisma: PrismaClient, rawCode: string): P
     where: { slug: slug.slug },
     select: { user_id: true, status: true, stripe_promotion_code_id: true },
   });
-  if (!affiliate || affiliate.status !== "approved" || !affiliate.stripe_promotion_code_id) return null;
+  if (!affiliate) return findHouseOffer(slug.slug);
+  if (affiliate.status !== "approved" || !affiliate.stripe_promotion_code_id) return null;
   return {
     affiliateUserId: affiliate.user_id,
     code: slug.slug.toUpperCase(),
     promotionCodeId: affiliate.stripe_promotion_code_id,
   };
+}
+
+/**
+ * A house code: an active Stripe promotion code on the creator coupon that no
+ * creator owns, e.g. `PRODUCTHUNT` for a launch. It's created by hand in Stripe,
+ * which also enforces its expiry and redemption limits.
+ */
+async function findHouseOffer(slug: string): Promise<CreatorOffer | null> {
+  const code = slug.toUpperCase();
+  const { data } = await getStripeClient().promotionCodes.list({ code, active: true, limit: 1 });
+  const promotionCode = data[0];
+  const coupon = promotionCode?.promotion.coupon;
+  const couponId = typeof coupon === "string" ? coupon : coupon?.id;
+  if (!promotionCode || couponId !== creatorCouponId()) return null;
+  if (promotionCode.expires_at && promotionCode.expires_at * 1000 <= Date.now()) return null;
+  return { affiliateUserId: null, code, promotionCodeId: promotionCode.id };
 }
 
 /** Gives Pro to a creator who isn't already paying; never touches a paid Stripe or App Store plan. */

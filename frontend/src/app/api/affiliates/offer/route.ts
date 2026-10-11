@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { findCreatorOffer } from "@/server/affiliates";
 import { getPrismaClient } from "@/server/prisma";
 
-/** Public: whether `?code=maya` is an approved creator's code. Codes are shared publicly by design. */
+/** Public: whether `?code=maya` is an approved creator's (or a house) code. Codes are shared publicly by design. */
 export async function GET(request: Request) {
   try {
     const code = new URL(request.url).searchParams.get("code") ?? "";
