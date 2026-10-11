@@ -49,6 +49,7 @@ from ..clip_cleanup import DEFAULT_FILTERED_WORDS, clip_cleanup_enabled
 from ..clip_source_map import (
     normalize_source_ranges,
     save_clip_source_ranges,
+    source_range_bounds,
 )
 
 from ..caption_templates import get_template, CAPTION_TEMPLATES
@@ -68,6 +69,18 @@ EMOJI_FONT_NAME = "Noto Color Emoji"
 CLIP_END_SENTENCE_EXTENSION_SECONDS = 3.0
 
 CLIP_END_PADDING_SECONDS = 0.35
+
+CLIP_START_SNAP_WINDOW_SECONDS = 3.0
+
+CLIP_START_LEAD_IN_SECONDS = 0.1
+
+SENTENCE_PAUSE_BOUNDARY_SECONDS = 0.8
+
+HOOK_TEASER_MIN_SECONDS = 1.5
+
+HOOK_TEASER_MAX_SECONDS = 5.0
+
+HOOK_TEASER_MIN_OFFSET_SECONDS = 3.0
 
 # Long pauses are compressed rather than cut out, so speech keeps a natural
 # breath between phrases. A junction keeps PAUSE_EDGE_PADDING_SECONDS of silence
