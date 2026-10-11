@@ -14,6 +14,7 @@ from ..font_registry import get_font_family_name
 from ..caption_templates import get_template
 from ..clip_source_map import normalize_source_ranges
 from ..emoji_captions import normalize_token
+import cv2
 import numpy as np
 import tempfile
 from .common import (
@@ -108,9 +109,10 @@ def emoji_rendering_supported() -> bool:
                 str(frame),
             ]
             if run_ffmpeg_command(command, timeout=60).returncode == 0 and frame.exists():
-                from PIL import Image
-
-                arr = np.asarray(Image.open(frame).convert("RGB"), dtype=np.int16)
+                image = cv2.imread(str(frame), cv2.IMREAD_COLOR)
+                if image is None:
+                    raise RuntimeError("probe frame unreadable")
+                arr = image.astype(np.int16)
                 spread = arr.max(axis=2) - arr.min(axis=2)  # 0 for grey/tofu
                 result = int((spread > 40).sum()) > 30
     except Exception as exc:
