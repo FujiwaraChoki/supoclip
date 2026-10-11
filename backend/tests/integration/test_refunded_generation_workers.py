@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy import text
 
+from tests.fixtures.factories import create_user
+
 @pytest.mark.asyncio
 async def test_refunded_error_job_cannot_start_without_explicit_resume(
     db_session, initialized_database, tmp_path
@@ -13,7 +15,7 @@ async def test_refunded_error_job_cannot_start_without_explicit_resume(
     from src.repositories.task_repository import TaskRepository
     from src.services.billing_service import BillingService
     from src.config import Config
-    
+
     task_id, _, original = await make_task(db_session, tmp_path, status="error")
     await create_user(db_session, user_id="user-1", plan="pro", subscription_status="active")
     await db_session.execute(
