@@ -124,3 +124,9 @@ KENBURNS_MIN_SECONDS = 3.0
 KENBURNS_SUPERSAMPLE_W = 1620
 
 KENBURNS_SUPERSAMPLE_H = 2880
+
+# Mild luma-only sharpen applied after the 9:16 upscale; vertical crops are
+# usually stretched 1.3-2.7x from the source, which softens edges.
+UPSCALE_SHARPEN_FILTER = "unsharp=5:5:0.6:5:5:0.0"
+
+VERTICAL_SCALE_CHAIN = f"scale=1080:1920:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1"
