@@ -1109,7 +1109,11 @@ def build_vertical_compositor_filter(
 
 
 def build_vertical_filter_plan(
-    input_path: Path, width: int, height: int
+    input_path: Path,
+    width: int,
+    height: int,
+    speaker_turns: Optional[List[Dict[str, Any]]] = None,
+    speaker_words: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[str, str]:
     """Build the 9:16 reframing filter for the default vertical mode.
 
@@ -1117,6 +1121,8 @@ def build_vertical_filter_plan(
     filter_complex producing [vout]. Talking-head-only clips use the cheap
     tracked crop; clips containing content shots use the scene-aware compositor
     so tweets / graphs / slides are shown in full instead of being cropped.
+    With diarized speaker turns, multi-person wide shots cut to whoever is
+    talking (see ``speaker_framing``); otherwise the dominant face is tracked.
     """
     crop_w, crop_h = compute_vertical_crop_dims(width, height)
     duration = ffprobe_duration(input_path)
@@ -1154,6 +1160,22 @@ def build_vertical_filter_plan(
     # Decide the layout over time. All-face clips skip the compositor (cheaper).
     plan = build_layout_plan(track, scene_cuts, duration)
     fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "fit"]
+    if not fit_intervals and speaker_turns and speaker_words:
+        # All-face clip with diarized speakers: cut to whoever is talking on
+        # multi-person wide shots. Clips with content shots keep the
+        # compositor below, so slides/tweets are never cropped.
+        from .speaker_framing import build_speaker_crop_chain
+
+        try:
+            speaker_chain = build_speaker_crop_chain(
+                input_path, width, height, crop_w, crop_h, duration,
+                speaker_turns, speaker_words,
+            )
+        except Exception as exc:
+            logger.warning("Speaker framing failed (%s); tracking dominant face", exc)
+            speaker_chain = None
+        if speaker_chain:
+            return (speaker_chain, "vf")
     if not fit_intervals:
         # Static, all-face clip: add the slow Ken Burns punch-in. (The moving
         # tracked crop and the compositor path keep the plain chain — they
@@ -1181,6 +1203,8 @@ def render_reframed_clip_ffmpeg(
     output_format: str,
     subtitle_ass_path: Optional[Path] = None,
     fonts_dir: Optional[Path] = None,
+    speaker_turns: Optional[List[Dict[str, Any]]] = None,
+    speaker_words: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[bool, int, int]:
     """Render the final framed clip and (optionally) burn subtitles in one pass.
 
@@ -1260,7 +1284,9 @@ def render_reframed_clip_ffmpeg(
 
     # Default "vertical": scene-aware — tracked crop for face shots, blurred-
     # background full-frame fit for content shots (tweets/graphs/slides).
-    video_filter, mode = build_vertical_filter_plan(input_path, width, height)
+    video_filter, mode = build_vertical_filter_plan(
+        input_path, width, height, speaker_turns, speaker_words
+    )
     if mode == "complex":
         if subs:
             graph = f"{video_filter};[vout]{subs}[v]"

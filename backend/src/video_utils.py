@@ -50,6 +50,9 @@ from .media.captions import (
 from .media.reframing import (
     render_reframed_clip_ffmpeg,
 )
+from .media.speaker_framing import (
+    build_clip_speaker_turns,
+)
 from .media.ffmpeg import (
     build_audio_output_args,
     build_final_video_encode_args,
@@ -364,12 +367,24 @@ def create_optimized_clip(
                     font_family or get_template(caption_template)["font_family"]
                 )
 
+            speaker_turns: List[Dict[str, Any]] = []
+            speaker_words: List[Dict[str, Any]] = []
+            if reframe_format == "vertical" and get_config().speaker_framing:
+                try:
+                    speaker_turns, speaker_words = build_clip_speaker_turns(
+                        video_path, effective_keep_ranges
+                    )
+                except Exception as exc:
+                    logger.warning("Speaker turn extraction failed: %s", exc)
+
             framed_ok, _, _ = render_reframed_clip_ffmpeg(
                 source_clip_path,
                 final_clip_path,
                 reframe_format,
                 subtitle_ass_path=burn_ass_path,
                 fonts_dir=fonts_dir,
+                speaker_turns=speaker_turns,
+                speaker_words=speaker_words,
             )
             if not framed_ok:
                 raise RuntimeError("ffmpeg reframe render failed")

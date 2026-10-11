@@ -157,6 +157,8 @@ class Config:
         )
         # Open clips with the AI-picked hook line as a short cold-open teaser.
         self.hook_first_teaser = self._get_bool_env("HOOK_FIRST_TEASER", True)
+        # Cut between speakers on multi-person wide shots using diarization.
+        self.speaker_framing = self._get_bool_env("SPEAKER_FRAMING", True)
 
     def max_youtube_video_duration_for_plan(
         self, plan: str | None, subscription_status: str | None
