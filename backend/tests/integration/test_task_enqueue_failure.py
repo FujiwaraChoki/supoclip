@@ -134,3 +134,38 @@ async def test_retry_preserves_source_options_when_redis_metadata_is_unavailable
     retried = await tasks.TaskRepository.load_source_metadata(db_session, task.id)
     assert retried["processing_job_id"] == enqueue.await_args.kwargs["_job_id"]
     assert retried["processing_job_id"] != task.source_metadata["processing_job_id"]
+
+
+@pytest.mark.asyncio
+async def test_settings_edit_does_not_restore_job_id_from_before_concurrent_resume(
+    client, db_session, auth_headers, monkeypatch
+):
+    from src.services.task_service import TaskService
+    from src.repositories.task_repository import TaskRepository
+    from tests.fixtures.factories import create_source, create_task
+
+    await create_user(db_session, user_id="user-1")
+    source = await create_source(db_session, source_type="video_url", url="upload://source.mp4")
+    task = await create_task(db_session, user_id="user-1", source_id=source["id"], status="error")
+    await TaskRepository.save_source_metadata(db_session, task["id"], {
+        "processing_job_id": "old-job", "output_format": "original", "add_subtitles": False,
+    })
+
+    async def concurrent_resume_during_edit(self, *args):
+        await TaskRepository.save_source_metadata(db_session, task["id"], {
+            "processing_job_id": "new-job", "concurrent_key": "retained",
+        })
+        return task
+
+    monkeypatch.setattr(TaskService, "update_task_settings", concurrent_resume_during_edit)
+    redis = SimpleNamespace(set=AsyncMock(), aclose=AsyncMock())
+    monkeypatch.setattr(tasks.redis, "Redis", lambda **_kwargs: redis)
+    response = await client.post(
+        f"/tasks/{task['id']}/settings", headers=auth_headers, json={"font_size": 72}
+    )
+    assert response.status_code == 200, response.text
+    saved = await TaskRepository.load_source_metadata(db_session, task["id"])
+    assert saved["processing_job_id"] == "new-job"
+    assert saved["concurrent_key"] == "retained"
+    assert saved["output_format"] == "original"
+    assert saved["add_subtitles"] is False

@@ -979,6 +979,9 @@ async def apply_task_settings(
             apply_to_existing,
             cleanup_settings,
         )
+        # Settings edits must not write the job ID captured before a lengthy
+        # regeneration: a concurrent resume may have reserved a newer attempt.
+        metadata.pop("processing_job_id", None)
         await _save_task_source_metadata(
             task_id,
             _merge_task_source_metadata(
