@@ -13,7 +13,14 @@ import re
 from .common import (
     CLIP_END_PADDING_SECONDS,
     CLIP_END_SENTENCE_EXTENSION_SECONDS,
+    CLIP_START_LEAD_IN_SECONDS,
+    CLIP_START_SNAP_WINDOW_SECONDS,
+    HOOK_TEASER_MAX_SECONDS,
+    HOOK_TEASER_MIN_OFFSET_SECONDS,
+    HOOK_TEASER_MIN_SECONDS,
     SENTENCE_END_RE,
+    SENTENCE_PAUSE_BOUNDARY_SECONDS,
+    get_config,
     logger,
 )
 from .ffmpeg import (
@@ -98,6 +105,263 @@ def extend_keep_ranges_to_sentence_boundary(
         return normalized
 
     return [*normalized[:-1], (last_start, extended_end)]
+
+
+def _word_starts_sentence(
+    words: List[Dict[str, Any]],
+    index: int,
+    pause_seconds: float = SENTENCE_PAUSE_BOUNDARY_SECONDS,
+) -> bool:
+    """Whether ``words[index]`` opens a sentence (punctuation or a clear pause)."""
+    if index <= 0:
+        return True
+    previous = words[index - 1]
+    return word_ends_sentence(str(previous.get("text", ""))) or (
+        float(words[index]["start"]) - float(previous["end"]) >= pause_seconds
+    )
+
+
+def _sentence_start_word_index(
+    words: List[Dict[str, Any]],
+    position: float,
+    window_seconds: float,
+) -> Optional[int]:
+    """Index of the word a clip starting near ``position`` should open on.
+
+    Transcript labels are floored to whole seconds, so the intended first word
+    starts within one second after ``position``; a sentence opening in that
+    second wins (this drops the previous sentence's tail and leading silence).
+    Otherwise the start is mid-sentence, so walk back to the sentence's first
+    word within ``window_seconds``, falling back to the first word touched.
+    """
+    for index, word in enumerate(words):
+        word_start = float(word["start"])
+        if word_start < position - 0.02:
+            continue
+        if word_start >= position + 1.0:
+            break
+        if _word_starts_sentence(words, index):
+            return index
+
+    first_index = next(
+        (
+            index
+            for index, word in enumerate(words)
+            if float(word["end"]) > position + 0.05
+        ),
+        None,
+    )
+    if first_index is None or float(words[first_index]["start"]) > position + window_seconds:
+        return None
+
+    index = first_index
+    while not _word_starts_sentence(words, index):
+        if float(words[index - 1]["start"]) < position - window_seconds:
+            return first_index
+        index -= 1
+    return index
+
+
+def _start_before_word(
+    words: List[Dict[str, Any]], index: int, lead_in_seconds: float
+) -> float:
+    start = float(words[index]["start"]) - lead_in_seconds
+    if index > 0:
+        start = max(start, float(words[index - 1]["end"]))
+    return max(0.0, start)
+
+
+def _words_near(
+    transcript_data: Dict, start: float, end: float
+) -> List[Dict[str, Any]]:
+    return sorted(
+        get_absolute_words_in_range(transcript_data, max(0.0, start), end),
+        key=lambda word: float(word["start"]),
+    )
+
+
+def snap_keep_ranges_to_sentence_start(
+    video_path: Path,
+    keep_ranges: List[Tuple[float, float]],
+    window_seconds: float = CLIP_START_SNAP_WINDOW_SECONDS,
+    lead_in_seconds: float = CLIP_START_LEAD_IN_SECONDS,
+) -> List[Tuple[float, float]]:
+    """Snap the clip's opening range to the first word of its sentence.
+
+    The range with the earliest source start is the clip body's opening (a
+    hook teaser may be played before it), so only that range moves.
+    """
+    normalized = normalize_source_ranges(keep_ranges)
+    if not normalized:
+        return []
+
+    transcript_data = load_cached_transcript_data(video_path)
+    if not transcript_data or not transcript_data.get("words"):
+        return normalized
+
+    body_index = min(range(len(normalized)), key=lambda i: normalized[i][0])
+    range_start, range_end = normalized[body_index]
+    # Load extra context so sentence boundaries before the window are visible.
+    words = _words_near(
+        transcript_data, range_start - window_seconds - 10.0, range_start + window_seconds + 1.0
+    )
+    if not words:
+        return normalized
+
+    index = _sentence_start_word_index(words, range_start, window_seconds)
+    if index is None:
+        return normalized
+    snapped_start = _start_before_word(words, index, lead_in_seconds)
+    if abs(snapped_start - range_start) < 0.01 or range_end - snapped_start < 0.5:
+        return normalized
+
+    snapped = list(normalized)
+    snapped[body_index] = (snapped_start, range_end)
+    return snapped
+
+
+def snap_keep_ranges_to_sentences(
+    video_path: Path, keep_ranges: List[Tuple[float, float]]
+) -> List[Tuple[float, float]]:
+    """Open on a sentence start and end on a sentence end."""
+    return extend_keep_ranges_to_sentence_boundary(
+        video_path, snap_keep_ranges_to_sentence_start(video_path, keep_ranges)
+    )
+
+
+def build_hook_teaser_range(
+    transcript_data: Optional[Dict],
+    body_start: float,
+    body_end: float,
+    hook_start: float,
+    hook_end: float,
+    min_seconds: float = HOOK_TEASER_MIN_SECONDS,
+    max_seconds: float = HOOK_TEASER_MAX_SECONDS,
+    min_offset_seconds: float = HOOK_TEASER_MIN_OFFSET_SECONDS,
+) -> Optional[Tuple[float, float]]:
+    """Word-aligned source range for a cold-open hook teaser, or None.
+
+    ``hook_start``/``hook_end`` are second-floored labels from the analysis.
+    The teaser must sit inside the clip body, start at least
+    ``min_offset_seconds`` after the body opens (otherwise it is already the
+    opening line) and its spoken words must last ``min_seconds``-``max_seconds``.
+    """
+    if not transcript_data or not transcript_data.get("words"):
+        return None
+    if hook_end <= hook_start or hook_start < body_start + min_offset_seconds:
+        return None
+    if hook_end > body_end + 1.0:
+        return None
+
+    words = _words_near(transcript_data, body_start, body_end)
+    if not words:
+        return None
+
+    first = _sentence_start_word_index(words, hook_start, 1.0)
+    if first is None:
+        return None
+
+    # The labelled end is floored too: the last word ends within a second of it.
+    candidates = [
+        index
+        for index in range(first, len(words))
+        if float(words[index]["end"]) <= hook_end + 1.0
+    ]
+    if not candidates:
+        return None
+
+    teaser_start = _start_before_word(words, first, 0.08)
+    if teaser_start < body_start + min_offset_seconds:
+        return None
+
+    def spoken(index: int) -> float:
+        return float(words[index]["end"]) - float(words[first]["start"])
+
+    fitting = [index for index in candidates if spoken(index) <= max_seconds]
+    if not fitting:
+        return None
+    sentence_ends = [
+        index
+        for index in fitting
+        if word_ends_sentence(str(words[index].get("text", "")))
+        or (
+            index + 1 < len(words)
+            and float(words[index + 1]["start"]) - float(words[index]["end"]) >= 0.4
+        )
+    ]
+    last = (sentence_ends or fitting)[-1]
+    if spoken(last) < min_seconds:
+        return None
+
+    teaser_end = float(words[last]["end"]) + 0.15
+    if last + 1 < len(words):
+        teaser_end = min(teaser_end, float(words[last + 1]["start"]))
+    teaser_end = min(teaser_end, body_end)
+    if teaser_end - teaser_start < min_seconds:
+        return None
+    return (teaser_start, teaser_end)
+
+
+def add_hook_teaser_to_keep_ranges(
+    video_path: Path,
+    keep_ranges: List[Tuple[float, float]],
+    hook_start: Optional[float],
+    hook_end: Optional[float],
+) -> List[Tuple[float, float]]:
+    """Prepend a cold-open teaser of the hook line before the clip body.
+
+    The result is intentionally non-monotonic ([teaser, body...]); everything
+    downstream (rendering, captions, source maps) walks ranges in list order.
+    """
+    normalized = normalize_source_ranges(keep_ranges)
+    if not normalized or hook_start is None or hook_end is None:
+        return normalized
+    if any(
+        normalized[i][0] > normalized[i + 1][0] for i in range(len(normalized) - 1)
+    ):
+        return normalized  # already carries a teaser
+
+    teaser = build_hook_teaser_range(
+        load_cached_transcript_data(video_path),
+        normalized[0][0],
+        normalized[-1][1],
+        float(hook_start),
+        float(hook_end),
+    )
+    if not teaser:
+        return normalized
+    logger.info("Adding %.1fs hook teaser from %.2fs", teaser[1] - teaser[0], teaser[0])
+    return [teaser, *normalized]
+
+
+def _parse_hook_label(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        parts = [int(part) for part in str(value).strip().split(":")]
+    except ValueError:
+        return None
+    if len(parts) == 2:
+        return float(parts[0] * 60 + parts[1])
+    if len(parts) == 3:
+        return float(parts[0] * 3600 + parts[1] * 60 + parts[2])
+    return None
+
+
+def apply_segment_hook_teaser(
+    video_path: Path,
+    keep_ranges: List[Tuple[float, float]],
+    segment: Dict[str, Any],
+) -> List[Tuple[float, float]]:
+    """Add the segment's AI-picked hook teaser when HOOK_FIRST_TEASER is on."""
+    if not get_config().hook_first_teaser:
+        return normalize_source_ranges(keep_ranges)
+    return add_hook_teaser_to_keep_ranges(
+        video_path,
+        keep_ranges,
+        _parse_hook_label(segment.get("hook_start_time")),
+        _parse_hook_label(segment.get("hook_end_time")),
+    )
 
 
 def parse_timestamp_to_seconds(timestamp_str: str) -> float:
