@@ -257,6 +257,10 @@ def crossfade_fade_for_ranges(keep_ranges: List[Tuple[float, float]]) -> float:
     ranges = normalize_source_ranges(keep_ranges)
     if len(ranges) < 2 or len(ranges) > 8:
         return 0.0
+    # A hook teaser plays ranges out of source order; hard-cut out of the cold
+    # open so persisted source maps (which assume concatenation) stay exact.
+    if any(ranges[i + 1][0] < ranges[i][0] for i in range(len(ranges) - 1)):
+        return 0.0
     durations = [end - start for start, end in ranges]
     if min(durations) < 0.45:
         return 0.0
