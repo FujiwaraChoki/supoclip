@@ -359,8 +359,8 @@ async def supoclip_create_clip_task(
     font_family: str = "",
     font_size: int = 0,
     font_color: str = "",
-    cut_long_pauses: bool = False,
-    remove_filler_words: bool = False,
+    cut_long_pauses: bool = True,
+    remove_filler_words: bool = True,
 ) -> str:
     """Create a SupoClip task that downloads a video and generates viral short clips.
 
@@ -380,7 +380,8 @@ async def supoclip_create_clip_task(
         caption_template: Caption template id.
         include_broll: Whether to add B-roll overlays.
         font_family / font_size / font_color: Optional subtitle styling overrides.
-        cut_long_pauses / remove_filler_words: Optional cleanup toggles.
+        cut_long_pauses: Shorten long silences to a natural breath (default on).
+        remove_filler_words: Cut disfluencies like "um" and "uh" (default on).
 
     Returns:
         str: JSON ``{"task_id": str, "job_id": str, "message": str}`` on success.
@@ -418,10 +419,8 @@ async def supoclip_create_clip_task(
     if font_options:
         body["font_options"] = font_options
 
-    if cut_long_pauses:
-        body["cut_long_pauses"] = cut_long_pauses
-    if remove_filler_words:
-        body["remove_filler_words"] = remove_filler_words
+    body["cut_long_pauses"] = bool(cut_long_pauses)
+    body["remove_filler_words"] = bool(remove_filler_words)
 
     data = await _client().request("POST", "/tasks/", json_body=body)
     return _json(data)

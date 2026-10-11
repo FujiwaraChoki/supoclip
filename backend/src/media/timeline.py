@@ -1,7 +1,7 @@
 """Timeline helpers for the video pipeline."""
 
 from typing import Any
-from ..clip_cleanup import DEFAULT_FILTERED_WORDS
+from ..clip_cleanup import DEFAULT_PAUSE_THRESHOLD_MS, default_filtered_words
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -18,6 +18,9 @@ from .common import (
     HOOK_TEASER_MAX_SECONDS,
     HOOK_TEASER_MIN_OFFSET_SECONDS,
     HOOK_TEASER_MIN_SECONDS,
+    PAUSE_EDGE_PADDING_SECONDS,
+    PAUSE_LEAD_IN_SECONDS,
+    PAUSE_TAIL_SECONDS,
     SENTENCE_END_RE,
     SENTENCE_PAUSE_BOUNDARY_SECONDS,
     get_config,
@@ -636,11 +639,13 @@ def _normalize_cleanup_token(value: str) -> str:
 
 
 def _build_cleanup_phrases(
-    remove_filler_words: bool, filtered_words: Optional[List[str]]
+    remove_filler_words: bool,
+    filtered_words: Optional[List[str]],
+    language_code: Optional[str] = "en",
 ) -> List[List[str]]:
     raw_phrases: List[str] = []
     if remove_filler_words:
-        raw_phrases.extend(DEFAULT_FILTERED_WORDS)
+        raw_phrases.extend(default_filtered_words(language_code))
     raw_phrases.extend(filtered_words or [])
 
     normalized_phrases: List[List[str]] = []
@@ -712,27 +717,15 @@ def build_clip_keep_ranges(
 
     removal_intervals: List[Tuple[float, float]] = []
     pause_threshold_seconds = max(
-        0.25, float(settings.get("pause_threshold_ms", 900)) / 1000.0
+        0.25, float(settings.get("pause_threshold_ms", DEFAULT_PAUSE_THRESHOLD_MS)) / 1000.0
     )
     cut_long_pauses = bool(settings.get("cut_long_pauses"))
 
-    if cut_long_pauses:
-        leading_gap = relevant_words[0]["start"] - clip_start
-        if leading_gap >= pause_threshold_seconds:
-            removal_intervals.append((clip_start, relevant_words[0]["start"]))
-
-        for current, nxt in zip(relevant_words, relevant_words[1:]):
-            gap = nxt["start"] - current["end"]
-            if gap >= pause_threshold_seconds:
-                removal_intervals.append((current["end"], nxt["start"]))
-
-        trailing_gap = clip_end - relevant_words[-1]["end"]
-        if trailing_gap >= pause_threshold_seconds:
-            removal_intervals.append((relevant_words[-1]["end"], clip_end))
-
+    filler_indices: set[int] = set()
     phrase_tokens = _build_cleanup_phrases(
         bool(settings.get("remove_filler_words")),
         settings.get("filtered_words"),
+        transcript_data.get("language_code"),
     )
     if phrase_tokens:
         normalized_words = [
@@ -756,10 +749,49 @@ def build_clip_keep_ranges(
                         relevant_words[idx + matched_length - 1]["end"],
                     )
                 )
+                filler_indices.update(range(idx, idx + matched_length))
                 idx += matched_length
                 continue
 
             idx += 1
+
+    # Removed fillers count as silence, so "point. um... next" compresses as one
+    # pause rather than leaving dead air on both sides of the cut filler.
+    spoken_words = [
+        word for index, word in enumerate(relevant_words) if index not in filler_indices
+    ]
+    if not spoken_words:
+        # Nothing but filtered words: cutting them would leave only dead air.
+        return [(clip_start, clip_end)]
+    if cut_long_pauses:
+        # Compress long pauses instead of cutting them out entirely: keep a
+        # short breath of silence on each side so the edit doesn't sound
+        # clipped and the junction crossfade only blends silence.
+        def compress_pause(
+            silence_start: float, silence_end: float, keep_before: float, keep_after: float
+        ) -> None:
+            removal_start = silence_start + keep_before
+            removal_end = silence_end - keep_after
+            if removal_end - removal_start >= 0.05:
+                removal_intervals.append((removal_start, removal_end))
+
+        leading_gap = spoken_words[0]["start"] - clip_start
+        if leading_gap >= pause_threshold_seconds:
+            compress_pause(clip_start, spoken_words[0]["start"], 0.0, PAUSE_LEAD_IN_SECONDS)
+
+        for current, nxt in zip(spoken_words, spoken_words[1:]):
+            gap = nxt["start"] - current["end"]
+            if gap >= pause_threshold_seconds:
+                compress_pause(
+                    current["end"],
+                    nxt["start"],
+                    PAUSE_EDGE_PADDING_SECONDS,
+                    PAUSE_EDGE_PADDING_SECONDS,
+                )
+
+        trailing_gap = clip_end - spoken_words[-1]["end"]
+        if trailing_gap >= pause_threshold_seconds:
+            compress_pause(spoken_words[-1]["end"], clip_end, PAUSE_TAIL_SECONDS, 0.0)
 
     merged_removals = _merge_intervals(removal_intervals)
     if not merged_removals:

@@ -187,6 +187,7 @@ def test_start_is_snapped_before_cleanup_so_removed_filler_stays_out(
         json.dumps(
             {
                 "version": 2,
+                "language_code": "en",
                 "utterances": [],
                 "words": _words(
                     ("Okay.", 9.0, 9.4),
@@ -221,6 +222,44 @@ def test_supplied_ranges_are_not_start_snapped(video_path, tmp_path):
         video_utils.create_optimized_clip(video_path, 13.0, 32.0, tmp_path / "out.mp4")
     assert captured[0][0][0] == 13.0
     assert captured[1][0][0] == pytest.approx(11.9)
+
+
+def test_teaser_keeps_compressed_pauses(tmp_path):
+    video = tmp_path / "pause.mp4"
+    video.with_suffix(".transcript_cache.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "language_code": "en",
+                "utterances": [],
+                "words": _words(
+                    ("Intro", 0.0, 0.5),
+                    ("words", 0.5, 9.0),
+                    ("I", 10.0, 10.2),
+                    ("lost", 10.2, 10.6),
+                    ("everything", 12.0, 12.6),
+                    ("that", 12.6, 12.8),
+                    ("year.", 12.8, 13.3),
+                    ("Then", 14.0, 30.0),
+                ),
+            }
+        ),
+        encoding="utf-8",
+    )
+    body = timeline.build_clip_keep_ranges(video, 0.0, 30.0, {"cut_long_pauses": True})
+    ranges = timeline.add_hook_teaser_to_keep_ranges(video, body, 10.0, 13.0)
+    teaser = ranges[: len(ranges) - len(body)]
+    assert len(teaser) == 2  # the 1.4s pause inside the hook is compressed
+    assert teaser[0][0] == pytest.approx(9.92)
+    assert teaser[-1][1] == pytest.approx(13.45)
+    assert ranges[len(teaser):] == body
+    assert crossfade_fade_for_ranges(ranges) == 0.0
+    words = timeline.get_words_for_keep_ranges(
+        timeline.load_cached_transcript_data(video), ranges
+    )
+    assert [word["text"] for word in words[:6]] == ["I", "lost", "everything", "that", "year.", "Intro"]
+    starts = [word["start"] for word in words]
+    assert starts == sorted(starts)
 
 
 def test_teaser_keeps_cleanup_cuts(video_path):

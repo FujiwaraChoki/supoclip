@@ -11,6 +11,7 @@ import re
 import subprocess
 from .common import (
     AUDIO_BITRATE,
+    CROSSFADE_MAX_SECONDS,
     FINAL_VIDEO_CRF,
     FINAL_VIDEO_PRESET,
     INTERMEDIATE_CRF,
@@ -263,7 +264,7 @@ def crossfade_fade_for_ranges(keep_ranges: List[Tuple[float, float]]) -> float:
     durations = [end - start for start, end in ranges]
     if min(durations) < 0.45:
         return 0.0
-    fade = min(0.22, min(durations) * 0.5)
+    fade = min(CROSSFADE_MAX_SECONDS, min(durations) * 0.5)
     return fade if fade >= 0.06 else 0.0
 
 
