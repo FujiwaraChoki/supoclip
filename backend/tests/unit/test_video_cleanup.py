@@ -4,6 +4,13 @@ import pytest
 
 from src.services.video_service import VideoService
 from src.clip_source_map import load_clip_source_ranges, save_clip_source_ranges
+from src.media.common import (
+    PAUSE_EDGE_PADDING_SECONDS,
+    PAUSE_LEAD_IN_SECONDS,
+    PAUSE_RETAINED_SILENCE_SECONDS,
+    PAUSE_TAIL_SECONDS,
+)
+from src.media.ffmpeg import crossfade_fade_for_ranges
 from src.video_utils import (
     build_clip_keep_ranges,
     build_keep_ranges_from_source_ranges,
@@ -39,7 +46,12 @@ def test_build_clip_keep_ranges_removes_pauses_and_filler_words(monkeypatch):
         },
     )
 
-    assert keep_ranges == [(0.0, 0.3), (1.7, 2.4)]
+    # "um" counts as silence, so 0.3s -> 1.7s is one long pause. It is
+    # compressed (keeping a breath before "let's") and the filler is cut with it.
+    pad = PAUSE_EDGE_PADDING_SECONDS
+    assert len(keep_ranges) == 2
+    assert keep_ranges[0] == pytest.approx((0.0, 0.3))
+    assert keep_ranges[1] == pytest.approx((1.7 - pad, 2.4))
 
 
 def test_build_clip_keep_ranges_removes_boundary_silence(monkeypatch):
@@ -66,7 +78,108 @@ def test_build_clip_keep_ranges_removes_boundary_silence(monkeypatch):
         },
     )
 
-    assert keep_ranges == [(1.0, 1.6)]
+    # Leading and trailing dead air is trimmed to a short lead-in/tail.
+    assert keep_ranges == pytest.approx(
+        [(1.0 - PAUSE_LEAD_IN_SECONDS, 1.6 + PAUSE_TAIL_SECONDS)]
+    )
+
+
+def _keep_ranges_for(monkeypatch, words, clip_start, clip_end, **settings):
+    monkeypatch.setattr(
+        "src.media.timeline.load_cached_transcript_data",
+        lambda _video_path: {"words": words},
+    )
+    return build_clip_keep_ranges(
+        Path("/tmp/demo.mp4"),
+        clip_start,
+        clip_end,
+        {
+            "cut_long_pauses": True,
+            "pause_threshold_ms": 700,
+            "remove_filler_words": False,
+            "filtered_words": [],
+            **settings,
+        },
+    )
+
+
+def test_long_pause_is_compressed_to_a_short_breath(monkeypatch):
+    keep_ranges = _keep_ranges_for(
+        monkeypatch,
+        [
+            {"text": "First", "start": 0, "end": 1000},
+            {"text": "point.", "start": 1000, "end": 2000},
+            {"text": "Second", "start": 4000, "end": 5000},
+            {"text": "point.", "start": 5000, "end": 6000},
+        ],
+        0.0,
+        6.0,
+    )
+
+    pad = PAUSE_EDGE_PADDING_SECONDS
+    assert keep_ranges == pytest.approx([(0.0, 2.0 + pad), (4.0 - pad, 6.0)])
+
+    # The junction crossfade only overlaps retained silence, never words, and
+    # the audible silence left after the fade is about the target breath.
+    fade = crossfade_fade_for_ranges(keep_ranges)
+    assert 0 < fade <= pad
+    assert 2 * pad - fade == pytest.approx(PAUSE_RETAINED_SILENCE_SECONDS)
+
+
+def test_short_pause_below_threshold_is_kept(monkeypatch):
+    keep_ranges = _keep_ranges_for(
+        monkeypatch,
+        [
+            {"text": "Quick", "start": 0, "end": 1000},
+            {"text": "beat.", "start": 1600, "end": 2600},
+        ],
+        0.0,
+        2.6,
+    )
+
+    assert keep_ranges == [(0.0, 2.6)]
+
+
+def test_captions_follow_compressed_pause_timeline(monkeypatch):
+    words = [
+        {"text": "First", "start": 0, "end": 1000},
+        {"text": "point.", "start": 1000, "end": 2000},
+        {"text": "Second", "start": 4000, "end": 5000},
+        {"text": "point.", "start": 5000, "end": 6000},
+    ]
+    keep_ranges = _keep_ranges_for(monkeypatch, words, 0.0, 6.0)
+
+    retimed = get_words_for_keep_ranges({"words": words}, keep_ranges)
+
+    pad = PAUSE_EDGE_PADDING_SECONDS
+    fade = crossfade_fade_for_ranges(keep_ranges)
+    second_start = (2.0 + pad) - fade + pad
+    assert [word["text"] for word in retimed] == ["First", "point.", "Second", "point."]
+    assert retimed[2]["start"] == pytest.approx(second_start)
+    # 2s of silence became ~0.2s of audible breath.
+    assert retimed[2]["start"] - retimed[1]["end"] == pytest.approx(
+        PAUSE_RETAINED_SILENCE_SECONDS
+    )
+
+
+def test_default_fillers_keep_meaningful_phrases(monkeypatch):
+    keep_ranges = _keep_ranges_for(
+        monkeypatch,
+        [
+            {"text": "This", "start": 0, "end": 300},
+            {"text": "kind", "start": 300, "end": 600},
+            {"text": "of", "start": 600, "end": 800},
+            {"text": "thing,", "start": 800, "end": 1100},
+            {"text": "uh,", "start": 1100, "end": 1400},
+            {"text": "works.", "start": 1400, "end": 1800},
+        ],
+        0.0,
+        1.8,
+        cut_long_pauses=False,
+        remove_filler_words=True,
+    )
+
+    assert keep_ranges == [(0.0, 1.1), (1.4, 1.8)]
 
 
 def test_get_words_for_keep_ranges_retimes_words_into_output_timeline():

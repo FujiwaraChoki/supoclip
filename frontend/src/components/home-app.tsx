@@ -83,9 +83,9 @@ export default function HomeApp() {
   const [availableTemplates, setAvailableTemplates] = useState<CaptionTemplate[]>([]);
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("vertical");
   const [addSubtitles, setAddSubtitles] = useState(true);
-  const [cutLongPauses, setCutLongPauses] = useState(false);
-  const [pauseThresholdMs, setPauseThresholdMs] = useState("900");
-  const [removeFillerWords, setRemoveFillerWords] = useState(false);
+  const [cutLongPauses, setCutLongPauses] = useState(true);
+  const [pauseThresholdMs, setPauseThresholdMs] = useState("700");
+  const [removeFillerWords, setRemoveFillerWords] = useState(true);
   const [filteredWords, setFilteredWords] = useState("");
 
   const [recent, setRecent] = useState<GenerationSummary[] | null>(null);
@@ -223,7 +223,7 @@ export default function HomeApp() {
       let videoUrl = url.trim();
       const normalizedPauseThreshold = Number.isFinite(Number(pauseThresholdMs))
         ? Math.max(250, Math.min(3000, Math.round(Number(pauseThresholdMs))))
-        : 900;
+        : 700;
       const normalizedFilteredWords = filteredWords.split(",").map((word) => word.trim().toLowerCase()).filter(Boolean);
 
       if (sourceType === "upload" && file) {
@@ -539,12 +539,12 @@ export default function HomeApp() {
                 <PopoverContent align="start" className="w-[min(92vw,340px)] space-y-4 rounded-2xl">
                   <div>
                     <p className="text-sm font-medium">Clip cleanup</p>
-                    <p className="text-xs text-muted-foreground">Remove dead air and common filler phrases while rendering.</p>
+                    <p className="text-xs text-muted-foreground">Tighten dead air and cut filler sounds while rendering.</p>
                   </div>
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <label htmlFor="cut-pauses" className="text-sm font-medium">Cut long pauses</label>
-                      <p className="text-xs text-muted-foreground">Split out silence gaps longer than</p>
+                      <label htmlFor="cut-pauses" className="text-sm font-medium">Shorten long pauses</label>
+                      <p className="text-xs text-muted-foreground">Trim silences longer than this down to a short breath</p>
                     </div>
                     <Switch id="cut-pauses" checked={cutLongPauses} onCheckedChange={setCutLongPauses} />
                   </div>
@@ -555,7 +555,7 @@ export default function HomeApp() {
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <label htmlFor="filler-words" className="text-sm font-medium">Remove filler words</label>
-                      <p className="text-xs text-muted-foreground">“um”, “uh”, “you know” and friends</p>
+                      <p className="text-xs text-muted-foreground">“um”, “uh”, “erm” and similar sounds</p>
                     </div>
                     <Switch id="filler-words" checked={removeFillerWords} onCheckedChange={setRemoveFillerWords} />
                   </div>
