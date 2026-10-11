@@ -121,6 +121,27 @@ def test_mapping_rejects_more_speakers_than_faces():
     assert assign_speakers_to_clusters(activity) is None
 
 
+def test_large_panels_fall_back_without_exhaustive_search():
+    # Codex repro: 8 speakers x 10+ faces used to enumerate millions of mappings.
+    activity = {
+        chr(65 + i): [1.5 if j == i else 0.9 for j in range(12)] for i in range(8)
+    }
+
+    assert assign_speakers_to_clusters(activity) is None
+
+
+def test_mapping_still_works_at_the_panel_cap():
+    activity = {
+        chr(65 + i): [1.5 if j == i else 0.9 for j in range(6)] for i in range(4)
+    }
+
+    assert assign_speakers_to_clusters(activity) == {"A": 0, "B": 1, "C": 2, "D": 3}
+
+
+def test_tied_mappings_are_ambiguous():
+    assert assign_speakers_to_clusters({"A": [1.3, 1.3], "B": [1.3, 1.3]}) is None
+
+
 def test_mapping_requires_each_face_to_be_more_active_than_average():
     # The swap is clearly worse, but face 1 never moves more while B talks.
     activity = {"A": [1.6, 0.6], "B": [0.6, 0.95]}

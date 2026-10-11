@@ -46,6 +46,8 @@ MAPPING_MIN_MARGIN = 0.1
 MIN_SPEAKER_SAMPLE_FRAMES = 8
 MIN_SEGMENT_SECONDS = 0.4
 SHOT_CONTRADICTION_MARGIN = 0.2
+MAX_FRAMED_SPEAKERS = 4
+MAX_FACE_CLUSTERS = 6
 
 
 def build_speaker_turns(
@@ -395,24 +397,28 @@ def assign_speakers_to_clusters(
     difference). Every injective mapping is scored; the best must beat the
     runner-up by ``min_margin`` per speaker, and each assigned face must be
     more active than its own average, otherwise the mapping is ambiguous and
-    None is returned.
+    None is returned. Speaker cuts are for podcasts and interviews: larger
+    panels (more than ``MAX_FRAMED_SPEAKERS`` speakers or
+    ``MAX_FACE_CLUSTERS`` faces) fall back, which also bounds the search to a
+    few hundred mappings.
     """
     speakers = list(activity)
-    if len(speakers) < 2:
+    if len(speakers) < 2 or len(speakers) > MAX_FRAMED_SPEAKERS:
         return None
     n_clusters = len(next(iter(activity.values())))
-    if n_clusters < 2:
+    if n_clusters < 2 or n_clusters > MAX_FACE_CLUSTERS:
         return None
     if len(speakers) > n_clusters:
         return None
 
-    scored: List[Tuple[float, Tuple[int, ...]]] = []
+    best_score, runner_up = float("-inf"), float("-inf")
+    best_combo: Tuple[int, ...] = ()
     for combo in permutations(range(n_clusters), len(speakers)):
         score = sum(activity[s][c] for s, c in zip(speakers, combo))
-        scored.append((score, combo))
-    scored.sort(reverse=True)
-    best_score, best_combo = scored[0]
-    runner_up = scored[1][0] if len(scored) > 1 else float("-inf")
+        if score > best_score:
+            best_score, runner_up, best_combo = score, best_score, combo
+        elif score > runner_up:
+            runner_up = score
     if (best_score - runner_up) / len(speakers) < min_margin:
         return None
     mapping = dict(zip(speakers, best_combo))
