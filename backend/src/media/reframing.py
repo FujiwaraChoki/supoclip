@@ -23,6 +23,8 @@ from .common import (
     LAYOUT_SNAP_WINDOW,
     MIN_LAYOUT_SECONDS,
     OUTPUT_FPS,
+    UPSCALE_SHARPEN_FILTER,
+    VERTICAL_SCALE_CHAIN,
     logger,
 )
 from .ffmpeg import (
@@ -1118,7 +1120,7 @@ def kenburns_zoom_fragment(duration: float) -> Optional[str]:
         f"scale={KENBURNS_SUPERSAMPLE_W}:{KENBURNS_SUPERSAMPLE_H}:flags=lanczos,"
         f"fps={OUTPUT_FPS},"
         f"zoompan=z='{z_expr}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)*0.35'"
-        f":d=1:s=1080x1920:fps={OUTPUT_FPS},setsar=1"
+        f":d=1:s=1080x1920:fps={OUTPUT_FPS},{UPSCALE_SHARPEN_FILTER},setsar=1"
     )
 
 
@@ -1182,7 +1184,7 @@ def build_vertical_filter_plan(
     # slow punch-in so the frame still breathes.
     if crop_w >= width:
         sx, sy, sw, sh = detect_optimal_crop_region(input_path, 0, min(duration, 12.0))
-        tail = kenburns_zoom_fragment(duration) or "scale=1080:1920:flags=lanczos,setsar=1"
+        tail = kenburns_zoom_fragment(duration) or VERTICAL_SCALE_CHAIN
         return (f"crop={sw}:{sh}:{sx}:{sy},{tail}", "vf")
 
     # One fast decode pass yields both the face track and the scene cuts.
@@ -1197,10 +1199,7 @@ def build_vertical_filter_plan(
     static_x = 0
     if moving:
         x_expr = build_smooth_pan_expression(keys)
-        crop_chain = (
-            f"crop={crop_w}:{crop_h}:x='{x_expr}':y=0,"
-            "scale=1080:1920:flags=lanczos,setsar=1"
-        )
+        crop_chain = f"crop={crop_w}:{crop_h}:x='{x_expr}':y=0,{VERTICAL_SCALE_CHAIN}"
     else:
         if keys:
             static_x = clamp_even(
@@ -1209,9 +1208,7 @@ def build_vertical_filter_plan(
         else:
             sx, _, _, _ = detect_optimal_crop_region(input_path, 0, min(duration, 12.0))
             static_x = clamp_even(sx, 0, max(0, width - crop_w))
-        crop_chain = (
-            f"crop={crop_w}:{crop_h}:{static_x}:0,scale=1080:1920:flags=lanczos,setsar=1"
-        )
+        crop_chain = f"crop={crop_w}:{crop_h}:{static_x}:0,{VERTICAL_SCALE_CHAIN}"
 
     # Decide the layout over time. All-face clips skip the compositor (cheaper).
     plan = build_layout_plan(track, scene_cuts, duration)
@@ -1305,9 +1302,9 @@ def render_reframed_clip_ffmpeg(
         video_filter = (
             f"[0:v]split=2[l][r];"
             f"[l]crop={left['tile_w']}:{left['tile_h']}:{left['tile_x']}:{left['tile_y']},"
-            f"scale=1080:960:flags=lanczos,setsar=1[lv];"
+            f"scale=1080:960:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[lv];"
             f"[r]crop={right['tile_w']}:{right['tile_h']}:{right['tile_x']}:{right['tile_y']},"
-            f"scale=1080:960:flags=lanczos,setsar=1[rv];"
+            f"scale=1080:960:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[rv];"
             f"[lv][rv]vstack,setsar=1{vstack_tail}[v]"
         )
         command = [
@@ -1324,7 +1321,7 @@ def render_reframed_clip_ffmpeg(
     if plan and plan["mode"] == "pan":
         video_filter = (
             f"crop={plan['crop_w']}:{plan['crop_h']}:x='{plan['x_expression']}':y=0,"
-            "scale=1080:1920:flags=lanczos,setsar=1"
+            f"{VERTICAL_SCALE_CHAIN}"
         )
         if subs:
             video_filter = f"{video_filter},{subs}"

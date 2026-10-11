@@ -26,7 +26,7 @@ import subprocess
 import cv2
 import numpy as np
 
-from .common import FACE_PRESENCE_MIN_AREA, logger
+from .common import FACE_PRESENCE_MIN_AREA, VERTICAL_SCALE_CHAIN, logger
 from .ffmpeg import clamp_even, round_to_even
 from .timeline import get_words_for_keep_ranges
 from .transcription import load_cached_transcript_data
@@ -659,5 +659,5 @@ def build_speaker_crop_chain(
     )
     return (
         f"crop={crop_w}:{crop_h}:x='{build_step_x_expression(segments)}':y=0,"
-        "scale=1080:1920:flags=lanczos,setsar=1"
+        f"{VERTICAL_SCALE_CHAIN}"
     )

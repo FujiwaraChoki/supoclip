@@ -1,3 +1,4 @@
+import json
 import shutil
 import subprocess
 
@@ -5,6 +6,7 @@ import numpy as np
 import pytest
 
 from src.media import reframing, speaker_framing, timeline
+from src.media.common import VERTICAL_SCALE_CHAIN
 from src.media.speaker_framing import (
     assign_speakers_to_clusters,
     build_speaker_activity,
@@ -375,3 +377,30 @@ def test_wide_shot_from_another_angle_gets_its_own_face_crop(monkeypatch, tmp_pa
     # centres its largest face (x=1755 -> clamped to 1314) instead of reusing
     # the stale right-hand cluster.
     assert chain.startswith("crop=606:1080:x='36+1160*gte(t\\,8.000)+118*gte(t\\,16.000)'")
+    # Speaker crops are upscaled like every other vertical crop.
+    assert chain.endswith(VERTICAL_SCALE_CHAIN)
+
+
+def test_speaker_turns_follow_hook_teaser_play_order(tmp_path):
+    # Teaser (B's punchline at 20-23s) plays first, then the body from 10s.
+    video_path = tmp_path / "source.mp4"
+    words = [
+        {"text": "setup", "start": 10_000, "end": 14_000, "speaker": "A"},
+        {"text": "question", "start": 14_000, "end": 17_500, "speaker": "A"},
+        {"text": "punchline", "start": 20_000, "end": 23_000, "speaker": "B"},
+    ]
+    video_path.with_suffix(".transcript_cache.json").write_text(
+        json.dumps({"version": 2, "words": words, "utterances": [], "text": ""})
+    )
+
+    turns, clip_words = speaker_framing.build_clip_speaker_turns(
+        video_path, [(20.0, 23.0), (10.0, 23.0)]
+    )
+
+    # Hard cut out of the teaser: no crossfade offset, ranges in play order.
+    assert [(w["speaker"], w["start"]) for w in clip_words] == [
+        ("B", 0.0), ("A", 3.0), ("A", 7.0), ("B", 13.0),
+    ]
+    assert [(t["speaker"], round(t["start"], 2)) for t in turns] == [
+        ("B", 0.0), ("A", 3.0), ("B", 12.85),
+    ]  # never cut before the teaser's last word ends

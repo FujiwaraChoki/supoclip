@@ -49,6 +49,7 @@ from ..clip_cleanup import DEFAULT_FILTERED_WORDS, clip_cleanup_enabled
 from ..clip_source_map import (
     normalize_source_ranges,
     save_clip_source_ranges,
+    source_range_bounds,
 )
 
 from ..caption_templates import get_template, CAPTION_TEMPLATES
@@ -68,6 +69,37 @@ EMOJI_FONT_NAME = "Noto Color Emoji"
 CLIP_END_SENTENCE_EXTENSION_SECONDS = 3.0
 
 CLIP_END_PADDING_SECONDS = 0.35
+
+CLIP_START_SNAP_WINDOW_SECONDS = 3.0
+
+CLIP_START_LEAD_IN_SECONDS = 0.1
+
+SENTENCE_PAUSE_BOUNDARY_SECONDS = 0.8
+
+HOOK_TEASER_MIN_SECONDS = 1.5
+
+HOOK_TEASER_MAX_SECONDS = 5.0
+
+HOOK_TEASER_MIN_OFFSET_SECONDS = 3.0
+
+# Long pauses are compressed rather than cut out, so speech keeps a natural
+# breath between phrases. A junction keeps PAUSE_EDGE_PADDING_SECONDS of silence
+# on each side of the cut; with the junction crossfade (at most
+# CROSSFADE_MAX_SECONDS, which overlaps the two sides) about
+# PAUSE_RETAINED_SILENCE_SECONDS of silence remains audible. The padding is never
+# shorter than the crossfade, so the fade only ever blends silence, never words.
+PAUSE_RETAINED_SILENCE_SECONDS = 0.2
+
+CROSSFADE_MAX_SECONDS = 0.15
+
+PAUSE_EDGE_PADDING_SECONDS = (PAUSE_RETAINED_SILENCE_SECONDS + CROSSFADE_MAX_SECONDS) / 2
+
+# Dead air kept before the first word and after the last word of a clip. The
+# tail is a little longer because word end timings often land before the final
+# consonant has decayed.
+PAUSE_LEAD_IN_SECONDS = 0.1
+
+PAUSE_TAIL_SECONDS = 0.25
 
 SENTENCE_END_RE = re.compile(r"""[.!?]["')\]}]*$""")
 
@@ -124,3 +156,9 @@ KENBURNS_MIN_SECONDS = 3.0
 KENBURNS_SUPERSAMPLE_W = 1620
 
 KENBURNS_SUPERSAMPLE_H = 2880
+
+# Mild luma-only sharpen applied after the 9:16 upscale; vertical crops are
+# usually stretched 1.3-2.7x from the source, which softens edges.
+UPSCALE_SHARPEN_FILTER = "unsharp=5:5:0.6:5:5:0.0"
+
+VERTICAL_SCALE_CHAIN = f"scale=1080:1920:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1"
