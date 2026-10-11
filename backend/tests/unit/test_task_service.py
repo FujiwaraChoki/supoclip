@@ -560,3 +560,53 @@ async def test_merge_rejects_duplicate_ids_before_modifying_clips(isolated_clip_
         await service.merge_clips("task-1", ["clip-1", "clip-1"])
     service.clip_repo.get_clip_by_id.assert_not_awaited()
     service.clip_repo.delete_clip.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_process_task_fails_when_every_clip_render_fails(tmp_path):
+    service = build_task_service()
+    service.config.temp_dir = str(tmp_path)
+    service.video_service.create_single_clip = AsyncMock(return_value=None)
+    callback = AsyncMock()
+
+    with pytest.raises(ValueError, match="No clips could be rendered"):
+        await service.process_task(
+            task_id="task-1",
+            url="upload://source.mp4",
+            source_type="video_url",
+            progress_callback=callback,
+        )
+
+    service.clip_repo.create_clip.assert_not_awaited()
+    service.task_repo.get_task_notification_context.assert_not_awaited()
+    assert not any(
+        call.args[2] == "completed"
+        for call in service.task_repo.update_task_status.await_args_list
+    )
+    assert not any(call.args[2] == "completed" for call in callback.await_args_list)
+    service.task_repo.update_task_status.assert_any_await(
+        service.db, "task-1", "error", progress=0,
+        progress_message="No clips could be rendered. Please try again.",
+        expected_statuses=["queued", "processing"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_process_task_keeps_successful_output_when_one_render_fails(tmp_path):
+    service = build_task_service()
+    service.config.temp_dir = str(tmp_path)
+    service.video_service.process_video_complete.return_value["segments_to_render"] *= 2
+    service.video_service.create_single_clip = AsyncMock(
+        side_effect=[None, build_clip_result()]
+    )
+
+    result = await service.process_task(
+        task_id="task-1", url="upload://source.mp4", source_type="video_url"
+    )
+
+    assert result["clips_count"] == 1
+    service.clip_repo.create_clip.assert_awaited_once()
+    service.task_repo.update_task_status.assert_any_await(
+        service.db, "task-1", "completed", progress=100,
+        progress_message="Complete!", expected_statuses=["processing"],
+    )

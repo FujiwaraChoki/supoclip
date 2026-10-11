@@ -418,6 +418,9 @@ class TaskService(ClipEditingMixin):
                 perf_counter() - render_start, 3
             )
 
+            if not clip_ids:
+                raise ValueError("No clips could be rendered. Please try again.")
+
             # A cancellation committed after the final render must win over completion.
             await check_cancelled()
             completed = await self.task_repo.update_task_status(
