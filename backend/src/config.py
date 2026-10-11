@@ -31,6 +31,8 @@ class Config:
             os.getenv("TRANSCRIPTION_LANGUAGE")
         )
         self.llm = self._get_runtime_setting("LLM") or self._infer_default_llm()
+        # Optional separate model for the cross-window candidate rerank pass.
+        self.rerank_llm = self._get_optional_env("RERANK_LLM") or self.llm
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
         self.assembly_ai_http_timeout_seconds = int(
             os.getenv("ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS", "900")
