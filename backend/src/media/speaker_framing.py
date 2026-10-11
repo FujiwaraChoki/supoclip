@@ -346,6 +346,26 @@ def cluster_face_positions(
     return clusters
 
 
+def wide_shot_cluster_hits(
+    face_samples: Sequence[Tuple[float, List[Tuple[float, float, float, float]]]],
+    shot: Tuple[float, float],
+    clusters: Sequence[Dict[str, float]],
+    crop_w: int,
+) -> List[float]:
+    """Share of the shot's samples with a face at each cluster's position."""
+    samples = [faces for t, faces in face_samples if shot[0] <= t < shot[1]]
+    if not samples:
+        return [0.0 for _ in clusters]
+    tolerance = crop_w * 0.25
+    return [
+        sum(
+            1 for faces in samples
+            if any(abs(x + w / 2 - cluster["cx"]) <= tolerance for x, _, w, _ in faces)
+        ) / len(samples)
+        for cluster in clusters
+    ]
+
+
 def mouth_motion_series(analysis: Dict[str, Any], cluster: Dict[str, float]) -> np.ndarray:
     """Per-frame motion in the lower half of a face (where the mouth moves)."""
     motion = analysis["motion"]
@@ -487,34 +507,47 @@ def build_speaker_segments(
         return turns[-1]["speaker"] if turns else None
 
     first_mapped = next((cluster_x[mapping[t["speaker"]]] for t in turns if t["speaker"] in mapping), cluster_x[0])
-    segments: List[Tuple[float, float, int]] = []
+    pieces: List[List[Any]] = []  # [start, end, x, shot_index]
     held_x = first_mapped
     for a, b in zip(points, points[1:]):
         if b - a <= 1e-6:
             continue
         mid = (a + b) / 2
+        shot_index = next((i for i, (s, e) in enumerate(shots) if s <= mid < e), -1)
         if any(s <= mid < e for s, e in wide_shots):
             speaker = speaker_at(mid)
             x = cluster_x[mapping[speaker]] if speaker in mapping else held_x
             held_x = x
         else:
-            shot = next(((s, e) for s, e in shots if s <= mid < e), None)
+            shot = shots[shot_index] if shot_index >= 0 else None
             x = shot_x.get(shot, held_x) if shot else held_x
+        pieces.append([a, b, x, shot_index])
+
+    # Fold timing slivers (a turn boundary just missing a scene cut) into a
+    # neighbour from the SAME shot. A genuinely short shot keeps its own crop:
+    # extending another shot's framing across a camera change could crop the
+    # visible face out.
+    index = 0
+    while index < len(pieces):
+        piece = pieces[index]
+        if piece[1] - piece[0] < MIN_SEGMENT_SECONDS:
+            if index > 0 and pieces[index - 1][3] == piece[3]:
+                pieces[index - 1][1] = piece[1]
+                del pieces[index]
+                continue
+            if index + 1 < len(pieces) and pieces[index + 1][3] == piece[3]:
+                pieces[index + 1][0] = piece[0]
+                del pieces[index]
+                continue
+        index += 1
+
+    segments: List[Tuple[float, float, int]] = []
+    for a, b, x, _ in pieces:
         if segments and segments[-1][2] == x:
             segments[-1] = (segments[-1][0], b, x)
         else:
             segments.append((a, b, x))
-
-    # Fold slivers (rounding around snapped cuts) into the previous segment.
-    cleaned: List[Tuple[float, float, int]] = []
-    for seg in segments:
-        if cleaned and seg[1] - seg[0] < MIN_SEGMENT_SECONDS:
-            cleaned[-1] = (cleaned[-1][0], seg[1], cleaned[-1][2])
-        elif cleaned and cleaned[-1][2] == seg[2]:
-            cleaned[-1] = (cleaned[-1][0], seg[1], seg[2])
-        else:
-            cleaned.append(seg)
-    return cleaned
+    return segments
 
 
 def build_step_x_expression(segments: Sequence[Tuple[float, float, int]]) -> str:
@@ -570,10 +603,34 @@ def build_speaker_crop_chain(
     clusters = cluster_face_positions(face_samples, wide_shots, crop_w)
     if len(clusters) < 2:
         return None
+    # Clusters are pooled across wide shots; a shot from another angle (or
+    # after the guests move) may not have faces where the clusters say. Only
+    # shots that actually show faces at two or more cluster positions count.
+    wide_shots = [
+        shot for shot in wide_shots
+        if sum(
+            rate >= WIDE_SHOT_MIN_RATE
+            for rate in wide_shot_cluster_hits(face_samples, shot, clusters, crop_w)
+        ) >= 2
+    ]
+    if not wide_shots:
+        return None
     activity = build_speaker_activity(analysis, clusters, words, wide_shots, scene_cuts)
     mapping = assign_speakers_to_clusters(activity)
     if not mapping:
         logger.info("Speaker framing skipped: speaker-to-face mapping ambiguous (%s)", activity)
+        return None
+    # Speaker cuts only where every mapped face is on screen; other wide shots
+    # get the per-shot face crop like any other shot.
+    mapped = [clusters[i] for i in sorted(set(mapping.values()))]
+    wide_shots = [
+        shot for shot in wide_shots
+        if all(
+            rate >= WIDE_SHOT_MIN_RATE
+            for rate in wide_shot_cluster_hits(face_samples, shot, mapped, crop_w)
+        )
+    ]
+    if not wide_shots:
         return None
 
     max_x = max(0, width - crop_w)

@@ -307,3 +307,71 @@ def test_vertical_plan_keeps_compositor_for_content_shots(monkeypatch, tmp_path)
     )
 
     assert mode == "complex"
+
+
+def test_short_real_shot_keeps_its_own_crop():
+    # Codex repro: a 0.3s centred close-up between wide shots.
+    segments = build_speaker_segments(
+        [{"speaker": "A", "start": 0, "end": 4}, {"speaker": "B", "start": 4, "end": 12}],
+        mapping={"A": 0, "B": 1},
+        cluster_x=[40, 1200],
+        shots=[(0.0, 8.0), (8.0, 8.3), (8.3, 12.0)],
+        wide_shots=[(0.0, 8.0), (8.3, 12.0)],
+        shot_x={(8.0, 8.3): 600},
+        scene_cuts=[8.0, 8.3],
+        duration=12.0,
+    )
+
+    assert (8.0, 8.3, 600) in segments
+
+
+def test_turn_sliver_after_a_scene_cut_folds_into_the_same_shot():
+    segments = build_speaker_segments(
+        [{"speaker": "A", "start": 0, "end": 8.35}, {"speaker": "B", "start": 8.35, "end": 12}],
+        mapping={"A": 0, "B": 1},
+        cluster_x=[40, 1200],
+        shots=[(0.0, 8.0), (8.0, 12.0)],
+        wide_shots=[(0.0, 8.0), (8.0, 12.0)],
+        shot_x={},
+        scene_cuts=[8.0],
+        duration=12.0,
+    )
+
+    assert segments == [(0.0, 8.0, 40), (8.0, 12.0, 1200)]
+
+
+def test_wide_shot_from_another_angle_gets_its_own_face_crop(monkeypatch, tmp_path):
+    # Codex repro: 16s wide shot, then a 4s wide shot with the guests shifted.
+    samples = [
+        (i / 3, [(300.0, 300.0, 80.0, 80.0), (1460.0, 300.0, 80.0, 80.0)])
+        for i in range(48)
+    ]
+    samples += [
+        (16 + i / 3, [(900.0, 300.0, 80.0, 80.0), (1700.0, 300.0, 110.0, 110.0)])
+        for i in range(12)
+    ]
+    monkeypatch.setattr(
+        speaker_framing, "analyze_speaker_clip",
+        lambda *a: {"face_samples": samples, "scene_cuts": [16.0], "motion": np.zeros((1, 1, 1))},
+    )
+    seen_wide = []
+
+    def fake_activity(analysis, clusters, words, wide_shots, cuts):
+        seen_wide.extend(wide_shots)
+        return {"A": [1.3, 0.8], "B": [0.8, 1.3]}
+
+    monkeypatch.setattr(speaker_framing, "build_speaker_activity", fake_activity)
+    turns = [
+        {"speaker": "A", "start": 0.0, "end": 8.0},
+        {"speaker": "B", "start": 8.0, "end": 20.0},
+    ]
+
+    chain = speaker_framing.build_speaker_crop_chain(
+        tmp_path / "clip.mp4", 1920, 1080, 606, 1080, 20.0, turns, []
+    )
+
+    assert seen_wide == [(0.0, 16.0)]
+    # A on the left (x=36), B on the right (x=1196), then the shifted shot
+    # centres its largest face (x=1755 -> clamped to 1314) instead of reusing
+    # the stale right-hand cluster.
+    assert chain.startswith("crop=606:1080:x='36+1160*gte(t\\,8.000)+118*gte(t\\,16.000)'")
