@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import HTTPException
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.api.routes import tasks
@@ -14,15 +15,29 @@ from src.repositories.generation_allowance_guard import (
 from tests.fixtures.factories import create_user, create_source, create_task
 
 
+async def wait_for_admission_waiter(engine):
+    async def observe():
+        while True:
+            async with engine.connect() as connection:
+                waiting = await connection.scalar(text(
+                    "SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND NOT granted"
+                ))
+            if waiting:
+                return
+            await asyncio.sleep(.01)
+    await asyncio.wait_for(observe(), 3)
+
+
 @pytest.mark.asyncio
+@pytest.mark.parametrize("limit", [1, 10])
 @pytest.mark.parametrize("first_action,second_action", [
     ("create", "create"), ("create", "resume"), ("resume", "create"), ("resume", "resume"),
 ])
 async def test_concurrent_admissions_cannot_claim_the_same_allowance_slot(
-    initialized_database, app, db_session, monkeypatch, first_action, second_action
+    initialized_database, app, db_session, monkeypatch, first_action, second_action, limit
 ):
     app.state.config.monetization_enabled = True
-    app.state.config.pro_plan_task_limit = 1
+    app.state.config.pro_plan_task_limit = limit
     await create_user(
         db_session, user_id="user-1", plan="pro", subscription_status="active"
     )
@@ -70,22 +85,27 @@ async def test_concurrent_admissions_cannot_claim_the_same_allowance_slot(
         await asyncio.wait_for(checked.wait(), 5)
         second = asyncio.create_task(admit(second_action, second_db, retry_tasks[1]))
         try:
-            await asyncio.wait_for(asyncio.gather(second, return_exceptions=True), 5)
+            await wait_for_admission_waiter(initialized_database)
+            assert not second.done()
         finally:
             release.set()
         results = await asyncio.gather(first, second, return_exceptions=True)
 
-    assert sum(isinstance(result, dict) for result in results) == 1, results
+    expected_successes = 1 if limit == 1 else 2
+    assert sum(isinstance(result, dict) for result in results) == expected_successes, results
     rejected = [result for result in results if isinstance(result, HTTPException)]
-    assert len(rejected) == 1
-    assert rejected[0].status_code == 409
-    assert rejected[0].headers["Retry-After"] == "1"
+    if limit == 1:
+        assert len(rejected) == 1
+        assert rejected[0].status_code == 402
+    else:
+        assert rejected == []
     summary = await BillingService(db_session, app.state.config).get_usage_summary("user-1")
-    assert summary["usage_count"] == 1
-    async with sessions() as db:
-        with pytest.raises(HTTPException) as sequential:
-            await tasks.create_task(request, db)
-        assert sequential.value.status_code == 402
+    assert summary["usage_count"] == expected_successes
+    if limit == 1:
+        async with sessions() as db:
+            with pytest.raises(HTTPException) as sequential:
+                await tasks.create_task(request, db)
+            assert sequential.value.status_code == 402
 
 
 @pytest.mark.asyncio
@@ -141,8 +161,7 @@ async def test_refunded_error_job_cannot_start_without_explicit_resume(
     from src.repositories.task_repository import TaskRepository
     from src.services.billing_service import BillingService
     from src.config import Config
-    from sqlalchemy import text
-
+    
     task_id, _, original = await make_task(db_session, tmp_path, status="error")
     await create_user(db_session, user_id="user-1", plan="pro", subscription_status="active")
     await db_session.execute(
@@ -161,3 +180,53 @@ async def test_refunded_error_job_cannot_start_without_explicit_resume(
     assert result["status"] == "error"
     service.video_service.process_video_complete.assert_not_awaited()
     assert (await TaskRepository.get_task_by_id(db_session, task_id))["status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_cancelling_waiting_admission_does_not_leak_lock(initialized_database):
+    sessions = async_sessionmaker(initialized_database, expire_on_commit=False)
+    async with sessions() as owner, sessions() as waiter:
+        async with generation_allowance_guard(owner, "cancelled-waiter", enabled=True):
+            async def acquire():
+                async with generation_allowance_guard(waiter, "cancelled-waiter", enabled=True):
+                    pytest.fail("Waiter entered while the owner held the lock")
+            job = asyncio.create_task(acquire())
+            await wait_for_admission_waiter(initialized_database)
+            job.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await job
+        async with generation_allowance_guard(waiter, "cancelled-waiter", enabled=True):
+            pass
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("heartbeat", [b"healthy", None])
+async def test_polling_old_queue_reservation_only_refunds_when_worker_absent(
+    db_session, initialized_database, tmp_path, monkeypatch, heartbeat
+):
+    from src.services.task_service import TaskService
+    from src.workers.job_queue import JobQueue
+    from tests.integration.test_clip_edit_atomicity import make_task
+    from tests.integration.test_processing_cancellation import setup_worker
+
+    task_id, _, original = await make_task(db_session, tmp_path, status="queued")
+    await db_session.execute(text(
+        "UPDATE tasks SET created_at=NOW()-INTERVAL '1 hour', "
+        "updated_at=NOW()-INTERVAL '1 hour' WHERE id=:id"
+    ), {"id": task_id})
+    await db_session.commit()
+    monkeypatch.setattr(JobQueue, "get_pool", AsyncMock(return_value=SimpleNamespace(
+        get=AsyncMock(return_value=heartbeat)
+    )))
+    service = TaskService(db_session)
+    service._load_task_source_settings = AsyncMock(return_value={})
+    polled = await service.get_task_with_clips(task_id)
+    assert polled["status"] == ("queued" if heartbeat else "error")
+    worker, _, _ = setup_worker(db_session, tmp_path, original)
+    result = await worker.process_task(task_id, "upload://input.mp4", "upload")
+    if heartbeat:
+        worker.video_service.process_video_complete.assert_awaited_once()
+        assert (await worker.task_repo.get_task_by_id(db_session, task_id))["status"] == "completed"
+    else:
+        assert result["skipped"] is True
+        worker.video_service.process_video_complete.assert_not_awaited()
