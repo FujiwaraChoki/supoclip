@@ -51,7 +51,7 @@ async def test_enqueue_error_does_not_overwrite_a_concurrent_status_change(
     await create_user(db_session, user_id="user-1")
     monkeypatch.setattr(tasks, "_save_task_source_metadata", AsyncMock())
 
-    async def uncertain_enqueue(function, mode, task_id, *args):
+    async def uncertain_enqueue(function, mode, task_id, *args, **kwargs):
         await db_session.execute(
             text("UPDATE tasks SET status=:status WHERE id=:id"),
             {"status": winning_status, "id": task_id},
@@ -131,3 +131,6 @@ async def test_retry_preserves_source_options_when_redis_metadata_is_unavailable
     assert enqueue.await_args.args[-1]["pause_threshold_ms"] == 1200
     assert enqueue.await_args.args[-1]["filtered_words"] == ["basically"]
     failed_redis.get.assert_not_awaited()
+    retried = await tasks.TaskRepository.load_source_metadata(db_session, task.id)
+    assert retried["processing_job_id"] == enqueue.await_args.kwargs["_job_id"]
+    assert retried["processing_job_id"] != task.source_metadata["processing_job_id"]

@@ -12,8 +12,8 @@ import hashlib
 from time import perf_counter
 
 
-from arq.constants import health_check_key_suffix
-from ..workers.job_queue import JobQueue, DEFAULT_QUEUE_NAME
+from arq.constants import job_key_prefix, in_progress_key_prefix, expires_extra_ms
+from ..workers.job_queue import JobQueue
 from ..repositories.task_repository import TaskRepository
 from ..repositories.source_repository import SourceRepository
 from ..repositories.clip_repository import ClipRepository
@@ -64,17 +64,27 @@ class TaskService(ClipEditingMixin):
 
         return self._task_age_seconds(task) >= self.config.queued_task_timeout_seconds
 
-    async def _worker_is_unavailable(self) -> bool:
-        """Only refund an old queued task when the worker is confirmed absent.
+    async def _queued_job_is_missing(self, task: Dict[str, Any]) -> bool:
+        """Confirm this reservation has no queued/running ARQ job, not worker health.
 
-        A healthy worker may have a multi-minute backlog. If Redis cannot be
-        reached, availability is unknown and the queued reservation stays intact.
+        A heartbeat gap cannot invalidate a healthy backlog. Redis outages leave
+        reservations intact until job existence can be checked again.
         """
+        metadata = await self.task_repo.load_source_metadata(self.db, task["id"])
+        job_id = metadata.get("processing_job_id")
+        if not job_id:
+            # Old tasks predate tracked job IDs. Give their jobs the full ARQ
+            # retention window instead of dropping them during a worker restart.
+            return self._task_age_seconds(task) >= max(
+                self.config.queued_task_timeout_seconds, expires_extra_ms / 1000
+            )
         try:
             pool = await JobQueue.get_pool()
-            return not bool(await pool.get(DEFAULT_QUEUE_NAME + health_check_key_suffix))
+            return not bool(await pool.exists(
+                job_key_prefix + job_id, in_progress_key_prefix + job_id
+            ))
         except Exception:
-            logger.exception("Could not verify worker availability for queued-task recovery")
+            logger.exception("Could not verify queued job for task %s", task["id"])
             return False
 
     def _is_stale_processing_task(self, task: Dict[str, Any]) -> bool:
@@ -595,7 +605,7 @@ class TaskService(ClipEditingMixin):
         if not task:
             return None
 
-        if self._is_stale_queued_task(task) and await self._worker_is_unavailable():
+        if self._is_stale_queued_task(task) and await self._queued_job_is_missing(task):
             timeout_seconds = self.config.queued_task_timeout_seconds
             logger.warning(
                 f"Task {task_id} stuck in queued status for over {timeout_seconds}s; marking as error"
@@ -606,8 +616,7 @@ class TaskService(ClipEditingMixin):
                 "error",
                 progress=0,
                 progress_message=(
-                    "Task timed out while waiting in queue. "
-                    "Ensure the worker service is running and healthy (docker-compose logs -f worker)."
+                    "The queued job is no longer available. Please resume this generation."
                 ),
                 expected_statuses=["queued"],
             )
