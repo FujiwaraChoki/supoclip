@@ -153,19 +153,19 @@ def _merge_boxes(boxes: List[Tuple[float, float, float, float]]) -> List[Tuple[f
     return kept
 
 
-def _detect_all_faces(frame_bgr, mp_face, cascades) -> List[Tuple[float, float, float, float]]:
-    """All face boxes (x, y, w, h) in a frame. Profiles matter here: podcast
-    guests usually face each other, which frontal-only detection misses."""
+def _detect_all_faces(frame_bgr, face_detector, cascades) -> List[Tuple[float, float, float, float]]:
+    """All face boxes (x, y, w, h) in a frame: YuNet when available, else Haar.
+
+    The Haar fallback adds the profile cascade (both directions): podcast
+    guests usually face each other, which frontal-only detection misses.
+    """
     h, w = frame_bgr.shape[:2]
     boxes: List[Tuple[float, float, float, float]] = []
-    if mp_face is not None:
+    if face_detector is not None:
         try:
-            results = mp_face.process(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
-            for det in results.detections or []:
-                box = det.location_data.relative_bounding_box
-                bw, bh = max(0.0, box.width) * w, max(0.0, box.height) * h
-                if bw > 10 and bh > 10:
-                    boxes.append((box.xmin * w, box.ymin * h, bw, bh))
+            for fx, fy, fw, fh, _ in face_detector.detect(frame_bgr):
+                if fw > 10 and fh > 10:
+                    boxes.append((float(fx), float(fy), float(fw), float(fh)))
         except Exception:
             boxes = []
     if not boxes:
@@ -218,7 +218,7 @@ def analyze_speaker_clip(input_path: Path, width: int, height: int) -> Optional[
         logger.warning("Speaker framing: ffmpeg spawn failed (%s)", exc)
         return None
 
-    mp_face, frontal = _open_face_detectors()
+    face_detector, frontal = _open_face_detectors()
     profile = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_profileface.xml")
     face_samples: List[Tuple[float, List[Tuple[float, float, float, float]]]] = []
     motion: List[np.ndarray] = []
@@ -246,7 +246,7 @@ def analyze_speaker_clip(input_path: Path, width: int, height: int) -> Optional[
                 diffs.append((t, float(np.mean(np.abs(small - prev_small)))))
             prev_small = small
             if index % SPEAKER_DETECT_EVERY == 0:
-                faces = _detect_all_faces(frame, mp_face, (frontal, profile))
+                faces = _detect_all_faces(frame, face_detector, (frontal, profile))
                 face_samples.append(
                     (t, [(x * scale, y * scale, bw * scale, bh * scale) for x, y, bw, bh in faces])
                 )
@@ -257,9 +257,9 @@ def analyze_speaker_clip(input_path: Path, width: int, height: int) -> Optional[
         except Exception:
             pass
         proc.wait()
-        if mp_face is not None:
+        if face_detector is not None:
             try:
-                mp_face.close()
+                face_detector.close()
             except Exception:
                 pass
 
