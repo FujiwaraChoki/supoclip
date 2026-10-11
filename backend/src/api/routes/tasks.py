@@ -356,7 +356,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
         )
 
         try:
-            # Save source metadata for resume/retries in environments without sources.url column
+            # Persist retry options before submitting the job; Redis remains a legacy cache.
             await _save_task_source_metadata(
                 task_id,
                 _merge_task_source_metadata(
