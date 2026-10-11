@@ -238,6 +238,7 @@ def _whisper_result_to_transcript_data(whisper_result: Dict[str, Any]) -> Dict[s
         "words": words_data,
         "utterances": utterances_data,
         "text": whisper_result.get("text", ""),
+        "language_code": whisper_result.get("language"),
     }
 
 
@@ -470,11 +471,19 @@ def cache_transcript_data(video_path: Path, transcript) -> None:
             for utterance in transcript.utterances
         ]
 
+    response = getattr(transcript, "json_response", None)
+    language_code = response.get("language_code") if isinstance(response, dict) else None
+    if not language_code:
+        language_code = getattr(getattr(transcript, "config", None), "language_code", None)
+
     cache_data = {
         "version": TRANSCRIPT_CACHE_SCHEMA_VERSION,
         "words": words_data,
         "utterances": utterances_data,
         "text": transcript.text,
+        # Lets language-specific cleanup (e.g. default filler words) avoid
+        # cutting ordinary words in other languages.
+        "language_code": language_code if isinstance(language_code, str) else None,
     }
 
     with open(cache_path, "w") as f:

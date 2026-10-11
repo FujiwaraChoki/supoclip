@@ -30,7 +30,11 @@ from ...workers.progress import ProgressTracker
 from ...config import get_config
 from ...youtube_utils import async_get_youtube_video_info
 from ...font_registry import is_font_accessible
-from ...clip_cleanup import normalize_clip_cleanup_settings
+from ...clip_cleanup import (
+    new_task_cleanup_settings,
+    normalize_clip_cleanup_settings,
+    updated_cleanup_settings,
+)
 from ...video_utils import VALID_OUTPUT_FORMATS
 from ...admin_auth import require_admin_user
 import redis.asyncio as redis
@@ -310,12 +314,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     add_subtitles = data.get("add_subtitles", True)
     if not isinstance(add_subtitles, bool):
         add_subtitles = True
-    cleanup_settings = normalize_clip_cleanup_settings(
-        data.get("cut_long_pauses"),
-        data.get("pause_threshold_ms"),
-        data.get("remove_filler_words"),
-        data.get("filtered_words"),
-    )
+    cleanup_settings = new_task_cleanup_settings(data)
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
@@ -925,18 +924,17 @@ async def apply_task_settings(
         caption_template = payload.get("caption_template", "default")
         include_broll = bool(payload.get("include_broll", False))
         apply_to_existing = bool(payload.get("apply_to_existing", False))
-        cleanup_settings = normalize_clip_cleanup_settings(
-            payload.get("cut_long_pauses"),
-            payload.get("pause_threshold_ms"),
-            payload.get("remove_filler_words"),
-            payload.get("filtered_words"),
-        )
 
         task_service = TaskService(db)
         await _require_task_owner(request, task_service, db, task_id)
         task_record = await task_service.task_repo.get_task_by_id(db, task_id)
         if not task_record:
             raise HTTPException(status_code=404, detail="Task not found")
+
+        # Cleanup fields the request omits keep the task's stored values, so a
+        # styling-only update can't silently switch pause/filler cleanup off.
+        metadata = await _load_task_source_metadata(task_id)
+        cleanup_settings = updated_cleanup_settings(payload, metadata)
         if font_family is not None and not is_font_accessible(
             font_family, task_record["user_id"]
         ):
@@ -953,7 +951,6 @@ async def apply_task_settings(
             apply_to_existing,
             cleanup_settings,
         )
-        metadata = await _load_task_source_metadata(task_id)
         await _save_task_source_metadata(
             task_id,
             _merge_task_source_metadata(

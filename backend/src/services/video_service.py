@@ -28,13 +28,17 @@ from ..video_utils import (
     build_clip_keep_ranges,
     build_keep_ranges_from_source_ranges,
     build_clip_signal_summary,
+    apply_segment_hook_teaser,
     extend_keep_ranges_to_sentence_boundary,
+    keep_ranges_transcript_text,
+    snap_clip_start_to_sentence,
     seconds_to_mmss,
     get_transcript_text_in_range,
 )
 from ..clip_source_map import (
     normalize_source_ranges,
     save_clip_source_ranges,
+    source_range_bounds,
 )
 from ..ai import get_most_relevant_parts_by_transcript
 from ..config import get_config
@@ -255,12 +259,9 @@ class VideoService:
         try:
             provided_keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
             source_ranges = normalize_source_ranges(segment.get("source_ranges"))
-            if provided_keep_ranges:
-                start_seconds = provided_keep_ranges[0][0]
-                end_seconds = provided_keep_ranges[-1][1]
-            elif source_ranges:
-                start_seconds = source_ranges[0][0]
-                end_seconds = source_ranges[-1][1]
+            provided_bounds = source_range_bounds(provided_keep_ranges or source_ranges)
+            if provided_bounds:
+                start_seconds, end_seconds = provided_bounds
             else:
                 start_seconds = parse_timestamp_to_seconds(segment["start_time"])
                 end_seconds = parse_timestamp_to_seconds(segment["end_time"])
@@ -289,6 +290,9 @@ class VideoService:
                     cleanup_settings,
                 )
             else:
+                start_seconds = snap_clip_start_to_sentence(
+                    video_path, start_seconds, end_seconds
+                )
                 keep_ranges = build_clip_keep_ranges(
                     video_path,
                     start_seconds,
@@ -296,6 +300,12 @@ class VideoService:
                     cleanup_settings,
                 )
             keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
+            clip_text = segment.get("text", "")
+            if not provided_keep_ranges and not source_ranges:
+                keep_ranges = apply_segment_hook_teaser(video_path, keep_ranges, segment)
+                # Snapping, cleanup and the teaser change what is spoken; keep
+                # the stored text word-for-word with the rendered timeline.
+                clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
 
             success = await run_in_thread(
                 create_optimized_clip,
@@ -329,7 +339,7 @@ class VideoService:
                 "start_time": segment["start_time"],
                 "end_time": segment["end_time"],
                 "duration": cleaned_duration,
-                "text": segment.get("text", ""),
+                "text": clip_text,
                 "relevance_score": segment.get("relevance_score", 0.0),
                 "reasoning": segment.get("reasoning", ""),
                 "virality_score": segment.get("virality_score", 0),
@@ -559,6 +569,8 @@ class VideoService:
                         "shareability_score": virality.get("shareability_score", 0),
                         "hook_type": virality.get("hook_type"),
                         "hook_title": segment.get("hook_title"),
+                        "hook_start_time": segment.get("hook_start_time"),
+                        "hook_end_time": segment.get("hook_end_time"),
                     }
                 else:
                     virality = segment.virality.model_dump() if segment.virality else {}
@@ -575,6 +587,8 @@ class VideoService:
                         "shareability_score": virality.get("shareability_score", 0),
                         "hook_type": virality.get("hook_type"),
                         "hook_title": getattr(segment, "hook_title", None),
+                        "hook_start_time": getattr(segment, "hook_start_time", None),
+                        "hook_end_time": getattr(segment, "hook_end_time", None),
                     }
 
                 segment_payload["text"] = VideoService._ground_segment_text(

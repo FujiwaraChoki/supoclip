@@ -46,7 +46,12 @@ def source_range_bounds(
     normalized = normalize_source_ranges(ranges)
     if not normalized:
         return None
-    return (normalized[0][0], normalized[-1][1])
+    # Ranges play in list order and may be non-monotonic (a hook teaser is
+    # played before the clip body), so the bounds are the extremes.
+    return (
+        min(start for start, _ in normalized),
+        max(end for _, end in normalized),
+    )
 
 
 def save_clip_source_ranges(

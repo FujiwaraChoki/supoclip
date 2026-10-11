@@ -239,6 +239,19 @@ class TranscriptSegment(BaseModel):
         ),
     )
 
+    hook_start_time: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional MM:SS start of the single strongest 2-5 second line inside "
+            "the segment, replayed as a cold-open teaser. Null when the segment "
+            "already opens on its best line."
+        ),
+    )
+    hook_end_time: Optional[str] = Field(
+        default=None,
+        description="Optional MM:SS end of that hook line (null with hook_start_time).",
+    )
+
     @field_validator("relevance_score", mode="before")
     @classmethod
     def _coerce_percent_relevance_score(cls, value: Any) -> Any:
@@ -387,6 +400,12 @@ HOOK TITLES ("hook_title" per segment):
 - Plain text only: no hashtags, no emojis, no quotes around the title
 - Write it in the same language as the transcript
 - Good examples: "The $40k mistake I keep seeing", "Why nobody tells you this about VC", "Do this before your next interview"
+
+COLD-OPEN HOOK ("hook_start_time"/"hook_end_time" per segment, optional):
+- If the segment's most gripping 2-5 second line (punchline, bold claim, shocking number, emotional peak) comes later in the clip, return its MM:SS range; it is replayed as a teaser before the clip starts
+- Use timestamps from the transcript lines inside the segment, at least 3 seconds after start_time
+- The line must make sense on its own and must not spoil the setup in a confusing way
+- Set both to null when the clip already opens on its strongest line or no line qualifies
 
 HOOK TYPES to identify:
 - "question": Opens with a question that creates curiosity
@@ -734,6 +753,7 @@ JSON-only output requirements:
 - No Markdown, headings, bullets, code fences, or explanatory text outside JSON.
 - Top-level keys: "most_relevant_segments", "summary", "key_topics", "broll_opportunities".{' Set "broll_opportunities" to null.' if not include_broll else ''}
 - Segment keys: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", "hook_title".
+- Optional segment keys "hook_start_time"/"hook_end_time": MM:SS range of the strongest 2-5 second line later in the segment (cold-open teaser), or null.
 - "hook_title" is a 3-9 word plain-text headline for the clip, in the transcript's language, grounded in the segment (no hashtags, emojis, or quotes).
 - Virality keys: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", "virality_reasoning".
 - Do not return segments shorter than {MIN_ACCEPTED_CLIP_SECONDS} seconds or longer than {MAX_ACCEPTED_CLIP_SECONDS} seconds.
@@ -771,6 +791,28 @@ def sanitize_hook_title(raw: Optional[str]) -> Optional[str]:
             ".,;:-–— "
         )
     return title or None
+
+
+def _sanitize_hook_span(
+    segment: TranscriptSegment, start_seconds: int, end_seconds: int
+) -> None:
+    """Drop a cold-open hook range that is malformed or outside the segment.
+
+    Word-level snapping and length checks happen at render time.
+    """
+    try:
+        hook_start = _parse_transcript_timestamp_seconds(segment.hook_start_time or "")
+        hook_end = _parse_transcript_timestamp_seconds(segment.hook_end_time or "")
+    except ValueError:
+        hook_start = hook_end = None
+    if (
+        hook_start is None
+        or hook_end is None
+        or not start_seconds < hook_start < hook_end <= end_seconds
+        or hook_end - hook_start > 8
+    ):
+        segment.hook_start_time = None
+        segment.hook_end_time = None
 
 
 def _parse_transcript_timestamp_seconds(timestamp: str) -> int:
@@ -1427,6 +1469,9 @@ def _validate_segments(
                     segment.virality.total_score = calculated_total
 
             segment.hook_title = sanitize_hook_title(segment.hook_title)
+            # Bounds are final here (after snapping and repair): keep the teaser
+            # only when it still sits inside the clip.
+            _sanitize_hook_span(segment, start_seconds, end_seconds)
 
             validated_segments.append(segment)
             virality_info = (

@@ -30,7 +30,7 @@ SupoClip is an open-source, AI-powered video clipping tool. Give it a long video
 
 ## Ways to Use SupoClip
 
-| | |
+| Option | Details |
 |---|---|
 | **Hosted web app** | [www.supoclip.com](https://www.supoclip.com) — no infrastructure to run |
 | **iOS app** | [SupoClip on the App Store](https://apps.apple.com/us/app/supoclip/id6784760040) — the same hosted pipeline, from your iPhone |

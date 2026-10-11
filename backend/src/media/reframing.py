@@ -23,8 +23,11 @@ from .common import (
     LAYOUT_SNAP_WINDOW,
     MIN_LAYOUT_SECONDS,
     OUTPUT_FPS,
+    UPSCALE_SHARPEN_FILTER,
+    VERTICAL_SCALE_CHAIN,
     logger,
 )
+from .face_detection import open_haar_cascade, open_yunet_detector
 from .ffmpeg import (
     build_audio_output_args,
     build_final_video_encode_args,
@@ -164,25 +167,8 @@ def detect_faces_in_clip(
     face_centers = []
 
     try:
-        # Try to use MediaPipe (most accurate)
-        mp_face_detection = None
-        try:
-            import mediapipe as mp
-
-            mp_face_detection = mp.solutions.face_detection.FaceDetection(
-                model_selection=0,  # 0 for short-range (better for close faces)
-                min_detection_confidence=0.5,
-            )
-            logger.info("Using MediaPipe face detector")
-        except ImportError:
-            logger.info("MediaPipe not available, falling back to OpenCV")
-        except Exception as e:
-            logger.warning(f"MediaPipe face detector failed to initialize: {e}")
-
-        # Initialize OpenCV face detectors as fallback
-        haar_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-        )
+        # YuNet (most accurate) with Haar as the last-resort fallback
+        yunet, haar_cascade = _open_face_detectors()
 
         # Try to load DNN face detector (more accurate than Haar)
         dnn_net = None
@@ -236,35 +222,22 @@ def detect_faces_in_clip(
                 ok, frame_bgr = capture.read()
                 if not ok or frame_bgr is None:
                     continue
-                frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-                height, width = frame.shape[:2]
+                height, width = frame_bgr.shape[:2]
                 detected_faces = []
 
-                # Try MediaPipe first (most accurate)
-                if mp_face_detection is not None:
+                # Try YuNet first (most accurate)
+                if yunet is not None:
                     try:
-                        # MediaPipe expects RGB format
-                        results = mp_face_detection.process(frame)
-
-                        if results.detections:
-                            for detection in results.detections:
-                                bbox = detection.location_data.relative_bounding_box
-                                confidence = detection.score[0]
-
-                                # Convert relative coordinates to absolute
-                                x = int(bbox.xmin * width)
-                                y = int(bbox.ymin * height)
-                                w = int(bbox.width * width)
-                                h = int(bbox.height * height)
-
-                                if w > 30 and h > 30:  # Minimum face size
-                                    detected_faces.append((x, y, w, h, confidence))
+                        for fx, fy, fw, fh, confidence in yunet.detect(frame_bgr):
+                            x, y, w, h = int(fx), int(fy), int(fw), int(fh)
+                            if w > 30 and h > 30:  # Minimum face size
+                                detected_faces.append((x, y, w, h, confidence))
                     except Exception as e:
                         logger.warning(
-                            f"MediaPipe detection failed for frame at {sample_time}s: {e}"
+                            f"YuNet detection failed for frame at {sample_time}s: {e}"
                         )
 
-                # If MediaPipe didn't find faces, try DNN detector
+                # If YuNet didn't find faces, try DNN detector
                 if not detected_faces and dnn_net is not None:
                     try:
                         blob = cv2.dnn.blobFromImage(
@@ -342,10 +315,6 @@ def detect_faces_in_clip(
                 continue
 
         capture.release()
-
-        # Close MediaPipe detector
-        if mp_face_detection is not None:
-            mp_face_detection.close()
 
         # Remove outliers (faces that are very far from the median position)
         if len(face_centers) > 2:
@@ -707,43 +676,28 @@ def compute_vertical_crop_dims(
 
 
 def _open_face_detectors():
-    """Initialise the MediaPipe (preferred) + Haar (fallback) face detectors."""
-    mp_face = None
-    try:
-        import mediapipe as mp
+    """Initialise the YuNet (preferred) + Haar (fallback) face detectors.
 
-        mp_face = mp.solutions.face_detection.FaceDetection(
-            model_selection=1, min_detection_confidence=0.5
-        )
-    except Exception as exc:
-        logger.info("MediaPipe unavailable (%s); using Haar", exc)
-    haar = cv2.CascadeClassifier(
-        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-    )
-    return mp_face, haar
+    Returns (face_detector_or_None, haar). The YuNet wrapper also exposes a
+    MediaPipe-style ``process``/``close`` so older call sites keep working.
+    """
+    return open_yunet_detector(), open_haar_cascade()
 
 
-def _detect_dominant_face(frame_bgr, mp_face, haar) -> Optional[Tuple[float, float]]:
+def _detect_dominant_face(frame_bgr, face_detector, haar) -> Optional[Tuple[float, float]]:
     """Return (center_x_fraction, area_fraction) of the dominant face, or None."""
     h, w = frame_bgr.shape[:2]
     frame_area = float(max(1, w * h))
     best: Optional[Tuple[float, float, float]] = None  # (score, cx, area_frac)
 
-    if mp_face is not None:
+    if face_detector is not None:
         try:
-            results = mp_face.process(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
-            if results.detections:
-                for det in results.detections:
-                    box = det.location_data.relative_bounding_box
-                    bw = max(0.0, box.width) * w
-                    bh = max(0.0, box.height) * h
-                    conf = float(det.score[0]) if det.score else 0.5
-                    cx = (box.xmin + box.width / 2) * w
-                    score = bw * bh * conf
-                    if bw > 10 and bh > 10 and (best is None or score > best[0]):
-                        best = (score, cx, (bw * bh) / frame_area)
-        except Exception:
-            pass
+            for fx, fy, fw, fh, conf in face_detector.detect(frame_bgr):
+                score = fw * fh * conf
+                if fw > 10 and fh > 10 and (best is None or score > best[0]):
+                    best = (score, fx + fw / 2.0, (fw * fh) / frame_area)
+        except Exception as exc:
+            logger.debug("YuNet detection failed on frame: %s", exc)
 
     if best is None:
         try:
@@ -823,7 +777,7 @@ def analyze_vertical_clip(
         logger.warning("analyze_vertical_clip: ffmpeg spawn failed (%s)", exc)
         return [], []
 
-    mp_face, haar = _open_face_detectors()
+    face_detector, haar = _open_face_detectors()
     track: List[Tuple[float, Optional[float], float]] = []
     diffs: List[Tuple[float, float]] = []
     prev_small = None
@@ -835,7 +789,7 @@ def analyze_vertical_clip(
                 break
             frame = np.frombuffer(raw, dtype=np.uint8).reshape(proc_h, proc_w, 3)
             t = idx / sample_fps
-            face = _detect_dominant_face(frame, mp_face, haar)
+            face = _detect_dominant_face(frame, face_detector, haar)
             if face is None:
                 track.append((t, None, 0.0))
             else:
@@ -852,11 +806,6 @@ def analyze_vertical_clip(
         except Exception:
             pass
         proc.wait()
-        if mp_face is not None:
-            try:
-                mp_face.close()
-            except Exception:
-                pass
 
     return track, _scene_cuts_from_diffs(diffs)
 
@@ -1118,7 +1067,7 @@ def kenburns_zoom_fragment(duration: float) -> Optional[str]:
         f"scale={KENBURNS_SUPERSAMPLE_W}:{KENBURNS_SUPERSAMPLE_H}:flags=lanczos,"
         f"fps={OUTPUT_FPS},"
         f"zoompan=z='{z_expr}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)*0.35'"
-        f":d=1:s=1080x1920:fps={OUTPUT_FPS},setsar=1"
+        f":d=1:s=1080x1920:fps={OUTPUT_FPS},{UPSCALE_SHARPEN_FILTER},setsar=1"
     )
 
 
@@ -1176,7 +1125,7 @@ def build_vertical_filter_plan(
     # slow punch-in so the frame still breathes.
     if crop_w >= width:
         sx, sy, sw, sh = detect_optimal_crop_region(input_path, 0, min(duration, 12.0))
-        tail = kenburns_zoom_fragment(duration) or "scale=1080:1920:flags=lanczos,setsar=1"
+        tail = kenburns_zoom_fragment(duration) or VERTICAL_SCALE_CHAIN
         return (f"crop={sw}:{sh}:{sx}:{sy},{tail}", "vf")
 
     # One fast decode pass yields both the face track and the scene cuts.
@@ -1191,10 +1140,7 @@ def build_vertical_filter_plan(
     static_x = 0
     if moving:
         x_expr = build_smooth_pan_expression(keys)
-        crop_chain = (
-            f"crop={crop_w}:{crop_h}:x='{x_expr}':y=0,"
-            "scale=1080:1920:flags=lanczos,setsar=1"
-        )
+        crop_chain = f"crop={crop_w}:{crop_h}:x='{x_expr}':y=0,{VERTICAL_SCALE_CHAIN}"
     else:
         if keys:
             static_x = clamp_even(
@@ -1203,9 +1149,7 @@ def build_vertical_filter_plan(
         else:
             sx, _, _, _ = detect_optimal_crop_region(input_path, 0, min(duration, 12.0))
             static_x = clamp_even(sx, 0, max(0, width - crop_w))
-        crop_chain = (
-            f"crop={crop_w}:{crop_h}:{static_x}:0,scale=1080:1920:flags=lanczos,setsar=1"
-        )
+        crop_chain = f"crop={crop_w}:{crop_h}:{static_x}:0,{VERTICAL_SCALE_CHAIN}"
 
     # Decide the layout over time. All-face clips skip the compositor (cheaper).
     plan = build_layout_plan(track, scene_cuts, duration)
@@ -1281,9 +1225,9 @@ def render_reframed_clip_ffmpeg(
         video_filter = (
             f"[0:v]split=2[l][r];"
             f"[l]crop={left['tile_w']}:{left['tile_h']}:{left['tile_x']}:{left['tile_y']},"
-            f"scale=1080:960:flags=lanczos,setsar=1[lv];"
+            f"scale=1080:960:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[lv];"
             f"[r]crop={right['tile_w']}:{right['tile_h']}:{right['tile_x']}:{right['tile_y']},"
-            f"scale=1080:960:flags=lanczos,setsar=1[rv];"
+            f"scale=1080:960:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[rv];"
             f"[lv][rv]vstack,setsar=1{vstack_tail}[v]"
         )
         command = [
@@ -1300,7 +1244,7 @@ def render_reframed_clip_ffmpeg(
     if plan and plan["mode"] == "pan":
         video_filter = (
             f"crop={plan['crop_w']}:{plan['crop_h']}:x='{plan['x_expression']}':y=0,"
-            "scale=1080:1920:flags=lanczos,setsar=1"
+            f"{VERTICAL_SCALE_CHAIN}"
         )
         if subs:
             video_filter = f"{video_filter},{subs}"

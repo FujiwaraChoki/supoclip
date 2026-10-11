@@ -259,3 +259,44 @@ def test_window_signals_only_include_lines_inside_the_window():
     assert early.splitlines() == [signals.splitlines()[0], signals.splitlines()[1]]
     assert late.splitlines()[-1].startswith("- [101:00")
     assert ai._filter_clip_signals_for_window(signals, 1000, 1100) is None
+
+
+async def test_hook_times_survive_windowing_snapping_and_rerank(monkeypatch):
+    transcript = _transcript(30 * 60)
+
+    def window_analysis(prompt: str):
+        first_line = prompt.split("Transcript:")[1].splitlines()[1]
+        if first_line.startswith("[00:00"):
+            # Near-miss bounds snap to 00:30-01:00; the hook stays inside.
+            segment = _segment("00:31", "00:58", total=60)
+            segment.hook_start_time, segment.hook_end_time = "00:45", "00:49"
+        elif first_line.startswith("[10:00"):
+            # The hook falls outside the final span, so it must be cleared.
+            segment = _segment("12:00", "12:30", total=70)
+            segment.hook_start_time, segment.hook_end_time = "12:40", "12:44"
+        else:
+            segment = _segment("20:30", "21:00", total=80)
+            segment.hook_start_time, segment.hook_end_time = "20:50", "20:54"
+        return SimpleNamespace(output=ai.TranscriptAnalysis(
+            most_relevant_segments=[segment], summary="s", key_topics=[],
+        ))
+
+    rerank_agent = SimpleNamespace(run=AsyncMock(return_value=SimpleNamespace(
+        output=ai.CandidateRanking(ranking=[
+            ai.RankedCandidate(candidate_id=2, score=95),
+            ai.RankedCandidate(candidate_id=1, score=85),
+            ai.RankedCandidate(candidate_id=0, score=75),
+        ])
+    )))
+    agent = SimpleNamespace(run=AsyncMock(side_effect=window_analysis))
+    monkeypatch.setattr(ai, "get_transcript_agent", lambda: agent)
+    monkeypatch.setattr(ai, "get_rerank_agent", lambda: rerank_agent)
+
+    result = await ai.get_most_relevant_parts_by_transcript(transcript)
+
+    assert all("hook_start_time" in call.args[0] for call in agent.run.await_args_list)
+    rerank_agent.run.assert_awaited_once()
+    by_start = {s.start_time: s for s in result.most_relevant_segments}
+    assert (by_start["00:30"].hook_start_time, by_start["00:30"].hook_end_time) == ("00:45", "00:49")
+    assert (by_start["12:00"].hook_start_time, by_start["12:00"].hook_end_time) == (None, None)
+    assert (by_start["20:30"].hook_start_time, by_start["20:30"].hook_end_time) == ("20:50", "20:54")
