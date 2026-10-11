@@ -13,6 +13,7 @@ from sqlalchemy import (
     Text,
     text as sql_text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy.sql import func
 import uuid
@@ -175,6 +176,9 @@ class Task(Base):
     )
     error_code: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     stage_timings_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source_metadata: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=sql_text("'{}'::jsonb")
+    )
     completion_notification_sent_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

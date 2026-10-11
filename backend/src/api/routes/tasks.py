@@ -23,6 +23,7 @@ from ...repositories.task_run_guard import task_run_guard, TaskRunBusy
 from ...repositories.generation_allowance_guard import (
     generation_allowance_guard, GenerationAllowanceBusy,
 )
+from ...repositories.task_repository import TaskRepository
 from ...database import get_db
 from ...database import AsyncSessionLocal
 from ...services.task_service import TaskService
@@ -131,7 +132,11 @@ async def _get_user_id_from_headers(request: Request, db: AsyncSession) -> str:
     return await resolve_authenticated_user_id(request, db, config)
 
 
-async def _load_task_source_metadata(task_id: str) -> Dict[str, Any]:
+async def _load_task_source_metadata(task_id: str, db: AsyncSession | None = None) -> Dict[str, Any]:
+    if db is not None:
+        metadata = await TaskRepository.load_source_metadata(db, task_id)
+        if metadata:
+            return metadata
     runtime_config = get_config()
     redis_client = redis.Redis(
         host=runtime_config.redis_host,
@@ -156,7 +161,11 @@ async def _load_task_source_metadata(task_id: str) -> Dict[str, Any]:
         return {}
 
 
-async def _save_task_source_metadata(task_id: str, payload: Dict[str, Any]) -> None:
+async def _save_task_source_metadata(
+    task_id: str, payload: Dict[str, Any], db: AsyncSession | None = None
+) -> None:
+    if db is not None:
+        await TaskRepository.save_source_metadata(db, task_id, payload)
     runtime_config = get_config()
     redis_client = redis.Redis(
         host=runtime_config.redis_host,
@@ -353,37 +362,47 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                 processing_mode=processing_mode,
             )
 
-            # Enqueue job for worker
-            queue_adapter = getattr(request.app.state, "queue_adapter", JobQueue)
-            job_id = await queue_adapter.enqueue_processing_job(
-                "process_video_task",
-                processing_mode,
-                task_id,
-                raw_source["url"],
-                source_type,
-                user_id,
-                font_family,
-                font_size,
-                font_color,
-                caption_template,
-                processing_mode,
-                output_format,
-                add_subtitles,
-                cleanup_settings,
-            )
+            try:
+                # Save source metadata for resume/retries in environments without sources.url column
+                await _save_task_source_metadata(
+                    task_id,
+                    _merge_task_source_metadata(
+                        None,
+                        source_url=raw_source["url"],
+                        source_type=source_type,
+                        output_format=output_format,
+                        add_subtitles=add_subtitles,
+                        cleanup_settings=cleanup_settings,
+                    ),
+                    db=db,
+                )
 
-            # Save source metadata for resume/retries in environments without sources.url column
-            await _save_task_source_metadata(
-                task_id,
-                _merge_task_source_metadata(
-                    None,
-                    source_url=raw_source["url"],
-                    source_type=source_type,
-                    output_format=output_format,
-                    add_subtitles=add_subtitles,
-                    cleanup_settings=cleanup_settings,
-                ),
-            )
+                # Enqueue job for worker
+                queue_adapter = getattr(request.app.state, "queue_adapter", JobQueue)
+                job_id = await queue_adapter.enqueue_processing_job(
+                    "process_video_task",
+                    processing_mode,
+                    task_id,
+                    raw_source["url"],
+                    source_type,
+                    user_id,
+                    font_family,
+                    font_size,
+                    font_color,
+                    caption_template,
+                    processing_mode,
+                    output_format,
+                    add_subtitles,
+                    cleanup_settings,
+                )
+
+            except Exception:
+                await task_service.task_repo.update_task_status(
+                    db, task_id, "error", progress=0,
+                    progress_message="Unable to queue processing. Please retry this generation.",
+                    expected_statuses=["queued"],
+                )
+                raise
 
             logger.info(f"Task {task_id} created and job {job_id} enqueued")
 
@@ -962,7 +981,7 @@ async def apply_task_settings(
             apply_to_existing,
             cleanup_settings,
         )
-        metadata = await _load_task_source_metadata(task_id)
+        metadata = await _load_task_source_metadata(task_id, db=db)
         await _save_task_source_metadata(
             task_id,
             _merge_task_source_metadata(
@@ -977,6 +996,7 @@ async def apply_task_settings(
                 ),
                 cleanup_settings=cleanup_settings,
             ),
+            db=db,
         )
         return {"task": task, "message": "Task settings updated"}
     except ValueError as e:
@@ -1120,7 +1140,7 @@ async def resume_task(
             output_format = "vertical"
             add_subtitles = True
 
-            metadata = await _load_task_source_metadata(task_id)
+            metadata = await _load_task_source_metadata(task_id, db=db)
             if not source_url:
                 source_url = metadata.get("url")
             if not source_type:
