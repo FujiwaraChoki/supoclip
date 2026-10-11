@@ -278,6 +278,16 @@ Can also:
 - Promote or demote admin status for other users
 - Monitor global task activity
 
+## Announcements
+
+The landing-page badge and the app's "What's new" button open the same announcement panel. In the app, the button is in the desktop sidebar and the mobile header. Opening the panel clears its unread badge; the updates remain available afterward.
+
+Admins manage announcements at `/admin/announcements`, linked from the admin dashboard. Create a draft, edit its title, description, destination path and link label, then publish it or choose a future publication date to schedule it. Hide an announcement to remove it from both surfaces. Announcements live in the PostgreSQL `announcements` table; publishing does not require a code change or deployment. Active pages refresh announcements each minute and when the tab regains focus.
+
+Deploy the Prisma migration `20261011140000_add_announcements` before deploying the frontend. It creates the table and seeds the existing creator-program announcement with the same ID, preserving read status. `init.sql` also includes the table for new installations.
+
+Read status is stored in the browser, separately for anonymous visitors and each signed-in account. It does not sync between devices. If storage is blocked, read status lasts for the current visit.
+
 ## Practical Support Notes
 
 If a user says:
