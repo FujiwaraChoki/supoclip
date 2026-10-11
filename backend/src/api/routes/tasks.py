@@ -346,25 +346,6 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             processing_mode=processing_mode,
         )
 
-        # Enqueue job for worker
-        queue_adapter = getattr(request.app.state, "queue_adapter", JobQueue)
-        job_id = await queue_adapter.enqueue_processing_job(
-            "process_video_task",
-            processing_mode,
-            task_id,
-            raw_source["url"],
-            source_type,
-            user_id,
-            font_family,
-            font_size,
-            font_color,
-            caption_template,
-            processing_mode,
-            output_format,
-            add_subtitles,
-            cleanup_settings,
-        )
-
         # Save source metadata for resume/retries in environments without sources.url column
         await _save_task_source_metadata(
             task_id,
@@ -377,6 +358,34 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                 cleanup_settings=cleanup_settings,
             ),
         )
+
+        try:
+            # Enqueue job for worker
+            queue_adapter = getattr(request.app.state, "queue_adapter", JobQueue)
+            job_id = await queue_adapter.enqueue_processing_job(
+                "process_video_task",
+                processing_mode,
+                task_id,
+                raw_source["url"],
+                source_type,
+                user_id,
+                font_family,
+                font_size,
+                font_color,
+                caption_template,
+                processing_mode,
+                output_format,
+                add_subtitles,
+                cleanup_settings,
+            )
+
+        except Exception:
+            await task_service.task_repo.update_task_status(
+                db, task_id, "error", progress=0,
+                progress_message="Unable to queue processing. Please retry this generation.",
+                expected_statuses=["queued"],
+            )
+            raise
 
         logger.info(f"Task {task_id} created and job {job_id} enqueued")
 
