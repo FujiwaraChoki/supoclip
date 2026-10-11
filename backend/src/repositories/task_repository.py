@@ -99,7 +99,7 @@ class TaskRepository:
     async def save_source_metadata(db: AsyncSession, task_id: str, metadata: Dict[str, Any]) -> None:
         try:
             await db.execute(
-                text("UPDATE tasks SET source_metadata = CAST(:metadata AS JSONB) WHERE id = :task_id"),
+                text("UPDATE tasks SET source_metadata = source_metadata || CAST(:metadata AS JSONB) WHERE id = :task_id"),
                 {"task_id": task_id, "metadata": json.dumps(metadata)},
             )
             await commit_unless_editing(db)
