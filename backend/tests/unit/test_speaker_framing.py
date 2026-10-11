@@ -1,4 +1,5 @@
 import json
+import math
 import shutil
 import subprocess
 
@@ -8,7 +9,9 @@ import pytest
 from src.media import reframing, speaker_framing, timeline
 from src.media.common import VERTICAL_SCALE_CHAIN
 from src.media.speaker_framing import (
+    apply_tracked_shots,
     assign_speakers_to_clusters,
+    build_crop_x_expression,
     build_speaker_activity,
     build_speaker_segments,
     build_speaker_turns,
@@ -16,6 +19,18 @@ from src.media.speaker_framing import (
     cluster_face_positions,
     find_wide_shots,
 )
+
+
+def eval_x(expr, t):
+    """Evaluate a crop-x expression the way ffmpeg would at time t."""
+    namespace = {
+        "gte": lambda a, b: 1.0 if a >= b else 0.0,
+        "trunc": lambda v: v if math.isnan(v) else math.trunc(v),
+        "isnan": lambda v: 1.0 if math.isnan(v) else 0.0,
+        "iff": lambda c, a, b: a if c else b,
+        "t": t,
+    }
+    return eval(expr.replace("\\,", ",").replace("if(", "iff("), namespace)
 
 
 def _word(start, end, speaker):
@@ -200,13 +215,35 @@ def test_turn_cuts_snap_to_nearby_scene_cuts():
     assert segments == [(0.0, 5.0, 40), (5.0, 10.0, 1200)]
 
 
-def test_step_expression_is_flat_and_even():
+def test_step_expression_hard_cuts_between_segments():
     segments = [(0.0, 4.0, 40), (4.0, 8.0, 1200), (8.0, 12.0, 40)]
 
     expr = build_step_x_expression(segments)
 
-    assert expr == "40+1160*gte(t\\,4.000)+-1160*gte(t\\,8.000)"
-    assert "if(" not in expr
+    assert [eval_x(expr, t) for t in (0.0, 3.99, 4.0, 7.99, 8.0, 30.0)] == [
+        40, 40, 1200, 1200, 40, 40,
+    ]
+    assert eval_x(expr, float("nan")) == 40
+
+
+def test_crop_expression_interpolates_tracked_pieces_and_stays_even():
+    pieces = [(0.0, 2.0, 100.0, 100.0), (2.0, 4.0, 100.0, 501.0), (4.0, 6.0, 900.0, 900.0)]
+
+    expr = build_crop_x_expression(pieces)
+
+    assert eval_x(expr, 1.0) == 100
+    assert eval_x(expr, 3.0) == 300  # 100 + 401 * 0.5 = 300.5 -> even 300
+    assert eval_x(expr, 5.0) == 900
+    assert eval_x(expr, float("nan")) == 100
+
+
+def test_tracked_shot_pieces_replace_static_crop_inside_the_shot():
+    segments = [(0.0, 4.0, 40), (4.0, 10.0, 600)]
+    tracked = {(4.0, 10.0): [(4.0, 10.0, 340.0, 1340.0)]}
+
+    pieces = apply_tracked_shots(segments, tracked)
+
+    assert pieces == [(0.0, 4.0, 40.0, 40.0), (4.0, 10.0, 340.0, 1340.0)]
 
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
@@ -358,8 +395,9 @@ def test_wide_shot_from_another_angle_gets_its_own_face_crop(monkeypatch, tmp_pa
     )
     seen_wide = []
 
-    def fake_activity(analysis, clusters, words, wide_shots, cuts):
-        seen_wide.extend(wide_shots)
+    def fake_activity(analysis, clusters, words, wide_shots, cuts, baseline_shots=None):
+        if baseline_shots is None:
+            seen_wide.extend(wide_shots)
         return {"A": [1.3, 0.8], "B": [0.8, 1.3]}
 
     monkeypatch.setattr(speaker_framing, "build_speaker_activity", fake_activity)
@@ -376,7 +414,8 @@ def test_wide_shot_from_another_angle_gets_its_own_face_crop(monkeypatch, tmp_pa
     # A on the left (x=36), B on the right (x=1196), then the shifted shot
     # centres its largest face (x=1755 -> clamped to 1314) instead of reusing
     # the stale right-hand cluster.
-    assert chain.startswith("crop=606:1080:x='36+1160*gte(t\\,8.000)+118*gte(t\\,16.000)'")
+    expr = chain.split("x='", 1)[1].split("'", 1)[0]
+    assert [eval_x(expr, t) for t in (1.0, 9.0, 17.0)] == [36, 1196, 1314]
     # Speaker crops are upscaled like every other vertical crop.
     assert chain.endswith(VERTICAL_SCALE_CHAIN)
 
@@ -404,3 +443,99 @@ def test_speaker_turns_follow_hook_teaser_play_order(tmp_path):
     assert [(t["speaker"], round(t["start"], 2)) for t in turns] == [
         ("B", 0.0), ("A", 3.0), ("B", 12.85),
     ]  # never cut before the teaser's last word ends
+
+
+def test_reverse_angle_shot_is_not_speaker_framed():
+    # Normal 0-16s, then a reverse angle 16-20s with the guests' sides swapped
+    # but faces at the same coordinates (Codex repro).
+    fps = 10.0
+    n = 200
+    motion = np.full((n, 30, 60), 1.0, dtype=np.float32)
+    left, right = (slice(5, 10), slice(3, 8)), (slice(5, 10), slice(45, 50))
+    for i in range(1, n):
+        t = i / fps
+        a_talking = (t % 4) < 2
+        if t < 16:
+            region = left if a_talking else right
+        else:
+            region = right if a_talking else left  # swapped
+        motion[i][region] = 4.0
+    analysis = {"motion": motion, "motion_fps": fps, "motion_cell": 32.0}
+    clusters = [
+        {"cx": 175.0, "cy": 150.0, "w": 100.0, "h": 100.0},
+        {"cx": 1500.0, "cy": 150.0, "w": 100.0, "h": 100.0},
+    ]
+    words = [
+        _word(start, start + 1.9, "A" if (start % 4) < 2 else "B")
+        for start in [x * 2.0 for x in range(10)]
+    ]
+    wide = [(0.0, 16.0), (16.0, 20.0)]
+    mapping = assign_speakers_to_clusters(
+        build_speaker_activity(analysis, clusters, words, wide, [16.0])
+    )
+
+    assert mapping == {"A": 0, "B": 1}
+    assert not speaker_framing.shot_contradicts_mapping(
+        analysis, clusters, words, (0.0, 16.0), wide, [16.0], mapping
+    )
+    assert speaker_framing.shot_contradicts_mapping(
+        analysis, clusters, words, (16.0, 20.0), wide, [16.0], mapping
+    )
+
+
+def test_moving_single_face_shot_keeps_tracking(monkeypatch, tmp_path):
+    # Mapped wide shot 0-10s, then a single-person shot whose subject walks
+    # from x~340 to x~1540 (Codex repro).
+    samples = [
+        (i / 3, [(300.0, 300.0, 80.0, 80.0), (1460.0, 300.0, 80.0, 80.0)])
+        for i in range(30)
+    ]
+    samples += [
+        (10 + i / 3, [(300.0 + i * 40.0, 300.0, 80.0, 80.0)]) for i in range(30)
+    ]
+    monkeypatch.setattr(
+        speaker_framing, "analyze_speaker_clip",
+        lambda *a: {"face_samples": samples, "scene_cuts": [10.0], "motion": np.zeros((1, 1, 1))},
+    )
+    monkeypatch.setattr(
+        speaker_framing, "build_speaker_activity",
+        lambda *a, **k: {"A": [1.3, 0.8], "B": [0.8, 1.3]},
+    )
+    monkeypatch.setattr(speaker_framing, "shot_contradicts_mapping", lambda *a, **k: False)
+    turns = [
+        {"speaker": "A", "start": 0.0, "end": 5.0},
+        {"speaker": "B", "start": 5.0, "end": 20.0},
+    ]
+
+    chain = speaker_framing.build_speaker_crop_chain(
+        tmp_path / "clip.mp4", 1920, 1080, 606, 1080, 20.0, turns, []
+    )
+
+    expr = chain.split("x='", 1)[1].split("'", 1)[0]
+    early, late = eval_x(expr, 11.0), eval_x(expr, 19.5)
+    assert late - early > 600  # the crop follows the subject across the frame
+    face_x = lambda t: 340.0 + (t - 10.0) * 120.0
+    for t in (12.0, 15.0, 18.0):
+        x = eval_x(expr, t)
+        assert x <= face_x(t) <= x + 606, (t, x)
+
+
+@needs_ffmpeg
+def test_tracked_pieces_render_in_ffmpeg():
+    pieces = [(0.0, 0.5, 0.0, 0.0)] + [
+        (0.5 + i * 0.1, 0.6 + i * 0.1, i * 10.0, (i + 1) * 10.0) for i in range(120)
+    ]
+    chain = f"crop=606:1080:x='{build_crop_x_expression(pieces)}':y=0"
+
+    result = subprocess.run(
+        [
+            "ffmpeg", "-v", "error", "-f", "lavfi",
+            "-i", "testsrc2=size=1920x1080:rate=10:duration=2",
+            "-vf", chain, "-f", "null", "-",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    assert result.returncode == 0, result.stderr

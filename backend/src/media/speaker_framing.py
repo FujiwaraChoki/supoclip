@@ -45,6 +45,7 @@ MIN_SPEAKER_SHARE = 0.12
 MAPPING_MIN_MARGIN = 0.1
 MIN_SPEAKER_SAMPLE_FRAMES = 8
 MIN_SEGMENT_SECONDS = 0.4
+SHOT_CONTRADICTION_MARGIN = 0.2
 
 
 def build_speaker_turns(
@@ -426,17 +427,30 @@ def build_speaker_activity(
     words: Sequence[Dict[str, Any]],
     wide_shots: Sequence[Tuple[float, float]],
     scene_cuts: Sequence[float],
+    baseline_shots: Optional[Sequence[Tuple[float, float]]] = None,
 ) -> Dict[str, List[float]]:
-    """Relative mouth activity per (speaker, face cluster) inside wide shots."""
+    """Relative mouth activity per (speaker, face cluster) inside wide shots.
+
+    Each value is the cluster's mouth motion while that speaker talks in
+    ``wide_shots``, divided by the cluster's mean motion while anyone talks in
+    ``baseline_shots`` (default: the same shots). A pooled baseline lets a
+    single shot be checked even when only one person speaks in it.
+    """
     fps = analysis["motion_fps"]
     n_frames = analysis["motion"].shape[0]
     frame_times = np.arange(n_frames) / fps
-    usable = np.zeros(n_frames, dtype=bool)
-    for a, b in wide_shots:
-        usable |= (frame_times >= a) & (frame_times < b)
-    for cut in scene_cuts:
-        usable &= np.abs(frame_times - cut) > 0.25
-    usable[0] = False  # the first frame has no predecessor to diff against
+
+    def shot_mask(shots: Sequence[Tuple[float, float]]) -> np.ndarray:
+        mask = np.zeros(n_frames, dtype=bool)
+        for a, b in shots:
+            mask |= (frame_times >= a) & (frame_times < b)
+        for cut in scene_cuts:
+            mask &= np.abs(frame_times - cut) > 0.25
+        mask[0] = False  # the first frame has no predecessor to diff against
+        return mask
+
+    usable = shot_mask(wide_shots)
+    baseline_usable = usable if baseline_shots is None else shot_mask(baseline_shots)
 
     frame_speaker: List[Optional[str]] = [None] * n_frames
     for word in words:
@@ -448,7 +462,9 @@ def build_speaker_activity(
         for frame_index in range(lo, hi):
             frame_speaker[frame_index] = str(speaker)
 
-    speaking = np.array([s is not None for s in frame_speaker]) & usable
+    has_speaker = np.array([s is not None for s in frame_speaker])
+    speaking = has_speaker & usable
+    baseline_speaking = has_speaker & baseline_usable
     if speaking.sum() < MIN_SPEAKER_SAMPLE_FRAMES:
         return {}
     talk_counts: Dict[str, int] = {}
@@ -466,10 +482,109 @@ def build_speaker_activity(
         mask = speaking & np.array([s == speaker for s in frame_speaker])
         row: List[float] = []
         for values in series:
-            baseline = float(values[speaking].mean())
+            baseline = float(values[baseline_speaking].mean()) if baseline_speaking.any() else 0.0
             row.append(float(values[mask].mean()) / baseline if baseline > 1e-6 else 1.0)
         activity[speaker] = row
     return activity
+
+
+def shot_contradicts_mapping(
+    analysis: Dict[str, Any],
+    clusters: Sequence[Dict[str, float]],
+    words: Sequence[Dict[str, Any]],
+    shot: Tuple[float, float],
+    wide_shots: Sequence[Tuple[float, float]],
+    scene_cuts: Sequence[float],
+    mapping: Dict[str, int],
+) -> bool:
+    """Whether a wide shot's own mouth activity disagrees with the mapping.
+
+    Catches a reverse angle that swaps the guests' sides while faces still sit
+    at the clustered positions: there, a speaker's mapped face moves clearly
+    less than another face while they talk. Shots with too little speech to
+    judge are kept.
+    """
+    activity = build_speaker_activity(
+        analysis, clusters, words, [shot], scene_cuts, baseline_shots=wide_shots
+    )
+    for speaker, row in activity.items():
+        if speaker not in mapping or len(row) < 2:
+            continue
+        own = row[mapping[speaker]]
+        best_other = max(value for index, value in enumerate(row) if index != mapping[speaker])
+        if best_other - own >= SHOT_CONTRADICTION_MARGIN:
+            return True
+    return False
+
+
+def shot_trajectory_pieces(
+    face_samples: Sequence[Tuple[float, List[Tuple[float, float, float, float]]]],
+    shot: Tuple[float, float],
+    width: int,
+    height: int,
+    crop_w: int,
+) -> Optional[List[Tuple[float, float, float, float]]]:
+    """Smoothly tracked crop for a single-face shot whose subject moves.
+
+    Reuses the default tracker (``build_crop_trajectory``) on the shot's
+    dominant face. Returns linear pieces (start, end, x0, x1) covering the
+    shot, or None when the subject is still enough for a static crop.
+    """
+    from .reframing import build_crop_trajectory, trajectory_has_movement
+
+    start, end = shot
+    track: List[Tuple[float, Optional[float], float]] = []
+    for t, faces in face_samples:
+        if not start <= t < end:
+            continue
+        if faces:
+            x, _, w, h = max(faces, key=lambda f: f[2] * f[3])
+            track.append((t, x + w / 2, (w * h) / float(max(1, width * height))))
+        else:
+            track.append((t, None, 0.0))
+    keys = build_crop_trajectory(track, width, crop_w) if len(track) >= 3 else []
+    if not keys or not trajectory_has_movement(keys, crop_w):
+        return None
+    keys = [(min(max(t, start), end), x) for t, x in keys]
+    keys[0] = (start, keys[0][1])
+    pieces: List[Tuple[float, float, float, float]] = []
+    for (t0, x0), (t1, x1) in zip(keys, keys[1:]):
+        if t1 > t0:
+            pieces.append((t0, t1, float(x0), float(x1)))
+    if keys[-1][0] < end:
+        pieces.append((keys[-1][0], end, float(keys[-1][1]), float(keys[-1][1])))
+    return pieces or None
+
+
+def apply_tracked_shots(
+    segments: Sequence[Tuple[float, float, int]],
+    tracked: Dict[Tuple[float, float], List[Tuple[float, float, float, float]]],
+) -> List[Tuple[float, float, float, float]]:
+    """Turn constant segments into linear pieces, swapping in the tracked
+    trajectory wherever a segment overlaps a tracked single-face shot."""
+    pieces: List[Tuple[float, float, float, float]] = []
+    for a, b, x in segments:
+        cursor = a
+        for (shot_start, shot_end), shot_pieces in sorted(tracked.items()):
+            lo, hi = max(a, shot_start), min(b, shot_end)
+            if hi <= lo:
+                continue
+            if lo > cursor:
+                pieces.append((cursor, lo, float(x), float(x)))
+            for p0, p1, x0, x1 in shot_pieces:
+                c0, c1 = max(p0, lo), min(p1, hi)
+                if c1 <= c0:
+                    continue
+                span = p1 - p0
+
+                def at(t: float) -> float:
+                    return x0 + (x1 - x0) * ((t - p0) / span if span > 0 else 0.0)
+
+                pieces.append((c0, c1, at(c0), at(c1)))
+            cursor = hi
+        if b > cursor:
+            pieces.append((cursor, b, float(x), float(x)))
+    return pieces
 
 
 def _snap(value: float, cuts: Sequence[float], window: float) -> float:
@@ -550,20 +665,34 @@ def build_speaker_segments(
     return segments
 
 
-def build_step_x_expression(segments: Sequence[Tuple[float, float, int]]) -> str:
-    """Sum-of-steps crop-x expression producing hard cuts.
+def build_crop_x_expression(pieces: Sequence[Tuple[float, float, float, float]]) -> str:
+    """Crop-x expression from linear pieces (start, end, x_start, x_end).
 
-    ffmpeg's expression parser recurses once per chained operator and rejects
-    roughly 100 terms in a row, so the sum is grouped as a balanced tree:
-    nesting grows with log2(turns) instead of linearly.
+    Each piece is gated by a time window, so constant pieces give hard cuts and
+    sloped ones a tracked pan. ffmpeg's expression parser recurses once per
+    chained operator and rejects roughly 100 terms in a row, so the sum is
+    grouped as a balanced tree: nesting grows with log2(pieces). The result is
+    rounded to an even x for clean chroma subsampling.
     """
-    if not segments:
+    if not pieces:
         return "0"
-    terms = [str(int(segments[0][2]))]
-    for previous, current in zip(segments, segments[1:]):
-        delta = int(current[2]) - int(previous[2])
-        if delta:
-            terms.append(f"{delta}*gte(t\\,{current[0]:.3f})")
+    if len(pieces) == 1 and pieces[0][2] == pieces[0][3]:
+        return str(int(round(pieces[0][2] / 2.0)) * 2)
+
+    terms: List[str] = []
+    last = len(pieces) - 1
+    for index, (a, b, x0, x1) in enumerate(pieces):
+        if index == 0:
+            window = f"(1-gte(t\\,{b:.3f}))"  # also covers ffmpeg's t=NAN init
+        elif index == last:
+            window = f"gte(t\\,{a:.3f})"
+        else:
+            window = f"(gte(t\\,{a:.3f})-gte(t\\,{b:.3f}))"
+        if abs(x1 - x0) < 0.5 or b - a <= 1e-3:
+            value = f"{int(round(x0))}"
+        else:
+            value = f"({x0:.1f}+({x1 - x0:.1f})*(t-{a:.3f})/{b - a:.3f})"
+        terms.append(f"{window}*{value}")
 
     def join(items: List[str]) -> str:
         if len(items) <= 4:
@@ -571,7 +700,15 @@ def build_step_x_expression(segments: Sequence[Tuple[float, float, int]]) -> str
         middle = len(items) // 2
         return f"({join(items[:middle])})+({join(items[middle:])})"
 
-    return join(terms)
+    # ffmpeg evaluates x once with t=NAN while configuring; (t-a) in a sloped
+    # piece would make the whole sum NaN, so answer with the first x there.
+    first_x = int(round(pieces[0][2] / 2.0)) * 2
+    return f"if(isnan(t)\\,{first_x}\\,trunc(({join(terms)})/2)*2)"
+
+
+def build_step_x_expression(segments: Sequence[Tuple[float, float, int]]) -> str:
+    """Hard-cut crop-x expression for constant segments (start, end, x)."""
+    return build_crop_x_expression([(a, b, float(x), float(x)) for a, b, x in segments])
 
 
 def build_speaker_crop_chain(
@@ -630,6 +767,20 @@ def build_speaker_crop_chain(
             for rate in wide_shot_cluster_hits(face_samples, shot, mapped, crop_w)
         )
     ]
+    # Mapping is pooled over all wide shots; drop shots whose own activity
+    # contradicts it (e.g. a reverse angle that swaps the guests' sides).
+    validated = [
+        shot for shot in wide_shots
+        if not shot_contradicts_mapping(
+            analysis, clusters, words, shot, wide_shots, scene_cuts, mapping
+        )
+    ]
+    if len(validated) < len(wide_shots):
+        logger.info(
+            "Speaker framing: %d wide shot(s) contradict the mapping; using face crops there",
+            len(wide_shots) - len(validated),
+        )
+    wide_shots = validated
     if not wide_shots:
         return None
 
@@ -653,11 +804,22 @@ def build_speaker_crop_chain(
     )
     if len(segments) < 2:
         return None
+    # Shots without speaker cuts keep the default smooth face tracking when
+    # their subject moves, instead of a single static crop.
+    tracked: Dict[Tuple[float, float], List[Tuple[float, float, float, float]]] = {}
+    for shot in shots:
+        if shot in wide_shots:
+            continue
+        shot_pieces = shot_trajectory_pieces(face_samples, shot, width, height, crop_w)
+        if shot_pieces:
+            tracked[shot] = shot_pieces
+    pieces = apply_tracked_shots(segments, tracked)
     logger.info(
-        "Speaker framing: %d speaker(s) mapped to faces, %d framing segment(s)",
-        len(mapping), len(segments),
+        "Speaker framing: %d speaker(s) mapped to faces, %d framing segment(s), "
+        "%d tracked shot(s)",
+        len(mapping), len(segments), len(tracked),
     )
     return (
-        f"crop={crop_w}:{crop_h}:x='{build_step_x_expression(segments)}':y=0,"
+        f"crop={crop_w}:{crop_h}:x='{build_crop_x_expression(pieces)}':y=0,"
         f"{VERTICAL_SCALE_CHAIN}"
     )
