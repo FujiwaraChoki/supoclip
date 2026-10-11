@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { CreatorOfferBanner } from "@/components/marketing/creator-offer-banner";
+import { Announcements } from "@/components/announcements";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -406,6 +407,7 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-2 gap-16 lg:gap-20 items-center">
             {/* Left: Text */}
             <div>
+              <div className="mb-4"><Announcements landing /></div>
               <Badge
                 variant="secondary"
                 className="mb-6 gap-2"

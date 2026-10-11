@@ -15,6 +15,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Announcements managed by admins without a frontend deployment.
+model Announcement {
+  id          String   @id @default(uuid())
+  title       String   @db.VarChar(120)
+  description String   @db.VarChar(2000)
+  href        String   @db.VarChar(500)
+  action      String   @db.VarChar(80)
+  isPublished Boolean  @default(false) @map("is_published")
+  publishedAt DateTime @default(now()) @map("published_at") @db.Timestamptz
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([isPublished, publishedAt])
+  @@map("announcements")
+}
+
 // Better Auth User model with backend compatibility
 model User {
   id            String    @id @default(uuid())

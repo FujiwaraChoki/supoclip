@@ -14,6 +14,7 @@ import { formatBillingPlanName } from "@/lib/billing-plans";
 import { getUpgradeState } from "@/components/billing/upgrade-prompt";
 import { fetchGenerations, timeAgo, type GenerationSummary } from "@/lib/generations";
 import { StatusBadge } from "@/components/app/status-badge";
+import { Announcements } from "@/components/announcements";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Kbd } from "@/components/ui/kbd";
@@ -109,6 +110,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </button>
 
         <div className="mt-auto w-full space-y-2 pb-3">
+          <Announcements key={user.id} userId={user.id} compact={compact} />
           {!compact && billing?.monetization_enabled && <UsageCard billing={billing} />}
           <UserRow compact={compact} name={user.name} email={user.email} />
         </div>
@@ -119,9 +121,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" className="flex items-center gap-2 font-display text-lg font-bold tracking-tight">
             <Image src="/logo.png" alt="" width={22} height={22} className="size-[22px]" />SupoClip
           </Link>
-          <button type="button" onClick={() => setPaletteOpen(true)} aria-label="Search generations" className="rounded-lg p-2 text-muted-foreground hover:bg-accent">
-            <Search className="size-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <Announcements key={user.id} userId={user.id} compact />
+            <button type="button" onClick={() => setPaletteOpen(true)} aria-label="Search generations" className="rounded-lg p-2 text-muted-foreground hover:bg-accent">
+              <Search className="size-5" />
+            </button>
+          </div>
         </header> : null}
         {children}
       </div>
