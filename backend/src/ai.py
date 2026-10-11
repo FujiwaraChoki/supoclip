@@ -1173,11 +1173,15 @@ def dedupe_overlapping_segments(
     return [segment for segment, _ in kept]
 
 
-def max_final_clips_for_duration(source_seconds: float) -> int:
-    """Scale the clip budget with source length (about one clip per 5 minutes)."""
+def max_final_clips_for_duration(
+    source_seconds: float, max_clips: int = MAX_FINAL_CLIPS
+) -> int:
+    """Scale the clip budget with source length (about one clip per 5 minutes),
+    never above ``max_clips`` (the configured MAX_CLIPS)."""
+    ceiling = max(1, min(MAX_FINAL_CLIPS, max_clips))
     return max(
-        MIN_FINAL_CLIPS,
-        min(MAX_FINAL_CLIPS, math.ceil(max(0.0, source_seconds) / SECONDS_PER_FINAL_CLIP)),
+        min(MIN_FINAL_CLIPS, ceiling),
+        min(ceiling, math.ceil(max(0.0, source_seconds) / SECONDS_PER_FINAL_CLIP)),
     )
 
 
@@ -1558,7 +1562,9 @@ async def get_most_relevant_parts_by_transcript(
         source_seconds = max(
             (line["end_seconds"] for line in transcript_lines), default=0
         )
-        validated_segments = candidates[: max_final_clips_for_duration(source_seconds)]
+        validated_segments = candidates[
+            : max_final_clips_for_duration(source_seconds, get_config().max_clips)
+        ]
 
         broll_opportunities = None
         if include_broll:

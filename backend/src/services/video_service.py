@@ -597,8 +597,10 @@ class VideoService:
                 )
                 segments_json.append(segment_payload)
 
+            clip_limit = runtime_config.max_clips
             if processing_mode == "fast":
-                segments_json = segments_json[: runtime_config.fast_mode_max_clips]
+                clip_limit = min(clip_limit, runtime_config.fast_mode_max_clips)
+            segments_json = segments_json[: max(1, clip_limit)]
 
             if not segments_json:
                 logger.warning(

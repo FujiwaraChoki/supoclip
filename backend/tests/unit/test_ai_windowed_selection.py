@@ -300,3 +300,11 @@ async def test_hook_times_survive_windowing_snapping_and_rerank(monkeypatch):
     assert (by_start["00:30"].hook_start_time, by_start["00:30"].hook_end_time) == ("00:45", "00:49")
     assert (by_start["12:00"].hook_start_time, by_start["12:00"].hook_end_time) == (None, None)
     assert (by_start["20:30"].hook_start_time, by_start["20:30"].hook_end_time) == ("20:50", "20:54")
+
+
+@pytest.mark.parametrize(
+    ("seconds", "max_clips", "expected"),
+    [(5 * 60, 10, 5), (45 * 60, 10, 9), (90 * 60, 10, 10), (200 * 60, 10, 10), (90 * 60, 3, 3)],
+)
+def test_final_clip_cap_respects_max_clips(seconds, max_clips, expected):
+    assert ai.max_final_clips_for_duration(seconds, max_clips) == expected

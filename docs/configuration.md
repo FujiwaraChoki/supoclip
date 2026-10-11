@@ -83,14 +83,14 @@ These settings affect clip generation speed, throughput, and defaults.
 | Variable | Default | Purpose |
 |---|---|---|
 | `DEFAULT_PROCESSING_MODE` | `fast` | Default mode for new tasks |
-| `FAST_MODE_MAX_CLIPS` | `4` | Clip cap used by fast mode |
+| `FAST_MODE_MAX_CLIPS` | `10` | Clip cap used by fast mode (never above `MAX_CLIPS`) |
 | `FAST_MODE_TRANSCRIPT_MODEL` | `nano` | Lightweight transcript path for fast mode |
 | `WHISPER_MODEL_SIZE` | `medium` in `.env.example` | Whisper model size when Whisper is used locally |
 | `QUEUED_TASK_TIMEOUT_SECONDS` | `180` | Marks stale queued tasks as failed instead of leaving them stuck forever |
 | `MAX_VIDEO_DURATION` | `5400` | Maximum accepted upload length and baseline YouTube length in seconds |
 | `PRO_YOUTUBE_MAX_VIDEO_DURATION` | `5400` | Maximum YouTube length for active or trialing Pro subscriptions, in seconds |
 | `SCALE_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum YouTube length for active or trialing Scale subscriptions, in seconds |
-| `MAX_CLIPS` | `10` | Upper bound used by backend logic |
+| `MAX_CLIPS` | `10` | Hard cap on clips per task in every processing mode |
 | `CLIP_DURATION` | `30` | Default clip duration target in seconds |
 
 ### Processing modes
