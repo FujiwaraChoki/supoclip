@@ -418,6 +418,9 @@ class TaskService(ClipEditingMixin):
                 perf_counter() - render_start, 3
             )
 
+            if not clip_ids:
+                raise ValueError("No clips could be rendered. Please try again.")
+
             # A cancellation committed after the final render must win over completion.
             await check_cancelled()
             completed = await self.task_repo.update_task_status(
@@ -505,6 +508,11 @@ class TaskService(ClipEditingMixin):
                 completed_at=datetime.utcnow(),
                 error_code=error_code,
             )
+            if progress_callback:
+                try:
+                    await progress_callback(0, str(e), "error")
+                except Exception:
+                    logger.exception("Could not publish task failure for %s", task_id)
             raise
 
     async def _send_completion_notification_if_needed(
