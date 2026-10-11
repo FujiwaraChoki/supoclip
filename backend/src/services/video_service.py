@@ -29,7 +29,9 @@ from ..video_utils import (
     build_keep_ranges_from_source_ranges,
     build_clip_signal_summary,
     apply_segment_hook_teaser,
-    snap_keep_ranges_to_sentences,
+    extend_keep_ranges_to_sentence_boundary,
+    keep_ranges_transcript_text,
+    snap_clip_start_to_sentence,
     seconds_to_mmss,
     get_transcript_text_in_range,
 )
@@ -288,15 +290,22 @@ class VideoService:
                     cleanup_settings,
                 )
             else:
+                start_seconds = snap_clip_start_to_sentence(
+                    video_path, start_seconds, end_seconds
+                )
                 keep_ranges = build_clip_keep_ranges(
                     video_path,
                     start_seconds,
                     end_seconds,
                     cleanup_settings,
                 )
-            keep_ranges = snap_keep_ranges_to_sentences(video_path, keep_ranges)
+            keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
+            clip_text = segment.get("text", "")
             if not provided_keep_ranges and not source_ranges:
+                body_ranges = keep_ranges
                 keep_ranges = apply_segment_hook_teaser(video_path, keep_ranges, segment)
+                if len(keep_ranges) > len(body_ranges):
+                    clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
 
             success = await run_in_thread(
                 create_optimized_clip,
@@ -330,7 +339,7 @@ class VideoService:
                 "start_time": segment["start_time"],
                 "end_time": segment["end_time"],
                 "duration": cleaned_duration,
-                "text": segment.get("text", ""),
+                "text": clip_text,
                 "relevance_score": segment.get("relevance_score", 0.0),
                 "reasoning": segment.get("reasoning", ""),
                 "virality_score": segment.get("virality_score", 0),

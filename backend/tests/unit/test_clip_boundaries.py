@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src import ai
+from src import ai, video_utils
 from src.clip_source_map import (
     load_clip_source_ranges,
     save_clip_source_ranges,
@@ -125,11 +125,110 @@ def test_start_snapping_moves_body_not_teaser(video_path):
     assert ranges[1] == (pytest.approx(11.9), 32.0)
 
 
-def test_snap_to_sentences_also_extends_end(video_path):
+def _render_segments(video_path, tmp_path, monkeypatch, segment, cleanup=None):
+    rendered = []
+
+    def fake_create(video, start, end, output_path, *args, **kwargs):
+        rendered.append(args[6])  # keep_ranges
+        return True
+
+    monkeypatch.setattr(video_utils, "create_optimized_clip", fake_create)
+    monkeypatch.setattr(
+        timeline, "get_config", lambda: SimpleNamespace(hook_first_teaser=True)
+    )
     with patch("src.media.timeline.ffprobe_duration", return_value=60.0):
-        ranges = timeline.snap_keep_ranges_to_sentences(video_path, [(10.0, 31.0)])
-    assert ranges[0][0] == pytest.approx(10.6)
-    assert ranges[0][1] == pytest.approx(32.55)
+        infos = video_utils.create_clips_from_segments(
+            video_path,
+            [
+                {
+                    "start_time": "00:10",
+                    "end_time": "00:31",
+                    "text": "body text",
+                    "relevance_score": 0.8,
+                    "reasoning": "",
+                    **segment,
+                }
+            ],
+            tmp_path / "clips",
+            cleanup_settings=cleanup,
+        )
+    return infos[0], rendered[0]
+
+
+def test_clip_creation_snaps_start_and_extends_end(video_path, tmp_path, monkeypatch):
+    info, ranges = _render_segments(video_path, tmp_path, monkeypatch, {})
+    assert ranges == [(pytest.approx(10.6), pytest.approx(32.55))]
+    assert info["keep_ranges"] == ranges
+    assert info["text"] == "body text"
+
+
+def test_clip_creation_teaser_comes_first_with_matching_text(
+    video_path, tmp_path, monkeypatch
+):
+    info, ranges = _render_segments(
+        video_path,
+        tmp_path,
+        monkeypatch,
+        {"hook_start_time": "00:20", "hook_end_time": "00:21"},
+    )
+    assert ranges[0] == (pytest.approx(19.92), pytest.approx(21.85))
+    assert ranges[1][0] == pytest.approx(10.6)
+    assert info["text"].startswith("I lost forty thousand dollars. So here is the thing.")
+    assert info["text"].endswith("And that changed everything for me.")
+
+
+def test_start_is_snapped_before_cleanup_so_removed_filler_stays_out(
+    tmp_path, monkeypatch
+):
+    video = tmp_path / "filler.mp4"
+    video.with_suffix(".transcript_cache.json").write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "utterances": [],
+                "words": _words(
+                    ("Okay.", 9.0, 9.4),
+                    ("um", 10.05, 10.3),
+                    ("so", 10.4, 10.6),
+                    ("this", 10.6, 10.9),
+                    ("works.", 10.9, 31.0),
+                ),
+            }
+        ),
+        encoding="utf-8",
+    )
+    _, ranges = _render_segments(
+        video, tmp_path, monkeypatch, {}, cleanup={"remove_filler_words": True}
+    )
+    assert ranges[0][0] == pytest.approx(10.3)
+
+
+def test_supplied_ranges_are_not_start_snapped(video_path, tmp_path):
+    captured = []
+
+    def fake_render(video, ranges, output):
+        captured.append(ranges)
+        return False
+
+    with patch.object(video_utils, "render_source_ranges_ffmpeg", fake_render), patch(
+        "src.media.timeline.ffprobe_duration", return_value=60.0
+    ):
+        video_utils.create_optimized_clip(
+            video_path, 13.0, 32.0, tmp_path / "out.mp4", keep_ranges=[(13.0, 32.0)]
+        )
+        video_utils.create_optimized_clip(video_path, 13.0, 32.0, tmp_path / "out.mp4")
+    assert captured[0][0][0] == 13.0
+    assert captured[1][0][0] == pytest.approx(11.9)
+
+
+def test_teaser_keeps_cleanup_cuts(video_path):
+    body = [(10.6, 20.45), (20.6, 32.55)]
+    ranges = timeline.add_hook_teaser_to_keep_ranges(video_path, body, 20.0, 21.0)
+    assert ranges[:2] == [
+        (pytest.approx(19.92), 20.45),
+        (20.6, pytest.approx(21.85)),
+    ]
+    assert ranges[2:] == body
 
 
 def test_teaser_is_word_aligned_and_played_first(video_path):

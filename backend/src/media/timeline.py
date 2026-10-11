@@ -220,13 +220,21 @@ def snap_keep_ranges_to_sentence_start(
     return snapped
 
 
-def snap_keep_ranges_to_sentences(
+def snap_clip_start_to_sentence(
+    video_path: Path, clip_start: float, clip_end: float
+) -> float:
+    """Sentence-aligned start for raw AI clip bounds (snap before cleanup)."""
+    snapped = snap_keep_ranges_to_sentence_start(video_path, [(clip_start, clip_end)])
+    return snapped[0][0] if snapped else clip_start
+
+
+def keep_ranges_transcript_text(
     video_path: Path, keep_ranges: List[Tuple[float, float]]
-) -> List[Tuple[float, float]]:
-    """Open on a sentence start and end on a sentence end."""
-    return extend_keep_ranges_to_sentence_boundary(
-        video_path, snap_keep_ranges_to_sentence_start(video_path, keep_ranges)
-    )
+) -> str:
+    """Spoken text of the rendered timeline, in play order."""
+    transcript_data = load_cached_transcript_data(video_path)
+    words = get_words_for_keep_ranges(transcript_data, keep_ranges)
+    return _join_transcript_tokens([str(word["text"]) for word in words])
 
 
 def build_hook_teaser_range(
@@ -330,8 +338,18 @@ def add_hook_teaser_to_keep_ranges(
     )
     if not teaser:
         return normalized
-    logger.info("Adding %.1fs hook teaser from %.2fs", teaser[1] - teaser[0], teaser[0])
-    return [teaser, *normalized]
+
+    # Keep cleanup cuts (pauses, filler words) inside the teaser too.
+    teaser_ranges = [
+        (max(teaser[0], start), min(teaser[1], end))
+        for start, end in normalized
+        if min(teaser[1], end) - max(teaser[0], start) >= 0.12
+    ]
+    teaser_duration = sum(end - start for start, end in teaser_ranges)
+    if teaser_duration < HOOK_TEASER_MIN_SECONDS:
+        return normalized
+    logger.info("Adding %.1fs hook teaser from %.2fs", teaser_duration, teaser[0])
+    return [*teaser_ranges, *normalized]
 
 
 def _parse_hook_label(value: Any) -> Optional[float]:

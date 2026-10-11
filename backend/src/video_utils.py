@@ -39,8 +39,9 @@ from .media.timeline import (
     build_keep_ranges_from_source_ranges,
     extend_keep_ranges_to_sentence_boundary,
     parse_timestamp_to_seconds,
+    keep_ranges_transcript_text,
+    snap_clip_start_to_sentence,
     snap_keep_ranges_to_sentence_start,
-    snap_keep_ranges_to_sentences,
 )
 from .media.captions import (
     ass_fonts_dir,
@@ -269,7 +270,13 @@ def create_optimized_clip(
                 if min(end_time, end) - max(start_time, start) > 0.05
             ]
         if extend_to_sentence:
-            effective_keep_ranges = snap_keep_ranges_to_sentences(
+            if not keep_ranges:
+                # Only raw bounds are snapped; supplied ranges may carry
+                # cleanup cuts or manual trims that must not be undone.
+                effective_keep_ranges = snap_keep_ranges_to_sentence_start(
+                    video_path, effective_keep_ranges,
+                )
+            effective_keep_ranges = extend_keep_ranges_to_sentence_boundary(
                 video_path, effective_keep_ranges,
             )
         duration = sum(end - start for start, end in effective_keep_ranges)
@@ -440,12 +447,19 @@ def create_clips_from_segments(
                     cleanup_settings,
                 )
             else:
+                start_seconds = snap_clip_start_to_sentence(
+                    video_path, start_seconds, end_seconds
+                )
                 keep_ranges = build_clip_keep_ranges(
                     video_path, start_seconds, end_seconds, cleanup_settings
                 )
-            keep_ranges = snap_keep_ranges_to_sentences(video_path, keep_ranges)
+            keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
+            clip_text = segment["text"]
             if not provided_keep_ranges and not provided_source_ranges:
+                body_ranges = keep_ranges
                 keep_ranges = apply_segment_hook_teaser(video_path, keep_ranges, segment)
+                if len(keep_ranges) > len(body_ranges):
+                    clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
 
             success = create_optimized_clip(
                 video_path,
@@ -472,7 +486,7 @@ def create_clips_from_segments(
                     "start_time": segment["start_time"],
                     "end_time": segment["end_time"],
                     "duration": cleaned_duration,
-                    "text": segment["text"],
+                    "text": clip_text,
                     "relevance_score": segment["relevance_score"],
                     "reasoning": segment["reasoning"],
                     # Include virality data if available
