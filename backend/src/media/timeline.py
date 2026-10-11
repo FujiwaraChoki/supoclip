@@ -426,7 +426,8 @@ def parse_transcript_lines(transcript: str) -> List[Dict[str, Any]]:
     """Parse formatted transcript lines into timestamped records."""
     lines: List[Dict[str, Any]] = []
     pattern = re.compile(
-        r"^\[(?P<start>\d{1,3}:\d{2})\s*-\s*(?P<end>\d{1,3}:\d{2})\]\s*(?P<text>.*)$"
+        r"^\[(?P<start>\d{1,3}:\d{2}(?::\d{2})?)\s*-\s*"
+        r"(?P<end>\d{1,3}:\d{2}(?::\d{2})?)\]\s*(?P<text>.*)$"
     )
     for raw_line in transcript.splitlines():
         match = pattern.match(raw_line.strip())
