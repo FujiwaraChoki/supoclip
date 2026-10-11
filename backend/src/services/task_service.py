@@ -247,7 +247,7 @@ class TaskService(ClipEditingMixin):
             started = await self.task_repo.update_task_status(
                 self.db, task_id, "processing", progress=0,
                 progress_message="Starting...",
-                expected_statuses=["queued", "processing", "error", "completed"],
+                expected_statuses=["queued", "processing"],
             )
             if started is False:
                 raise TaskCancelled()

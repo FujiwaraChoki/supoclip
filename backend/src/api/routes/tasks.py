@@ -323,22 +323,23 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
     try:
+        billing_service = BillingService(db)
+        billing = await billing_service.assert_can_create_task(user_id)
+
+        task_service = TaskService(db)
+
+        source_type = task_service.video_service.determine_source_type(raw_source["url"])
+        source_title = raw_source.get("title")
+        if source_type == "youtube":
+            metadata = await _preflight_youtube_source(
+                raw_source["url"], billing["max_youtube_duration_seconds"]
+            )
+            source_title = source_title or metadata.get("title") or "YouTube Video"
+
         async with generation_allowance_guard(
             db, user_id, enabled=runtime_config.monetization_enabled
         ):
-            billing_service = BillingService(db)
-            billing = await billing_service.assert_can_create_task(user_id)
-
-            task_service = TaskService(db)
-
-            source_type = task_service.video_service.determine_source_type(raw_source["url"])
-            source_title = raw_source.get("title")
-            if source_type == "youtube":
-                metadata = await _preflight_youtube_source(
-                    raw_source["url"], billing["max_youtube_duration_seconds"]
-                )
-                source_title = source_title or metadata.get("title") or "YouTube Video"
-
+            await billing_service.assert_can_create_task(user_id)
             # Create task
             task_id = await task_service.create_task_with_source(
                 user_id=user_id,
@@ -393,7 +394,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             }
 
     except GenerationAllowanceBusy as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e), headers={"Retry-After": "1"})
     except HTTPException:
         raise
     except ValueError as e:
@@ -1196,7 +1197,7 @@ async def resume_task(
 
                 return {"message": "Task resumed", "job_id": job_id}
     except GenerationAllowanceBusy as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=409, detail=str(e), headers={"Retry-After": "1"})
     except BillingLimitExceeded as e:
         raise HTTPException(
             status_code=402,

@@ -16,6 +16,9 @@ async def generation_allowance_guard(db, user_id: str, *, enabled: bool):
         yield
         return
 
+    # Admission starts after read-only authentication/source queries. Release
+    # their connection before taking a separate session lock.
+    await db.close()
     connection = await db.bind.connect()
     try:
         locked = await connection.scalar(
@@ -28,7 +31,14 @@ async def generation_allowance_guard(db, user_id: str, *, enabled: bool):
                 "Another generation request is in progress. Please retry shortly."
             )
         yield
-    finally:
-        # Session locks must never return to the pool, including on cancellation.
+        await connection.scalar(
+            text("SELECT pg_advisory_unlock(hashtextextended(:user_id, 913462))"),
+            {"user_id": user_id},
+        )
+        await connection.commit()
+    except BaseException:
+        # Close the physical connection if explicit unlock cannot be confirmed.
         await connection.invalidate()
+        raise
+    finally:
         await connection.close()
