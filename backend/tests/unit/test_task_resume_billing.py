@@ -23,6 +23,7 @@ def resume_context(monkeypatch):
     )
     monkeypatch.setattr(tasks, "TaskService", lambda _db: SimpleNamespace(task_repo=repo))
     monkeypatch.setattr(tasks, "_require_task_owner", AsyncMock(return_value=task))
+    monkeypatch.setattr(tasks, "_save_task_source_metadata", AsyncMock())
     monkeypatch.setattr(tasks, "_load_task_source_metadata", AsyncMock(return_value={}))
 
     @asynccontextmanager
@@ -58,7 +59,7 @@ async def test_allowed_resume_checks_billing_before_reserving_and_enqueueing(res
     events = []
     billing_guard.side_effect = lambda *_args: events.append("billing")
     repo.update_task_status.side_effect = lambda *_args, **_kwargs: events.append("queued")
-    queue.side_effect = lambda *_args: events.append("enqueue") or "job-1"
+    queue.side_effect = lambda *_args, **_kwargs: events.append("enqueue") or "job-1"
     result = await tasks.resume_task("task-1", SimpleNamespace(), db=None)
     assert result["job_id"] == "job-1"
     assert events == ["billing", "queued", "enqueue"]

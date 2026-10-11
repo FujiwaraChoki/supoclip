@@ -356,10 +356,11 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
 
         try:
             # Persist retry options before submitting the job; Redis remains a legacy cache.
+            processing_job_id = f"{task_id}:{secrets.token_hex(16)}"
             await _save_task_source_metadata(
                 task_id,
                 _merge_task_source_metadata(
-                    None,
+                    {"processing_job_id": processing_job_id},
                     source_url=raw_source["url"],
                     source_type=source_type,
                     output_format=output_format,
@@ -386,6 +387,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                 output_format,
                 add_subtitles,
                 cleanup_settings,
+                _job_id=processing_job_id,
             )
 
         except Exception:
@@ -1176,6 +1178,9 @@ async def resume_task(
             )
 
             try:
+                processing_job_id = f"{task_id}:{secrets.token_hex(16)}"
+                metadata["processing_job_id"] = processing_job_id
+                await _save_task_source_metadata(task_id, metadata, db=db)
                 job_id = await JobQueue.enqueue_processing_job(
                     "process_video_task",
                     processing_mode,
@@ -1191,6 +1196,7 @@ async def resume_task(
                     output_format,
                     add_subtitles,
                     cleanup_settings,
+                    _job_id=processing_job_id,
                 )
             except Exception:
                 await task_service.task_repo.update_task_status(

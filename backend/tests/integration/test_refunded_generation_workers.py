@@ -37,12 +37,13 @@ async def test_refunded_error_job_cannot_start_without_explicit_resume(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("heartbeat", [b"healthy", None])
-async def test_polling_old_queue_reservation_only_refunds_when_worker_absent(
-    db_session, initialized_database, tmp_path, monkeypatch, heartbeat
+@pytest.mark.parametrize("job_exists", [True, False])
+async def test_polling_old_queue_reservation_only_refunds_when_job_missing(
+    db_session, initialized_database, tmp_path, monkeypatch, job_exists
 ):
     from src.services.task_service import TaskService
     from src.workers.job_queue import JobQueue
+    from src.repositories.task_repository import TaskRepository
     from tests.integration.test_clip_edit_atomicity import make_task
     from tests.integration.test_processing_cancellation import setup_worker
 
@@ -52,16 +53,17 @@ async def test_polling_old_queue_reservation_only_refunds_when_worker_absent(
         "updated_at=NOW()-INTERVAL '1 hour' WHERE id=:id"
     ), {"id": task_id})
     await db_session.commit()
+    await TaskRepository.save_source_metadata(db_session, task_id, {"processing_job_id": "tracked-job"})
     monkeypatch.setattr(JobQueue, "get_pool", AsyncMock(return_value=SimpleNamespace(
-        get=AsyncMock(return_value=heartbeat)
+        exists=AsyncMock(return_value=job_exists), get=AsyncMock(return_value=b"healthy")
     )))
     service = TaskService(db_session)
     service._load_task_source_settings = AsyncMock(return_value={})
     polled = await service.get_task_with_clips(task_id)
-    assert polled["status"] == ("queued" if heartbeat else "error")
+    assert polled["status"] == ("queued" if job_exists else "error")
     worker, _, _ = setup_worker(db_session, tmp_path, original)
     result = await worker.process_task(task_id, "upload://input.mp4", "upload")
-    if heartbeat:
+    if job_exists:
         worker.video_service.process_video_complete.assert_awaited_once()
         assert (await worker.task_repo.get_task_by_id(db_session, task_id))["status"] == "completed"
     else:
