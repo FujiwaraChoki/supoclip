@@ -630,3 +630,31 @@ async def test_failure_notification_error_preserves_render_failure(tmp_path):
         )
 
     assert service.task_repo.update_task_status.await_args.args[2] == "error"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("heartbeat,redis_error,expected_status", [
+    (b"healthy", False, "queued"), (None, True, "queued"), (None, False, "error"),
+])
+async def test_old_queued_task_keeps_reservation_while_worker_healthy_or_unknown(
+    monkeypatch, heartbeat, redis_error, expected_status
+):
+    from datetime import timedelta
+    from types import SimpleNamespace
+    service = TaskService(db=AsyncMock())
+    now = datetime.now(timezone.utc)
+    task = {"id": "queued-task", "status": "queued", "created_at": now - timedelta(hours=1)}
+    service.task_repo.get_task_by_id = AsyncMock(side_effect=[task, {**task, "status": "error"}])
+    service.task_repo.update_task_status = AsyncMock()
+    service.clip_repo.get_clips_by_task = AsyncMock(return_value=[])
+    service._load_task_source_settings = AsyncMock(return_value={})
+    pool = SimpleNamespace(get=AsyncMock(
+        return_value=heartbeat, side_effect=RuntimeError("Redis down") if redis_error else None
+    ))
+    monkeypatch.setattr(task_service_module.JobQueue, "get_pool", AsyncMock(return_value=pool))
+    result = await service.get_task_with_clips(task["id"])
+    assert result["status"] == expected_status
+    if expected_status == "queued":
+        service.task_repo.update_task_status.assert_not_awaited()
+    else:
+        assert service.task_repo.update_task_status.await_args.kwargs["expected_statuses"] == ["queued"]
