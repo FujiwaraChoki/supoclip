@@ -1160,7 +1160,11 @@ def build_vertical_compositor_filter(
 
 
 def build_vertical_filter_plan(
-    input_path: Path, width: int, height: int
+    input_path: Path,
+    width: int,
+    height: int,
+    speaker_turns: Optional[List[Dict[str, Any]]] = None,
+    speaker_words: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[str, str]:
     """Build the 9:16 reframing filter for the default vertical mode.
 
@@ -1168,6 +1172,8 @@ def build_vertical_filter_plan(
     filter_complex producing [vout]. Talking-head-only clips use the cheap
     tracked crop; clips containing content shots use the scene-aware compositor
     so tweets / graphs / slides are shown in full instead of being cropped.
+    With diarized speaker turns, multi-person wide shots cut to whoever is
+    talking (see ``speaker_framing``); otherwise the dominant face is tracked.
     """
     crop_w, crop_h = compute_vertical_crop_dims(width, height)
     duration = ffprobe_duration(input_path)
@@ -1178,6 +1184,20 @@ def build_vertical_filter_plan(
         sx, sy, sw, sh = detect_optimal_crop_region(input_path, 0, min(duration, 12.0))
         tail = kenburns_zoom_fragment(duration) or "scale=1080:1920:flags=lanczos,setsar=1"
         return (f"crop={sw}:{sh}:{sx}:{sy},{tail}", "vf")
+
+    if speaker_turns and speaker_words:
+        from .speaker_framing import build_speaker_crop_chain
+
+        try:
+            speaker_chain = build_speaker_crop_chain(
+                input_path, width, height, crop_w, crop_h, duration,
+                speaker_turns, speaker_words,
+            )
+        except Exception as exc:
+            logger.warning("Speaker framing failed (%s); tracking dominant face", exc)
+            speaker_chain = None
+        if speaker_chain:
+            return (speaker_chain, "vf")
 
     # One fast decode pass yields both the face track and the scene cuts.
     try:
@@ -1237,6 +1257,8 @@ def render_reframed_clip_ffmpeg(
     output_format: str,
     subtitle_ass_path: Optional[Path] = None,
     fonts_dir: Optional[Path] = None,
+    speaker_turns: Optional[List[Dict[str, Any]]] = None,
+    speaker_words: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[bool, int, int]:
     """Render the final framed clip and (optionally) burn subtitles in one pass.
 
@@ -1316,7 +1338,9 @@ def render_reframed_clip_ffmpeg(
 
     # Default "vertical": scene-aware — tracked crop for face shots, blurred-
     # background full-frame fit for content shots (tweets/graphs/slides).
-    video_filter, mode = build_vertical_filter_plan(input_path, width, height)
+    video_filter, mode = build_vertical_filter_plan(
+        input_path, width, height, speaker_turns, speaker_words
+    )
     if mode == "complex":
         if subs:
             graph = f"{video_filter};[vout]{subs}[v]"

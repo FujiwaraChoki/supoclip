@@ -343,6 +343,7 @@ def get_absolute_words_in_range(
                 "start": overlap_start / 1000.0,
                 "end": overlap_end / 1000.0,
                 "confidence": word_data.get("confidence", 1.0),
+                "speaker": word_data.get("speaker"),
             }
         )
 
@@ -551,6 +552,7 @@ def get_words_for_keep_ranges(
                     "start": timeline_offset + (word["start"] - keep_start),
                     "end": timeline_offset + (word["end"] - keep_start),
                     "confidence": word.get("confidence", 1.0),
+                    "speaker": word.get("speaker"),
                 }
             )
         timeline_offset += keep_end - keep_start

@@ -153,6 +153,8 @@ class Config:
         self.fast_mode_transcript_model = os.getenv(
             "FAST_MODE_TRANSCRIPT_MODEL", "universal"
         )
+        # Cut between speakers on multi-person wide shots using diarization.
+        self.speaker_framing = self._get_bool_env("SPEAKER_FRAMING", True)
 
     def max_youtube_video_duration_for_plan(
         self, plan: str | None, subscription_status: str | None
