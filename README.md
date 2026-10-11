@@ -20,6 +20,10 @@
   <a href="https://apps.apple.com/us/app/supoclip/id6784760040">
     <img src="frontend/public/app-store-badge.svg" alt="Download SupoClip on the App Store" height="40" />
   </a>
+  &nbsp;
+  <a href="https://www.producthunt.com/products/supoclip?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-supoclip" target="_blank" rel="noopener noreferrer">
+    <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1276786&theme=dark" alt="SupoClip on Product Hunt" height="40" />
+  </a>
 </p>
 
 ---
