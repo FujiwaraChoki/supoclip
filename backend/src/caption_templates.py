@@ -46,7 +46,7 @@ CAPTION_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "name": "Hormozi",
         "description": "Bold green highlight with a pill behind the active word",
         "font_family": "THEBOLDFONT",
-        "font_size": 38,
+        "font_size": 32,
         "font_color": "#FFFFFF",
         "highlight_color": "#00FF66",  # Bright green
         "emphasis_color": "#FFE000",
@@ -69,7 +69,7 @@ CAPTION_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "name": "MrBeast",
         "description": "Large yellow text with red pop highlights and emojis",
         "font_family": "THEBOLDFONT",
-        "font_size": 42,
+        "font_size": 34,
         "font_color": "#FFFF00",  # Yellow
         "highlight_color": "#FF2D2D",  # Red
         "emphasis_color": "#FFFFFF",
@@ -114,8 +114,8 @@ CAPTION_TEMPLATES: Dict[str, Dict[str, Any]] = {
     "tiktok": {
         "name": "TikTok",
         "description": "TikTok-style with pink pop highlights",
-        "font_family": "TikTokSans-Regular",
-        "font_size": 34,
+        "font_family": "TikTokSans-Bold",
+        "font_size": 28,
         "font_color": "#FFFFFF",
         "highlight_color": "#FE2C55",  # TikTok pink
         "emphasis_color": "#FE2C55",
@@ -138,7 +138,7 @@ CAPTION_TEMPLATES: Dict[str, Dict[str, Any]] = {
         "name": "Neon",
         "description": "Glowing neon text with magenta highlights",
         "font_family": "THEBOLDFONT",
-        "font_size": 36,
+        "font_size": 30,
         "font_color": "#00FFFF",  # Cyan
         "highlight_color": "#FF00FF",  # Magenta
         "emphasis_color": "#FF00FF",

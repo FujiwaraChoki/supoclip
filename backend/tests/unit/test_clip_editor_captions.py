@@ -67,4 +67,4 @@ def test_overlay_custom_captions_uses_template_and_cached_word_timings(
     assert [word["end"] for word in caption_words] == pytest.approx([0.6, 1.4])
     assert "0:00:00.20" in captured["content"]
     assert "0:00:00.80" in captured["content"]
-    assert ",73," in captured["content"]
+    assert ",62," in captured["content"]

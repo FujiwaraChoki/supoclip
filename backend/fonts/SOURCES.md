@@ -49,3 +49,12 @@ Download sources:
 
 Notes:
 - Arial and Helvetica are not bundled because they are proprietary system fonts, not redistributable Google Fonts files.
+
+## TikTok Sans Bold (static)
+
+`TikTokSans-Bold.ttf` is a static instance of `TikTokSans-Regular.ttf` (the
+variable font, whose default instance is Light/300) pinned at `wght=700,
+wdth=100, opsz=36, slnt=0` with fontTools `varLib.instancer`, renamed to family
+"TikTok Sans" / style "Bold". libass renders a variable font's default instance,
+so captions need the static file to get real bold TikTok Sans.
+Source: https://fonts.google.com/specimen/TikTok+Sans (OFL).
