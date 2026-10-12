@@ -186,7 +186,7 @@ def test_build_assemblyai_ass_subtitles_uses_cached_word_timings(tmp_path):
 
 
 def test_ass_font_name_uses_internal_font_family():
-    assert video_utils.ass_font_name("THEBOLDFONT") == "THE BOLD FONT (FREE VERSION)"
+    assert video_utils.ass_font_name("THEBOLDFONT") == "THE BOLD FONT FREE VERSION"
 
 
 def test_extend_keep_ranges_finishes_nearby_sentence(tmp_path):
@@ -250,7 +250,7 @@ def test_burn_ass_subtitles_passes_fontsdir_to_ffmpeg(tmp_path):
 
 
 def test_ass_font_name_uses_internal_font_family_for_libass():
-    assert video_utils.ass_font_name("THEBOLDFONT") == "THE BOLD FONT (FREE VERSION)"
+    assert video_utils.ass_font_name("THEBOLDFONT") == "THE BOLD FONT FREE VERSION"
 
 
 def test_burn_ass_subtitles_passes_selected_fonts_dir(tmp_path):

@@ -10,6 +10,7 @@ FONTS_DIR = Path(__file__).parent.parent / "fonts"
 USER_FONTS_DIR = FONTS_DIR / "users"
 TTF_NAME_ID_FONT_FAMILY = 1
 TTF_NAME_ID_FULL_NAME = 4
+ASS_UNSAFE_NAME_CHARS = frozenset("(){}\\")
 
 
 def _display_name(font_stem: str) -> str:
@@ -233,12 +234,19 @@ def get_font_family_name(font_path: Path) -> str | None:
                 candidates[name_id].append(decoded)
 
         family_names = list(dict.fromkeys(candidates[TTF_NAME_ID_FONT_FAMILY]))
+        full_names = [name for name in candidates[TTF_NAME_ID_FULL_NAME] if name]
+        # ASS override tags (\fn<name>) end at "(", "{" or "\", so a family like
+        # "THE BOLD FONT (FREE VERSION)" silently falls back to another font.
+        # libass also matches full names, so prefer any tag-safe candidate.
+        for names in (family_names, full_names):
+            safe_names = [name for name in names if not ASS_UNSAFE_NAME_CHARS & set(name)]
+            if safe_names:
+                return min(safe_names, key=len)
+
         if family_names:
             return min(family_names, key=len)
-
-        for candidate in candidates[TTF_NAME_ID_FULL_NAME]:
-            if candidate:
-                return candidate
+        if full_names:
+            return full_names[0]
     except Exception:
         return None
 
