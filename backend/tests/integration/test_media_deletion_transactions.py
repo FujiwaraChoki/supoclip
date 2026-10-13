@@ -87,6 +87,8 @@ async def test_failed_s3_delete_is_retained_for_retry(db_session, media_backend)
     await drain_deletions(db_session, storage)
     assert (await db_session.execute(text("SELECT COUNT(*) FROM media_deletions WHERE file_path = :path"), {"path": reference})).scalar() == 1
     storage.client.delete_object = original_delete
+    await db_session.execute(text("UPDATE media_deletions SET next_attempt_at = NOW()"))
+    await db_session.commit()
     await drain_deletions(db_session, storage)
     assert storage.parse(reference) not in storage.client.objects
     assert (await db_session.execute(text("SELECT COUNT(*) FROM media_deletions WHERE file_path = :path"), {"path": reference})).scalar() == 0
@@ -130,6 +132,10 @@ async def test_s3_playback_checks_ownership_before_signing(client, db_session, m
     assert response.status_code == 307
     assert response.headers["location"] == "https://private-media.test/signed-clip"
     assert response.headers["cache-control"] == "private, no-store"
+    assert signer.call_args.kwargs["Params"]["ResponseContentDisposition"].startswith("inline;")
+    response = await client.get(url + "?download=true", headers=auth_headers)
+    assert response.status_code == 307
+    assert signer.call_args.kwargs["Params"]["ResponseContentDisposition"].startswith("attachment;")
     other = await create_user(db_session)
     other_task = await create_task(db_session, user_id=other["id"], source_id=source["id"], status="completed")
     signer.reset_mock()
@@ -205,3 +211,19 @@ async def test_full_migration_does_not_limit_sources_to_its_last_clip_task(db_se
     for task_id in task_ids:
         record = await TaskService(db_session).task_repo.get_task_by_id(db_session, task_id)
         assert record["source_url"].startswith("upload://s3/")
+
+
+async def test_one_invalid_reference_does_not_block_other_deletions(db_session, media_backend):
+    storage = media_backend
+    bad = "s3://old-bucket/media/clips/orphan/clip.mp4"
+    good = storage.reference(storage.key("clips", "orphan", "upload", "clip.mp4"))
+    storage.client.objects[storage.parse(good)] = b"video"
+    await queue_delete(db_session, bad)
+    await queue_delete(db_session, good)
+    await db_session.commit()
+    await drain_deletions(db_session, storage)
+    assert storage.parse(good) not in storage.client.objects
+    result = (await db_session.execute(text("SELECT file_path, attempts, next_attempt_at > NOW() AS deferred FROM media_deletions"))).one()
+    assert result.file_path == bad
+    assert result.attempts == 1
+    assert result.deferred

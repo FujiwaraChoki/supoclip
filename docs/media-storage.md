@@ -57,6 +57,8 @@ owning user ID. Authorization records the expected size on the multipart object;
 completion verifies the assembled size and the 12 GB limit. The backend also
 checks ownership and object size before admitting a task. Failed browser uploads
 are aborted; bucket lifecycle rules catch uploads abandoned by closing a tab.
+Expired part URLs can be refreshed without restarting the upload. Completion is
+retryable after an interrupted response or a temporary validation request failure.
 
 The existing `/upload` endpoint continues to accept REST/MCP uploads. In S3 mode
 it uploads the temporary incoming file to the bucket and removes the local copy.
@@ -68,6 +70,7 @@ passes that redirect through without following it using backend authentication
 headers. S3 handles playback, range requests and downloads.
 The MCP downloader follows these redirects explicitly, strips backend credentials
 for storage requests, and replaces a local download only after a successful stream.
+Download buttons request an attachment disposition; playback remains inline.
 
 ## Processing and retention
 
@@ -91,11 +94,16 @@ S3. Unused, successfully uploaded local editor videos expire from the cache; dra
 remain available. The API and worker still share `TEMP_DIR` for operational editor
 state, file locks, progress and cancellation. This change does not remove that
 coordination requirement for an installation with multiple hosts.
+Exports become downloadable after rendering and their S3 upload finish. Autosave
+returns the committed local revision even if its snapshot upload fails; the worker
+retries changed draft snapshots. Processing caches keep durable source references,
+and readers of older materialized cache paths also acquire file leases.
 
 Deleting/replacing clips queues their previous files, sidecars and obsolete editor
 directories in PostgreSQL in the same transaction. Deleting a task also queues
 its uploaded source. Every five minutes the worker processes committed deletions,
 checks that no live records still reference the file, and retries failed deletions.
+Individual failures back off without blocking unrelated deletion requests.
 Uploaded sources shared by multiple tasks are removed after the last task is
 deleted. A source lock serializes new S3 task admission with source deletion.
 
@@ -129,7 +137,7 @@ New tasks may rebuild their transcript-analysis cache after the source URL chang
 the uploaded word-timing sidecar is preserved. Check playback, editing and a
 regeneration before allowing the cleanup worker to drain migration deletions.
 
-Rollback the application storage mode to `local` while retaining the S3 bucket and
-reader credentials: existing S3 clip/source references still need them. Restoring a
+Rollback the application storage mode to `local` while retaining the S3 bucket
+configuration and runtime credentials: existing S3 clip/source references still need them. Restoring a
 database backup after local files have been removed requires restoring those files
 or migrating their references again.

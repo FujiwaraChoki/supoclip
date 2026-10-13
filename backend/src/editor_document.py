@@ -340,6 +340,7 @@ def render_document(directory: Path, job_id: str, document: EditDocument, preset
             f"[audio]volume={0 if document.muted else document.volume}[outa]"
         )
     output = directory / f"export-{job_id}.mp4"
+    temporary = directory / f".export-{job_id}.mp4"
     command = [
         "ffmpeg",
         "-y",
@@ -367,7 +368,7 @@ def render_document(directory: Path, job_id: str, document: EditDocument, preset
         "yuv420p",
         "-movflags",
         "+faststart",
-        str(output),
+        str(temporary),
     ]
     try:
         run_render(
@@ -375,8 +376,9 @@ def render_document(directory: Path, job_id: str, document: EditDocument, preset
         )
         if (directory / f"cancel-{job_id}").exists():
             raise InterruptedError("Export cancelled")
+        temporary.replace(output)
     except BaseException:
-        output.unlink(missing_ok=True)
+        temporary.unlink(missing_ok=True)
         raise
     finally:
         ass.unlink(missing_ok=True)

@@ -206,14 +206,15 @@ def test_editor_restore_does_not_reupload_unchanged_media(storage, tmp_path):
     directory.mkdir(parents=True)
     (directory / "clean.mp4").write_bytes(b"editor preview")
     (directory / "draft.json").write_text('{"revision": 1}')
+    (directory / "asset.json").write_text('{"status": "ready"}')
     storage.client.upload_file = Mock(wraps=storage.client.upload_file)
     storage.save_editor(directory)
-    assert storage.client.upload_file.call_count == 2
+    assert storage.client.upload_file.call_count == 3
     (directory / "clean.mp4").unlink()
     (directory / "draft.json").unlink()
     storage.restore_editor(directory, media=True)
     storage.save_editor(directory)
-    assert storage.client.upload_file.call_count == 2
+    assert storage.client.upload_file.call_count == 3
     assert (directory / "clean.mp4").read_bytes() == b"editor preview"
 
 
@@ -242,3 +243,136 @@ def test_orphan_scan_only_queues_individual_render_directories(storage, relative
     storage.client.get_paginator = Mock(return_value=SimpleNamespace(paginate=paginate))
     candidates = list(orphan_candidates(storage))
     assert candidates == ([(storage.reference(str(Path(key).parent)), True)] if expected else [])
+
+
+def test_transient_head_failure_keeps_a_completed_upload_for_retry(storage):
+    storage._client = Mock()
+    storage.client.head_object.side_effect = ClientError({"Error": {"Code": "SlowDown"}}, "HeadObject")
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    payload = {"video_path": url, "uploadId": "multipart", "parts": [{"partNumber": 1, "etag": "etag"}]}
+    with pytest.raises(ClientError):
+        storage.complete_upload("owner", payload)
+    storage.client.delete_object.assert_not_called()
+    storage.client.complete_multipart_upload.side_effect = ClientError({"Error": {"Code": "NoSuchUpload"}}, "CompleteMultipartUpload")
+    storage.client.head_object.side_effect = None
+    storage.client.head_object.return_value = {"ContentLength": 5, "Metadata": {"expected-size": "5"}}
+    assert storage.complete_upload("owner", payload) == {"video_path": url}
+
+
+def test_part_refresh_preserves_owner_boundary_and_accepts_new_credentials(storage):
+    storage._client = Mock()
+    storage.client.generate_presigned_url.return_value = "https://storage/new-signature"
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    payload = {"video_path": url, "uploadId": "multipart", "partNumbers": [2]}
+    with pytest.raises(ValueError, match="belong"):
+        storage.refresh_upload_parts("someone-else", payload)
+    storage.client.generate_presigned_url.assert_not_called()
+    assert storage.refresh_upload_parts("owner", payload)["parts"] == [{"partNumber": 2, "url": "https://storage/new-signature"}]
+    with pytest.raises(ValueError):
+        storage.refresh_upload_parts("owner", {**payload, "partNumbers": [0]})
+
+
+@pytest.mark.parametrize("extension", [".3gp", ".mts", ".mpg", ".wmv"])
+def test_browser_multipart_accepts_common_camera_video_formats(storage, extension):
+    storage._client = Mock()
+    storage.client.create_multipart_upload.return_value = {"UploadId": "multipart"}
+    result = storage.begin_upload("owner", "camera" + extension, 10, "video/example")
+    assert result["video_path"].endswith(extension)
+
+
+def test_caption_reads_cache_absence_and_do_not_fetch_transcript_sidecars(storage):
+    reference = storage.reference(storage.key("clips", "task", "upload", "clip.mp4"))
+    storage.client.download_file = Mock(wraps=storage.client.download_file)
+    assert storage.caption_settings(reference) is None
+    assert storage.caption_settings(reference) is None
+    assert storage.client.download_file.call_count == 1
+    storage.client.download_file.side_effect = ClientError({"Error": {"Code": "SlowDown"}}, "GetObject")
+    other = storage.reference(storage.key("clips", "task", "other", "clip.mp4"))
+    assert storage.caption_settings(other) is None
+
+
+def test_editor_snapshot_skips_unfinished_exports_and_restores_only_preview(storage, tmp_path):
+    directory = tmp_path / "editor" / ("c" * 64)
+    directory.mkdir(parents=True)
+    (directory / "asset.json").write_text('{"status": "ready"}')
+    (directory / "clean.mp4").write_bytes(b"preview")
+    job = "d" * 32
+    output = directory / f"export-{job}.mp4"
+    output.write_bytes(b"unfinished")
+    (directory / f"job-{job}.json").write_text('{"status": "rendering"}')
+    storage.save_editor(directory)
+    export_key = storage.parse(storage.editor_reference(directory, output.name))
+    assert export_key not in storage.client.objects
+    output.write_bytes(b"finished")
+    storage.persist_editor_export(directory, job)
+    assert storage.client.objects[export_key] == b"finished"
+    (directory / "clean.mp4").unlink()
+    output.unlink()
+    storage.restore_editor(directory, media=True)
+    assert (directory / "clean.mp4").read_bytes() == b"preview"
+    assert not output.exists()
+    storage.enabled = False
+    (directory / "clean.mp4").unlink()
+    storage.restore_editor(directory, media=True)
+    assert (directory / "clean.mp4").read_bytes() == b"preview"
+
+
+async def test_legacy_cached_path_takes_a_lease_until_last_reader_finishes(storage):
+    key = storage.key("sources", "owner", "upload", "video.mp4")
+    storage.client.objects[key] = b"video"
+    reference = storage.reference(key)
+    available, started, finish = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    paths = []
+
+    @media_work
+    async def reader():
+        await available.wait()
+        path = await asyncio.to_thread(storage.local_path, str(paths[0]))
+        started.set()
+        await finish.wait()
+        assert path.exists()
+
+    @media_work
+    async def first():
+        paths.append(await asyncio.to_thread(storage.local_path, reference))
+        available.set()
+        await started.wait()
+
+    one, two = asyncio.create_task(first()), asyncio.create_task(reader())
+    await one
+    assert paths[0].exists()
+    finish.set()
+    await two
+    assert not paths[0].exists()
+
+
+async def test_cancellation_waits_for_thread_before_releasing_media(storage):
+    import threading
+    from src.utils.async_helpers import run_in_thread
+    key = storage.key("sources", "owner", "upload", "video.mp4")
+    storage.client.objects[key] = b"video"
+    started, finish = threading.Event(), threading.Event()
+    paths = []
+
+    def render():
+        path = storage.local_path(storage.reference(key))
+        paths.append(path)
+        started.set()
+        assert finish.wait(timeout=5)
+        assert path.exists()
+
+    @media_work
+    async def operation():
+        await run_in_thread(render)
+
+    task = asyncio.create_task(operation())
+    await asyncio.to_thread(started.wait, 5)
+    assert started.is_set()
+    task.cancel()
+    await asyncio.sleep(0)
+    assert paths[0].exists()
+    assert not task.done()
+    finish.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert not paths[0].exists()

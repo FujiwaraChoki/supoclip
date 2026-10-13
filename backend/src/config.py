@@ -107,7 +107,7 @@ class Config:
         if self.media_storage not in {"local", "s3"}:
             raise ValueError("MEDIA_STORAGE must be local or s3")
         self.media_s3_bucket = self._get_optional_env("MEDIA_S3_BUCKET")
-        self.media_s3_prefix = os.getenv("MEDIA_S3_PREFIX", "media").strip("/")
+        self.media_s3_prefix = os.getenv("MEDIA_S3_PREFIX", "media").strip().strip("/") or "media"
         self.media_s3_region = os.getenv("MEDIA_S3_REGION") or os.getenv("AWS_REGION", "eu-north-1")
         self.media_s3_endpoint = self._get_optional_env("MEDIA_S3_ENDPOINT")
         self.media_s3_access_key = self._get_optional_env("MEDIA_S3_ACCESS_KEY_ID")

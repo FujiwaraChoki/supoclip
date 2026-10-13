@@ -471,6 +471,7 @@ async def get_shared_task(share_token: str, db: AsyncSession = Depends(get_db)):
 async def get_shared_clip_file(
     share_token: str,
     clip_id: str,
+    download: bool = False,
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """Serve one shared clip only when the bearer share token is enabled."""
@@ -485,7 +486,7 @@ async def get_shared_clip_file(
 
     if is_s3(clip["file_path"]):
         await db.close()
-        url = await run_in_thread(MediaStorage().signed_url, clip["file_path"], clip["filename"])
+        url = await run_in_thread(MediaStorage().signed_url, clip["file_path"], clip["filename"], attachment=download)
         return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
     clip_path = Path(clip["file_path"])
     if not clip_path.exists():
@@ -495,7 +496,7 @@ async def get_shared_clip_file(
         path=str(clip_path),
         media_type="video/mp4",
         filename=clip["filename"],
-        content_disposition_type="inline",
+        content_disposition_type="attachment" if download else "inline",
         headers={"Cache-Control": "private, no-store"},
     )
 
@@ -752,6 +753,7 @@ async def get_clip_file(
     task_id: str,
     clip_id: str,
     request: Request,
+    download: bool = False,
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
     """Serve a clip file after verifying task ownership."""
@@ -764,7 +766,7 @@ async def get_clip_file(
 
         if is_s3(clip["file_path"]):
             await db.close()
-            url = await run_in_thread(MediaStorage().signed_url, clip["file_path"], clip["filename"])
+            url = await run_in_thread(MediaStorage().signed_url, clip["file_path"], clip["filename"], attachment=download)
             return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
         clip_path = Path(clip["file_path"])
         if not clip_path.exists():
@@ -782,7 +784,7 @@ async def get_clip_file(
             path=str(clip_path),
             media_type="video/mp4",
             filename=clip["filename"],
-            content_disposition_type="inline",
+            content_disposition_type="attachment" if download else "inline",
             headers={"Cache-Control": "private, no-store"},
         )
     except HTTPException:

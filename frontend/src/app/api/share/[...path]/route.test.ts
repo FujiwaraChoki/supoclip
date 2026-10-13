@@ -68,4 +68,17 @@ describe("/api/share/[...path]", () => {
     expect(response.status).toBe(404);
     expect(fetchBackend).not.toHaveBeenCalled();
   });
+
+  it("preserves attachment downloads through a signed storage redirect", async () => {
+    vi.mocked(fetchBackend).mockResolvedValue(new Response(null, {
+      status: 307, headers: { Location: "https://storage.test/signed-download", "Cache-Control": "private, no-store" },
+    }));
+    const response = await GET(new Request("http://localhost/api/share/token/clips/clip/file?download=true&v=123"), {
+      params: Promise.resolve({ path: ["token", "clips", "clip", "file"] }),
+    });
+    expect(fetchBackend).toHaveBeenCalledWith("/tasks/shared/token/clips/clip/file?download=true", expect.anything());
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://storage.test/signed-download");
+  });
+
 });

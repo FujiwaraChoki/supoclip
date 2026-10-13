@@ -14,7 +14,7 @@ from src.editor_document import EditDocument, atomic_json, editor_dir
 @pytest.fixture
 async def client(tmp_path, monkeypatch):
     task = {"id": "task", "user_id": "owner", "status": "completed"}
-    clip = {"id": "clip", "task_id": "task", "filename": "clip.mp4"}
+    clip = {"id": "clip", "task_id": "task", "filename": "clip.mp4", "file_path": str(tmp_path / "clip.mp4")}
     service = SimpleNamespace(
         task_repo=SimpleNamespace(get_task_by_id=AsyncMock(return_value=task)),
         clip_repo=SimpleNamespace(get_clip_by_id=AsyncMock(return_value=clip)),
@@ -129,3 +129,15 @@ async def test_failed_enqueue_is_retryable(client, monkeypatch):
     assert response.status_code == 503
     state = (await http.get("/tasks/task/clips/clip/editor")).json()
     assert state["jobs"][0]["status"] == "failed"
+
+
+async def test_autosave_returns_new_revision_when_snapshot_sync_is_unavailable(client, monkeypatch):
+    from botocore.exceptions import EndpointConnectionError
+    http, service, doc, directory = client
+    monkeypatch.setattr(editor.MediaStorage, "save_editor", lambda *a, **k: (_ for _ in ()).throw(EndpointConnectionError(endpoint_url="https://storage.test")))
+    payload = {"basis": "clip.mp4", "revision": 0, "document": doc}
+    saved = await http.patch("/tasks/task/clips/clip/editor", json=payload)
+    assert saved.status_code == 200
+    assert saved.json()["revision"] == 1
+    payload["revision"] = 1
+    assert (await http.patch("/tasks/task/clips/clip/editor", json=payload)).json()["revision"] == 2

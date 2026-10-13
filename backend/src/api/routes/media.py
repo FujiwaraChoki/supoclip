@@ -356,6 +356,15 @@ async def authorize_upload(request: Request, db: AsyncSession = Depends(get_db))
         raise HTTPException(400, str(exc)) from None
 
 
+@router.post("/upload/parts")
+async def refresh_upload_parts(request: Request, db: AsyncSession = Depends(get_db)):
+    user_id = await _get_authenticated_user_id(request, db)
+    try:
+        return await run_in_thread(MediaStorage().refresh_upload_parts, user_id, await request.json())
+    except (ValueError, TypeError, AttributeError, KeyError) as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
 @router.post("/upload/complete")
 async def complete_upload(request: Request, db: AsyncSession = Depends(get_db)):
     user_id = await _get_authenticated_user_id(request, db)

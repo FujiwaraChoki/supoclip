@@ -129,3 +129,17 @@ async def test_prepare_failure_is_recoverable(tmp_path, monkeypatch):
     await prepare_editor({}, "task", "missing", "missing.mp4")
     state = read_state(editor_dir(str(tmp_path), "task", "missing", "missing.mp4"))
     assert state["status"] == "failed"
+
+
+async def test_storage_failure_during_prepare_does_not_leave_preparing(tmp_path, monkeypatch):
+    from src.config import Config
+    from src.media_storage import MediaStorage
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    monkeypatch.setattr("src.config.get_config", lambda: config)
+    directory = editor_dir(str(tmp_path), "task", "clip", "clip.mp4")
+    atomic_json(directory / "asset.json", {"status": "preparing"})
+    monkeypatch.setattr(MediaStorage, "restore_editor", lambda *a, **k: (_ for _ in ()).throw(OSError("S3 unavailable")))
+    monkeypatch.setattr(MediaStorage, "save_editor", lambda *a, **k: None)
+    await prepare_editor({}, "task", "clip", "clip.mp4")
+    assert read_state(directory)["status"] == "failed"

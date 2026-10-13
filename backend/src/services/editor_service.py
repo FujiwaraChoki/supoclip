@@ -123,11 +123,11 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
 
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
     storage = MediaStorage()
-    await run_in_thread(storage.restore_editor, directory)
     downloaded_source = None
     source_url = None
     source = None
     try:
+        await run_in_thread(storage.restore_editor, directory)
         async with AsyncSessionLocal() as db:
             service = TaskService(db)
             clip = await service.clip_repo.get_clip_by_id(db, clip_id)
@@ -273,6 +273,7 @@ async def export_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: 
         await run_in_thread(
             render_document, directory, job_id, document, payload["preset"]
         )
+        await run_in_thread(MediaStorage().persist_editor_export, directory, job_id)
         atomic_json(
             directory / f"job-{job_id}.json", {"status": "completed", "progress": 100}
         )
@@ -393,6 +394,10 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             shutil.copy2(work / f"export-{job_id}.mp4", clip_path)
             save_clip_source_ranges(clip_path, ranges)
             metadata = await run_in_thread(make_assets, work)
+            # Finish durable export delivery before committing the new clip.
+            # Cleanup may reclaim clip_path immediately after that commit.
+            shutil.copy2(work / f"export-{job_id}.mp4", directory / f"export-{job_id}.mp4")
+            await run_in_thread(MediaStorage().persist_editor_export, directory, job_id)
             async with AsyncSessionLocal() as db:
                 service = TaskService(db)
                 async with task_edit_transaction(db, task_id):
@@ -435,7 +440,6 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                     atomic_json(destination / "asset.json", metadata)
                     await run_in_thread(MediaStorage().save_editor, destination)
                     await service.clip_repo.reorder_task_clips(db, task_id)
-            shutil.copy2(clip_path, directory / f"export-{job_id}.mp4")
         atomic_json(
             directory / f"job-{job_id}.json",
             {"status": "completed", "progress": 100, "clip_id": new_id},

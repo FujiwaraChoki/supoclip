@@ -124,6 +124,7 @@ export async function uploadVideoFile(file: File): Promise<string> {
 async function uploadVideoFileToS3(file: File, authorization: S3UploadAuthorization): Promise<string> {
   const completedParts: { partNumber: number; etag: string }[] = [];
   const controller = new AbortController();
+  const payload = { video_path: authorization.video_path, uploadId: authorization.uploadId };
   let nextPart = 0;
   let failure: unknown;
   const workers = Array.from({ length: Math.min(3, authorization.parts.length) }, async () => {
@@ -131,15 +132,32 @@ async function uploadVideoFileToS3(file: File, authorization: S3UploadAuthorizat
       const part = authorization.parts[nextPart++];
       try {
         const start = (part.partNumber - 1) * authorization.partSize;
+        let partUrl = part.url;
         let response: Response | undefined;
         for (let attempt = 0; attempt < 3; attempt++) {
           try {
-            response = await fetch(part.url, {
+            response = await fetch(partUrl, {
               method: "PUT",
               body: file.slice(start, Math.min(file.size, start + authorization.partSize)),
               signal: controller.signal,
             });
             if (response.ok) break;
+            if (response.status === 403 && attempt < 2) {
+              // Refresh with current credentials without discarding completed
+              // parts when an upload lasts longer than the signed URL/session.
+              const refreshed = await fetch("/api/upload/parts", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...payload, partNumbers: [part.partNumber] }),
+                signal: controller.signal,
+              });
+              if (!refreshed.ok) throw new Error("Video upload authorization could not be refreshed.");
+              const result = await refreshed.json();
+              const freshPart = result.parts?.find((item: { partNumber: number; url: string }) => item.partNumber === part.partNumber);
+              if (!freshPart?.url) throw new Error("Video upload authorization could not be refreshed.");
+              partUrl = freshPart.url;
+              continue;
+            }
             if (response.status < 500) throw new Error("Video upload failed. Please try again.");
           } catch (error) {
             if (controller.signal.aborted || attempt === 2) throw error;
@@ -157,15 +175,23 @@ async function uploadVideoFileToS3(file: File, authorization: S3UploadAuthorizat
     }
   });
   await Promise.all(workers);
-  const payload = { video_path: authorization.video_path, uploadId: authorization.uploadId };
   try {
     if (failure) throw failure;
-    const response = await fetch("/api/upload/complete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payload, parts: completedParts.sort((a, b) => a.partNumber - b.partNumber) }),
-    });
-    if (!response.ok) {
+    let response: Response | undefined;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        response = await fetch("/api/upload/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...payload, parts: completedParts.sort((a, b) => a.partNumber - b.partNumber) }),
+        });
+        if (response.ok || response.status < 500) break;
+      } catch (error) {
+        if (attempt === 2) throw error;
+      }
+    }
+    if (!response?.ok) {
+      if (!response) throw new Error("Video upload could not be completed.");
       throw new Error(formatSupportMessage(await parseApiError(response, "Video upload could not be completed.")));
     }
     const result = await response.json();

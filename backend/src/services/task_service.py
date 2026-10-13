@@ -348,7 +348,7 @@ class TaskService(ClipEditingMixin):
                     cache_key=cache_key,
                     source_url=url,
                     source_type=source_type,
-                    video_path=result.get("video_path"),
+                    video_path=MediaStorage().source_reference(url) if url.startswith("upload://s3/") else result.get("video_path"),
                     transcript_text=result.get("transcript"),
                     analysis_json=None,
                 )
@@ -361,7 +361,7 @@ class TaskService(ClipEditingMixin):
                 cache_key=cache_key,
                 source_url=url,
                 source_type=source_type,
-                video_path=result.get("video_path"),
+                video_path=MediaStorage().source_reference(url) if url.startswith("upload://s3/") else result.get("video_path"),
                 transcript_text=result.get("transcript"),
                 analysis_json=result.get("analysis_json"),
             )
@@ -662,7 +662,7 @@ class TaskService(ClipEditingMixin):
             {
                 **{key: value for key, value in clip.items() if key != "file_path"},
                 "caption_settings": await run_in_thread(
-                    lambda ref: load_clip_caption_settings(MediaStorage().local_path(ref, metadata_only=True)),
+                    MediaStorage().caption_settings,
                     clip["file_path"],
                 ) if clip.get("file_path") else None,
             }

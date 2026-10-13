@@ -9,7 +9,7 @@ import logging
 from sqlalchemy import text
 
 from ..editor_document import editor_dir
-from ..media_storage import MediaStorage
+from ..media_storage import MediaStorage, is_s3
 from .session_lock_connection import session_lock_connection
 
 
@@ -30,8 +30,7 @@ def guard_source_creation(method):
     async def wrapped(self, *args, **kwargs):
         arguments = inspect.signature(method).bind(self, *args, **kwargs).arguments
         url = arguments["url"]
-        # Legacy local uploads keep their existing admission behavior.
-        if not url.startswith("upload://s3/"):
+        if not url.startswith("upload://"):
             return await method(self, *args, **kwargs)
         async with source_guard(self.db, url):
             return await method(self, *args, **kwargs)
@@ -47,7 +46,10 @@ async def queue_delete(db, file_path: str, *, prefix=False):
             return
     await db.execute(text("""
         INSERT INTO media_deletions (file_path, is_prefix)
-        VALUES (:path, :prefix) ON CONFLICT (file_path) DO NOTHING
+        VALUES (:path, :prefix) ON CONFLICT (file_path) DO UPDATE
+        SET created_at = EXCLUDED.created_at,
+            next_attempt_at = NOW(), attempts = 0,
+            is_prefix = media_deletions.is_prefix OR EXCLUDED.is_prefix
     """), {"path": file_path, "prefix": prefix})
 
 
@@ -56,7 +58,7 @@ async def queue_clip_delete(db, clip):
     storage = MediaStorage()
     directory = editor_dir(storage.config.temp_dir, clip["task_id"], clip["id"], clip["filename"])
     await queue_delete(db, str(directory), prefix=True)
-    if storage.enabled:
+    if storage.enabled or is_s3(clip["file_path"]) or (directory / ".s3-manifest").exists():
         await queue_delete(db, storage.editor_reference(directory), prefix=True)
 
 

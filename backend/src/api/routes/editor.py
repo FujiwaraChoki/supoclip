@@ -1,13 +1,15 @@
 """Authenticated draft, preview and background export endpoints."""
 
 from pathlib import Path
+import logging
 import json
 import re
 import uuid
+from botocore.exceptions import BotoCoreError, ClientError
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
-from ...media_storage import MediaStorage
+from ...media_storage import MediaStorage, is_s3
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,7 +40,7 @@ async def context(request, db, task_id, clip_id):
         raise HTTPException(404, "Clip not found")
     directory = editor_dir(service.config.temp_dir, task_id, clip_id, clip["filename"])
     await db.close()
-    await run_in_thread(MediaStorage().restore_editor, directory)
+    await run_in_thread(MediaStorage().restore_editor, directory, s3_backed=is_s3(clip["file_path"]))
     return clip, directory
 
 
@@ -112,7 +114,7 @@ async def save(
             directory = editor_dir(
                 service.config.temp_dir, task_id, clip_id, clip["filename"]
             )
-            await run_in_thread(MediaStorage().restore_editor, directory)
+            await run_in_thread(MediaStorage().restore_editor, directory, s3_backed=is_s3(clip["file_path"]))
             state = read_state(directory)
             if state["status"] != "ready":
                 raise HTTPException(
@@ -129,8 +131,11 @@ async def save(
             result = await run_in_thread(
                 save_document, directory, document, revision, state["duration"]
             )
-            await run_in_thread(MediaStorage().save_editor, directory)
-            return result
+        try:
+            await run_in_thread(MediaStorage().save_editor, directory, metadata_only=True, blocking=False)
+        except (BotoCoreError, ClientError, OSError):
+            logging.getLogger(__name__).warning("Draft saved locally; S3 snapshot will retry")
+        return result
     except RevisionConflict as exc:
         raise HTTPException(409, str(exc))
     except (ValueError, ValidationError) as exc:
@@ -149,7 +154,7 @@ async def media(
     if asset not in {"clean.mp4", "thumbnails.jpg"}:
         raise HTTPException(404, "Preview not ready")
     storage = MediaStorage()
-    if storage.enabled and await run_in_thread(storage.exists, storage.editor_reference(directory, asset)):
+    if (storage.enabled or (directory / ".s3-manifest").exists()) and await run_in_thread(storage.exists, storage.editor_reference(directory, asset)):
         url = await run_in_thread(storage.signed_url, storage.editor_reference(directory, asset), asset)
         return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
     if not (directory / asset).exists():
@@ -265,7 +270,7 @@ async def export_file(
         raise HTTPException(409, "Export is not ready")
     storage = MediaStorage()
     reference = storage.editor_reference(directory, output.name)
-    if storage.enabled and await run_in_thread(storage.exists, reference):
+    if (storage.enabled or (directory / ".s3-manifest").exists()) and await run_in_thread(storage.exists, reference):
         url = await run_in_thread(storage.signed_url, reference, f"supoclip-{clip_id[:8]}-{job_id[:6]}.mp4", attachment=True)
         return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
     if not output.exists():

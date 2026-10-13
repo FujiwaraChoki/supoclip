@@ -12,7 +12,8 @@ export async function GET(
   if (path.length === 0 || !path.every((segment) => SAFE_PATH_SEGMENT.test(segment))) {
     return Response.json({ detail: "Shared result not found" }, { status: 404 });
   }
-  const upstream = await fetchBackend(`/tasks/shared/${path.join("/")}`, {
+  const download = new URL(request.url).searchParams.get("download") === "true";
+  const upstream = await fetchBackend(`/tasks/shared/${path.join("/")}${download ? "?download=true" : ""}`, {
     method: "GET",
     extraHeaders: {
       ...(request.headers.get("accept")

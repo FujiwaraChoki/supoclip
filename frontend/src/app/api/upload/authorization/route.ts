@@ -19,11 +19,11 @@ export async function POST(request: Request) {
       body: JSON.stringify(payload),
       cache: "no-store",
     });
-    if (!upstream.ok) {
+    if (!upstream.ok && upstream.status !== 404) {
       return new Response(upstream.body, { status: upstream.status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
     }
-    const authorization = await upstream.json();
-    if (authorization.storage === "s3") {
+    const authorization = upstream.ok ? await upstream.json() : null;
+    if (authorization?.storage === "s3") {
       return NextResponse.json(authorization, { headers: { "Cache-Control": "no-store" } });
     }
   }
