@@ -22,6 +22,8 @@ Backend and worker need the same settings:
 | `MEDIA_URL_TTL_SECONDS` | `900` | Signed download validity, clamped to 60–3600 seconds |
 | `MEDIA_CACHE_TTL_SECONDS` | `86400` | Expiry of unused local caches, at least four hours |
 | `MEDIA_ORPHAN_GRACE_SECONDS` | `86400` | Minimum age before reclaiming unreferenced objects, at least one day |
+| `MEDIA_UPLOAD_CONCURRENCY` | `3` | Maximum active upload sessions per user, shared across API workers |
+| `MEDIA_UPLOAD_DAILY_LIMIT` | `20` | Maximum upload authorizations per user in a rolling day, including aborted attempts |
 
 When dedicated media keys are omitted, boto3 uses its standard credential chain,
 including workload IAM roles. Browser/CLI login credentials are for administrative
@@ -53,12 +55,19 @@ before starting the updated worker.
 The authenticated frontend requests multipart authorization from the backend.
 Browsers PUT 64 MiB parts directly to S3, with up to three concurrent requests,
 then call the authenticated completion endpoint. Object keys include a hash of the
-owning user ID. Authorization records the expected size on the multipart object;
-completion verifies the assembled size and the 12 GB limit. The backend also
+owning user ID. PostgreSQL records the owner, upload ID, object path and expected
+size before returning authorization. Each part URL signs its exact byte length;
+refresh requests can only renew parts within that recorded size. Completion
+verifies the assembled size and the 12 GB limit. The backend also
 checks ownership and object size before admitting a task. Failed browser uploads
 are aborted; bucket lifecycle rules catch uploads abandoned by closing a tab.
-Expired part URLs can be refreshed without restarting the upload. Completion is
+Expired part URLs can be refreshed during the session's one-day lifetime without
+restarting the upload. Expired sessions retain their capacity until the worker
+successfully aborts them. Completion is
 retryable after an interrupted response or a temporary validation request failure.
+Uploads authorized before the session-tracking upgrade must be restarted; their
+abort endpoint remains available. Previously issued URLs keep their original
+expiry, and bucket lifecycle cleanup still reclaims abandoned multipart data.
 
 The existing `/upload` endpoint continues to accept REST/MCP uploads. In S3 mode
 it uploads the temporary incoming file to the bucket and removes the local copy.
@@ -83,7 +92,9 @@ on later downloads; their S3 copy is removed when no task still uses that video.
 
 The worker keeps downloads under `TEMP_DIR/media-cache/`. Renders acquire shared
 file leases; the last renderer releases the downloaded files, including on failure
-or cancellation. A cache sweeper reclaims leftovers after the cache expiry period.
+or cancellation. Word timings are backed up before transcript analysis; if S3 is
+unavailable, eviction preserves the small timing sidecars for the worker to retry.
+A cache sweeper reclaims leftovers after the cache expiry period.
 Generated local outputs are queued for deletion after their durable database
 reference commits. Preset exports returned directly by the API are removed after
 the response finishes.
@@ -96,7 +107,9 @@ state, file locks, progress and cancellation. This change does not remove that
 coordination requirement for an installation with multiple hosts.
 Exports become downloadable after rendering and their S3 upload finish. Autosave
 returns the committed local revision even if its snapshot upload fails; the worker
-retries changed draft snapshots. Processing caches keep durable source references,
+retries changed draft snapshots and unfinished asset uploads. Autosave uses the
+draft's file lock and revision check, so clip renders do not block it. Complete
+local editor state remains usable during an S3 outage. Processing caches keep durable source references,
 and readers of older materialized cache paths also acquire file leases.
 
 Deleting/replacing clips queues their previous files, sidecars and obsolete editor
@@ -126,16 +139,26 @@ the backend directory with the deployment's database, S3 and `TEMP_DIR` settings
 The default reports counts without transferring/deleting files. Apply mode uploads
 referenced clips and their timing metadata, snapshots existing editor directories,
 updates file references while preserving clip IDs, and queues obsolete local files
-for deletion after commit. It also transfers uploaded originals and updates source
+for deletion after commit, held under the printed `cleanup_token`. It also transfers uploaded originals and updates source
 URLs and persisted retry metadata. Active tasks, missing files and historical
-sources shared across different owners are skipped and counted. Those skipped
+sources shared across different owners, oversized originals and invalid historical
+source references are skipped and counted. Those skipped
 uploads need an ownership decision before migration. The script is restartable:
 already migrated S3 references are skipped.
 Use `--task-id TASK_ID` to migrate one task first and verify its playback and edits.
 
 New tasks may rebuild their transcript-analysis cache after the source URL changes;
 the uploaded word-timing sidecar is preserved. Check playback, editing and a
-regeneration before allowing the cleanup worker to drain migration deletions.
+regeneration, then release each verified batch explicitly:
+
+```sh
+.venv/bin/python scripts/migrate_media_to_s3.py --release-cleanup CLEANUP_TOKEN
+```
+
+The cleanup worker and orphan sweeper preserve held files until release. Each
+apply run prints its token before transferring files, including if a later step
+fails. The new recovery migration adds retry fields to installations that already
+applied the first storage migration; run pending backend migrations before startup.
 
 Rollback the application storage mode to `local` while retaining the S3 bucket
 configuration and runtime credentials: existing S3 clip/source references still need them. Restoring a

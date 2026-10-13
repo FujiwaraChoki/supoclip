@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import json
+import logging
 import subprocess
 import uuid
 
@@ -13,7 +14,7 @@ from ..editor_document import (
     render_document,
 )
 from ..utils.async_helpers import run_in_thread
-from ..media_storage import MediaStorage, media_work
+from ..media_storage import MediaStorage, STORAGE_ERRORS, media_work
 
 
 def read_state(directory: Path):
@@ -310,6 +311,11 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
     from .task_service import TaskService
 
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
+    storage = MediaStorage()
+    committed = False
+    destination = None
+    clip_path = None
+    reference = None
     try:
         await run_in_thread(MediaStorage().restore_editor, directory)
         payload = json.loads((directory / f"request-{job_id}.json").read_text())
@@ -398,6 +404,16 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             # Cleanup may reclaim clip_path immediately after that commit.
             shutil.copy2(work / f"export-{job_id}.mp4", directory / f"export-{job_id}.mp4")
             await run_in_thread(MediaStorage().persist_editor_export, directory, job_id)
+            reference = await run_in_thread(storage.persist_clip, str(clip_path), task_id)
+            new_id = str(uuid.uuid4())
+            destination = editor_dir(get_config().temp_dir, task_id, new_id, new_filename)
+            destination.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(work / "clean.mp4", destination / "clean.mp4")
+            shutil.copy2(work / "thumbnails.jpg", destination / "thumbnails.jpg")
+            atomic_json(destination / "draft.json", {"revision": 0, "document": document.model_dump()})
+            atomic_json(destination / "original.json", document.model_dump())
+            atomic_json(destination / "asset.json", metadata)
+            await run_in_thread(storage.save_editor, destination)
             async with AsyncSessionLocal() as db:
                 service = TaskService(db)
                 async with task_edit_transaction(db, task_id):
@@ -415,7 +431,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                         db,
                         task_id,
                         new_filename,
-                        str(clip_path),
+                        reference,
                         "00:00",
                         service._seconds_to_mmss(cursor),
                         cursor,
@@ -423,23 +439,13 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                         0,
                         "Combined in the clip editor",
                         max(c["clip_order"] for c in clips) + 1,
+                        clip_id=new_id,
                     )
-                    destination = editor_dir(
-                        get_config().temp_dir, task_id, new_id, new_filename
-                    )
-                    destination.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(work / "clean.mp4", destination / "clean.mp4")
-                    shutil.copy2(
-                        work / "thumbnails.jpg", destination / "thumbnails.jpg"
-                    )
-                    atomic_json(
-                        destination / "draft.json",
-                        {"revision": 0, "document": document.model_dump()},
-                    )
-                    atomic_json(destination / "original.json", document.model_dump())
-                    atomic_json(destination / "asset.json", metadata)
-                    await run_in_thread(MediaStorage().save_editor, destination)
+                    if reference != str(clip_path):
+                        from ..repositories.media_repository import queue_delete
+                        await queue_delete(db, str(clip_path))
                     await service.clip_repo.reorder_task_clips(db, task_id)
+                committed = True
         atomic_json(
             directory / f"job-{job_id}.json",
             {"status": "completed", "progress": 100, "clip_id": new_id},
@@ -461,4 +467,21 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             },
         )
     finally:
-        await run_in_thread(MediaStorage().save_editor, directory)
+        if not committed:
+            # Queue exact staged objects. A fresh DB reference check protects
+            # against a commit that succeeded before its response was lost.
+            from ..repositories.media_repository import queue_delete
+            async with AsyncSessionLocal() as db:
+                for path, prefix in [(str(directory / f"export-{job_id}.mp4"), False),
+                                     (storage.editor_reference(directory, f"export-{job_id}.mp4"), False) if storage.enabled else (None, False),
+                                     (reference, False),
+                                     (str(clip_path) if clip_path else None, False),
+                                     (str(destination) if destination else None, True),
+                                     (storage.editor_reference(destination) if storage.enabled and destination else None, True)]:
+                    if path:
+                        await queue_delete(db, path, prefix=prefix)
+                await db.commit()
+        try:
+            await run_in_thread(storage.save_editor, directory)
+        except STORAGE_ERRORS:
+            logging.getLogger(__name__).warning("Editor job snapshot retained for upload retry")

@@ -503,6 +503,12 @@ class VideoService:
                     source_url=url if source_type == "youtube" else None,
                 )
 
+            # Preserve paid word timings before any analysis/cancellation path.
+            try:
+                await run_in_thread(MediaStorage().save_source_metadata, video_path)
+            except Exception:
+                logger.warning("Source word timings retained locally for upload retry")
+
             # Step 3: AI analysis
             if should_cancel and await should_cancel():
                 raise Exception("Task cancelled")

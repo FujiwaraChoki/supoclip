@@ -45,12 +45,13 @@ async def queue_delete(db, file_path: str, *, prefix=False):
             logging.getLogger(__name__).warning("Skipped media cleanup outside TEMP_DIR")
             return
     await db.execute(text("""
-        INSERT INTO media_deletions (file_path, is_prefix)
-        VALUES (:path, :prefix) ON CONFLICT (file_path) DO UPDATE
+        INSERT INTO media_deletions (file_path, is_prefix, hold_token)
+        VALUES (:path, :prefix, :hold) ON CONFLICT (file_path) DO UPDATE
         SET created_at = EXCLUDED.created_at,
             next_attempt_at = NOW(), attempts = 0,
-            is_prefix = media_deletions.is_prefix OR EXCLUDED.is_prefix
-    """), {"path": file_path, "prefix": prefix})
+            is_prefix = media_deletions.is_prefix OR EXCLUDED.is_prefix,
+            hold_token = COALESCE(media_deletions.hold_token, EXCLUDED.hold_token)
+    """), {"path": file_path, "prefix": prefix, "hold": db.info.get("media_deletion_hold")})
 
 
 async def queue_clip_delete(db, clip):

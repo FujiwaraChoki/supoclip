@@ -1,5 +1,4 @@
 from types import SimpleNamespace
-from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock
 
 from fastapi import FastAPI
@@ -27,11 +26,6 @@ async def client(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(editor.JobQueue, "enqueue_job", AsyncMock(return_value="job"))
 
-    @asynccontextmanager
-    async def transaction(*args):
-        yield
-
-    monkeypatch.setattr(editor, "task_edit_transaction", transaction)
     db = SimpleNamespace(close=AsyncMock())
     app = FastAPI()
     app.include_router(editor.router)
@@ -131,13 +125,32 @@ async def test_failed_enqueue_is_retryable(client, monkeypatch):
     assert state["jobs"][0]["status"] == "failed"
 
 
-async def test_autosave_returns_new_revision_when_snapshot_sync_is_unavailable(client, monkeypatch):
+@pytest.mark.parametrize("wrapped", [False, True])
+async def test_autosave_returns_new_revision_when_snapshot_sync_is_unavailable(client, monkeypatch, wrapped):
     from botocore.exceptions import EndpointConnectionError
+    from boto3.exceptions import S3UploadFailedError
     http, service, doc, directory = client
-    monkeypatch.setattr(editor.MediaStorage, "save_editor", lambda *a, **k: (_ for _ in ()).throw(EndpointConnectionError(endpoint_url="https://storage.test")))
+    failure = S3UploadFailedError("SlowDown") if wrapped else EndpointConnectionError(endpoint_url="https://storage.test")
+    monkeypatch.setattr(editor.MediaStorage, "save_editor", lambda *a, **k: (_ for _ in ()).throw(failure))
     payload = {"basis": "clip.mp4", "revision": 0, "document": doc}
     saved = await http.patch("/tasks/task/clips/clip/editor", json=payload)
     assert saved.status_code == 200
     assert saved.json()["revision"] == 1
     payload["revision"] = 1
     assert (await http.patch("/tasks/task/clips/clip/editor", json=payload)).json()["revision"] == 2
+
+
+async def test_local_preview_and_export_survive_storage_outage(client, monkeypatch):
+    from botocore.exceptions import EndpointConnectionError
+    http, service, doc, directory = client
+    (directory / ".s3-manifest").write_text('{}')
+    (directory / "clean.mp4").write_bytes(b"local preview")
+    job = "f" * 32
+    atomic_json(directory / f"job-{job}.json", {"status": "completed"})
+    (directory / f"export-{job}.mp4").write_bytes(b"local export")
+    monkeypatch.setattr(editor.MediaStorage, "exists", lambda *a: (_ for _ in ()).throw(EndpointConnectionError(endpoint_url="https://storage.test")))
+    preview = await http.get("/tasks/task/clips/clip/editor/media/clean.mp4")
+    export = await http.get(f"/tasks/task/clips/clip/editor/exports/{job}/file")
+    assert preview.status_code == export.status_code == 200
+    assert preview.content == b"local preview"
+    assert export.content == b"local export"

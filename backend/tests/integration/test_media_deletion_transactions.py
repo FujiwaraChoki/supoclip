@@ -172,7 +172,7 @@ async def test_migration_preserves_clip_ids_and_source_retry_metadata(db_session
     await migrate(task_id=task["id"])
     assert (await ClipRepository.get_clip_by_id(db_session, clip_id))["file_path"] == str(clip_path)
     assert storage.client.objects == {}
-    await migrate(apply=True, task_id=task["id"])
+    migration = await migrate(apply=True, task_id=task["id"])
     clip = await ClipRepository.get_clip_by_id(db_session, clip_id)
     assert clip["id"] == clip_id and clip["file_path"].startswith("s3://")
     record = await TaskService(db_session).task_repo.get_task_by_id(db_session, task["id"])
@@ -181,6 +181,9 @@ async def test_migration_preserves_clip_ids_and_source_retry_metadata(db_session
     assert metadata["url"] == record["source_url"]
     assert metadata["output_format"] == "original" and metadata["add_subtitles"] is False
     assert metadata["pause_threshold_ms"] == 900
+    await drain_deletions(db_session, storage)
+    assert clip_path.exists() and upload.exists()
+    await migrate(release_cleanup=migration["cleanup_token"])
     await drain_deletions(db_session, storage)
     assert not clip_path.exists() and not upload.exists()
     assert storage.parse(clip["file_path"]) in storage.client.objects

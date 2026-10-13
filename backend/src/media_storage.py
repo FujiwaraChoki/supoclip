@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from contextvars import ContextVar
+from contextlib import contextmanager
 from functools import wraps
 import fcntl
 import hashlib
@@ -22,6 +23,7 @@ from urllib.parse import quote, unquote, urlsplit
 import uuid
 
 import boto3
+from boto3.exceptions import Boto3Error
 from botocore.config import Config as BotoConfig
 from botocore.exceptions import BotoCoreError, ClientError
 
@@ -31,6 +33,7 @@ from .editor_document import atomic_json
 SIDECARS = (".source_map.json", ".transcript_cache.json")
 PART_BYTES = 64 * 1024 * 1024
 VIDEO_SUFFIXES = {".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".3gp", ".3g2", ".mts", ".m2ts", ".ts", ".mpg", ".mpeg", ".wmv", ".flv", ".ogv", ".vob", ".mxf", ".asf"}
+STORAGE_ERRORS = (Boto3Error, BotoCoreError, ClientError, OSError)
 _workspace: ContextVar[dict | None] = ContextVar("media_workspace", default=None)
 
 
@@ -48,7 +51,7 @@ def media_work(method):
     async def wrapped(*args, **kwargs):
         if _workspace.get() is not None:
             return await method(*args, **kwargs)
-        leases = {"files": {}, "lock": threading.Lock()}
+        leases = {"files": {}, "storages": {}, "editors": {}, "lock": threading.Lock()}
         token = _workspace.set(leases)
         try:
             return await method(*args, **kwargs)
@@ -59,6 +62,8 @@ def media_work(method):
 
 
 def _release_workspace(leases):
+    for handle in leases.get("editors", {}).values():
+        handle.close()
     for directory, handle in leases["files"].items():
         fcntl.flock(handle, fcntl.LOCK_UN)
         handle.close()
@@ -68,11 +73,32 @@ def _release_workspace(leases):
                 fcntl.flock(exclusive, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 continue
+            storage = leases.get("storages", {}).get(directory)
+            marker = directory / ".reference"
+            if storage and marker.exists():
+                try:
+                    key = storage.parse(marker.read_text())
+                    if key.startswith(storage.key("sources") + "/"):
+                        storage.save_source_metadata(directory / PurePosixPath(key).name)
+                except STORAGE_ERRORS + (ValueError,):
+                    if any(p.name.endswith(SIDECARS) for p in directory.iterdir()):
+                        (directory / ".metadata-pending").touch()
+                    logging.getLogger(__name__).warning("Source timings retained for upload retry")
             # Leave the lock inode in place so a waiting reader cannot acquire
             # an unlinked lock while another process opens a replacement.
-            for path in directory.iterdir():
-                if path.is_file() and path.name not in {".lease", ".download", ".reference", ".access"}:
-                    path.unlink(missing_ok=True)
+            with (directory / ".download").open("a") as download:
+                try:
+                    fcntl.flock(download, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    continue
+                pending = (directory / ".metadata-pending").exists()
+                for path in directory.iterdir():
+                    if path.name in {".lease", ".download", ".reference", ".access", ".metadata-pending"}:
+                        continue
+                    if pending and path.name.endswith(SIDECARS):
+                        continue
+                    if path.is_file():
+                        path.unlink(missing_ok=True)
 
 
 class MediaStorage:
@@ -144,7 +170,7 @@ class MediaStorage:
         return self.reference(key)
 
     def persist_source(self, path: Path, user_id: str) -> tuple[str, str]:
-        relative = f"{owner_key(user_id)}/{uuid.uuid4().hex}/video{path.suffix.lower()}"
+        relative = f"{owner_key(user_id)}/{uuid.uuid4().hex}/video{self.video_extension(path.name)}"
         key = self.key("sources", relative)
         uploaded = []
         try:
@@ -212,6 +238,7 @@ class MediaStorage:
                     handle = (directory / ".lease").open("a")
                     fcntl.flock(handle, fcntl.LOCK_SH)
                     leases["files"][directory] = handle
+                    leases.setdefault("storages", {})[directory] = self
         # Download atomically and serialize cache population across processes.
         with (directory / ".download").open("a") as handle:
             fcntl.flock(handle, fcntl.LOCK_EX)
@@ -231,21 +258,59 @@ class MediaStorage:
     def caption_settings(self, reference: str):
         from .clip_source_map import load_clip_caption_settings
         try:
-            return load_clip_caption_settings(self.local_path(reference, metadata_only=True))
-        except (BotoCoreError, ClientError, OSError):
+            with self.read_path(reference, metadata_only=True) as path:
+                return load_clip_caption_settings(path)
+        except STORAGE_ERRORS:
             # Listing clips should remain available during a storage outage.
             logging.getLogger(__name__).warning("Could not retrieve optional clip caption settings")
             return None
 
+    @contextmanager
+    def read_path(self, reference: str, *, metadata_only=False):
+        """Lease synchronous metadata readers without evicting the shared cache."""
+        if not is_s3(reference):
+            yield self.local_path(reference, metadata_only=metadata_only)
+            return
+        self.parse(reference)
+        directory = Path(self.config.temp_dir) / "media-cache" / hashlib.sha256(reference.encode()).hexdigest()
+        directory.mkdir(parents=True, exist_ok=True)
+        with (directory / ".lease").open("a") as handle:
+            fcntl.flock(handle, fcntl.LOCK_SH)
+            yield self.local_path(reference, metadata_only=metadata_only)
+
     def save_source_metadata(self, path: Path):
         marker = path.parent / ".reference"
-        if not self.enabled or not marker.exists():
+        if not self.bucket or not marker.exists():
             return
         key = self.parse(marker.read_text())
-        for suffix in SIDECARS:
-            sidecar = path.with_suffix(suffix)
-            if sidecar.exists():
-                self.upload_file(sidecar, str(PurePosixPath(key).with_suffix(suffix)))
+        if not key.startswith(self.key("sources") + "/"):
+            return
+        sidecars = [path.with_suffix(s) for s in SIDECARS if path.with_suffix(s).exists()]
+        if not sidecars:
+            return
+        pending = path.parent / ".metadata-pending"
+        pending.touch()
+        with (path.parent / ".download").open("a") as handle:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            for sidecar in sidecars:
+                self.upload_file(sidecar, str(PurePosixPath(key).with_suffix(sidecar.name.removeprefix(path.stem))))
+            pending.unlink(missing_ok=True)
+
+    def sync_source_metadata(self):
+        root = Path(self.config.temp_dir) / "media-cache"
+        if not self.bucket or not root.exists():
+            return
+        for directory in root.iterdir():
+            marker = directory / ".reference"
+            if not (directory / ".metadata-pending").exists() or not marker.exists():
+                continue
+            try:
+                with (directory / ".lease").open("a") as handle:
+                    fcntl.flock(handle, fcntl.LOCK_SH)
+                    key = self.parse(marker.read_text())
+                    self.save_source_metadata(directory / PurePosixPath(key).name)
+            except STORAGE_ERRORS + (ValueError,):
+                logging.getLogger(__name__).warning("Source metadata upload will retry")
 
     def youtube_metadata_reference(self, video_id: str) -> str:
         return self.reference(self.key("transcripts", f"{video_id}.transcript_cache.json"))
@@ -277,27 +342,28 @@ class MediaStorage:
                 return False
             raise
 
-    def begin_upload(self, user_id: str, filename: str, size: int, content_type: str):
+    def begin_upload(self, user_id: str, filename: str, size: int, content_type: str, *, authorization=None):
         if not 0 < size <= self.config.max_video_upload_bytes:
             raise ValueError("Uploaded file is too large or empty")
-        extension = Path(filename).suffix.lower()
-        if extension not in VIDEO_SUFFIXES:
-            raise ValueError("Unsupported video file extension")
+        extension = self.video_extension(filename, content_type)
         relative = f"{owner_key(user_id)}/{uuid.uuid4().hex}/video{extension}"
         key = self.key("sources", relative)
         upload = self.client.create_multipart_upload(Bucket=self.bucket, Key=key,
             ContentType=content_type or "application/octet-stream", Metadata={"expected-size": str(size)})
         upload_id = upload["UploadId"]
+        result = {"storage": "s3", "video_path": f"upload://s3/{relative}",
+                  "uploadId": upload_id, "partSize": PART_BYTES}
+        # Record the identity before signing, so callers retain it if signing
+        # and the best-effort abort both fail.
+        if authorization is not None:
+            authorization.update(result)
         try:
-            parts = [{"partNumber": i + 1, "url": self.client.generate_presigned_url(
-                "upload_part", Params={"Bucket": self.bucket, "Key": key,
-                "UploadId": upload_id, "PartNumber": i + 1}, ExpiresIn=3600,
-            )} for i in range((size + PART_BYTES - 1) // PART_BYTES)]
+            parts = self.upload_part_urls(key, upload_id, size, range(1, (size + PART_BYTES - 1) // PART_BYTES + 1))
         except BaseException:
             self.client.abort_multipart_upload(Bucket=self.bucket, Key=key, UploadId=upload_id)
             raise
-        return {"storage": "s3", "video_path": f"upload://s3/{relative}",
-                "uploadId": upload_id, "partSize": PART_BYTES, "parts": parts}
+        result["parts"] = parts
+        return result
 
     def owned_upload_key(self, video_path: str, user_id: str) -> str:
         key = self.parse(self.source_reference(video_path))
@@ -305,27 +371,43 @@ class MediaStorage:
             raise ValueError("Uploaded video does not belong to this user")
         return key
 
-    def refresh_upload_parts(self, user_id: str, payload: dict):
+    @staticmethod
+    def video_extension(filename: str, content_type: str = "") -> str:
+        suffix = Path(filename).suffix.lower()
+        if suffix in VIDEO_SUFFIXES:
+            return suffix
+        guessed = mimetypes.guess_extension(content_type.split(";", 1)[0].lower())
+        return guessed if guessed in VIDEO_SUFFIXES else ".mp4"
+
+    def upload_part_urls(self, key: str, upload_id: str, size: int, numbers):
+        return [{"partNumber": number, "url": self.client.generate_presigned_url(
+            "upload_part", Params={"Bucket": self.bucket, "Key": key,
+            "UploadId": upload_id, "PartNumber": number,
+            "ContentLength": min(PART_BYTES, size - (number - 1) * PART_BYTES)}, ExpiresIn=3600,
+        )} for number in numbers]
+
+    def refresh_upload_parts(self, user_id: str, payload: dict, *, size: int):
         key = self.owned_upload_key(payload["video_path"], user_id)
         numbers = payload["partNumbers"]
-        max_parts = (self.config.max_video_upload_bytes + PART_BYTES - 1) // PART_BYTES
-        if (not isinstance(numbers, list) or not 0 < len(numbers) <= 3
+        max_parts = (size + PART_BYTES - 1) // PART_BYTES
+        if (type(size) is not int or not 0 < size <= self.config.max_video_upload_bytes
+                or not isinstance(numbers, list) or not 0 < len(numbers) <= 3
                 or any(type(n) is not int or not 1 <= n <= max_parts for n in numbers)):
             raise ValueError("Invalid multipart part numbers")
         if not isinstance(payload["uploadId"], str) or not payload["uploadId"]:
             raise ValueError("An upload ID is required")
-        return {"parts": [{"partNumber": number, "url": self.client.generate_presigned_url(
-            "upload_part", Params={"Bucket": self.bucket, "Key": key,
-            "UploadId": payload["uploadId"], "PartNumber": number}, ExpiresIn=3600,
-        )} for number in numbers]}
+        return {"parts": self.upload_part_urls(key, payload["uploadId"], size, numbers)}
 
-    def complete_upload(self, user_id: str, payload: dict):
+    def complete_upload(self, user_id: str, payload: dict, *, size: int | None = None):
         key = self.owned_upload_key(payload["video_path"], user_id)
         parts = payload["parts"]
         if (not isinstance(parts, list) or not parts or len(parts) > 10000
+                or any(not isinstance(p, dict) or type(p.get("partNumber")) is not int for p in parts)
                 or [p.get("partNumber") for p in parts] != list(range(1, len(parts) + 1))
                 or any(not isinstance(p.get("etag"), str) for p in parts)):
             raise ValueError("Invalid multipart upload parts")
+        if size is not None and len(parts) != (size + PART_BYTES - 1) // PART_BYTES:
+            raise ValueError("Multipart upload does not contain every expected part")
         try:
             self.client.complete_multipart_upload(Bucket=self.bucket, Key=key, UploadId=payload["uploadId"],
                 MultipartUpload={"Parts": [{"PartNumber": p["partNumber"], "ETag": p["etag"]} for p in parts]})
@@ -339,11 +421,19 @@ class MediaStorage:
         except ValueError:
             self.client.delete_object(Bucket=self.bucket, Key=key)
             raise
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] in {"404", "NoSuchKey", "NotFound"}:
+                raise ValueError("Upload is unavailable; restart the upload") from None
+            raise
         return {"video_path": payload["video_path"]}
 
     def abort_upload(self, user_id: str, payload: dict):
-        self.client.abort_multipart_upload(Bucket=self.bucket,
-            Key=self.owned_upload_key(payload["video_path"], user_id), UploadId=payload["uploadId"])
+        try:
+            self.client.abort_multipart_upload(Bucket=self.bucket,
+                Key=self.owned_upload_key(payload["video_path"], user_id), UploadId=payload["uploadId"])
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] != "NoSuchUpload":
+                raise
 
     def delete(self, reference: str, *, prefix=False):
         if is_s3(reference):
@@ -385,7 +475,7 @@ class MediaStorage:
                 return
             manifest = directory / ".s3-manifest"
             stamps = json.loads(manifest.read_text()) if manifest.exists() else {}
-            for path in directory.iterdir():
+            for path in sorted(directory.iterdir(), key=lambda p: (p.suffix != ".json", p.name)):
                 if not path.is_file() or path.name.startswith(".") or path.suffix not in {".json", ".jpg", ".mp4"}:
                     continue
                 if metadata_only and path.suffix != ".json":
@@ -420,13 +510,28 @@ class MediaStorage:
             atomic_json(manifest, stamps)
 
     def restore_editor(self, directory: Path, *, media=False, s3_backed=False):
+        directory.mkdir(parents=True, exist_ok=True)
+        leases = _workspace.get()
+        if media and leases is not None:
+            with leases["lock"]:
+                if directory not in leases.setdefault("editors", {}):
+                    handle = (directory / ".media-lease").open("a")
+                    fcntl.flock(handle, fcntl.LOCK_SH)
+                    leases["editors"][directory] = handle
+        (directory / ".access").touch()
+        asset = directory / "asset.json"
+        if asset.exists():
+            ready = json.loads(asset.read_text()).get("status") == "ready"
+            if (not ready or all((directory / name).exists() for name in ("draft.json", "original.json"))) and (not media or (directory / "clean.mp4").exists()):
+                return
         manifest = directory / ".s3-manifest"
         if not self.bucket or (not self.enabled and not manifest.exists() and not s3_backed):
             return
         prefix = self.parse(self.editor_reference(directory)) + "/"
-        directory.mkdir(parents=True, exist_ok=True)
-        (directory / ".access").touch()
         stamps = json.loads(manifest.read_text()) if manifest.exists() else {}
+        checked = directory / ".s3-checked"
+        if not media and checked.exists() and time.time() - checked.stat().st_mtime < 300:
+            return
         # Shared local state is authoritative; avoid waiting on a video upload
         # (or contacting S3) on every editor poll when the needed files exist.
         if stamps and all((directory / name).exists() for name in stamps
@@ -448,6 +553,7 @@ class MediaStorage:
                     stat = path.stat()
                     stamps[path.name] = [stat.st_size, stat.st_mtime_ns]
                     atomic_json(manifest, stamps)
+            checked.touch()
 
     def sync_editor_drafts(self):
         root = Path(self.config.temp_dir) / "editor"
@@ -456,8 +562,8 @@ class MediaStorage:
         for directory in root.iterdir():
             if directory.is_dir():
                 try:
-                    self.save_editor(directory, metadata_only=True, blocking=False)
-                except (BotoCoreError, ClientError, OSError):
+                    self.save_editor(directory, blocking=False)
+                except STORAGE_ERRORS:
                     logging.getLogger(__name__).warning("Editor snapshot sync will retry")
 
     def sweep_cache(self):
@@ -468,7 +574,7 @@ class MediaStorage:
             access = directory / ".access"
             if not directory.is_dir() or (access.exists() and time.time() - access.stat().st_mtime < self.config.media_cache_ttl_seconds):
                 continue
-            _release_workspace({"files": {directory: (directory / ".lease").open("a")}})
+            _release_workspace({"files": {directory: (directory / ".lease").open("a")}, "storages": {directory: self}})
 
     def sweep_editor_cache(self):
         if not self.enabled:
@@ -481,9 +587,16 @@ class MediaStorage:
             access = directory / ".access"
             if not manifest.exists() or (access.exists() and time.time() - access.stat().st_mtime < self.config.media_cache_ttl_seconds):
                 continue
-            for name, stamp in json.loads(manifest.read_text()).items():
-                path = directory / name
-                if path.suffix == ".mp4" and path.exists():
-                    stat = path.stat()
-                    if [stat.st_size, stat.st_mtime_ns] == stamp:
-                        path.unlink(missing_ok=True)
+            with (directory / ".media-lease").open("a") as lease:
+                try:
+                    fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    continue
+                if access.exists() and time.time() - access.stat().st_mtime < self.config.media_cache_ttl_seconds:
+                    continue
+                for name, stamp in json.loads(manifest.read_text()).items():
+                    path = directory / name
+                    if path.suffix == ".mp4" and path.exists():
+                        stat = path.stat()
+                        if [stat.st_size, stat.st_mtime_ns] == stamp:
+                            path.unlink(missing_ok=True)

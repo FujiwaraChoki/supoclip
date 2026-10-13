@@ -39,6 +39,7 @@ class ClipRepository:
         shareability_score: int = 0,
         hook_type: Optional[str] = None,
         hook_title: Optional[str] = None,
+        clip_id: Optional[str] = None,
     ) -> str:
         """Create a new clip record and return its ID."""
         previous = await db.execute(sa_text(
@@ -50,7 +51,7 @@ class ClipRepository:
         if old_clip and old_clip["file_path"] != file_path:
             await queue_clip_delete(db, old_clip)
         base_params = {
-            "id": str(uuid4()),
+            "id": clip_id or str(uuid4()),
             "task_id": task_id,
             "filename": filename,
             "file_path": file_path,

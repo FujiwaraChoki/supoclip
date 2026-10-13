@@ -116,6 +116,8 @@ class Config:
         self.media_url_ttl_seconds = min(3600, max(60, int(os.getenv("MEDIA_URL_TTL_SECONDS", "900"))))
         self.media_cache_ttl_seconds = max(14400, int(os.getenv("MEDIA_CACHE_TTL_SECONDS", "86400")))
         self.media_orphan_grace_seconds = max(86400, int(os.getenv("MEDIA_ORPHAN_GRACE_SECONDS", "86400")))
+        self.media_upload_concurrency = max(1, int(os.getenv("MEDIA_UPLOAD_CONCURRENCY", "3")))
+        self.media_upload_daily_limit = max(1, int(os.getenv("MEDIA_UPLOAD_DAILY_LIMIT", "20")))
         if self.media_storage == "s3" and not self.media_s3_bucket:
             raise ValueError("MEDIA_S3_BUCKET is required with MEDIA_STORAGE=s3")
 

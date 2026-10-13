@@ -143,6 +143,16 @@ def test_multipart_rejects_truncated_completed_object(storage):
     storage.client.delete_object.assert_called_once()
 
 
+@pytest.mark.parametrize("part_number", [True, 1.0])
+def test_completion_rejects_noninteger_part_numbers_before_storage(storage, part_number):
+    storage._client = Mock()
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    with pytest.raises(ValueError, match="Invalid multipart"):
+        storage.complete_upload("owner", {"video_path": url, "uploadId": "multipart",
+            "parts": [{"partNumber": part_number, "etag": "etag"}]}, size=1)
+    storage.client.complete_multipart_upload.assert_not_called()
+
+
 async def test_render_workspace_releases_download_on_failure(storage):
     key = storage.key("clips", "task", "clip.mp4")
     storage.client.objects[key] = b"clip"
@@ -265,11 +275,11 @@ def test_part_refresh_preserves_owner_boundary_and_accepts_new_credentials(stora
     url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
     payload = {"video_path": url, "uploadId": "multipart", "partNumbers": [2]}
     with pytest.raises(ValueError, match="belong"):
-        storage.refresh_upload_parts("someone-else", payload)
+        storage.refresh_upload_parts("someone-else", payload, size=PART_BYTES+1)
     storage.client.generate_presigned_url.assert_not_called()
-    assert storage.refresh_upload_parts("owner", payload)["parts"] == [{"partNumber": 2, "url": "https://storage/new-signature"}]
+    assert storage.refresh_upload_parts("owner", payload, size=PART_BYTES+1)["parts"] == [{"partNumber": 2, "url": "https://storage/new-signature"}]
     with pytest.raises(ValueError):
-        storage.refresh_upload_parts("owner", {**payload, "partNumbers": [0]})
+        storage.refresh_upload_parts("owner", {**payload, "partNumbers": [0]}, size=PART_BYTES+1)
 
 
 @pytest.mark.parametrize("extension", [".3gp", ".mts", ".mpg", ".wmv"])
@@ -376,3 +386,112 @@ async def test_cancellation_waits_for_thread_before_releasing_media(storage):
     with pytest.raises(asyncio.CancelledError):
         await task
     assert not paths[0].exists()
+
+
+async def test_failed_analysis_preserves_source_timings_and_retries_upload(storage):
+    from boto3.exceptions import S3UploadFailedError
+    from src.utils.async_helpers import run_in_thread
+    key = storage.key("sources", "owner", "upload", "video.mp4")
+    storage.client.objects[key] = b"video"
+    upload = storage.client.upload_file
+    storage.client.upload_file = Mock(side_effect=S3UploadFailedError("SlowDown"))
+    paths = []
+
+    @media_work
+    async def process():
+        path = await run_in_thread(storage.local_path, storage.reference(key))
+        paths.append(path)
+        path.with_suffix(".transcript_cache.json").write_text('{"words": [{"text": "Paid transcription"}]}')
+        raise RuntimeError("LLM analysis failed")
+
+    with pytest.raises(RuntimeError, match="LLM"):
+        await process()
+    path = paths[0]
+    assert not path.exists()
+    assert path.with_suffix(".transcript_cache.json").exists()
+    assert (path.parent / ".metadata-pending").exists()
+    storage.client.upload_file = upload
+    storage.sync_source_metadata()
+    assert not (path.parent / ".metadata-pending").exists()
+    assert b"Paid transcription" in storage.client.objects[str(Path(key).with_suffix(".transcript_cache.json"))]
+
+
+def test_optional_reader_blocks_lease_release_until_metadata_read_finishes(storage):
+    from src.media_storage import _release_workspace
+    import fcntl
+    key = storage.key("clips", "task", "upload", "video.mp4")
+    storage.client.objects[key] = b"video"
+    storage.client.objects[str(Path(key).with_suffix(".source_map.json"))] = b'{}'
+    with storage.read_path(storage.reference(key), metadata_only=True) as path:
+        handle = (path.parent / ".lease").open("a")
+        fcntl.flock(handle, fcntl.LOCK_SH)
+        _release_workspace({"files": {path.parent: handle}})
+        assert path.with_suffix(".source_map.json").exists()
+
+
+def test_local_editor_metadata_without_manifest_skips_s3(storage, tmp_path):
+    directory = tmp_path / "editor" / ("b" * 64)
+    directory.mkdir(parents=True)
+    for name, value in [('asset.json', '{"status": "ready"}'), ('original.json', '{}'), ('draft.json', '{}')]:
+        (directory / name).write_text(value)
+    storage.client.get_paginator = Mock(side_effect=OSError("offline"))
+    storage.restore_editor(directory)
+    storage.enabled = False
+    storage.restore_editor(directory, s3_backed=True)
+    storage.client.get_paginator.assert_not_called()
+
+
+async def test_active_editor_render_is_protected_from_cache_pruning(storage, tmp_path):
+    directory = tmp_path / "editor" / ("c" * 64)
+    directory.mkdir(parents=True)
+    (directory / 'asset.json').write_text('{"status": "ready"}')
+    (directory / 'clean.mp4').write_bytes(b'preview')
+    storage.save_editor(directory)
+
+    @media_work
+    async def render():
+        await asyncio.to_thread(storage.restore_editor, directory, media=True)
+        old = time.time() - storage.config.media_cache_ttl_seconds - 1
+        os.utime(directory / '.access', (old, old))
+        storage.sweep_editor_cache()
+        assert (directory / 'clean.mp4').exists()
+
+    await render()
+    storage.sweep_editor_cache()
+    assert not (directory / 'clean.mp4').exists()
+
+
+def test_snapshot_retry_continues_after_boto3_wrapped_error(storage, tmp_path):
+    from boto3.exceptions import S3UploadFailedError
+    first, second = tmp_path / 'editor' / 'first', tmp_path / 'editor' / 'second'
+    for directory in (first, second):
+        directory.mkdir(parents=True)
+        (directory / 'draft.json').write_text('{}')
+    original = storage.save_editor
+    def save(directory, **kwargs):
+        if directory == first:
+            raise S3UploadFailedError('SlowDown')
+        return original(directory, **kwargs)
+    storage.save_editor = save
+    storage.sync_editor_drafts()
+    assert storage.parse(storage.editor_reference(second, 'draft.json')) in storage.client.objects
+
+
+def test_signed_parts_enforce_exact_bytes_and_refresh_declared_size(storage):
+    storage._client = Mock()
+    storage.client.create_multipart_upload.return_value = {"UploadId": "multipart"}
+    storage.begin_upload('owner', 'video.mp4', PART_BYTES + 7, 'video/mp4')
+    calls = storage.client.generate_presigned_url.call_args_list
+    assert [c.kwargs['Params']['ContentLength'] for c in calls] == [PART_BYTES, 7]
+    payload = {'uploadId': 'multipart', 'video_path': f"upload://s3/{owner_key('owner')}/upload/video.mp4", 'partNumbers': [2]}
+    with pytest.raises(ValueError, match='part numbers'):
+        storage.refresh_upload_parts('owner', payload, size=1)
+    storage.refresh_upload_parts('owner', payload, size=PART_BYTES + 7)
+    assert storage.client.generate_presigned_url.call_args.kwargs['Params']['ContentLength'] == 7
+
+
+@pytest.mark.parametrize('filename', ['recording', 'recording.qt', 'recording.f4v', 'recording.dv'])
+def test_legacy_video_names_remain_uploadable(storage, filename):
+    storage._client = Mock()
+    storage.client.create_multipart_upload.return_value = {"UploadId": "multipart"}
+    assert storage.begin_upload('owner', filename, 7, 'video/mp4')['video_path'].endswith('.mp4')

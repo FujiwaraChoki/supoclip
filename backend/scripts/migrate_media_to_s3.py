@@ -2,7 +2,7 @@
 """Migrate referenced local media, retaining existing IDs and clip URLs.
 
 Defaults to a report only. Drain workers and back up PostgreSQL before --apply.
-Local deletion is queued transactionally after uploading and updating records.
+Local deletion is held until the printed cleanup token is explicitly released.
 """
 
 import argparse
@@ -10,6 +10,8 @@ import asyncio
 import json
 from pathlib import Path
 import sys
+import uuid
+import logging
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -26,12 +28,24 @@ from src.services.task_service import TaskService
 from src.utils.async_helpers import run_in_thread
 
 
-async def migrate(apply=False, task_id=None):
+async def migrate(apply=False, task_id=None, release_cleanup=None):
     storage = MediaStorage()
     if not storage.enabled:
         raise ValueError("Set MEDIA_STORAGE=s3 and the media bucket configuration first")
-    counts = {"clips": 0, "sources": 0, "skipped": 0, "apply": apply}
+    counts = {"clips": 0, "sources": 0, "skipped": 0, "apply": apply,
+        "cleanup_token": str(uuid.uuid4()) if apply else None}
     async with AsyncSessionLocal() as db:
+        if release_cleanup:
+            token = str(uuid.UUID(release_cleanup))
+            result = await db.execute(text("UPDATE media_deletions SET hold_token = NULL, next_attempt_at = NOW() WHERE hold_token = :token"), {"token": token})
+            await db.commit()
+            counts["released"] = result.rowcount
+            print(json.dumps(counts))
+            return counts
+        if apply:
+            db.info["media_deletion_hold"] = counts["cleanup_token"]
+            # A later failure must not hide the token for already committed work.
+            print(json.dumps({"cleanup_token": counts["cleanup_token"]}), flush=True)
         clause = " AND task_id = :target" if task_id else ""
         result = await db.execute(text("SELECT DISTINCT task_id FROM generated_clips WHERE file_path NOT LIKE 's3://%'" + clause),
             {"target": task_id} if task_id else {})
@@ -73,9 +87,10 @@ async def migrate(apply=False, task_id=None):
             if len(source.owners) != 1:
                 counts["skipped"] += 1
                 continue
+            reference = None
             try:
                 path = VideoService.resolve_local_video_path(source.url)
-                if not path.exists():
+                if not path.exists() or not 0 < path.stat().st_size <= storage.config.max_video_upload_bytes:
                     counts["skipped"] += 1
                     continue
                 await db.execute(text("SELECT id FROM sources WHERE id = :id FOR UPDATE"), {"id": source.id})
@@ -104,15 +119,25 @@ async def migrate(apply=False, task_id=None):
                 else:
                     await db.rollback()
                 counts["sources"] += 1
-            except BaseException:
+            except BaseException as exc:
                 await db.rollback()
+                if reference:
+                    try:
+                        await run_in_thread(storage.delete, reference)
+                    except Exception:
+                        logging.getLogger(__name__).warning("Uncommitted migration upload will be reclaimed by orphan cleanup")
+                if isinstance(exc, ValueError):
+                    counts["skipped"] += 1
+                    continue
                 raise
     print(json.dumps(counts))
+    return counts
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--task-id", help="Migrate one task and its uploaded source")
+    parser.add_argument("--release-cleanup", help="Release a printed migration cleanup token after verification")
     args = parser.parse_args()
-    asyncio.run(migrate(args.apply, args.task_id))
+    asyncio.run(migrate(args.apply, args.task_id, args.release_cleanup))

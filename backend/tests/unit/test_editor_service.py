@@ -66,9 +66,9 @@ async def test_combine_worker_keeps_inputs_and_creates_editable_draft(
     atomic_json(directory / f"job-{job}.json", {"status": "queued"})
     created = []
 
-    async def create(_db, *args):
+    async def create(_db, *args, **kwargs):
         created.append(args)
-        return "combined"
+        return kwargs["clip_id"]
 
     repository = SimpleNamespace(
         get_clips_by_task=AsyncMock(return_value=clips),
@@ -95,11 +95,11 @@ async def test_combine_worker_keeps_inputs_and_creates_editable_draft(
     await combine_editor({}, "task", "clip1", "clip1.mp4", job)
     state = json.loads((directory / f"job-{job}.json").read_text())
     assert state["status"] == "completed", state
-    assert state["clip_id"] == "combined"
+    assert state["clip_id"]
     assert len(clips) == 2
     assert len(created) == 1
     filename = created[0][1]
-    combined = read_state(editor_dir(str(tmp_path), "task", "combined", filename))
+    combined = read_state(editor_dir(str(tmp_path), "task", state["clip_id"], filename))
     assert combined["status"] == "ready"
     assert [w["text"] for w in combined["draft"]["document"]["words"]] == [
         "clip1",
