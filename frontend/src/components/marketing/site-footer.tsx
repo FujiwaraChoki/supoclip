@@ -21,6 +21,7 @@ export function SiteFooter() {
         { href: "/sign-up", label: "Start clipping" },
         { href: "/#pricing", label: "Pricing" },
         { href: "/affiliate", label: "Affiliate" },
+        { href: "/status", label: "Service status" },
         { href: "/privacy", label: "Privacy" },
         { href: "/terms", label: "Terms" },
       ],
