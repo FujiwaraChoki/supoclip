@@ -14,6 +14,8 @@ export async function GET(
   }
   const upstream = await fetchBackend(`/tasks/shared/${path.join("/")}`, {
     method: "GET",
+    // Close the backend stream even when the client leaves before headers arrive.
+    signal: request.signal,
     extraHeaders: {
       ...(request.headers.get("accept")
         ? { Accept: request.headers.get("accept") as string }

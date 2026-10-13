@@ -22,6 +22,8 @@ async function proxyTaskRequest(
 
   const upstream = await fetchBackend(targetPath, {
     method: request.method,
+    // Close the backend stream even when the client leaves before headers arrive.
+    signal: request.signal,
     userId: session.user.id,
     extraHeaders: {
       ...(body && request.headers.get("content-type")
