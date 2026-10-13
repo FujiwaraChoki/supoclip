@@ -103,6 +103,21 @@ class Config:
         self.clip_duration = int(os.getenv("CLIP_DURATION", "30"))  # seconds
 
         self.temp_dir = os.getenv("TEMP_DIR", "temp")
+        self.media_storage = os.getenv("MEDIA_STORAGE", "local").strip().lower()
+        if self.media_storage not in {"local", "s3"}:
+            raise ValueError("MEDIA_STORAGE must be local or s3")
+        self.media_s3_bucket = self._get_optional_env("MEDIA_S3_BUCKET")
+        self.media_s3_prefix = os.getenv("MEDIA_S3_PREFIX", "media").strip("/")
+        self.media_s3_region = os.getenv("MEDIA_S3_REGION") or os.getenv("AWS_REGION", "eu-north-1")
+        self.media_s3_endpoint = self._get_optional_env("MEDIA_S3_ENDPOINT")
+        self.media_s3_access_key = self._get_optional_env("MEDIA_S3_ACCESS_KEY_ID")
+        self.media_s3_secret_key = self._get_optional_env("MEDIA_S3_SECRET_ACCESS_KEY")
+        self.media_s3_session_token = self._get_optional_env("MEDIA_S3_SESSION_TOKEN")
+        self.media_url_ttl_seconds = min(3600, max(60, int(os.getenv("MEDIA_URL_TTL_SECONDS", "900"))))
+        self.media_cache_ttl_seconds = max(14400, int(os.getenv("MEDIA_CACHE_TTL_SECONDS", "86400")))
+        self.media_orphan_grace_seconds = max(86400, int(os.getenv("MEDIA_ORPHAN_GRACE_SECONDS", "86400")))
+        if self.media_storage == "s3" and not self.media_s3_bucket:
+            raise ValueError("MEDIA_S3_BUCKET is required with MEDIA_STORAGE=s3")
 
         # Redis configuration
         self.redis_host = os.getenv("REDIS_HOST", "localhost")

@@ -16,7 +16,15 @@ type ProxyUploadAuthorization = {
   reason: "signed_backend_auth_required";
 };
 
-type UploadAuthorization = DirectUploadAuthorization | ProxyUploadAuthorization;
+type S3UploadAuthorization = {
+  storage: "s3";
+  video_path: string;
+  uploadId: string;
+  partSize: number;
+  parts: { partNumber: number; url: string }[];
+};
+
+type UploadAuthorization = DirectUploadAuthorization | ProxyUploadAuthorization | S3UploadAuthorization;
 
 const extractYouTubeVideoId = (value: string): string | null => {
   const input = value.trim();
@@ -55,9 +63,11 @@ export const getYouTubeThumbnailUrl = (value: string): string | null => {
   return videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null;
 };
 
-async function requestUploadAuthorization(): Promise<UploadAuthorization> {
+async function requestUploadAuthorization(file: File): Promise<UploadAuthorization> {
   const response = await fetch("/api/upload/authorization", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename: file.name, size: file.size, contentType: file.type }),
     cache: "no-store",
   });
 
@@ -77,7 +87,10 @@ export async function uploadVideoFile(file: File): Promise<string> {
     throw new Error("Uploaded file is too large. Please upload a video under 12 GB.");
   }
 
-  const uploadAuthorization = await requestUploadAuthorization();
+  const uploadAuthorization = await requestUploadAuthorization(file);
+  if ("storage" in uploadAuthorization) {
+    return uploadVideoFileToS3(file, uploadAuthorization);
+  }
   if (!uploadAuthorization.directUpload) {
     return uploadVideoFileViaProxy(file);
   }
@@ -106,6 +119,68 @@ export async function uploadVideoFile(file: File): Promise<string> {
   }
 
   return uploadResult.video_path;
+}
+
+async function uploadVideoFileToS3(file: File, authorization: S3UploadAuthorization): Promise<string> {
+  const completedParts: { partNumber: number; etag: string }[] = [];
+  const controller = new AbortController();
+  let nextPart = 0;
+  let failure: unknown;
+  const workers = Array.from({ length: Math.min(3, authorization.parts.length) }, async () => {
+    while (nextPart < authorization.parts.length && !controller.signal.aborted) {
+      const part = authorization.parts[nextPart++];
+      try {
+        const start = (part.partNumber - 1) * authorization.partSize;
+        let response: Response | undefined;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            response = await fetch(part.url, {
+              method: "PUT",
+              body: file.slice(start, Math.min(file.size, start + authorization.partSize)),
+              signal: controller.signal,
+            });
+            if (response.ok) break;
+            if (response.status < 500) throw new Error("Video upload failed. Please try again.");
+          } catch (error) {
+            if (controller.signal.aborted || attempt === 2) throw error;
+          }
+        }
+        const etag = response?.headers.get("ETag");
+        if (!response?.ok || !etag) {
+          throw new Error("Video upload failed. Please try again.");
+        }
+        completedParts.push({ partNumber: part.partNumber, etag });
+      } catch (error) {
+        failure ??= error;
+        controller.abort();
+      }
+    }
+  });
+  await Promise.all(workers);
+  const payload = { video_path: authorization.video_path, uploadId: authorization.uploadId };
+  try {
+    if (failure) throw failure;
+    const response = await fetch("/api/upload/complete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payload, parts: completedParts.sort((a, b) => a.partNumber - b.partNumber) }),
+    });
+    if (!response.ok) {
+      throw new Error(formatSupportMessage(await parseApiError(response, "Video upload could not be completed.")));
+    }
+    const result = await response.json();
+    if (typeof result.video_path !== "string" || !result.video_path) {
+      throw new Error("Upload finished without a video path. Please try again.");
+    }
+    return result.video_path;
+  } catch (error) {
+    await fetch("/api/upload/abort", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function uploadVideoFileViaProxy(file: File): Promise<string> {

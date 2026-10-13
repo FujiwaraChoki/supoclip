@@ -5,7 +5,8 @@ Worker tasks - background jobs processed by arq workers.
 import logging
 from typing import Dict, Any, Optional
 import json
-from arq import Retry
+from arq import Retry, cron
+from .media_cleanup import cleanup_media, sweep_orphaned_media
 from ..repositories.task_run_guard import TaskRunBusy
 
 from ..observability import configure_logging, set_trace_id
@@ -152,4 +153,7 @@ class WorkerSettings:
 
     # Worker pool settings
     max_jobs = 4  # Process up to 4 jobs simultaneously
-    cron_jobs = []
+    cron_jobs = [
+        cron(cleanup_media, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}, run_at_startup=True),
+        cron(sweep_orphaned_media, hour={0, 6, 12, 18}, minute=15),
+    ]

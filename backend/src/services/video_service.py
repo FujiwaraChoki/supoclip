@@ -42,6 +42,7 @@ from ..clip_source_map import (
 )
 from ..ai import get_most_relevant_parts_by_transcript
 from ..config import get_config
+from ..media_storage import MediaStorage
 
 logger = logging.getLogger(__name__)
 UPLOAD_URL_PREFIX = "upload://"
@@ -129,6 +130,9 @@ class VideoService:
     def resolve_local_video_path(url: str) -> Path:
         """Resolve uploaded-video references without exposing server filesystem paths."""
         if url.startswith(UPLOAD_URL_PREFIX):
+            if url.startswith("upload://s3/"):
+                storage = MediaStorage()
+                return storage.local_path(storage.source_reference(url))
             filename = Path(url.removeprefix(UPLOAD_URL_PREFIX)).name
             return Path(get_config().temp_dir) / "uploads" / filename
         raise ValueError("Only upload:// references are allowed for local video sources")
@@ -146,6 +150,13 @@ class VideoService:
             return None
 
         logger.info(f"Video downloaded successfully: {video_path}")
+        video_id = get_youtube_video_id(url)
+        if video_id:
+            try:
+                await run_in_thread(MediaStorage().restore_youtube_metadata, video_id, Path(video_path))
+            except BaseException:
+                await run_in_thread(cleanup_downloaded_files, video_id, source_path=Path(video_path))
+                raise
         return video_path
 
     @staticmethod
@@ -447,7 +458,11 @@ class VideoService:
                 if not video_path:
                     raise Exception("Failed to download video")
             else:
-                video_path = VideoService.resolve_local_video_path(url)
+                video_path = (
+                    await run_in_thread(VideoService.resolve_local_video_path, url)
+                    if url.startswith("upload://s3/")
+                    else VideoService.resolve_local_video_path(url)
+                )
                 if not video_path.exists():
                     raise Exception("Video file not found")
 

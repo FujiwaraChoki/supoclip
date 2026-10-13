@@ -6,7 +6,8 @@ import re
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
+from ...media_storage import MediaStorage
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,6 +38,7 @@ async def context(request, db, task_id, clip_id):
         raise HTTPException(404, "Clip not found")
     directory = editor_dir(service.config.temp_dir, task_id, clip_id, clip["filename"])
     await db.close()
+    await run_in_thread(MediaStorage().restore_editor, directory)
     return clip, directory
 
 
@@ -110,6 +112,7 @@ async def save(
             directory = editor_dir(
                 service.config.temp_dir, task_id, clip_id, clip["filename"]
             )
+            await run_in_thread(MediaStorage().restore_editor, directory)
             state = read_state(directory)
             if state["status"] != "ready":
                 raise HTTPException(
@@ -123,9 +126,11 @@ async def save(
             ):
                 raise ValueError("Invalid draft revision")
             document = EditDocument.model_validate(payload.get("document"))
-            return await run_in_thread(
+            result = await run_in_thread(
                 save_document, directory, document, revision, state["duration"]
             )
+            await run_in_thread(MediaStorage().save_editor, directory)
+            return result
     except RevisionConflict as exc:
         raise HTTPException(409, str(exc))
     except (ValueError, ValidationError) as exc:
@@ -141,7 +146,13 @@ async def media(
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
     _, directory = await context(request, db, task_id, clip_id)
-    if asset not in {"clean.mp4", "thumbnails.jpg"} or not (directory / asset).exists():
+    if asset not in {"clean.mp4", "thumbnails.jpg"}:
+        raise HTTPException(404, "Preview not ready")
+    storage = MediaStorage()
+    if storage.enabled and await run_in_thread(storage.exists, storage.editor_reference(directory, asset)):
+        url = await run_in_thread(storage.signed_url, storage.editor_reference(directory, asset), asset)
+        return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
+    if not (directory / asset).exists():
         raise HTTPException(404, "Preview not ready")
     return FileResponse(
         directory / asset,
@@ -250,7 +261,14 @@ async def export_file(
     _, directory = await context(request, db, task_id, clip_id)
     status = json.loads(job_path(directory, job_id).read_text())
     output = directory / f"export-{job_id}.mp4"
-    if status["status"] != "completed" or not output.exists():
+    if status["status"] != "completed":
+        raise HTTPException(409, "Export is not ready")
+    storage = MediaStorage()
+    reference = storage.editor_reference(directory, output.name)
+    if storage.enabled and await run_in_thread(storage.exists, reference):
+        url = await run_in_thread(storage.signed_url, reference, f"supoclip-{clip_id[:8]}-{job_id[:6]}.mp4", attachment=True)
+        return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
+    if not output.exists():
         raise HTTPException(409, "Export is not ready")
     return FileResponse(
         output,
@@ -281,6 +299,7 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
         directory = editor_dir(
             service.config.temp_dir, task_id, clip_id, clip["filename"]
         )
+        await run_in_thread(MediaStorage().restore_editor, directory)
         state = read_state(directory)
         if state["status"] != "ready":
             raise HTTPException(409, "Prepare each selected clip before combining")
@@ -290,7 +309,7 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
                 "filename": clip["filename"],
                 "document": state["draft"]["document"],
                 "state": {k: state[k] for k in ("width", "height", "hasAudio")},
-                "ranges": service._get_clip_source_ranges(clip),
+                "ranges": await run_in_thread(service._get_clip_source_ranges, clip),
             }
         )
     await db.close()

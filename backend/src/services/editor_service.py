@@ -13,6 +13,7 @@ from ..editor_document import (
     render_document,
 )
 from ..utils.async_helpers import run_in_thread
+from ..media_storage import MediaStorage, media_work
 
 
 def read_state(directory: Path):
@@ -107,6 +108,7 @@ def make_assets(directory: Path):
     }
 
 
+@media_work
 async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     from ..database import AsyncSessionLocal
     from .task_service import TaskService
@@ -120,8 +122,11 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     from ..clip_source_map import load_clip_caption_settings
 
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
+    storage = MediaStorage()
+    await run_in_thread(storage.restore_editor, directory)
     downloaded_source = None
     source_url = None
+    source = None
     try:
         async with AsyncSessionLocal() as db:
             service = TaskService(db)
@@ -134,17 +139,18 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 or clip["filename"] != filename
             ):
                 raise ValueError("The original clip changed. Reopen the editor.")
-            ranges = service._get_clip_source_ranges(clip)
+            ranges = await run_in_thread(service._get_clip_source_ranges, clip)
             source_url, source_type = task.get("source_url"), task.get("source_type")
             mode = task.get("processing_mode") or service.config.default_processing_mode
             cache = await service.cache_repo.get_cache(
                 db, service._build_cache_key(source_url, source_type, mode)
             )
             source = (
-                Path(cache["video_path"]) if cache and cache.get("video_path") else None
+                await run_in_thread(storage.local_path, cache["video_path"]) if cache and cache.get("video_path") else None
             )
             source_settings = await service._load_task_source_settings(task_id)
-            caption_settings = load_clip_caption_settings(Path(clip["file_path"])) or {}
+            caption_path = await run_in_thread(storage.local_path, clip["file_path"], metadata_only=True)
+            caption_settings = load_clip_caption_settings(caption_path) or {}
             await db.close()
             if not source or not source.exists():
                 if source_type == "youtube":
@@ -152,7 +158,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                     source = Path(downloaded) if downloaded else None
                     downloaded_source = source
                 else:
-                    source = service.video_service.resolve_local_video_path(source_url)
+                    source = await run_in_thread(service.video_service.resolve_local_video_path, source_url)
             if not source or not source.exists():
                 raise ValueError(
                     "The original source is unavailable. Restore the source file to edit this clip."
@@ -241,8 +247,12 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     finally:
         if downloaded_source is not None:
             service._cleanup_source_video(downloaded_source, "youtube", source_url)
+        elif source is not None:
+            await run_in_thread(storage.save_source_metadata, source)
+        await run_in_thread(storage.save_editor, directory)
 
 
+@media_work
 async def export_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: str):
     from ..config import get_config
     from ..database import AsyncSessionLocal
@@ -250,6 +260,7 @@ async def export_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: 
 
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
     try:
+        await run_in_thread(MediaStorage().restore_editor, directory, media=True)
         async with AsyncSessionLocal() as db:
             service = TaskService(db)
             clip = await service.clip_repo.get_clip_by_id(db, clip_id)
@@ -281,8 +292,11 @@ async def export_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: 
                 "progress": 0,
             },
         )
+    finally:
+        await run_in_thread(MediaStorage().save_editor, directory)
 
 
+@media_work
 async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: str):
     """Create a new clip from draft cuts, keeping every input clip and its draft."""
     import shutil
@@ -296,6 +310,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
 
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
     try:
+        await run_in_thread(MediaStorage().restore_editor, directory)
         payload = json.loads((directory / f"request-{job_id}.json").read_text())
         entries = payload["inputs"]
         commands, filters, joins, all_words, ranges = ["ffmpeg", "-y"], [], [], [], []
@@ -307,6 +322,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             source_dir = editor_dir(
                 get_config().temp_dir, task_id, entry["id"], entry["filename"]
             )
+            await run_in_thread(MediaStorage().restore_editor, source_dir, media=True)
             commands += ["-i", str(source_dir / "clean.mp4")]
             document = EditDocument.model_validate(entry["document"])
             all_words += [
@@ -417,6 +433,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                     )
                     atomic_json(destination / "original.json", document.model_dump())
                     atomic_json(destination / "asset.json", metadata)
+                    await run_in_thread(MediaStorage().save_editor, destination)
                     await service.clip_repo.reorder_task_clips(db, task_id)
             shutil.copy2(clip_path, directory / f"export-{job_id}.mp4")
         atomic_json(
@@ -439,3 +456,5 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                 "error": "Could not combine drafts. The original clips are unchanged.",
             },
         )
+    finally:
+        await run_in_thread(MediaStorage().save_editor, directory)

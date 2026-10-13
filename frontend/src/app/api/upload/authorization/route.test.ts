@@ -22,10 +22,28 @@ describe("/api/upload/authorization", () => {
     vi.mocked(headers).mockResolvedValue(new Headers());
   });
 
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("requests user-scoped multipart authorization from the backend", async () => {
+    vi.stubEnv("BACKEND_AUTH_SECRET", "secret");
+    vi.stubEnv("BACKEND_INTERNAL_URL", "http://backend:8000");
+    vi.mocked(auth.api.getSession).mockResolvedValue({ user: { id: "owner" } } as never);
+    const payload = { storage: "s3", video_path: "upload://s3/owner/id/video.mp4", parts: [] };
+    const fetchMock = vi.fn().mockResolvedValue(Response.json(payload));
+    vi.stubGlobal("fetch", fetchMock);
+    const response = await POST(new Request("http://app/api/upload/authorization", {
+      method: "POST", body: JSON.stringify({ filename: "video.mp4", size: 6, contentType: "video/mp4" }),
+    }));
+    await expect(response.json()).resolves.toEqual(payload);
+    expect(fetchMock).toHaveBeenCalledWith("http://backend:8000/upload/authorize", expect.objectContaining({
+      headers: expect.objectContaining({ "x-supoclip-user-id": "owner" }),
+    }));
+  });
+
   it("returns 401 when unauthenticated", async () => {
     vi.mocked(auth.api.getSession).mockResolvedValue(null as never);
 
-    const response = await POST();
+    const response = await POST(new Request("http://app/api/upload/authorization", { method: "POST" }));
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: "Unauthorized" });
@@ -37,7 +55,7 @@ describe("/api/upload/authorization", () => {
       user: { id: "user-1" },
     } as never);
 
-    const response = await POST();
+    const response = await POST(new Request("http://app/api/upload/authorization", { method: "POST" }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -54,7 +72,7 @@ describe("/api/upload/authorization", () => {
       user: { id: "user-1" },
     } as never);
 
-    const response = await POST();
+    const response = await POST(new Request("http://app/api/upload/authorization", { method: "POST" }));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({

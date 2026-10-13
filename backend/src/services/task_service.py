@@ -32,6 +32,9 @@ from ..youtube_utils import cleanup_downloaded_files, extract_video_id
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..clip_source_map import load_clip_caption_settings
+from ..media_storage import MediaStorage, media_work
+from ..utils.async_helpers import run_in_thread
+from ..repositories.media_repository import queue_delete, guard_source_creation
 
 logger = logging.getLogger(__name__)
 PROCESSING_CACHE_VERSION = "20260319_grounded_segments_v1"
@@ -137,6 +140,10 @@ class TaskService(ClipEditingMixin):
             try:
                 video_id = extract_video_id(url)
                 if video_id:
+                    try:
+                        MediaStorage().save_youtube_metadata(video_id, video_path)
+                    except Exception:
+                        logger.exception("Could not back up YouTube word timings")
                     cleanup_downloaded_files(video_id, source_path=video_path)
                     logger.info("Cleaned up YouTube source artifacts for %s", video_id)
                     return
@@ -146,6 +153,7 @@ class TaskService(ClipEditingMixin):
         # Fallback / upload path: at least drop the transcription audio sidecar
         # (e.g. "<stem>.transcription.mp3") next to the source file.
         try:
+            MediaStorage().save_source_metadata(video_path)
             sidecar = video_path.with_name(f"{video_path.stem}.transcription.mp3")
             if sidecar.exists():
                 sidecar.unlink()
@@ -153,6 +161,7 @@ class TaskService(ClipEditingMixin):
         except Exception as e:
             logger.warning("Failed to remove transcription sidecar: %s", e)
 
+    @guard_source_creation
     async def create_task_with_source(
         self,
         user_id: str,
@@ -175,6 +184,8 @@ class TaskService(ClipEditingMixin):
 
         # Determine source type
         source_type = self.video_service.determine_source_type(url)
+        if url.startswith("upload://s3/"):
+            await run_in_thread(MediaStorage().validate_source, url, user_id)
 
         # Get or generate title
         if not title:
@@ -212,6 +223,7 @@ class TaskService(ClipEditingMixin):
         return task_run_guard(self.db, task_id)
 
     @exclusive_task_run
+    @media_work
     async def process_task(
         self,
         task_id: str,
@@ -322,6 +334,7 @@ class TaskService(ClipEditingMixin):
             stage_timings["pipeline_seconds"] = round(
                 perf_counter() - pipeline_start, 3
             )
+            video_path = Path(result["video_path"])
 
             normalized_cleanup_settings = normalize_clip_cleanup_settings(
                 **(cleanup_settings or {})
@@ -478,8 +491,6 @@ class TaskService(ClipEditingMixin):
                 f"Task {task_id} completed successfully with {len(clip_ids)} clips"
             )
 
-            self._cleanup_source_video(video_path, source_type, url)
-
             return {
                 "task_id": task_id,
                 "clips_count": len(clip_ids),
@@ -499,7 +510,6 @@ class TaskService(ClipEditingMixin):
                         pending_clip_path.with_suffix(".source_map.json").unlink(missing_ok=True)
                 except OSError:
                     logger.warning("Could not remove unfinished clip %s", pending_clip_path)
-            self._cleanup_source_video(video_path, source_type, url)
             if str(e) == "Task cancelled":
                 await self.task_repo.update_task_status(
                     self.db,
@@ -539,6 +549,8 @@ class TaskService(ClipEditingMixin):
                 except Exception:
                     logger.exception("Could not publish task failure for %s", task_id)
             raise
+        finally:
+            await run_in_thread(self._cleanup_source_video, video_path, source_type, url)
 
     async def _send_completion_notification_if_needed(
         self, *, task_id: str, clips_count: int
@@ -649,7 +661,10 @@ class TaskService(ClipEditingMixin):
         task["clips"] = [
             {
                 **{key: value for key, value in clip.items() if key != "file_path"},
-                "caption_settings": load_clip_caption_settings(Path(clip["file_path"])) if clip.get("file_path") else None,
+                "caption_settings": await run_in_thread(
+                    lambda ref: load_clip_caption_settings(MediaStorage().local_path(ref, metadata_only=True)),
+                    clip["file_path"],
+                ) if clip.get("file_path") else None,
             }
             for clip in clips
         ]
@@ -667,6 +682,18 @@ class TaskService(ClipEditingMixin):
     @serialized_task_edit
     async def delete_task(self, task_id: str) -> None:
         """Delete a task and all its associated clips."""
+        task = await self.task_repo.get_task_by_id(self.db, task_id)
+        source_url = task.get("source_url") if task else None
+        if source_url and source_url.startswith("upload://"):
+            if source_url.startswith("upload://s3/"):
+                path = MediaStorage().source_reference(source_url)
+            else:
+                path = str(self.video_service.resolve_local_video_path(source_url))
+            await queue_delete(self.db, path)
+        elif source_url and MediaStorage().enabled:
+            video_id = extract_video_id(source_url)
+            if video_id:
+                await queue_delete(self.db, MediaStorage().youtube_metadata_reference(video_id))
         # Delete all clips for this task
         await self.clip_repo.delete_clips_by_task(self.db, task_id)
 

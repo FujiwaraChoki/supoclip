@@ -12,6 +12,8 @@ import uuid
 import aiofiles
 
 from ...config import get_config
+from ...media_storage import MediaStorage
+from ...utils.async_helpers import run_in_thread
 from ...database import get_db
 from ...auth_headers import resolve_authenticated_user_id
 from ...services.billing_service import BillingService
@@ -285,7 +287,7 @@ async def get_broll_status():
 async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
     """Upload a video to the server."""
     try:
-        await _get_authenticated_user_id(request, db)
+        user_id = await _get_authenticated_user_id(request, db)
         config = get_config()
 
         # Get the form data
@@ -311,6 +313,14 @@ async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
         max_bytes = get_config().max_video_upload_bytes
         await _write_upload_to_disk(upload, video_path, max_bytes)
 
+        storage = MediaStorage()
+        if storage.enabled:
+            try:
+                url, _ = await run_in_thread(storage.persist_source, video_path, user_id)
+            finally:
+                video_path.unlink(missing_ok=True)
+            return {"message": "Video uploaded successfully", "video_path": url}
+
         logger.info(f"✅ Video uploaded successfully to: {video_path}")
 
         return {
@@ -322,3 +332,44 @@ async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.error(f"❌ Error uploading video: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
+
+
+@router.post("/upload/authorize")
+async def authorize_upload(request: Request, db: AsyncSession = Depends(get_db)):
+    user_id = await _get_authenticated_user_id(request, db)
+    storage = MediaStorage()
+    if not storage.enabled:
+        return {"storage": "local"}
+    try:
+        payload = await request.json()
+        size = payload.get("size")
+        if not isinstance(size, int) or isinstance(size, bool):
+            raise ValueError("A file size is required")
+        filename = payload.get("filename")
+        if not isinstance(filename, str):
+            raise ValueError("A filename is required")
+        content_type = payload.get("contentType") or "application/octet-stream"
+        if not isinstance(content_type, str) or len(content_type) > 128:
+            raise ValueError("Invalid content type")
+        return await run_in_thread(storage.begin_upload, user_id, filename, size, content_type)
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@router.post("/upload/complete")
+async def complete_upload(request: Request, db: AsyncSession = Depends(get_db)):
+    user_id = await _get_authenticated_user_id(request, db)
+    try:
+        return await run_in_thread(MediaStorage().complete_upload, user_id, await request.json())
+    except (ValueError, TypeError, AttributeError, KeyError) as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@router.post("/upload/abort")
+async def abort_upload(request: Request, db: AsyncSession = Depends(get_db)):
+    user_id = await _get_authenticated_user_id(request, db)
+    try:
+        await run_in_thread(MediaStorage().abort_upload, user_id, await request.json())
+        return {"message": "Upload cancelled"}
+    except (ValueError, TypeError, AttributeError, KeyError) as exc:
+        raise HTTPException(400, str(exc)) from None

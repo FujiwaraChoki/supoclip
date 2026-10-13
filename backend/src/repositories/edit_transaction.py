@@ -5,6 +5,7 @@ from functools import wraps
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from ..media_storage import media_work
 
 _EDIT_TASK = "supoclip_edit_task"
 
@@ -55,6 +56,7 @@ async def task_edit_transaction(db: AsyncSession, task_id: str, *, processing: b
 def serialized_task_edit(method):
     """Wrap a service operation whose first argument is its owning task ID."""
     @wraps(method)
+    @media_work
     async def wrapped(self, task_id, *args, **kwargs):
         async with task_edit_transaction(self.db, task_id):
             return await method(self, task_id, *args, **kwargs)

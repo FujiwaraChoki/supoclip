@@ -4,7 +4,9 @@ Task API routes using refactored architecture.
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
+from starlette.background import BackgroundTask
+from ...media_storage import MediaStorage, is_s3, media_work
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 from pathlib import Path
@@ -481,6 +483,10 @@ async def get_shared_clip_file(
     if not clip or clip.get("task_id") != task_id:
         raise HTTPException(status_code=404, detail="Clip not found")
 
+    if is_s3(clip["file_path"]):
+        await db.close()
+        url = await run_in_thread(MediaStorage().signed_url, clip["file_path"], clip["filename"])
+        return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
     clip_path = Path(clip["file_path"])
     if not clip_path.exists():
         raise HTTPException(status_code=404, detail="Clip file not found")
@@ -756,6 +762,10 @@ async def get_clip_file(
         if not clip or clip.get("task_id") != task_id:
             raise HTTPException(status_code=404, detail="Clip not found")
 
+        if is_s3(clip["file_path"]):
+            await db.close()
+            url = await run_in_thread(MediaStorage().signed_url, clip["file_path"], clip["filename"])
+            return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
         clip_path = Path(clip["file_path"])
         if not clip_path.exists():
             raise HTTPException(status_code=404, detail="Clip file not found")
@@ -1011,6 +1021,7 @@ async def apply_task_settings(
 
 
 @router.get("/{task_id}/clips/{clip_id}/export")
+@media_work
 async def export_clip(
     task_id: str,
     clip_id: str,
@@ -1043,14 +1054,15 @@ async def export_clip(
         runtime_config = get_config()
         output_path = await run_in_thread(
             export_with_preset,
-            Path(clip["file_path"]),
+            await run_in_thread(MediaStorage().local_path, clip["file_path"]),
             Path(runtime_config.temp_dir) / "exports",
             preset_name,
         )
 
         download_name = f"{Path(clip['filename']).stem}_{preset_name}.mp4"
         return FileResponse(
-            path=str(output_path), media_type="video/mp4", filename=download_name
+            path=str(output_path), media_type="video/mp4", filename=download_name,
+            background=BackgroundTask(output_path.unlink, missing_ok=True),
         )
     except HTTPException:
         raise

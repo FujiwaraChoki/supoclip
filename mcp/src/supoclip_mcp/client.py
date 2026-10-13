@@ -17,8 +17,10 @@ from __future__ import annotations
 import hashlib
 import hmac
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 
@@ -121,22 +123,47 @@ class SupoClipClient:
         dest_path = dest_dir / filename
 
         bytes_written = 0
+        temporary = dest_path.with_name(f".{dest_path.name}.{uuid.uuid4().hex}.part")
+        backend_origin = urlsplit(self.settings.api_url)[:2]
         try:
             async with httpx.AsyncClient(timeout=None) as client:
-                async with client.stream(
-                    "GET", url, params=params, headers=headers
-                ) as response:
-                    if response.status_code >= 400:
-                        body = (await response.aread()).decode("utf-8", "replace")
-                        raise SupoClipError(
-                            _error_message(response.status_code, body, path)
-                        )
-                    with dest_path.open("wb") as handle:
-                        async for chunk in response.aiter_bytes(chunk_size=1 << 16):
-                            handle.write(chunk)
-                            bytes_written += len(chunk)
+                download_url = url
+                for _ in range(6):
+                    async with client.stream("GET", download_url, params=params, headers=headers) as response:
+                        if response.is_redirect:
+                            location = response.headers.get("location")
+                            if not location:
+                                raise SupoClipError("Download redirect has no destination.")
+                            download_url = urljoin(download_url, location)
+                            target = urlsplit(download_url)
+                            same_backend = target[:2] == backend_origin
+                            if target.scheme not in {"http", "https"} or (not same_backend and target.scheme != "https"):
+                                raise SupoClipError("Download redirect must use HTTPS for external storage.")
+                            # HTTP clients do not automatically strip custom HMAC
+                            # headers on a cross-origin redirect. Send no backend
+                            # credentials to storage; the URL carries its own grant.
+                            headers = self._auth_headers() if same_backend else {}
+                            params = None
+                            continue
+                        if response.status_code not in {200, 206}:
+                            if urlsplit(download_url)[:2] != backend_origin:
+                                raise SupoClipError(f"Storage download failed ({response.status_code}). Please retry.")
+                            body = (await response.aread()).decode("utf-8", "replace")
+                            raise SupoClipError(_error_message(response.status_code, body, path))
+                        with temporary.open("wb") as handle:
+                            async for chunk in response.aiter_bytes(chunk_size=1 << 16):
+                                handle.write(chunk)
+                                bytes_written += len(chunk)
+                        temporary.replace(dest_path)
+                        break
+                else:
+                    raise SupoClipError("Download redirected too many times.")
         except httpx.HTTPError as exc:
-            raise SupoClipError(f"Download from {url} failed: {exc}") from exc
+            # Exceptions may contain signed storage URLs. Keep them out of the
+            # user-visible error while retaining the exception type for support.
+            raise SupoClipError(f"Download from {path} failed ({type(exc).__name__}).") from exc
+        finally:
+            temporary.unlink(missing_ok=True)
 
         return {
             "path": str(dest_path.resolve()),
