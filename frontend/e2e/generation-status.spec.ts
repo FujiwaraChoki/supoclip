@@ -20,6 +20,17 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "mobile", width: 390, height: 844 }]) {
+  test(`hides resolved video import status on the ${viewport.name} generation page`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.route("**/api/service-status/video-downloads", route => route.fulfill({ json: {
+      component: { status: "operational", headline: "Resolved", description: "Downloads are working normally." },
+    } }));
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: /Good .*Alex/ })).toBeVisible();
+    await expect(page.getByRole("status", { name: "YouTube import status" })).toHaveCount(0);
+    await expect(page.getByText("Checking YouTube import status…")).toHaveCount(0);
+  });
+
   test(`shows the video import incident on the ${viewport.name} generation page`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.goto("/");

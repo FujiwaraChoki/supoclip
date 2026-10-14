@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, CheckCircle2, Info, Wrench } from "lucide-react";
+import { AlertCircle, Wrench } from "lucide-react";
 
 type ServiceStatus = {
   status: "operational" | "degraded" | "outage" | "maintenance";
@@ -11,12 +11,6 @@ type ServiceStatus = {
 };
 
 const presentation = {
-  operational: {
-    label: "Operational",
-    icon: CheckCircle2,
-    card: "border-emerald-200 bg-emerald-50/70 text-emerald-950",
-    iconColor: "text-emerald-700",
-  },
   degraded: {
     label: "Degraded",
     icon: AlertCircle,
@@ -40,13 +34,12 @@ const presentation = {
 function isServiceStatus(value: unknown): value is ServiceStatus {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Record<string, unknown>;
-  return typeof candidate.status === "string" && candidate.status in presentation
+  return typeof candidate.status === "string" && (candidate.status === "operational" || candidate.status in presentation)
     && typeof candidate.headline === "string" && typeof candidate.description === "string";
 }
 
 export function VideoDownloadStatus() {
   const [component, setComponent] = useState<ServiceStatus | null>(null);
-  const [unavailable, setUnavailable] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -66,12 +59,10 @@ export function VideoDownloadStatus() {
         if (!isServiceStatus(data.component)) throw new Error("Invalid status response");
         if (active && !request.signal.aborted) {
           setComponent(data.component);
-          setUnavailable(false);
         }
       } catch {
         if (active && !request.signal.aborted) {
           setComponent(null);
-          setUnavailable(true);
         }
       }
     };
@@ -90,21 +81,10 @@ export function VideoDownloadStatus() {
     };
   }, []);
 
-  if (!component) {
-    return (
-      <div role="status" className="mt-6 flex items-center justify-between gap-3 rounded-xl border bg-background px-4 py-3 text-sm text-muted-foreground">
-        <span className="flex items-center gap-2">
-          <Info aria-hidden="true" className="size-4 shrink-0" />
-          {unavailable ? "YouTube import status is temporarily unavailable." : "Checking YouTube import status…"}
-        </span>
-        <Link href="/status" className="shrink-0 font-medium underline underline-offset-2 hover:text-foreground">Status page</Link>
-      </div>
-    );
-  }
+  if (!component || component.status === "operational") return null;
 
   const style = presentation[component.status];
   const Icon = style.icon;
-  const isOperational = component.status === "operational";
   return (
     <section role="status" aria-label="YouTube import status" className={`mt-6 rounded-xl border px-4 py-3.5 sm:px-5 ${style.card}`}>
       <div className="flex items-start gap-3">
@@ -114,12 +94,8 @@ export function VideoDownloadStatus() {
             <p className="text-sm font-semibold">YouTube imports · {style.label}</p>
             <Link href="/status" className="text-xs font-semibold underline underline-offset-2 hover:opacity-70">View status page</Link>
           </div>
-          {!isOperational && (
-            <>
-              <p className="mt-2 text-sm font-semibold">{component.headline}</p>
-              <p className="mt-1 text-sm leading-6 opacity-85">{component.description}</p>
-            </>
-          )}
+          <p className="mt-2 text-sm font-semibold">{component.headline}</p>
+          <p className="mt-1 text-sm leading-6 opacity-85">{component.description}</p>
         </div>
       </div>
     </section>
