@@ -15,6 +15,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Public component status, editable without a frontend deployment.
+model ServiceStatus {
+  id          String   @id @db.VarChar(80)
+  name        String   @db.VarChar(120)
+  status      String   @db.VarChar(20)
+  headline    String   @db.VarChar(120)
+  description String   @db.VarChar(2000)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("service_statuses")
+}
+
 // Announcements managed by admins without a frontend deployment.
 model Announcement {
   id          String   @id @default(uuid())

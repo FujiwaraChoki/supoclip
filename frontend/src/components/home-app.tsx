@@ -10,6 +10,7 @@ import { CaptionSizeControl } from "@/components/caption-size-control";
 import { FONT_SEARCH_THRESHOLD, getYouTubeThumbnailUrl, uploadVideoFile } from "@/lib/video-upload";
 import { AppShell } from "@/components/app/app-shell";
 import { GenerationCard } from "@/components/app/generation-card";
+import { VideoDownloadStatus } from "@/components/app/video-download-status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -317,6 +318,8 @@ export default function HomeApp() {
           </p>
 
           {upgradeState && <PlanStatusNudge state={upgradeState} onUpgrade={openUpgrade} />}
+
+          <VideoDownloadStatus />
 
           <form
             onSubmit={handleSubmit}
