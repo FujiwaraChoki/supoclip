@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS media_deletions (
+    file_path TEXT PRIMARY KEY,
+    is_prefix BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

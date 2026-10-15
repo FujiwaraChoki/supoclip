@@ -3,6 +3,7 @@ Clip repository - handles all database operations for generated clips.
 """
 
 from .edit_transaction import commit_unless_editing
+from .media_repository import persist_clip, queue_clip_delete
 from sqlalchemy.exc import DBAPIError
 
 
@@ -38,10 +39,19 @@ class ClipRepository:
         shareability_score: int = 0,
         hook_type: Optional[str] = None,
         hook_title: Optional[str] = None,
+        clip_id: Optional[str] = None,
     ) -> str:
         """Create a new clip record and return its ID."""
+        previous = await db.execute(sa_text(
+            "SELECT id, task_id, filename, file_path FROM generated_clips "
+            "WHERE task_id = :task_id AND clip_order = :clip_order"
+        ), {"task_id": task_id, "clip_order": clip_order})
+        old_clip = previous.mappings().first()
+        file_path = await persist_clip(db, file_path, task_id)
+        if old_clip and old_clip["file_path"] != file_path:
+            await queue_clip_delete(db, old_clip)
         base_params = {
-            "id": str(uuid4()),
+            "id": clip_id or str(uuid4()),
             "task_id": task_id,
             "filename": filename,
             "file_path": file_path,
@@ -201,6 +211,11 @@ class ClipRepository:
     @staticmethod
     async def delete_clips_by_task(db: AsyncSession, task_id: str) -> int:
         """Delete all clips for a task. Returns count of deleted clips."""
+        rows = await db.execute(sa_text(
+            "SELECT id, task_id, filename, file_path FROM generated_clips WHERE task_id = :task_id"
+        ), {"task_id": task_id})
+        for clip in rows.mappings():
+            await queue_clip_delete(db, clip)
         result = await db.execute(
             sa_text("DELETE FROM generated_clips WHERE task_id = :task_id"),
             {"task_id": task_id},
@@ -213,6 +228,12 @@ class ClipRepository:
     @staticmethod
     async def delete_clip(db: AsyncSession, clip_id: str) -> None:
         """Delete a single clip by ID."""
+        rows = await db.execute(sa_text(
+            "SELECT id, task_id, filename, file_path FROM generated_clips WHERE id = :clip_id"
+        ), {"clip_id": clip_id})
+        clip = rows.mappings().first()
+        if clip:
+            await queue_clip_delete(db, clip)
         await db.execute(
             sa_text("DELETE FROM generated_clips WHERE id = :clip_id"),
             {"clip_id": clip_id},
@@ -293,6 +314,15 @@ class ClipRepository:
         text: str,
     ) -> None:
         """Update core clip metadata and file path."""
+        rows = await db.execute(sa_text(
+            "SELECT id, task_id, filename, file_path FROM generated_clips WHERE id = :clip_id"
+        ), {"clip_id": clip_id})
+        previous = rows.mappings().first()
+        if not previous:
+            raise ValueError("Clip not found")
+        file_path = await persist_clip(db, file_path, previous["task_id"])
+        if previous["file_path"] != file_path:
+            await queue_clip_delete(db, previous)
         await db.execute(
             sa_text(
                 """

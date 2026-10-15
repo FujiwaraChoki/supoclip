@@ -241,6 +241,7 @@ export function Preview({
         >
           <video
             ref={videoRef}
+            crossOrigin="anonymous"
             src={`${endpoint}/media/clean.mp4`}
             preload="auto"
             playsInline

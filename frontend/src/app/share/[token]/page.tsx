@@ -71,7 +71,7 @@ export default function SharedGenerationPage() {
 
   const download = (clip: SharedClip) => {
     const link = document.createElement("a");
-    link.href = clipFileUrl(clip.id);
+    link.href = `${clipFileUrl(clip.id)}?download=true`;
     link.download = clip.filename;
     document.body.appendChild(link);
     link.click();

@@ -475,7 +475,8 @@ export default function TaskPage() {
   const handleDownloadClip = (clip: Clip) => {
     if (exportPreset === "original") {
       const link = document.createElement("a");
-      link.href = getClipUrl(clip.video_url, clip.filename);
+      const url = getClipUrl(clip.video_url, clip.filename);
+      link.href = `${url}${url.includes("?") ? "&" : "?"}download=true`;
       link.download = clip.filename;
       document.body.appendChild(link);
       link.click();

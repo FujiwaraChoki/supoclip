@@ -20,8 +20,27 @@ async def run_in_thread(func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
     - YouTube downloads
     - Transcript generation
     """
+    from ..media_storage import _workspace
+
     try:
-        return await asyncio.to_thread(func, *args, **kwargs)
+        if _workspace.get() is None:
+            return await asyncio.to_thread(func, *args, **kwargs)
+        operation = asyncio.create_task(asyncio.to_thread(func, *args, **kwargs))
+        try:
+            return await asyncio.shield(operation)
+        except asyncio.CancelledError:
+            # Python cannot stop a running thread. Keep its media leases until
+            # it has stopped reading/writing, then propagate cancellation.
+            while not operation.done():
+                try:
+                    await asyncio.shield(operation)
+                except asyncio.CancelledError:
+                    continue
+                except BaseException:
+                    break
+            if not operation.cancelled():
+                operation.exception()
+            raise
     except Exception as e:
         logger.error(f"Error running {func.__name__} in thread: {e}")
         raise

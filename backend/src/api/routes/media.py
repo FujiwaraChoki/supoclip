@@ -12,6 +12,9 @@ import uuid
 import aiofiles
 
 from ...config import get_config
+from ...media_storage import MediaStorage, STORAGE_ERRORS, media_work
+from ...repositories.upload_repository import reserve_upload, bind_upload, get_upload, finish_upload, UploadLimitReached
+from ...utils.async_helpers import run_in_thread
 from ...database import get_db
 from ...auth_headers import resolve_authenticated_user_id
 from ...services.billing_service import BillingService
@@ -282,10 +285,11 @@ async def get_broll_status():
 
 
 @router.post("/upload")
+@media_work
 async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
     """Upload a video to the server."""
     try:
-        await _get_authenticated_user_id(request, db)
+        user_id = await _get_authenticated_user_id(request, db)
         config = get_config()
 
         # Get the form data
@@ -311,14 +315,125 @@ async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
         max_bytes = get_config().max_video_upload_bytes
         await _write_upload_to_disk(upload, video_path, max_bytes)
 
+        storage = MediaStorage()
+        if storage.enabled:
+            session_id = None
+            try:
+                session_id = await reserve_upload(db, user_id, video_path.stat().st_size, config)
+                url, _ = await run_in_thread(storage.persist_source, video_path, user_id)
+                await finish_upload(db, session_id, 'completed')
+            except BaseException:
+                if session_id:
+                    await db.rollback()
+                    await finish_upload(db, session_id, 'aborted')
+                raise
+            finally:
+                video_path.unlink(missing_ok=True)
+            return {"message": "Video uploaded successfully", "video_path": url}
+
         logger.info(f"✅ Video uploaded successfully to: {video_path}")
 
         return {
             "message": "Video uploaded successfully",
             "video_path": f"upload://{unique_filename}",
         }
+    except UploadLimitReached as exc:
+        raise HTTPException(429, str(exc)) from None
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Error uploading video: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
+
+
+@router.post("/upload/authorize")
+@media_work
+async def authorize_upload(request: Request, db: AsyncSession = Depends(get_db)):
+    user_id = await _get_authenticated_user_id(request, db)
+    storage = MediaStorage()
+    if not storage.enabled:
+        return {"storage": "local"}
+    try:
+        payload = await request.json()
+        size = payload.get("size")
+        if not isinstance(size, int) or isinstance(size, bool):
+            raise ValueError("A file size is required")
+        filename = payload.get("filename")
+        if not isinstance(filename, str):
+            raise ValueError("A filename is required")
+        content_type = payload.get("contentType") or "application/octet-stream"
+        if not isinstance(content_type, str) or len(content_type) > 128:
+            raise ValueError("Invalid content type")
+        session_id = await reserve_upload(db, user_id, size, storage.config)
+        authorization = {}
+        def begin():
+            # Retain the SDK result even if cancellation prevents delivery of
+            # the thread result to the awaiting handler.
+            authorization.update(storage.begin_upload(
+                user_id, filename, size, content_type, authorization=authorization))
+            return authorization
+        try:
+            await run_in_thread(begin)
+            await bind_upload(db, session_id, authorization)
+            return authorization
+        except BaseException:
+            await db.rollback()
+            if authorization:
+                try:
+                    await run_in_thread(storage.abort_upload, user_id, authorization)
+                except STORAGE_ERRORS:
+                    await bind_upload(db, session_id, authorization)
+                    raise
+            await finish_upload(db, session_id, 'aborted')
+            raise
+    except UploadLimitReached as exc:
+        raise HTTPException(429, str(exc)) from None
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@router.post("/upload/parts")
+async def refresh_upload_parts(request: Request, db: AsyncSession = Depends(get_db)):
+    user_id = await _get_authenticated_user_id(request, db)
+    try:
+        payload = await request.json()
+        session = await get_upload(db, user_id, payload)
+        return await run_in_thread(MediaStorage().refresh_upload_parts, user_id, payload, size=session.size)
+    except (ValueError, TypeError, AttributeError, KeyError) as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@router.post("/upload/complete")
+async def complete_upload(request: Request, db: AsyncSession = Depends(get_db)):
+    user_id = await _get_authenticated_user_id(request, db)
+    try:
+        payload = await request.json()
+        session = await get_upload(db, user_id, payload)
+        result = await run_in_thread(MediaStorage().complete_upload, user_id, payload, size=session.size)
+        await finish_upload(db, session.id, 'completed')
+        return result
+    except (ValueError, TypeError, AttributeError, KeyError) as exc:
+        raise HTTPException(400, str(exc)) from None
+
+
+@router.post("/upload/abort")
+async def abort_upload(request: Request, db: AsyncSession = Depends(get_db)):
+    user_id = await _get_authenticated_user_id(request, db)
+    try:
+        payload = await request.json()
+        # Unknown pre-upgrade uploads can still be aborted, but never refreshed.
+        try:
+            session = await get_upload(db, user_id, payload, for_abort=True)
+        except ValueError:
+            session = None
+        from botocore.exceptions import ClientError
+        try:
+            await run_in_thread(MediaStorage().abort_upload, user_id, payload)
+        except ClientError as exc:
+            if exc.response['Error']['Code'] != 'NoSuchUpload':
+                raise
+        if session:
+            await finish_upload(db, session.id, 'aborted')
+        return {"message": "Upload cancelled"}
+    except (ValueError, TypeError, AttributeError, KeyError) as exc:
+        raise HTTPException(400, str(exc)) from None

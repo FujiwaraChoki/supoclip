@@ -1,12 +1,14 @@
 """Authenticated draft, preview and background export endpoints."""
 
 from pathlib import Path
+import logging
 import json
 import re
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
+from ...media_storage import MediaStorage, STORAGE_ERRORS, is_s3, media_work
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,7 +23,6 @@ from ...editor_document import (
 )
 from ...services.editor_service import read_state
 from ...services.task_service import TaskService
-from ...repositories.edit_transaction import task_edit_transaction
 from ...workers.job_queue import JobQueue
 from ...utils.async_helpers import run_in_thread
 from .tasks import _require_task_owner, _read_json_object
@@ -37,6 +38,7 @@ async def context(request, db, task_id, clip_id):
         raise HTTPException(404, "Clip not found")
     directory = editor_dir(service.config.temp_dir, task_id, clip_id, clip["filename"])
     await db.close()
+    await run_in_thread(MediaStorage().restore_editor, directory, s3_backed=is_s3(clip["file_path"]))
     return clip, directory
 
 
@@ -98,34 +100,42 @@ async def save(
     service = TaskService(db)
     await _require_task_owner(request, service, db, task_id)
     payload = await _read_json_object(request)
+    # Restore missing files before checking the local draft revision.
+    clip, directory = await context(request, db, task_id, clip_id)
     try:
-        async with task_edit_transaction(db, task_id):
-            clip = await service.clip_repo.get_clip_by_id(db, clip_id)
-            if not clip or clip["task_id"] != task_id:
-                raise HTTPException(404, "Clip not found")
-            if payload.get("basis") != clip["filename"]:
-                raise HTTPException(
-                    409, "The original clip changed. Reopen the editor."
-                )
-            directory = editor_dir(
-                service.config.temp_dir, task_id, clip_id, clip["filename"]
+        # Drafts have their own file lock and revision check. They do not
+        # mutate task/clip rows, so renders must not block autosave.
+        clip = await service.clip_repo.get_clip_by_id(db, clip_id)
+        if not clip or clip["task_id"] != task_id:
+            raise HTTPException(404, "Clip not found")
+        if payload.get("basis") != clip["filename"]:
+            raise HTTPException(
+                409, "The original clip changed. Reopen the editor."
             )
-            state = read_state(directory)
-            if state["status"] != "ready":
-                raise HTTPException(
-                    409, "Wait for the editor preview to finish preparing"
-                )
-            revision = payload.get("revision")
-            if (
-                isinstance(revision, bool)
-                or not isinstance(revision, int)
-                or revision < 0
-            ):
-                raise ValueError("Invalid draft revision")
-            document = EditDocument.model_validate(payload.get("document"))
-            return await run_in_thread(
-                save_document, directory, document, revision, state["duration"]
+        directory = editor_dir(
+            service.config.temp_dir, task_id, clip_id, clip["filename"]
+        )
+        state = read_state(directory)
+        if state["status"] != "ready":
+            raise HTTPException(
+                409, "Wait for the editor preview to finish preparing"
             )
+        revision = payload.get("revision")
+        if (
+            isinstance(revision, bool)
+            or not isinstance(revision, int)
+            or revision < 0
+        ):
+            raise ValueError("Invalid draft revision")
+        document = EditDocument.model_validate(payload.get("document"))
+        result = await run_in_thread(
+            save_document, directory, document, revision, state["duration"]
+        )
+        try:
+            await run_in_thread(MediaStorage().save_editor, directory, metadata_only=True, blocking=False)
+        except STORAGE_ERRORS:
+            logging.getLogger(__name__).warning("Draft saved locally; S3 snapshot will retry")
+        return result
     except RevisionConflict as exc:
         raise HTTPException(409, str(exc))
     except (ValueError, ValidationError) as exc:
@@ -141,7 +151,17 @@ async def media(
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
     _, directory = await context(request, db, task_id, clip_id)
-    if asset not in {"clean.mp4", "thumbnails.jpg"} or not (directory / asset).exists():
+    if asset not in {"clean.mp4", "thumbnails.jpg"}:
+        raise HTTPException(404, "Preview not ready")
+    storage = MediaStorage()
+    try:
+        if (storage.enabled or (directory / ".s3-manifest").exists()) and await run_in_thread(storage.exists, storage.editor_reference(directory, asset)):
+            url = await run_in_thread(storage.signed_url, storage.editor_reference(directory, asset), asset)
+            return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
+    except STORAGE_ERRORS:
+        if not (directory / asset).exists():
+            raise HTTPException(503, "Media storage is temporarily unavailable") from None
+    if not (directory / asset).exists():
         raise HTTPException(404, "Preview not ready")
     return FileResponse(
         directory / asset,
@@ -250,7 +270,18 @@ async def export_file(
     _, directory = await context(request, db, task_id, clip_id)
     status = json.loads(job_path(directory, job_id).read_text())
     output = directory / f"export-{job_id}.mp4"
-    if status["status"] != "completed" or not output.exists():
+    if status["status"] != "completed":
+        raise HTTPException(409, "Export is not ready")
+    storage = MediaStorage()
+    reference = storage.editor_reference(directory, output.name)
+    try:
+        if (storage.enabled or (directory / ".s3-manifest").exists()) and await run_in_thread(storage.exists, reference):
+            url = await run_in_thread(storage.signed_url, reference, f"supoclip-{clip_id[:8]}-{job_id[:6]}.mp4", attachment=True)
+            return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
+    except STORAGE_ERRORS:
+        if not output.exists():
+            raise HTTPException(503, "Media storage is temporarily unavailable") from None
+    if not output.exists():
         raise HTTPException(409, "Export is not ready")
     return FileResponse(
         output,
@@ -261,6 +292,7 @@ async def export_file(
 
 
 @router.post("/{task_id}/editor/combine", status_code=202)
+@media_work
 async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     service = TaskService(db)
     await _require_task_owner(request, service, db, task_id)
@@ -281,6 +313,7 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
         directory = editor_dir(
             service.config.temp_dir, task_id, clip_id, clip["filename"]
         )
+        await run_in_thread(MediaStorage().restore_editor, directory)
         state = read_state(directory)
         if state["status"] != "ready":
             raise HTTPException(409, "Prepare each selected clip before combining")
@@ -290,7 +323,7 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
                 "filename": clip["filename"],
                 "document": state["draft"]["document"],
                 "state": {k: state[k] for k in ("width", "height", "hasAudio")},
-                "ranges": service._get_clip_source_ranges(clip),
+                "ranges": await run_in_thread(service._get_clip_source_ranges, clip),
             }
         )
     await db.close()

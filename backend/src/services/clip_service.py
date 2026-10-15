@@ -32,6 +32,8 @@ from ..clip_source_map import (
     trim_source_ranges,
 )
 
+from ..media_storage import MediaStorage
+
 logger = logging.getLogger(__name__)
 
 
@@ -137,14 +139,14 @@ class ClipEditingMixin:
                 raise ValueError("Failed to download source video for regeneration")
             video_path = Path(downloaded)
         else:
-            video_path = self.video_service.resolve_local_video_path(source_url)
+            video_path = await run_in_thread(self.video_service.resolve_local_video_path, source_url)
             if not video_path.exists():
                 raise ValueError("Source video file no longer exists")
 
         try:
             segments = []
             for clip in clips:
-                source_ranges = self._get_clip_source_ranges(clip)
+                source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
                 bounds = source_range_bounds(source_ranges)
                 if bounds:
                     start_time = self._seconds_to_mmss(bounds[0])
@@ -233,14 +235,14 @@ class ClipEditingMixin:
         if not clip or clip["task_id"] != task_id:
             raise ValueError("Clip not found")
 
-        input_path = Path(clip["file_path"])
+        input_path = await run_in_thread(MediaStorage().local_path, clip["file_path"])
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
         output_path = await run_in_thread(
             trim_clip_file, input_path, Path(self.config.temp_dir) / "clips", start_offset, end_offset
         )
-        source_ranges = self._get_clip_source_ranges(clip)
+        source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
         trimmed_ranges = trim_source_ranges(source_ranges, start_offset, end_offset)
         clip_duration = max(0.1, total_source_duration(trimmed_ranges))
         bounds = source_range_bounds(trimmed_ranges)
@@ -275,7 +277,7 @@ class ClipEditingMixin:
         if not clip or clip["task_id"] != task_id:
             raise ValueError("Clip not found")
 
-        input_path = Path(clip["file_path"])
+        input_path = await run_in_thread(MediaStorage().local_path, clip["file_path"])
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
@@ -284,7 +286,7 @@ class ClipEditingMixin:
         )
 
         clamped_split = max(0.2, min(split_time, float(clip["duration"]) - 0.2))
-        source_ranges = self._get_clip_source_ranges(clip)
+        source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
         first_ranges, second_ranges = split_source_ranges(source_ranges, clamped_split)
         first_bounds = source_range_bounds(first_ranges)
         second_bounds = source_range_bounds(second_ranges)
@@ -350,15 +352,16 @@ class ClipEditingMixin:
             clips.append(clip)
 
         ordered = sorted(clips, key=lambda c: c.get("clip_order", 0))
+        input_paths = [await run_in_thread(MediaStorage().local_path, c["file_path"]) for c in ordered]
         merged_path = await run_in_thread(
             merge_clip_files,
-            [Path(c["file_path"]) for c in ordered],
+            input_paths,
             Path(self.config.temp_dir) / "clips",
         )
 
         merged_ranges = []
         for clip in ordered:
-            merged_ranges.extend(self._get_clip_source_ranges(clip))
+            merged_ranges.extend(await run_in_thread(self._get_clip_source_ranges, clip))
         merged_bounds = source_range_bounds(merged_ranges)
         if merged_bounds:
             start_time = self._seconds_to_mmss(merged_bounds[0])
@@ -406,7 +409,7 @@ class ClipEditingMixin:
         if not clip or clip["task_id"] != task_id:
             raise ValueError("Clip not found")
 
-        input_path = Path(clip["file_path"])
+        input_path = await run_in_thread(MediaStorage().local_path, clip["file_path"])
         if not input_path.exists():
             raise ValueError("Clip file not found")
 
@@ -427,10 +430,10 @@ class ClipEditingMixin:
             )
             cached_video_path = cache_entry.get("video_path") if cache_entry else None
             if cached_video_path:
-                transcript_video_path = Path(cached_video_path)
+                transcript_video_path = await run_in_thread(MediaStorage().local_path, cached_video_path)
             elif source_type != "youtube":
                 try:
-                    transcript_video_path = self.video_service.resolve_local_video_path(
+                    transcript_video_path = await run_in_thread(self.video_service.resolve_local_video_path,
                         source_url
                     )
                 except ValueError:
@@ -445,13 +448,13 @@ class ClipEditingMixin:
                 transcript_video_path = Path(downloaded) if downloaded else None
                 downloaded_source = transcript_video_path
             elif source_url:
-                transcript_video_path = self.video_service.resolve_local_video_path(source_url)
+                transcript_video_path = await run_in_thread(self.video_service.resolve_local_video_path, source_url)
         if not transcript_video_path or not transcript_video_path.exists():
             raise ValueError("The source video is no longer available. Upload it again to edit captions.")
 
         try:
             settings = await self._load_task_source_settings(task_id)
-            source_ranges = self._get_clip_source_ranges(clip)
+            source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
             bounds = source_range_bounds(source_ranges)
             if not bounds:
                 raise ValueError("Clip source timing is unavailable")
@@ -520,7 +523,7 @@ class ClipEditingMixin:
     def _get_clip_source_ranges(clip: Dict[str, Any]) -> list[tuple[float, float]]:
         file_path = clip.get("file_path")
         if isinstance(file_path, str) and file_path:
-            persisted = load_clip_source_ranges(Path(file_path))
+            persisted = load_clip_source_ranges(MediaStorage().local_path(file_path, metadata_only=True))
             if persisted:
                 return persisted
 

@@ -66,9 +66,9 @@ async def test_combine_worker_keeps_inputs_and_creates_editable_draft(
     atomic_json(directory / f"job-{job}.json", {"status": "queued"})
     created = []
 
-    async def create(_db, *args):
+    async def create(_db, *args, **kwargs):
         created.append(args)
-        return "combined"
+        return kwargs["clip_id"]
 
     repository = SimpleNamespace(
         get_clips_by_task=AsyncMock(return_value=clips),
@@ -95,11 +95,11 @@ async def test_combine_worker_keeps_inputs_and_creates_editable_draft(
     await combine_editor({}, "task", "clip1", "clip1.mp4", job)
     state = json.loads((directory / f"job-{job}.json").read_text())
     assert state["status"] == "completed", state
-    assert state["clip_id"] == "combined"
+    assert state["clip_id"]
     assert len(clips) == 2
     assert len(created) == 1
     filename = created[0][1]
-    combined = read_state(editor_dir(str(tmp_path), "task", "combined", filename))
+    combined = read_state(editor_dir(str(tmp_path), "task", state["clip_id"], filename))
     assert combined["status"] == "ready"
     assert [w["text"] for w in combined["draft"]["document"]["words"]] == [
         "clip1",
@@ -129,3 +129,17 @@ async def test_prepare_failure_is_recoverable(tmp_path, monkeypatch):
     await prepare_editor({}, "task", "missing", "missing.mp4")
     state = read_state(editor_dir(str(tmp_path), "task", "missing", "missing.mp4"))
     assert state["status"] == "failed"
+
+
+async def test_storage_failure_during_prepare_does_not_leave_preparing(tmp_path, monkeypatch):
+    from src.config import Config
+    from src.media_storage import MediaStorage
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    monkeypatch.setattr("src.config.get_config", lambda: config)
+    directory = editor_dir(str(tmp_path), "task", "clip", "clip.mp4")
+    atomic_json(directory / "asset.json", {"status": "preparing"})
+    monkeypatch.setattr(MediaStorage, "restore_editor", lambda *a, **k: (_ for _ in ()).throw(OSError("S3 unavailable")))
+    monkeypatch.setattr(MediaStorage, "save_editor", lambda *a, **k: None)
+    await prepare_editor({}, "task", "clip", "clip.mp4")
+    assert read_state(directory)["status"] == "failed"

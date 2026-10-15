@@ -9,6 +9,7 @@ export const DEFAULT_FORWARDED_HEADERS = [
   "content-type",
   "etag",
   "last-modified",
+  "location",
   "x-trace-id",
 ] as const;
 
@@ -35,6 +36,7 @@ export async function fetchBackend(
   const { userId, extraHeaders, headers, ...rest } = init;
 
   return fetch(buildBackendUrl(path), {
+    redirect: "manual",
     ...rest,
     headers: {
       ...(userId ? buildBackendAuthHeaders(userId) : {}),
