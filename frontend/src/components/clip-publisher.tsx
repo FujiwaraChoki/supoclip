@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   AlertCircle,
   CalendarClock,
@@ -53,6 +54,7 @@ import {
   type SocialPrivacyLevel,
   type SocialProviderStatus,
 } from "@/lib/social";
+import { cn } from "@/lib/utils";
 
 interface PublishableClip {
   id: string;
@@ -74,14 +76,28 @@ interface ClipPostListProps {
   onChanged: () => void | Promise<void>;
 }
 
-const STATUS_STYLES: Record<SocialPostStatus, string> = {
-  scheduled: "bg-blue-50 text-blue-700 border-blue-200",
-  queued: "bg-gray-100 text-gray-700 border-gray-200",
-  publishing: "bg-amber-50 text-amber-700 border-amber-200",
-  published: "bg-green-50 text-green-700 border-green-200",
-  failed: "bg-red-50 text-red-700 border-red-200",
-  cancelled: "bg-gray-100 text-gray-500 border-gray-200",
+const STATUS_VARIANTS: Record<SocialPostStatus, "default" | "secondary" | "destructive" | "outline"> = {
+  scheduled: "outline",
+  queued: "secondary",
+  publishing: "secondary",
+  published: "default",
+  failed: "destructive",
+  cancelled: "outline",
 };
+
+const ALL_PRIVACY_LEVELS: SocialPrivacyLevel[] = ["public", "unlisted", "private"];
+
+function privacyOptionsFor(provider: SocialProviderStatus | undefined): SocialPrivacyLevel[] {
+  return provider?.supported_privacy_levels ?? ALL_PRIVACY_LEVELS;
+}
+
+// Each platform starts at its own default (TikTok: private, since unaudited
+// apps cannot post publicly).
+function defaultPrivacyFor(provider: SocialProviderStatus | undefined): SocialPrivacyLevel {
+  const options = privacyOptionsFor(provider);
+  const preferred = provider?.default_privacy_level;
+  return preferred && options.includes(preferred) ? preferred : (options[0] ?? "private");
+}
 
 function toLocalDateTimeInput(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, "0");
@@ -108,7 +124,7 @@ export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
         { method: action === "delete" ? "DELETE" : "POST" },
       );
       if (!response.ok) {
-        alert(await readError(response, "Action failed"));
+        toast.error(await readError(response, "Action failed"));
       }
       await onChanged();
     } finally {
@@ -126,24 +142,27 @@ export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
         return (
           <div
             key={post.id}
-            className="flex flex-col gap-2 rounded-lg border bg-white px-3 py-2 text-sm"
+            className="flex flex-col gap-2 rounded-lg border bg-card px-3 py-2 text-sm"
           >
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="font-medium">
                 {PROVIDER_LABELS[post.provider] ?? post.provider}
               </Badge>
-              <span className="text-gray-700 truncate">
+              <span className="truncate text-muted-foreground">
                 {connectionLabel({
                   display_name: post.account.display_name,
                   username: post.account.username,
                   provider: post.provider,
                 })}
               </span>
-              <Badge variant="outline" className={STATUS_STYLES[post.status]}>
+              <Badge
+                variant={STATUS_VARIANTS[post.status]}
+                className={cn(post.status === "cancelled" && "text-muted-foreground")}
+              >
                 {POST_STATUS_LABELS[post.status]}
               </Badge>
               {post.status === "scheduled" && post.scheduled_for && (
-                <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                   <CalendarClock className="w-3.5 h-3.5" />
                   {formatDateTime(post.scheduled_for)}
                 </span>
@@ -153,7 +172,7 @@ export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
                   href={post.external_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                  className="inline-flex items-center gap-1 text-xs font-medium underline-offset-4 hover:underline"
                 >
                   Open post
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -201,7 +220,7 @@ export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
                     size="sm"
                     variant="ghost"
                     disabled={busy}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     onClick={() => runPostAction(post, "delete")}
                     aria-label="Remove post record"
                   >
@@ -211,7 +230,7 @@ export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
               </div>
             </div>
             {post.status === "published" && (
-              <div className="flex flex-wrap items-center gap-4 text-xs text-gray-600">
+              <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
                   <Eye className="w-3.5 h-3.5" /> {formatMetric(metrics?.views)}
                 </span>
@@ -224,7 +243,7 @@ export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
                 <span className="inline-flex items-center gap-1">
                   <Share className="w-3.5 h-3.5" /> {formatMetric(metrics?.shares)}
                 </span>
-                <span className="text-gray-400">
+                <span className="text-muted-foreground/70">
                   {post.last_metrics_at
                     ? `Updated ${formatDateTime(post.last_metrics_at)}`
                     : "Metrics arrive within an hour"}
@@ -232,7 +251,7 @@ export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
               </div>
             )}
             {post.error_message && post.status !== "published" && (
-              <p className="text-xs text-red-600">{post.error_message}</p>
+              <p className="text-xs text-destructive">{post.error_message}</p>
             )}
           </div>
         );
@@ -263,39 +282,39 @@ export function ClipPublishButton({
     () => connections.filter((connection) => connection.status !== "revoked"),
     [connections],
   );
+  const providerForAccount = (id: string) =>
+    providers.find(
+      (provider) =>
+        provider.provider === activeConnections.find((connection) => connection.id === id)?.provider,
+    );
   const selectedConnection = activeConnections.find((connection) => connection.id === accountId);
-  const selectedProvider = providers.find(
-    (provider) => provider.provider === selectedConnection?.provider,
-  );
-  const privacyOptions = useMemo<SocialPrivacyLevel[]>(
-    () => selectedProvider?.supported_privacy_levels ?? ["public", "unlisted", "private"],
-    [selectedProvider],
-  );
-  const providerDefault = selectedProvider?.default_privacy_level;
-  const defaultPrivacy: SocialPrivacyLevel =
-    providerDefault && privacyOptions.includes(providerDefault)
-      ? providerDefault
-      : (privacyOptions[0] ?? "private");
+  const privacyOptions = privacyOptionsFor(providerForAccount(accountId));
   const anyProviderConfigured = providers.some((provider) => provider.configured);
 
-  useEffect(() => {
-    if (!open) return;
+  // The form resets only when the sheet opens, so connections refreshing in
+  // the background never wipe what the user is typing.
+  const openSheet = () => {
+    const nextAccountId = activeConnections.some((connection) => connection.id === accountId)
+      ? accountId
+      : (activeConnections[0]?.id ?? "");
     setError(null);
     setTitle(clip.hook_title || `Clip ${clip.clip_order}`);
     setCaption(clip.text || "");
     setHashtags("");
     setSchedule(false);
     setScheduledFor(toLocalDateTimeInput(new Date(Date.now() + 60 * 60 * 1000)));
-    if (!accountId && activeConnections[0]) {
-      setAccountId(activeConnections[0].id);
-    }
-  }, [open, clip.hook_title, clip.clip_order, clip.text, accountId, activeConnections]);
+    setAccountId(nextAccountId);
+    setPrivacy(defaultPrivacyFor(providerForAccount(nextAccountId)));
+    setOpen(true);
+  };
 
-  // Each platform starts at its own default (TikTok: private, since unaudited
-  // apps cannot post publicly).
-  useEffect(() => {
-    setPrivacy(defaultPrivacy);
-  }, [selectedConnection?.provider, defaultPrivacy]);
+  const selectAccount = (id: string) => {
+    setAccountId(id);
+    setPrivacy(defaultPrivacyFor(providerForAccount(id)));
+  };
+
+  // Without a configured platform there is nothing to publish to.
+  if (!anyProviderConfigured) return null;
 
   const handleSubmit = async () => {
     if (!accountId) {
@@ -340,7 +359,7 @@ export function ClipPublishButton({
 
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+      <Button size="sm" variant="outline" onClick={openSheet}>
         <Send className="w-4 h-4" />
         Publish
       </Button>
@@ -363,30 +382,18 @@ export function ClipPublishButton({
             )}
 
             {activeConnections.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-4 text-sm text-gray-600">
-                {anyProviderConfigured ? (
-                  <>
-                    No social accounts connected yet.{" "}
-                    <Link href="/settings/social" className="text-blue-600 hover:underline">
-                      Connect YouTube, TikTok or Instagram
-                    </Link>{" "}
-                    to publish from here.
-                  </>
-                ) : (
-                  <>
-                    Social publishing is not configured on this server. See the{" "}
-                    <Link href="/settings/social" className="text-blue-600 hover:underline">
-                      Social Accounts
-                    </Link>{" "}
-                    page for setup instructions.
-                  </>
-                )}
+              <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                No social accounts connected yet.{" "}
+                <Link href="/settings/social" className="font-medium text-foreground underline underline-offset-4">
+                  Connect YouTube, TikTok or Instagram
+                </Link>{" "}
+                to publish from here.
               </div>
             ) : (
               <>
                 <div className="space-y-2">
                   <Label htmlFor={`publish-account-${clip.id}`}>Account</Label>
-                  <Select value={accountId} onValueChange={setAccountId}>
+                  <Select value={accountId} onValueChange={selectAccount}>
                     <SelectTrigger id={`publish-account-${clip.id}`} className="w-full">
                       <SelectValue placeholder="Choose an account" />
                     </SelectTrigger>
@@ -414,7 +421,7 @@ export function ClipPublishButton({
                     onChange={(event) => setTitle(event.target.value)}
                   />
                   {selectedConnection?.provider === "tiktok" && (
-                    <p className="text-xs text-gray-500">TikTok shows the caption, not the title.</p>
+                    <p className="text-xs text-muted-foreground">TikTok shows the caption, not the title.</p>
                   )}
                 </div>
 
@@ -454,7 +461,7 @@ export function ClipPublishButton({
                     </SelectContent>
                   </Select>
                   {selectedConnection?.provider === "tiktok" && (
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       Until TikTok audits the app, posts can only be private.
                     </p>
                   )}
@@ -463,7 +470,7 @@ export function ClipPublishButton({
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <p className="text-sm font-medium">Schedule for later</p>
-                    <p className="text-xs text-gray-500">Publish at a specific time.</p>
+                    <p className="text-xs text-muted-foreground">Publish at a specific time.</p>
                   </div>
                   <Switch checked={schedule} onCheckedChange={setSchedule} />
                 </div>
