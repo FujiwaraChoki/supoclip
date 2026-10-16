@@ -47,7 +47,9 @@ CREATE TABLE IF NOT EXISTS social_posts (
     id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
     user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     task_id VARCHAR(36) REFERENCES tasks(id) ON DELETE SET NULL,
-    clip_id VARCHAR(36) REFERENCES generated_clips(id) ON DELETE SET NULL,
+    -- generated_clips is created by the backend, so the clip foreign key is
+    -- added by the backend migration (Prisma may run before it exists).
+    clip_id VARCHAR(36),
     social_account_id VARCHAR(36) REFERENCES social_accounts(id) ON DELETE SET NULL,
     provider VARCHAR(20) NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'queued',
@@ -103,4 +105,12 @@ CREATE TABLE IF NOT EXISTS social_post_metrics (
 );
 
 CREATE INDEX IF NOT EXISTS idx_social_post_metrics_post_id
-ON social_post_metrics(post_id, captured_at DESC)
+ON social_post_metrics(post_id, captured_at DESC);
+
+-- Re-runnable: Prisma's copy of this migration creates social_posts without
+-- the clip foreign key, so whichever runner goes first ends up with it.
+ALTER TABLE social_posts DROP CONSTRAINT IF EXISTS social_posts_clip_id_fkey;
+
+ALTER TABLE social_posts
+ADD CONSTRAINT social_posts_clip_id_fkey
+FOREIGN KEY (clip_id) REFERENCES generated_clips(id) ON DELETE SET NULL;

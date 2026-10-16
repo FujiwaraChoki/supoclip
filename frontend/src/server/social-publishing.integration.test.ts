@@ -48,11 +48,47 @@ it("creates identical social tables from either migration runner, in either orde
   expect(frontendFirst.indexes).toContain("idx_social_posts_status_scheduled");
 }, 30_000);
 
+it("applies Prisma's copy before the backend has created generated_clips", async () => {
+  const db = new PGlite({ extensions: { uuid_ossp } });
+  try {
+    await db.exec(`
+      CREATE TABLE users (id TEXT PRIMARY KEY);
+      CREATE TABLE tasks (id TEXT PRIMARY KEY);
+    `);
+    await db.exec(frontend);
+    await db.exec("CREATE TABLE generated_clips (id VARCHAR(36) PRIMARY KEY)");
+    await db.exec(backend);
+    const constraints = await db.query<{ conname: string }>(
+      "SELECT conname FROM pg_constraint WHERE conname = 'social_posts_clip_id_fkey'",
+    );
+    expect(constraints.rows).toHaveLength(1);
+  } finally {
+    await db.close();
+  }
+}, 30_000);
+
+it("adds the clip foreign key whichever runner goes first", async () => {
+  for (const order of [[frontend, backend], [backend, frontend]]) {
+    const db = new PGlite({ extensions: { uuid_ossp } });
+    try {
+      await db.exec(PREREQUISITES);
+      for (const migration of order) await db.exec(migration);
+      const constraints = await db.query<{ conname: string }>(
+        "SELECT conname FROM pg_constraint WHERE conname = 'social_posts_clip_id_fkey'",
+      );
+      expect(constraints.rows).toHaveLength(1);
+    } finally {
+      await db.close();
+    }
+  }
+}, 30_000);
+
 it("cascades social rows with their user and keeps posts when a clip is deleted", async () => {
   const db = new PGlite({ extensions: { uuid_ossp } });
   try {
     await db.exec(PREREQUISITES);
     await db.exec(frontend);
+    await db.exec(backend);
     await db.exec(`
       INSERT INTO users (id) VALUES ('user-1');
       INSERT INTO generated_clips (id) VALUES ('clip-1');
