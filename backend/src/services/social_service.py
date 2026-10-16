@@ -20,7 +20,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import requests
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Config, get_config
@@ -37,7 +36,7 @@ from ..social import (
     get_provider,
     list_provider_status,
 )
-from ..social.base import PRIVACY_LEVELS
+from ..social.base import PRIVACY_LEVELS, redact, redacted_errors
 from ..utils.async_helpers import run_in_thread
 from ..workers.job_queue import DuplicateJobError, JobQueue
 
@@ -115,6 +114,11 @@ class SocialService:
             )
         return provider
 
+    @staticmethod
+    async def _call_provider(func, *args, **kwargs):
+        """Run a blocking provider call; any failure comes back redacted."""
+        return await run_in_thread(redacted_errors(func), *args, **kwargs)
+
     def redirect_uri_for(self, provider_name: str) -> str:
         return f"{self.config.social_oauth_redirect_base_url}/api/social/callback/{provider_name}"
 
@@ -161,13 +165,13 @@ class SocialService:
                 "This sign-in link has expired or does not belong to you. Try connecting again."
             )
         try:
-            tokens = await run_in_thread(
+            tokens = await self._call_provider(
                 provider.exchange_code,
                 code=code,
                 redirect_uri=state_row["redirect_uri"],
                 code_verifier=state_row.get("code_verifier"),
             )
-            profile = await run_in_thread(provider.fetch_profile, tokens.access_token)
+            profile = await self._call_provider(provider.fetch_profile, tokens.access_token)
         except SocialProviderError as exc:
             raise SocialValidationError(str(exc)) from exc
 
@@ -223,7 +227,7 @@ class SocialService:
             return access_token
 
         try:
-            tokens = await run_in_thread(provider.refresh_tokens, refresh_token)
+            tokens = await self._call_provider(provider.refresh_tokens, refresh_token)
         except SocialProviderError as exc:
             if exc.reauth:
                 await self.repo.set_account_status(
@@ -555,13 +559,22 @@ class SocialService:
                 public_media_url=public_url,
                 account_metadata=dict(account.get("metadata") or {}),
             )
-            result = await run_in_thread(provider.publish, access_token, request)
+            result = await self._call_provider(provider.publish, access_token, request)
         except SocialProviderError as exc:
             return await self._handle_publish_failure(post, account, attempts, exc)
         except Exception as exc:  # noqa: BLE001 - surface anything to the user
-            logger.exception("Unexpected error publishing post %s", post_id)
+            # No traceback: provider exceptions can carry request URLs.
+            logger.error(
+                "Unexpected error publishing post %s (%s): %s",
+                post_id,
+                type(exc).__name__,
+                redact(exc),
+            )
             return await self._handle_publish_failure(
-                post, account, attempts, SocialProviderError(str(exc), retryable=True)
+                post,
+                account,
+                attempts,
+                SocialProviderError(f"Unexpected error ({type(exc).__name__}): {exc}", retryable=True),
             )
 
         if not result.pending_handle:
@@ -672,7 +685,7 @@ class SocialService:
         try:
             provider = get_provider(post["provider"], self.config)
             access_token = await self._get_valid_access_token(account)
-            result = await run_in_thread(provider.resolve_pending, access_token, handle)
+            result = await self._call_provider(provider.resolve_pending, access_token, handle)
         except SocialProviderError as exc:
             if exc.retryable and not exc.reauth and not exc.rejected:
                 logger.warning("Will check pending post %s again: %s", post["id"], exc)
@@ -680,9 +693,6 @@ class SocialService:
             return await self._handle_publish_failure(
                 post, account, int(post.get("attempts") or 1), exc
             )
-        except requests.RequestException as exc:
-            logger.warning("Will check pending post %s after network failure: %s", post["id"], exc)
-            return post
         if result is not None:
             # Private TikTok posts may complete without a public post ID.
             await self._mark_published(
@@ -696,8 +706,13 @@ class SocialService:
         for post in posts:
             try:
                 await self.resolve_pending_post(post)
-            except Exception:  # noqa: BLE001
-                logger.exception("Failed to resolve pending post %s", post["id"])
+            except Exception as exc:  # noqa: BLE001
+                logger.error(
+                    "Failed to resolve pending post %s (%s): %s",
+                    post["id"],
+                    type(exc).__name__,
+                    redact(exc),
+                )
         return len(posts)
 
     async def sweep_stale_publishing(self) -> List[str]:
@@ -745,7 +760,7 @@ class SocialService:
         provider = get_provider(post["provider"], self.config)
         try:
             access_token = await self._get_valid_access_token(account)
-            metrics = await run_in_thread(
+            metrics = await self._call_provider(
                 provider.fetch_metrics,
                 access_token,
                 post["external_post_id"],
@@ -777,7 +792,12 @@ class SocialService:
                 await self.refresh_post_metrics(post)
                 refreshed += 1
             except Exception as exc:  # noqa: BLE001
-                logger.warning("Metrics refresh failed for post %s: %s", post["id"], exc)
+                logger.warning(
+                    "Metrics refresh failed for post %s (%s): %s",
+                    post["id"],
+                    type(exc).__name__,
+                    redact(exc),
+                )
         if posts:
             logger.info("Refreshed metrics for %s/%s social posts", refreshed, len(posts))
         return refreshed

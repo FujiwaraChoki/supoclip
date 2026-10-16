@@ -164,10 +164,8 @@ class InstagramProvider(SocialProvider):
     def fetch_profile(self, access_token: str) -> AccountProfile:
         response = self.http.get(
             f"{GRAPH_API}/me",
-            params={
-                "fields": "id,user_id,username,name,profile_picture_url,account_type",
-                "access_token": access_token,
-            },
+            params={"fields": "id,user_id,username,name,profile_picture_url,account_type"},
+            headers=self._auth_headers(access_token),
             timeout=DEFAULT_HTTP_TIMEOUT,
         )
         self._raise_for_status(response, "load the Instagram profile")
@@ -209,8 +207,8 @@ class InstagramProvider(SocialProvider):
                 "video_url": request.public_media_url,
                 "caption": caption,
                 "share_to_feed": "true",
-                "access_token": access_token,
             },
+            headers=self._auth_headers(access_token),
             timeout=DEFAULT_HTTP_TIMEOUT,
         )
         self._raise_for_status(create_response, "create the Instagram media container")
@@ -222,7 +220,8 @@ class InstagramProvider(SocialProvider):
 
         publish_response = self.http.post(
             f"{GRAPH_API}/me/media_publish",
-            data={"creation_id": container_id, "access_token": access_token},
+            data={"creation_id": container_id},
+            headers=self._auth_headers(access_token),
             timeout=DEFAULT_HTTP_TIMEOUT,
         )
         self._raise_for_status(publish_response, "publish the Instagram reel")
@@ -234,7 +233,8 @@ class InstagramProvider(SocialProvider):
         try:
             link_response = self.http.get(
                 f"{GRAPH_API}/{media_id}",
-                params={"fields": "permalink", "access_token": access_token},
+                params={"fields": "permalink"},
+                headers=self._auth_headers(access_token),
                 timeout=DEFAULT_HTTP_TIMEOUT,
             )
             if link_response.status_code < 400:
@@ -253,7 +253,8 @@ class InstagramProvider(SocialProvider):
         while True:
             response = self.http.get(
                 f"{GRAPH_API}/{container_id}",
-                params={"fields": "status_code,status", "access_token": access_token},
+                params={"fields": "status_code,status"},
+                headers=self._auth_headers(access_token),
                 timeout=DEFAULT_HTTP_TIMEOUT,
             )
             self._raise_for_status(response, "check the Instagram media container")
@@ -277,10 +278,8 @@ class InstagramProvider(SocialProvider):
     ) -> PostMetrics:
         response = self.http.get(
             f"{GRAPH_API}/{external_post_id}",
-            params={
-                "fields": "like_count,comments_count,permalink",
-                "access_token": access_token,
-            },
+            params={"fields": "like_count,comments_count,permalink"},
+            headers=self._auth_headers(access_token),
             timeout=DEFAULT_HTTP_TIMEOUT,
         )
         self._raise_for_status(response, "load Instagram media statistics")
@@ -294,7 +293,8 @@ class InstagramProvider(SocialProvider):
         for metric_set in INSIGHT_METRIC_SETS:
             insight_response = self.http.get(
                 f"{GRAPH_API}/{external_post_id}/insights",
-                params={"metric": metric_set, "access_token": access_token},
+                params={"metric": metric_set},
+                headers=self._auth_headers(access_token),
                 timeout=DEFAULT_HTTP_TIMEOUT,
             )
             if insight_response.status_code >= 400:
@@ -313,6 +313,13 @@ class InstagramProvider(SocialProvider):
         return metrics
 
     # -- helpers --------------------------------------------------------
+    @staticmethod
+    def _auth_headers(access_token: str) -> Dict[str, str]:
+        # Graph API calls take the token as a header so it never lands in a
+        # URL (and from there in exception messages or proxy logs). The token
+        # exchange and refresh endpoints only accept query parameters.
+        return {"Authorization": f"Bearer {access_token}"}
+
     def _raise_for_status(self, response, action: str) -> None:
         if response.status_code < 400:
             return

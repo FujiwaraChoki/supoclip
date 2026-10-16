@@ -20,6 +20,7 @@ from src.services.social_service import (
 )
 from tests.unit.test_media_storage import MemoryS3
 from src.social.base import (
+    redact,
     AccountProfile,
     OAuthTokens,
     PostMetrics,
@@ -818,6 +819,70 @@ async def test_platform_rejection_clears_handle_so_retry_uploads_again(service, 
     result = await service.publish_post(post["id"])
     assert result["status"] == "published"
     assert len(provider.publish_calls) == 2
+
+
+# ----------------------------------------------------------------------
+# Credential redaction
+# ----------------------------------------------------------------------
+LEAKY_URL = (
+    "HTTPSConnectionPool(host='graph.instagram.com', port=443): Max retries exceeded with url: "
+    "/refresh_access_token?grant_type=ig_refresh_token&access_token=IGQVJleaked-token-123"
+)
+
+
+def test_redact_strips_tokens_secrets_and_signatures():
+    text = redact(
+        f"{LEAKY_URL} client_secret=app-secret&code=oauth-code "
+        "Authorization: Bearer ya29.leaked "
+        '{"access_token": "json-token", "error_code": 190} '
+        "https://bucket/key?X-Amz-Signature=abc123&X-Amz-Security-Token=sts "
+        "https://upload.tiktok/video/?upload_id=u1&upload_token=ut1"
+    )
+    for secret in (
+        "IGQVJleaked-token-123", "app-secret", "oauth-code", "ya29.leaked",
+        "json-token", "abc123", "sts", "ut1",
+    ):
+        assert secret not in text
+    assert "grant_type=ig_refresh_token" in text
+    assert '"error_code": 190' in text
+    assert redact(None) == ""
+    # Provider errors are redacted at construction.
+    assert "IGQVJ" not in str(SocialProviderError(LEAKY_URL))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [
+    requests.ConnectionError(LEAKY_URL),
+    ValueError("unexpected Authorization: Bearer IGQVJleaked-token-123"),
+])
+async def test_tokens_in_provider_exceptions_never_reach_posts_or_logs(
+    service, provider, caplog, error
+):
+    post = await _queued_post(service)
+    provider.publish_error = error
+    with caplog.at_level("DEBUG"):
+        result = await service.publish_post(post["id"])
+    assert result["status"] == "queued"  # still a pre-upload failure: retryable
+    assert result["error_message"]
+    assert "IGQVJleaked-token-123" not in result["error_message"]
+    assert "IGQVJleaked-token-123" not in caplog.text
+    assert "Traceback" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_tokens_in_status_poll_failures_never_reach_logs(service, provider, caplog):
+    post = await _queued_post(service)
+    provider.publish_result = PublishResult(None, None, pending_handle="accepted")
+    await service.publish_post(post["id"])
+
+    def leaky_poll(token, handle):
+        raise requests.ReadTimeout(LEAKY_URL)
+
+    provider.resolve_pending = leaky_poll
+    with caplog.at_level("DEBUG"):
+        polled = await service.publish_post(post["id"])
+    assert polled["status"] == "publishing"
+    assert "IGQVJleaked-token-123" not in caplog.text
 
 
 # ----------------------------------------------------------------------

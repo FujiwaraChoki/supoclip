@@ -336,6 +336,11 @@ def test_instagram_publish_polls_container_then_publishes(clip_file):
     assert result.external_url == "https://instagram.com/reel/abc"
 
     create_call = next(call for call in session.calls if call[1].endswith("/me/media"))
+    # Tokens travel in the Authorization header, never in URLs or form bodies.
+    for _method, _url, kwargs in session.calls:
+        assert kwargs["headers"]["Authorization"] == "Bearer token"
+        assert "access_token" not in (kwargs.get("params") or {})
+        assert "access_token" not in (kwargs.get("data") or {})
     assert create_call[2]["data"]["media_type"] == "REELS"
     assert create_call[2]["data"]["video_url"] == "https://app.example/api/social/media/tok"
     assert create_call[2]["data"]["caption"] == "Caption\n\n#reels"
@@ -376,3 +381,21 @@ def test_instagram_profile_requires_professional_account():
     provider = InstagramProvider(_config(), session=session, sleep=lambda _: None)
     with pytest.raises(SocialProviderError, match="professional"):
         provider.fetch_profile("token")
+
+
+def test_instagram_token_endpoint_failures_are_redacted():
+    import requests
+
+    from src.social.base import redacted_errors
+
+    class LeakySession(FakeSession):
+        def get(self, url, **kwargs):
+            query = "&".join(f"{key}={value}" for key, value in kwargs["params"].items())
+            raise requests.ConnectionError(f"Max retries exceeded with url: {url}?{query}")
+
+    provider = InstagramProvider(_config(), session=LeakySession({}), sleep=lambda _: None)
+    with pytest.raises(SocialProviderError) as exc:
+        redacted_errors(provider.refresh_tokens)("IGQVJlong-lived-secret")
+    assert "IGQVJlong-lived-secret" not in str(exc.value)
+    assert exc.value.retryable is True
+    assert exc.value.__suppress_context__ is True

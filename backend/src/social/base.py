@@ -4,10 +4,12 @@ Shared types and the provider interface for social publishing.
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from functools import wraps
+from typing import Any, Callable, Dict, List, Optional, TypeVar
 
 import requests
 
@@ -19,6 +21,27 @@ SUPPORTED_PROVIDERS = ("youtube", "tiktok", "instagram")
 PRIVACY_LEVELS = ("public", "unlisted", "private")
 
 DEFAULT_HTTP_TIMEOUT = 60
+
+# Credentials that can appear in provider URLs, error bodies or exception
+# messages (requests puts the full request URL into connection errors).
+_SECRET_PARAM_RE = re.compile(
+    r"(?i)\b(access_token|refresh_token|id_token|client_secret|code_verifier|code"
+    r"|upload_token|upload_id|token|x-amz-signature|x-amz-credential|x-amz-security-token)"
+    r"=[^&\s\"'<>]+"
+)
+_SECRET_FIELD_RE = re.compile(
+    r"(?i)([\"'](?:access_token|refresh_token|id_token|client_secret|code)[\"']\s*:\s*[\"'])"
+    r"[^\"']+"
+)
+_BEARER_RE = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+")
+
+
+def redact(value: Any) -> str:
+    """Strip tokens, secrets and signatures from text before it is logged or stored."""
+    text = "" if value is None else str(value)
+    text = _SECRET_PARAM_RE.sub(lambda match: f"{match.group(1)}=[redacted]", text)
+    text = _SECRET_FIELD_RE.sub(lambda match: f"{match.group(1)}[redacted]", text)
+    return _BEARER_RE.sub("Bearer [redacted]", text)
 
 
 class SocialProviderError(Exception):
@@ -32,7 +55,8 @@ class SocialProviderError(Exception):
         reauth: bool = False,
         rejected: bool = False,
     ):
-        super().__init__(message)
+        # Messages reach logs, the database and API responses.
+        super().__init__(redact(message))
         self.retryable = retryable
         # ``reauth`` means the stored credentials are no longer usable and the
         # user must reconnect the account.
@@ -210,3 +234,34 @@ def build_caption(caption: str, hashtags: List[str], max_length: int) -> str:
         else:
             text = text[:max_length].rstrip()
     return text
+
+
+T = TypeVar("T")
+
+
+def redacted_errors(func: Callable[..., T]) -> Callable[..., T]:
+    """
+    Wrap a provider call so every failure surfaces as a redacted error.
+
+    ``requests`` exceptions embed the request URL, which for some endpoints
+    carries tokens, and the thread helper logs raw exception text. Originals
+    are dropped (``from None``) so their messages never reach a traceback.
+    """
+
+    @wraps(func)
+    def call(*args: Any, **kwargs: Any) -> T:
+        try:
+            return func(*args, **kwargs)
+        except SocialProviderError:
+            raise
+        except requests.RequestException as exc:
+            raise SocialProviderError(
+                f"Could not reach the platform ({type(exc).__name__}): {exc}",
+                retryable=True,
+            ) from None
+        except Exception as exc:  # noqa: BLE001 - re-raised redacted
+            raise SocialProviderError(
+                f"Unexpected error ({type(exc).__name__}): {exc}", retryable=True
+            ) from None
+
+    return call

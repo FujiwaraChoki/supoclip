@@ -146,9 +146,19 @@ async def publish_social_post(ctx: Dict[str, Any], post_id: str) -> Dict[str, An
         service = await _social_service(db)
         try:
             post = await service.publish_post(post_id)
-        except Exception:
+        except Exception as exc:
             # Failures are recorded on the post row; never let arq retry blindly.
-            logger.exception("Publishing social post %s crashed", post_id)
+            # Cancellation (job timeout, shutdown) propagates; the stale
+            # publishing sweep fails that post. Logged without a traceback
+            # because provider errors can carry request URLs.
+            from ..social.base import redact
+
+            logger.error(
+                "Publishing social post %s crashed (%s): %s",
+                post_id,
+                type(exc).__name__,
+                redact(exc),
+            )
             return {"post_id": post_id, "status": "error"}
     return {"post_id": post_id, "status": post.get("status")}
 
