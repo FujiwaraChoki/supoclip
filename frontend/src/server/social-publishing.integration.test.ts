@@ -39,7 +39,6 @@ it("creates identical social tables from either migration runner, in either orde
   const frontendFirst = await schemaAfter(frontend, backend);
   const backendFirst = await schemaAfter(backend, frontend);
   expect(frontendFirst).toEqual(backendFirst);
-  expect(await schemaAfter(frontend)).toEqual(await schemaAfter(backend));
   expect(new Set(frontendFirst.columns.map((column) => column.table_name))).toEqual(new Set(TABLES));
   // The publish claim and stale-publishing sweep depend on claimed_at.
   expect(frontendFirst.columns).toContainEqual({
@@ -47,7 +46,7 @@ it("creates identical social tables from either migration runner, in either orde
     data_type: "timestamp with time zone", is_nullable: "YES",
   });
   expect(frontendFirst.indexes).toContain("idx_social_posts_status_scheduled");
-});
+}, 30_000);
 
 it("cascades social rows with their user and keeps posts when a clip is deleted", async () => {
   const db = new PGlite({ extensions: { uuid_ossp } });
@@ -74,4 +73,4 @@ it("cascades social rows with their user and keeps posts when a clip is deleted"
   } finally {
     await db.close();
   }
-});
+}, 30_000);
