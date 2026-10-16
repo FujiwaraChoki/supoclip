@@ -548,6 +548,7 @@ export default function TaskPage() {
   if (isLoading) return <PageLoading />;
   if (error) return <PageError message={error} retry={() => void fetchTaskStatus()} />;
 
+  const readOnly = Boolean(session?.user?.id && task?.user_id && session.user.id !== task.user_id);
   const isActive = task?.status === "processing" || task?.status === "queued";
   const sortedClips = sortBy === "score"
     ? [...clips].sort((a, b) => (b.virality_score ?? 0) - (a.virality_score ?? 0) || a.clip_order - b.clip_order)
@@ -565,8 +566,8 @@ export default function TaskPage() {
       best={bestScore > 0 && clip.virality_score === bestScore}
       onOpen={() => setFocusIndex(index)}
       onDownload={() => handleDownloadClip(clip)}
-      onDelete={() => setDeletingClipId(clip.id)}
-      editable={task?.status === "completed"}
+      onDelete={readOnly ? undefined : () => setDeletingClipId(clip.id)}
+      editable={task?.status === "completed" && !readOnly}
     />
   );
 
@@ -595,10 +596,12 @@ export default function TaskPage() {
             ) : (
               <div className="group flex items-start gap-2">
                 <h1 className={cn("min-w-0 break-words font-display text-2xl font-bold tracking-tight md:text-3xl", isActive && "shimmer")}>{task.source_title}</h1>
-                <Button size="icon-sm" variant="ghost" aria-label="Edit title" className="mt-0.5 shrink-0 text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
-                  onClick={() => { setIsEditing(true); setEditedTitle(task.source_title); }}>
-                  <Edit2 className="size-4" />
-                </Button>
+                {!readOnly && (
+                  <Button size="icon-sm" variant="ghost" aria-label="Edit title" className="mt-0.5 shrink-0 text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+                    onClick={() => { setIsEditing(true); setEditedTitle(task.source_title); }}>
+                    <Edit2 className="size-4" />
+                  </Button>
+                )}
               </div>
             )}
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
@@ -613,10 +616,11 @@ export default function TaskPage() {
                 </TooltipContent>
               </Tooltip>
               {clips.length > 0 && <span className="tabular-nums">{clips.length} {clips.length === 1 ? "clip" : "clips"} · {formatDuration(totalSeconds)} total</span>}
+              {readOnly && <span>Read-only view of another account&apos;s generation.</span>}
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          {!readOnly && <div className="flex flex-wrap items-center gap-2">
             {isActive && (
               <Button size="sm" variant="outline" disabled={pendingAction !== null}
                 onClick={() => void runAction("cancel", async () => {
@@ -683,7 +687,7 @@ export default function TaskPage() {
       )}
 
       <div className="mt-8">
-        {reconnecting && <p role="status" className="mb-4 text-sm text-muted-foreground">Reconnecting to live updates. Your video is still processing.</p>}
+        {reconnecting && <p role="status" className="mb-4 text-sm text-muted-foreground">Reconnecting to live updates. {readOnly ? "This generation is still processing." : "Your video is still processing."}</p>}
 
         {isActive && task ? (
           <div className="space-y-8">
@@ -741,11 +745,11 @@ export default function TaskPage() {
         index={focusIndex ?? 0}
         total={sortedClips.length}
         busy={focusedClip ? pendingAction === focusedClip.id : false}
-        editable={task?.status === "completed"}
+        editable={task?.status === "completed" && !readOnly}
         onNavigate={(delta) => setFocusIndex((i) => (i === null ? i : (i + delta + sortedClips.length) % sortedClips.length))}
         onClose={() => setFocusIndex(null)}
         onDownload={() => focusedClip && handleDownloadClip(focusedClip)}
-        onDelete={() => { if (focusedClip) { setDeletingClipId(focusedClip.id); setFocusIndex(null); } }}
+        onDelete={readOnly ? undefined : () => { if (focusedClip) { setDeletingClipId(focusedClip.id); setFocusIndex(null); } }}
         hookTypeLabel={getHookTypeLabel}
       />
 
