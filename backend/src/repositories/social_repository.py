@@ -29,6 +29,10 @@ POST_STATUSES = (
     "cancelled",
 )
 TERMINAL_POST_STATUSES = {"published", "failed", "cancelled"}
+CANCELLABLE_POST_STATUSES = ("scheduled", "queued")
+RETRYABLE_POST_STATUSES = ("failed", "cancelled")
+# Rows a worker may still be acting on; they must not be deleted underneath it.
+ACTIVE_POST_STATUSES = ("queued", "publishing")
 
 _ACCOUNT_PUBLIC_COLUMNS = """
     id, user_id, provider, external_account_id, display_name, username,
@@ -41,6 +45,7 @@ _POST_COLUMNS = """
     p.status, p.scheduled_for, p.title, p.caption, p.hashtags, p.privacy_level,
     p.media_token, p.media_token_expires_at, p.source_file_path,
     p.pending_handle, p.external_post_id, p.external_url, p.error_message, p.attempts,
+    p.claimed_at,
     p.hook_type, p.hook_title, p.virality_score, p.hook_score,
     p.engagement_score, p.value_score, p.shareability_score, p.clip_duration,
     p.published_at, p.last_metrics_at, p.metrics, p.created_at, p.updated_at,
@@ -580,11 +585,13 @@ class SocialRepository:
 
     @staticmethod
     async def delete_post(db: AsyncSession, user_id: str, post_id: str) -> bool:
+        """Delete a post the worker is not acting on; ``False`` otherwise."""
         result = await db.execute(
             text(
                 """
                 DELETE FROM social_posts
                 WHERE id = :id AND user_id = :user_id
+                  AND status NOT IN ('queued', 'publishing')
                 RETURNING id
                 """
             ),
@@ -593,6 +600,119 @@ class SocialRepository:
         row = result.fetchone()
         await db.commit()
         return row is not None
+
+    @staticmethod
+    async def claim_post(
+        db: AsyncSession, post_id: str, *, media_token_expires_at: datetime
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Atomically move a ``queued`` post to ``publishing``.
+
+        Exactly one worker can win the claim. ``None`` means another worker
+        already claimed it or it left the queue (cancelled, deleted, ...), and
+        the caller must not upload anything.
+        """
+        result = await db.execute(
+            text(
+                """
+                UPDATE social_posts
+                SET status = 'publishing',
+                    attempts = attempts + 1,
+                    claimed_at = NOW(),
+                    error_message = NULL,
+                    media_token_expires_at = :media_token_expires_at,
+                    updated_at = NOW()
+                WHERE id = :id AND status = 'queued'
+                RETURNING id
+                """
+            ),
+            {"id": post_id, "media_token_expires_at": media_token_expires_at},
+        )
+        row = result.fetchone()
+        await db.commit()
+        if not row:
+            return None
+        return await SocialRepository.get_post(db, post_id)
+
+    @staticmethod
+    async def cancel_post(db: AsyncSession, user_id: str, post_id: str) -> bool:
+        """Cancel a post that has not been claimed yet; ``False`` if it moved on."""
+        result = await db.execute(
+            text(
+                """
+                UPDATE social_posts
+                SET status = 'cancelled', updated_at = NOW()
+                WHERE id = :id AND user_id = :user_id
+                  AND status IN ('scheduled', 'queued')
+                RETURNING id
+                """
+            ),
+            {"id": post_id, "user_id": user_id},
+        )
+        row = result.fetchone()
+        await db.commit()
+        return row is not None
+
+    @staticmethod
+    async def requeue_post(
+        db: AsyncSession, user_id: str, post_id: str, *, media_token: str
+    ) -> Optional[int]:
+        """
+        Move a failed or cancelled post back to ``queued``.
+
+        Returns the post's attempt count when this call made the transition,
+        ``None`` when the post was not retryable (e.g. a concurrent retry won).
+        ``pending_handle`` is kept: an upload the platform accepted must only
+        be polled again, never uploaded twice.
+        """
+        result = await db.execute(
+            text(
+                """
+                UPDATE social_posts
+                SET status = 'queued',
+                    error_message = NULL,
+                    scheduled_for = NULL,
+                    media_token = COALESCE(media_token, :media_token),
+                    updated_at = NOW()
+                WHERE id = :id AND user_id = :user_id
+                  AND status IN ('failed', 'cancelled')
+                  AND social_account_id IS NOT NULL
+                RETURNING attempts
+                """
+            ),
+            {"id": post_id, "user_id": user_id, "media_token": media_token},
+        )
+        row = result.fetchone()
+        await db.commit()
+        return int(row.attempts or 0) if row else None
+
+    @staticmethod
+    async def fail_stale_publishing(
+        db: AsyncSession, *, older_than_seconds: int, message: str
+    ) -> List[str]:
+        """
+        Fail posts stuck in ``publishing`` without an upload handle.
+
+        A worker that died or was cancelled mid-upload leaves the post here.
+        The platform may or may not have the video, so it is never uploaded
+        again automatically; the user decides after checking their account.
+        """
+        result = await db.execute(
+            text(
+                """
+                UPDATE social_posts
+                SET status = 'failed', error_message = :message, updated_at = NOW()
+                WHERE status = 'publishing'
+                  AND pending_handle IS NULL
+                  AND COALESCE(claimed_at, updated_at) < NOW() - make_interval(secs => CAST(:seconds AS integer))
+                RETURNING id
+                """
+            ),
+            {"seconds": older_than_seconds, "message": message},
+        )
+        ids = [row.id for row in result.fetchall()]
+        await db.commit()
+        return ids
 
     @staticmethod
     async def claim_due_scheduled_posts(
@@ -701,6 +821,7 @@ class SocialRepository:
             "external_url": row.external_url,
             "error_message": row.error_message,
             "attempts": row.attempts,
+            "claimed_at": _iso(row.claimed_at),
             "hook_type": row.hook_type,
             "hook_title": row.hook_title,
             "virality_score": row.virality_score,

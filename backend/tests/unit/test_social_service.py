@@ -125,6 +125,59 @@ class FakeRepo:
         self.posts[post_id].update(fields)
         self.posts[post_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
 
+    # The conditional transitions mirror the SQL WHERE clauses.
+    async def claim_post(self, db, post_id, *, media_token_expires_at):
+        post = self.posts.get(post_id)
+        if not post or post["status"] != "queued":
+            return None
+        now = datetime.now(timezone.utc).isoformat()
+        post.update(
+            status="publishing",
+            attempts=post["attempts"] + 1,
+            claimed_at=now,
+            error_message=None,
+            media_token_expires_at=media_token_expires_at,
+            updated_at=now,
+        )
+        return dict(post)
+
+    async def cancel_post(self, db, user_id, post_id):
+        post = self.posts.get(post_id)
+        if not post or post["user_id"] != user_id or post["status"] not in {"scheduled", "queued"}:
+            return False
+        post["status"] = "cancelled"
+        return True
+
+    async def requeue_post(self, db, user_id, post_id, *, media_token):
+        post = self.posts.get(post_id)
+        if (
+            not post
+            or post["user_id"] != user_id
+            or post["status"] not in {"failed", "cancelled"}
+            or not post.get("social_account_id")
+        ):
+            return None
+        post.update(status="queued", error_message=None, scheduled_for=None)
+        post["media_token"] = post.get("media_token") or media_token
+        return post["attempts"]
+
+    async def delete_post(self, db, user_id, post_id):
+        post = self.posts.get(post_id)
+        if not post or post["user_id"] != user_id or post["status"] in {"queued", "publishing"}:
+            return False
+        del self.posts[post_id]
+        return True
+
+    async def fail_stale_publishing(self, db, *, older_than_seconds, message):
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=older_than_seconds)
+        swept = []
+        for post in self.posts.values():
+            claimed = _parse_datetime(post.get("claimed_at") or post.get("updated_at"))
+            if post["status"] == "publishing" and not post.get("pending_handle") and claimed < cutoff:
+                post.update(status="failed", error_message=message)
+                swept.append(post["id"])
+        return swept
+
     async def list_metrics_history(self, db, post_id, limit=100):
         return [m for m in self.metrics if m["post_id"] == post_id]
 
@@ -358,7 +411,9 @@ async def test_create_post_queues_immediately_and_snapshots_clip(service):
     assert post["hook_type"] == "question"
     assert post["clip_duration"] == 31.5
     assert post["media_token"]
-    assert service.queue_adapter.jobs == [("publish_social_post", (post["id"],), {})]
+    assert service.queue_adapter.jobs == [
+        ("publish_social_post", (post["id"],), {"_job_id": f"social:{post['id']}:0"})
+    ]
 
 
 @pytest.mark.asyncio
@@ -434,6 +489,7 @@ async def test_publish_retries_transient_errors_then_fails(service, provider):
     retry_job = service.queue_adapter.jobs[-1]
     assert retry_job[0] == "publish_social_post"
     assert retry_job[2]["_defer_by"] == timedelta(seconds=300)
+    assert retry_job[2]["_job_id"] == f"social:{post['id']}:1"
 
     await service.publish_post(post["id"])
     final = await service.publish_post(post["id"])
@@ -600,6 +656,158 @@ async def test_disconnect_cancels_and_blocks_reuse(service):
             "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
             title="t", caption="c", hashtags=[], privacy_level="public", scheduled_for=None,
         )
+
+
+async def _queued_post(service, privacy="private"):
+    account = await _connect(service)
+    return await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title="t", caption="c", hashtags=[], privacy_level=privacy, scheduled_for=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_claim_is_exclusive_and_second_worker_never_uploads(service, provider):
+    post = await _queued_post(service)
+    expires = datetime.now(timezone.utc) + timedelta(hours=1)
+    first = await service.repo.claim_post(None, post["id"], media_token_expires_at=expires)
+    assert first["status"] == "publishing"
+    assert first["attempts"] == 1
+    assert first["claimed_at"]
+    assert await service.repo.claim_post(None, post["id"], media_token_expires_at=expires) is None
+
+    # A duplicate job finds the post publishing without a handle: hands off.
+    skipped = await service.publish_post(post["id"])
+    assert skipped["status"] == "publishing"
+    assert provider.publish_calls == []
+
+
+@pytest.mark.asyncio
+async def test_duplicate_publish_jobs_upload_once(service, provider):
+    post = await _queued_post(service)
+    first = await service.publish_post(post["id"])
+    second = await service.publish_post(post["id"])
+    assert first["status"] == second["status"] == "published"
+    assert len(provider.publish_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_and_cancel_are_conditional(service, provider):
+    post = await _queued_post(service)
+    cancelled = await service.cancel_post("user-1", post["id"])
+    assert cancelled["status"] == "cancelled"
+    with pytest.raises(SocialValidationError):
+        await service.cancel_post("user-1", post["id"])
+    with pytest.raises(SocialNotFound):
+        await service.cancel_post("user-2", post["id"])
+
+    jobs_before = len(service.queue_adapter.jobs)
+    retried = await service.retry_post("user-1", post["id"])
+    assert retried["status"] == "queued"
+    # The double click: the post already left ``cancelled``.
+    with pytest.raises(SocialValidationError):
+        await service.retry_post("user-1", post["id"])
+    assert len(service.queue_adapter.jobs) == jobs_before + 1
+    assert service.queue_adapter.jobs[-1][2] == {"_job_id": f"social:{post['id']}:0"}
+
+    # A retry losing the race to another retry is reported, not re-enqueued.
+    service.repo.posts[post["id"]]["status"] = "failed"
+    original = service.repo.requeue_post
+
+    async def lose_race(*args, **kwargs):
+        return None
+
+    service.repo.requeue_post = lose_race
+    with pytest.raises(SocialValidationError, match="already being retried"):
+        await service.retry_post("user-1", post["id"])
+    service.repo.requeue_post = original
+    assert len(service.queue_adapter.jobs) == jobs_before + 1
+
+    # A post claimed by the worker can no longer be cancelled.
+    service.repo.posts[post["id"]]["status"] = "queued"
+    await service.repo.claim_post(None, post["id"], media_token_expires_at=None)
+    with pytest.raises(SocialValidationError):
+        await service.cancel_post("user-1", post["id"])
+    with pytest.raises(SocialValidationError):
+        await service.delete_post("user-1", post["id"])
+
+
+@pytest.mark.asyncio
+async def test_duplicate_job_id_is_not_an_enqueue_failure(service):
+    from src.workers.job_queue import DuplicateJobError
+
+    class DuplicateQueue(FakeQueue):
+        async def enqueue_job(self, function_name, *args, **kwargs):
+            raise DuplicateJobError(kwargs["_job_id"])
+
+    service.queue_adapter = DuplicateQueue()
+    post = await _queued_post(service)
+    assert post["status"] == "queued"
+
+
+@pytest.mark.asyncio
+async def test_enqueue_failure_never_leaves_post_queued(service):
+    class BrokenQueue(FakeQueue):
+        async def enqueue_job(self, function_name, *args, **kwargs):
+            raise RuntimeError("redis down")
+
+    service.queue_adapter = BrokenQueue()
+    post = await _queued_post(service)
+    assert post["status"] == "failed"
+    assert "Could not queue" in post["error_message"]
+
+
+@pytest.mark.asyncio
+async def test_stale_publishing_posts_are_failed_never_reuploaded(service, provider):
+    stale = await _queued_post(service)
+    await service.repo.claim_post(None, stale["id"], media_token_expires_at=None)
+    long_ago = (
+        datetime.now(timezone.utc)
+        - timedelta(seconds=social_module.STALE_PUBLISHING_SECONDS + 60)
+    ).isoformat()
+    service.repo.posts[stale["id"]]["claimed_at"] = long_ago
+
+    polling = await _queued_post(service)
+    service.repo.posts[polling["id"]].update(
+        status="publishing", pending_handle="accepted", claimed_at=long_ago
+    )
+    fresh = await _queued_post(service)
+    await service.repo.claim_post(None, fresh["id"], media_token_expires_at=None)
+
+    assert social_module.STALE_PUBLISHING_SECONDS > social_module.PUBLISH_JOB_TIMEOUT_SECONDS
+    assert await service.sweep_stale_publishing() == [stale["id"]]
+    swept = service.repo.posts[stale["id"]]
+    assert swept["status"] == "failed"
+    assert swept["error_message"] == social_module.OUTCOME_UNKNOWN_MESSAGE
+    assert service.repo.posts[polling["id"]]["status"] == "publishing"
+    assert service.repo.posts[fresh["id"]]["status"] == "publishing"
+    assert provider.publish_calls == []
+
+    # Failed posts can still be dismissed.
+    assert await service.delete_post("user-1", stale["id"]) is True
+
+
+@pytest.mark.asyncio
+async def test_platform_rejection_clears_handle_so_retry_uploads_again(service, provider):
+    post = await _queued_post(service)
+    provider.publish_result = PublishResult(None, None, pending_handle="pub-1")
+    await service.publish_post(post["id"])
+
+    def rejected(token, handle):
+        raise SocialProviderError("TikTok rejected the post: bad video", rejected=True)
+
+    provider.resolve_pending = rejected
+    failed = await service.publish_post(post["id"])
+    assert failed["status"] == "failed"
+    assert failed["pending_handle"] is None
+    assert "bad video" in failed["error_message"]
+
+    retried = await service.retry_post("user-1", post["id"])
+    assert retried["pending_handle"] is None
+    provider.publish_result = PublishResult("ext-2", None)
+    result = await service.publish_post(post["id"])
+    assert result["status"] == "published"
+    assert len(provider.publish_calls) == 2
 
 
 # ----------------------------------------------------------------------

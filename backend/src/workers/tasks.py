@@ -6,6 +6,7 @@ import logging
 from typing import Dict, Any, Optional
 import json
 from arq import Retry, cron
+from arq.worker import func
 from .media_cleanup import cleanup_media, sweep_orphaned_media
 from ..repositories.task_run_guard import TaskRunBusy
 
@@ -160,7 +161,13 @@ async def dispatch_scheduled_social_posts(ctx: Dict[str, Any]) -> Dict[str, Any]
         service = await _social_service(db)
         dispatched = await service.dispatch_scheduled_posts()
         resolved = await service.resolve_pending_posts()
-    return {"dispatched": len(dispatched), "pending_checked": resolved}
+        # Covers workers that crashed or were cancelled mid-upload.
+        swept = await service.sweep_stale_publishing()
+    return {
+        "dispatched": len(dispatched),
+        "pending_checked": resolved,
+        "stale_failed": len(swept),
+    }
 
 
 async def refresh_social_metrics(ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -176,6 +183,7 @@ async def refresh_social_metrics(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 
 from ..services.editor_service import prepare_editor, export_editor, combine_editor
+from ..services.social_service import PUBLISH_JOB_TIMEOUT_SECONDS
 
 # Worker configuration for arq
 class WorkerSettings:
@@ -192,7 +200,9 @@ class WorkerSettings:
         prepare_editor,
         export_editor,
         combine_editor,
-        publish_social_post,
+        # Results are not kept so a finished job's id ("social:{post}:{attempt}")
+        # frees up; a dead job's post is failed by the stale-publishing sweep.
+        func(publish_social_post, timeout=PUBLISH_JOB_TIMEOUT_SECONDS, keep_result=0),
     ]
     queue_name = "supoclip_tasks"
     health_check_interval = 30

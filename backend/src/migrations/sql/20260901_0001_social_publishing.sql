@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS social_posts (
     external_url TEXT,
     error_message TEXT,
     attempts INTEGER NOT NULL DEFAULT 0,
+    claimed_at TIMESTAMP WITH TIME ZONE,
     hook_type VARCHAR(50),
     hook_title VARCHAR(255),
     virality_score INTEGER,

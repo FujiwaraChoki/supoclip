@@ -310,7 +310,8 @@ class TikTokProvider(SocialProvider):
         status = data.get("status")
         if status in TERMINAL_FAILURE_STATUSES:
             raise SocialProviderError(
-                f"TikTok rejected the post: {data.get('fail_reason') or 'unknown reason'}"
+                f"TikTok rejected the post: {data.get('fail_reason') or 'unknown reason'}",
+                rejected=True,
             )
         if status == "PUBLISH_COMPLETE":
             ids = data.get("publicaly_available_post_id") or data.get(

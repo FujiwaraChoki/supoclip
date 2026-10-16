@@ -15,6 +15,10 @@ DEFAULT_QUEUE_NAME = "supoclip_tasks"
 FAST_QUEUE_NAME = "supoclip_fast"
 
 
+class DuplicateJobError(RuntimeError):
+    """A job with the requested ``_job_id`` is already queued or running."""
+
+
 def _get_redis_settings() -> RedisSettings:
     config = get_config()
     return RedisSettings(host=config.redis_host, port=config.redis_port, password=config.redis_password, database=0)
@@ -63,6 +67,8 @@ class JobQueue:
             function_name, *args, _queue_name=queue_name, **kwargs
         )
         if not job:
+            if kwargs.get("_job_id"):
+                raise DuplicateJobError(f"Job {kwargs['_job_id']} already exists")
             raise RuntimeError("Failed to enqueue job")
         job_id = getattr(job, "job_id", None)
         if not job_id:

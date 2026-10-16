@@ -24,12 +24,22 @@ DEFAULT_HTTP_TIMEOUT = 60
 class SocialProviderError(Exception):
     """Raised when a provider call fails in a way the caller should surface."""
 
-    def __init__(self, message: str, *, retryable: bool = False, reauth: bool = False):
+    def __init__(
+        self,
+        message: str,
+        *,
+        retryable: bool = False,
+        reauth: bool = False,
+        rejected: bool = False,
+    ):
         super().__init__(message)
         self.retryable = retryable
         # ``reauth`` means the stored credentials are no longer usable and the
         # user must reconnect the account.
         self.reauth = reauth
+        # ``rejected`` means the platform definitively failed an upload it had
+        # accepted. Its pending handle is dead, so a retry must upload again.
+        self.rejected = rejected
 
 
 @dataclass

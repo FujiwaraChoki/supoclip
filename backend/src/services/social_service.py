@@ -38,7 +38,7 @@ from ..social import (
 )
 from ..social.base import PRIVACY_LEVELS
 from ..utils.async_helpers import run_in_thread
-from ..workers.job_queue import JobQueue
+from ..workers.job_queue import DuplicateJobError, JobQueue
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,13 @@ PUBLISH_JOB_NAME = "publish_social_post"
 OAUTH_STATE_TTL_SECONDS = 600
 MEDIA_TOKEN_TTL_HOURS = 3
 PENDING_PUBLISH_TIMEOUT_MINUTES = 45
+# arq job timeout for one publish attempt (see WorkerSettings).
+PUBLISH_JOB_TIMEOUT_SECONDS = 3600
+# A post still ``publishing`` without an upload handle this long after its
+# claim lost its worker (crash, deploy, timeout). Comfortably above the job
+# timeout so a live upload is never swept.
+STALE_PUBLISHING_SECONDS = 2 * PUBLISH_JOB_TIMEOUT_SECONDS
+OUTCOME_UNKNOWN_MESSAGE = "Upload outcome unknown; check your account before retrying."
 MAX_HASHTAGS = 30
 MAX_TITLE_LENGTH = 255
 MAX_CAPTION_LENGTH = 2200
@@ -303,17 +310,40 @@ class SocialService:
             clip_snapshot=clip,
         )
         if status == "queued":
-            await self._enqueue_publish(post["id"])
+            await self._enqueue_or_fail(post["id"], int(post.get("attempts") or 0))
+            post = await self.repo.get_post(self.db, post["id"]) or post
         logger.info(
             "Created social post %s (%s, %s) for clip %s", post["id"], provider.name, status, clip_id
         )
         return post
 
-    async def _enqueue_publish(self, post_id: str, defer_seconds: int = 0) -> None:
-        kwargs: Dict[str, Any] = {}
+    async def _enqueue_publish(
+        self, post_id: str, attempts: int, defer_seconds: int = 0
+    ) -> None:
+        # One job per (post, attempt): a double enqueue of the same queued
+        # state collapses into one job. The claim in ``publish_post`` is what
+        # actually guarantees a single upload.
+        kwargs: Dict[str, Any] = {"_job_id": f"social:{post_id}:{attempts}"}
         if defer_seconds > 0:
             kwargs["_defer_by"] = timedelta(seconds=defer_seconds)
-        await self.queue_adapter.enqueue_job(PUBLISH_JOB_NAME, post_id, **kwargs)
+        try:
+            await self.queue_adapter.enqueue_job(PUBLISH_JOB_NAME, post_id, **kwargs)
+        except DuplicateJobError:
+            # That job is still waiting and will claim the post itself.
+            logger.info("Publish job for post %s attempt %s is already queued", post_id, attempts)
+
+    async def _enqueue_or_fail(self, post_id: str, attempts: int) -> None:
+        """Enqueue a freshly queued post; never leave it queued without a job."""
+        try:
+            await self._enqueue_publish(post_id, attempts)
+        except Exception:  # noqa: BLE001
+            logger.exception("Failed to enqueue social post %s", post_id)
+            await self.repo.update_post(
+                self.db,
+                post_id,
+                status="failed",
+                error_message="Could not queue the post. Try again.",
+            )
 
     async def list_posts(
         self,
@@ -336,15 +366,17 @@ class SocialService:
         return post
 
     async def cancel_post(self, user_id: str, post_id: str) -> Dict[str, Any]:
-        post = await self.repo.get_user_post(self.db, user_id, post_id)
-        if not post:
-            raise SocialNotFound("Post not found")
-        if post["status"] not in {"scheduled", "queued"}:
+        # Conditional update: a worker claim or a second click can't race it.
+        if not await self.repo.cancel_post(self.db, user_id, post_id):
+            post = await self.repo.get_user_post(self.db, user_id, post_id)
+            if not post:
+                raise SocialNotFound("Post not found")
             raise SocialValidationError(
                 f"Only scheduled or queued posts can be cancelled (status is {post['status']})."
             )
-        await self.repo.update_post(self.db, post_id, status="cancelled")
-        return await self.repo.get_post(self.db, post_id) or post
+        post = await self.repo.get_post(self.db, post_id)
+        assert post is not None
+        return post
 
     async def retry_post(self, user_id: str, post_id: str) -> Dict[str, Any]:
         post = await self.repo.get_user_post(self.db, user_id, post_id)
@@ -354,24 +386,24 @@ class SocialService:
             raise SocialValidationError("Only failed or cancelled posts can be retried.")
         if not post.get("social_account_id"):
             raise SocialValidationError("The account for this post was disconnected.")
-        await self.repo.update_post(
-            self.db,
-            post_id,
-            status="queued",
-            error_message=None,
-            scheduled_for=None,
-            media_token=post.get("media_token") or secrets.token_urlsafe(32),
+        attempts = await self.repo.requeue_post(
+            self.db, user_id, post_id, media_token=secrets.token_urlsafe(32)
         )
-        await self._enqueue_publish(post_id)
+        if attempts is None:
+            # A concurrent retry (double click) already queued it.
+            raise SocialValidationError("This post is already being retried.")
+        await self._enqueue_or_fail(post_id, attempts)
         return await self.repo.get_post(self.db, post_id) or post
 
     async def delete_post(self, user_id: str, post_id: str) -> bool:
         post = await self.repo.get_user_post(self.db, user_id, post_id)
         if not post:
             return False
-        if post["status"] in {"queued", "publishing"}:
+        if post["status"] in {"queued", "publishing"} or not await self.repo.delete_post(
+            self.db, user_id, post_id
+        ):
             raise SocialValidationError("Wait for the post to finish before deleting it.")
-        return await self.repo.delete_post(self.db, user_id, post_id)
+        return True
 
     async def get_public_media_path(self, media_token: str) -> Optional[Path]:
         """Resolve a media token to a clip path while the token is still valid."""
@@ -395,15 +427,30 @@ class SocialService:
         post = await self.repo.get_post(self.db, post_id)
         if not post:
             raise SocialNotFound(f"Post {post_id} not found")
-        if post["status"] not in {"queued", "publishing"}:
+        if post["status"] == "publishing" and post.get("pending_handle"):
+            # The platform accepted the upload and processes it asynchronously.
+            return await self.resolve_pending_post(post)
+        if post["status"] != "queued":
+            # ``publishing`` without a handle belongs to another worker, or its
+            # outcome is unknown; uploading again could duplicate the post.
             logger.info("Skipping publish for post %s in status %s", post_id, post["status"])
             return post
+
+        claimed = await self.repo.claim_post(
+            self.db,
+            post_id,
+            media_token_expires_at=datetime.now(timezone.utc)
+            + timedelta(hours=MEDIA_TOKEN_TTL_HOURS),
+        )
+        if not claimed:
+            logger.info("Post %s was claimed or left the queue; not uploading", post_id)
+            return await self.repo.get_post(self.db, post_id) or post
+        post = claimed
+        attempts = int(post.get("attempts") or 1)
+
         # An accepted upload must only be polled, including after an explicit
         # retry. Uploading it again can create a duplicate on the platform.
         if post.get("pending_handle"):
-            if post["status"] == "queued":
-                await self.repo.update_post(self.db, post_id, status="publishing")
-                post = await self.repo.get_post(self.db, post_id) or post
             return await self.resolve_pending_post(post)
 
         account_id = post.get("social_account_id")
@@ -418,17 +465,6 @@ class SocialService:
                 error_message="The connected account was removed before publishing.",
             )
             return await self.repo.get_post(self.db, post_id) or post
-
-        attempts = int(post.get("attempts") or 0) + 1
-        await self.repo.update_post(
-            self.db,
-            post_id,
-            status="publishing",
-            attempts=attempts,
-            error_message=None,
-            media_token_expires_at=datetime.now(timezone.utc)
-            + timedelta(hours=MEDIA_TOKEN_TTL_HOURS),
-        )
 
         try:
             provider = get_provider(post["provider"], self.config)
@@ -511,6 +547,9 @@ class SocialService:
         message = str(exc)[:2000]
         if exc.reauth:
             await self.repo.set_account_status(self.db, account["id"], "reauth_required", message)
+        # A definitive platform failure kills the pending upload, so an explicit
+        # retry uploads again. Otherwise the handle (if any) is kept.
+        handle_fields: Dict[str, Any] = {"pending_handle": None} if exc.rejected else {}
         can_retry = (
             exc.retryable
             and not exc.reauth
@@ -519,9 +558,9 @@ class SocialService:
         if can_retry:
             delay = min(3600, 300 * attempts)
             await self.repo.update_post(
-                self.db, post["id"], status="queued", error_message=message
+                self.db, post["id"], status="queued", error_message=message, **handle_fields
             )
-            await self._enqueue_publish(post["id"], defer_seconds=delay)
+            await self._enqueue_publish(post["id"], attempts, defer_seconds=delay)
             logger.warning(
                 "Publish attempt %s for post %s failed, retrying in %ss: %s",
                 attempts,
@@ -531,7 +570,7 @@ class SocialService:
             )
         else:
             await self.repo.update_post(
-                self.db, post["id"], status="failed", error_message=message
+                self.db, post["id"], status="failed", error_message=message, **handle_fields
             )
             logger.error("Publish failed for post %s: %s", post["id"], message)
         return await self.repo.get_post(self.db, post["id"]) or post
@@ -567,7 +606,7 @@ class SocialService:
             access_token = await self._get_valid_access_token(account)
             result = await run_in_thread(provider.resolve_pending, access_token, handle)
         except SocialProviderError as exc:
-            if exc.retryable and not exc.reauth:
+            if exc.retryable and not exc.reauth and not exc.rejected:
                 logger.warning("Will check pending post %s again: %s", post["id"], exc)
                 return post
             return await self._handle_publish_failure(
@@ -593,11 +632,23 @@ class SocialService:
                 logger.exception("Failed to resolve pending post %s", post["id"])
         return len(posts)
 
+    async def sweep_stale_publishing(self) -> List[str]:
+        """Fail posts whose worker vanished mid-upload (never re-uploaded)."""
+        post_ids = await self.repo.fail_stale_publishing(
+            self.db,
+            older_than_seconds=STALE_PUBLISHING_SECONDS,
+            message=OUTCOME_UNKNOWN_MESSAGE,
+        )
+        for post_id in post_ids:
+            logger.warning("Social post %s lost its worker mid-upload; marked failed", post_id)
+        return post_ids
+
     async def dispatch_scheduled_posts(self, limit: int = 50) -> List[str]:
         post_ids = await self.repo.claim_due_scheduled_posts(self.db, limit=limit)
         for post_id in post_ids:
             try:
-                await self._enqueue_publish(post_id)
+                # Scheduled posts have never been claimed (attempt 0).
+                await self._enqueue_publish(post_id, 0)
             except Exception:  # noqa: BLE001
                 logger.exception("Failed to enqueue scheduled post %s", post_id)
                 await self.repo.update_post(
