@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ScheduledPosts } from "@/components/scheduled-posts";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
 import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
@@ -282,6 +283,9 @@ function SocialSettingsContent() {
           </div>
         )}
       </section>
+
+      {/* Scheduled */}
+      {!isFetching && connections.length > 0 && <ScheduledPosts sectionHeadingClassName={SECTION_HEADING} />}
 
       <Separator className="mb-10" />
 
