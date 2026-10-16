@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { getSiteUrl } from "@/lib/site";
+
 import { fetchBackend } from "@/server/backend-api";
 import { getServerSession } from "@/server/session";
 
 const SUPPORTED_PROVIDERS = new Set(["youtube", "tiktok", "instagram"]);
 
-function settingsRedirect(request: Request, query: Record<string, string>) {
-  const url = new URL("/settings/social", request.url);
+function settingsRedirect(query: Record<string, string>) {
+  const url = new URL("/settings/social", getSiteUrl());
   for (const [key, value] of Object.entries(query)) {
     url.searchParams.set(key, value);
   }
@@ -21,12 +23,12 @@ export async function GET(
 ) {
   const { provider } = await params;
   if (!SUPPORTED_PROVIDERS.has(provider)) {
-    return settingsRedirect(request, { error: "Unknown provider" });
+    return settingsRedirect({ error: "Unknown provider" });
   }
 
   const session = await getServerSession();
   if (!session?.user?.id) {
-    const signIn = new URL("/sign-in", request.url);
+    const signIn = new URL("/sign-in", getSiteUrl());
     signIn.searchParams.set("next", "/settings/social");
     return NextResponse.redirect(signIn);
   }
@@ -45,7 +47,7 @@ export async function GET(
   };
 
   if (!upstream.ok || !payload.authorize_url) {
-    return settingsRedirect(request, {
+    return settingsRedirect({
       error: payload.detail || `Could not start the ${provider} connection`,
     });
   }

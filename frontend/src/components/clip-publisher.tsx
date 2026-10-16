@@ -40,6 +40,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { SocialProviderIcon } from "@/components/social-provider-icon";
 import {
   PRIVACY_LABELS,
   PROVIDER_LABELS,
@@ -145,7 +146,8 @@ export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
             className="flex flex-col gap-2 rounded-lg border bg-card px-3 py-2 text-sm"
           >
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="font-medium">
+              <Badge variant="outline" className="gap-1.5 font-medium">
+                <SocialProviderIcon provider={post.provider} className="size-3" />
                 {PROVIDER_LABELS[post.provider] ?? post.provider}
               </Badge>
               <span className="truncate text-muted-foreground">
@@ -404,6 +406,7 @@ export function ClipPublishButton({
                           value={connection.id}
                           disabled={connection.status === "reauth_required"}
                         >
+                          <SocialProviderIcon provider={connection.provider} />
                           {PROVIDER_LABELS[connection.provider]} · {connectionLabel(connection)}
                           {connection.status === "reauth_required" ? " (reconnect required)" : ""}
                         </SelectItem>

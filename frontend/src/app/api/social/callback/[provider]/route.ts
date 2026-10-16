@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { getSiteUrl } from "@/lib/site";
+
 import { fetchBackend } from "@/server/backend-api";
 import { getServerSession } from "@/server/session";
 
 const SUPPORTED_PROVIDERS = new Set(["youtube", "tiktok", "instagram"]);
 
-function settingsRedirect(request: Request, query: Record<string, string>) {
-  const url = new URL("/settings/social", request.url);
+function settingsRedirect(query: Record<string, string>) {
+  const url = new URL("/settings/social", getSiteUrl());
   for (const [key, value] of Object.entries(query)) {
     url.searchParams.set(key, value);
   }
@@ -22,7 +24,7 @@ export async function GET(
 ) {
   const { provider } = await params;
   if (!SUPPORTED_PROVIDERS.has(provider)) {
-    return settingsRedirect(request, { error: "Unknown provider" });
+    return settingsRedirect({ error: "Unknown provider" });
   }
 
   const url = new URL(request.url);
@@ -34,14 +36,14 @@ export async function GET(
   const state = url.searchParams.get("state");
 
   if (providerError || !code || !state) {
-    return settingsRedirect(request, {
+    return settingsRedirect({
       error: providerError || "The platform did not return an authorization code",
     });
   }
 
   const session = await getServerSession();
   if (!session?.user?.id) {
-    return settingsRedirect(request, {
+    return settingsRedirect({
       error: "Your session expired during the connection. Sign in and try again.",
     });
   }
@@ -60,12 +62,12 @@ export async function GET(
   };
 
   if (!upstream.ok) {
-    return settingsRedirect(request, {
+    return settingsRedirect({
       error: payload.detail || `Could not connect your ${provider} account`,
     });
   }
 
-  return settingsRedirect(request, {
+  return settingsRedirect({
     connected: provider,
     account: payload.connection?.username || payload.connection?.display_name || "",
   });

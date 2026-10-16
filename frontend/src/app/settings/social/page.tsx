@@ -7,9 +7,7 @@ import {
   AlertCircle,
   CheckCircle,
   ExternalLink,
-  Link2,
   RefreshCw,
-  Sparkles,
   Trash2,
   TrendingUp,
 } from "lucide-react";
@@ -20,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SocialProviderIcon } from "@/components/social-provider-icon";
 import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import {
@@ -189,11 +188,11 @@ function SocialSettingsContent() {
                 href={`/api/social/connect/${provider.provider}`}
                 className="flex items-center justify-between gap-2 rounded-xl border bg-background p-4 transition-colors hover:border-foreground/25"
               >
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <Link2 className="w-4 h-4" />
+                <span className="flex items-center gap-2.5 text-sm font-medium">
+                  <SocialProviderIcon provider={provider.provider} className="size-5" />
                   {provider.display_name}
                 </span>
-                <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Connect</span>
               </a>
             ))}
             {unconfiguredProviders.map((provider) => (
@@ -202,7 +201,10 @@ function SocialSettingsContent() {
                 className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground"
                 title={provider.setup_hint ?? undefined}
               >
-                <p className="font-medium text-foreground">{provider.display_name}</p>
+                <p className="flex items-center gap-2 font-medium text-foreground">
+                  <SocialProviderIcon provider={provider.provider} className="size-4 text-muted-foreground" />
+                  {provider.display_name}
+                </p>
                 <p className="text-xs mt-1">Not configured on this server.</p>
                 {provider.setup_hint && <p className="text-xs mt-1">{provider.setup_hint}</p>}
               </div>
@@ -240,7 +242,10 @@ function SocialSettingsContent() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium truncate">{connectionLabel(connection)}</span>
-                      <Badge variant="outline">{PROVIDER_LABELS[connection.provider]}</Badge>
+                      <Badge variant="outline" className="gap-1.5">
+                        <SocialProviderIcon provider={connection.provider} className="size-3" />
+                        {PROVIDER_LABELS[connection.provider]}
+                      </Badge>
                       <ConnectionStatusBadge status={connection.status} />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -295,13 +300,7 @@ function SocialSettingsContent() {
           <Skeleton className="h-32 w-full" />
         ) : (
           <div className="space-y-6">
-            <div className="flex items-start gap-3 rounded-xl border bg-muted/50 p-4">
-              <Sparkles
-                className={cn(
-                  "mt-0.5 h-5 w-5",
-                  performance.personalization_active ? "text-foreground" : "text-muted-foreground",
-                )}
-              />
+            <div className="rounded-xl border bg-muted/50 p-4">
               <div className="text-sm">
                 {performance.personalization_active ? (
                   <p>
@@ -335,7 +334,12 @@ function SocialSettingsContent() {
                     <tbody>
                       {performance.by_provider.map((row) => (
                         <tr key={row.provider} className="border-t">
-                          <td className="px-3 py-2">{PROVIDER_LABELS[row.provider] ?? row.provider}</td>
+                          <td className="px-3 py-2">
+                            <span className="flex items-center gap-2">
+                              <SocialProviderIcon provider={row.provider} className="size-3.5" />
+                              {PROVIDER_LABELS[row.provider] ?? row.provider}
+                            </span>
+                          </td>
                           <td className="px-3 py-2 text-right">{row.posts}</td>
                           <td className="px-3 py-2 text-right">{formatMetric(row.total_views)}</td>
                           <td className="px-3 py-2 text-right">{formatMetric(row.avg_views)}</td>
@@ -406,7 +410,8 @@ function SocialSettingsContent() {
                         <p className="font-medium truncate">
                           {post.hook_title || post.title || "Untitled clip"}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <SocialProviderIcon provider={post.provider} className="size-3" />
                           {PROVIDER_LABELS[post.provider]} · {post.hook_type || "no hook"} ·{" "}
                           {formatDateTime(post.published_at)}
                         </p>
