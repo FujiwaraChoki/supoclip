@@ -544,3 +544,12 @@ def test_download_youtube_video_with_apify_caps_quality_for_long_videos(
         assert captured["quality"] == expected_quality
     finally:
         set_config_override(None)
+
+
+@pytest.mark.parametrize(
+    ("configured", "expected"),
+    [("apify", "apify"), (" APIFY ", "apify"), ("yt-dlp", "yt_dlp"),
+     ("yt_dlp", "yt_dlp"), ("unsupported", "yt_dlp"), (None, "yt_dlp")],
+)
+def test_download_provider_normalization(configured, expected):
+    assert Config._normalize_youtube_download_provider(configured) == expected

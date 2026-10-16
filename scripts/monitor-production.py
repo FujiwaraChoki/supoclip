@@ -3,7 +3,6 @@
 
 Run from this checkout using Python 3. No purchases, job submissions, or service
 changes. API keys are read on the production host and never returned.
-VideoScale remaining bandwidth must be checked in its authenticated dashboard.
 """
 import json
 import shlex

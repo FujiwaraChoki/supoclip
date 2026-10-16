@@ -119,7 +119,7 @@ def orphan_candidates(storage: MediaStorage):
                 continue
             if path.is_file() and re.fullmatch(r"[A-Za-z0-9_-]{11}\.(?:mp4|webm|mkv|m4a|transcription\.mp3|assemblyai\.mp3|part)", path.name):
                 yield str(path), False
-            elif path.is_dir() and path.name.startswith(("oxy-", "videoscale-")):
+            elif path.is_dir() and path.name.startswith("apify-"):
                 if max((modified(p) for p in entries(path)), default=0) < cutoff:
                     yield str(path), True
     if storage.enabled:
