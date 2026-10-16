@@ -18,6 +18,7 @@ import yt_dlp
 
 from .oxylabs_youtube_downloader import download_video_via_oxylabs
 from .videoscale_youtube_downloader import download_video_via_videoscale
+from .ytdl_youtube_downloader import YtdlDownloadError, download_video_via_ytdl
 from .apify_youtube_downloader import ApifyDownloadError, download_video_via_apify
 from .config import get_config
 
@@ -611,6 +612,8 @@ def download_youtube_video(
         return None
 
     config = get_config()
+    if config.youtube_download_provider == "ytdl":
+        return _download_with_ytdl(url, video_id)
     if config.youtube_download_provider == "videoscale":
         return download_video_via_videoscale(url, video_id)
     if config.youtube_download_provider == "oxylabs":
@@ -665,6 +668,19 @@ def download_youtube_video(
     return None
 
 
+def _download_with_ytdl(url: str, video_id: str) -> Path:
+    try:
+        return download_video_via_ytdl(video_id)
+    except YtdlDownloadError as exc:
+        fallback = get_config().youtube_download_fallback_provider
+        if exc.permanent or not fallback:
+            raise
+        logger.warning("ytdl download failed for %s (%s); falling back to %s", video_id, exc.code, fallback)
+    if fallback == "videoscale":
+        return download_video_via_videoscale(url, video_id)
+    return download_video_via_oxylabs(video_id)
+
+
 async def async_download_youtube_video(
     url: str,
     max_retries: int = 3,
@@ -709,7 +725,7 @@ def cleanup_downloaded_files(video_id: str, source_path: Optional[Path] = None):
     """Remove downloaded media while retaining word timings for cached jobs."""
     temp_dir = Path(get_config().temp_dir)
     provider_dir = False
-    if source_path is not None and source_path.parent.name.startswith((f"oxy-{video_id}-", f"videoscale-{video_id}-", f"apify-{video_id}-")):
+    if source_path is not None and source_path.parent.name.startswith((f"oxy-{video_id}-", f"videoscale-{video_id}-", f"ytdl-{video_id}-", f"apify-{video_id}-")):
         candidate = source_path.parent.resolve()
         if candidate.parent != temp_dir.resolve():
             logger.warning("Refusing source cleanup outside the configured download directory")
