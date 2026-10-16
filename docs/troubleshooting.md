@@ -301,6 +301,37 @@ Checkout, portal access, billing summary, or subscription emails do not work.
 - Confirm the sender domain is verified in Amazon SES
 - Check backend logs for subscription email errors
 
+## Email Verification and SES Complaints
+
+API-key creation requires email verification. Request a link in **Agents & API**;
+links expire after one hour, and invalid or expired links can be replaced there.
+Check the SES settings above and the backend's verification-email errors when
+links do not arrive. Better Auth rate-limits verification requests and logs
+delivery callback failures; a successful request does not prove inbox delivery.
+Ordinary signup and sign-in do not automatically send verification mail.
+
+All successful SES send requests now record `message_id`, `recipient`, `subject`,
+`region` and `sent_at` in `email_deliveries`. Apply the Prisma migrations before
+rolling out the application; the backend also applies an idempotent matching SQL
+migration at startup. There is no new SES permission or environment variable.
+This records SES acceptance, not delivery. Bodies, passwords, keys and link tokens
+are never stored in the audit table. Access should be restricted like other
+customer data; these records remain until explicitly deleted by an operator.
+
+Use the original SES Message-ID from a complaint report to look up its recipient:
+
+```sql
+SELECT recipient, subject, region, sent_at
+FROM email_deliveries
+WHERE message_id = '<SES message ID>';
+```
+
+Messages sent before this migration have no audit record. If persistence fails
+after SES accepts a message, backend logs contain the correlation metadata under
+`SES audit persistence failed`; the app does not retry an already accepted send.
+Check complaint rates and account-level suppression in the sender's AWS region.
+This change does not add an SNS complaint handler or alter SES suppression.
+
 ## Database Problems
 
 ### Symptom

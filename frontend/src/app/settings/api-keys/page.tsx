@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSession } from "@/lib/auth-client";
+import { authClient, useSession } from "@/lib/auth-client";
 import { GITHUB_URL } from "@/lib/site";
 
 const DOCS = [
@@ -45,7 +45,7 @@ function formatDate(value: string | null): string {
 }
 
 export default function ApiKeysPage() {
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending, refetch } = useSession();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,10 +53,37 @@ export default function ApiKeysPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isSendingVerification, setIsSendingVerification] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
+  const emailVerified = session?.user?.emailVerified === true;
+
+  useEffect(() => {
+    const verificationError = new URLSearchParams(window.location.search).get("error");
+    if (verificationError === "TOKEN_EXPIRED" || verificationError === "INVALID_TOKEN") {
+      setError("This verification link is invalid or expired. Request a new email below.");
+    }
+  }, []);
+
+  const handleSendVerification = async () => {
+    if (!session?.user.email) return;
+    setIsSendingVerification(true);
+    setError(null);
+    try {
+      const result = await authClient.sendVerificationEmail({
+        email: session.user.email,
+        callbackURL: "/settings/api-keys",
+      });
+      if (result.error) throw new Error(result.error.message || "Failed to send verification email");
+      setVerificationSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send verification email");
+    } finally {
+      setIsSendingVerification(false);
+    }
+  };
 
   const loadKeys = useCallback(async () => {
     setIsFetching(true);
-    setError(null);
     try {
       const response = await fetch("/api/api-keys", { cache: "no-store" });
       if (!response.ok) throw new Error("Failed to load API keys");
@@ -76,6 +103,7 @@ export default function ApiKeysPage() {
   }, [session?.user?.id, loadKeys]);
 
   const handleCreate = async () => {
+    if (!emailVerified) return;
     setIsCreating(true);
     setError(null);
     setNewKey(null);
@@ -182,6 +210,26 @@ export default function ApiKeysPage() {
             </Alert>
           )}
 
+          {!emailVerified && (
+            <Alert className="mb-6">
+              <AlertDescription>
+                <p className="font-medium">Verify your email to create API keys</p>
+                <p className="mt-1">Confirm that you own {session.user.email}. You can still view and revoke existing keys.</p>
+                {verificationSent && (
+                  <p role="status" className="mt-2">Verification email requested. Check your inbox; the link expires in 1 hour.</p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={handleSendVerification} disabled={isSendingVerification}>
+                    {isSendingVerification ? "Sending…" : verificationSent ? "Resend verification email" : "Send verification email"}
+                  </Button>
+                  <Button variant="ghost" onClick={() => void refetch()}>
+                    I have verified my email
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* One-time key reveal */}
           {newKey && (
             <Alert className="mb-6 border-green-200 bg-green-50">
@@ -213,9 +261,9 @@ export default function ApiKeysPage() {
                 value={name}
                 maxLength={120}
                 onChange={(e) => setName(e.target.value)}
-                disabled={isCreating}
+                disabled={isCreating || !emailVerified}
               />
-              <Button onClick={handleCreate} disabled={isCreating}>
+              <Button onClick={handleCreate} disabled={isCreating || !emailVerified}>
                 <Plus className="w-4 h-4" />
                 {isCreating ? "Creating…" : "Create"}
               </Button>

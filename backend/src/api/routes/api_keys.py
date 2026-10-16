@@ -49,6 +49,16 @@ async def create_api_key(request: Request, db: AsyncSession = Depends(get_db)):
     name = data.get("name", "API Key")
 
     user_id = _get_user_id(request)
+    user_result = await db.execute(select(User).where(User.id == user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not user.emailVerified:
+        raise HTTPException(
+            status_code=403,
+            detail="Verify your email address before creating an API key.",
+        )
+
     service = ApiKeyService(db)
     try:
         created = await service.create_api_key(user_id, name)
@@ -59,16 +69,8 @@ async def create_api_key(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Error creating API key")
 
     try:
-        user_result = await db.execute(select(User).where(User.id == user_id))
-        user = user_result.scalar_one_or_none()
         email_service = ApiKeyEmailService(get_config())
-        if not user:
-            logger.warning(
-                "API key %s was created but user %s could not be loaded for notification",
-                created.get("id"),
-                user_id,
-            )
-        elif not email_service.is_configured:
+        if not email_service.is_configured:
             logger.warning(
                 "API key %s was created for user %s but SES is not configured",
                 created.get("id"),

@@ -8,6 +8,13 @@ For exact schemas and interactive testing, also use FastAPI docs at `http://loca
 
 Agents and scripts authenticate with a personal API key. Create one in the app under **Agents & API** (`/settings/api-keys`); the plaintext `sk_...` key is shown exactly once, and only its SHA-256 hash is stored.
 
+Creating a key requires a verified email address. Use **Send verification email**
+on that page, follow the one-hour link, then refresh your verification status.
+The backend returns `403` before minting a key or sending its notification if
+the database user is unverified. Existing keys, listing, revocation and ordinary
+sign-in continue to work. Self-hosted installations also need SES configured to
+deliver verification links; existing users are not automatically marked verified.
+
 Send it to the backend (hosted: `https://api.supoclip.com`, self-hosted: your backend URL) with either header:
 
 ```bash

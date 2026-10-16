@@ -53,6 +53,24 @@ export const auth = betterAuth({
     },
   },
   trustedOrigins,
+  emailVerification: {
+    sendOnSignUp: false,
+    sendOnSignIn: false,
+    expiresIn: 3600,
+    sendVerificationEmail: async ({ user, url }) => {
+      const response = await fetchBackend("/account/verification-email", {
+        method: "POST",
+        userId: user.id,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        // Do not log the verification URL or token.
+        throw new Error(`Verification email delivery failed (${response.status})`);
+      }
+    },
+  },
   emailAndPassword: {
     enabled: true,
     disableSignUp,
