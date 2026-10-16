@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Loader2, Youtube, Upload } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Youtube, Upload } from "lucide-react";
 import { ClipCover, ScoreRing } from "@/components/app/clip-cover";
 import { StatusBadge, ACTIVE_TASK_STATUSES } from "@/components/app/status-badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { coverClipUrl, timeAgo, type GenerationSummary } from "@/lib/generations";
 import { cn } from "@/lib/utils";
 
@@ -65,18 +64,30 @@ export function GenerationCard({ generation, selected, onToggle, selectionDisabl
         </div>
       </Link>
       {selectable && (
-        <div className={cn(
-          "absolute left-2 top-2 rounded-md bg-white/90 p-1 shadow-sm backdrop-blur transition-opacity",
-          selected ? "opacity-100" : "opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100",
-        )}>
-          <Checkbox
-            checked={selected}
-            onCheckedChange={onToggle}
-            disabled={selectionDisabled}
-            aria-label={selected ? `Deselect ${generation.source_title}` : `Select ${generation.source_title}`}
-            className="bg-white"
-          />
-        </div>
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={Boolean(selected)}
+          aria-label={selected ? `Deselect ${generation.source_title}` : `Select ${generation.source_title}`}
+          disabled={selectionDisabled}
+          onClick={onToggle}
+          className={cn(
+            "absolute left-1 top-1 z-10 flex size-10 items-center justify-center rounded-lg transition-opacity",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black/40",
+            selected ? "opacity-100" : "opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100",
+            "disabled:cursor-not-allowed disabled:opacity-40",
+          )}
+        >
+          <span
+            aria-hidden
+            className={cn(
+              "flex size-6 items-center justify-center rounded-[7px] border-2 border-white shadow-[0_1px_3px_rgba(0,0,0,0.45)]",
+              selected ? "bg-white text-stone-950" : "bg-black",
+            )}
+          >
+            <Check className={cn("size-3.5", selected ? "opacity-100" : "opacity-0")} strokeWidth={3} />
+          </span>
+        </button>
       )}
     </div>
   );

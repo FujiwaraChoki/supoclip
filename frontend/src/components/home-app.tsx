@@ -237,7 +237,7 @@ export default function HomeApp() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          source: { url: videoUrl, title: null },
+          source: { url: videoUrl, title: sourceType === "upload" && file?.name ? file.name.slice(0, 500) : null },
           font_options: fontOptions,
           caption_template: captionTemplate,
           processing_mode: "fast",
