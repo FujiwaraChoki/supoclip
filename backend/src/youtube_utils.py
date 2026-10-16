@@ -709,7 +709,7 @@ def cleanup_downloaded_files(video_id: str, source_path: Optional[Path] = None):
     """Remove downloaded media while retaining word timings for cached jobs."""
     temp_dir = Path(get_config().temp_dir)
     provider_dir = False
-    if source_path is not None and source_path.parent.name.startswith((f"oxy-{video_id}-", f"videoscale-{video_id}-")):
+    if source_path is not None and source_path.parent.name.startswith((f"oxy-{video_id}-", f"videoscale-{video_id}-", f"apify-{video_id}-")):
         candidate = source_path.parent.resolve()
         if candidate.parent != temp_dir.resolve():
             logger.warning("Refusing source cleanup outside the configured download directory")

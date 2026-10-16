@@ -180,6 +180,17 @@ def download_video_via_apify(
     if ApifyClient is None:
         raise ApifyDownloadError("apify-client is not installed")
 
+    if os.getenv("APIFY_YOUTUBE_PROVIDERS", "").strip() not in {"", "[]"}:
+        from .budget_apify_downloader import BudgetApifyError, download_budget_apify
+        try:
+            return download_budget_apify(
+                video_id, temp_dir,
+                normalize_apify_quality(quality or config.apify_youtube_default_quality),
+                resolved_token,
+            )
+        except BudgetApifyError as exc:
+            raise ApifyDownloadError(str(exc)) from None
+
     resolved_quality = normalize_apify_quality(
         quality or config.apify_youtube_default_quality
     )
