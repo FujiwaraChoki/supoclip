@@ -465,6 +465,48 @@ async def test_views_timeseries_fills_every_day_and_splits_by_platform(service):
     assert series["min_days"] == 3
 
 
+class _UsersDb:
+    """Answers the rollout check's users lookup."""
+
+    def __init__(self, users):
+        self.users = users
+
+    async def execute(self, _statement, params):
+        from types import SimpleNamespace
+
+        row = self.users.get(params["user_id"])
+
+        class _Result:
+            def fetchone(self_inner):
+                return SimpleNamespace(**row) if row else None
+
+        return _Result()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("access", "allowlist", "expected"),
+    [
+        ("all", frozenset(), {"admin": True, "beta": True, "user": True}),
+        ("admins", frozenset({"beta@example.com"}), {"admin": True, "beta": True, "user": False}),
+        ("off", frozenset({"beta@example.com"}), {"admin": False, "beta": False, "user": False}),
+    ],
+)
+async def test_rollout_access_respects_admins_and_allowlist(service, access, allowlist, expected):
+    service.config.social_publishing_access = access
+    service.config.social_publishing_allowed_emails = allowlist
+    service.db = _UsersDb(
+        {
+            "admin": {"is_admin": True, "email": "boss@example.com"},
+            "beta": {"is_admin": False, "email": "Beta@Example.com"},
+            "user": {"is_admin": False, "email": "someone@example.com"},
+        }
+    )
+    assert {user: await service.has_access(user) for user in expected} == expected
+    if access == "admins":
+        assert await service.has_access("missing-user") is False
+
+
 @pytest.mark.asyncio
 async def test_unconfigured_provider_is_rejected(service, provider, monkeypatch):
     monkeypatch.setattr(type(provider), "is_configured", property(lambda self: False))

@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ViewsChart, type DailyViews } from "@/components/views-chart";
+import { useSocialAccess } from "@/hooks/use-social-access";
 import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import {
@@ -101,16 +102,17 @@ export default function AnalyticsPage() {
   const { data: session, isPending } = useSession();
   const [performance, setPerformance] = useState<PerformanceSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const socialAccess = useSocialAccess(Boolean(session?.user?.id));
 
   useEffect(() => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id || !socialAccess) return;
     fetch("/api/social/performance", { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("Failed to load analytics");
         setPerformance((await response.json()) as PerformanceSummary);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load analytics"));
-  }, [session?.user?.id]);
+  }, [session?.user?.id, socialAccess]);
 
   if (isPending) {
     return (
@@ -141,7 +143,11 @@ export default function AnalyticsPage() {
         </p>
       </div>
 
-      {error ? (
+      {socialAccess === false ? (
+        <p className="text-sm text-muted-foreground">
+          Analytics comes with social publishing, which isn&apos;t available on your account yet.
+        </p>
+      ) : error ? (
         <p className="text-sm text-destructive">{error}</p>
       ) : !performance ? (
         <div className="space-y-4">

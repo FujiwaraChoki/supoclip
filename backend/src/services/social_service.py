@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Config, get_config
@@ -109,6 +110,24 @@ class SocialService:
     # ------------------------------------------------------------------
     def list_providers(self) -> List[Dict[str, Any]]:
         return list_provider_status(self.config)
+
+    async def has_access(self, user_id: str) -> bool:
+        """Whether this user may use social publishing under the rollout setting."""
+        access = self.config.social_publishing_access
+        if access == "all":
+            return True
+        if access == "off":
+            return False
+        row = (
+            await self.db.execute(
+                text("SELECT is_admin, email FROM users WHERE id = :user_id"),
+                {"user_id": user_id},
+            )
+        ).fetchone()
+        if not row:
+            return False
+        email = (row.email or "").strip().lower()
+        return bool(row.is_admin) or email in self.config.social_publishing_allowed_emails
 
     def _provider(self, name: str) -> SocialProvider:
         normalized = (name or "").strip().lower()

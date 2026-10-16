@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 import { signOut, useSession } from "@/lib/auth-client";
 import { useBillingSummary } from "@/hooks/use-billing-summary";
+import { useSocialAccess } from "@/hooks/use-social-access";
 import { formatBillingPlanName } from "@/lib/billing-plans";
 import { getUpgradeState } from "@/components/billing/upgrade-prompt";
 import { fetchGenerations, timeAgo, type GenerationSummary } from "@/lib/generations";
@@ -21,13 +22,14 @@ import { Kbd } from "@/components/ui/kbd";
 import { cn } from "@/lib/utils";
 
 // `mobile: false` keeps an item out of the five-slot mobile tab bar.
-type NavItem = { href: string; label: string; icon: typeof Film; match: (path: string) => boolean; mobile?: boolean };
+// `social: true` items only show when social publishing is enabled for the user.
+type NavItem = { href: string; label: string; icon: typeof Film; match: (path: string) => boolean; mobile?: boolean; social?: boolean };
 
 const NAV: NavItem[] = [
   { href: "/", label: "Create", icon: Sparkles, match: (p) => p === "/" },
   { href: "/list", label: "Library", icon: Film, match: (p) => p.startsWith("/list") || p.startsWith("/tasks") },
-  { href: "/settings/social", label: "Social", icon: Share2, match: (p) => p.startsWith("/settings/social") },
-  { href: "/analytics", label: "Analytics", icon: ChartColumn, match: (p) => p.startsWith("/analytics") },
+  { href: "/settings/social", label: "Social", icon: Share2, match: (p) => p.startsWith("/settings/social"), social: true },
+  { href: "/analytics", label: "Analytics", icon: ChartColumn, match: (p) => p.startsWith("/analytics"), social: true },
   { href: "/settings/api-keys", label: "Agents & API", icon: Bot, match: (p) => p.startsWith("/settings/api-keys"), mobile: false },
   { href: "/settings", label: "Settings", icon: Settings, match: (p) => p === "/settings" },
 ];
@@ -69,7 +71,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // loaded — otherwise the page remounts and re-runs its initial fetches.
   const user = session?.user;
   const admin = Boolean((user as { is_admin?: boolean } | undefined)?.is_admin);
-  const items = admin ? [...NAV, { href: "/admin", label: "Admin", icon: Shield, match: (p: string) => p.startsWith("/admin") }] : NAV;
+  const socialAccess = useSocialAccess(Boolean(user));
+  const nav = NAV.filter((item) => !item.social || socialAccess);
+  const mobileNav = nav.filter((item) => item.mobile !== false);
+  const items = admin ? [...nav, { href: "/admin", label: "Admin", icon: Shield, match: (p: string) => p.startsWith("/admin") }] : nav;
 
   return (
     <div data-app-shell={user ? "" : undefined} className={cn(user && "flex min-h-dvh bg-canvas")}>
@@ -134,8 +139,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </div>
 
-      {user ? <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-        {NAV.filter((item) => item.mobile !== false).map((item) => {
+      {user ? <nav aria-label="Mobile navigation" style={{ gridTemplateColumns: `repeat(${mobileNav.length}, minmax(0, 1fr))` }} className="fixed inset-x-0 bottom-0 z-40 grid border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+        {mobileNav.map((item) => {
           const active = item.match(pathname);
           return (
             <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined}
@@ -254,13 +259,14 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
     void fetchGenerations().then(setGenerations).catch(() => {});
   }, [open]);
 
+  const socialAccess = useSocialAccess(open);
   const entries = useMemo<PaletteEntry[]>(() => {
     const q = query.trim().toLowerCase();
     const actions: PaletteEntry[] = [
       { id: "new", label: "New generation", hint: "Paste a link or upload", href: "/", icon: Plus },
       { id: "library", label: "Open library", href: "/list", icon: Film },
-      { id: "social", label: "Social accounts", hint: "Connect YouTube, TikTok & Instagram", href: "/settings/social", icon: Share2 },
-      { id: "analytics", label: "Analytics", hint: "How your published clips perform", href: "/analytics", icon: ChartColumn },
+      ...(socialAccess ? [{ id: "social", label: "Social accounts", hint: "Connect YouTube, TikTok & Instagram", href: "/settings/social", icon: Share2 },
+      { id: "analytics", label: "Analytics", hint: "How your published clips perform", href: "/analytics", icon: ChartColumn }] : []),
       { id: "keys", label: "Agents & API", hint: "API keys & MCP", href: "/settings/api-keys", icon: Bot },
       { id: "settings", label: "Settings", href: "/settings", icon: Settings },
     ].filter((entry) => !q || entry.label.toLowerCase().includes(q));
@@ -272,7 +278,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
         href: `/tasks/${generation.id}`, icon: Film, generation,
       }));
     return [...actions, ...matches];
-  }, [generations, query]);
+  }, [generations, query, socialAccess]);
 
   const go = useCallback((entry: PaletteEntry | undefined) => {
     if (!entry) return;

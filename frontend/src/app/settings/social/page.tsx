@@ -52,6 +52,7 @@ function SocialSettingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [providers, setProviders] = useState<SocialProviderStatus[]>([]);
+  const [enabled, setEnabled] = useState(true);
   const [connections, setConnections] = useState<SocialConnection[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,11 +67,17 @@ function SocialSettingsContent() {
         fetch("/api/social/providers", { cache: "no-store" }),
         fetch("/api/social/connections", { cache: "no-store" }),
       ]);
-      if (!providersResponse.ok || !connectionsResponse.ok) {
+      if (!providersResponse.ok) {
         throw new Error("Failed to load social accounts");
       }
-      const providersData = (await providersResponse.json()) as { providers: SocialProviderStatus[] };
-      const connectionsData = (await connectionsResponse.json()) as { connections: SocialConnection[] };
+      const providersData = (await providersResponse.json()) as {
+        enabled?: boolean;
+        providers: SocialProviderStatus[];
+      };
+      setEnabled(providersData.enabled !== false);
+      const connectionsData = connectionsResponse.ok
+        ? ((await connectionsResponse.json()) as { connections: SocialConnection[] })
+        : { connections: [] };
       setProviders(providersData.providers ?? []);
       setConnections(connectionsData.connections ?? []);
     } catch (err) {
@@ -133,6 +140,17 @@ function SocialSettingsContent() {
         <Link href="/sign-in">
           <Button>Sign In</Button>
         </Link>
+      </main>
+    );
+  }
+
+  if (!isFetching && !enabled) {
+    return (
+      <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 md:py-10">
+        <h1 className="font-display text-3xl font-bold tracking-tight">Social accounts</h1>
+        <p className="mt-2 text-muted-foreground">
+          Publishing to YouTube, TikTok and Instagram isn&apos;t available on your account yet.
+        </p>
       </main>
     );
   }

@@ -42,6 +42,18 @@ def _session_user_id(request: Request) -> str:
     return get_authenticated_user_id(request, get_config())
 
 
+async def _allowed_user_id(
+    request: Request, db: AsyncSession, *, session_only: bool = False
+) -> str:
+    """Resolve the user and enforce the social publishing rollout setting."""
+    user_id = _session_user_id(request) if session_only else await _user_id(request, db)
+    if not await _service(request, db).has_access(user_id):
+        raise HTTPException(
+            status_code=403, detail="Social publishing isn't available on your account yet."
+        )
+    return user_id
+
+
 def _http_error(exc: SocialError) -> HTTPException:
     return HTTPException(status_code=exc.status_code, detail=str(exc))
 
@@ -59,14 +71,24 @@ async def _json_body(request: Request) -> Dict[str, Any]:
 # ----------------------------------------------------------------------
 @router.get("/providers")
 async def list_providers(request: Request, db: AsyncSession = Depends(get_db)):
-    """Which platforms this server can publish to (based on configured OAuth apps)."""
-    await _user_id(request, db)
-    return {"providers": _service(request, db).list_providers()}
+    """
+    Which platforms this server can publish to (based on configured OAuth apps).
+
+    Users outside the rollout get ``enabled: false`` and every platform reported
+    as unconfigured, so clients that predate the flag simply hide publishing.
+    """
+    user_id = await _user_id(request, db)
+    service = _service(request, db)
+    providers = service.list_providers()
+    enabled = await service.has_access(user_id)
+    if not enabled:
+        providers = [{**provider, "configured": False} for provider in providers]
+    return {"enabled": enabled, "providers": providers}
 
 
 @router.get("/connections")
 async def list_connections(request: Request, db: AsyncSession = Depends(get_db)):
-    user_id = await _user_id(request, db)
+    user_id = await _allowed_user_id(request, db)
     connections = await _service(request, db).list_connections(user_id)
     return {"connections": connections, "total": len(connections)}
 
@@ -81,7 +103,7 @@ async def start_connection(
     ``{"client": "ios"}`` marks the state as mobile: the web callback then hands
     the code back to the app, which completes the handshake with its own session.
     """
-    user_id = _session_user_id(request)
+    user_id = await _allowed_user_id(request, db, session_only=True)
     body = await _json_body(request)
     client = body.get("client") if isinstance(body.get("client"), str) else None
     try:
@@ -95,7 +117,7 @@ async def complete_connection(
     provider: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
     """Finish the OAuth handshake with the ``code`` and ``state`` the platform returned."""
-    user_id = _session_user_id(request)
+    user_id = await _allowed_user_id(request, db, session_only=True)
     body = await _json_body(request)
     try:
         connection = await _service(request, db).complete_connection(
@@ -140,7 +162,7 @@ async def list_posts(
     status: Optional[str] = None,
     limit: int = 100,
 ):
-    user_id = await _user_id(request, db)
+    user_id = await _allowed_user_id(request, db)
     posts = await _service(request, db).list_posts(
         user_id, task_id=task_id, clip_id=clip_id, status=status, limit=limit
     )
@@ -150,7 +172,7 @@ async def list_posts(
 @router.post("/posts")
 async def create_post(request: Request, db: AsyncSession = Depends(get_db)):
     """Publish (or schedule) a clip to a connected account."""
-    user_id = await _user_id(request, db)
+    user_id = await _allowed_user_id(request, db)
     body = await _json_body(request)
     for field in ("task_id", "clip_id", "social_account_id"):
         if not body.get(field):
@@ -178,7 +200,7 @@ async def create_post(request: Request, db: AsyncSession = Depends(get_db)):
 @router.get("/performance")
 async def get_performance(request: Request, db: AsyncSession = Depends(get_db)):
     """Aggregate audience performance, grouped the same way the AI uses it."""
-    user_id = await _user_id(request, db)
+    user_id = await _allowed_user_id(request, db)
     return await _service(request, db).get_performance_summary(user_id)
 
 
@@ -187,13 +209,13 @@ async def get_views_timeseries(
     request: Request, db: AsyncSession = Depends(get_db), days: int = 30
 ):
     """Daily new views across the user's published posts, for the analytics chart."""
-    user_id = await _user_id(request, db)
+    user_id = await _allowed_user_id(request, db)
     return await _service(request, db).get_views_timeseries(user_id, days=days)
 
 
 @router.get("/posts/{post_id}")
 async def get_post(post_id: str, request: Request, db: AsyncSession = Depends(get_db)):
-    user_id = await _user_id(request, db)
+    user_id = await _allowed_user_id(request, db)
     try:
         return {"post": await _service(request, db).get_post(user_id, post_id)}
     except SocialError as exc:
@@ -202,7 +224,7 @@ async def get_post(post_id: str, request: Request, db: AsyncSession = Depends(ge
 
 @router.post("/posts/{post_id}/cancel")
 async def cancel_post(post_id: str, request: Request, db: AsyncSession = Depends(get_db)):
-    user_id = await _user_id(request, db)
+    user_id = await _allowed_user_id(request, db)
     try:
         return {"post": await _service(request, db).cancel_post(user_id, post_id)}
     except SocialError as exc:
@@ -211,7 +233,7 @@ async def cancel_post(post_id: str, request: Request, db: AsyncSession = Depends
 
 @router.post("/posts/{post_id}/retry")
 async def retry_post(post_id: str, request: Request, db: AsyncSession = Depends(get_db)):
-    user_id = await _user_id(request, db)
+    user_id = await _allowed_user_id(request, db)
     try:
         return {"post": await _service(request, db).retry_post(user_id, post_id)}
     except SocialError as exc:
@@ -222,7 +244,7 @@ async def retry_post(post_id: str, request: Request, db: AsyncSession = Depends(
 async def refresh_post_metrics(
     post_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    user_id = await _user_id(request, db)
+    user_id = await _allowed_user_id(request, db)
     service = _service(request, db)
     try:
         post = await service.get_post(user_id, post_id)
@@ -234,7 +256,7 @@ async def refresh_post_metrics(
 
 @router.delete("/posts/{post_id}")
 async def delete_post(post_id: str, request: Request, db: AsyncSession = Depends(get_db)):
-    user_id = await _user_id(request, db)
+    user_id = await _allowed_user_id(request, db)
     try:
         deleted = await _service(request, db).delete_post(user_id, post_id)
     except SocialError as exc:

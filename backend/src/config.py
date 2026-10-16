@@ -207,6 +207,18 @@ class Config:
         self.social_publish_max_attempts = int(
             os.getenv("SOCIAL_PUBLISH_MAX_ATTEMPTS", "3")
         )
+        # Who may use social publishing: "all", "admins" (admins plus the
+        # allowlist below, for a gated rollout) or "off".
+        self.social_publishing_access = (
+            os.getenv("SOCIAL_PUBLISHING_ACCESS", "all").strip().lower() or "all"
+        )
+        if self.social_publishing_access not in {"all", "admins", "off"}:
+            raise ValueError("SOCIAL_PUBLISHING_ACCESS must be all, admins or off")
+        self.social_publishing_allowed_emails = frozenset(
+            email.strip().lower()
+            for email in os.getenv("SOCIAL_PUBLISHING_ALLOWED_EMAILS", "").split(",")
+            if email.strip()
+        )
         self.default_processing_mode = os.getenv("DEFAULT_PROCESSING_MODE", "fast")
         self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "10"))
         self.fast_mode_transcript_model = os.getenv(

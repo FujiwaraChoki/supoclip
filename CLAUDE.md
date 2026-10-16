@@ -167,6 +167,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 - `POST /social/posts` — publish or schedule a clip; `GET /social/posts?task_id=` — list with metrics
 - `POST /social/posts/{id}/cancel|retry|refresh-metrics`, `DELETE /social/posts/{id}`
 - `GET /social/performance` — metrics by hook type / platform / clip length (also fed into the AI prompt)
+- `GET /social/performance/timeseries?days=30` — daily new views from metrics snapshots (Analytics chart)
 - `GET /social/media/{token}` — public token-gated clip stream for Instagram
 
 Worker crons (`workers/tasks.py`): every minute `dispatch_scheduled_social_posts`, hourly `refresh_social_metrics`.
@@ -225,6 +226,8 @@ YOUTUBE_OAUTH_CLIENT_ID=...          # Social publishing: Google OAuth client (+
 TIKTOK_CLIENT_KEY=...                # Social publishing: TikTok app (+ TIKTOK_CLIENT_SECRET)
 INSTAGRAM_APP_ID=...                 # Social publishing: Meta app with Instagram Login (+ _SECRET)
 SOCIAL_PERFORMANCE_MIN_POSTS=3       # Measured posts before AI selection is personalized
+SOCIAL_PUBLISHING_ACCESS=all         # Rollout gate: all | admins (admins + allowlist) | off
+SOCIAL_PUBLISHING_ALLOWED_EMAILS=    # Comma-separated beta emails when access=admins
 REDIS_HOST=localhost                 # Default: localhost
 REDIS_PORT=6379                      # Default: 6379
 QUEUED_TASK_TIMEOUT_SECONDS=180      # Fail-safe for stuck tasks
@@ -247,6 +250,18 @@ Publishing runs in the ARQ worker (`publish_social_post`). Metrics are pulled ba
 `social_post_metrics` and summarized by `SocialService.build_performance_context()`, which
 `TaskService.process_task` injects into `build_transcript_analysis_prompt(performance_context=...)`.
 Personalized analyses skip the shared `processing_cache` analysis entry.
+
+- **Pages:** `/settings/social` (accounts + every scheduled post) and `/analytics` (totals, daily
+  views chart, top clips, breakdowns), both in the sidebar. Clips publish from the task page.
+- **Rollout gate:** `SOCIAL_PUBLISHING_ACCESS`. Outside the gate every `/social/*` route returns 403
+  except `GET /social/providers`, which reports `enabled: false` with all platforms unconfigured
+  (so the web and iOS hide publishing) and the disconnect routes (account deletion revokes tokens).
+- **iOS app:** `POST .../authorize` with `{"client": "ios"}` prefixes the OAuth state with `m.`; the
+  web callback then redirects to `supoclip://social-callback?provider&code&state` and the app
+  completes `/callback` with its own session (the state stays bound to the starting user).
+- **Platform approvals gate real users:** TikTok only allows sandbox target users until its audit,
+  Instagram only app testers until Meta review, and YouTube uploads from an unaudited project stay
+  private. Provider app IDs and setup notes are in `docs/configuration.md`.
 
 ### Modifying AI clip selection
 
