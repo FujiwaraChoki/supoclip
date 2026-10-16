@@ -5,7 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HOSTED_APP_URL, getSiteUrl } from "@/lib/blog-posts";
 
-const LAST_UPDATED = "October 5, 2026";
+const LAST_UPDATED = "October 16, 2026";
 const CONTACT_EMAIL = "privacy@supoclip.com";
 
 export const metadata: Metadata = {
@@ -24,9 +24,9 @@ export const metadata: Metadata = {
   },
 };
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, id, children }: { title: string; id?: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-3">
+    <section id={id} className="scroll-mt-24 space-y-3">
       <h2
         className="text-2xl font-bold tracking-tight"
         style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), system-ui" }}
@@ -144,8 +144,80 @@ export default function PrivacyPolicyPage() {
               <li>Send transactional email (for example sign-up confirmation, completion notices, and billing receipts).</li>
               <li>Maintain, debug, secure, and improve the Service.</li>
               <li>Understand which campaigns and referring sites lead to sign-ups and first clip exports.</li>
+              <li>If you connect a social account, publish the clips you choose and show you how they perform.</li>
               <li>Comply with legal obligations and enforce our terms.</li>
             </ul>
+          </Section>
+
+          <Section title="Connected Social Accounts" id="connected-accounts">
+            <p>
+              You can connect a YouTube, TikTok, or Instagram account so SupoClip can publish clips
+              for you. Connecting is optional, happens through the platform&apos;s own sign-in page,
+              and we never see your password for that platform.
+            </p>
+            <p className="font-medium text-foreground">What we access and why.</p>
+            <ul className="list-disc space-y-2 pl-6">
+              <li>
+                <span className="text-foreground">Basic profile</span> (account ID, display name,
+                username, profile picture) &mdash; to show which account is connected.
+              </li>
+              <li>
+                <span className="text-foreground">Permission to upload or publish</span> &mdash; to
+                post the clips you choose, with the title, caption, visibility, and time you set.
+                We never post anything you didn&apos;t ask us to.
+              </li>
+              <li>
+                <span className="text-foreground">Statistics for posts made through SupoClip</span>{" "}
+                (views, likes, comments, shares) &mdash; to show you how your clips perform and, once
+                you have enough results, to tailor clip selection for your own future videos.
+              </li>
+            </ul>
+            <p>
+              We store the access tokens the platform issues in encrypted form and use them only for
+              the purposes above. We do not sell this data, use it for advertising, share it with
+              other users, or use it to train general-purpose AI models.
+            </p>
+            <p className="font-medium text-foreground">Disconnecting and deletion.</p>
+            <p>
+              You can disconnect an account at any time from the Social page. Disconnecting deletes
+              the stored tokens immediately, cancels any posts still scheduled for that account, and
+              asks the platform to revoke SupoClip&apos;s access where it supports that. You can
+              also remove records of published posts, including their statistics, from the app.
+              Deleting your SupoClip account removes all of this data. You can also revoke access
+              from the platform itself, for Google at{" "}
+              <a
+                className="text-foreground underline"
+                href="https://security.google.com/settings/security/permissions"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Google security settings
+              </a>
+              . To ask us to delete this data, email{" "}
+              <a className="text-foreground underline" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+            </p>
+            <p className="font-medium text-foreground">YouTube and Google.</p>
+            <p>
+              SupoClip uses YouTube API Services. By connecting a YouTube account you agree to the{" "}
+              <a className="text-foreground underline" href="https://www.youtube.com/t/terms" target="_blank" rel="noreferrer">
+                YouTube Terms of Service
+              </a>
+              , and Google&apos;s handling of your data is described in the{" "}
+              <a className="text-foreground underline" href="https://policies.google.com/privacy" target="_blank" rel="noreferrer">
+                Google Privacy Policy
+              </a>
+              . SupoClip&apos;s use and transfer to any other app of information received from
+              Google APIs will adhere to the{" "}
+              <a
+                className="text-foreground underline"
+                href="https://developers.google.com/terms/api-services-user-data-policy"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Google API Services User Data Policy
+              </a>
+              , including the Limited Use requirements.
+            </p>
           </Section>
 
           <Section title="Service Providers &amp; Subprocessors">
@@ -160,6 +232,7 @@ export default function PrivacyPolicyPage() {
               <li><span className="text-foreground">Email delivery</span> &mdash; transactional emails.</li>
               <li><span className="text-foreground">Hosting &amp; infrastructure</span> &mdash; to run the Service.</li>
               <li><span className="text-foreground">Analytics</span> &mdash; when enabled, to measure site visits, sign-ups, and clip exports.</li>
+              <li><span className="text-foreground">YouTube, TikTok, and Instagram (Meta)</span> &mdash; only if you connect an account, to publish the clips you choose and read their statistics (see Connected Social Accounts).</li>
             </ul>
             <p>
               We do not sell your personal information, and we do not use it for cross-context
