@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { GenerationCard } from "@/components/app/generation-card";
 import { fetchGenerations, type GenerationSummary } from "@/lib/generations";
+import { groupByOriginalVideo, type LibrarySort } from "@/lib/library-groups";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
@@ -70,6 +71,7 @@ export default function ListPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "ready" | "active" | "attention">("all");
+  const [sort, setSort] = useState<LibrarySort>("newest");
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -330,6 +332,21 @@ export default function ListPage() {
     { id: "attention", label: "Needs attention", count: attentionCount },
   ];
 
+  const renderGenerationGrid = (items: Task[]) => (
+    <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      {items.map((task) => (
+        <GenerationCard
+          key={task.id}
+          generation={task}
+          showStatus
+          selected={selectedTaskIds.includes(task.id)}
+          onToggle={() => handleToggleTask(task.id)}
+          selectionDisabled={activeBatchAction !== null}
+        />
+      ))}
+    </div>
+  );
+
   return (
     <main className={cn("mx-auto w-full max-w-7xl px-4 py-8 sm:px-8 md:py-10", selectedCount > 0 && "pb-32")}>
       <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
@@ -359,24 +376,43 @@ export default function ListPage() {
       </div>
 
       {!isLoading && !error && tasks.length > 0 && (
-        <div className="scrollbar-none -mx-4 mt-6 flex items-center gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0" role="tablist" aria-label="Filter generations">
-          {filters.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={filter === item.id}
-              onClick={() => setFilter(item.id)}
-              className={cn(
-                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
-                filter === item.id ? "border-foreground bg-foreground text-background" : "bg-background text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {item.label}
-              <span className={cn("tabular-nums", filter === item.id ? "opacity-70" : "opacity-60")}>{item.count}</span>
-            </button>
-          ))}
-          <div className="ml-auto hidden items-center gap-2 pl-4 sm:flex">
+        <div className="scrollbar-none -mx-4 mt-6 flex items-center gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <div className="flex shrink-0 items-center gap-1.5" role="tablist" aria-label="Filter generations">
+            {filters.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={filter === item.id}
+                onClick={() => setFilter(item.id)}
+                className={cn(
+                  "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+                  filter === item.id ? "border-foreground bg-foreground text-background" : "bg-background text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {item.label}
+                <span className={cn("tabular-nums", filter === item.id ? "opacity-70" : "opacity-60")}>{item.count}</span>
+              </button>
+            ))}
+          </div>
+          <div className="ml-auto inline-flex shrink-0 rounded-lg border bg-background p-0.5" role="tablist" aria-label="Sort generations">
+            {([["newest", "Newest"], ["video", "By video"]] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={sort === value}
+                onClick={() => setSort(value)}
+                className={cn(
+                  "h-7 rounded-md px-3 text-xs font-medium transition-colors",
+                  sort === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="hidden items-center gap-2 pl-4 sm:flex">
             <Checkbox
               id="select-all"
               checked={allVisibleSelected ? true : someSelected ? "indeterminate" : false}
@@ -419,19 +455,17 @@ export default function ListPage() {
           <p className="rounded-2xl border border-dashed px-6 py-16 text-center text-sm text-muted-foreground">
             Nothing matches{query ? ` “${search.trim()}”` : " this filter"}.
           </p>
-        ) : (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {visibleTasks.map((task) => (
-              <GenerationCard
-                key={task.id}
-                generation={task}
-                showStatus
-                selected={selectedTaskIds.includes(task.id)}
-                onToggle={() => handleToggleTask(task.id)}
-                selectionDisabled={activeBatchAction !== null}
-              />
+        ) : sort === "video" ? (
+          <div className="space-y-8">
+            {groupByOriginalVideo(visibleTasks).map((group) => (
+              <section key={group.key}>
+                <h2 className="mb-3 truncate font-display text-lg font-semibold tracking-tight">{group.title}</h2>
+                {renderGenerationGrid(group.tasks)}
+              </section>
             ))}
           </div>
+        ) : (
+          renderGenerationGrid(visibleTasks)
         )}
       </div>
 
