@@ -6,36 +6,28 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   CheckCircle,
-  ExternalLink,
+  ChevronRight,
   RefreshCw,
   Trash2,
-  TrendingUp,
 } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScheduledPosts } from "@/components/scheduled-posts";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
 import { useSession } from "@/lib/auth-client";
-import { cn } from "@/lib/utils";
 import {
   PROVIDER_LABELS,
   connectionLabel,
-  durationBucketLabel,
   formatDateTime,
-  formatMetric,
-  formatPercent,
-  type PerformanceSummary,
   type SocialConnection,
   type SocialProviderStatus,
 } from "@/lib/social";
 
 const SECTION_HEADING = "mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground";
-const TABLE_HEAD = "bg-muted/50 text-left text-xs text-muted-foreground";
 
 function ConnectionStatusBadge({ status }: { status: SocialConnection["status"] }) {
   if (status === "active") {
@@ -61,7 +53,6 @@ function SocialSettingsContent() {
   const searchParams = useSearchParams();
   const [providers, setProviders] = useState<SocialProviderStatus[]>([]);
   const [connections, setConnections] = useState<SocialConnection[]>([]);
-  const [performance, setPerformance] = useState<PerformanceSummary | null>(null);
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -71,10 +62,9 @@ function SocialSettingsContent() {
     setIsFetching(true);
     setError(null);
     try {
-      const [providersResponse, connectionsResponse, performanceResponse] = await Promise.all([
+      const [providersResponse, connectionsResponse] = await Promise.all([
         fetch("/api/social/providers", { cache: "no-store" }),
         fetch("/api/social/connections", { cache: "no-store" }),
-        fetch("/api/social/performance", { cache: "no-store" }),
       ]);
       if (!providersResponse.ok || !connectionsResponse.ok) {
         throw new Error("Failed to load social accounts");
@@ -83,9 +73,6 @@ function SocialSettingsContent() {
       const connectionsData = (await connectionsResponse.json()) as { connections: SocialConnection[] };
       setProviders(providersData.providers ?? []);
       setConnections(connectionsData.connections ?? []);
-      if (performanceResponse.ok) {
-        setPerformance((await performanceResponse.json()) as PerformanceSummary);
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load social accounts");
     } finally {
@@ -287,167 +274,18 @@ function SocialSettingsContent() {
       {/* Scheduled */}
       {!isFetching && connections.length > 0 && <ScheduledPosts sectionHeadingClassName={SECTION_HEADING} />}
 
-      <Separator className="mb-10" />
-
-      {/* Performance */}
-      <section>
-        <div className="flex items-center gap-2 mb-2">
-          <TrendingUp className="w-5 h-5" />
-          <h2 className="text-lg font-semibold">Performance loop</h2>
-        </div>
-        <p className="text-sm text-muted-foreground mb-4">
-          SupoClip pulls views, likes, comments and shares back from each platform and uses them to
-          steer future clip selection toward what works for your audience.
-        </p>
-
-        {isFetching || !performance ? (
-          <Skeleton className="h-32 w-full" />
-        ) : (
-          <div className="space-y-6">
-            <div className="rounded-xl border bg-muted/50 p-4">
-              <div className="text-sm">
-                {performance.personalization_active ? (
-                  <p>
-                    Personalized selection is <span className="font-medium">on</span>. New tasks are
-                    analyzed with your results from {performance.measured_posts} published clips.
-                  </p>
-                ) : (
-                  <p className="text-muted-foreground">
-                    Publish and measure at least {performance.min_posts_for_personalization} clips to
-                    turn on personalized selection. {performance.measured_posts} measured so far.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {performance.by_provider.length > 0 && (
-              <div>
-                <h3 className={cn(SECTION_HEADING, "mb-2")}>By platform</h3>
-                <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full text-sm">
-                    <thead className={TABLE_HEAD}>
-                      <tr>
-                        <th className="px-3 py-2 font-medium">Platform</th>
-                        <th className="px-3 py-2 font-medium text-right">Posts</th>
-                        <th className="px-3 py-2 font-medium text-right">Views</th>
-                        <th className="px-3 py-2 font-medium text-right">Avg views</th>
-                        <th className="px-3 py-2 font-medium text-right">Likes</th>
-                        <th className="px-3 py-2 font-medium text-right">Comments</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {performance.by_provider.map((row) => (
-                        <tr key={row.provider} className="border-t">
-                          <td className="px-3 py-2">
-                            <span className="flex items-center gap-2">
-                              <SocialProviderIcon provider={row.provider} className="size-3.5" />
-                              {PROVIDER_LABELS[row.provider] ?? row.provider}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-right">{row.posts}</td>
-                          <td className="px-3 py-2 text-right">{formatMetric(row.total_views)}</td>
-                          <td className="px-3 py-2 text-right">{formatMetric(row.avg_views)}</td>
-                          <td className="px-3 py-2 text-right">{formatMetric(row.total_likes)}</td>
-                          <td className="px-3 py-2 text-right">{formatMetric(row.total_comments)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {performance.by_hook_type.length > 0 && (
-              <div>
-                <h3 className={cn(SECTION_HEADING, "mb-2")}>By hook type</h3>
-                <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full text-sm">
-                    <thead className={TABLE_HEAD}>
-                      <tr>
-                        <th className="px-3 py-2 font-medium">Hook</th>
-                        <th className="px-3 py-2 font-medium text-right">Posts</th>
-                        <th className="px-3 py-2 font-medium text-right">Median views</th>
-                        <th className="px-3 py-2 font-medium text-right">Engagement</th>
-                        <th className="px-3 py-2 font-medium text-right">Predicted score</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {performance.by_hook_type.map((row) => (
-                        <tr key={row.hook_type} className="border-t">
-                          <td className="px-3 py-2 capitalize">{row.hook_type}</td>
-                          <td className="px-3 py-2 text-right">{row.posts}</td>
-                          <td className="px-3 py-2 text-right">{formatMetric(row.median_views)}</td>
-                          <td className="px-3 py-2 text-right">{formatPercent(row.avg_engagement_rate)}</td>
-                          <td className="px-3 py-2 text-right">
-                            {row.avg_predicted_score === null ? "—" : Math.round(row.avg_predicted_score)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {performance.by_duration.length > 0 && (
-              <div>
-                <h3 className={cn(SECTION_HEADING, "mb-2")}>By clip length</h3>
-                <div className="grid gap-2 sm:grid-cols-4">
-                  {performance.by_duration.map((row) => (
-                    <div key={row.bucket} className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">{durationBucketLabel(row.bucket)}</p>
-                      <p className="text-lg font-semibold">{formatMetric(row.avg_views)}</p>
-                      <p className="text-xs text-muted-foreground">avg views · {row.posts} posts</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {performance.top_posts.length > 0 && (
-              <div>
-                <h3 className={cn(SECTION_HEADING, "mb-2")}>Top clips</h3>
-                <div className="space-y-2">
-                  {performance.top_posts.map((post) => (
-                    <div key={post.id} className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">
-                          {post.hook_title || post.title || "Untitled clip"}
-                        </p>
-                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <SocialProviderIcon provider={post.provider} className="size-3" />
-                          {PROVIDER_LABELS[post.provider]} · {post.hook_type || "no hook"} ·{" "}
-                          {formatDateTime(post.published_at)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <span className="text-sm font-semibold">{formatMetric(post.metrics?.views)} views</span>
-                        {post.external_url && (
-                          <a
-                            href={post.external_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-muted-foreground hover:text-foreground"
-                            aria-label="Open post"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {performance.total_published === 0 && (
-              <p className="text-sm text-muted-foreground">
-                Nothing published yet. Open a completed task and use <span className="font-medium">Publish</span> on a clip.
-              </p>
-            )}
-          </div>
-        )}
-      </section>
+      <Link
+        href="/analytics"
+        className="group flex items-center justify-between gap-4 rounded-xl border bg-background p-4 text-sm transition-colors hover:border-foreground/25"
+      >
+        <span>
+          <span className="block font-medium">Analytics</span>
+          <span className="block text-xs text-muted-foreground">
+            Views, likes and comments from your published clips, by platform, hook and length.
+          </span>
+        </span>
+        <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+      </Link>
     </main>
   );
 }
