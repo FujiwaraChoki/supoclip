@@ -106,3 +106,8 @@ route. `mweb` relies on the `ytdl-pot` PO-token sidecar.
 uv run pytest                        # unit tests
 YTDL_LIVE_TESTS=1 uv run pytest      # + real download through a local rotating proxy
 ```
+
+Jobs and cached media are isolated by video ID, height, and byte limit. Requests
+with different byte limits do not share an active download. Transfer progress
+enforces the byte limit even when YouTube omits file-size metadata, and alternate
+containers are remuxed to MP4 before the file endpoint serves them.

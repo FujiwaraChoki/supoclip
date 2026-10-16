@@ -116,10 +116,12 @@ def _validate(path: Path, expected_duration: float | None) -> tuple[float, int, 
 class Attempt:
     """Progress hook state for one attempt: byte accounting, stall detection, cancel."""
 
-    def __init__(self, progress: Progress, settings: Settings, work: Path, deadline: float):
+    def __init__(self, progress: Progress, settings: Settings, work: Path, deadline: float,
+                 max_bytes: int | None = None):
         self.progress = progress
         self.settings = settings
         self.deadline = deadline
+        self.max_bytes = min(settings.max_bytes, max_bytes) if max_bytes is not None else settings.max_bytes
         # Resumed .part files already count as transferred by earlier attempts.
         self.seen = {str(p.with_suffix("")): p.stat().st_size for p in work.glob("*.part")}
         self.transferred = 0
@@ -140,6 +142,8 @@ class Attempt:
         self.seen[name] = max(current, self.seen.get(name, 0))
         self.transferred += delta
         self.progress.transferred_bytes += delta
+        if sum(self.seen.values()) > self.max_bytes:
+            raise DownloadFailed(Failure("too_large", "fatal", "This YouTube video is too large."))
         if d.get("status") == "finished":
             self.finished[name] = current
         self.progress.downloaded_bytes = sum(self.finished.values()) + (
@@ -198,7 +202,7 @@ def download(video_id: str, max_height: int, max_bytes: int, settings: Settings,
         clients = settings.player_clients
         client = clients[route_blocks.get(route.name, 0) % len(clients)]
         progress.attempt, progress.route, progress.stage = index, route.name, "extracting"
-        attempt = Attempt(progress, settings, work, deadline)
+        attempt = Attempt(progress, settings, work, deadline, max_bytes=max_bytes)
         logger.info("[%s] attempt %s/%s via %s (session %s, clients %s)", video_id, index,
                     len(plan), route.name, exit_.session, client or "default")
         try:
@@ -238,6 +242,24 @@ def download(video_id: str, max_height: int, max_bytes: int, settings: Settings,
         return result
 
     raise DownloadFailed(last or Failure("no_route", "fatal", "No YouTube download route is available."))
+
+
+def _ensure_mp4(source: Path, destination: Path, deadline: float) -> Path:
+    if source.suffix.lower() == ".mp4":
+        return source
+    staging = destination.with_suffix(".remux.mp4")
+    try:
+        subprocess.run(
+            ["ffmpeg", "-nostdin", "-y", "-v", "error", "-i", str(source),
+             "-map", "0:v:0", "-map", "0:a:0", "-c", "copy", "-movflags", "+faststart", str(staging)],
+            capture_output=True, check=True, timeout=max(1, min(120, deadline - time.monotonic())),
+        )
+        staging.replace(destination)
+        source.unlink(missing_ok=True)
+        return destination
+    except (OSError, subprocess.SubprocessError):
+        staging.unlink(missing_ok=True)
+        raise DownloadFailed(Failure("incomplete", "transient", "YouTube output could not be converted to MP4.")) from None
 
 
 def _attempt(url, video_id, max_height, max_bytes, settings, proxy, client, base_format,
@@ -304,7 +326,7 @@ def _attempt(url, video_id, max_height, max_bytes, settings, proxy, client, base
         candidates = [p for p in work.iterdir() if p.suffix in MEDIA_SUFFIXES and p.stem == video_id]
         if not candidates:
             raise DownloadFailed(Failure("incomplete", "transient", "YouTube download produced no file."))
-        output = candidates[0]
+        output = _ensure_mp4(candidates[0], output, attempt.deadline)
     duration_s, width, height = _validate(output, float(duration) if duration else None)
     size = output.stat().st_size
     if size > max_bytes:

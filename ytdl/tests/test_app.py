@@ -122,7 +122,7 @@ def test_cache_respects_ttl_and_size_limit(tmp_path, fake_download):
     with make_client(tmp_path) as client:
         job = client.post("/v1/downloads", json={"video_id": "dQw4w9WgXcQ"}, headers=AUTH).json()
         wait(client, job["id"])
-    entry = tmp_path / "cache" / "dQw4w9WgXcQ-1080"
+    entry = tmp_path / "cache" / jobs.cache_key("dQw4w9WgXcQ", 1080, 12_000_000_000)
     old = time.time() - 3 * 86400
     os.utime(entry, (old, old))
     with make_client(tmp_path) as client:
@@ -148,7 +148,7 @@ def test_expired_file_returns_gone(tmp_path, fake_download):
     with make_client(tmp_path) as client:
         job = client.post("/v1/downloads", json={"video_id": "dQw4w9WgXcQ"}, headers=AUTH).json()
         wait(client, job["id"])
-        (tmp_path / "cache" / "dQw4w9WgXcQ-1080" / "video.mp4").unlink()
+        (tmp_path / "cache" / jobs.cache_key("dQw4w9WgXcQ", 1080, 12_000_000_000) / "video.mp4").unlink()
         assert client.get(f"/v1/downloads/{job['id']}/file", headers=AUTH).status_code == 410
 
 
@@ -168,3 +168,19 @@ def test_stats_never_leak_proxy_credentials(tmp_path):
                       error="Unable to connect to proxy http://user-abc:hunter2@gate:1")
         text = json.dumps(client.get("/v1/stats", headers=AUTH).json())
     assert "hunter2" not in text
+
+
+
+@pytest.mark.parametrize("first_limit,second_limit", [(100, 10), (10, 100)])
+def test_different_byte_limits_use_independent_jobs(tmp_path, fake_download, first_limit, second_limit):
+    calls, release = fake_download
+    release.clear()
+    with make_client(tmp_path) as client:
+        first = client.post("/v1/downloads", json={"video_id": "dQw4w9WgXcQ", "max_bytes": first_limit}, headers=AUTH).json()
+        second = client.post("/v1/downloads", json={"video_id": "dQw4w9WgXcQ", "max_bytes": second_limit}, headers=AUTH).json()
+        assert first["id"] != second["id"]
+        release.set()
+        small = first if first_limit == 10 else second
+        large = first if first_limit == 100 else second
+        assert wait(client, small["id"])["error_code"] == "too_large"
+        assert wait(client, large["id"])["status"] == "completed"

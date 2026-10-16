@@ -133,3 +133,33 @@ def test_stall_window_starts_with_first_bytes_and_trips_on_slow_transfer(tmp_pat
     clock[0] += 11
     with pytest.raises(downloader.Stalled):
         attempt.hook({"status": "downloading", "filename": name, "downloaded_bytes": 5100})
+
+
+
+def test_unknown_size_stops_during_transfer_across_media_tracks(tmp_path):
+    settings = make_settings(tmp_path, (Route("direct"),))
+    attempt = downloader.Attempt(Progress(), settings, tmp_path, float("inf"), max_bytes=100)
+    attempt.hook({"status": "finished", "filename": "video.f137.mp4", "downloaded_bytes": 70})
+    with pytest.raises(DownloadFailed) as error:
+        attempt.hook({"status": "downloading", "filename": "video.f140.m4a", "downloaded_bytes": 31})
+    assert error.value.failure.code == "too_large"
+
+
+def test_resumed_parts_count_toward_byte_limit(tmp_path):
+    (tmp_path / "video.f137.mp4.part").write_bytes(b"x" * 80)
+    settings = make_settings(tmp_path, (Route("direct"),))
+    attempt = downloader.Attempt(Progress(), settings, tmp_path, float("inf"), max_bytes=100)
+    with pytest.raises(DownloadFailed):
+        attempt.hook({"status": "downloading", "filename": str(tmp_path / "video.f140.m4a"), "downloaded_bytes": 21})
+
+
+def test_non_mp4_container_is_remuxed_before_delivery(tmp_path):
+    import json, subprocess, time
+    source = tmp_path / "source.webm"
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i", "color=size=64x64:rate=2:duration=1", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:v", "libvpx-vp9", "-threads", "1", "-c:a", "libopus", "-shortest", str(source)], check=True, capture_output=True, timeout=20)
+    output = downloader._ensure_mp4(source, tmp_path / "video.mp4", time.monotonic() + 30)
+    probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=format_name:stream=codec_type", "-of", "json", str(output)], check=True, capture_output=True, timeout=20)
+    media = json.loads(probe.stdout)
+    assert "mp4" in media["format"]["format_name"].split(",")
+    assert {stream["codec_type"] for stream in media["streams"]} == {"video", "audio"}
+    assert not source.exists()

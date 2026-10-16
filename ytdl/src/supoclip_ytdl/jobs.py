@@ -13,7 +13,7 @@ from pathlib import Path
 
 from .config import Settings
 from .downloader import Progress, Result, download
-from .errors import Cancelled, DownloadFailed
+from .errors import Cancelled, DownloadFailed, Failure
 from .routing import Router
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class Job:
 
     @property
     def key(self) -> str:
-        return cache_key(self.video_id, self.max_height)
+        return cache_key(self.video_id, self.max_height, self.max_bytes)
 
     def public(self) -> dict:
         p = self.progress
@@ -62,8 +62,8 @@ class Job:
         }
 
 
-def cache_key(video_id: str, max_height: int) -> str:
-    return f"{video_id}-{max_height}"
+def cache_key(video_id: str, max_height: int, max_bytes: int) -> str:
+    return f"{video_id}-{max_height}-{max_bytes}"
 
 
 class JobManager:
@@ -90,7 +90,7 @@ class JobManager:
         return sum(1 for job in self.jobs.values() if job.status in ACTIVE)
 
     def submit(self, video_id: str, max_height: int, max_bytes: int) -> Job:
-        key = cache_key(video_id, max_height)
+        key = cache_key(video_id, max_height, max_bytes)
         existing = self.jobs.get(self.by_key.get(key, ""))
         if existing and existing.status in ACTIVE:
             return existing
@@ -151,6 +151,8 @@ class JobManager:
             logger.warning("[%s] failed: %s", job.video_id, code)
 
     def _store(self, job: Job, result: Result) -> tuple[Path, dict]:
+        if result.size > job.max_bytes:
+            raise DownloadFailed(Failure("too_large", "fatal", "This YouTube video is too large."))
         entry = self.settings.cache_dir / job.key
         staging = self.settings.cache_dir / f".{job.key}.{job.id}"
         staging.mkdir(parents=True, exist_ok=True)
