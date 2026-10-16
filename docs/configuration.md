@@ -282,3 +282,25 @@ Select paid workers explicitly with `APIFY_YOUTUBE_DOWNLOADER_ACTOR`. Set
 `APIFY_YOUTUBE_INPUT_ADAPTER` to `start_urls`, `progressive`, or `kv_videos`
 to match the selected worker. Keep production actor identities and private
 research outside the repository. No paid actor is selected by default.
+
+Provider identities and pinned builds belong in `APIFY_YOUTUBE_PROVIDERS`, a private
+JSON array of objects with `actor`, `build`, `adapter`, and optional `max_charge_usd` and `run_timeout_seconds` (60–1800).
+Set the primary in `APIFY_YOUTUBE_DOWNLOADER_ACTOR` and ordered fallback IDs in
+`APIFY_YOUTUBE_FALLBACK_ACTORS`. No paid actor is selected automatically. Supported
+adapters are `kv_file`, `url_objects`, `signed_url`, `kv_media`, and `private_s3`. Configure only
+workers whose input/output contract matches the selected adapter. Private provider
+research and production environment files must stay outside the repository.
+
+For `private_s3`, set `APIFY_STORAGE_BUCKET`, `APIFY_STORAGE_REGION`, and
+`APIFY_STORAGE_KEY_TEMPLATE` (containing `{video_id}`), plus dedicated
+`APIFY_STORAGE_WRITER_ACCESS_KEY_ID` / `APIFY_STORAGE_WRITER_SECRET_ACCESS_KEY`
+and `APIFY_STORAGE_READER_ACCESS_KEY_ID` / `APIFY_STORAGE_READER_SECRET_ACCESS_KEY`.
+The bucket must block public access, require HTTPS, enable versioning, and expire
+current and noncurrent objects after one day. Give the worker write access only to
+this bucket; give the application versioned read access and bucket versioning
+inspection. Delivery accepts only a new object version created after submission,
+with bounded file size, independent source duration, audio, and the requested
+resolution. A known missing-output reporting error may be recovered only when
+that complete private file passes validation. Unexpected errors use the configured
+fallback pool. The shared download spending limit covers Apify charges; S3 storage
+and network transfer are billed separately.
