@@ -1064,6 +1064,51 @@ class SocialRepository:
         ]
 
     @staticmethod
+    async def get_daily_new_views(
+        db: AsyncSession, user_id: str, *, days: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Views gained per UTC day and platform over the last ``days`` days.
+
+        Snapshots hold cumulative counts, so each post's last snapshot of a day
+        is compared with its previous day's; the first measured day counts
+        everything gained since publishing. Differences are computed over the
+        full history before the window is applied.
+        """
+        result = await db.execute(
+            text(
+                """
+                WITH daily AS (
+                    SELECT m.post_id, p.provider,
+                           (m.captured_at AT TIME ZONE 'UTC')::date AS day,
+                           MAX(m.views) AS views
+                    FROM social_post_metrics m
+                    JOIN social_posts p ON p.id = m.post_id
+                    WHERE p.user_id = :user_id AND m.views IS NOT NULL
+                    GROUP BY m.post_id, p.provider, day
+                ), deltas AS (
+                    SELECT provider, day,
+                           GREATEST(
+                               views - COALESCE(LAG(views) OVER (PARTITION BY post_id ORDER BY day), 0),
+                               0
+                           ) AS new_views
+                    FROM daily
+                )
+                SELECT day, provider, SUM(new_views) AS views
+                FROM deltas
+                WHERE day > (NOW() AT TIME ZONE 'UTC')::date - CAST(:days AS INTEGER)
+                GROUP BY day, provider
+                ORDER BY day, provider
+                """
+            ),
+            {"user_id": user_id, "days": days},
+        )
+        return [
+            {"day": row.day, "provider": row.provider, "views": int(row.views or 0)}
+            for row in result.fetchall()
+        ]
+
+    @staticmethod
     async def get_duration_performance(
         db: AsyncSession, user_id: str
     ) -> List[Dict[str, Any]]:

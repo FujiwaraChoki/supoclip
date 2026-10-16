@@ -416,6 +416,56 @@ async def test_connection_handshake_binds_state_to_user(service):
 
 
 @pytest.mark.asyncio
+async def test_mobile_handshake_marks_state_and_still_binds_user(service):
+    start = await service.start_connection("user-1", "youtube", client="ios")
+    assert start["state"].startswith("m.")
+    # Unknown clients get an ordinary browser state.
+    browser = await service.start_connection("user-1", "youtube", client="android-tv")
+    assert not browser["state"].startswith("m.")
+
+    # The app completes with its own session; a different user still cannot.
+    with pytest.raises(SocialValidationError):
+        await service.complete_connection("user-2", "youtube", code="good-code", state=start["state"])
+    start = await service.start_connection("user-1", "youtube", client="ios")
+    account = await service.complete_connection(
+        "user-1", "youtube", code="good-code", state=start["state"]
+    )
+    assert account["external_account_id"] == "chan-1"
+
+
+@pytest.mark.asyncio
+async def test_views_timeseries_fills_every_day_and_splits_by_platform(service):
+    from datetime import date, datetime, timedelta, timezone
+
+    today = datetime.now(timezone.utc).date()
+
+    async def fake_daily(db, user_id, *, days):
+        assert user_id == "user-1" and days == 7
+        return [
+            {"day": today - timedelta(days=1), "provider": "youtube", "views": 40},
+            {"day": today - timedelta(days=1), "provider": "tiktok", "views": 10},
+            {"day": today, "provider": "youtube", "views": 5},
+            # Outside the window: ignored.
+            {"day": date(2000, 1, 1), "provider": "youtube", "views": 999},
+        ]
+
+    service.repo.get_daily_new_views = fake_daily
+    series = await service.get_views_timeseries("user-1", days=7)
+    assert [day["date"] for day in series["days"]] == [
+        (today - timedelta(days=offset)).isoformat() for offset in range(6, -1, -1)
+    ]
+    assert series["days"][-2] == {
+        "date": (today - timedelta(days=1)).isoformat(),
+        "views": 50,
+        "by_provider": {"youtube": 40, "tiktok": 10},
+    }
+    assert series["days"][-1]["views"] == 5
+    assert series["days"][0] == {"date": (today - timedelta(days=6)).isoformat(), "views": 0, "by_provider": {}}
+    assert series["measured_days"] == 2
+    assert series["min_days"] == 3
+
+
+@pytest.mark.asyncio
 async def test_unconfigured_provider_is_rejected(service, provider, monkeypatch):
     monkeypatch.setattr(type(provider), "is_configured", property(lambda self: False))
     with pytest.raises(social_module.SocialProviderUnavailable):

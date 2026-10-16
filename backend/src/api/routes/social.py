@@ -75,10 +75,17 @@ async def list_connections(request: Request, db: AsyncSession = Depends(get_db))
 async def start_connection(
     provider: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    """Begin the OAuth handshake; the caller redirects the browser to ``authorize_url``."""
+    """
+    Begin the OAuth handshake; the caller redirects the browser to ``authorize_url``.
+
+    ``{"client": "ios"}`` marks the state as mobile: the web callback then hands
+    the code back to the app, which completes the handshake with its own session.
+    """
     user_id = _session_user_id(request)
+    body = await _json_body(request)
+    client = body.get("client") if isinstance(body.get("client"), str) else None
     try:
-        return await _service(request, db).start_connection(user_id, provider)
+        return await _service(request, db).start_connection(user_id, provider, client=client)
     except SocialError as exc:
         raise _http_error(exc)
 
@@ -173,6 +180,15 @@ async def get_performance(request: Request, db: AsyncSession = Depends(get_db)):
     """Aggregate audience performance, grouped the same way the AI uses it."""
     user_id = await _user_id(request, db)
     return await _service(request, db).get_performance_summary(user_id)
+
+
+@router.get("/performance/timeseries")
+async def get_views_timeseries(
+    request: Request, db: AsyncSession = Depends(get_db), days: int = 30
+):
+    """Daily new views across the user's published posts, for the analytics chart."""
+    user_id = await _user_id(request, db)
+    return await _service(request, db).get_views_timeseries(user_id, days=days)
 
 
 @router.get("/posts/{post_id}")

@@ -108,4 +108,25 @@ describe("/api/social/callback/[provider]", () => {
     const location = new URL(response.headers.get("location") as string);
     expect(location.searchParams.get("error")).toBe("This sign-in link has expired");
   });
+
+  it("hands mobile handshakes back to the app without needing a web session", async () => {
+    const { request, context } = callbackRequest("tiktok", { code: "abc", state: "m.state-1" });
+    const response = await GET(request, context);
+    const location = new URL(response.headers.get("location")!);
+    expect(`${location.protocol}//${location.host}`).toBe("supoclip://social-callback");
+    expect(location.searchParams.get("provider")).toBe("tiktok");
+    expect(location.searchParams.get("code")).toBe("abc");
+    expect(location.searchParams.get("state")).toBe("m.state-1");
+    expect(getServerSession).not.toHaveBeenCalled();
+    expect(fetchBackend).not.toHaveBeenCalled();
+  });
+
+  it("returns platform errors on mobile handshakes to the app", async () => {
+    const { request, context } = callbackRequest("youtube", { error: "access_denied", state: "m.state-2" });
+    const response = await GET(request, context);
+    const location = new URL(response.headers.get("location")!);
+    expect(location.protocol).toBe("supoclip:");
+    expect(location.searchParams.get("error")).toBe("access_denied");
+    expect(location.searchParams.get("code")).toBeNull();
+  });
 });

@@ -57,6 +57,13 @@ PUBLISH_JOB_TIMEOUT_SECONDS = 3600
 # timeout so a live upload is never swept.
 STALE_PUBLISHING_SECONDS = 2 * PUBLISH_JOB_TIMEOUT_SECONDS
 MAX_HASHTAGS = 30
+# The views chart only appears once there are this many days of measurements.
+VIEWS_CHART_MIN_DAYS = 3
+# OAuth states started from the native app carry this prefix, so the web
+# callback hands the code back to the app instead of finishing it in a browser
+# session the app's web sheet doesn't have.
+MOBILE_STATE_PREFIX = "m."
+MOBILE_CLIENTS = frozenset({"ios"})
 MAX_TITLE_LENGTH = 255
 MAX_CAPTION_LENGTH = 2200
 _HASHTAG_RE = re.compile(r"[^0-9A-Za-z_À-￿]+")
@@ -125,9 +132,13 @@ class SocialService:
     async def list_connections(self, user_id: str) -> List[Dict[str, Any]]:
         return await self.repo.list_accounts(self.db, user_id)
 
-    async def start_connection(self, user_id: str, provider_name: str) -> Dict[str, Any]:
+    async def start_connection(
+        self, user_id: str, provider_name: str, *, client: Optional[str] = None
+    ) -> Dict[str, Any]:
         provider = self._provider(provider_name)
         state = secrets.token_urlsafe(32)
+        if client in MOBILE_CLIENTS:
+            state = MOBILE_STATE_PREFIX + state
         code_verifier = None
         code_challenge = None
         if provider.uses_pkce:
@@ -879,6 +890,29 @@ class SocialService:
             "top_posts": top_posts,
             "min_posts_for_personalization": min_posts,
             "personalization_active": measured >= min_posts,
+        }
+
+    async def get_views_timeseries(self, user_id: str, days: int = 30) -> Dict[str, Any]:
+        """Daily new views for the analytics chart, with every day in the window present."""
+        days = max(1, min(int(days), 365))
+        rows = await self.repo.get_daily_new_views(self.db, user_id, days=days)
+        today = datetime.now(timezone.utc).date()
+        window = [today - timedelta(days=offset) for offset in range(days - 1, -1, -1)]
+        by_day: Dict[Any, Dict[str, int]] = {day: {} for day in window}
+        for row in rows:
+            if row["day"] in by_day:
+                by_day[row["day"]][row["provider"]] = row["views"]
+        return {
+            "days": [
+                {
+                    "date": day.isoformat(),
+                    "views": sum(providers.values()),
+                    "by_provider": providers,
+                }
+                for day, providers in by_day.items()
+            ],
+            "measured_days": len({row["day"] for row in rows if row["day"] in by_day}),
+            "min_days": VIEWS_CHART_MIN_DAYS,
         }
 
     async def build_performance_context(self, user_id: str) -> Optional[str]:

@@ -6,6 +6,8 @@ import { fetchBackend } from "@/server/backend-api";
 import { getServerSession } from "@/server/session";
 
 const SUPPORTED_PROVIDERS = new Set(["youtube", "tiktok", "instagram"]);
+const MOBILE_STATE_PREFIX = "m.";
+const APP_CALLBACK_URL = "supoclip://social-callback";
 
 function settingsRedirect(query: Record<string, string>) {
   const url = new URL("/settings/social", getSiteUrl());
@@ -34,6 +36,21 @@ export async function GET(
     url.searchParams.get("error");
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
+
+  // States started from the native app hand the result back to it: the app's
+  // web-auth sheet has no browser session, and the backend only accepts the
+  // code from the user who started the handshake.
+  if (state?.startsWith(MOBILE_STATE_PREFIX)) {
+    const appUrl = new URL(APP_CALLBACK_URL);
+    appUrl.searchParams.set("provider", provider);
+    if (providerError || !code) {
+      appUrl.searchParams.set("error", providerError || "The platform did not return an authorization code");
+    } else {
+      appUrl.searchParams.set("code", code);
+      appUrl.searchParams.set("state", state);
+    }
+    return NextResponse.redirect(appUrl);
+  }
 
   if (providerError || !code || !state) {
     return settingsRedirect({

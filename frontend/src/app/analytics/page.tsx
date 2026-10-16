@@ -7,6 +7,8 @@ import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ViewsChart, type DailyViews } from "@/components/views-chart";
 import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import {
@@ -32,6 +34,66 @@ function StatTile({ label, value }: { label: string; value: string }) {
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
     </div>
+  );
+}
+
+interface ViewsTimeseries {
+  days: DailyViews[];
+  measured_days: number;
+  min_days: number;
+}
+
+const RANGES = [7, 30, 90] as const;
+
+function ViewsSection() {
+  const [range, setRange] = useState<(typeof RANGES)[number]>(30);
+  const [series, setSeries] = useState<ViewsTimeseries | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/social/performance/timeseries?days=${range}`, { cache: "no-store" })
+      .then(async (response) => (response.ok ? ((await response.json()) as ViewsTimeseries) : null))
+      .then((data) => {
+        if (!cancelled && data) setSeries(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [range]);
+
+  return (
+    <section>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Daily views</h2>
+        <ToggleGroup
+          type="single"
+          size="sm"
+          variant="outline"
+          value={String(range)}
+          onValueChange={(value) => value && setRange(Number(value) as (typeof RANGES)[number])}
+          aria-label="Time range"
+        >
+          {RANGES.map((option) => (
+            <ToggleGroupItem key={option} value={String(option)} className="px-2.5 text-xs">
+              {option}d
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
+      <div className="rounded-xl border bg-background p-4">
+        {!series ? (
+          <Skeleton className="h-[200px] w-full" />
+        ) : series.measured_days < series.min_days ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            Your views chart appears after {series.min_days} days of results.{" "}
+            {series.measured_days} {series.measured_days === 1 ? "day" : "days"} so far.
+          </p>
+        ) : (
+          <ViewsChart days={series.days} />
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -105,6 +167,8 @@ export default function AnalyticsPage() {
             <StatTile label="Likes" value={formatMetric(sum(performance.by_provider.map((row) => row.total_likes)))} />
             <StatTile label="Comments" value={formatMetric(sum(performance.by_provider.map((row) => row.total_comments)))} />
           </section>
+
+          <ViewsSection />
 
           <section className="rounded-xl border bg-muted/50 p-4 text-sm">
             {performance.personalization_active ? (
