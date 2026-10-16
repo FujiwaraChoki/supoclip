@@ -229,7 +229,8 @@ and performance routes also accept API keys.
 Connections:
 
 - `GET /social/providers`
-  - Which platforms are configured on this server and their supported privacy levels
+  - Which platforms are configured on this server, their supported privacy levels and
+    `default_privacy_level` (TikTok: `public`/`private`, default `private`)
 - `GET /social/connections`
   - The user's connected accounts (never includes tokens)
 - `POST /social/connections/{provider}/authorize`
@@ -237,7 +238,10 @@ Connections:
 - `POST /social/connections/{provider}/callback`
   - Body `{code, state}`; exchanges the code and stores encrypted tokens
 - `DELETE /social/connections/{account_id}`
-  - Disconnect an account and cancel its scheduled posts
+  - Disconnect an account, cancel its scheduled posts and revoke the grant at the platform
+    (best effort; Instagram has no revocation endpoint)
+- `DELETE /social/connections`
+  - Disconnect every account (called when a user deletes their SupoClip account)
 
 Posts:
 
@@ -251,11 +255,12 @@ Posts:
 - `POST /social/posts/{post_id}/cancel`
   - Cancel a scheduled or queued post
 - `POST /social/posts/{post_id}/retry`
-  - Re-queue a failed or cancelled post
+  - Re-queue a failed or cancelled post. An upload the platform already accepted is only
+    checked again, never uploaded twice
 - `POST /social/posts/{post_id}/refresh-metrics`
   - Pull fresh metrics from the platform now
 - `DELETE /social/posts/{post_id}`
-  - Remove the post record (the platform post is untouched)
+  - Remove the post record (the platform post is untouched); not while queued or publishing
 
 Performance loop:
 
@@ -267,11 +272,17 @@ Performance loop:
 Public:
 
 - `GET /social/media/{media_token}`
-  - Streams a clip for a platform fetch while the token is valid (a few hours around publishing)
+  - Streams a clip for a platform fetch while the token is valid (a few hours around publishing).
+    With `MEDIA_STORAGE=s3` it redirects to a presigned URL instead
 
 Post status flow: `scheduled → queued → publishing → published | failed | cancelled`.
-The worker runs a cron every minute to promote due scheduled posts and poll
-asynchronous publishes, and hourly to refresh metrics.
+A worker claims a queued post atomically before uploading, and always publishes
+the clip's current render. Deleting a clip or task cancels its scheduled and
+queued posts. The worker runs a cron every minute to promote due scheduled
+posts, poll asynchronous publishes and fail posts stuck in `publishing` for two
+hours, and hourly to refresh metrics. When the platform may already have the
+post (a timeout after the upload was sent, or a lost worker) the post fails with
+"Upload outcome unknown" and is never uploaded again automatically.
 
 ## Auth and Identity Model
 

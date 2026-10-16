@@ -233,7 +233,9 @@ Before enabling each provider for users:
 - For TikTok, verify asynchronous processing and private completion with no
   public post ID. Status-check failures should keep checking the existing upload;
   after 45 minutes, Retry checks that same upload again instead of uploading it.
-- For Instagram, confirm its public media fetch works through the frontend.
+  A post TikTok rejects (`FAILED`) uploads again on Retry.
+- For Instagram, confirm its public media fetch works through the frontend
+  (local storage) or the presigned S3 URL (`MEDIA_STORAGE=s3`).
 - Refresh metrics for a published post with an external ID and confirm the
   performance dashboard updates. Private posts without a public ID have no metrics.
 
