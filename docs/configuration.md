@@ -245,7 +245,7 @@ verify platform app approval or live OAuth, uploads, and metrics.
 
 ## Apify YouTube Downloader
 
-SupoClip uses Apify's `epctex/youtube-video-downloader` actor as the primary YouTube download path. Metadata preflight and fallback downloads rely on the local `yt-dlp` stack over a direct connection.
+SupoClip uses the actor explicitly configured in the private environment as the primary YouTube download path. Metadata preflight and fallback downloads rely on the local `yt-dlp` stack over a direct connection.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -351,3 +351,8 @@ SES_FROM_EMAIL="SupoClip <onboarding@example.com>"
 - [Setup](./setup.md)
 - [Troubleshooting](./troubleshooting.md)
 - [Architecture](./architecture.md)
+
+Select paid workers explicitly with `APIFY_YOUTUBE_DOWNLOADER_ACTOR`. Set
+`APIFY_YOUTUBE_INPUT_ADAPTER` to `start_urls`, `progressive`, or `kv_videos`
+to match the selected worker. Keep production actor identities and private
+research outside the repository. No paid actor is selected by default.
