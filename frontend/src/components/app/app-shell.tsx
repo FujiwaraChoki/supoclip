@@ -5,7 +5,7 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowRight, Bot, CornerDownLeft, Film, LogOut, Plus, Search, Settings, Shield, Sparkles,
+  ArrowRight, Bot, CornerDownLeft, Film, LogOut, Plus, Search, Settings, Share2, Shield, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { signOut, useSession } from "@/lib/auth-client";
@@ -25,6 +25,7 @@ type NavItem = { href: string; label: string; icon: typeof Film; match: (path: s
 const NAV: NavItem[] = [
   { href: "/", label: "Create", icon: Sparkles, match: (p) => p === "/" },
   { href: "/list", label: "Library", icon: Film, match: (p) => p.startsWith("/list") || p.startsWith("/tasks") },
+  { href: "/settings/social", label: "Social", icon: Share2, match: (p) => p.startsWith("/settings/social") },
   { href: "/settings/api-keys", label: "Agents & API", icon: Bot, match: (p) => p.startsWith("/settings/api-keys") },
   { href: "/settings", label: "Settings", icon: Settings, match: (p) => p === "/settings" },
 ];
@@ -131,7 +132,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </div>
 
-      {user ? <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      {user ? <nav aria-label="Mobile navigation" className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {NAV.map((item) => {
           const active = item.match(pathname);
           return (
@@ -256,6 +257,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
     const actions: PaletteEntry[] = [
       { id: "new", label: "New generation", hint: "Paste a link or upload", href: "/", icon: Plus },
       { id: "library", label: "Open library", href: "/list", icon: Film },
+      { id: "social", label: "Social accounts", hint: "Connect YouTube, TikTok & Instagram", href: "/settings/social", icon: Share2 },
       { id: "keys", label: "Agents & API", hint: "API keys & MCP", href: "/settings/api-keys", icon: Bot },
       { id: "settings", label: "Settings", href: "/settings", icon: Settings },
     ].filter((entry) => !q || entry.label.toLowerCase().includes(q));
