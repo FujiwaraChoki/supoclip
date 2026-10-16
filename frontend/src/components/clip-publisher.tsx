@@ -1,24 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
   AlertCircle,
-  CalendarClock,
+  Clock,
   ExternalLink,
-  Eye,
-  Heart,
-  MessageCircle,
+  Loader2,
+  MoreHorizontal,
   RefreshCw,
   RotateCcw,
   Send,
-  Share,
   Trash2,
   XCircle,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,8 +37,17 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { SocialProviderIcon } from "@/components/social-provider-icon";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { SocialProviderIcon } from "@/components/social-provider-icon";
+import { timeAgo } from "@/lib/generations";
+import {
+  ACTIVE_POST_STATUSES,
   PRIVACY_LABELS,
   PROVIDER_LABELS,
   POST_STATUS_LABELS,
@@ -55,7 +61,6 @@ import {
   type SocialPrivacyLevel,
   type SocialProviderStatus,
 } from "@/lib/social";
-import { cn } from "@/lib/utils";
 
 interface PublishableClip {
   id: string;
@@ -76,15 +81,6 @@ interface ClipPostListProps {
   posts: SocialPost[];
   onChanged: () => void | Promise<void>;
 }
-
-const STATUS_VARIANTS: Record<SocialPostStatus, "default" | "secondary" | "destructive" | "outline"> = {
-  scheduled: "outline",
-  queued: "secondary",
-  publishing: "secondary",
-  published: "default",
-  failed: "destructive",
-  cancelled: "outline",
-};
 
 const ALL_PRIVACY_LEVELS: SocialPrivacyLevel[] = ["public", "unlisted", "private"];
 
@@ -114,6 +110,89 @@ async function readError(response: Response, fallback: string): Promise<string> 
   return fallback;
 }
 
+function postAccountName(post: SocialPost): string {
+  return (
+    post.account.display_name ||
+    (post.account.username ? `@${post.account.username.replace(/^@/, "")}` : null) ||
+    PROVIDER_LABELS[post.provider]
+  );
+}
+
+function metricsSummary(post: SocialPost): string | null {
+  if (!post.last_metrics_at || !post.metrics) return null;
+  const { views, likes, comments } = post.metrics;
+  const count = (value: number | null | undefined, noun: string) =>
+    `${formatMetric(value)} ${noun}${value === 1 ? "" : "s"}`;
+  return [count(views, "view"), count(likes, "like"), count(comments, "comment")].join(" · ");
+}
+
+function PostStatus({ post }: { post: SocialPost }) {
+  switch (post.status) {
+    case "queued":
+    case "publishing":
+      return (
+        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+          <Loader2 className="size-3.5 animate-spin" />
+          {post.status === "queued" ? "Starting upload…" : "Uploading…"}
+        </span>
+      );
+    case "scheduled":
+      return (
+        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+          <Clock className="size-3.5" />
+          {post.scheduled_for ? formatDateTime(post.scheduled_for) : "Scheduled"}
+        </span>
+      );
+    case "published":
+      return (
+        <span className="text-muted-foreground">
+          {post.published_at ? `Published ${timeAgo(post.published_at)}` : "Published"}
+        </span>
+      );
+    case "failed":
+      return <span className="text-destructive">Failed</span>;
+    default:
+      return <span className="text-muted-foreground">{POST_STATUS_LABELS[post.status]}</span>;
+  }
+}
+
+/**
+ * Toasts when a post the user is watching changes state, so publishing never
+ * "just happens" silently. Statuses seen on first load are only recorded.
+ */
+export function useSocialPostToasts(posts: SocialPost[]) {
+  const seen = useRef<Map<string, SocialPostStatus> | null>(null);
+  useEffect(() => {
+    const previous = seen.current;
+    const next = new Map(posts.map((post) => [post.id, post.status] as const));
+    seen.current = next;
+    if (!previous) return;
+    for (const post of posts) {
+      const before = previous.get(post.id);
+      if (!before || before === post.status) continue;
+      const id = postToastId(post.id);
+      const platform = PROVIDER_LABELS[post.provider];
+      if (post.status === "published") {
+        toast.success(`Published to ${platform}`, {
+          id,
+          description: post.privacy_level === "public" ? undefined : `Visibility: ${PRIVACY_LABELS[post.privacy_level]}`,
+          action: post.external_url
+            ? { label: "Open", onClick: () => window.open(post.external_url!, "_blank", "noopener") }
+            : undefined,
+        });
+      } else if (post.status === "failed") {
+        toast.error(`Couldn't publish to ${platform}`, { id, description: post.error_message ?? undefined });
+      } else if (ACTIVE_POST_STATUSES.includes(post.status)) {
+        toast.loading(`Publishing to ${platform}…`, { id });
+      }
+    }
+  }, [posts]);
+}
+
+function postToastId(postId: string) {
+  return `social-post-${postId}`;
+}
+
 export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
   const [busyPostId, setBusyPostId] = useState<string | null>(null);
 
@@ -126,6 +205,12 @@ export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
       );
       if (!response.ok) {
         toast.error(await readError(response, "Action failed"));
+      } else if (action === "retry") {
+        toast.loading(`Publishing to ${PROVIDER_LABELS[post.provider]}…`, { id: postToastId(post.id) });
+      } else if (action === "cancel") {
+        toast.success("Post cancelled");
+      } else if (action === "refresh-metrics") {
+        toast.success("Metrics updated");
       }
       await onChanged();
     } finally {
@@ -138,122 +223,68 @@ export function ClipPostList({ posts, onChanged }: ClipPostListProps) {
   return (
     <div className="mt-3 space-y-2">
       {posts.map((post) => {
-        const metrics = post.metrics;
         const busy = busyPostId === post.id;
+        const metrics = metricsSummary(post);
+        const canCancel = post.status === "scheduled" || post.status === "queued";
+        const canRetry = post.status === "failed" || post.status === "cancelled";
+        const canRefresh = post.status === "published" && Boolean(post.external_post_id);
+        const canRemove = post.status !== "queued" && post.status !== "publishing";
+        const hasMenu = canCancel || canRetry || canRefresh || canRemove;
         return (
-          <div
-            key={post.id}
-            className="flex flex-col gap-2 rounded-lg border bg-card px-3 py-2 text-sm"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="gap-1.5 font-medium">
-                <SocialProviderIcon provider={post.provider} className="size-3" />
-                {PROVIDER_LABELS[post.provider] ?? post.provider}
-              </Badge>
-              <span className="truncate text-muted-foreground">
-                {connectionLabel({
-                  display_name: post.account.display_name,
-                  username: post.account.username,
-                  provider: post.provider,
-                })}
-              </span>
-              <Badge
-                variant={STATUS_VARIANTS[post.status]}
-                className={cn(post.status === "cancelled" && "text-muted-foreground")}
-              >
-                {POST_STATUS_LABELS[post.status]}
-              </Badge>
-              {post.status === "scheduled" && post.scheduled_for && (
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                  <CalendarClock className="w-3.5 h-3.5" />
-                  {formatDateTime(post.scheduled_for)}
-                </span>
-              )}
-              {post.status === "published" && post.external_url && (
-                <a
-                  href={post.external_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-medium underline-offset-4 hover:underline"
-                >
-                  Open post
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              )}
-              <div className="ml-auto flex items-center gap-1">
-                {(post.status === "scheduled" || post.status === "queued") && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => runPostAction(post, "cancel")}
-                    aria-label="Cancel post"
-                  >
-                    <XCircle className="w-4 h-4" />
-                  </Button>
-                )}
-                {(post.status === "failed" || post.status === "cancelled") && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => runPostAction(post, "retry")}
-                    aria-label="Retry post"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </Button>
-                )}
-                {post.status === "published" && post.external_post_id && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    onClick={() => runPostAction(post, "refresh-metrics")}
-                    aria-label="Refresh metrics"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${busy ? "animate-spin" : ""}`} />
-                  </Button>
-                )}
-                {(post.status === "published" ||
-                  post.status === "failed" ||
-                  post.status === "cancelled" ||
-                  post.status === "scheduled") && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busy}
-                    className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => runPostAction(post, "delete")}
-                    aria-label="Remove post record"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                )}
+          <div key={post.id} className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 text-sm">
+            <SocialProviderIcon provider={post.provider} className="text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="truncate font-medium">{postAccountName(post)}</span>
+                <span className="text-muted-foreground/50">·</span>
+                <span className="shrink-0"><PostStatus post={post} /></span>
               </div>
+              {post.status === "failed" && post.error_message ? (
+                <p className="mt-0.5 line-clamp-2 text-xs text-destructive" title={post.error_message}>
+                  {post.error_message}
+                </p>
+              ) : metrics ? (
+                <p className="mt-0.5 text-xs text-muted-foreground">{metrics}</p>
+              ) : null}
             </div>
-            {post.status === "published" && (
-              <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <Eye className="w-3.5 h-3.5" /> {formatMetric(metrics?.views)}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <Heart className="w-3.5 h-3.5" /> {formatMetric(metrics?.likes)}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <MessageCircle className="w-3.5 h-3.5" /> {formatMetric(metrics?.comments)}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <Share className="w-3.5 h-3.5" /> {formatMetric(metrics?.shares)}
-                </span>
-                <span className="text-muted-foreground/70">
-                  {post.last_metrics_at
-                    ? `Updated ${formatDateTime(post.last_metrics_at)}`
-                    : "Metrics arrive within an hour"}
-                </span>
-              </div>
+            {post.status === "published" && post.external_url && (
+              <Button asChild size="icon" variant="ghost" className="size-8 text-muted-foreground">
+                <a href={post.external_url} target="_blank" rel="noreferrer" aria-label="Open post">
+                  <ExternalLink className="size-4" />
+                </a>
+              </Button>
             )}
-            {post.error_message && post.status !== "published" && (
-              <p className="text-xs text-destructive">{post.error_message}</p>
+            {hasMenu && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="icon" variant="ghost" className="size-8 text-muted-foreground" disabled={busy} aria-label="Post actions">
+                    {busy ? <Loader2 className="size-4 animate-spin" /> : <MoreHorizontal className="size-4" />}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {canRefresh && (
+                    <DropdownMenuItem onSelect={() => runPostAction(post, "refresh-metrics")}>
+                      <RefreshCw /> Refresh metrics
+                    </DropdownMenuItem>
+                  )}
+                  {canRetry && (
+                    <DropdownMenuItem onSelect={() => runPostAction(post, "retry")}>
+                      <RotateCcw /> Try again
+                    </DropdownMenuItem>
+                  )}
+                  {canCancel && (
+                    <DropdownMenuItem onSelect={() => runPostAction(post, "cancel")}>
+                      <XCircle /> Cancel post
+                    </DropdownMenuItem>
+                  )}
+                  {canRemove && (canRefresh || canRetry || canCancel) && <DropdownMenuSeparator />}
+                  {canRemove && (
+                    <DropdownMenuItem variant="destructive" onSelect={() => runPostAction(post, "delete")}>
+                      <Trash2 /> Remove from list
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         );
@@ -349,6 +380,18 @@ export function ClipPublishButton({
       });
       if (!response.ok) {
         throw new Error(await readError(response, "Failed to publish clip"));
+      }
+      const { post } = (await response.json().catch(() => ({}))) as { post?: SocialPost };
+      const platform = PROVIDER_LABELS[selectedConnection?.provider ?? "youtube"];
+      if (body.scheduled_for) {
+        toast.success(`Scheduled for ${formatDateTime(String(body.scheduled_for))}`, {
+          description: `${platform} · ${selectedConnection ? connectionLabel(selectedConnection) : ""}`,
+        });
+      } else if (post?.id) {
+        toast.loading(`Publishing to ${platform}…`, {
+          id: postToastId(post.id),
+          description: "You can keep working. We'll tell you when it's live.",
+        });
       }
       setOpen(false);
       await onChanged();
@@ -499,8 +542,8 @@ export function ClipPublishButton({
             </Button>
             {activeConnections.length > 0 && (
               <Button onClick={handleSubmit} disabled={isSubmitting || !accountId}>
-                <Send className="w-4 h-4" />
-                {isSubmitting ? "Sending…" : schedule ? "Schedule" : "Publish now"}
+                {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : schedule ? <Clock className="size-4" /> : <Send className="size-4" />}
+                {isSubmitting ? (schedule ? "Scheduling…" : "Publishing…") : schedule ? "Schedule" : "Publish now"}
               </Button>
             )}
           </SheetFooter>

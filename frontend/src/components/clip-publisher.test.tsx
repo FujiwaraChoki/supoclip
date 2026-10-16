@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ClipPostList, ClipPublishButton } from "./clip-publisher";
 import type { SocialConnection, SocialPost, SocialProviderStatus } from "@/lib/social";
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), loading: vi.fn() } }));
 
 const clip = { id: "clip-1", clip_order: 1, hook_title: "Hook title", text: "Transcript" };
 
@@ -121,8 +121,24 @@ it("reports failed post actions with a toast", async () => {
     metrics: null,
   } as unknown as SocialPost;
   render(<ClipPostList posts={[post]} onChanged={onChanged} />);
-  fireEvent.click(screen.getByRole("button", { name: "Retry post" }));
+  expect(screen.getByText(/check your account before retrying/)).toBeInTheDocument();
+  fireEvent.keyDown(screen.getByRole("button", { name: "Post actions" }), { key: "Enter" });
+  fireEvent.click(await screen.findByRole("menuitem", { name: /try again/i }));
   await waitFor(() => expect(toast.error).toHaveBeenCalledWith("This post is already being retried."));
   expect(fetch).toHaveBeenCalledWith("/api/social/posts/post-1/retry", { method: "POST" });
   expect(onChanged).toHaveBeenCalled();
+});
+
+it("shows a spinner while a post is uploading and offers no actions", () => {
+  const post = {
+    id: "post-2",
+    provider: "tiktok",
+    status: "publishing",
+    error_message: null,
+    account: { display_name: "My TikTok", username: null, avatar_url: null, status: "active" },
+    metrics: null,
+  } as unknown as SocialPost;
+  render(<ClipPostList posts={[post]} onChanged={vi.fn()} />);
+  expect(screen.getByText("Uploading…")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Post actions" })).toBeNull();
 });

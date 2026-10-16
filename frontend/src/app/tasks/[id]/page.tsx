@@ -60,7 +60,7 @@ import { ClipTile, ClipFocus, ProcessingPanel, EmptyState } from "@/components/a
 import { timeAgo } from "@/lib/generations";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
-import { ClipPostList, ClipPublishButton } from "@/components/clip-publisher";
+import { ClipPostList, ClipPublishButton, useSocialPostToasts } from "@/components/clip-publisher";
 import {
   ACTIVE_POST_STATUSES,
   type SocialConnection,
@@ -199,12 +199,16 @@ export default function TaskPage() {
     void loadSocialContext();
   }, [session?.user?.id, task?.status, loadSocialContext]);
 
+  // Poll quickly while an upload is in flight so its progress and outcome show
+  // up promptly, and slowly while something is scheduled.
+  useSocialPostToasts(socialPosts);
   useEffect(() => {
     const inFlight = socialPosts.some((post) => ACTIVE_POST_STATUSES.includes(post.status));
-    if (!inFlight) return;
+    const scheduled = socialPosts.some((post) => post.status === "scheduled");
+    if (!inFlight && !scheduled) return;
     const interval = window.setInterval(() => {
       void loadSocialPosts();
-    }, 15000);
+    }, inFlight ? 4000 : 30000);
     return () => window.clearInterval(interval);
   }, [socialPosts, loadSocialPosts]);
 
