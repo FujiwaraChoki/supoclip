@@ -620,7 +620,8 @@ export default function TaskPage() {
             </div>
           </div>
 
-          {!readOnly && <div className="flex flex-wrap items-center gap-2">
+          {!readOnly && (
+          <div className="flex flex-wrap items-center gap-2">
             {isActive && (
               <Button size="sm" variant="outline" disabled={pendingAction !== null}
                 onClick={() => void runAction("cancel", async () => {
@@ -683,6 +684,7 @@ export default function TaskPage() {
               <TooltipContent>Delete generation</TooltipContent>
             </Tooltip>
           </div>
+          )}
         </header>
       )}
 
