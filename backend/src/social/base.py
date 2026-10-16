@@ -114,6 +114,9 @@ class SocialProvider(ABC):
     display_name: str = ""
     # Which normalized privacy levels the platform supports at all.
     supported_privacy_levels: tuple[str, ...] = PRIVACY_LEVELS
+    # False for platforms that fetch ``PublishRequest.public_media_url``
+    # themselves instead of receiving an upload (Instagram).
+    needs_local_file: bool = True
 
     def __init__(self, session: Optional[requests.Session] = None):
         self.http = session or requests.Session()

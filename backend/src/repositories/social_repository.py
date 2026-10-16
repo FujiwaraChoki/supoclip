@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -610,7 +611,8 @@ class SocialRepository:
 
         Exactly one worker can win the claim. ``None`` means another worker
         already claimed it or it left the queue (cancelled, deleted, ...), and
-        the caller must not upload anything.
+        the caller must not upload anything. ``source_file_path`` becomes the
+        clip's current file, or NULL when the clip was deleted.
         """
         result = await db.execute(
             text(
@@ -621,6 +623,16 @@ class SocialRepository:
                     claimed_at = NOW(),
                     error_message = NULL,
                     media_token_expires_at = :media_token_expires_at,
+                    -- Publish the clip's current render, not the one that
+                    -- existed when the post was created (edits replace it).
+                    -- While publishing, media cleanup keeps this file.
+                    source_file_path = CASE
+                        WHEN pending_handle IS NULL THEN (
+                            SELECT c.file_path FROM generated_clips c
+                            WHERE c.id = social_posts.clip_id
+                        )
+                        ELSE source_file_path
+                    END,
                     updated_at = NOW()
                 WHERE id = :id AND status = 'queued'
                 RETURNING id
@@ -633,6 +645,42 @@ class SocialRepository:
         if not row:
             return None
         return await SocialRepository.get_post(db, post_id)
+
+    @staticmethod
+    async def cancel_unpublished_for_clips(
+        db: AsyncSession, *, clip_id: Optional[str] = None, task_id: Optional[str] = None
+    ) -> None:
+        """
+        Cancel scheduled/queued posts of clips about to be deleted.
+
+        Runs inside the caller's transaction, before the clip rows go, so a
+        post never outlives its media. A missing table (worker deployed before
+        the API migrated) must not break clip deletion.
+        """
+        if clip_id:
+            clause, params = "clip_id = :clip_id", {"clip_id": clip_id}
+        elif task_id:
+            clause = "clip_id IN (SELECT id FROM generated_clips WHERE task_id = :task_id)"
+            params = {"task_id": task_id}
+        else:
+            return
+        try:
+            async with db.begin_nested():
+                await db.execute(
+                    text(
+                        f"""
+                        UPDATE social_posts
+                        SET status = 'cancelled',
+                            error_message = 'The clip was deleted before publishing.',
+                            updated_at = NOW()
+                        WHERE {clause} AND status IN ('scheduled', 'queued')
+                        """
+                    ),
+                    params,
+                )
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) != "42P01":
+                raise
 
     @staticmethod
     async def cancel_post(db: AsyncSession, user_id: str, post_id: str) -> bool:

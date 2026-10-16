@@ -325,13 +325,13 @@ class MediaStorage:
         if self.enabled and not sidecar.exists():
             self._download(self.parse(self.youtube_metadata_reference(video_id)), sidecar, optional=True)
 
-    def signed_url(self, reference: str, filename: str, *, attachment=False) -> str:
+    def signed_url(self, reference: str, filename: str, *, attachment=False, expires_in: int | None = None) -> str:
         # Filenames originate from UUID-based application output names.
         safe_name = Path(filename).name.replace('"', "").replace("\r", "").replace("\n", "")
         return self.client.generate_presigned_url("get_object", Params={
             "Bucket": self.bucket, "Key": self.parse(reference),
             "ResponseContentDisposition": f'{"attachment" if attachment else "inline"}; filename="{safe_name}"',
-        }, ExpiresIn=self.config.media_url_ttl_seconds)
+        }, ExpiresIn=expires_in or self.config.media_url_ttl_seconds)
 
     def exists(self, reference: str) -> bool:
         try:

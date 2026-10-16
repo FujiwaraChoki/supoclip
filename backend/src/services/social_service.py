@@ -24,6 +24,7 @@ import requests
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Config, get_config
+from ..media_storage import STORAGE_ERRORS, MediaStorage, is_s3, media_work
 from ..repositories.clip_repository import ClipRepository
 from ..repositories.social_repository import SocialRepository, TERMINAL_POST_STATUSES
 from ..repositories.task_repository import TaskRepository
@@ -45,6 +46,9 @@ logger = logging.getLogger(__name__)
 PUBLISH_JOB_NAME = "publish_social_post"
 OAUTH_STATE_TTL_SECONDS = 600
 MEDIA_TOKEN_TTL_HOURS = 3
+# Instagram fetches the video while it processes the container (polled for up
+# to 10 minutes), so presigned S3 URLs outlive one publish attempt comfortably.
+PUBLIC_MEDIA_URL_TTL_SECONDS = MEDIA_TOKEN_TTL_HOURS * 3600
 PENDING_PUBLISH_TIMEOUT_MINUTES = 45
 # arq job timeout for one publish attempt (see WorkerSettings).
 PUBLISH_JOB_TIMEOUT_SECONDS = 3600
@@ -92,6 +96,7 @@ class SocialService:
         self.repo = SocialRepository
         self.clip_repo = ClipRepository
         self.task_repo = TaskRepository
+        self.storage = MediaStorage(self.config)
 
     # ------------------------------------------------------------------
     # Providers & connections
@@ -258,9 +263,15 @@ class SocialService:
         clip = await self.clip_repo.get_clip_by_id(self.db, clip_id)
         if not clip or clip.get("task_id") != task_id:
             raise SocialNotFound("Clip not found")
-        clip_path = Path(clip.get("file_path") or "")
-        if not clip_path.exists():
-            raise SocialValidationError("The clip file is missing on disk; regenerate it first.")
+        clip_file = clip.get("file_path") or ""
+        try:
+            clip_exists = await self._media_exists(clip_file)
+        except STORAGE_ERRORS as exc:
+            raise SocialProviderUnavailable(
+                "Clip storage is temporarily unavailable. Try again shortly."
+            ) from exc
+        if not clip_exists:
+            raise SocialValidationError("The clip file is missing; regenerate it first.")
 
         account = await self.repo.get_user_account(self.db, user_id, social_account_id)
         if not account or account.get("revoked_at"):
@@ -306,7 +317,7 @@ class SocialService:
             hashtags=clean_hashtags,
             privacy_level=normalized_privacy,
             media_token=secrets.token_urlsafe(32),
-            source_file_path=str(clip_path),
+            source_file_path=clip_file,
             clip_snapshot=clip,
         )
         if status == "queued":
@@ -405,8 +416,21 @@ class SocialService:
             raise SocialValidationError("Wait for the post to finish before deleting it.")
         return True
 
-    async def get_public_media_path(self, media_token: str) -> Optional[Path]:
-        """Resolve a media token to a clip path while the token is still valid."""
+    async def _media_exists(self, reference: str) -> bool:
+        if not reference:
+            return False
+        if is_s3(reference):
+            return await run_in_thread(self.storage.exists, reference)
+        return Path(reference).exists()
+
+    async def get_public_media_reference(self, media_token: str) -> Optional[str]:
+        """
+        Resolve a media token to the file being published while it is valid.
+
+        ``source_file_path`` is the clip render the worker claimed, so the
+        platform fetches exactly what the publish attempt resolved. Returns an
+        ``s3://`` reference or an existing local path.
+        """
         if not media_token or len(media_token) > 64:
             return None
         post = await self.repo.get_post_by_media_token(self.db, media_token)
@@ -415,14 +439,66 @@ class SocialService:
         expires_at = _parse_datetime(post.get("media_token_expires_at"))
         if not expires_at or expires_at < datetime.now(timezone.utc):
             return None
-        path = Path(post.get("source_file_path") or "")
-        if not path.exists():
+        reference = post.get("source_file_path") or ""
+        if is_s3(reference):
+            return reference
+        if not reference or not Path(reference).exists():
             return None
-        return path
+        return reference
+
+    def public_media_redirect_url(self, reference: str) -> str:
+        return self.storage.signed_url(
+            reference, Path(reference).name, expires_in=PUBLIC_MEDIA_URL_TTL_SECONDS
+        )
+
+    async def _resolve_publish_media(
+        self, post: Dict[str, Any], provider: SocialProvider
+    ) -> tuple[str, Optional[str]]:
+        """
+        Return ``(local_file, public_url)`` for the claimed clip render.
+
+        S3 renders are downloaded into a leased local copy (held until the
+        surrounding ``media_work`` scope ends) only for platforms that take an
+        upload. Instagram pulls a URL instead: a presigned S3 URL, or the
+        token-gated media route for local storage.
+        """
+        reference = post.get("source_file_path") or ""
+        if not post.get("clip_id") or not reference:
+            raise SocialProviderError("The clip for this post was deleted.")
+        missing = SocialProviderError("The clip file no longer exists; regenerate it first.")
+        try:
+            if is_s3(reference):
+                if provider.needs_local_file:
+                    local = await run_in_thread(self.storage.local_path, reference)
+                    return str(local), None
+                if not await run_in_thread(self.storage.exists, reference):
+                    raise missing
+                url = await run_in_thread(self.public_media_redirect_url, reference)
+                return reference, url
+        except SocialProviderError:
+            raise
+        except STORAGE_ERRORS as exc:
+            code = (getattr(exc, "response", None) or {}).get("Error", {}).get("Code")
+            if code in {"404", "NoSuchKey", "NotFound"}:
+                raise missing from exc
+            raise SocialProviderError(
+                f"Clip storage is temporarily unavailable ({type(exc).__name__}).",
+                retryable=True,
+            ) from exc
+        if not Path(reference).exists():
+            raise missing
+        public_url = None
+        if post.get("media_token"):
+            public_url = (
+                f"{self.config.social_public_media_base_url}/api/social/media/"
+                f"{post['media_token']}"
+            )
+        return reference, public_url
 
     # ------------------------------------------------------------------
     # Worker entry points
     # ------------------------------------------------------------------
+    @media_work
     async def publish_post(self, post_id: str) -> Dict[str, Any]:
         post = await self.repo.get_post(self.db, post_id)
         if not post:
@@ -468,18 +544,10 @@ class SocialService:
 
         try:
             provider = get_provider(post["provider"], self.config)
-            file_path = Path(post.get("source_file_path") or "")
-            if not file_path.exists():
-                raise SocialProviderError("The clip file no longer exists on disk.")
+            file_path, public_url = await self._resolve_publish_media(post, provider)
             access_token = await self._get_valid_access_token(account)
-            public_url = None
-            if post.get("media_token"):
-                public_url = (
-                    f"{self.config.social_public_media_base_url}/api/social/media/"
-                    f"{post['media_token']}"
-                )
             request = PublishRequest(
-                file_path=str(file_path),
+                file_path=file_path,
                 title=post.get("title") or "",
                 caption=post.get("caption") or "",
                 hashtags=list(post.get("hashtags") or []),

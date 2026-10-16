@@ -3,8 +3,11 @@ from types import SimpleNamespace
 
 import pytest
 import requests
+from botocore.exceptions import ClientError
+from pathlib import Path
 
 from src.config import Config
+from src.media_storage import MediaStorage
 from src.services import social_service as social_module
 from src.services.social_service import (
     SocialNotFound,
@@ -15,6 +18,7 @@ from src.services.social_service import (
     format_performance_context,
     normalize_hashtags,
 )
+from tests.unit.test_media_storage import MemoryS3
 from src.social.base import (
     AccountProfile,
     OAuthTokens,
@@ -49,6 +53,7 @@ class FakeRepo:
         self.duration_rows = []
         self.top_posts = []
         self.provider_rows = []
+        self.clips = {}
 
     # accounts
     async def list_accounts(self, db, user_id, include_revoked=False):
@@ -131,6 +136,10 @@ class FakeRepo:
         if not post or post["status"] != "queued":
             return None
         now = datetime.now(timezone.utc).isoformat()
+        if not post.get("pending_handle"):
+            # The claim publishes the clip's current render.
+            clip = self.clips.get(post.get("clip_id")) or {}
+            post["source_file_path"] = clip.get("file_path")
         post.update(
             status="publishing",
             attempts=post["attempts"] + 1,
@@ -305,6 +314,7 @@ def service(provider, tmp_path):
         }
     )
     svc.task_repo = FakeTaskRepo({"task-1": {"id": "task-1", "user_id": "user-1"}})
+    svc.repo.clips = svc.clip_repo.clips
     return svc
 
 
@@ -638,8 +648,8 @@ async def test_metrics_refresh_and_public_media_token(service, provider):
 
     published = await service.publish_post(post["id"])
     # Token is valid right after publishing (Instagram may still be fetching).
-    assert await service.get_public_media_path(post["media_token"]) is not None
-    assert await service.get_public_media_path("nope") is None
+    assert await service.get_public_media_reference(post["media_token"]) is not None
+    assert await service.get_public_media_reference("nope") is None
 
     refreshed = await service.refresh_post_metrics(published, user_id="user-1")
     assert refreshed["metrics"] == {"views": 100, "likes": 5, "comments": 1, "shares": 2, "saves": None}
@@ -808,6 +818,196 @@ async def test_platform_rejection_clears_handle_so_retry_uploads_again(service, 
     result = await service.publish_post(post["id"])
     assert result["status"] == "published"
     assert len(provider.publish_calls) == 2
+
+
+# ----------------------------------------------------------------------
+# Media storage (production stores clips as s3:// references)
+# ----------------------------------------------------------------------
+class SignedMemoryS3(MemoryS3):
+    def __init__(self):
+        super().__init__()
+        self.presigned = []
+
+    def generate_presigned_url(self, operation, Params, ExpiresIn):
+        self.presigned.append((operation, Params, ExpiresIn))
+        return f"https://bucket.example/{Params['Key']}?X-Amz-Signature=sig"
+
+
+class FakeInstagram(FakeProvider):
+    name = "instagram"
+    needs_local_file = False
+
+
+@pytest.fixture
+def s3_service(service, tmp_path):
+    config = Config()
+    config.media_storage = "s3"
+    config.media_s3_bucket = "private-media"
+    config.temp_dir = str(tmp_path / "temp")
+    storage = MediaStorage(config, SignedMemoryS3())
+    key = storage.key("clips", "task-1", "render-1", "clip.mp4")
+    storage.client.objects[key] = b"s3 video bytes"
+    service.storage = storage
+    service.clip_repo.clips["clip-1"]["file_path"] = storage.reference(key)
+    return service
+
+
+@pytest.mark.asyncio
+async def test_s3_clip_is_downloaded_to_a_leased_copy_for_uploads(s3_service, provider):
+    post = await _queued_post(s3_service)
+    seen = {}
+
+    def publish(access_token, request):
+        # The leased copy exists for the whole upload.
+        seen["bytes"] = Path(request.file_path).read_bytes()
+        seen["path"] = request.file_path
+        return PublishResult("ext-s3", None)
+
+    provider.publish = publish
+    published = await s3_service.publish_post(post["id"])
+    assert published["status"] == "published"
+    assert seen["bytes"] == b"s3 video bytes"
+    assert "media-cache" in seen["path"]
+
+
+@pytest.mark.asyncio
+async def test_instagram_gets_a_long_lived_presigned_url_for_s3_clips(s3_service, monkeypatch):
+    instagram = FakeInstagram()
+    monkeypatch.setattr(social_module, "get_provider", lambda name, config=None: instagram)
+    post = await _queued_post(s3_service, privacy="public")
+    published = await s3_service.publish_post(post["id"])
+    assert published["status"] == "published"
+    request = instagram.publish_calls[0][1]
+    assert request.public_media_url.startswith("https://bucket.example/")
+    (operation, params, expires), = s3_service.storage.client.presigned
+    assert operation == "get_object"
+    assert expires == social_module.PUBLIC_MEDIA_URL_TTL_SECONDS >= 3600
+    assert params["Key"].endswith("render-1/clip.mp4")
+    # Nothing was downloaded for a platform that pulls the URL itself.
+    assert not (Path(s3_service.storage.config.temp_dir) / "media-cache").exists()
+
+    # The token-gated route redirects to S3 for the same render.
+    reference = await s3_service.get_public_media_reference(post["media_token"])
+    assert reference == s3_service.clip_repo.clips["clip-1"]["file_path"]
+
+
+@pytest.mark.asyncio
+async def test_publish_uses_the_clips_current_render(s3_service, provider):
+    post = await _queued_post(s3_service)
+    storage = s3_service.storage
+    edited = storage.key("clips", "task-1", "render-2", "clip.mp4")
+    storage.client.objects[edited] = b"edited render"
+    s3_service.clip_repo.clips["clip-1"]["file_path"] = storage.reference(edited)
+    seen = []
+    provider.publish = lambda token, request: (
+        seen.append(Path(request.file_path).read_bytes()) or PublishResult("ext", None)
+    )
+    published = await s3_service.publish_post(post["id"])
+    assert seen == [b"edited render"]
+    assert published["source_file_path"] == storage.reference(edited)
+
+
+@pytest.mark.asyncio
+async def test_missing_s3_render_fails_without_retry(s3_service, provider):
+    post = await _queued_post(s3_service)
+    s3_service.storage.client.objects.clear()
+    failed = await s3_service.publish_post(post["id"])
+    assert failed["status"] == "failed"
+    assert "no longer exists" in failed["error_message"]
+    assert provider.publish_calls == []
+
+    with pytest.raises(SocialValidationError, match="missing"):
+        await _queued_post(s3_service)
+
+
+@pytest.mark.asyncio
+async def test_s3_outage_is_retryable_and_blocks_new_posts(s3_service, provider):
+    post = await _queued_post(s3_service)
+
+    def unavailable(*args, **kwargs):
+        raise ClientError({"Error": {"Code": "SlowDown"}}, "GetObject")
+
+    s3_service.storage.client.download_file = unavailable
+    retrying = await s3_service.publish_post(post["id"])
+    assert retrying["status"] == "queued"
+    assert "temporarily unavailable" in retrying["error_message"]
+
+    s3_service.storage.client.head_object = unavailable
+    with pytest.raises(social_module.SocialProviderUnavailable):
+        await _queued_post(s3_service)
+
+
+@pytest.mark.asyncio
+async def test_deleted_clip_fails_the_post(service, provider):
+    post = await _queued_post(service)
+    service.repo.posts[post["id"]]["clip_id"] = None
+    failed = await service.publish_post(post["id"])
+    assert failed["status"] == "failed"
+    assert "deleted" in failed["error_message"]
+    assert provider.publish_calls == []
+
+
+@pytest.mark.asyncio
+async def test_public_media_route_redirects_s3_and_streams_local(tmp_path, monkeypatch):
+    from fastapi import FastAPI
+    from httpx import ASGITransport, AsyncClient
+    from unittest.mock import AsyncMock
+
+    from src.api.routes import social as social_routes
+    from src.database import get_db
+
+    local = tmp_path / "clip.mp4"
+    local.write_bytes(b"local bytes")
+    references = {"s3tok": "s3://private-media/media/clips/t/r/clip.mp4", "localtok": str(local)}
+
+    class RouteService:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def get_public_media_reference(self, token):
+            return references.get(token)
+
+        def public_media_redirect_url(self, reference):
+            return "https://bucket.example/signed"
+
+    monkeypatch.setattr(social_routes, "SocialService", RouteService)
+    app = FastAPI()
+    app.include_router(social_routes.router)
+    app.dependency_overrides[get_db] = lambda: SimpleNamespace(close=AsyncMock())
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
+        redirected = await http.get("/social/media/s3tok")
+        assert redirected.status_code == 307
+        assert redirected.headers["location"] == "https://bucket.example/signed"
+        streamed = await http.get("/social/media/localtok")
+        assert streamed.status_code == 200
+        assert streamed.content == b"local bytes"
+        assert (await http.get("/social/media/unknown")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_clip_deletion_tolerates_missing_social_tables():
+    from contextlib import asynccontextmanager
+
+    from sqlalchemy.exc import ProgrammingError
+
+    from src.repositories.social_repository import SocialRepository
+
+    class Orig(Exception):
+        sqlstate = "42P01"
+
+    class Db:
+        @asynccontextmanager
+        async def begin_nested(self):
+            yield
+
+        async def execute(self, *args, **kwargs):
+            raise ProgrammingError("UPDATE social_posts", {}, Orig())
+
+    # A worker running before the API migrated must still delete clips.
+    await SocialRepository.cancel_unpublished_for_clips(Db(), task_id="task-1")
+    Orig.sqlstate = "42601"
+    with pytest.raises(ProgrammingError):
+        await SocialRepository.cancel_unpublished_for_clips(Db(), clip_id="clip-1")
 
 
 # ----------------------------------------------------------------------

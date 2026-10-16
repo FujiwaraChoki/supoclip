@@ -10,16 +10,19 @@ programmatic clients (MCP, scripts) can publish too.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...auth_headers import get_authenticated_user_id, resolve_authenticated_user_id
 from ...config import get_config
 from ...database import get_db
+from ...media_storage import is_s3
 from ...services.social_service import SocialError, SocialService
+from ...utils.async_helpers import run_in_thread
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/social", tags=["social"])
@@ -225,11 +228,16 @@ async def get_public_media(
     media_token: str, request: Request, db: AsyncSession = Depends(get_db, scope="function")
 ):
     """Serve a clip to a platform using a short-lived, unguessable token."""
-    path = await _service(request, db).get_public_media_path(media_token)
-    if path is None:
+    service = _service(request, db)
+    reference = await service.get_public_media_reference(media_token)
+    if reference is None:
         raise HTTPException(status_code=404, detail="Media not found")
     # Release the session before streaming (see get_clip_file in tasks.py).
     await db.close()
+    if is_s3(reference):
+        url = await run_in_thread(service.public_media_redirect_url, reference)
+        return RedirectResponse(url, status_code=307, headers={"Cache-Control": "private, no-store"})
+    path = Path(reference)
     return FileResponse(
         path=str(path),
         media_type="video/mp4",

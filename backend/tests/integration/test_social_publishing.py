@@ -3,7 +3,9 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import text
 
+from src.media_storage import MediaStorage
 from src.services import social_service
+from src.workers.media_cleanup import reference_index, referenced
 from src.services.social_service import SocialService
 from src.social.base import PublishResult, SocialProviderError
 from tests.fixtures.factories import create_clip, create_source, create_task, create_user
@@ -219,3 +221,80 @@ async def test_stale_publishing_sweep_with_real_repository(
     assert provider.publish_calls == []
     # Failed posts stay dismissable.
     assert (await client.delete(f"/social/posts/{stale}", headers=auth_headers)).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_deleting_a_clip_or_task_cancels_its_unpublished_posts(
+    social_setup, client, db_session, auth_headers,
+):
+    provider, payload = social_setup
+    scheduled_payload = {
+        **payload,
+        "scheduled_for": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+    }
+    scheduled = (await client.post("/social/posts", headers=auth_headers, json=scheduled_payload)).json()["post"]
+    queued = (await client.post("/social/posts", headers=auth_headers, json=payload)).json()["post"]
+    published = (await client.post("/social/posts", headers=auth_headers, json=payload)).json()["post"]
+    service = SocialService(db_session, queue_adapter=FakeQueue())
+    await service.publish_post(published["id"])
+
+    deleted = await client.delete(
+        f"/tasks/{payload['task_id']}/clips/{payload['clip_id']}", headers=auth_headers
+    )
+    assert deleted.status_code == 200
+    for post_id in (scheduled["id"], queued["id"]):
+        post = await service.get_post("user-1", post_id)
+        assert post["status"] == "cancelled"
+        assert post["error_message"] == "The clip was deleted before publishing."
+    # Published history survives the clip (clip_id is nulled by the FK).
+    kept = await service.get_post("user-1", published["id"])
+    assert kept["status"] == "published"
+    assert kept["clip_id"] is None
+    # A queued job that runs anyway cannot claim a cancelled post.
+    assert (await service.publish_post(queued["id"]))["status"] == "cancelled"
+    assert len(provider.publish_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_task_deletion_cancels_scheduled_posts(
+    social_setup, client, db_session, auth_headers,
+):
+    _, payload = social_setup
+    payload["scheduled_for"] = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    post = (await client.post("/social/posts", headers=auth_headers, json=payload)).json()["post"]
+    assert (await client.delete(f"/tasks/{payload['task_id']}", headers=auth_headers)).status_code == 200
+    service = SocialService(db_session, queue_adapter=FakeQueue())
+    detail = await service.get_post("user-1", post["id"])
+    assert detail["status"] == "cancelled"
+    assert detail["task_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_claim_publishes_current_render_and_cleanup_keeps_it(
+    social_setup, client, db_session, auth_headers, tmp_path,
+):
+    _, payload = social_setup
+    post = (await client.post("/social/posts", headers=auth_headers, json=payload)).json()["post"]
+    edited = tmp_path / "edited.mp4"
+    edited.write_bytes(b"edited")
+    await db_session.execute(
+        text("UPDATE generated_clips SET file_path = :path WHERE id = :id"),
+        {"path": str(edited), "id": payload["clip_id"]},
+    )
+    await db_session.commit()
+    service = SocialService(db_session, queue_adapter=FakeQueue())
+    claimed = await service.repo.claim_post(db_session, post["id"], media_token_expires_at=None)
+    assert claimed["source_file_path"] == str(edited)
+
+    # The clip is edited again while the upload runs: the old render is kept.
+    await db_session.execute(
+        text("UPDATE generated_clips SET file_path = '/tmp/newer.mp4' WHERE id = :id"),
+        {"id": payload["clip_id"]},
+    )
+    await db_session.commit()
+    storage = MediaStorage()
+    assert await referenced(db_session, str(edited), storage)
+    assert str(edited) in (await reference_index(db_session, storage))["clips"]
+
+    await service.repo.update_post(db_session, post["id"], status="published")
+    assert not await referenced(db_session, str(edited), storage)

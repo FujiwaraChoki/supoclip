@@ -61,6 +61,7 @@ class InstagramProvider(SocialProvider):
     name = "instagram"
     display_name = "Instagram Reels"
     supported_privacy_levels = ("public",)
+    needs_local_file = False
 
     def __init__(self, config: Optional[Config] = None, session=None, sleep=time.sleep):
         super().__init__(session)

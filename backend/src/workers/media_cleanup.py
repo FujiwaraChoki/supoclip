@@ -35,6 +35,11 @@ async def reference_index(db, storage):
     rows = list(rows)
     editors = {editor_dir(storage.config.temp_dir, row.task_id, row.id, row.filename).name for row in rows}
     clips = {row.file_path for row in rows}
+    # A post being published may still upload a render the clip already replaced.
+    rows = await db.execute(text(
+        "SELECT source_file_path FROM social_posts WHERE status = 'publishing' AND source_file_path IS NOT NULL"
+    ))
+    clips |= {row.source_file_path for row in rows}
     rows = await db.execute(text("SELECT DISTINCT s.url, s.type FROM sources s JOIN tasks t ON t.source_id = s.id"))
     rows = list(rows)
     sources = {row.url for row in rows}
@@ -68,6 +73,7 @@ async def referenced(db, reference: str, storage: MediaStorage, *, prefix=False,
     result = await db.execute(text("""
         SELECT EXISTS(SELECT 1 FROM generated_clips WHERE file_path = :path)
             OR EXISTS(SELECT 1 FROM sources s JOIN tasks t ON t.source_id = s.id WHERE s.url = :url)
+            OR EXISTS(SELECT 1 FROM social_posts WHERE status = 'publishing' AND source_file_path = :path)
     """), {"path": reference, "url": url})
     return bool(result.scalar())
 
