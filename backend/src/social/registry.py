@@ -44,6 +44,7 @@ def list_provider_status(config: Optional[Config] = None) -> List[Dict[str, Any]
                 "display_name": provider.display_name,
                 "configured": provider.is_configured,
                 "supported_privacy_levels": list(provider.supported_privacy_levels),
+                "default_privacy_level": provider.default_privacy_level,
                 "setup_hint": None if provider.is_configured else PROVIDER_SETUP_HINTS[name],
             }
         )

@@ -132,6 +132,8 @@ def test_youtube_publish_uses_resumable_upload(clip_file):
     assert result.external_url == "https://www.youtube.com/shorts/vid123"
 
     init_call = session.calls[0]
+    put_call = session.calls[1]
+    assert put_call[2]["headers"]["Authorization"] == "Bearer token"
     body = init_call[2]["json"]
     assert body["status"]["privacyStatus"] == "unlisted"
     assert "#Shorts" in body["snippet"]["description"]
@@ -545,3 +547,45 @@ def test_instagram_has_no_revocation_endpoint():
     session = FakeSession({})
     assert InstagramProvider(_config(), session=session).revoke_tokens("token", "token") is False
     assert session.calls == []
+
+
+def test_tiktok_offers_public_and_private_only_and_defaults_to_private():
+    provider = TikTokProvider(_config(), session=FakeSession({}))
+    assert provider.supported_privacy_levels == ("public", "private")
+    assert provider.default_privacy_level == "private"
+    statuses = {row["provider"]: row for row in list_provider_status(_config())}
+    assert statuses["tiktok"]["supported_privacy_levels"] == ["public", "private"]
+    assert statuses["tiktok"]["default_privacy_level"] == "private"
+    assert statuses["youtube"]["default_privacy_level"] == "public"
+
+
+def test_tiktok_allowed_levels_are_named_readably(clip_file):
+    session = FakeSession({
+        ("POST", "creator_info/query"): FakeResponse(
+            200,
+            {"data": {"privacy_level_options": ["MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"]}, "error": {"code": "ok"}},
+        )
+    })
+    from src.social.base import PublishRequest
+
+    with pytest.raises(SocialProviderError) as exc:
+        TikTokProvider(_config(), session=session).publish(
+            "token",
+            PublishRequest(file_path=clip_file, title="t", caption="c", hashtags=[], privacy_level="public"),
+        )
+    assert "Allowed: friends, private" in str(exc.value)
+
+
+def test_tiktok_profile_only_requests_basic_scope_fields():
+    session = FakeSession({
+        ("GET", "/user/info/"): FakeResponse(
+            200,
+            {"data": {"user": {"open_id": "o1", "display_name": "Creator"}}, "error": {"code": "ok"}},
+        )
+    })
+    profile = TikTokProvider(_config(), session=session).fetch_profile("token")
+    fields = session.calls[0][2]["params"]["fields"].split(",")
+    assert "username" not in fields
+    assert profile.external_account_id == "o1"
+    assert profile.display_name == "Creator"
+    assert profile.username is None

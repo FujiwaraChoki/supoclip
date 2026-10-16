@@ -855,6 +855,34 @@ async def test_outcome_unknown_failure_is_never_retried_automatically(service, p
     assert len(provider.publish_calls) == 2
 
 
+@pytest.mark.asyncio
+async def test_post_privacy_defaults_to_the_providers_default(service, provider, monkeypatch):
+    account = await _connect(service)
+    monkeypatch.setattr(type(provider), "default_privacy_level", "private", raising=False)
+    post = await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title="t", caption="c", hashtags=[], privacy_level=None, scheduled_for=None,
+    )
+    assert post["privacy_level"] == "private"
+
+    monkeypatch.setattr(type(provider), "supported_privacy_levels", ("public", "private"))
+    with pytest.raises(SocialValidationError, match="only supports"):
+        await service.create_post(
+            "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+            title="t", caption="c", hashtags=[], privacy_level="unlisted", scheduled_for=None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_metrics_share_url_fills_a_missing_post_link(service, provider):
+    post = await _queued_post(service)
+    published = await service.publish_post(post["id"])
+    service.repo.posts[post["id"]]["external_url"] = None
+    provider.metrics = PostMetrics(views=1, raw={"share_url": "https://www.tiktok.com/@c/video/1"})
+    refreshed = await service.refresh_post_metrics({**published, "external_url": None})
+    assert refreshed["external_url"] == "https://www.tiktok.com/@c/video/1"
+
+
 # ----------------------------------------------------------------------
 # Credential redaction
 # ----------------------------------------------------------------------

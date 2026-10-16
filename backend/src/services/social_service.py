@@ -334,7 +334,7 @@ class SocialService:
             )
         provider = self._provider(account["provider"])
 
-        normalized_privacy = (privacy_level or "public").strip().lower()
+        normalized_privacy = (privacy_level or provider.default_privacy_level).strip().lower()
         if normalized_privacy not in PRIVACY_LEVELS:
             raise SocialValidationError(
                 f"privacy_level must be one of: {', '.join(PRIVACY_LEVELS)}"
@@ -824,6 +824,11 @@ class SocialService:
                 )
             raise SocialValidationError(str(exc)) from exc
         await self.repo.insert_metrics(self.db, post["id"], metrics.as_dict(), metrics.raw)
+        share_url = (metrics.raw or {}).get("share_url")
+        if not post.get("external_url") and isinstance(share_url, str) and share_url.startswith("https://"):
+            # TikTok post links need the creator's handle, which we can't read;
+            # the video query returns a canonical share link instead.
+            await self.repo.update_post(self.db, post["id"], external_url=share_url)
         refreshed = await self.repo.get_post(self.db, post["id"]) or post
         return refreshed
 

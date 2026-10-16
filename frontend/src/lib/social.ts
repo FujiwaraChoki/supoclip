@@ -15,6 +15,7 @@ export interface SocialProviderStatus {
   display_name: string;
   configured: boolean;
   supported_privacy_levels: SocialPrivacyLevel[];
+  default_privacy_level?: SocialPrivacyLevel;
   setup_hint: string | null;
 }
 
@@ -120,7 +121,7 @@ export const PROVIDER_LABELS: Record<SocialProviderId, string> = {
 
 export const PRIVACY_LABELS: Record<SocialPrivacyLevel, string> = {
   public: "Public",
-  unlisted: "Unlisted / friends",
+  unlisted: "Unlisted",
   private: "Private (only me)",
 };
 

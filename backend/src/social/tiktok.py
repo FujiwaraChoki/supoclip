@@ -8,7 +8,9 @@ Metrics: ``/v2/video/query/`` (requires the ``video.list`` scope).
 
 Unaudited TikTok apps can only post with ``SELF_ONLY`` visibility and to a
 handful of accounts per day; the creator-info query tells us which privacy
-levels the connected account is allowed to use.
+levels the connected account is allowed to use. TikTok has no "unlisted"
+equivalent (friends-only is a different audience), so only public and
+private are offered.
 """
 
 from __future__ import annotations
@@ -46,10 +48,15 @@ SCOPES = ("user.info.basic", "video.publish", "video.list")
 
 PRIVACY_MAP = {
     "public": "PUBLIC_TO_EVERYONE",
-    "unlisted": "MUTUAL_FOLLOW_FRIENDS",
     "private": "SELF_ONLY",
 }
-PRIVACY_LABELS = {value: key for key, value in PRIVACY_MAP.items()}
+# Readable names for every level creator_info may report as allowed.
+PRIVACY_LABELS = {
+    "PUBLIC_TO_EVERYONE": "public",
+    "SELF_ONLY": "private",
+    "MUTUAL_FOLLOW_FRIENDS": "friends",
+    "FOLLOWER_OF_CREATOR": "followers",
+}
 
 TITLE_MAX_LENGTH = 2200
 # TikTok accepts 5 MB - 64 MB chunks (the final chunk may be larger). A single
@@ -63,6 +70,9 @@ TERMINAL_FAILURE_STATUSES = {"FAILED"}
 class TikTokProvider(SocialProvider):
     name = "tiktok"
     display_name = "TikTok"
+    supported_privacy_levels = ("public", "private")
+    # Unaudited apps (every app until TikTok reviews it) can only post privately.
+    default_privacy_level = "private"
 
     def __init__(self, config: Optional[Config] = None, session=None):
         super().__init__(session)
@@ -189,7 +199,8 @@ class TikTokProvider(SocialProvider):
     def fetch_profile(self, access_token: str) -> AccountProfile:
         response = self.http.get(
             f"{API_BASE}/user/info/",
-            params={"fields": "open_id,union_id,avatar_url,display_name,username"},
+            # ``username`` needs the user.info.profile scope, which we don't request.
+            params={"fields": "open_id,union_id,avatar_url,display_name"},
             headers=self._auth_headers(access_token),
             timeout=DEFAULT_HTTP_TIMEOUT,
         )
@@ -202,7 +213,7 @@ class TikTokProvider(SocialProvider):
         return AccountProfile(
             external_account_id=open_id,
             display_name=user.get("display_name"),
-            username=user.get("username"),
+            username=None,
             avatar_url=user.get("avatar_url"),
             metadata={"open_id": open_id, "union_id": user.get("union_id")},
         )

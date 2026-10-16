@@ -146,6 +146,8 @@ class SocialProvider(ABC):
     display_name: str = ""
     # Which normalized privacy levels the platform supports at all.
     supported_privacy_levels: tuple[str, ...] = PRIVACY_LEVELS
+    # Used when a post does not specify a privacy level.
+    default_privacy_level: str = "public"
     # False for platforms that fetch ``PublishRequest.public_media_url``
     # themselves instead of receiving an upload (Instagram).
     needs_local_file: bool = True

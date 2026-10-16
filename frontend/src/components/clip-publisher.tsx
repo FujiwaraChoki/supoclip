@@ -253,7 +253,7 @@ export function ClipPublishButton({
   const [title, setTitle] = useState("");
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
-  const [privacy, setPrivacy] = useState<SocialPrivacyLevel>("public");
+  const [privacy, setPrivacy] = useState<SocialPrivacyLevel>("private");
   const [schedule, setSchedule] = useState(false);
   const [scheduledFor, setScheduledFor] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -271,6 +271,11 @@ export function ClipPublishButton({
     () => selectedProvider?.supported_privacy_levels ?? ["public", "unlisted", "private"],
     [selectedProvider],
   );
+  const providerDefault = selectedProvider?.default_privacy_level;
+  const defaultPrivacy: SocialPrivacyLevel =
+    providerDefault && privacyOptions.includes(providerDefault)
+      ? providerDefault
+      : (privacyOptions[0] ?? "private");
   const anyProviderConfigured = providers.some((provider) => provider.configured);
 
   useEffect(() => {
@@ -286,11 +291,11 @@ export function ClipPublishButton({
     }
   }, [open, clip.hook_title, clip.clip_order, clip.text, accountId, activeConnections]);
 
+  // Each platform starts at its own default (TikTok: private, since unaudited
+  // apps cannot post publicly).
   useEffect(() => {
-    if (!privacyOptions.includes(privacy)) {
-      setPrivacy(privacyOptions[0] ?? "public");
-    }
-  }, [privacy, privacyOptions]);
+    setPrivacy(defaultPrivacy);
+  }, [selectedConnection?.provider, defaultPrivacy]);
 
   const handleSubmit = async () => {
     if (!accountId) {

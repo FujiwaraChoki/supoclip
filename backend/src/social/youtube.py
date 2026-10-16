@@ -232,6 +232,7 @@ class YouTubeProvider(SocialProvider):
                     upload_url,
                     data=handle,
                     headers={
+                        **self._auth_headers(access_token),
                         "Content-Type": "video/mp4",
                         "Content-Length": str(file_size),
                     },
