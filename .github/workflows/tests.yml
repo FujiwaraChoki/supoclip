@@ -59,6 +59,19 @@ jobs:
       - name: Run backend tests
         run: cd backend && .venv/bin/pytest
 
+  downloader:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v4
+      - name: Install downloader dependencies
+        run: cd ytdl && uv sync --locked --all-groups
+      - name: Run downloader unit tests
+        run: cd ytdl && .venv/bin/pytest -q
+
   frontend:
     runs-on: ubuntu-latest
     env:
@@ -87,6 +100,7 @@ jobs:
     needs:
       - backend
       - frontend
+      - downloader
     services:
       postgres:
         image: postgres:15-alpine
