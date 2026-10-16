@@ -36,7 +36,7 @@ from ..social import (
     get_provider,
     list_provider_status,
 )
-from ..social.base import PRIVACY_LEVELS, redact, redacted_errors
+from ..social.base import OUTCOME_UNKNOWN_MESSAGE, PRIVACY_LEVELS, redact, redacted_errors
 from ..utils.async_helpers import run_in_thread
 from ..workers.job_queue import DuplicateJobError, JobQueue
 
@@ -55,7 +55,6 @@ PUBLISH_JOB_TIMEOUT_SECONDS = 3600
 # claim lost its worker (crash, deploy, timeout). Comfortably above the job
 # timeout so a live upload is never swept.
 STALE_PUBLISHING_SECONDS = 2 * PUBLISH_JOB_TIMEOUT_SECONDS
-OUTCOME_UNKNOWN_MESSAGE = "Upload outcome unknown; check your account before retrying."
 MAX_HASHTAGS = 30
 MAX_TITLE_LENGTH = 255
 MAX_CAPTION_LENGTH = 2200
@@ -631,9 +630,12 @@ class SocialService:
         # A definitive platform failure kills the pending upload, so an explicit
         # retry uploads again. Otherwise the handle (if any) is kept.
         handle_fields: Dict[str, Any] = {"pending_handle": None} if exc.rejected else {}
+        # An unknown outcome may already be live on the platform: only the
+        # user, after checking their account, may upload it again.
         can_retry = (
             exc.retryable
             and not exc.reauth
+            and not exc.outcome_unknown
             and attempts < max(1, self.config.social_publish_max_attempts)
         )
         if can_retry:

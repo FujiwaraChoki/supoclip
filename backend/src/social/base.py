@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from functools import wraps
-from typing import Any, Callable, Dict, List, Optional, TypeVar
+from typing import Any, Callable, Dict, Iterator, List, Optional, TypeVar
 
 import requests
 
@@ -21,6 +22,8 @@ SUPPORTED_PROVIDERS = ("youtube", "tiktok", "instagram")
 PRIVACY_LEVELS = ("public", "unlisted", "private")
 
 DEFAULT_HTTP_TIMEOUT = 60
+
+OUTCOME_UNKNOWN_MESSAGE = "Upload outcome unknown; check your account before retrying."
 
 # Credentials that can appear in provider URLs, error bodies or exception
 # messages (requests puts the full request URL into connection errors).
@@ -54,6 +57,7 @@ class SocialProviderError(Exception):
         retryable: bool = False,
         reauth: bool = False,
         rejected: bool = False,
+        outcome_unknown: bool = False,
     ):
         # Messages reach logs, the database and API responses.
         super().__init__(redact(message))
@@ -64,6 +68,10 @@ class SocialProviderError(Exception):
         # ``rejected`` means the platform definitively failed an upload it had
         # accepted. Its pending handle is dead, so a retry must upload again.
         self.rejected = rejected
+        # ``outcome_unknown`` means the platform may already have the post
+        # (e.g. a timeout after the video was sent). Retrying automatically
+        # could publish it twice, so only the user may retry.
+        self.outcome_unknown = outcome_unknown
 
 
 @dataclass
@@ -237,6 +245,28 @@ def build_caption(caption: str, hashtags: List[str], max_length: int) -> str:
 
 
 T = TypeVar("T")
+
+
+@contextmanager
+def ambiguous_outcome(action: str) -> Iterator[None]:
+    """
+    Mark the request after which the platform may already have the post.
+
+    A timeout or dropped connection here does not mean the request failed:
+    the platform may have received it and created the post. Such failures are
+    reported as an unknown outcome instead of being retried automatically.
+    A connect timeout is safe to retry because nothing was sent.
+    """
+    try:
+        yield
+    except requests.ConnectTimeout:
+        raise
+    except requests.RequestException as exc:
+        raise SocialProviderError(
+            f"Lost contact with the platform while trying to {action} "
+            f"({type(exc).__name__}). {OUTCOME_UNKNOWN_MESSAGE}",
+            outcome_unknown=True,
+        ) from None
 
 
 def redacted_errors(func: Callable[..., T]) -> Callable[..., T]:

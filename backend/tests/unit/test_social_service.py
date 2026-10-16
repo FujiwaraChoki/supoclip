@@ -821,6 +821,26 @@ async def test_platform_rejection_clears_handle_so_retry_uploads_again(service, 
     assert len(provider.publish_calls) == 2
 
 
+@pytest.mark.asyncio
+async def test_outcome_unknown_failure_is_never_retried_automatically(service, provider):
+    post = await _queued_post(service)
+    jobs_before = len(service.queue_adapter.jobs)
+    provider.publish_error = SocialProviderError(
+        "Lost contact while uploading. Upload outcome unknown; check your account before retrying.",
+        outcome_unknown=True,
+        retryable=True,
+    )
+    failed = await service.publish_post(post["id"])
+    assert failed["status"] == "failed"
+    assert "outcome unknown" in failed["error_message"]
+    assert len(service.queue_adapter.jobs) == jobs_before
+    # The user may still decide to upload again.
+    provider.publish_error = None
+    await service.retry_post("user-1", post["id"])
+    assert (await service.publish_post(post["id"]))["status"] == "published"
+    assert len(provider.publish_calls) == 2
+
+
 # ----------------------------------------------------------------------
 # Credential redaction
 # ----------------------------------------------------------------------

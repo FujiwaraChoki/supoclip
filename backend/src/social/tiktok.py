@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
@@ -30,6 +31,7 @@ from .base import (
     PublishResult,
     SocialProvider,
     SocialProviderError,
+    ambiguous_outcome,
     build_caption,
 )
 
@@ -275,16 +277,20 @@ class TikTokProvider(SocialProvider):
                 end = file_size - 1 if is_last else start + chunk_size - 1
                 handle.seek(start)
                 blob = handle.read(end - start + 1)
-                response = self.http.put(
-                    upload_url,
-                    data=blob,
-                    headers={
-                        "Content-Type": "video/mp4",
-                        "Content-Length": str(len(blob)),
-                        "Content-Range": f"bytes {start}-{end}/{file_size}",
-                    },
-                    timeout=max(DEFAULT_HTTP_TIMEOUT, 900),
-                )
+                # TikTok publishes once the final chunk lands, even if its
+                # response is lost. Earlier chunks leave an incomplete upload.
+                guard = ambiguous_outcome("upload the video to TikTok") if is_last else nullcontext()
+                with guard:
+                    response = self.http.put(
+                        upload_url,
+                        data=blob,
+                        headers={
+                            "Content-Type": "video/mp4",
+                            "Content-Length": str(len(blob)),
+                            "Content-Range": f"bytes {start}-{end}/{file_size}",
+                        },
+                        timeout=max(DEFAULT_HTTP_TIMEOUT, 900),
+                    )
                 if response.status_code not in (200, 201, 206):
                     raise SocialProviderError(
                         f"TikTok chunk upload failed (HTTP {response.status_code}): "

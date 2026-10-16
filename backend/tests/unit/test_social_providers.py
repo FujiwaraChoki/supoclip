@@ -399,3 +399,106 @@ def test_instagram_token_endpoint_failures_are_redacted():
     assert "IGQVJlong-lived-secret" not in str(exc.value)
     assert exc.value.retryable is True
     assert exc.value.__suppress_context__ is True
+
+
+# ----------------------------------------------------------------------
+# Ambiguous network failures (the platform may already have the post)
+# ----------------------------------------------------------------------
+class RaisingSession(FakeSession):
+    """FakeSession whose routes may be exceptions to raise."""
+
+    def _dispatch(self, method, url, **kwargs):
+        response = super()._dispatch(method, url, **kwargs)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+
+def _request(clip_file, **overrides):
+    from src.social.base import PublishRequest
+
+    fields = dict(file_path=clip_file, title="t", caption="c", hashtags=[], privacy_level="private")
+    fields.update(overrides)
+    return PublishRequest(**fields)
+
+
+def _publish(provider, request):
+    from src.social.base import redacted_errors
+
+    return redacted_errors(provider.publish)("token", request)
+
+
+def test_youtube_timeout_after_sending_the_video_is_outcome_unknown(clip_file):
+    import requests
+
+    def session(put_error):
+        return RaisingSession({
+            ("POST", "upload/youtube/v3/videos"): FakeResponse(
+                200, {}, headers={"Location": "https://upload.example/session"}
+            ),
+            ("PUT", "upload.example/session"): put_error,
+        })
+
+    with pytest.raises(SocialProviderError) as exc:
+        _publish(YouTubeProvider(_config(), session=session(requests.ReadTimeout("slow"))), _request(clip_file))
+    assert exc.value.outcome_unknown is True
+    assert exc.value.retryable is False
+    assert "outcome unknown" in str(exc.value)
+
+    # Never connected: nothing was sent, so a retry is safe.
+    with pytest.raises(SocialProviderError) as exc:
+        _publish(YouTubeProvider(_config(), session=session(requests.ConnectTimeout("no route"))), _request(clip_file))
+    assert exc.value.outcome_unknown is False
+    assert exc.value.retryable is True
+
+    # A failure before the upload (session start) stays retryable.
+    early = RaisingSession({("POST", "upload/youtube/v3/videos"): requests.ReadTimeout("slow")})
+    with pytest.raises(SocialProviderError) as exc:
+        _publish(YouTubeProvider(_config(), session=early), _request(clip_file))
+    assert exc.value.outcome_unknown is False
+    assert exc.value.retryable is True
+
+
+def test_instagram_timeout_on_media_publish_is_outcome_unknown(clip_file):
+    import requests
+
+    def session(**routes):
+        return RaisingSession({
+            ("POST", "/me/media_publish"): routes.get("publish", FakeResponse(200, {"id": "m"})),
+            ("POST", "/me/media"): routes.get("create", FakeResponse(200, {"id": "container-1"})),
+            ("GET", "/container-1"): FakeResponse(200, {"status_code": "FINISHED"}),
+        })
+
+    request = _request(clip_file, privacy_level="public", public_media_url="https://media/x")
+    provider = InstagramProvider(
+        _config(), session=session(publish=requests.ConnectionError("reset")), sleep=lambda _: None
+    )
+    with pytest.raises(SocialProviderError) as exc:
+        _publish(provider, request)
+    assert exc.value.outcome_unknown is True
+
+    provider = InstagramProvider(
+        _config(), session=session(create=requests.ReadTimeout("slow")), sleep=lambda _: None
+    )
+    with pytest.raises(SocialProviderError) as exc:
+        _publish(provider, request)
+    assert exc.value.outcome_unknown is False
+    assert exc.value.retryable is True
+
+
+def test_tiktok_timeout_on_final_chunk_is_outcome_unknown(clip_file):
+    import requests
+
+    session = RaisingSession({
+        ("POST", "creator_info/query"): FakeResponse(
+            200, {"data": {"privacy_level_options": ["SELF_ONLY"]}, "error": {"code": "ok"}}
+        ),
+        ("POST", "video/init"): FakeResponse(
+            200,
+            {"data": {"publish_id": "pub-1", "upload_url": "https://upload.tiktok/x"}, "error": {"code": "ok"}},
+        ),
+        ("PUT", "upload.tiktok/x"): requests.ReadTimeout("slow"),
+    })
+    with pytest.raises(SocialProviderError) as exc:
+        _publish(TikTokProvider(_config(), session=session), _request(clip_file))
+    assert exc.value.outcome_unknown is True

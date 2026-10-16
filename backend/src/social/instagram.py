@@ -30,6 +30,7 @@ from .base import (
     PublishResult,
     SocialProvider,
     SocialProviderError,
+    ambiguous_outcome,
     build_caption,
 )
 
@@ -218,14 +219,17 @@ class InstagramProvider(SocialProvider):
 
         self._wait_for_container(access_token, container_id)
 
-        publish_response = self.http.post(
-            f"{GRAPH_API}/me/media_publish",
-            data={"creation_id": container_id},
-            headers=self._auth_headers(access_token),
-            timeout=DEFAULT_HTTP_TIMEOUT,
-        )
-        self._raise_for_status(publish_response, "publish the Instagram reel")
-        media_id = publish_response.json().get("id")
+        # The container is harmless until published; media_publish may create
+        # the reel even if its response is lost.
+        with ambiguous_outcome("publish the Instagram reel"):
+            publish_response = self.http.post(
+                f"{GRAPH_API}/me/media_publish",
+                data={"creation_id": container_id},
+                headers=self._auth_headers(access_token),
+                timeout=DEFAULT_HTTP_TIMEOUT,
+            )
+            self._raise_for_status(publish_response, "publish the Instagram reel")
+            media_id = publish_response.json().get("id")
         if not media_id:
             raise SocialProviderError("Instagram publish finished without a media id")
 

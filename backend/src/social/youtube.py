@@ -24,6 +24,7 @@ from .base import (
     PublishResult,
     SocialProvider,
     SocialProviderError,
+    ambiguous_outcome,
     build_caption,
 )
 
@@ -203,18 +204,21 @@ class YouTubeProvider(SocialProvider):
         if not upload_url:
             raise SocialProviderError("YouTube did not return an upload session URL")
 
-        with open(request.file_path, "rb") as handle:
-            upload_response = self.http.put(
-                upload_url,
-                data=handle,
-                headers={
-                    "Content-Type": "video/mp4",
-                    "Content-Length": str(file_size),
-                },
-                timeout=max(DEFAULT_HTTP_TIMEOUT, 900),
-            )
-        self._raise_for_status(upload_response, "upload the video to YouTube")
-        payload = upload_response.json()
+        # Once the bytes are sent YouTube may create the video even if the
+        # response never arrives.
+        with ambiguous_outcome("upload the video to YouTube"):
+            with open(request.file_path, "rb") as handle:
+                upload_response = self.http.put(
+                    upload_url,
+                    data=handle,
+                    headers={
+                        "Content-Type": "video/mp4",
+                        "Content-Length": str(file_size),
+                    },
+                    timeout=max(DEFAULT_HTTP_TIMEOUT, 900),
+                )
+            self._raise_for_status(upload_response, "upload the video to YouTube")
+            payload = upload_response.json()
         video_id = payload.get("id")
         if not video_id:
             raise SocialProviderError("YouTube upload finished without a video id")
