@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+import os
 import re
 from pathlib import Path
 from typing import Any, Optional
@@ -22,9 +23,6 @@ from .config import get_config
 
 logger = logging.getLogger(__name__)
 
-APIFY_YOUTUBE_DOWNLOADER_ACTOR = "epctex/youtube-video-downloader"
-EUNIT_YOUTUBE_DOWNLOADER_ACTOR = "eunit/youtube-video-downloader"
-STREAMERS_YOUTUBE_DOWNLOADER_ACTOR = "streamers/youtube-video-downloader"
 ALLOWED_APIFY_QUALITIES = {"360", "480", "720", "1080", "1440", "2160"}
 
 
@@ -113,8 +111,8 @@ def _infer_file_extension(response: requests.Response, download_url: str) -> str
 
 
 def _build_run_input(actor_id: str, url: str, quality: str) -> dict[str, Any]:
-    normalized_actor_id = actor_id.strip().lower()
-    if normalized_actor_id == EUNIT_YOUTUBE_DOWNLOADER_ACTOR:
+    adapter = os.getenv("APIFY_YOUTUBE_INPUT_ADAPTER", "start_urls").strip()
+    if adapter == "progressive":
         return {
             "startUrls": [{"url": url}],
             "downloadMode": "save-best-progressive",
@@ -122,7 +120,7 @@ def _build_run_input(actor_id: str, url: str, quality: str) -> dict[str, Any]:
             "preferredContainer": "mp4",
         }
 
-    if normalized_actor_id == STREAMERS_YOUTUBE_DOWNLOADER_ACTOR:
+    if adapter == "kv_videos":
         return {
             "videos": [{"url": url}],
             "storeInKVStore": True,
@@ -176,6 +174,9 @@ def download_video_via_apify(
     if not resolved_token:
         raise ApifyDownloadError("Missing APIFY_API_TOKEN")
 
+    if not config.apify_youtube_downloader_actor:
+        raise ApifyDownloadError("Missing APIFY_YOUTUBE_DOWNLOADER_ACTOR")
+
     if ApifyClient is None:
         raise ApifyDownloadError("apify-client is not installed")
 
@@ -185,9 +186,8 @@ def download_video_via_apify(
     temp_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info(
-        "Starting Apify YouTube download for %s with actor %s, target quality %s, and run timeout %ss",
+        "Starting Apify YouTube download for %s, target quality %s, and run timeout %ss",
         video_id,
-        config.apify_youtube_downloader_actor,
         resolved_quality,
         config.apify_run_timeout_seconds,
     )

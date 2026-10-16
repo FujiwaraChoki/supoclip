@@ -16,3 +16,12 @@ frontend/test-results/
 backend/demo_clips/
 backend/demo_clips_*.log
 backend/run_demo.py
+
+# Private deployment settings and provider research
+.env.*
+!.env.example
+output/provider-guide*/
+docs/youtube-provider-registry*.json
+
+# Local agent checkouts
+.claude/worktrees/
