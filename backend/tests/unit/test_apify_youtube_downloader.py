@@ -7,6 +7,13 @@ from src.apify_youtube_downloader import (
 )
 
 
+@pytest.fixture(autouse=True)
+def configured_test_actor(monkeypatch):
+    monkeypatch.setenv("APIFY_YOUTUBE_DOWNLOADER_ACTOR", "example/test-worker")
+    monkeypatch.delenv("APIFY_YOUTUBE_PROVIDERS", raising=False)
+    monkeypatch.delenv("APIFY_YOUTUBE_INPUT_ADAPTER", raising=False)
+
+
 class _FakeResponse:
     def __init__(self, chunks=None, headers=None):
         self._chunks = chunks or [b"video-bytes"]
@@ -25,7 +32,7 @@ def test_download_video_via_apify_saves_file(tmp_path, monkeypatch):
     monkeypatch.setenv("APIFY_RUN_TIMEOUT_SECONDS", "123")
     monkeypatch.setenv(
         "APIFY_YOUTUBE_DOWNLOADER_ACTOR",
-        "epctex/youtube-video-downloader",
+        "example/start-worker",
     )
 
     class FakeActor:
@@ -67,7 +74,7 @@ def test_download_video_via_apify_saves_file(tmp_path, monkeypatch):
     assert path == tmp_path / "abcdefghijk.mp4"
     assert path.read_bytes() == b"video-bytes"
     assert actor_calls["token"] == "apify-token"
-    assert actor_calls["actor_id"] == "epctex/youtube-video-downloader"
+    assert actor_calls["actor_id"] == "example/start-worker"
     assert actor_calls["dataset_id"] == "dataset-1"
     assert actor_calls["timeout_secs"] == 123
     assert actor_calls["run_input"] == {
@@ -77,11 +84,12 @@ def test_download_video_via_apify_saves_file(tmp_path, monkeypatch):
     }
 
 
-def test_download_video_via_apify_supports_eunit_actor(tmp_path, monkeypatch):
+def test_download_video_via_apify_supports_progressive_adapter(tmp_path, monkeypatch):
+    monkeypatch.setenv("APIFY_YOUTUBE_INPUT_ADAPTER", "progressive")
     actor_calls = {}
     monkeypatch.setenv(
         "APIFY_YOUTUBE_DOWNLOADER_ACTOR",
-        "eunit/youtube-video-downloader",
+        "example/progressive-worker",
     )
 
     class FakeActor:
@@ -121,7 +129,7 @@ def test_download_video_via_apify_supports_eunit_actor(tmp_path, monkeypatch):
     )
 
     assert path == tmp_path / "abcdefghijk.mp4"
-    assert actor_calls["actor_id"] == "eunit/youtube-video-downloader"
+    assert actor_calls["actor_id"] == "example/progressive-worker"
     assert actor_calls["run_input"] == {
         "startUrls": [{"url": "https://www.youtube.com/watch?v=abcdefghijk"}],
         "downloadMode": "save-best-progressive",
@@ -130,11 +138,12 @@ def test_download_video_via_apify_supports_eunit_actor(tmp_path, monkeypatch):
     }
 
 
-def test_download_video_via_apify_supports_streamers_actor(tmp_path, monkeypatch):
+def test_download_video_via_apify_supports_kv_adapter(tmp_path, monkeypatch):
+    monkeypatch.setenv("APIFY_YOUTUBE_INPUT_ADAPTER", "kv_videos")
     actor_calls = {}
     monkeypatch.setenv(
         "APIFY_YOUTUBE_DOWNLOADER_ACTOR",
-        "streamers/youtube-video-downloader",
+        "example/kv-worker",
     )
 
     class FakeActor:
@@ -174,7 +183,7 @@ def test_download_video_via_apify_supports_streamers_actor(tmp_path, monkeypatch
     )
 
     assert path == tmp_path / "abcdefghijk.webm"
-    assert actor_calls["actor_id"] == "streamers/youtube-video-downloader"
+    assert actor_calls["actor_id"] == "example/kv-worker"
     assert actor_calls["run_input"] == {
         "videos": [{"url": "https://www.youtube.com/watch?v=abcdefghijk"}],
         "storeInKVStore": True,
@@ -365,3 +374,11 @@ def test_download_video_via_apify_reports_unsuccessful_run_status(
             temp_dir=tmp_path,
             api_token="apify-token",
         )
+
+
+
+def test_empty_provider_environment_requires_explicit_actor(tmp_path, monkeypatch):
+    monkeypatch.setenv("APIFY_YOUTUBE_PROVIDERS", "[]")
+    monkeypatch.setenv("APIFY_YOUTUBE_DOWNLOADER_ACTOR", "")
+    with pytest.raises(ApifyDownloadError, match="Missing APIFY_YOUTUBE_DOWNLOADER_ACTOR"):
+        download_video_via_apify("https://www.youtube.com/watch?v=abcdefghijk", "abcdefghijk", tmp_path, api_token="test-token")
