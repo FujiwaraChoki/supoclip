@@ -219,7 +219,7 @@ GOOGLE_API_KEY=...                   # Or OPENAI_API_KEY / ANTHROPIC_API_KEY
 OLLAMA_BASE_URL=http://localhost:11434/v1  # Optional for ollama:* models
 OLLAMA_API_KEY=...                   # Optional; required for Ollama Cloud
 RERANK_LLM=                          # Optional; model for the long-video candidate rerank (default: LLM)
-YOUTUBE_DOWNLOAD_PROVIDER=yt_dlp     # yt_dlp | ytdl | oxylabs | videoscale | apify
+YOUTUBE_DOWNLOAD_PROVIDER=yt_dlp     # yt_dlp | apify
 
 # Optional
 PEXELS_API_KEY=...                   # B-roll stock footage
@@ -287,27 +287,12 @@ serves; App Store subscribers are blocked from Stripe checkout/portal by the
 the app via `APP_STORE_ID`/`APP_STORE_URL` in `frontend/src/lib/site.ts`
 (Smart App Banner meta, JSON-LD `MobileApplication`, hero badge, footer link).
 
-## YouTube Download Service
+## YouTube Downloads
 
-`ytdl/` is SupoClip's own YouTube download API (`supoclip-ytdl`, FastAPI +
-yt-dlp nightly), replacing paid providers. Datacenter IPs (Hetzner) get "Sign in
-to confirm you're not a bot", so every request (extraction *and* media, since
-media URLs are IP-bound) goes through a residential proxy with a fresh sticky
-session per attempt.
-
-- **Enable:** `COMPOSE_PROFILES=ytdl` (starts `ytdl` + `ytdl-pot` PO-token
-  sidecar, internal only), `YOUTUBE_DOWNLOAD_PROVIDER=ytdl`, `YTDL_API_TOKEN`,
-  `YTDL_PROXY_URL` (`{session}` placeholder) or tiered `YTDL_ROUTES`.
-- **Backend client:** `backend/src/ytdl_youtube_downloader.py`. Optional
-  `YOUTUBE_DOWNLOAD_FALLBACK_PROVIDER=oxylabs|videoscale`, skipped for
-  permanent failures (private, removed, age-restricted, …).
-- **Behaviour:** per-route circuit breakers, fatal errors stop without burning
-  exits, interrupted HTTPS formats resume on the next IP, results cached per
-  `video_id`+height. `GET /v1/stats` shows per-route blocks and proxy bytes.
-- **Freshness:** upgrades yt-dlp on container start and restarts itself (when
-  idle) once PyPI has a newer nightly.
-- Tests: `cd ytdl && uv run pytest` (`YTDL_LIVE_TESTS=1` for a real download
-  through a local rotating proxy). Details in `ytdl/README.md`.
+`YOUTUBE_DOWNLOAD_PROVIDER` accepts `yt_dlp` (free default) or `apify`.
+Apify requires `APIFY_API_TOKEN` and explicit worker configuration. Each provider
+falls back to the other when available. Paid worker identities belong in private
+environment configuration. See `backend/README.md` for setup.
 
 ## MCP Server
 

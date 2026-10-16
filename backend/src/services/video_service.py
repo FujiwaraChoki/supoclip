@@ -3,7 +3,6 @@ Video service - handles video processing business logic.
 """
 
 import asyncio
-import math
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable, Awaitable
 import logging
@@ -441,18 +440,8 @@ class VideoService:
 
             if source_type == "youtube":
                 video_info = await async_get_youtube_video_info(url, task_id=task_id)
-                videoscale = runtime_config.youtube_download_provider == "videoscale"
-                expected_duration = None
-                if videoscale:
-                    try:
-                        expected_duration = float((video_info or {}).get("duration"))
-                    except (TypeError, ValueError, OverflowError):
-                        pass
-                    if (expected_duration is None or not math.isfinite(expected_duration)
-                            or expected_duration <= 0):
-                        raise ValueError("YouTube video duration could not be verified.")
                 if video_info:
-                    duration = expected_duration if videoscale else video_info.get("duration", 0)
+                    duration = video_info.get("duration", 0)
                     if duration and duration > duration_limit:
                         mins = duration_limit // 60
                         raise Exception(
@@ -474,12 +463,6 @@ class VideoService:
 
             # Post-download duration guard (catches cases where preflight info was unavailable)
             file_duration = VideoService._get_file_duration(video_path)
-            if source_type == "youtube" and videoscale:
-                if (file_duration is None or not math.isfinite(file_duration)
-                        or file_duration <= 0
-                        or abs(file_duration - expected_duration)
-                        > max(5.0, expected_duration * 0.001)):
-                    raise ValueError("YouTube download is incomplete or has an invalid duration.")
             if file_duration and file_duration > duration_limit:
                 mins = duration_limit // 60
                 raise Exception(

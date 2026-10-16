@@ -495,3 +495,21 @@ def test_legacy_video_names_remain_uploadable(storage, filename):
     storage._client = Mock()
     storage.client.create_multipart_upload.return_value = {"UploadId": "multipart"}
     assert storage.begin_upload('owner', filename, 7, 'video/mp4')['video_path'].endswith('.mp4')
+
+
+@pytest.mark.parametrize("prefix", ["apify-", "oxy-", "videoscale-", "ytdl-"])
+@pytest.mark.parametrize("recent", [False, True])
+def test_orphan_scan_reclaims_retired_downloads_after_grace(storage, tmp_path, prefix, recent):
+    from src.workers.media_cleanup import orphan_candidates
+
+    directory = tmp_path / f"{prefix}abcdefghijk-test"
+    directory.mkdir()
+    media = directory / "abcdefghijk.mp4"
+    media.write_bytes(b"temporary source")
+    old = time.time() - storage.config.media_orphan_grace_seconds - 60
+    os.utime(media, (old, old))
+    os.utime(directory, (old, old))
+    if recent:
+        os.utime(media, None)
+    candidates = list(orphan_candidates(storage))
+    assert ((str(directory), True) in candidates) is (not recent)

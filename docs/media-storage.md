@@ -28,7 +28,7 @@ Backend and worker need the same settings:
 When dedicated media keys are omitted, boto3 uses its standard credential chain,
 including workload IAM roles. Browser/CLI login credentials are for administrative
 setup; use a restricted runtime identity for the services. Media keys are separate
-from any existing SES or Oxylabs credentials.
+from other service credentials, including SES.
 
 `scripts/setup-media-storage.py` reports its plan by default. With `--apply`, it
 creates a private encrypted bucket, an HTTPS-only bucket policy, browser CORS,

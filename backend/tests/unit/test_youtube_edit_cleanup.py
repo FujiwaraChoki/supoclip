@@ -18,7 +18,7 @@ SOURCE_URL = f"https://www.youtube.com/watch?v={VIDEO_ID}"
 
 
 def downloaded_source(tmp_path: Path) -> Path:
-    directory = tmp_path / f"videoscale-{VIDEO_ID}-test"
+    directory = tmp_path / f"apify-{VIDEO_ID}-test"
     directory.mkdir()
     source = directory / f"{VIDEO_ID}.mp4"
     source.write_bytes(b"temporary source")
