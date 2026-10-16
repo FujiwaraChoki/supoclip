@@ -157,3 +157,38 @@ test("signed-out pages hydrate consistently after the shared session resolves", 
   }
   expect(errors).toEqual([]);
 });
+
+
+test("API keys require verification while existing keys remain manageable", async ({ page }) => {
+  let verified = false;
+  let created = false;
+  await page.route("**/api/auth/get-session**", route => route.fulfill({ json: {
+    session: { id: "session", userId: "user", expiresAt: "2099-01-01T00:00:00Z" },
+    user: { id: "user", name: "Alex", email: "alex@example.com", emailVerified: verified },
+  } }));
+  await page.route("**/api/api-keys", route => {
+    if (route.request().method() === "POST") {
+      created = true;
+      return route.fulfill({ json: { api_key: { id: "new", key: "sk_once-only" } } });
+    }
+    return route.fulfill({ json: { api_keys: [{ id: "old", name: "Existing integration", key_prefix: "sk_existing", revoked: false, created_at: null, last_used_at: null }] } });
+  });
+  await page.route("**/api/auth/send-verification-email", route => route.fulfill({ json: { status: true } }));
+  await page.goto("/settings/api-keys");
+  await expect(page.getByRole("button", { name: "Create", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Revoke", exact: true })).toBeEnabled();
+  await page.screenshot({ path: "test-results/api-keys-verification-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("button", { name: "Send verification email" })).toBeVisible();
+  await page.screenshot({ path: "test-results/api-keys-verification-mobile.png", fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole("button", { name: "Send verification email" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Verification email requested" })).toBeVisible();
+  expect(created).toBe(false);
+  verified = true;
+  await page.getByRole("button", { name: "I have verified my email" }).click();
+  await expect(page.getByRole("button", { name: "Create", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(page.getByText("sk_once-only", { exact: true })).toBeVisible();
+  expect(created).toBe(true);
+});

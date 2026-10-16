@@ -92,6 +92,20 @@ class User(Base):
     )
 
 
+class EmailDelivery(Base):
+    """SES acceptance metadata for correlating bounce and complaint reports."""
+
+    __tablename__ = "email_deliveries"
+
+    message_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    recipient: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    subject: Mapped[str] = mapped_column(Text, nullable=False)
+    region: Mapped[str] = mapped_column(String(64), nullable=False)
+    sent_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class AppSetting(Base):
     __tablename__ = "app_settings"
 

@@ -13,12 +13,13 @@ from ...database import get_db
 from ...models import User
 from ...services.affiliate_email_service import AffiliateEmailService
 from ...services.password_reset_email_service import PasswordResetEmailService
+from ...services.verification_email_service import VerificationEmailService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/account", tags=["account"])
 
 
-class PasswordResetEmailRequest(BaseModel):
+class EmailLinkRequest(BaseModel):
     url: str
 
     @field_validator("url")
@@ -32,7 +33,7 @@ class PasswordResetEmailRequest(BaseModel):
 
 @router.post("/password-reset-email")
 async def send_password_reset_email(
-    body: PasswordResetEmailRequest,
+    body: EmailLinkRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
@@ -62,6 +63,32 @@ async def send_password_reset_email(
         ) from exc
 
     return {"status": "ok", "provider": "ses", "email": email_result}
+
+
+@router.post("/verification-email")
+async def send_verification_email(
+    body: EmailLinkRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    # Only the frontend server may supply Better Auth's generated link.
+    config = get_config()
+    user_id = get_authenticated_user_id(request, config)
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.emailVerified:
+        return {"status": "ok"}
+
+    try:
+        await VerificationEmailService(config).send_verification_email(user, body.url)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to send verification email for user %s", user_id)
+        raise HTTPException(status_code=502, detail="Failed to send verification email") from exc
+    return {"status": "ok"}
 
 
 class AffiliateEmailRequest(BaseModel):

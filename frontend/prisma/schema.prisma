@@ -44,6 +44,17 @@ model Announcement {
 }
 
 // Better Auth User model with backend compatibility
+model EmailDelivery {
+  message_id String   @id @db.VarChar(255)
+  recipient  String   @db.VarChar(255)
+  subject    String   @db.Text
+  region     String   @db.VarChar(64)
+  sent_at    DateTime @default(now()) @db.Timestamptz
+
+  @@index([recipient], map: "ix_email_deliveries_recipient")
+  @@map("email_deliveries")
+}
+
 model User {
   id            String    @id @default(uuid())
   name          String

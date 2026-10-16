@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
 import boto3
 
 from ..config import Config
+from ..database import get_session_maker
+from ..models import EmailDelivery
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -62,6 +67,25 @@ class SesEmailService:
             )
 
         response = await asyncio.to_thread(self._send, recipient, content)
+        # This is acceptance by SES, not proof of inbox delivery. Record only
+        # metadata: bodies can contain password reset or verification tokens.
+        message_id = response["MessageId"]
+        try:
+            async with get_session_maker()() as db:
+                db.add(EmailDelivery(
+                    message_id=message_id,
+                    recipient=recipient,
+                    subject=content.subject,
+                    region=self.region,
+                ))
+                await db.commit()
+        except Exception:
+            # SES has already accepted the message. Preserve a correlation
+            # fallback without making callers retry and send duplicate emails.
+            logger.exception(
+                "SES audit persistence failed: message_id=%s recipient=%s region=%s subject=%r",
+                message_id, recipient, self.region, content.subject,
+            )
         return dict(response)
 
 
