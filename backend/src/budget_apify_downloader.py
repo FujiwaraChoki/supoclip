@@ -250,8 +250,10 @@ def _private_storage(video_id, quality, run_timeout):
         try:
             before = client.head_object(Bucket=bucket, Key=key).get("VersionId")
         except ClientError as exc:
-            if exc.response.get("Error", {}).get("Code") not in {"404", "NoSuchKey", "NotFound"}:
+            if exc.response.get("Error", {}).get("Code") not in {"403", "404", "AccessDenied", "NoSuchKey", "NotFound"}:
                 raise
+            # Without ListBucket, S3 hides a missing key behind AccessDenied.
+            # Final retrieval still requires a fresh, readable version.
             before = None
         body = {"startUrls": [video_id], "outputType": "media", "quality": quality,
                 "format": "mp4", "storageType": "aws", "s3Bucket": bucket,
@@ -304,11 +306,10 @@ def _run(actor, video_id, temp_dir, quality, token, run_timeout, charge_cap):
         config.pro_youtube_max_video_duration, config.scale_youtube_max_video_duration) / 60))
     expected_duration = None
     if adapter in {"signed_url", "private_s3"}:
-        # This actor supplies only a signed file URL. Independently establish
-        # source duration before spending, then validate the delivered streams.
-        from .youtube_utils import _fetch_video_info_with_youtube_data_api
+        # Establish duration using the configured metadata provider before spending.
+        from .youtube_utils import get_youtube_video_info
         try:
-            info = _fetch_video_info_with_youtube_data_api(f"https://www.youtube.com/watch?v={video_id}")
+            info = get_youtube_video_info(f"https://www.youtube.com/watch?v={video_id}")
             expected_duration = float(info["duration"])
             if not math.isfinite(expected_duration) or expected_duration <= 0:
                 raise ValueError()

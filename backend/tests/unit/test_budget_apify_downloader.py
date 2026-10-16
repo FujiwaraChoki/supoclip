@@ -185,7 +185,7 @@ def test_duplicate_fallbacks_are_attempted_once(config, tmp_path, monkeypatch):
 
 def test_signed_url_uses_independent_source_duration(config, tmp_path, monkeypatch):
     config.apify_youtube_downloader_actor = SIGNED
-    monkeypatch.setattr('src.youtube_utils._fetch_video_info_with_youtube_data_api', lambda url: {'duration': 635})
+    monkeypatch.setattr('src.youtube_utils.get_youtube_video_info', lambda url: {'duration': 635})
     run = {'id': 'run1', 'status': 'SUCCEEDED', 'defaultDatasetId': 'ds1'}
     item = {'sourceUrl': 'https://www.youtube.com/watch?v=' + VIDEO, 'downloadUrl': 'https://cdn.example.com/file.mp4'}
     monkeypatch.setattr(mod, '_api', lambda session, method, *a, **kw: {'data': run} if method == 'POST' else [item])
@@ -302,7 +302,7 @@ def test_private_output_reporting_workaround_is_narrow(config, tmp_path, monkeyp
     actor = 'example/private-worker'
     config.apify_youtube_downloader_actor = actor
     monkeypatch.setenv('APIFY_YOUTUBE_PROVIDERS', json.dumps([dict(actor=actor, adapter='private_s3', build='1.0.0')]))
-    monkeypatch.setattr('src.youtube_utils._fetch_video_info_with_youtube_data_api', lambda url: {'duration': 635})
+    monkeypatch.setattr('src.youtube_utils.get_youtube_video_info', lambda url: {'duration': 635})
     monkeypatch.setattr(mod, '_private_storage', lambda *a: (object(), {'quality': '1080'}))
     run = {'id': 'run1', 'status': 'SUCCEEDED', 'defaultDatasetId': 'ds1'}
     row = {'id': VIDEO, 'status': 'failed', 'errorCode': error_code, 'errorStage': 'delivery_failed'}
@@ -317,3 +317,37 @@ def test_private_output_reporting_workaround_is_narrow(config, tmp_path, monkeyp
         with pytest.raises(mod.BudgetApifyError, match='complete private delivery'):
             mod.download_budget_apify(VIDEO, tmp_path, '1080', 'secret')
         retrieve.assert_not_called()
+
+
+
+def test_private_preflight_allows_hidden_missing_key_without_list_permission(config, tmp_path, monkeypatch):
+    from botocore.exceptions import ClientError
+    client = Mock()
+    client.get_bucket_versioning.return_value = {"Status": "Enabled"}
+    client.head_object.side_effect = ClientError({"Error": {"Code": "403"}}, "HeadObject")
+    monkeypatch.setattr("boto3.client", lambda *a, **kw: client)
+    values = {"BUCKET": "private-example-bucket", "REGION": "eu-central-1",
+              "KEY_TEMPLATE": "media/{video_id}.mp4", "WRITER_ACCESS_KEY_ID": "test-writer",
+              "WRITER_SECRET_ACCESS_KEY": "test-writer-secret", "READER_ACCESS_KEY_ID": "test-reader",
+              "READER_SECRET_ACCESS_KEY": "test-reader-secret"}
+    for name, value in values.items(): monkeypatch.setenv("APIFY_STORAGE_" + name, value)
+    storage, body = mod._private_storage(VIDEO, "1080", 600)
+    assert storage[3] is None
+    assert body["quality"] == "1080"
+    with pytest.raises(mod.BudgetApifyError, match="fresh complete"):
+        mod._retrieve_private_file(storage, tmp_path / 'part', 635, "1080", mod.time.monotonic() + 30)
+
+
+def test_signed_adapter_uses_configured_metadata_without_google_key(config, tmp_path, monkeypatch):
+    config.apify_youtube_downloader_actor = SIGNED
+    config.youtube_metadata_provider = "yt_dlp"
+    metadata = Mock(return_value={"duration": 635})
+    monkeypatch.setattr("src.youtube_utils._fetch_video_info_with_ytdlp", metadata)
+    monkeypatch.setattr("src.youtube_utils._fetch_video_info_with_youtube_data_api", Mock(side_effect=AssertionError("Google metadata must not be required")))
+    run = {"id": "run1", "status": "SUCCEEDED", "defaultDatasetId": "ds"}
+    row = {"sourceUrl": "https://www.youtube.com/watch?v=" + VIDEO, "downloadUrl": "https://cdn.example.com/video.mp4"}
+    monkeypatch.setattr(mod, "_api", lambda session, method, *a, **kw: {"data": run} if method == "POST" else [row])
+    monkeypatch.setattr(mod, "_download", lambda url, target, *a, **kw: target.write_bytes(b"video"))
+    monkeypatch.setattr(mod, "_verify_media", lambda *a: None)
+    assert mod.download_budget_apify(VIDEO, tmp_path, "1080", "test-token").is_file()
+    metadata.assert_called_once()
