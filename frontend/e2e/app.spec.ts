@@ -34,7 +34,8 @@ test("regular user can browse seeded tasks and save preferences", async ({ page 
   await page.goto("/settings");
   await page.getByRole("switch", { name: /completion emails/i }).click();
   await page.getByRole("button", { name: /save preferences/i }).click();
-  await expect(page.getByText(/preferences saved/i)).toBeVisible();
+  // The save round-trips through a freshly compiled API route in CI.
+  await expect(page.getByText(/preferences saved/i)).toBeVisible({ timeout: 15_000 });
 
   await page.goto("/admin");
   await expect(page.getByText(/not an admin/i)).toBeVisible();
@@ -53,11 +54,17 @@ test("admin user can access the admin dashboard", async ({ page }) => {
 test("social publishing explains missing configuration without breaking task pages", async ({ page }) => {
   test.setTimeout(60_000);
   await signIn(page, seed.regular.email, seed.regular.password);
+
+  // With no provider configured, clips offer no Publish action at all.
   await page.goto(`/tasks/${seed.completedTaskId}`);
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
-  await expect(page.getByText("Social publishing is not configured on this server.", { exact: false })).toBeVisible();
-  await page.getByRole("link", { name: "Social Accounts", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Social Accounts", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Preview Clip 1", exact: true }).click();
+  const preview = page.getByRole("dialog");
+  await expect(preview.getByText("This is a seeded clip", { exact: true })).toBeVisible();
+  await expect(preview.getByRole("button", { name: "Publish", exact: true })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  await page.goto("/settings/social");
+  await expect(page.getByRole("heading", { name: "Social accounts", exact: true })).toBeVisible();
   await expect(page.getByText("Not configured on this server.", { exact: true })).toHaveCount(3);
   await expect(page.getByText("No accounts connected yet.", { exact: true })).toBeVisible();
   await expect(page.getByText("Failed to load social accounts")).toHaveCount(0);
