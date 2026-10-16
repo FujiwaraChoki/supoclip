@@ -88,6 +88,9 @@ Set `YOUTUBE_DOWNLOAD_PROVIDER=apify` only when you want to use the paid Apify a
 ```env
 YOUTUBE_DOWNLOAD_PROVIDER=apify
 APIFY_API_TOKEN=your_apify_token
+# Select your own worker explicitly; match its input contract.
+APIFY_YOUTUBE_DOWNLOADER_ACTOR=your-account/your-worker
+APIFY_YOUTUBE_INPUT_ADAPTER=start_urls
 APIFY_YOUTUBE_DEFAULT_QUALITY=1080
 APIFY_RUN_TIMEOUT_SECONDS=900
 ```
@@ -95,9 +98,14 @@ APIFY_RUN_TIMEOUT_SECONDS=900
 Notes:
 
 - `yt_dlp` is the free default and does not require `APIFY_API_TOKEN`.
-- If `yt-dlp` fails and `APIFY_API_TOKEN` is set, the backend can still try Apify as a fallback.
+- If `yt-dlp` fails and both `APIFY_API_TOKEN` and an explicit worker are configured, the backend can try Apify as a fallback.
 - If Apify is selected but unavailable or fails, the backend falls back to `yt-dlp`.
 - `APIFY_RUN_TIMEOUT_SECONDS` caps the Apify actor run time before SupoClip gives up.
+
+For an ordered verified provider pool and private S3 delivery, configure
+`APIFY_YOUTUBE_PROVIDERS` and the related private settings documented in
+[configuration](../docs/configuration.md). Legacy input adapters are `start_urls`,
+`progressive`, and `kv_videos`; use the contract expected by your chosen worker.
 
 ## YouTube Metadata Provider
 

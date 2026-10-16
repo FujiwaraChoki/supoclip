@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from fastapi import HTTPException
 
 from src.api.routes import tasks
 from src.workers.progress import ProgressTracker
@@ -61,3 +62,50 @@ async def test_stream_closes_subscription_before_client(monkeypatch, initial_sta
         assert (await anext(stream))["event"] == "progress"
         await stream.aclose()
         assert events == ["subscription", "client"]
+
+
+@pytest.mark.asyncio
+async def test_admin_can_stream_another_users_active_task(monkeypatch):
+    @asynccontextmanager
+    async def database():
+        yield object()
+
+    repo = SimpleNamespace(
+        get_task_by_id=AsyncMock(return_value={"user_id": "owner", "status": "processing", "progress": 0})
+    )
+    monkeypatch.setattr(tasks, "AsyncSessionLocal", database)
+    monkeypatch.setattr(tasks, "_get_user_id_from_headers", AsyncMock(return_value="admin"))
+    monkeypatch.setattr(tasks, "TaskService", lambda db: SimpleNamespace(task_repo=repo))
+    monkeypatch.setattr(tasks, "user_is_admin", AsyncMock(return_value=True))
+
+    response = await tasks.get_task_progress_sse("task", object())
+    stream = response.body_iterator
+    try:
+        event = await anext(stream)
+    finally:
+        await stream.aclose()
+
+    assert event["event"] == "status"
+    tasks.user_is_admin.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_admin_cannot_stream_another_users_finished_task(monkeypatch):
+    @asynccontextmanager
+    async def database():
+        yield object()
+
+    repo = SimpleNamespace(
+        get_task_by_id=AsyncMock(return_value={"user_id": "owner", "status": "completed"})
+    )
+    monkeypatch.setattr(tasks, "AsyncSessionLocal", database)
+    monkeypatch.setattr(tasks, "_get_user_id_from_headers", AsyncMock(return_value="admin"))
+    monkeypatch.setattr(tasks, "TaskService", lambda db: SimpleNamespace(task_repo=repo))
+    is_admin = AsyncMock(return_value=True)
+    monkeypatch.setattr(tasks, "user_is_admin", is_admin)
+
+    with pytest.raises(HTTPException) as exc:
+        await tasks.get_task_progress_sse("task", object())
+
+    assert exc.value.status_code == 403
+    is_admin.assert_not_awaited()

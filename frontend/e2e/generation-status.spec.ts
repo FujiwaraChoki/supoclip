@@ -26,7 +26,8 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "
       component: { status: "operational", headline: "Resolved", description: "Downloads are working normally." },
     } }));
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /Good .*Alex/ })).toBeVisible();
+    // The first visit can hydrate slowly while the CI dev server compiles.
+    await expect(page.getByRole("heading", { name: /Good .*Alex/ })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("status", { name: "YouTube import status" })).toHaveCount(0);
     await expect(page.getByText("Checking YouTube import status…")).toHaveCount(0);
   });

@@ -40,7 +40,7 @@ from ...clip_cleanup import (
     updated_cleanup_settings,
 )
 from ...video_utils import VALID_OUTPUT_FORMATS
-from ...admin_auth import require_admin_user
+from ...admin_auth import require_admin_user, user_is_admin
 import redis.asyncio as redis
 from ...clip_editor import export_with_preset, EXPORT_PRESETS
 
@@ -214,20 +214,47 @@ def _merge_task_source_metadata(
     return merged
 
 
+# Matches the admin dashboard's live queue: queued, processing, and the
+# pre-queue pending default. Finished tasks stay visible only to their owner.
+ADMIN_READABLE_TASK_STATUSES = {"queued", "processing", "pending"}
+
+
+async def _load_task_for_user(
+    request: Request, task_service: TaskService, db: AsyncSession, task_id: str
+):
+    user_id = await _get_user_id_from_headers(request, db)
+    task = await task_service.task_repo.get_task_by_id(db, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return user_id, task
+
+
 async def _require_task_owner(
     request: Request, task_service: TaskService, db: AsyncSession, task_id: str
 ):
     """Ensure authenticated user owns the task."""
-    user_id = await _get_user_id_from_headers(request, db)
-
-    task = await task_service.task_repo.get_task_by_id(db, task_id)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+    user_id, task = await _load_task_for_user(request, task_service, db, task_id)
 
     if task.get("user_id") != user_id:
         raise HTTPException(status_code=403, detail="Not authorized for this task")
 
     return task
+
+
+async def _require_task_reader(
+    request: Request, task_service: TaskService, db: AsyncSession, task_id: str
+):
+    """Owner, or an admin reading a task that is still active."""
+    user_id, task = await _load_task_for_user(request, task_service, db, task_id)
+
+    if task.get("user_id") == user_id:
+        return task
+    if task.get("status") in ADMIN_READABLE_TASK_STATUSES and await user_is_admin(
+        db, user_id
+    ):
+        return task
+
+    raise HTTPException(status_code=403, detail="Not authorized for this task")
 
 
 PUBLIC_TASK_FIELDS = {
@@ -508,7 +535,7 @@ async def get_task(
     """Get task details."""
     try:
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        await _require_task_reader(request, task_service, db, task_id)
         task = await task_service.get_task_with_clips(task_id)
 
         if not task:
@@ -530,7 +557,7 @@ async def get_task_clips(
     """Get all clips for a task."""
     try:
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        await _require_task_reader(request, task_service, db, task_id)
         task = await task_service.get_task_with_clips(task_id)
 
         if not task:
@@ -592,15 +619,8 @@ async def get_task_progress_sse(task_id: str, request: Request):
     """
 
     async with AsyncSessionLocal() as local_db:
-        user_id = await _get_user_id_from_headers(request, local_db)
         task_service = TaskService(local_db)
-        task = await task_service.task_repo.get_task_by_id(local_db, task_id)
-
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    if task.get("user_id") != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized for this task")
+        task = await _require_task_reader(request, task_service, local_db, task_id)
 
     async def event_generator():
         """Generate SSE events for task progress."""
@@ -759,7 +779,7 @@ async def get_clip_file(
     """Serve a clip file after verifying task ownership."""
     try:
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        await _require_task_reader(request, task_service, db, task_id)
         clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
         if not clip or clip.get("task_id") != task_id:
             raise HTTPException(status_code=404, detail="Clip not found")
@@ -1041,7 +1061,7 @@ async def export_clip(
             )
 
         task_service = TaskService(db)
-        await _require_task_owner(request, task_service, db, task_id)
+        await _require_task_reader(request, task_service, db, task_id)
         clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
         if not clip or clip.get("task_id") != task_id:
             raise HTTPException(status_code=404, detail="Clip not found")

@@ -8,6 +8,15 @@ from .auth_headers import get_authenticated_user_id
 from .config import Config
 
 
+async def user_is_admin(db: AsyncSession, user_id: str) -> bool:
+    result = await db.execute(
+        text("SELECT is_admin FROM users WHERE id = :user_id"),
+        {"user_id": user_id},
+    )
+    row = result.fetchone()
+    return bool(row and getattr(row, "is_admin", False))
+
+
 async def require_admin_user(
     request: Request, db: AsyncSession, config: Config
 ) -> str:

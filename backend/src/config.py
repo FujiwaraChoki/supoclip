@@ -59,6 +59,14 @@ class Config:
         self.videoscale_video_quality = int(videoscale_quality) if videoscale_quality in {"720", "1080"} else 720
         self.videoscale_download_timeout_seconds = int(os.getenv("VIDEOSCALE_DOWNLOAD_TIMEOUT_SECONDS", "3600"))
         self.videoscale_transfer_timeout_seconds = int(os.getenv("VIDEOSCALE_TRANSFER_TIMEOUT_SECONDS", "900"))
+        self.ytdl_api_url = os.getenv("YTDL_API_URL", "http://ytdl:8080").strip()
+        self.ytdl_api_token = self._get_optional_env("YTDL_API_TOKEN")
+        ytdl_quality = os.getenv("YTDL_VIDEO_QUALITY", "1080").strip()
+        self.ytdl_video_quality = int(ytdl_quality) if ytdl_quality in {"360", "480", "720", "1080", "1440", "2160"} else 1080
+        self.ytdl_download_timeout_seconds = int(os.getenv("YTDL_DOWNLOAD_TIMEOUT_SECONDS", "3600"))
+        # Paid provider to try when our own service cannot fetch a video.
+        fallback = (os.getenv("YOUTUBE_DOWNLOAD_FALLBACK_PROVIDER") or "").strip().lower()
+        self.youtube_download_fallback_provider = fallback if fallback in {"oxylabs", "videoscale"} else None
         self.apify_api_token = self._get_runtime_setting("APIFY_API_TOKEN")
         self.youtube_download_provider = self._normalize_youtube_download_provider(
             os.getenv("YOUTUBE_DOWNLOAD_PROVIDER", "yt_dlp")
@@ -317,7 +325,7 @@ class Config:
     @staticmethod
     def _normalize_youtube_download_provider(value: str | None) -> str:
         normalized = (value or "").strip().lower().replace("-", "_")
-        if normalized in {"apify", "oxylabs", "videoscale"}:
+        if normalized in {"apify", "oxylabs", "videoscale", "ytdl"}:
             return normalized
         return "yt_dlp"
 
