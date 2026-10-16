@@ -221,10 +221,17 @@ class TaskService(ClipEditingMixin):
         if not user_id:
             return None
         try:
+            from ..database import AsyncSessionLocal
             from .social_service import SocialService
 
-            return await SocialService(self.db).build_performance_context(user_id)
-        except Exception as exc:  # pragma: no cover - never block processing
+            # A short-lived session of its own: a failed lookup (e.g. social
+            # tables not migrated yet when the worker deploys first) must not
+            # leave the task's transaction aborted.
+            async with AsyncSessionLocal() as session:
+                return await SocialService(session, self.config).build_performance_context(
+                    user_id
+                )
+        except Exception as exc:  # never block processing
             logger.warning("Skipping performance context for user %s: %s", user_id, exc)
             return None
 
@@ -283,6 +290,12 @@ class TaskService(ClipEditingMixin):
             cached_analysis_json = (
                 cache_entry.get("analysis_json") if cache_entry else None
             )
+            # Performance loop: feed this creator's real audience data back into
+            # clip selection. Personalized analyses bypass the shared analysis
+            # cache so one creator's history never shapes another's clips.
+            performance_context = await self._load_performance_context(user_id)
+            if performance_context:
+                cached_analysis_json = None
             cache_hit = bool(cached_transcript and cached_analysis_json)
 
             await self.task_repo.update_task_runtime_metadata(
@@ -324,13 +337,6 @@ class TaskService(ClipEditingMixin):
                 max_video_duration = self.config.max_youtube_video_duration_for_plan(
                     billing.get("plan"), billing.get("subscription_status")
                 )
-
-            # Performance loop: feed this creator's real audience data back into
-            # clip selection. Personalized analyses bypass the shared analysis
-            # cache so one creator's history never shapes another's clips.
-            performance_context = await self._load_performance_context(user_id)
-            if performance_context:
-                cached_analysis_json = None
 
             pipeline_start = perf_counter()
             result = await self.video_service.process_video_complete(

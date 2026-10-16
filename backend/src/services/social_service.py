@@ -16,6 +16,7 @@ import hashlib
 import logging
 import re
 import secrets
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -968,6 +969,14 @@ def _fallback_post_url(
     return None
 
 
+def _prompt_safe(value: Any) -> str:
+    """User-editable text for the AI prompt: one line, no control characters."""
+    text = "".join(
+        " " if unicodedata.category(char).startswith("C") else char for char in str(value or "")
+    )
+    return " ".join(text.split())
+
+
 def _fmt_count(value: Optional[float]) -> str:
     if value is None:
         return "n/a"
@@ -1000,7 +1009,7 @@ def format_performance_context(
     if top_posts:
         lines.append("Top performing clips:")
         for post in top_posts:
-            title = (post.get("hook_title") or post.get("title") or "untitled").strip()
+            title = _prompt_safe(post.get("hook_title") or post.get("title")) or "untitled"
             views = (post.get("metrics") or {}).get("views")
             lines.append(
                 f"- \"{title[:80]}\" (hook_type={post.get('hook_type') or 'none'}, "

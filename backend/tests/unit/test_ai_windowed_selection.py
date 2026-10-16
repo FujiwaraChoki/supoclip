@@ -308,3 +308,31 @@ async def test_hook_times_survive_windowing_snapping_and_rerank(monkeypatch):
 )
 def test_final_clip_cap_respects_max_clips(seconds, max_clips, expected):
     assert ai.max_final_clips_for_duration(seconds, max_clips) == expected
+
+
+async def test_performance_context_shapes_windows_and_the_final_rerank(monkeypatch):
+    transcript = _transcript(30 * 60)
+    context = "Based on 6 published clips with audience metrics."
+    agent = SimpleNamespace(run=AsyncMock(side_effect=lambda prompt: SimpleNamespace(
+        output=ai.TranscriptAnalysis(
+            most_relevant_segments=[_segment("00:30", "01:00"), _segment("20:30", "21:00")],
+            summary="ok", key_topics=[],
+        )
+    )))
+    rerank_agent = SimpleNamespace(run=AsyncMock(side_effect=lambda prompt: SimpleNamespace(
+        output=ai.CandidateRanking(ranking=[
+            ai.RankedCandidate(candidate_id=i, score=90 - i) for i in range(prompt.count("candidate_id:"))
+        ])
+    )))
+    monkeypatch.setattr(ai, "get_transcript_agent", lambda: agent)
+    monkeypatch.setattr(ai, "get_rerank_agent", lambda: rerank_agent)
+
+    await ai.get_most_relevant_parts_by_transcript(transcript, performance_context=context)
+
+    rerank_prompt = rerank_agent.run.await_args.args[0]
+    assert context in rerank_prompt
+    # Same guard as the window prompts: history only breaks ties.
+    guard = "It never justifies fabricating content, stretching timestamps, or picking a weak moment."
+    assert guard in rerank_prompt
+    assert all(guard in call.args[0] for call in agent.run.await_args_list)
+    assert context not in ai.build_candidate_rerank_prompt([_segment("00:30", "01:00")])
