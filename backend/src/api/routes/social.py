@@ -102,6 +102,14 @@ async def complete_connection(
     return {"connection": connection}
 
 
+@router.delete("/connections")
+async def disconnect_all_accounts(request: Request, db: AsyncSession = Depends(get_db)):
+    """Disconnect (and revoke at the platform) every account; used on account deletion."""
+    user_id = _session_user_id(request)
+    removed = await _service(request, db).disconnect_all(user_id)
+    return {"message": "Accounts disconnected", "removed": removed}
+
+
 @router.delete("/connections/{account_id}")
 async def disconnect_account(
     account_id: str, request: Request, db: AsyncSession = Depends(get_db)

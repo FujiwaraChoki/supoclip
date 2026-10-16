@@ -199,6 +199,16 @@ class SocialProvider(ABC):
         """
         return None
 
+    def revoke_tokens(
+        self, access_token: Optional[str], refresh_token: Optional[str]
+    ) -> bool:
+        """
+        Revoke the app's grant at the platform (on disconnect). Returns False
+        when the platform has no revocation endpoint. Callers treat this as
+        best effort: local credentials are cleared regardless.
+        """
+        return False
+
     # -- analytics ------------------------------------------------------
     @abstractmethod
     def fetch_metrics(

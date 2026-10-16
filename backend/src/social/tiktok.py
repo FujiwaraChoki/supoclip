@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 AUTHORIZE_URL = "https://www.tiktok.com/v2/auth/authorize/"
 TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
+REVOKE_URL = "https://open.tiktokapis.com/v2/oauth/revoke/"
 API_BASE = "https://open.tiktokapis.com/v2"
 
 SCOPES = ("user.info.basic", "video.publish", "video.list")
@@ -137,6 +138,36 @@ class TikTokProvider(SocialProvider):
         tokens = self._parse_tokens(payload)
         tokens.refresh_token = tokens.refresh_token or refresh_token
         return tokens
+
+    def revoke_tokens(
+        self, access_token: Optional[str], refresh_token: Optional[str]
+    ) -> bool:
+        if not access_token and not refresh_token:
+            return False
+        if access_token and self._revoke(access_token):
+            return True
+        if not refresh_token:
+            raise SocialProviderError("TikTok token revocation failed")
+        # Access tokens last a day, so a stored one is often expired; revoke
+        # through a fresh one instead.
+        if not self._revoke(self.refresh_tokens(refresh_token).access_token):
+            raise SocialProviderError("TikTok token revocation failed")
+        return True
+
+    def _revoke(self, access_token: str) -> bool:
+        response = self.http.post(
+            REVOKE_URL,
+            data={
+                "client_key": self.config.tiktok_client_key,
+                "client_secret": self.config.tiktok_client_secret,
+                "token": access_token,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=DEFAULT_HTTP_TIMEOUT,
+        )
+        error = self._json(response).get("error")
+        code = error.get("code") if isinstance(error, dict) else error
+        return response.status_code < 400 and (not code or code == "ok")
 
     @staticmethod
     def _parse_tokens(payload: Dict[str, Any]) -> OAuthTokens:

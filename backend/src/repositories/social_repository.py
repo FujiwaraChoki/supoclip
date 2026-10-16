@@ -237,8 +237,9 @@ class SocialRepository:
         access_token_encrypted: str,
         refresh_token_encrypted: Optional[str],
         token_expires_at: Optional[datetime],
-    ) -> None:
-        await db.execute(
+    ) -> bool:
+        """Store refreshed tokens; ``False`` when the account was disconnected meanwhile."""
+        result = await db.execute(
             text(
                 """
                 UPDATE social_accounts
@@ -248,7 +249,8 @@ class SocialRepository:
                     status = 'active',
                     last_error = NULL,
                     updated_at = NOW()
-                WHERE id = :id
+                WHERE id = :id AND revoked_at IS NULL
+                RETURNING id
                 """
             ),
             {
@@ -258,7 +260,9 @@ class SocialRepository:
                 "token_expires_at": token_expires_at,
             },
         )
+        row = result.fetchone()
         await db.commit()
+        return row is not None
 
     @staticmethod
     async def set_account_status(
@@ -269,7 +273,7 @@ class SocialRepository:
                 """
                 UPDATE social_accounts
                 SET status = :status, last_error = :last_error, updated_at = NOW()
-                WHERE id = :id
+                WHERE id = :id AND revoked_at IS NULL
                 """
             ),
             {"id": account_id, "status": status, "last_error": last_error},

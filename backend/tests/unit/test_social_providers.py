@@ -502,3 +502,46 @@ def test_tiktok_timeout_on_final_chunk_is_outcome_unknown(clip_file):
     with pytest.raises(SocialProviderError) as exc:
         _publish(TikTokProvider(_config(), session=session), _request(clip_file))
     assert exc.value.outcome_unknown is True
+
+
+# ----------------------------------------------------------------------
+# Revocation
+# ----------------------------------------------------------------------
+def test_youtube_revokes_the_refresh_token():
+    session = FakeSession({("POST", "oauth2.googleapis.com/revoke"): FakeResponse(200, {})})
+    assert YouTubeProvider(_config(), session=session).revoke_tokens("access", "refresh") is True
+    assert session.calls[0][2]["data"] == {"token": "refresh"}
+
+    failing = FakeSession({("POST", "/revoke"): FakeResponse(400, {"error": "invalid_token"})})
+    with pytest.raises(SocialProviderError):
+        YouTubeProvider(_config(), session=failing).revoke_tokens("access", None)
+    assert YouTubeProvider(_config(), session=FakeSession({})).revoke_tokens(None, None) is False
+
+
+def test_tiktok_revokes_with_client_credentials_and_refreshes_expired_tokens():
+    session = FakeSession({("POST", "oauth/revoke"): FakeResponse(200, {})})
+    assert TikTokProvider(_config(), session=session).revoke_tokens("access", "refresh") is True
+    assert session.calls[0][2]["data"] == {
+        "client_key": "tt-key", "client_secret": "tt-secret", "token": "access",
+    }
+
+    expired = FakeSession({
+        ("POST", "oauth/revoke"): [
+            FakeResponse(401, {"error": "invalid_token", "error_description": "expired"}),
+            FakeResponse(200, {}),
+        ],
+        ("POST", "oauth/token"): FakeResponse(200, {"access_token": "fresh", "expires_in": 86400}),
+    })
+    assert TikTokProvider(_config(), session=expired).revoke_tokens("stale", "refresh") is True
+    revoke_calls = [call for call in expired.calls if "revoke" in call[1]]
+    assert revoke_calls[-1][2]["data"]["token"] == "fresh"
+
+    rejected = FakeSession({("POST", "oauth/revoke"): FakeResponse(401, {"error": "invalid_token"})})
+    with pytest.raises(SocialProviderError):
+        TikTokProvider(_config(), session=rejected).revoke_tokens("stale", None)
+
+
+def test_instagram_has_no_revocation_endpoint():
+    session = FakeSession({})
+    assert InstagramProvider(_config(), session=session).revoke_tokens("token", "token") is False
+    assert session.calls == []

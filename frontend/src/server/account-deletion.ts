@@ -1,6 +1,7 @@
 import { APIError } from "better-auth/api";
 import { monetizationEnabled } from "@/lib/monetization";
 import { deactivatePromotionCode } from "@/server/affiliates";
+import { fetchBackend } from "@/server/backend-api";
 import { getPrismaClient } from "@/server/prisma";
 
 // Stripe keeps billing (and retrying failed charges) in these states.
@@ -15,7 +16,8 @@ export const ACTIVE_STRIPE_SUBSCRIPTION_MESSAGE =
  * Throws when the user still has a Stripe subscription that would keep
  * charging them. Otherwise removes the user's video sources: `sources` has no
  * user column, so the `users -> tasks` cascade would leave them orphaned.
- * Tasks, generated clips, sessions, accounts and API keys cascade from `users`.
+ * Tasks, generated clips, sessions, accounts, API keys and social accounts
+ * cascade from `users`.
  */
 export async function prepareAccountDeletion(userId: string): Promise<void> {
   const prisma = getPrismaClient();
@@ -52,6 +54,10 @@ export async function prepareAccountDeletion(userId: string): Promise<void> {
     await deactivatePromotionCode(affiliate.stripe_promotion_code_id);
   }
 
+  // Social account rows cascade away with the user; revoke their grants at the
+  // platforms first, while the backend can still decrypt the tokens.
+  await revokeSocialConnections(userId);
+
   // Only sources no other user's task points at.
   await prisma.source.deleteMany({
     where: {
@@ -61,4 +67,15 @@ export async function prepareAccountDeletion(userId: string): Promise<void> {
       },
     },
   });
+}
+
+async function revokeSocialConnections(userId: string): Promise<void> {
+  try {
+    const response = await fetchBackend("/social/connections", { method: "DELETE", userId });
+    if (!response.ok) {
+      console.error(`Failed to revoke social connections (HTTP ${response.status})`);
+    }
+  } catch (error) {
+    console.error("Failed to revoke social connections", error);
+  }
 }

@@ -32,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
+REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 API_BASE = "https://www.googleapis.com/youtube/v3"
 UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
 
@@ -163,6 +164,25 @@ class YouTubeProvider(SocialProvider):
             avatar_url=avatar,
             metadata={"channel_id": channel["id"], "custom_url": custom_url},
         )
+
+    def revoke_tokens(
+        self, access_token: Optional[str], refresh_token: Optional[str]
+    ) -> bool:
+        # Revoking the refresh token ends the whole grant, access tokens included.
+        token = refresh_token or access_token
+        if not token:
+            return False
+        response = self.http.post(
+            REVOKE_URL,
+            data={"token": token},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=DEFAULT_HTTP_TIMEOUT,
+        )
+        if response.status_code >= 400:
+            raise SocialProviderError(
+                f"YouTube token revocation failed: {self._extract_error(response)}"
+            )
+        return True
 
     # -- publishing -----------------------------------------------------
     def publish(self, access_token: str, request: PublishRequest) -> PublishResult:

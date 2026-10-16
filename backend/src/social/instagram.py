@@ -162,6 +162,10 @@ class InstagramProvider(SocialProvider):
             raw={"token_type": payload.get("token_type")},
         )
 
+    # Instagram Login has no token revocation endpoint (users remove the app
+    # from their Instagram settings), so ``revoke_tokens`` keeps the base
+    # no-op; disconnecting still deletes the stored token.
+
     def fetch_profile(self, access_token: str) -> AccountProfile:
         response = self.http.get(
             f"{GRAPH_API}/me",

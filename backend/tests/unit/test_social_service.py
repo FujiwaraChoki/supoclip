@@ -58,7 +58,10 @@ class FakeRepo:
 
     # accounts
     async def list_accounts(self, db, user_id, include_revoked=False):
-        return [a for a in self.accounts.values() if a["user_id"] == user_id]
+        return [
+            a for a in self.accounts.values()
+            if a["user_id"] == user_id and (include_revoked or not a.get("revoked_at"))
+        ]
 
     async def get_account_with_tokens(self, db, account_id):
         return dict(self.accounts[account_id]) if account_id in self.accounts else None
@@ -76,7 +79,10 @@ class FakeRepo:
         return {k: v for k, v in record.items() if not k.endswith("_encrypted")}
 
     async def update_account_tokens(self, db, account_id, **fields):
+        if self.accounts[account_id].get("revoked_at"):
+            return False
         self.accounts[account_id].update(fields)
+        return True
 
     async def set_account_status(self, db, account_id, status, last_error):
         self.accounts[account_id]["status"] = status
@@ -84,7 +90,7 @@ class FakeRepo:
 
     async def revoke_account(self, db, user_id, account_id):
         account = self.accounts.get(account_id)
-        if not account or account["user_id"] != user_id:
+        if not account or account["user_id"] != user_id or account.get("revoked_at"):
             return False
         account["status"] = "revoked"
         account["revoked_at"] = datetime.now(timezone.utc)
@@ -242,6 +248,8 @@ class FakeProvider(SocialProvider):
         self.publish_result = PublishResult(external_post_id="ext-1", external_url=None)
         self.publish_error = None
         self.refresh_calls = 0
+        self.revoked = []
+        self.revoke_error = None
         self.metrics = PostMetrics(views=100, likes=5, comments=1, shares=2)
 
     @property
@@ -265,6 +273,12 @@ class FakeProvider(SocialProvider):
 
     def fetch_profile(self, access_token):
         return AccountProfile(external_account_id="chan-1", display_name="Channel", username="chan")
+
+    def revoke_tokens(self, access_token, refresh_token):
+        self.revoked.append((access_token, refresh_token))
+        if self.revoke_error:
+            raise self.revoke_error
+        return True
 
     def publish(self, access_token, request):
         self.publish_calls.append((access_token, request))
@@ -1093,6 +1107,60 @@ async def test_clip_deletion_tolerates_missing_social_tables():
     Orig.sqlstate = "42601"
     with pytest.raises(ProgrammingError):
         await SocialRepository.cancel_unpublished_for_clips(Db(), clip_id="clip-1")
+
+
+# ----------------------------------------------------------------------
+# Token revocation
+# ----------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_disconnect_revokes_the_grant_at_the_provider(service, provider):
+    account = await _connect(service)
+    assert await service.disconnect("user-1", account["id"]) is True
+    assert provider.revoked == [("access", "refresh")]
+    # Disconnecting twice (or someone else's account) revokes nothing more.
+    assert await service.disconnect("user-1", account["id"]) is False
+    assert provider.revoked == [("access", "refresh")]
+
+
+@pytest.mark.asyncio
+async def test_disconnect_succeeds_when_provider_revocation_fails(service, provider, caplog):
+    account = await _connect(service)
+    provider.revoke_error = requests.ConnectionError(LEAKY_URL)
+    with caplog.at_level("WARNING"):
+        assert await service.disconnect("user-1", account["id"]) is True
+    assert service.repo.accounts[account["id"]]["revoked_at"] is not None
+    assert "Could not revoke" in caplog.text
+    assert "IGQVJleaked-token-123" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_disconnect_all_revokes_every_account(service, provider):
+    await _connect(service)
+    assert await service.disconnect_all("user-1") == 1
+    assert len(provider.revoked) == 1
+    assert await service.disconnect_all("user-1") == 0
+
+
+@pytest.mark.asyncio
+async def test_refresh_cannot_resurrect_a_disconnected_account(service, provider):
+    account = await _connect(service)
+    stored = service.repo.accounts[account["id"]]
+    stored["token_expires_at"] = (datetime.now(timezone.utc) + timedelta(seconds=30)).isoformat()
+    original_refresh = provider.refresh_tokens
+
+    def refresh_while_disconnecting(refresh_token):
+        # The user disconnects while the refresh request is in flight.
+        stored["revoked_at"] = datetime.now(timezone.utc)
+        stored["status"] = "revoked"
+        return original_refresh(refresh_token)
+
+    provider.refresh_tokens = refresh_while_disconnecting
+    with pytest.raises(SocialProviderError, match="disconnected"):
+        await service._get_valid_access_token(dict(stored))
+    assert stored["status"] == "revoked"
+    assert stored["access_token_encrypted"] != "refreshed"
+    # The freshly minted grant is revoked rather than left alive.
+    assert provider.revoked == [("refreshed", "refresh")]
 
 
 # ----------------------------------------------------------------------

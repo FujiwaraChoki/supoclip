@@ -196,7 +196,50 @@ class SocialService:
         return account
 
     async def disconnect(self, user_id: str, account_id: str) -> bool:
-        return await self.repo.revoke_account(self.db, user_id, account_id)
+        account = await self.repo.get_account_with_tokens(self.db, account_id)
+        # Clear local credentials first: disconnecting must work even when the
+        # platform is unreachable.
+        removed = await self.repo.revoke_account(self.db, user_id, account_id)
+        if removed and account and account.get("user_id") == user_id:
+            await self._revoke_at_provider(
+                account["provider"],
+                account["id"],
+                _decrypt_or_none(account.get("access_token_encrypted")),
+                _decrypt_or_none(account.get("refresh_token_encrypted")),
+            )
+        return removed
+
+    async def disconnect_all(self, user_id: str) -> int:
+        """Disconnect every account of a user (account deletion)."""
+        accounts = await self.repo.list_accounts(self.db, user_id)
+        removed = 0
+        for account in accounts:
+            removed += int(await self.disconnect(user_id, account["id"]))
+        return removed
+
+    async def _revoke_at_provider(
+        self,
+        provider_name: str,
+        account_id: str,
+        access_token: Optional[str],
+        refresh_token: Optional[str],
+    ) -> None:
+        """Best-effort revocation of a grant; failures are only logged."""
+        if not access_token and not refresh_token:
+            return
+        try:
+            provider = get_provider(provider_name, self.config)
+            if not provider.is_configured:
+                return
+            await self._call_provider(provider.revoke_tokens, access_token, refresh_token)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Could not revoke %s tokens for social account %s (%s): %s",
+                provider_name,
+                account_id,
+                type(exc).__name__,
+                redact(exc),
+            )
 
     async def _get_valid_access_token(self, account: Dict[str, Any]) -> str:
         """Decrypt the stored token, refreshing it first when it is about to expire."""
@@ -233,7 +276,7 @@ class SocialService:
                     self.db, account["id"], "reauth_required", str(exc)
                 )
             raise
-        await self.repo.update_account_tokens(
+        stored = await self.repo.update_account_tokens(
             self.db,
             account["id"],
             access_token_encrypted=encrypt_setting_value(tokens.access_token),
@@ -242,6 +285,12 @@ class SocialService:
             ),
             token_expires_at=tokens.expires_at,
         )
+        if not stored:
+            # Disconnected while refreshing: the fresh grant must not outlive it.
+            await self._revoke_at_provider(
+                provider.name, account["id"], tokens.access_token, tokens.refresh_token
+            )
+            raise SocialProviderError("This account was disconnected. Reconnect it to publish.")
         return tokens.access_token
 
     # ------------------------------------------------------------------
@@ -840,6 +889,15 @@ class SocialService:
 # ----------------------------------------------------------------------
 # Helpers
 # ----------------------------------------------------------------------
+def _decrypt_or_none(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    try:
+        return decrypt_setting_value(value) or None
+    except Exception:  # noqa: BLE001 - e.g. a rotated encryption key
+        return None
+
+
 def normalize_hashtags(raw: Optional[List[str]]) -> List[str]:
     if not raw:
         return []

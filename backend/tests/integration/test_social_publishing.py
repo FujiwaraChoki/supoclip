@@ -298,3 +298,26 @@ async def test_claim_publishes_current_render_and_cleanup_keeps_it(
 
     await service.repo.update_post(db_session, post["id"], status="published")
     assert not await referenced(db_session, str(edited), storage)
+
+
+@pytest.mark.asyncio
+async def test_refreshed_tokens_cannot_revive_a_disconnected_account(
+    social_setup, client, db_session, auth_headers,
+):
+    provider, payload = social_setup
+    account_id = payload["social_account_id"]
+    service = SocialService(db_session, queue_adapter=FakeQueue())
+    assert await service.repo.update_account_tokens(
+        db_session, account_id, access_token_encrypted="enc", refresh_token_encrypted=None,
+        token_expires_at=None,
+    ) is True
+    assert (await client.delete("/social/connections", headers=auth_headers)).json()["removed"] == 1
+    assert provider.revoked
+    assert await service.repo.update_account_tokens(
+        db_session, account_id, access_token_encrypted="enc", refresh_token_encrypted=None,
+        token_expires_at=None,
+    ) is False
+    await service.repo.set_account_status(db_session, account_id, "reauth_required", "x")
+    account = await service.repo.get_account_with_tokens(db_session, account_id)
+    assert account["status"] == "revoked"
+    assert account["access_token_encrypted"] == ""
