@@ -216,6 +216,25 @@ class TaskService(ClipEditingMixin):
         logger.info(f"Created task {task_id} for user {user_id}")
         return task_id
 
+    async def _load_performance_context(self, user_id: Optional[str]) -> Optional[str]:
+        """Build the creator's performance summary for the AI prompt (best effort)."""
+        if not user_id:
+            return None
+        try:
+            from ..database import AsyncSessionLocal
+            from .social_service import SocialService
+
+            # A short-lived session of its own: a failed lookup (e.g. social
+            # tables not migrated yet when the worker deploys first) must not
+            # leave the task's transaction aborted.
+            async with AsyncSessionLocal() as session:
+                return await SocialService(session, self.config).build_performance_context(
+                    user_id
+                )
+        except Exception as exc:  # never block processing
+            logger.warning("Skipping performance context for user %s: %s", user_id, exc)
+            return None
+
     def _processing_transaction(self, task_id: str):
         return task_edit_transaction(self.db, task_id, processing=True)
 
@@ -271,6 +290,12 @@ class TaskService(ClipEditingMixin):
             cached_analysis_json = (
                 cache_entry.get("analysis_json") if cache_entry else None
             )
+            # Performance loop: feed this creator's real audience data back into
+            # clip selection. Personalized analyses bypass the shared analysis
+            # cache so one creator's history never shapes another's clips.
+            performance_context = await self._load_performance_context(user_id)
+            if performance_context:
+                cached_analysis_json = None
             cache_hit = bool(cached_transcript and cached_analysis_json)
 
             await self.task_repo.update_task_runtime_metadata(
@@ -330,6 +355,7 @@ class TaskService(ClipEditingMixin):
                 cached_analysis_json=cached_analysis_json,
                 progress_callback=update_progress,
                 should_cancel=should_cancel,
+                performance_context=performance_context,
             )
             stage_timings["pipeline_seconds"] = round(
                 perf_counter() - pipeline_start, 3
@@ -363,7 +389,7 @@ class TaskService(ClipEditingMixin):
                 source_type=source_type,
                 video_path=MediaStorage().source_reference(url) if url.startswith("upload://s3/") else result.get("video_path"),
                 transcript_text=result.get("transcript"),
-                analysis_json=result.get("analysis_json"),
+                analysis_json=None if performance_context else result.get("analysis_json"),
             )
 
             video_path = Path(result["video_path"])

@@ -1,6 +1,7 @@
 import { ACTIVE_STRIPE_SUBSCRIPTION_MESSAGE, prepareAccountDeletion } from "./account-deletion";
 import { getPrismaClient } from "@/server/prisma";
 import { getStripeClient } from "@/lib/stripe";
+import { fetchBackend } from "@/server/backend-api";
 
 vi.mock("@/lib/monetization", () => ({
   monetizationEnabled: true,
@@ -12,6 +13,10 @@ vi.mock("@/server/prisma", () => ({
 
 vi.mock("@/lib/stripe", () => ({
   getStripeClient: vi.fn(),
+}));
+
+vi.mock("@/server/backend-api", () => ({
+  fetchBackend: vi.fn(),
 }));
 
 function mockPrisma(user: Record<string, unknown> | null, affiliate: Record<string, unknown> | null = null) {
@@ -34,6 +39,7 @@ const stripeUser = {
 describe("prepareAccountDeletion", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(fetchBackend).mockResolvedValue(new Response(null, { status: 200 }));
   });
 
   it.each(["active", "trialing", "past_due"])("blocks a %s Stripe subscription", async (status) => {
@@ -97,5 +103,34 @@ describe("prepareAccountDeletion", () => {
 
     await expect(prepareAccountDeletion("user-1")).resolves.toBeUndefined();
     expect(deleteMany).toHaveBeenCalled();
+  });
+
+  it("revokes connected social accounts before the account is deleted", async () => {
+    const { deleteMany } = mockPrisma(null);
+
+    await expect(prepareAccountDeletion("user-1")).resolves.toBeUndefined();
+    expect(fetchBackend).toHaveBeenCalledWith("/social/connections", {
+      method: "DELETE",
+      userId: "user-1",
+    });
+    expect(deleteMany).toHaveBeenCalled();
+  });
+
+  it("still deletes the account when social revocation fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { deleteMany } = mockPrisma(null);
+    vi.mocked(fetchBackend).mockRejectedValueOnce(new Error("backend down"));
+    await expect(prepareAccountDeletion("user-1")).resolves.toBeUndefined();
+
+    vi.mocked(fetchBackend).mockResolvedValueOnce(new Response(null, { status: 503 }));
+    await expect(prepareAccountDeletion("user-1")).resolves.toBeUndefined();
+    expect(deleteMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not revoke social accounts when deletion is blocked", async () => {
+    mockPrisma(stripeUser);
+
+    await expect(prepareAccountDeletion("user-1")).rejects.toBeTruthy();
+    expect(fetchBackend).not.toHaveBeenCalled();
   });
 });

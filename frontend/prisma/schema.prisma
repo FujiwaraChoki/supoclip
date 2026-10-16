@@ -95,6 +95,9 @@ model User {
   acquisition   UserAcquisition?
   affiliate     Affiliate?  @relation("AffiliateApplicant")
   reviewed_affiliates Affiliate[] @relation("AffiliateReviewer")
+  social_accounts     SocialAccount[]
+  social_oauth_states SocialOauthState[]
+  social_posts        SocialPost[]
 
   @@map("users")
 }
@@ -189,12 +192,123 @@ model Task {
   // Relationships
   user                 User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
   source               Source?   @relation(fields: [source_id], references: [id], onDelete: SetNull)
+  social_posts         SocialPost[]
 
   @@index([user_id])
   @@index([source_id])
   @@index([created_at])
   @@index([status])
   @@map("tasks")
+}
+
+// Social publishing. Owned by the backend (raw SQL, tokens encrypted with the
+// backend key); mirrored here so both migration runners create the same tables.
+model SocialAccount {
+  id                      String    @id @default(dbgenerated("(uuid_generate_v4())::text")) @db.VarChar(36)
+  user_id                 String    @db.VarChar(36)
+  provider                String    @db.VarChar(20)
+  external_account_id     String    @db.VarChar(255)
+  display_name            String?   @db.VarChar(255)
+  username                String?   @db.VarChar(255)
+  avatar_url              String?
+  access_token_encrypted  String
+  refresh_token_encrypted String?
+  token_expires_at        DateTime? @db.Timestamptz
+  scopes                  String?
+  metadata                Json      @default("{}") @db.JsonB
+  status                  String    @default("active") @db.VarChar(20)
+  last_error              String?
+  created_at              DateTime? @default(now()) @db.Timestamptz
+  updated_at              DateTime? @default(now()) @db.Timestamptz
+  revoked_at              DateTime? @db.Timestamptz
+
+  user  User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  posts SocialPost[]
+
+  @@unique([user_id, provider, external_account_id], map: "idx_social_accounts_unique_account")
+  @@index([user_id], map: "idx_social_accounts_user_id")
+  @@map("social_accounts")
+}
+
+model SocialOauthState {
+  state         String    @id @db.VarChar(128)
+  user_id       String    @db.VarChar(36)
+  provider      String    @db.VarChar(20)
+  code_verifier String?   @db.VarChar(255)
+  redirect_uri  String
+  created_at    DateTime? @default(now()) @db.Timestamptz
+  expires_at    DateTime  @db.Timestamptz
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([expires_at], map: "idx_social_oauth_states_expires_at")
+  @@map("social_oauth_states")
+}
+
+model SocialPost {
+  id                     String    @id @default(dbgenerated("(uuid_generate_v4())::text")) @db.VarChar(36)
+  user_id                String    @db.VarChar(36)
+  task_id                String?   @db.VarChar(36)
+  /// generated_clips(id), ON DELETE SET NULL (generated_clips is not modeled here).
+  clip_id                String?   @db.VarChar(36)
+  social_account_id      String?   @db.VarChar(36)
+  provider               String    @db.VarChar(20)
+  status                 String    @default("queued") @db.VarChar(20)
+  scheduled_for          DateTime? @db.Timestamptz
+  title                  String?   @db.VarChar(255)
+  caption                String?
+  hashtags               String[]  @default([])
+  privacy_level          String    @default("public") @db.VarChar(40)
+  media_token            String?   @unique @db.VarChar(64)
+  media_token_expires_at DateTime? @db.Timestamptz
+  source_file_path       String?
+  pending_handle         String?   @db.VarChar(255)
+  external_post_id       String?   @db.VarChar(255)
+  external_url           String?
+  error_message          String?
+  attempts               Int       @default(0)
+  claimed_at             DateTime? @db.Timestamptz
+  hook_type              String?   @db.VarChar(50)
+  hook_title             String?   @db.VarChar(255)
+  virality_score         Int?
+  hook_score             Int?
+  engagement_score       Int?
+  value_score            Int?
+  shareability_score     Int?
+  clip_duration          Float?
+  published_at           DateTime? @db.Timestamptz
+  last_metrics_at        DateTime? @db.Timestamptz
+  metrics                Json?     @db.JsonB
+  created_at             DateTime? @default(now()) @db.Timestamptz
+  updated_at             DateTime? @default(now()) @db.Timestamptz
+
+  user           User               @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  task           Task?              @relation(fields: [task_id], references: [id], onDelete: SetNull)
+  social_account SocialAccount?     @relation(fields: [social_account_id], references: [id], onDelete: SetNull)
+  metric_history SocialPostMetric[]
+
+  @@index([user_id], map: "idx_social_posts_user_id")
+  @@index([clip_id], map: "idx_social_posts_clip_id")
+  @@index([task_id], map: "idx_social_posts_task_id")
+  @@index([status, scheduled_for], map: "idx_social_posts_status_scheduled")
+  @@map("social_posts")
+}
+
+model SocialPostMetric {
+  id          String    @id @default(dbgenerated("(uuid_generate_v4())::text")) @db.VarChar(36)
+  post_id     String    @db.VarChar(36)
+  captured_at DateTime? @default(now()) @db.Timestamptz
+  views       BigInt?
+  likes       BigInt?
+  comments    BigInt?
+  shares      BigInt?
+  saves       BigInt?
+  raw         Json?     @db.JsonB
+
+  post SocialPost @relation(fields: [post_id], references: [id], onDelete: Cascade)
+
+  @@index([post_id, captured_at(sort: Desc)], map: "idx_social_post_metrics_post_id")
+  @@map("social_post_metrics")
 }
 
 model Source {

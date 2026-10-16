@@ -67,6 +67,7 @@ def build_task_service() -> TaskService:
     config.aws_secret_access_key = "secret-test"
     config.ses_from_email = "SupoClip <noreply@example.com>"
     service = TaskService(db=AsyncMock(), config=config)
+    service._load_performance_context = AsyncMock(return_value=None)
     service._processing_transaction = lambda _task_id: nullcontext()
     service._task_run_guard = lambda _task_id: nullcontext()
     service.task_repo.get_task_by_id = AsyncMock(return_value={"status": "queued"})
@@ -669,3 +670,60 @@ async def test_legacy_queue_reservations_keep_full_arq_retention_window(age_hour
     service.task_repo.load_source_metadata = AsyncMock(return_value={})
     task = {"id": "legacy", "created_at": datetime.now(timezone.utc) - timedelta(hours=age_hours)}
     assert await service._queued_job_is_missing(task) is missing
+
+
+@pytest.mark.asyncio
+async def test_performance_context_uses_its_own_session(monkeypatch):
+    from src import database
+    from src.services import social_service
+
+    sessions = []
+
+    class Session:
+        async def __aenter__(self):
+            sessions.append(self)
+            return self
+
+        async def __aexit__(self, *exc):
+            self.closed = True
+
+    monkeypatch.setattr(database, "AsyncSessionLocal", Session)
+    service = TaskService(db=AsyncMock(), config=Config())
+
+    async def missing_tables(self, user_id):
+        raise RuntimeError('relation "social_posts" does not exist')
+
+    monkeypatch.setattr(social_service.SocialService, "build_performance_context", missing_tables)
+    assert await service._load_performance_context("user-1") is None
+    assert sessions and sessions[0].closed
+    # The task's own session never saw the failing query.
+    service.db.execute.assert_not_awaited()
+    service.db.rollback.assert_not_awaited()
+
+    async def context(self, user_id):
+        assert self.db is sessions[-1]
+        return "history"
+
+    monkeypatch.setattr(social_service.SocialService, "build_performance_context", context)
+    assert await service._load_performance_context("user-1") == "history"
+    assert await service._load_performance_context(None) is None
+
+
+@pytest.mark.asyncio
+async def test_personalized_run_is_not_reported_as_a_cache_hit():
+    service = build_task_service()
+    service.cache_repo.get_cache = AsyncMock(
+        return_value={"transcript_text": "Transcript", "analysis_json": "{}"}
+    )
+    service._load_performance_context = AsyncMock(return_value="history")
+    await service.process_task(task_id="task-1", url="upload://test.mp4", source_type="upload", user_id="user-1")
+    first = service.task_repo.update_task_runtime_metadata.await_args_list[0]
+    assert first.kwargs["cache_hit"] is False
+    assert service.video_service.process_video_complete.await_args.kwargs["cached_analysis_json"] is None
+
+    service = build_task_service()
+    service.cache_repo.get_cache = AsyncMock(
+        return_value={"transcript_text": "Transcript", "analysis_json": "{}"}
+    )
+    await service.process_task(task_id="task-1", url="upload://test.mp4", source_type="upload", user_id="user-1")
+    assert service.task_repo.update_task_runtime_metadata.await_args_list[0].kwargs["cache_hit"] is True

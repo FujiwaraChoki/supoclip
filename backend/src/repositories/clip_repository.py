@@ -4,6 +4,7 @@ Clip repository - handles all database operations for generated clips.
 
 from .edit_transaction import commit_unless_editing
 from .media_repository import persist_clip, queue_clip_delete
+from .social_repository import SocialRepository
 from sqlalchemy.exc import DBAPIError
 
 
@@ -216,6 +217,7 @@ class ClipRepository:
         ), {"task_id": task_id})
         for clip in rows.mappings():
             await queue_clip_delete(db, clip)
+        await SocialRepository.cancel_unpublished_for_clips(db, task_id=task_id)
         result = await db.execute(
             sa_text("DELETE FROM generated_clips WHERE task_id = :task_id"),
             {"task_id": task_id},
@@ -234,6 +236,7 @@ class ClipRepository:
         clip = rows.mappings().first()
         if clip:
             await queue_clip_delete(db, clip)
+            await SocialRepository.cancel_unpublished_for_clips(db, clip_id=clip_id)
         await db.execute(
             sa_text("DELETE FROM generated_clips WHERE id = :clip_id"),
             {"clip_id": clip_id},

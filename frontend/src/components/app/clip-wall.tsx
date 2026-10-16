@@ -107,7 +107,7 @@ const BREAKDOWN = [
   { key: "shareability_score", label: "Shareability", icon: Share2 },
 ] as const;
 
-export function ClipFocus({ clip, taskId, index, total, busy, editable, onNavigate, onClose, onDownload, onDelete, hookTypeLabel }: {
+export function ClipFocus({ clip, taskId, index, total, busy, editable, onNavigate, onClose, onDownload, onDelete, hookTypeLabel, actions, children }: {
   clip: WallClip | null;
   taskId: string;
   index: number;
@@ -119,6 +119,10 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
   onDownload: () => void;
   onDelete?: () => void;
   hookTypeLabel: (hookType: string | null) => string;
+  /** Extra footer actions for the focused clip (e.g. publishing). */
+  actions?: React.ReactNode;
+  /** Extra detail content rendered below the transcript. */
+  children?: React.ReactNode;
 }) {
   useEffect(() => {
     if (!clip) return;
@@ -184,6 +188,7 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                 )}
 
                 {clip.text && <TranscriptPreview text={clip.text} clipTitle={clipTitle(clip)} />}
+                {children}
               </div>
               <div className="mt-auto flex flex-wrap items-center gap-2 border-t bg-muted/30 px-5 py-3">
                 <Button size="sm" onClick={onDownload} disabled={busy}>
@@ -194,6 +199,7 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                     <Link href={`/tasks/${taskId}/edit?clip=${clip.id}`}><Scissors className="size-4" />Open in editor</Link>
                   </Button>
                 )}
+                {actions}
                 {onDelete && (
                   <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={onDelete}>
                     <Trash2 className="size-4" />Delete

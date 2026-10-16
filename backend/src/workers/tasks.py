@@ -6,6 +6,7 @@ import logging
 from typing import Dict, Any, Optional
 import json
 from arq import Retry, cron
+from arq.worker import func
 from .media_cleanup import cleanup_media, sweep_orphaned_media
 from ..repositories.task_run_guard import TaskRunBusy
 
@@ -126,7 +127,73 @@ async def process_video_task(
             # Error will be caught by arq and task status will be updated
             raise
 
+
+async def _social_service(db):
+    from ..runtime_settings import load_runtime_settings_cache
+    from ..services.social_service import SocialService
+
+    await load_runtime_settings_cache(db)
+    return SocialService(db)
+
+
+async def publish_social_post(ctx: Dict[str, Any], post_id: str) -> Dict[str, Any]:
+    """Upload one queued social post to its platform."""
+    from ..database import AsyncSessionLocal
+
+    set_trace_id(f"social-{post_id}")
+    logger.info("Worker publishing social post %s", post_id)
+    async with AsyncSessionLocal() as db:
+        service = await _social_service(db)
+        try:
+            post = await service.publish_post(post_id)
+        except Exception as exc:
+            # Failures are recorded on the post row; never let arq retry blindly.
+            # Cancellation (job timeout, shutdown) propagates; the stale
+            # publishing sweep fails that post. Logged without a traceback
+            # because provider errors can carry request URLs.
+            from ..social.base import redact
+
+            logger.error(
+                "Publishing social post %s crashed (%s): %s",
+                post_id,
+                type(exc).__name__,
+                redact(exc),
+            )
+            return {"post_id": post_id, "status": "error"}
+    return {"post_id": post_id, "status": post.get("status")}
+
+
+async def dispatch_scheduled_social_posts(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """Cron: move due scheduled posts onto the publish queue."""
+    from ..database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as db:
+        service = await _social_service(db)
+        dispatched = await service.dispatch_scheduled_posts()
+        resolved = await service.resolve_pending_posts()
+        # Covers workers that crashed or were cancelled mid-upload.
+        swept = await service.sweep_stale_publishing()
+    return {
+        "dispatched": len(dispatched),
+        "pending_checked": resolved,
+        "stale_failed": len(swept),
+    }
+
+
+async def refresh_social_metrics(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """Cron: pull fresh audience metrics for recently published posts."""
+    from ..database import AsyncSessionLocal
+    from ..repositories.social_repository import SocialRepository
+
+    async with AsyncSessionLocal() as db:
+        service = await _social_service(db)
+        refreshed = await service.refresh_due_metrics()
+        purged = await SocialRepository.purge_expired_oauth_states(db)
+    return {"refreshed": refreshed, "purged_oauth_states": purged}
+
+
 from ..services.editor_service import prepare_editor, export_editor, combine_editor
+from ..services.social_service import PUBLISH_JOB_TIMEOUT_SECONDS
 
 # Worker configuration for arq
 class WorkerSettings:
@@ -138,7 +205,15 @@ class WorkerSettings:
     config = Config()
 
     # Functions to run
-    functions = [process_video_task, prepare_editor, export_editor, combine_editor]
+    functions = [
+        process_video_task,
+        prepare_editor,
+        export_editor,
+        combine_editor,
+        # Results are not kept so a finished job's id ("social:{post}:{attempt}")
+        # frees up; a dead job's post is failed by the stale-publishing sweep.
+        func(publish_social_post, timeout=PUBLISH_JOB_TIMEOUT_SECONDS, keep_result=0),
+    ]
     queue_name = "supoclip_tasks"
     health_check_interval = 30
 
@@ -156,4 +231,8 @@ class WorkerSettings:
     cron_jobs = [
         cron(cleanup_media, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}, run_at_startup=True),
         cron(sweep_orphaned_media, hour={0, 6, 12, 18}, minute=15),
+        # Every minute: promote due scheduled posts and poll async publishes.
+        cron(dispatch_scheduled_social_posts, second=0, timeout=300),
+        # Hourly: pull audience metrics back for the performance loop.
+        cron(refresh_social_metrics, minute=7, second=0, timeout=1800),
     ]

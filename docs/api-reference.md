@@ -83,6 +83,17 @@ These routes generally attach session context and then proxy or orchestrate back
 - `POST /api/billing/webhook`
   - Stripe webhook receiver
 
+### Social publishing
+
+- `GET /api/social/connect/[provider]`
+  - Starts the OAuth handshake and redirects the browser to the platform
+- `GET /api/social/callback/[provider]`
+  - OAuth redirect target; completes the connection and returns to `/settings/social`
+- `GET /api/social/media/[token]`
+  - Public, token-gated clip stream used by Instagram to fetch a video
+- `GET|POST|DELETE /api/social/[...path]`
+  - Authenticated proxy for the backend `/social/*` routes
+
 ### Admin
 
 - `GET /admin`
@@ -203,6 +214,75 @@ Routes:
 
 - `POST /feedback`
   - Submit a feedback item, optionally routing it to configured webhook destinations
+
+## Social Publishing Routes
+
+Source files:
+
+- `backend/src/api/routes/social.py`
+- `backend/src/services/social_service.py`
+- `backend/src/social/` (YouTube, TikTok and Instagram providers)
+
+Connecting and disconnecting accounts requires signed session headers. Posting
+and performance routes also accept API keys.
+
+Connections:
+
+- `GET /social/providers`
+  - Which platforms are configured on this server, their supported privacy levels and
+    `default_privacy_level` (TikTok: `public`/`private`, default `private`)
+- `GET /social/connections`
+  - The user's connected accounts (never includes tokens)
+- `POST /social/connections/{provider}/authorize`
+  - Create a CSRF state and return the platform's `authorize_url`
+- `POST /social/connections/{provider}/callback`
+  - Body `{code, state}`; exchanges the code and stores encrypted tokens
+- `DELETE /social/connections/{account_id}`
+  - Disconnect an account, cancel its scheduled posts and revoke the grant at the platform
+    (best effort; Instagram has no revocation endpoint)
+- `DELETE /social/connections`
+  - Disconnect every account (called when a user deletes their SupoClip account)
+
+Posts:
+
+- `GET /social/posts?task_id=&clip_id=&status=`
+  - List posts with their latest metrics
+- `POST /social/posts`
+  - Body `{task_id, clip_id, social_account_id, title?, caption?, hashtags?, privacy_level?, scheduled_for?}`.
+    Without `scheduled_for` the post is queued immediately; with an ISO timestamp it is scheduled.
+- `GET /social/posts/{post_id}`
+  - One post including its metrics history
+- `POST /social/posts/{post_id}/cancel`
+  - Cancel a scheduled or queued post
+- `POST /social/posts/{post_id}/retry`
+  - Re-queue a failed or cancelled post. An upload the platform already accepted is only
+    checked again, never uploaded twice
+- `POST /social/posts/{post_id}/refresh-metrics`
+  - Pull fresh metrics from the platform now
+- `DELETE /social/posts/{post_id}`
+  - Remove the post record (the platform post is untouched); not while queued or publishing
+
+Performance loop:
+
+- `GET /social/performance`
+  - Views, likes, comments and shares aggregated by hook type, platform and clip length, plus top clips.
+    The same aggregation is injected into the AI selection prompt once
+    `SOCIAL_PERFORMANCE_MIN_POSTS` posts have metrics.
+
+Public:
+
+- `GET /social/media/{media_token}`
+  - Streams a clip for a platform fetch while the token is valid (a few hours around publishing).
+    With `MEDIA_STORAGE=s3` it redirects to a presigned URL instead
+
+Post status flow: `scheduled → queued → publishing → published | failed | cancelled`.
+A worker claims a queued post atomically before uploading, and always publishes
+the clip's current render. Deleting a clip or task cancels its scheduled and
+queued posts. The worker runs a cron every minute to promote due scheduled
+posts, poll asynchronous publishes and fail posts stuck in `publishing` for two
+hours, and hourly to refresh metrics. When the platform may already have the
+post (a timeout after the upload was sent, or a lost worker) the post fails with
+"Upload outcome unknown" and is never uploaded again automatically.
 
 ## Auth and Identity Model
 
