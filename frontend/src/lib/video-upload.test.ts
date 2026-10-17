@@ -1,4 +1,23 @@
-import { uploadVideoFile } from "./video-upload";
+import { getYouTubeThumbnailUrl, uploadVideoFile } from "./video-upload";
+
+describe("YouTube thumbnails", () => {
+  it.each([
+    "https://youtube.com/live/abcdefghijk",
+    "https://www.youtube.com/live/abcdefghijk?t=10m",
+    "https://m.youtube.com/live/abcdefghijk?start=60&end=120",
+    "https://youtube.com/watch?v=abcdefghijk",
+    "https://youtu.be/abcdefghijk",
+    "https://youtube.com/embed/abcdefghijk",
+  ])("extracts the video ID from %s", (url) => {
+    expect(getYouTubeThumbnailUrl(url)).toBe("https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg");
+  });
+
+  it.each(["https://example.com/live/abcdefghijk", "https://youtube.com/live/short"])(
+    "rejects invalid video links: %s", (url) => {
+      expect(getYouTubeThumbnailUrl(url)).toBeNull();
+    },
+  );
+});
 
 describe("S3 video uploads", () => {
   afterEach(() => vi.unstubAllGlobals());

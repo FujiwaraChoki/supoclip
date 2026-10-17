@@ -18,6 +18,7 @@ import yt_dlp
 
 from .apify_youtube_downloader import ApifyDownloadError, download_video_via_apify
 from .config import get_config
+from .youtube_ranges import parse_youtube_range, youtube_cache_key, youtube_range_duration
 
 logger = logging.getLogger(__name__)
 
@@ -230,7 +231,7 @@ def get_youtube_video_id(url: str) -> Optional[str]:
 
     # Comprehensive regex patterns for different YouTube URL formats
     patterns = [
-        r"(?:youtube\.com/(?:.*v=|v/|embed/|shorts/)|youtu\.be/)([A-Za-z0-9_-]{11})",
+        r"(?:youtube\.com/(?:.*v=|v/|embed/|shorts/|live/)|youtu\.be/)([A-Za-z0-9_-]{11})",
         r"youtube\.com/watch\?v=([A-Za-z0-9_-]{11})",
         r"youtube\.com/embed/([A-Za-z0-9_-]{11})",
         r"youtube\.com/v/([A-Za-z0-9_-]{11})",
@@ -259,6 +260,12 @@ def get_youtube_video_id(url: str) -> Optional[str]:
         logger.warning(f"Error parsing URL query parameters: {e}")
 
     return None
+
+
+def get_youtube_cache_id(url: str) -> Optional[str]:
+    """Separate word timings and media artifacts for each requested interval."""
+    video_id = get_youtube_video_id(url)
+    return youtube_cache_key(url, video_id) if video_id else None
 
 
 def validate_youtube_url(url: str) -> bool:
@@ -518,6 +525,10 @@ def _download_youtube_video_with_ytdlp(
     logger.info(f"Video: '{video_info.get('title')}' ({video_info.get('duration')}s)")
 
     duration = video_info.get("duration", 0)
+    bounds = parse_youtube_range(url)
+    cache_id = youtube_cache_key(url, video_id)
+    if bounds:
+        youtube_range_duration(url, duration)
     if duration > 3600:
         logger.warning(f"Video duration ({duration}s) exceeds recommended limit")
 
@@ -527,7 +538,14 @@ def _download_youtube_video_with_ytdlp(
         try:
             logger.info("Download attempt %s/%s", attempt + 1, max_retries)
 
-            ydl_opts = downloader.get_optimal_download_options(video_id)
+            ydl_opts = downloader.get_optimal_download_options(cache_id)
+            if bounds:
+                start, end = bounds
+                ydl_opts["download_ranges"] = yt_dlp.utils.download_range_func(
+                    [], [(start, min(end, duration) if end is not None else duration)]
+                )
+                # Re-encode cut boundaries so words and frames start on the same timeline.
+                ydl_opts["force_keyframes_at_cuts"] = True
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
@@ -535,7 +553,7 @@ def _download_youtube_video_with_ytdlp(
             logger.info(f"Searching for downloaded file: {video_id}.*")
             downloaded_files = [
                 file_path
-                for file_path in downloader.temp_dir.glob(f"{video_id}.*")
+                for file_path in downloader.temp_dir.glob(f"{cache_id}.*")
                 if file_path.is_file()
                 and file_path.suffix.lower() in [".mp4", ".mkv", ".webm"]
             ]
@@ -608,6 +626,12 @@ def download_youtube_video(
         logger.error("Could not extract video ID from URL: %s", url)
         return None
 
+    config = get_config()
+    if parse_youtube_range(url):
+        # Other providers return full media; never silently ignore the requested cut.
+        cache_id = youtube_cache_key(url, video_id)
+        _remove_cached_downloads(Path(config.temp_dir), cache_id)
+        return _download_youtube_video_with_ytdlp(url, max_retries, task_id)
     downloader = YouTubeDownloader()
     _remove_cached_downloads(downloader.temp_dir, video_id)
 

@@ -13,7 +13,7 @@ from ..media_storage import MediaStorage, VIDEO_SUFFIXES, STORAGE_ERRORS, is_s3
 from botocore.exceptions import ClientError
 from ..editor_document import editor_dir
 from ..repositories.media_repository import source_guard, queue_delete
-from ..youtube_utils import get_youtube_video_id
+from ..youtube_utils import get_youtube_cache_id
 from ..utils.async_helpers import run_in_thread
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ async def reference_index(db, storage):
     rows = await db.execute(text("SELECT DISTINCT s.url, s.type FROM sources s JOIN tasks t ON t.source_id = s.id"))
     rows = list(rows)
     sources = {row.url for row in rows}
-    videos = {get_youtube_video_id(row.url) for row in rows if row.type == "youtube" and row.url}
+    videos = {get_youtube_cache_id(row.url) for row in rows if row.type == "youtube" and row.url}
     return {"editors": editors, "videos": videos, "clips": clips, "sources": sources}
 
 
@@ -123,7 +123,11 @@ def orphan_candidates(storage: MediaStorage):
         for path in entries(root):
             if modified(path) >= cutoff:
                 continue
-            if path.is_file() and re.fullmatch(r"[A-Za-z0-9_-]{11}\.(?:mp4|webm|mkv|m4a|transcription\.mp3|assemblyai\.mp3|part)", path.name):
+            if path.is_file() and re.fullmatch(
+                r"[A-Za-z0-9_-]{11}(?:__range_\d+_(?:\d+|end))?\."
+                r"(?:f\d+\.)?(?:mp4|webm|mkv|m4a|transcription\.mp3|assemblyai\.mp3|part)"
+                r"(?:\.part(?:-Frag\d+)?)?", path.name
+            ):
                 yield str(path), False
             # Reclaim legacy temporary files after upgrades; these are not provider options.
             elif path.is_dir() and path.name.startswith(("apify-", "oxy-", "videoscale-", "ytdl-")):
