@@ -254,10 +254,11 @@ def transcribe_with_youtube_captions(video_url: str) -> Optional[str]:
         logger.error("yt-dlp is required for YouTube caption extraction")
         return None
 
-    video_id = None
-    match = re.search(r"(?:v=|youtu\.be/|shorts/)([A-Za-z0-9_-]{11})", video_url)
-    if match:
-        video_id = match.group(1)
+    from ..youtube_utils import get_youtube_cache_id
+    from ..youtube_ranges import parse_youtube_range
+
+    video_id = get_youtube_cache_id(video_url)
+    bounds = parse_youtube_range(video_url)
 
     if not video_id:
         logger.error("Could not extract YouTube video ID from URL: %s", video_url)
@@ -284,10 +285,22 @@ def transcribe_with_youtube_captions(video_url: str) -> Optional[str]:
         if subs_path.exists():
             text = subs_path.read_text(encoding="utf-8")
             lines = []
+            include_cue = bounds is None
             for line in text.splitlines():
                 stripped = line.strip()
+                if bounds and "-->" in line:
+                    cue = re.match(r"(\d+:\d{2}:\d{2}\.\d+) --> (\d+:\d{2}:\d{2}\.\d+)", stripped)
+                    include_cue = False
+                    if cue:
+                        def seconds(value):
+                            hours, minutes, secs = value.split(":")
+                            return int(hours) * 3600 + int(minutes) * 60 + float(secs)
+
+                        start, end = bounds
+                        # Keep complete cues only; boundary cues may contain words outside the cut.
+                        include_cue = seconds(cue[1]) >= start and (end is None or seconds(cue[2]) <= end)
                 if (
-                    stripped
+                    include_cue and stripped
                     and not stripped.startswith("WEBVTT")
                     and not stripped.startswith("Kind:")
                     and not stripped.startswith("Language:")
@@ -306,7 +319,7 @@ def transcribe_with_youtube_captions(video_url: str) -> Optional[str]:
         return None
     finally:
         for f in temp_dir.glob(f"{video_id}.*"):
-            if f.suffix in (".vtt", ".srt", ".ttml", ".json"):
+            if f.suffix in (".vtt", ".srt", ".ttml"):
                 try:
                     f.unlink()
                 except OSError:

@@ -28,7 +28,8 @@ from .task_completion_email_service import (
     TaskCompletionRecipient,
 )
 from ..config import Config, get_config
-from ..youtube_utils import cleanup_downloaded_files, extract_video_id
+from ..youtube_utils import cleanup_downloaded_files, get_youtube_cache_id
+from ..youtube_ranges import parse_youtube_range
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..clip_source_map import load_clip_caption_settings
@@ -54,9 +55,13 @@ class TaskService(ClipEditingMixin):
 
     @staticmethod
     def _build_cache_key(url: str, source_type: str, processing_mode: str) -> str:
+        version = TRANSCRIPT_ANALYSIS_CACHE_VERSION
+        if source_type == "youtube" and parse_youtube_range(url):
+            # Earlier releases cached full-video analysis even for timestamped URLs.
+            version = f"{version}:youtube-range-v1"
         payload = (
             f"{source_type}|{processing_mode}|"
-            f"{TRANSCRIPT_ANALYSIS_CACHE_VERSION}|{url.strip()}"
+            f"{version}|{url.strip()}"
         )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -138,7 +143,7 @@ class TaskService(ClipEditingMixin):
 
         if source_type == "youtube":
             try:
-                video_id = extract_video_id(url)
+                video_id = get_youtube_cache_id(url)
                 if video_id:
                     try:
                         MediaStorage().save_youtube_metadata(video_id, video_path)
@@ -717,7 +722,7 @@ class TaskService(ClipEditingMixin):
                 path = str(self.video_service.resolve_local_video_path(source_url))
             await queue_delete(self.db, path)
         elif source_url and MediaStorage().enabled:
-            video_id = extract_video_id(source_url)
+            video_id = get_youtube_cache_id(source_url)
             if video_id:
                 await queue_delete(self.db, MediaStorage().youtube_metadata_reference(video_id))
         # Delete all clips for this task

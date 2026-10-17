@@ -87,3 +87,28 @@ async def test_upload_does_not_request_youtube_metadata(monkeypatch, creation):
     result = await tasks.create_task(request, db=None)
     assert result["task_id"] == "task-1"
     metadata.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_requested_range_uses_effective_duration(monkeypatch, creation):
+    request, service, queue, _billing = creation
+    request.json.return_value = {"source": {"url": "https://youtube.com/live/abcdefghijk?start=7200&end=7260"}}
+    monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value={"duration": 14400}))
+    result = await tasks.create_task(request, db=None)
+    assert result["task_id"] == "task-1"
+    service.create_task_with_source.assert_awaited_once()
+    queue.enqueue_processing_job.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("suffix", ["?t=abc", "?start=120&end=60", "?start=180"])
+async def test_invalid_range_does_not_consume_generation(monkeypatch, creation, suffix):
+    request, service, queue, _billing = creation
+    request.json.return_value = {"source": {"url": "https://youtu.be/abcdefghijk" + suffix}}
+    monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value={"duration": 180}))
+    with pytest.raises(HTTPException) as error:
+        await tasks.create_task(request, db=None)
+    assert error.value.status_code == 422
+    assert error.value.detail["code"] == "INVALID_VIDEO_RANGE"
+    service.create_task_with_source.assert_not_awaited()
+    queue.enqueue_processing_job.assert_not_awaited()

@@ -46,7 +46,7 @@ const extractYouTubeVideoId = (value: string): string | null => {
       }
 
       const pathParts = parsed.pathname.split("/").filter(Boolean);
-      const embedId = pathParts[0] === "embed" ? pathParts[1] : null;
+      const embedId = ["embed", "live"].includes(pathParts[0]) ? pathParts[1] : null;
       if (embedId && embedId.length === 11) {
         return embedId;
       }
