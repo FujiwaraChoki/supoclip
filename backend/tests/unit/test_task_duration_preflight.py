@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import HTTPException
@@ -10,7 +10,7 @@ from src.services.video_service import VideoService
 
 @pytest.fixture
 def creation(monkeypatch):
-    billing = {"max_youtube_duration_seconds": 5400}
+    billing = {"max_youtube_duration_seconds": 5400, "max_upload_duration_seconds": 5400}
     monkeypatch.setattr(tasks.BillingService, "assert_can_create_task", AsyncMock(return_value=billing))
     monkeypatch.setattr(tasks, "_get_user_id_from_headers", AsyncMock(return_value="user-1"))
     monkeypatch.setattr(tasks, "_save_task_source_metadata", AsyncMock())
@@ -36,7 +36,7 @@ async def test_long_video_rejected_before_task_or_queue_creation(monkeypatch, cr
     assert error.value.status_code == 422
     assert error.value.detail["code"] == "VIDEO_TOO_LONG"
     assert "90 minutes" in error.value.detail["message"]
-    assert "No generation was used" in error.value.detail["message"]
+    assert "No minutes were used" in error.value.detail["message"]
     service.create_task_with_source.assert_not_awaited()
     queue.enqueue_processing_job.assert_not_awaited()
 
@@ -50,6 +50,9 @@ async def test_plan_boundary_and_longer_entitlement_are_accepted(monkeypatch, cr
     result = await tasks.create_task(request, db=None)
     assert result["task_id"] == "task-1"
     assert service.create_task_with_source.await_args.kwargs["title"] == "Verified title"
+    assert service.create_task_with_source.await_args.kwargs["source_duration_seconds"] == duration
+    # The allowance check inside the guard is sized to the whole video.
+    assert tasks.BillingService.assert_can_create_task.await_args.args[-1] == duration
     queue.enqueue_processing_job.assert_awaited_once()
 
 
@@ -79,11 +82,34 @@ async def test_metadata_error_does_not_leak_provider_details(monkeypatch, creati
 
 
 @pytest.mark.asyncio
-async def test_upload_does_not_request_youtube_metadata(monkeypatch, creation):
-    request, _service, _queue, _billing = creation
+async def test_upload_is_probed_instead_of_requesting_youtube_metadata(monkeypatch, creation):
+    request, service, _queue, _billing = creation
     request.json.return_value = {"source": {"url": "upload://video.mp4"}}
     metadata = AsyncMock()
     monkeypatch.setattr(tasks, "async_get_youtube_video_info", metadata)
+    probe = MagicMock(return_value=600.4)
+    monkeypatch.setattr(tasks.VideoService, "probe_upload_duration", probe)
     result = await tasks.create_task(request, db=None)
     assert result["task_id"] == "task-1"
     metadata.assert_not_awaited()
+    probe.assert_called_once_with("upload://video.mp4", "user-1")
+    assert service.create_task_with_source.await_args.kwargs["source_duration_seconds"] == 601
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("probe,code", [
+    (MagicMock(side_effect=RuntimeError("unreadable")), "VIDEO_METADATA_UNAVAILABLE"),
+    (MagicMock(return_value=0.0), "VIDEO_METADATA_UNAVAILABLE"),
+    (MagicMock(return_value=5401.0), "VIDEO_TOO_LONG"),
+])
+async def test_unreadable_or_long_upload_uses_no_minutes(monkeypatch, creation, probe, code):
+    request, service, queue, _billing = creation
+    request.json.return_value = {"source": {"url": "upload://video.mp4"}}
+    monkeypatch.setattr(tasks.VideoService, "probe_upload_duration", probe)
+    with pytest.raises(HTTPException) as error:
+        await tasks.create_task(request, db=None)
+    assert error.value.status_code == 422
+    assert error.value.detail["code"] == code
+    assert "No minutes were used" in error.value.detail["message"]
+    service.create_task_with_source.assert_not_awaited()
+    queue.enqueue_processing_job.assert_not_awaited()

@@ -65,9 +65,10 @@ def test_download_youtube_video_uses_apify_when_configured(tmp_path, monkeypatch
 
     captured = {}
 
-    def fake_apify(url: str, video_id: str):
+    def fake_apify(url: str, video_id: str, quality=None):
         captured["url"] = url
         captured["video_id"] = video_id
+        captured["quality"] = quality
         target = tmp_path / f"{video_id}.mp4"
         target.write_bytes(b"video")
         return target
@@ -87,7 +88,11 @@ def test_download_youtube_video_uses_apify_when_configured(tmp_path, monkeypatch
         assert captured == {
             "url": "https://www.youtube.com/watch?v=abcdefghijk",
             "video_id": "abcdefghijk",
+            "quality": None,
         }
+
+        download_youtube_video("https://www.youtube.com/watch?v=abcdefghijk", quality="720")
+        assert captured["quality"] == "720"
     finally:
         set_config_override(None)
 
@@ -584,6 +589,24 @@ def test_rapidapi_fallback_after_apify_failure(tmp_path, monkeypatch, permanent)
         set_config_override(None)
 
 
+@pytest.mark.parametrize("default,requested,expected", [
+    ("1080", None, "1080"),
+    ("1080", "720", "720"),
+    # A plan cap never raises the quality above the configured default.
+    ("480", "720", "480"),
+])
+def test_apify_quality_follows_the_plan_cap(default, requested, expected):
+    from src.youtube_utils import _resolve_apify_quality
+
+    config = Config()
+    config.apify_youtube_default_quality = default
+    set_config_override(config)
+    try:
+        assert _resolve_apify_quality("https://www.youtube.com/watch?v=abcdefghijk", requested) == expected
+    finally:
+        set_config_override(None)
+
+
 def test_cleanup_removes_completed_rapidapi_directory(tmp_path, monkeypatch):
     from src.youtube_utils import cleanup_downloaded_files
     monkeypatch.setattr("src.youtube_utils.get_config", lambda: type("Config", (), {"temp_dir": str(tmp_path)})())
@@ -636,5 +659,20 @@ def test_router_primary_leaves_ytdlp_until_all_paid_options_fail(
             if not apify_succeeds:
                 expected.append('yt_dlp')
         assert calls == expected
+    finally:
+        set_config_override(None)
+
+
+def test_ytdlp_format_caps_height_only_when_asked(tmp_path):
+    from src.youtube_utils import YouTubeDownloader
+
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    set_config_override(config)
+    try:
+        downloader = YouTubeDownloader()
+        assert downloader.get_optimal_download_options("abcdefghijk")["format"] == "bestvideo*+bestaudio/best"
+        capped = downloader.get_optimal_download_options("abcdefghijk", 720)["format"]
+        assert capped.startswith("bestvideo*[height<=720]+bestaudio/best[height<=720]/")
     finally:
         set_config_override(None)

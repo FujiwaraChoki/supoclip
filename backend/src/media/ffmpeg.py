@@ -227,6 +227,38 @@ def build_final_video_encode_args(
     ]
 
 
+def cap_video_short_side(video_path: Path, short_side: int) -> bool:
+    """Downscale a rendered clip in place so its shorter side is at most
+    ``short_side`` pixels. Returns whether the file changed.
+
+    Rendering always happens at 1080 wide so captions and overlays keep their
+    layout; plans with a lower output resolution get this final pass.
+    """
+    width, height = ffprobe_video_size(video_path)
+    if min(width, height) <= short_side:
+        return False
+    scale = short_side / min(width, height)
+    target_width = round_to_even(round(width * scale))
+    target_height = round_to_even(round(height * scale))
+    capped_path = video_path.with_name(f".{video_path.stem}.capped{video_path.suffix}")
+    command = [
+        "ffmpeg", "-y", "-v", "error",
+        "-i", str(video_path),
+        "-map", "0:v:0", "-map", "0:a?",
+        "-vf", f"scale={target_width}:{target_height}:flags=lanczos,setsar=1",
+        *build_final_video_encode_args(),
+        "-c:a", "copy",
+        "-movflags", "+faststart",
+        str(capped_path),
+    ]
+    result = run_ffmpeg_command(command)
+    if result.returncode != 0 or not capped_path.exists():
+        capped_path.unlink(missing_ok=True)
+        raise RuntimeError(f"Unable to downscale {video_path}: {result.stderr[-500:]}")
+    capped_path.replace(video_path)
+    return True
+
+
 def build_audio_output_args(has_audio: bool, loudnorm: bool = True) -> List[str]:
     """Audio encode args (with optional loudness normalisation) or `-an`."""
     if not has_audio:
