@@ -184,6 +184,28 @@ API keys authenticate `/tasks/*`, `/fonts` and `/upload` directly via
 back to the frontend's HMAC-signed session headers). Only the SHA-256 hash is
 stored (`api_keys` table). The frontend manages keys at `/settings/api-keys`.
 
+## Plans & billing
+
+Hosted plans are **Pro** ($10/mo, $100/yr) and **Creator** ($25/mo, $250/yr).
+Creator's internal plan id is still `scale` (DB `users.plan`, Stripe metadata,
+RevenueCat `...scale.monthly/annual` product IDs); only the display name changed.
+
+- **Metered in minutes of source video** per month (`PRO_/SCALE_PLAN_MINUTE_LIMIT`,
+  600/1500). `tasks.source_duration_seconds` is recorded at task creation (YouTube
+  preflight, ffprobe for uploads) and `BillingService` sums started minutes.
+  Yearly subscriptions still reset monthly (`_usage_window`).
+- **Resolution:** Pro gets 720p via a final `cap_video_short_side` pass on generated
+  clips and editor renders; Creator gets 1080p. Pro subscribers from before the
+  change have `users.legacy_hd` (backfilled once) and keep 1080p until they cancel.
+  Admins can grant or remove it per user in the `/admin` Users panel (searchable by
+  email/name; `PATCH /api/admin/users/{id}/legacy-hd`).
+  720p plans also *download* YouTube at 720p (`reduced_media_limits` → Apify quality /
+  yt-dlp height cap), and their `processing_cache` key gets a `|q720` suffix so a 1080p
+  request never reuses a 720p source. Full-quality keys are unchanged.
+- **Scheduling** social posts requires Creator (`can_schedule_posts`); publishing
+  immediately works on Pro.
+- **Annual** checkout: `interval: "year"` uses `STRIPE_PRO_/SCALE_ANNUAL_PRICE_ID`.
+
 ## Creator (affiliate) program
 
 Creators apply at `/settings/creator-program` (public pitch page: `/affiliate`).

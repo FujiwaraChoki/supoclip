@@ -50,7 +50,7 @@ Use these claims freely. Each one is backed by the code or the site:
 | Face-aware 9:16 reframing, word-synced captions, hook titles | `backend/src/media/` |
 | Export presets for TikTok, Reels, and Shorts | `backend/src/clip_editor.py` |
 | REST API with per-user keys, plus an MCP server | `docs/api-reference.md`, `mcp/README.md` |
-| Hosted plans: Pro $10/mo (50 videos), Scale $50/mo (300 videos) | Pricing section on supoclip.com |
+| Hosted plans: Pro $10/mo (10 hours of video, 720p), Creator $25/mo (25 hours, 1080p); yearly is 2 months free | Pricing section on supoclip.com |
 
 **Don't say:**
 

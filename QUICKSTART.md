@@ -120,11 +120,13 @@ If you enable hosted monetization with `SELF_HOST=false`, set these as well:
 | `BACKEND_AUTH_SECRET` | Shared secret used by frontend API routes to call the backend |
 | `STRIPE_SECRET_KEY` | Stripe server-side API key |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret |
-| `STRIPE_PRO_PRICE_ID` | Stripe price ID for the $10 Pro subscription |
-| `STRIPE_SCALE_PRICE_ID` | Stripe price ID for the $50 Scale subscription |
+| `STRIPE_PRO_PRICE_ID` | Stripe price ID for the $10/month Pro subscription |
+| `STRIPE_SCALE_PRICE_ID` | Stripe price ID for the $25/month Creator subscription |
+| `STRIPE_PRO_ANNUAL_PRICE_ID` | Stripe price ID for the $100/year Pro subscription |
+| `STRIPE_SCALE_ANNUAL_PRICE_ID` | Stripe price ID for the $250/year Creator subscription |
 | `STRIPE_PRICE_ID` | Legacy fallback Stripe price ID for the Pro subscription |
-| `PRO_PLAN_TASK_LIMIT` | Pro monthly generation limit, usually `50` |
-| `SCALE_PLAN_TASK_LIMIT` | Scale monthly generation limit, usually `300` |
+| `PRO_PLAN_MINUTE_LIMIT` | Pro monthly allowance in minutes of source video, usually `600` |
+| `SCALE_PLAN_MINUTE_LIMIT` | Creator monthly allowance in minutes of source video, usually `1500` |
 | `AWS_REGION` | AWS region used for Amazon SES, default `us-east-1` |
 | `AWS_ACCESS_KEY_ID` | AWS access key ID used to send subscription emails via Amazon SES |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret access key used to send subscription emails via Amazon SES |
