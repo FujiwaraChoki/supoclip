@@ -208,7 +208,8 @@
     "popular": "Am beliebtesten",
     "period": {
       "forever": "für immer",
-      "month": "/Monat"
+      "month": "/Monat",
+      "year": "/Jahr"
     },
     "generationsPerMonth": "{count} Generierungen pro Monat",
     "selfHost": {
@@ -228,8 +229,8 @@
       "cta": "Auf Pro upgraden"
     },
     "scale": {
-      "description": "Für Teams und Workflows mit hohem Veröffentlichungsvolumen.",
-      "cta": "Auf Scale upgraden"
+      "description": "Für Creator, die jeden Tag veröffentlichen.",
+      "cta": "Auf Creator upgraden"
     },
     "hosted": {
       "tracking": "Gesichtstracking, Untertitel und Viralitätsbewertung",
@@ -241,7 +242,8 @@
       "earlyAccess": "Früher Zugriff auf neue Funktionen"
     },
     "selfHostNote": "Selbst hosten? Alle Funktionen sind kostenlos und unbegrenzt.",
-    "selfHostGuide": "Zum Self-Hosting-Guide"
+    "selfHostGuide": "Zum Self-Hosting-Guide",
+    "billedYearly": "${price}/Monat, jährlich abgerechnet"
   },
   "openSource": {
     "badge": "AGPL-3.0-lizenziert",

@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
-import { UpgradeDialog, UpgradeNudge, getUpgradeState, upgradeReasonForError, type UpgradeReason } from "@/components/billing/upgrade-prompt";
+import { UpgradeDialog, UpgradeNudge, getUpgradeState, upgradeReasonForError, useBillingPlanText, type UpgradeReason } from "@/components/billing/upgrade-prompt";
 import { getPublicBillingPlans } from "@/lib/billing-plans";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -716,6 +716,7 @@ function PlanStatusNudge({
 }) {
   const t = useTranslations("home");
   const tCommon = useTranslations("common");
+  const { formatMinutes } = useBillingPlanText();
   const { nextPlan, resetsOn } = state;
   const refreshes = resetsOn ? t("nudge.refreshesOn", { date: resetsOn }) : t("nudge.refreshesNext");
   const nextPlanName = nextPlan ? tCommon(`plans.${billingPlanMessageKey(nextPlan.id)}`) : "";
@@ -726,7 +727,7 @@ function PlanStatusNudge({
       <UpgradeNudge
         className="mt-6"
         title={t("nudge.startTitle")}
-        description={entry ? t("nudge.startDescription", { price: `$${entry.priceMonthly}`, count: entry.generationLimit }) : undefined}
+        description={entry ? t("nudge.startDescription", { price: `$${entry.priceMonthly}`, length: formatMinutes(entry.minuteLimit) }) : undefined}
         action={t("nudge.seePlans")}
         onAction={() => onUpgrade({ kind: "start" })}
       />
@@ -737,8 +738,8 @@ function PlanStatusNudge({
     return (
       <UpgradeNudge
         className="mt-6"
-        title={t("nudge.limitTitle", { count: state.limit ?? 0 })}
-        description={nextPlan ? t("nudge.limitWithPlan", { refreshes, plan: nextPlanName, limit: nextPlan.generationLimit }) : state.managedByAppStore ? t("nudge.limitAppStore", { refreshes }) : refreshes}
+        title={state.limit ? t("nudge.limitTitle", { length: formatMinutes(state.limit) }) : t("nudge.limitTitleAll")}
+        description={nextPlan ? t("nudge.limitWithPlan", { refreshes, plan: nextPlanName, limit: formatMinutes(nextPlan.minuteLimit) }) : state.managedByAppStore ? t("nudge.limitAppStore", { refreshes }) : refreshes}
         action={nextPlan ? t("nudge.getPlan", { plan: nextPlanName }) : undefined}
         onAction={nextPlan ? () => onUpgrade({ kind: "limit" }) : undefined}
       />
@@ -750,7 +751,7 @@ function PlanStatusNudge({
       <UpgradeNudge
         className="mt-6"
         title={t("nudge.remaining", { count: state.remaining })}
-        description={nextPlan ? t("nudge.nearWithPlan", { refreshes, plan: nextPlanName, limit: nextPlan.generationLimit }) : refreshes}
+        description={nextPlan ? t("nudge.nearWithPlan", { refreshes, plan: nextPlanName, limit: formatMinutes(nextPlan.minuteLimit) }) : refreshes}
         action={nextPlan ? t("nudge.upgrade") : undefined}
         onAction={nextPlan ? () => onUpgrade({ kind: "explore" }) : undefined}
       />

@@ -223,7 +223,7 @@
       },
       "2": {
         "question": "Does hosted SupoClip have a free plan?",
-        "answer": "No. The hosted app requires a Pro or Scale subscription to process videos. The free route is self-hosting the open-source code, where there are no plan limits; you pay only for your own infrastructure and any AI providers you configure."
+        "answer": "No. The hosted app requires a Pro or Creator subscription to process videos. The free route is self-hosting the open-source code, where there are no plan limits; you pay only for your own infrastructure and any AI providers you configure."
       },
       "3": {
         "question": "Which one is faster or makes better clips?",
@@ -279,7 +279,7 @@
     "pricing": {
       "heading": "Pricing model: credits vs. plans vs. your own infrastructure",
       "p1": "OpusClip's <plans>plans and credits article</plans> describes paid plans that use credits for processing minutes, plus a free plan. Its <watermark>watermark article</watermark> says free-plan exports can carry an OpusClip watermark. Plan prices and credit amounts change, so check OpusClip's current pricing page instead of relying on numbers copied into a blog post.",
-      "p2": "SupoClip offers two routes. The hosted app has <pro>{proName}</pro> at ${proPrice}/month for {proLimit} videos and <scale>{scaleName}</scale> at ${scalePrice}/month for {scaleLimit} videos. There is no free hosted plan; processing requires a subscription. The self-hosted route is free software with no plan limits. You pay for the server and any AI APIs you configure, and the <guide>self-hosting guide</guide> shows a fully local setup with no per-request AI fees."
+      "p2": "SupoClip offers two routes. The hosted app has <pro>{proName}</pro> at ${proPrice}/month for {proLimit} hours of video in 720p and <scale>{scaleName}</scale> at ${scalePrice}/month for {scaleLimit} hours in 1080p, with yearly billing at two months free. There is no free hosted plan; processing requires a subscription. The self-hosted route is free software with no plan limits. You pay for the server and any AI APIs you configure, and the <guide>self-hosting guide</guide> shows a fully local setup with no per-request AI fees."
     },
     "chooseSupoclip": {
       "heading": "When SupoClip is the better fit",

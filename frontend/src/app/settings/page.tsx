@@ -15,9 +15,18 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useSession } from "@/lib/auth-client";
 import { useSocialAccess } from "@/hooks/use-social-access";
-import { getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
+import {
+  annualMonthlyEquivalent,
+  annualMonthsFree,
+  getPublicBillingPlans,
+  isPaidBillingPlan,
+  planPrice,
+  type BillingInterval,
+  type BillingPlanId,
+} from "@/lib/billing-plans";
 import { LanguageSwitcher } from "@/components/language-switcher";
-import { UpgradeNudge, getUpgradeState, useBillingPlanText } from "@/components/billing/upgrade-prompt";
+import { BillingIntervalToggle, UpgradeNudge, getUpgradeState, useBillingPlanText } from "@/components/billing/upgrade-prompt";
+import type { BillingSummary } from "@/hooks/use-billing-summary";
 import { startUpgrade } from "@/lib/start-upgrade";
 import { CreatorCodeField } from "@/components/billing/creator-code-field";
 import { toast } from "sonner";
@@ -34,19 +43,6 @@ interface UserPreferences {
   notifyOnCompletion: boolean;
 }
 
-interface BillingSummary {
-  monetization_enabled: boolean;
-  plan: string;
-  subscription_status: string;
-  subscription_provider: string | null;
-  cancel_at?: string | null;
-  period_end?: string | null;
-  usage_count: number;
-  usage_limit: number | null;
-  remaining: number | null;
-  upgrade_required: boolean;
-}
-
 export default function SettingsPage() {
   const [fontFamily, setFontFamily] = useState("TikTokSans-Regular");
   const [fontSize, setFontSize] = useState(24);
@@ -60,6 +56,7 @@ export default function SettingsPage() {
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [isBillingActionLoading, setIsBillingActionLoading] = useState(false);
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>("month");
   const { data: session, isPending } = useSession();
   const socialAccess = useSocialAccess(Boolean(session?.user));
   const t = useTranslations("settings");
@@ -85,11 +82,10 @@ export default function SettingsPage() {
     }
   }, [t]);
 
-  const handleUpgradeToNextPlan = async () => {
-    if (!upgradeState?.nextPlan) return;
+  const handlePlanChange = async (plan: BillingPlanId, interval: BillingInterval) => {
     setIsBillingActionLoading(true);
     try {
-      await startUpgrade(upgradeState.nextPlan.id, "settings");
+      await startUpgrade(plan, "settings", interval);
     } catch (upgradeError) {
       toast.error(upgradeError instanceof Error ? upgradeError.message : plans.t("checkoutError"));
       setIsBillingActionLoading(false);
@@ -197,7 +193,7 @@ export default function SettingsPage() {
       try {
         setIsBillingActionLoading(true);
         track("billing_checkout_started", { plan: billingSummary.plan, selected_plan: selectedPlan });
-        await startUpgrade(selectedPlan ?? "pro", "settings");
+        await startUpgrade(selectedPlan ?? "pro", "settings", billingInterval);
       } catch (billingError) {
         setError(billingError instanceof Error ? billingError.message : t("plan.actionFailed"));
         setIsBillingActionLoading(false);
@@ -293,7 +289,15 @@ export default function SettingsPage() {
   const dirty = savedSnapshot !== null && savedSnapshot !== JSON.stringify([fontFamily, fontSize, fontColor, completionEmails]);
   // The save bar only appears once there's something to save (and briefly to confirm it).
   const showSaveBar = dirty || isLoading || success;
-  const usagePct = billingSummary?.usage_limit ? Math.min(100, (billingSummary.usage_count / billingSummary.usage_limit) * 100) : 0;
+  const minuteLimit = billingSummary?.minute_limit ?? null;
+  const usageMinutes = billingSummary?.usage_minutes ?? 0;
+  const usagePct = minuteLimit ? Math.min(100, (usageMinutes / minuteLimit) * 100) : 0;
+  // Monthly Stripe subscribers can move to yearly billing for the same plan.
+  const canSwitchToYearly =
+    currentPaidPlan &&
+    billingSummary?.subscription_provider === "stripe" &&
+    billingSummary.billing_interval === "month" &&
+    !billingSummary.cancel_at;
 
   return (
     <main className={cn("mx-auto w-full max-w-3xl px-4 pt-8 sm:px-8 md:pt-10", showSaveBar ? "pb-32" : "pb-16")}>
@@ -398,25 +402,33 @@ export default function SettingsPage() {
                     <span className="ml-2 text-xs font-normal capitalize text-muted-foreground">{billingSummary.subscription_status}</span>
                   </p>
                   <p className="text-sm tabular-nums text-muted-foreground">
-                    {billingSummary.usage_limit === null ? t("plan.usageUnlimited", { count: billingSummary.usage_count }) : `${billingSummary.usage_count} / ${billingSummary.usage_limit}`}
+                    {minuteLimit === null ? t("plan.usageMinutes", { used: usageMinutes }) : t("plan.usageMinutesOf", { used: usageMinutes, limit: minuteLimit })}
                   </p>
                 </div>
-                {billingSummary.usage_limit !== null && (
+                {minuteLimit !== null && (
                   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-brand" style={{ width: `${usagePct}%` }} /></div>
                 )}
                 <p className="mt-2 text-xs text-muted-foreground">
                   {!upgradeState?.isPaid
                     ? t("plan.noneYet")
-                    : billingSummary.usage_limit === null
-                    ? t("plan.clippedThisPeriod", { count: billingSummary.usage_count })
+                    : minuteLimit === null
+                    ? t("plan.minutesThisMonth", { used: usageMinutes })
                     : upgradeState.atLimit
                     ? (upgradeState.resetsOn
-                      ? t("plan.allUsedRefresh", { limit: billingSummary.usage_limit, date: upgradeState.resetsOn })
-                      : t("plan.allUsedPeriod", { limit: billingSummary.usage_limit }))
+                      ? t("plan.allUsedRefresh", { limit: plans.formatMinutes(minuteLimit), date: upgradeState.resetsOn })
+                      : t("plan.allUsedPeriod", { limit: plans.formatMinutes(minuteLimit) }))
                     : (upgradeState.resetsOn
-                      ? t("plan.usedRefresh", { count: billingSummary.usage_count, limit: billingSummary.usage_limit, date: upgradeState.resetsOn })
-                      : t("plan.usedPeriod", { count: billingSummary.usage_count, limit: billingSummary.usage_limit }))}
+                      ? t("plan.leftRefresh", { left: plans.formatMinutes(Math.max(minuteLimit - usageMinutes, 0)), date: upgradeState.resetsOn })
+                      : t("plan.leftPeriod", { left: plans.formatMinutes(Math.max(minuteLimit - usageMinutes, 0)) }))}
                 </p>
+                {upgradeState?.isPaid && billingSummary.output_short_side && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {billingSummary.legacy_hd
+                      ? t("plan.clipsResolutionLegacy", { resolution: `${billingSummary.output_short_side}p` })
+                      : t("plan.clipsResolution", { resolution: `${billingSummary.output_short_side}p` })}
+                    {billingSummary.billing_interval === "year" ? ` · ${t("plan.billedYearly")}` : ""}
+                  </p>
+                )}
               </div>
 
               {billingSummary.cancel_at && billingSummary.subscription_provider === "stripe" && (
@@ -435,19 +447,38 @@ export default function SettingsPage() {
                       <UpgradeNudge
                         title={
                           currentPaidPlan
-                            ? t("plan.upgradeMultiplier", {
-                                multiplier: Math.max(2, Math.round(upgradeState.nextPlan.generationLimit / currentPaidPlan.generationLimit)),
-                                plan: plans.planName(upgradeState.nextPlan.id),
-                              })
+                            ? t(
+                                upgradeState.nextPlan.resolution !== currentPaidPlan.resolution && !billingSummary.legacy_hd
+                                  ? "plan.upgradeMultiplierHd"
+                                  : "plan.upgradeMultiplier",
+                                {
+                                  multiplier: formatRatio(upgradeState.nextPlan.minuteLimit / currentPaidPlan.minuteLimit),
+                                  resolution: upgradeState.nextPlan.resolution,
+                                  plan: plans.planName(upgradeState.nextPlan.id),
+                                },
+                              )
                             : t("plan.upgradeMore", { plan: plans.planName(upgradeState.nextPlan.id) })
                         }
                         description={t("plan.upgradeDescription", {
                           price: upgradeState.nextPlan.priceMonthly,
-                          count: upgradeState.nextPlan.generationLimit,
+                          minutes: plans.formatMinutes(upgradeState.nextPlan.minuteLimit),
+                          resolution: upgradeState.nextPlan.resolution,
                           length: plans.formatMinutes(upgradeState.nextPlan.youtubeMaxMinutes),
                         })}
                         action={t("plan.upgrade")}
-                        onAction={handleUpgradeToNextPlan}
+                        onAction={() => handlePlanChange(upgradeState.nextPlan!.id, billingSummary.billing_interval ?? "month")}
+                        loading={isBillingActionLoading}
+                      />
+                    )}
+                    {canSwitchToYearly && annualMonthsFree(currentPaidPlan) > 0 && (
+                      <UpgradeNudge
+                        title={t("plan.switchYearlyTitle", { count: annualMonthsFree(currentPaidPlan) })}
+                        description={t("plan.switchYearlyDescription", {
+                          price: currentPaidPlan.priceAnnual,
+                          monthly: annualMonthlyEquivalent(currentPaidPlan),
+                        })}
+                        action={t("plan.switch")}
+                        onAction={() => handlePlanChange(currentPaidPlan.id, "year")}
                         loading={isBillingActionLoading}
                       />
                     )}
@@ -462,6 +493,12 @@ export default function SettingsPage() {
                 )
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <BillingIntervalToggle
+                    className="justify-self-start sm:col-span-2"
+                    value={billingInterval}
+                    onChange={setBillingInterval}
+                    plan={paidPlans[0]}
+                  />
                   {paidPlans.map((plan) => (
                     <button
                       key={plan.id}
@@ -477,7 +514,17 @@ export default function SettingsPage() {
                         <span className="text-sm font-semibold">{plans.planName(plan.id)}</span>
                         {plan.highlighted && <span className="text-xs text-muted-foreground">{plans.t("mostPopular")}</span>}
                       </span>
-                      <span className="mt-1 block text-2xl font-bold tracking-tight">${plan.priceMonthly}<span className="text-xs font-normal text-muted-foreground">{plans.t("perMonth")}</span></span>
+                      <span className="mt-1 block text-2xl font-bold tracking-tight">
+                        ${planPrice(plan, billingInterval)}
+                        <span className="text-xs font-normal text-muted-foreground">
+                          {billingInterval === "year" ? plans.t("perYear") : plans.t("perMonth")}
+                        </span>
+                      </span>
+                      {billingInterval === "year" && (
+                        <span className="block text-xs text-muted-foreground">
+                          {t("plan.monthlyEquivalentYearly", { price: annualMonthlyEquivalent(plan) })}
+                        </span>
+                      )}
                       <span className="mt-3 block space-y-1.5">
                         {plans.highlights(plan).map((highlight) => (
                           <span key={highlight} className="flex items-start gap-1.5 text-xs text-muted-foreground">
@@ -572,4 +619,10 @@ function Section({ id, icon, title, description, children }: { id?: string; icon
       <div className="p-5">{children}</div>
     </section>
   );
+}
+
+/** 2.5 → "2.5", 3 → "3". */
+function formatRatio(ratio: number) {
+  const rounded = Math.round(ratio * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }

@@ -31,7 +31,11 @@
     "pickPlan": "Elige un plan para empezar a recortar",
     "moreWith": "Consigue más con {name}",
     "left": "{count} restantes en este período",
-    "videosThisPeriod": "videos en este período"
+    "videosThisPeriod": "videos en este período",
+    "minutesOf": "{used} / {limit} min",
+    "minutes": "{used} min",
+    "minutesLeft": "quedan {count} min este mes",
+    "minutesThisMonth": "minutos de vídeo este mes"
   },
   "user": {
     "creator": "Creador",

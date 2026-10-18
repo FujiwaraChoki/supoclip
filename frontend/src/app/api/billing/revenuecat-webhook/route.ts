@@ -28,8 +28,8 @@ type RevenueCatEvent = {
 };
 
 const DEFAULT_PRODUCT_IDS: Record<BillingPlan, string[]> = {
-  pro: ["com.samihindi.supoclip.pro.monthly"],
-  scale: ["com.samihindi.supoclip.scale.monthly"],
+  pro: ["com.samihindi.supoclip.pro.monthly", "com.samihindi.supoclip.pro.annual"],
+  scale: ["com.samihindi.supoclip.scale.monthly", "com.samihindi.supoclip.scale.annual"],
 };
 // PRODUCT_CHANGE is intentionally excluded: it announces a pending plan switch
 // (App Store downgrades apply at the next renewal), and the effective change
@@ -237,6 +237,8 @@ async function downgradeAppleSubscription(userId: string, eventExpiration?: Date
       billing_period_end: null,
       trial_ends_at: null,
       subscription_cancel_at: null,
+      // Grandfathered 1080p ends with the subscription it was granted for.
+      legacy_hd: false,
     },
   });
 

@@ -34,7 +34,14 @@ import {
   VolumeX,
 } from "lucide-react";
 import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
-import { billingPlanMessageKey, getPublicBillingPlans } from "@/lib/billing-plans";
+import {
+  annualMonthlyEquivalent,
+  billingPlanMessageKey,
+  getPublicBillingPlans,
+  planPrice,
+  type BillingInterval,
+} from "@/lib/billing-plans";
+import { BillingIntervalToggle, useBillingPlanText } from "@/components/billing/upgrade-prompt";
 import { catalogKey } from "@/i18n/config";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import {
@@ -100,13 +107,19 @@ const FEATURES = [
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
-function getPlans(t: Translate, tCommon: Translate) {
+function getPlans(
+  t: Translate,
+  tCommon: Translate,
+  interval: BillingInterval,
+  planText: ReturnType<typeof useBillingPlanText>,
+) {
   return [
     {
       id: "selfHost",
       name: tCommon("plans.selfHost"),
       price: "$0",
       period: t("pricing.period.forever"),
+      note: null as string | null,
       description: t("pricing.selfHost.description"),
       features: [
         t("pricing.selfHost.features.crop"),
@@ -122,20 +135,14 @@ function getPlans(t: Translate, tCommon: Translate) {
     ...getPublicBillingPlans().map((plan) => ({
       id: plan.id,
       name: tCommon(`plans.${billingPlanMessageKey(plan.id)}`),
-      price: `$${plan.priceMonthly}`,
-      period: t("pricing.period.month"),
+      price: `$${planPrice(plan, interval)}`,
+      period: interval === "year" ? t("pricing.period.year") : t("pricing.period.month"),
+      note: interval === "year" ? t("pricing.billedYearly", { price: annualMonthlyEquivalent(plan) }) : null,
       description: t(`pricing.${plan.id}.description`),
       features: [
-        t("pricing.generationsPerMonth", { count: plan.generationLimit }),
+        ...planText.highlights(plan),
         t("pricing.hosted.tracking"),
-        t("pricing.hosted.broll"),
-        t("pricing.hosted.templates"),
         t("pricing.hosted.exports"),
-        ...(
-          plan.id === "scale"
-            ? [t("pricing.hosted.youtube3h"), t("pricing.hosted.priority")]
-            : [t("pricing.hosted.earlyAccess")]
-        ),
       ],
       cta: t(`pricing.${plan.id}.cta`),
       ctaHref: "",
@@ -163,7 +170,9 @@ const SEO_RESOURCES = [
 export default function LandingPage() {
   const t = useTranslations("marketing");
   const tCommon = useTranslations("common");
-  const plans = getPlans(t, tCommon);
+  const planText = useBillingPlanText();
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>("month");
+  const plans = getPlans(t, tCommon, billingInterval, planText);
   const features = FEATURES.map((feature) => ({
     ...feature,
     title: t(`features.items.${feature.key}.title`),
@@ -636,6 +645,12 @@ export default function LandingPage() {
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
               {t("pricing.body")}
             </p>
+            <BillingIntervalToggle
+              className="mt-6 bg-background"
+              value={billingInterval}
+              onChange={setBillingInterval}
+              plan={getPublicBillingPlans()[0]}
+            />
           </ScrollReveal>
 
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto items-start">
@@ -676,22 +691,33 @@ export default function LandingPage() {
                       </p>
                     </div>
 
-                    <div className="flex items-baseline gap-1 mb-8">
-                      <span
-                        className="text-5xl font-extrabold tracking-tight"
-                        style={{ fontFamily: "var(--font-syne), system-ui" }}
-                      >
-                        {plan.price}
-                      </span>
-                      <span
-                        className={`text-sm ${
-                          plan.highlighted
-                            ? "text-primary-foreground/60"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {plan.period}
-                      </span>
+                    <div className={plan.note ? "mb-8" : "flex items-baseline gap-1 mb-8"}>
+                      <div className="flex items-baseline gap-1">
+                        <span
+                          className="text-5xl font-extrabold tracking-tight"
+                          style={{ fontFamily: "var(--font-syne), system-ui" }}
+                        >
+                          {plan.price}
+                        </span>
+                        <span
+                          className={`text-sm ${
+                            plan.highlighted
+                              ? "text-primary-foreground/60"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {plan.period}
+                        </span>
+                      </div>
+                      {plan.note && (
+                        <p
+                          className={`mt-1 text-xs ${
+                            plan.highlighted ? "text-primary-foreground/60" : "text-muted-foreground"
+                          }`}
+                        >
+                          {plan.note}
+                        </p>
+                      )}
                     </div>
 
                     <ul className="space-y-3 mb-8">

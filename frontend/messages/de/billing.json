@@ -1,19 +1,23 @@
 {
   "plans": {
     "pro": {
-      "description": "Für Creator, die jeden Monat regelmäßig Clips schneiden.",
+      "description": "Für Creator, die jeden Monat regelmäßig clippen.",
       "cta": "Auf Pro upgraden"
     },
     "scale": {
-      "description": "Für Teams und Veröffentlichungen in großem Umfang.",
-      "cta": "Auf Scale upgraden"
+      "description": "Für Creator, die jeden Tag veröffentlichen.",
+      "cta": "Auf Creator upgraden"
     }
   },
   "highlights": {
     "videos": "{count} Videos jeden Monat geschnitten",
     "youtube": "YouTube-Videos bis {length}",
     "fonts": "Eigene Schriften, B-roll und Untertitelvorlagen",
-    "priority": "Bevorzugte Verarbeitung"
+    "priority": "Bevorzugte Verarbeitung",
+    "minutes": "{length} Video pro Monat",
+    "hd": "Clips in 720p",
+    "fullHd": "Clips in Full HD 1080p",
+    "scheduling": "Beiträge für TikTok, YouTube und Instagram planen"
   },
   "runtime": {
     "minutes": "{count} Min.",
@@ -47,17 +51,19 @@
       "eyebrow": "Was für ein Monat",
       "titleCount": "Du hast alle {count} Videos in {plan} geschnitten",
       "titleAll": "Du hast alles in {plan} verbraucht",
-      "bodyRefreshKeep": "Dein Kontingent erneuert sich am {date}. Mach weiter mit {plan}: {count} Videos im Monat.",
-      "bodyPeriodKeep": "Dein Kontingent erneuert sich in der nächsten Abrechnungsperiode. Mach weiter mit {plan}: {count} Videos im Monat.",
-      "bodyRefresh": "Dein Kontingent erneuert sich am {date}.",
-      "bodyPeriod": "Dein Kontingent erneuert sich in der nächsten Abrechnungsperiode."
+      "bodyRefreshKeep": "Deine Minuten werden am {date} erneuert. Mach weiter mit {plan}: {length} Video pro Monat. Dieser Versuch hat keine Minuten verbraucht.",
+      "bodyPeriodKeep": "Deine Minuten werden nächsten Monat erneuert. Mach weiter mit {plan}: {length} Video pro Monat. Dieser Versuch hat keine Minuten verbraucht.",
+      "bodyRefresh": "Deine Minuten werden am {date} erneuert. Dieser Versuch hat keine Minuten verbraucht.",
+      "bodyPeriod": "Deine Minuten werden nächsten Monat erneuert. Dieser Versuch hat keine Minuten verbraucht.",
+      "titleShort": "Dieses Video braucht {required} Minuten, du hast noch {remaining}",
+      "titleMinutes": "Du hast diesen Monat alle {length} von {plan} genutzt"
     },
     "long": {
       "eyebrow": "Ein langes",
       "title": "{plan} schafft dieses Video von {runtime}",
       "fallbackPlan": "Ein größerer Plan",
-      "body": "{plan} deckt YouTube-Videos bis {length} ab. {next} schafft bis {nextLength}, dieses Video geht also direkt durch. Dieser Versuch hat keine Generierung verbraucht.",
-      "bodyNoNext": "{plan} deckt YouTube-Videos bis {length} ab.  Dieser Versuch hat keine Generierung verbraucht."
+      "body": "{plan} unterstützt YouTube-Videos bis {length}. {next} schafft bis zu {nextLength}, damit läuft dieses Video direkt durch. Dieser Versuch hat keine Minuten verbraucht.",
+      "bodyNoNext": "{plan} unterstützt YouTube-Videos bis {length}. Dieser Versuch hat keine Minuten verbraucht."
     },
     "fonts": {
       "eyebrow": "Mach es zu deinem",
@@ -68,7 +74,7 @@
       "eyebrow": "Mehr Platz zum Erstellen",
       "title": "Mehr mit {plan}",
       "titleFallback": "Pläne für jeden Creator",
-      "body": "Mehr Videos im Monat, längere Quellen und bevorzugte Verarbeitung."
+      "body": "Mehr Video pro Monat, Full-HD-Clips, längere Quellen und bevorzugte Verarbeitung."
     }
   },
   "illustration": {
@@ -81,7 +87,9 @@
     "ownFont": "oder deine eigene .ttf",
     "serif": "Serif",
     "display": "Display",
-    "mono": "Mono"
+    "mono": "Mono",
+    "hoursUpFrom": "Stunden Video pro Monat, bisher {count}",
+    "hoursWith": "Stunden Video pro Monat mit {plan}"
   },
   "creatorCode": {
     "applied": "Creator-Code <mono>{code}</mono>: 20 % Rabatt auf deine ersten 3 Monate.",
@@ -90,5 +98,14 @@
     "placeholder": "Creator-Code",
     "apply": "Anwenden",
     "invalid": "Dieser Code ist ungültig."
+  },
+  "minutesEach": "{minutes}/Monat · {resolution} · bis zu {length} pro Video",
+  "perYear": "/Jahr",
+  "monthlyEquivalent": "${price}/Monat",
+  "interval": {
+    "label": "Abrechnungszeitraum",
+    "monthly": "Monatlich",
+    "yearly": "Jährlich",
+    "monthsFree": "{count, plural, one {# Monat gratis} other {# Monate gratis}}"
   }
 }

@@ -140,6 +140,7 @@ describe("/api/billing/revenuecat-webhook", () => {
         billing_period_end: null,
         trial_ends_at: null,
         subscription_cancel_at: null,
+        legacy_hd: false,
       },
     });
     expect(fetchBackend).toHaveBeenCalled();

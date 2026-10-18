@@ -208,7 +208,8 @@
     "popular": "Más popular",
     "period": {
       "forever": "para siempre",
-      "month": "/mes"
+      "month": "/mes",
+      "year": "/año"
     },
     "generationsPerMonth": "{count} generaciones al mes",
     "selfHost": {
@@ -228,8 +229,8 @@
       "cta": "Mejorar a Pro"
     },
     "scale": {
-      "description": "Para equipos y flujos de publicación de alto volumen.",
-      "cta": "Mejorar a Scale"
+      "description": "Para creadores que publican cada día.",
+      "cta": "Mejorar a Creator"
     },
     "hosted": {
       "tracking": "Seguimiento de rostro, subtítulos y puntuación de viralidad",
@@ -241,7 +242,8 @@
       "earlyAccess": "Acceso anticipado a funciones nuevas"
     },
     "selfHostNote": "¿Autoalojas? Todas las funciones son gratis e ilimitadas.",
-    "selfHostGuide": "Ver la guía de autoalojamiento"
+    "selfHostGuide": "Ver la guía de autoalojamiento",
+    "billedYearly": "${price}/mes, facturado anualmente"
   },
   "openSource": {
     "badge": "Licencia AGPL-3.0",

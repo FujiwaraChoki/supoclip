@@ -187,8 +187,9 @@ function SidebarLink({ href, label, active, compact, shortcut, className, childr
 function UsageCard({ billing }: { billing: NonNullable<ReturnType<typeof useBillingSummary>[0]> }) {
   const t = useTranslations("shell");
   const tCommon = useTranslations("common");
-  const limit = billing.usage_limit;
-  const pct = limit ? Math.min(100, (billing.usage_count / limit) * 100) : 0;
+  const limit = billing.minute_limit ?? null;
+  const used = billing.usage_minutes ?? 0;
+  const pct = limit ? Math.min(100, (used / limit) * 100) : 0;
   const upgrade = getUpgradeState(billing);
   const nudge = !upgrade?.isPaid
     ? t("usage.pickPlan")
@@ -199,7 +200,9 @@ function UsageCard({ billing }: { billing: NonNullable<ReturnType<typeof useBill
     <Link href="/settings#plan" className="group block rounded-xl border border-sidebar-border bg-background p-3 text-xs transition-colors hover:border-foreground/20">
       <div className="flex items-center justify-between">
         <span className="font-semibold">{tCommon(`plans.${billingPlanMessageKey(billing.plan)}`)}</span>
-        <span className="text-muted-foreground tabular-nums">{billing.usage_count}{limit ? ` / ${limit}` : ""}</span>
+        <span className="text-muted-foreground tabular-nums">
+          {limit ? t("usage.minutesOf", { used, limit }) : t("usage.minutes", { used })}
+        </span>
       </div>
       {limit ? (
         <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
@@ -212,7 +215,7 @@ function UsageCard({ billing }: { billing: NonNullable<ReturnType<typeof useBill
           <ArrowRight className="ml-auto size-3 transition-transform group-hover:translate-x-0.5" />
         </p>
       ) : (
-        <p className="mt-2 text-muted-foreground">{limit && upgrade?.remaining !== null ? t("usage.left", { count: upgrade?.remaining ?? 0 }) : t("usage.videosThisPeriod")}</p>
+        <p className="mt-2 text-muted-foreground">{limit && upgrade?.remaining !== null ? t("usage.minutesLeft", { count: upgrade?.remaining ?? 0 }) : t("usage.minutesThisMonth")}</p>
       )}
     </Link>
   );

@@ -49,10 +49,22 @@
   "livePreview": "Live preview",
   "framing": "Framing",
   "framingOptions": {
-    "vertical": { "label": "Auto 9:16", "hint": "Face-tracked vertical crop" },
-    "vertical_pan": { "label": "Speaker pan", "hint": "Follows whoever is talking" },
-    "vertical_split": { "label": "Split-screen", "hint": "Two speakers stacked" },
-    "original": { "label": "Original", "hint": "Keep the source aspect ratio" }
+    "vertical": {
+      "label": "Auto 9:16",
+      "hint": "Face-tracked vertical crop"
+    },
+    "vertical_pan": {
+      "label": "Speaker pan",
+      "hint": "Follows whoever is talking"
+    },
+    "vertical_split": {
+      "label": "Split-screen",
+      "hint": "Two speakers stacked"
+    },
+    "original": {
+      "label": "Original",
+      "hint": "Keep the source aspect ratio"
+    }
   },
   "captions": "Captions",
   "noCaptions": "No captions",
@@ -68,7 +80,7 @@
   "extraWords": "Extra words or phrases to cut",
   "extraWordsPlaceholder": "basically, literally, to be honest",
   "generate": "Generate clips",
-  "limitNote": "{plan}: YouTube videos up to {minutes} minutes. We check the length before using a generation.",
+  "limitNote": "{plan}: YouTube videos up to {minutes} minutes. Each video uses its length in minutes, checked before we start.",
   "completionEmails": "Completion emails follow your preference in <settings>Settings</settings>.",
   "recent": "Recent",
   "viewLibrary": "View library",
@@ -84,16 +96,17 @@
   },
   "nudge": {
     "refreshesOn": "Refreshes on {date}.",
-    "refreshesNext": "Refreshes next billing period.",
+    "refreshesNext": "Refreshes next month.",
     "startTitle": "Pick a plan to start clipping",
-    "startDescription": "From {price}/mo for {count} videos. Feel free to set everything up first.",
+    "startDescription": "From {price}/mo for {length} of video a month. Feel free to set everything up first.",
     "seePlans": "See plans",
-    "limitTitle": "You've clipped all {count} videos this period",
-    "limitWithPlan": "{refreshes} Or keep going with {plan}: {limit} a month.",
+    "limitTitle": "You've used all {length} of video this month",
+    "limitWithPlan": "{refreshes} Or keep going with {plan}: {limit} of video a month.",
     "limitAppStore": "{refreshes} You can change plans in the SupoClip iOS app.",
     "getPlan": "Get {plan}",
-    "remaining": "{count, plural, one {# video left this period} other {# videos left this period}}",
-    "nearWithPlan": "{refreshes} Need more room? {plan} gives you {limit} a month.",
-    "upgrade": "Upgrade"
+    "remaining": "{count, plural, one {# minute of video left this month} other {# minutes of video left this month}}",
+    "nearWithPlan": "{refreshes} Need more room? {plan} gives you {limit} of video a month.",
+    "upgrade": "Upgrade",
+    "limitTitleAll": "You've used this month's video minutes"
   }
 }

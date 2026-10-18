@@ -1,19 +1,23 @@
 {
   "plans": {
     "pro": {
-      "description": "Para quienes recortan videos todos los meses.",
-      "cta": "Pasar a Pro"
+      "description": "Para creadores que recortan con constancia cada mes.",
+      "cta": "Mejorar a Pro"
     },
     "scale": {
-      "description": "Para equipos y flujos de publicación de alto volumen.",
-      "cta": "Pasar a Scale"
+      "description": "Para creadores que publican cada día.",
+      "cta": "Mejorar a Creator"
     }
   },
   "highlights": {
     "videos": "{count} videos recortados cada mes",
     "youtube": "Videos de YouTube de hasta {length}",
     "fonts": "Fuentes personalizadas, B-roll y plantillas de subtítulos",
-    "priority": "Procesamiento prioritario"
+    "priority": "Procesamiento prioritario",
+    "minutes": "{length} de vídeo al mes",
+    "hd": "Clips en 720p",
+    "fullHd": "Clips en Full HD 1080p",
+    "scheduling": "Programa publicaciones en TikTok, YouTube e Instagram"
   },
   "runtime": {
     "minutes": "{count} min",
@@ -47,17 +51,19 @@
       "eyebrow": "Menudo mes",
       "titleCount": "Ya recortaste los {count} videos de {plan}",
       "titleAll": "Ya usaste todo lo de {plan}",
-      "bodyRefreshKeep": "Tu cupo se renueva el {date}. Sigue con {plan}: {count} videos al mes.",
-      "bodyPeriodKeep": "Tu cupo se renueva en el próximo período de facturación. Sigue con {plan}: {count} videos al mes.",
-      "bodyRefresh": "Tu cupo se renueva el {date}.",
-      "bodyPeriod": "Tu cupo se renueva en el próximo período de facturación."
+      "bodyRefreshKeep": "Tus minutos se renuevan el {date}. Sigue con {plan}: {length} de vídeo al mes. Este intento no ha usado minutos.",
+      "bodyPeriodKeep": "Tus minutos se renuevan el próximo mes. Sigue con {plan}: {length} de vídeo al mes. Este intento no ha usado minutos.",
+      "bodyRefresh": "Tus minutos se renuevan el {date}. Este intento no ha usado minutos.",
+      "bodyPeriod": "Tus minutos se renuevan el próximo mes. Este intento no ha usado minutos.",
+      "titleShort": "Este vídeo necesita {required} minutos y te quedan {remaining}",
+      "titleMinutes": "Has usado los {length} de {plan} este mes"
     },
     "long": {
       "eyebrow": "Uno largo",
       "title": "{plan} puede tomar este video de {runtime}",
       "fallbackPlan": "Un plan más grande",
-      "body": "{plan} cubre videos de YouTube de hasta {length}. {next} llega hasta {nextLength}, así que este pasa directo. Este intento no usó una generación.",
-      "bodyNoNext": "{plan} cubre videos de YouTube de hasta {length}.  Este intento no usó una generación."
+      "body": "{plan} admite vídeos de YouTube de hasta {length}. {next} admite hasta {nextLength}, así que este pasa directamente. Este intento no ha usado minutos.",
+      "bodyNoNext": "{plan} admite vídeos de YouTube de hasta {length}. Este intento no ha usado minutos."
     },
     "fonts": {
       "eyebrow": "Hazlo tuyo",
@@ -68,7 +74,7 @@
       "eyebrow": "Más espacio para crear",
       "title": "Haz más con {plan}",
       "titleFallback": "Planes para cada creador",
-      "body": "Más videos cada mes, fuentes más largas y procesamiento prioritario."
+      "body": "Más vídeo cada mes, clips en Full HD, fuentes más largas y procesamiento prioritario."
     }
   },
   "illustration": {
@@ -81,7 +87,9 @@
     "ownFont": "o tu propio .ttf",
     "serif": "Serif",
     "display": "Display",
-    "mono": "Mono"
+    "mono": "Mono",
+    "hoursUpFrom": "horas de vídeo al mes, antes {count}",
+    "hoursWith": "horas de vídeo al mes con {plan}"
   },
   "creatorCode": {
     "applied": "Código de creador <mono>{code}</mono>: 20% de descuento en tus primeros 3 meses.",
@@ -90,5 +98,14 @@
     "placeholder": "Código de creador",
     "apply": "Aplicar",
     "invalid": "Ese código no es válido."
+  },
+  "minutesEach": "{minutes}/mes · {resolution} · hasta {length} cada uno",
+  "perYear": "/año",
+  "monthlyEquivalent": "${price}/mes",
+  "interval": {
+    "label": "Periodo de facturación",
+    "monthly": "Mensual",
+    "yearly": "Anual",
+    "monthsFree": "{count, plural, one {# mes gratis} other {# meses gratis}}"
   }
 }

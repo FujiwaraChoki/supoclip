@@ -26,7 +26,7 @@
     },
     "billing": {
       "title": "Subscriptions & Billing",
-      "p1": "Paid plans (for example Pro and Scale) unlock higher monthly clip-generation limits. The same plan entitlement applies to your account regardless of where you purchased it.",
+      "p1": "Paid plans (for example Pro and Creator) include a monthly allowance of source-video minutes and a maximum output resolution. Each video uses its full length, rounded up to the minute, when processing starts; jobs that fail without producing clips don't count. Allowances reset monthly, including on yearly plans, and unused minutes don't carry over. The same plan entitlement applies to your account regardless of where you purchased it.",
       "webLabel": "Purchases on the web.",
       "web": "Web subscriptions are billed by our payment processor, Stripe, on a monthly basis. They renew automatically until canceled. You can cancel anytime via the billing portal in Settings; access continues until the end of the paid period.",
       "iosLabel": "Purchases in the iOS app.",

@@ -73,6 +73,9 @@ export async function upsertSubscriptionState(subscription: Stripe.Subscription)
       billing_period_end: toDate(currentPeriodEnd),
       trial_ends_at: toDate(subscription.trial_end),
       subscription_cancel_at: toDate(cancelAt),
+      // Grandfathered 1080p ends once the subscription is cancelled; a failed
+      // payment (past_due/unpaid) keeps it so recovering customers retain it.
+      ...(status === "canceled" || status === "incomplete_expired" ? { legacy_hd: false } : {}),
     },
   });
 }

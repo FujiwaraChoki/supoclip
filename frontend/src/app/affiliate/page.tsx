@@ -144,7 +144,7 @@ export default async function AffiliatePage() {
               <h3 className="mt-4 text-lg font-semibold">{t("offer.youTitle")}</h3>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 {pro
-                  ? t("offer.youDetail", { price: proPrice, limit: pro.generationLimit })
+                  ? t("offer.youDetail", { price: proPrice, limit: pro.minuteLimit / 60 })
                   : t("offer.youDetailNoLimit", { price: proPrice })}
               </p>
             </div>
