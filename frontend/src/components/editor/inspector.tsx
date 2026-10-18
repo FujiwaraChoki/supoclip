@@ -254,6 +254,18 @@ export function Inspector({
                 checked={doc.captions.background}
                 onChange={(background) => caption({ background })}
               />
+              <SwitchRow
+                id="caption-karaoke"
+                label="Highlight spoken word"
+                checked={!!doc.captions.karaoke}
+                onChange={(karaoke) => caption({ karaoke })}
+              />
+              <SwitchRow
+                id="caption-uppercase"
+                label="Uppercase"
+                checked={!!doc.captions.uppercase}
+                onChange={(uppercase) => caption({ uppercase })}
+              />
               <div className="flex items-center justify-between gap-3">
                 <Label className="text-sm font-normal">Words per caption</Label>
                 <Select

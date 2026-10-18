@@ -9,7 +9,12 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.editor_document import EditDocument, atomic_json, editor_dir
-from src.services.editor_service import combine_editor, prepare_editor, read_state
+from src.services.editor_service import (
+    combine_editor,
+    initial_caption_style,
+    prepare_editor,
+    read_state,
+)
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
@@ -143,3 +148,29 @@ async def test_storage_failure_during_prepare_does_not_leave_preparing(tmp_path,
     monkeypatch.setattr(MediaStorage, "save_editor", lambda *a, **k: None)
     await prepare_editor({}, "task", "clip", "clip.mp4")
     assert read_state(directory)["status"] == "failed"
+
+
+def test_editor_starts_from_the_generated_caption_template():
+    style = initial_caption_style(
+        {"caption_template": "hormozi", "font_family": None, "font_color": None},
+        {},
+        True,
+    )
+    assert style["karaoke"] is True
+    assert style["uppercase"] is True
+    assert style["accent"] == "#00FF66"
+    assert style["background"] is False
+    assert style["wordsPerLine"] == 3
+    assert style["font"] == "THEBOLDFONT"
+    assert style["size"] == round(32 * 1080 / 560)
+    EditDocument.model_validate(
+        {"segments": [{"id": "s", "start": 0, "end": 1}], "captions": style}
+    )
+
+    minimal = initial_caption_style(
+        {"caption_template": "minimal", "font_size": 24}, {"position_y": 0.5}, False
+    )
+    assert minimal["karaoke"] is False
+    assert minimal["background"] is True
+    assert minimal["y"] == 0.5
+    assert minimal["enabled"] is False

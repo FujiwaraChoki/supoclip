@@ -15,6 +15,7 @@ from src.editor_document import (
     output_size,
     render_document,
     save_document,
+    write_ass,
 )
 
 
@@ -88,6 +89,31 @@ def test_reordered_cuts_project_caption_timing():
     assert editor_dir("/tmp", "../task", "../clip", "../file").parent == Path(
         "/tmp/editor"
     )
+
+
+def test_karaoke_captions_highlight_each_spoken_word(tmp_path):
+    words = [
+        {"id": "a", "start": 0.0, "end": 0.4, "text": "one", "highlight": False},
+        {"id": "b", "start": 0.5, "end": 0.9, "text": "two", "highlight": False},
+    ]
+    segments = [{"id": "s", "start": 0, "end": 1}]
+    path = tmp_path / "captions.ass"
+
+    write_ass(path, document(segments=segments, words=words), 1080, 1920)
+    assert path.read_text().count("Dialogue:") == 1
+
+    karaoke = document(
+        segments=segments,
+        words=words,
+        captions={"karaoke": True, "uppercase": True, "accent": "#00FF00"},
+    )
+    write_ass(path, karaoke, 1080, 1920)
+    events = [line for line in path.read_text().splitlines() if line.startswith("Dialogue:")]
+    assert len(events) == 2
+    accent = "{\\c&H0000FF00&}"
+    assert f"{accent}ONE" in events[0] and f"{accent}TWO" not in events[0]
+    assert f"{accent}TWO" in events[1] and f"{accent}ONE" not in events[1]
+    assert events[0].startswith("Dialogue: 0,0:00:00.00,0:00:00.50,")
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")

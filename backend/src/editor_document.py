@@ -61,6 +61,9 @@ class CaptionStyle(Model):
     y: float = Field(default=0.78, ge=0.1, le=0.9)
     background: bool = True
     wordsPerLine: int = Field(default=4, ge=1, le=8)
+    # Colour the word being spoken with the accent, as the generated clip does.
+    karaoke: bool = False
+    uppercase: bool = False
 
 
 class Framing(Model):
@@ -210,19 +213,34 @@ Style: Default,{font},{size},{_ass_color(style.color)},&H000000FF,&H00101010,&H8
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     lines = []
+    position = f"{{\\pos({width / 2:.2f},{height * style.y:.2f})}}"
+
+    def dialogue(start: float, end: float, group: list[dict], active: int | None):
+        text = " ".join(
+            "{\\c"
+            + _ass_color(
+                style.accent if index == active or word["highlight"] else style.color
+            )
+            + "}"
+            + _escape_ass_text(word["text"].upper() if style.uppercase else word["text"])
+            .replace("\n", " ")
+            .replace("\r", " ")
+            for index, word in enumerate(group)
+        )
+        lines.append(
+            f"Dialogue: 0,{_ass_timestamp(start)},{_ass_timestamp(end)},Default,,0,0,0,,{position}{text}\n"
+        )
+
     if style.enabled:
         for group in caption_groups(mapped_words(document), style.wordsPerLine):
-            text = " ".join(
-                "{\\c"
-                + _ass_color(style.accent if word["highlight"] else style.color)
-                + "}"
-                + _escape_ass_text(word["text"]).replace("\n", " ").replace("\r", " ")
-                for word in group
-            )
-            position = f"{{\\pos({width / 2:.2f},{height * style.y:.2f})}}"
-            lines.append(
-                f"Dialogue: 0,{_ass_timestamp(group[0]['start'])},{_ass_timestamp(max(w['end'] for w in group))},Default,,0,0,0,,{position}{text}\n"
-            )
+            group_end = max(w["end"] for w in group)
+            if not style.karaoke:
+                dialogue(group[0]["start"], group_end, group, None)
+                continue
+            # One event per word, held until the next word starts.
+            for index, word in enumerate(group):
+                end = group[index + 1]["start"] if index + 1 < len(group) else group_end
+                dialogue(word["start"], max(end, word["start"] + 0.01), group, index)
     path.write_text(header + "".join(lines))
 
 

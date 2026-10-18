@@ -3,6 +3,7 @@
 from pathlib import Path
 import json
 import logging
+import re
 import subprocess
 import uuid
 
@@ -109,6 +110,36 @@ def make_assets(directory: Path):
     }
 
 
+EDITOR_FONTS = {"TikTokSans-Regular", "Poppins-ExtraBold", "THEBOLDFONT"}
+
+
+def initial_caption_style(task: dict, caption_settings: dict, enabled: bool) -> dict:
+    """Start the editor from the look the generated clip was rendered with."""
+    from ..caption_templates import get_template
+
+    template = get_template(task.get("caption_template") or "default")
+    font = task.get("font_family") or template["font_family"]
+    if font not in EDITOR_FONTS:
+        font = template["font_family"] if template["font_family"] in EDITOR_FONTS else "TikTokSans-Regular"
+    # Generated captions scale with width / 560; the editor scales with width / 1080.
+    base_size = caption_settings.get("font_size") or task.get("font_size") or template["font_size"]
+    color = task.get("font_color") or template["font_color"]
+    accent = template.get("highlight_color") or "#FACC15"
+    position_y = caption_settings.get("position_y") or template.get("position_y") or 0.78
+    return {
+        "enabled": enabled,
+        "font": font,
+        "size": max(20, min(100, round(float(base_size) * 1080 / 560))),
+        "color": color if re.fullmatch(r"#[0-9a-fA-F]{6}", color or "") else "#FFFFFF",
+        "accent": accent if re.fullmatch(r"#[0-9a-fA-F]{6}", accent) else "#FACC15",
+        "y": max(0.1, min(0.9, float(position_y))),
+        "background": bool(template.get("background") and template.get("background_color")),
+        "wordsPerLine": max(1, min(8, int(template.get("max_words_per_line") or 4))),
+        "karaoke": template.get("animation") == "karaoke",
+        "uppercase": bool(template.get("uppercase")),
+    }
+
+
 @media_work
 async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     from ..database import AsyncSessionLocal
@@ -196,22 +227,11 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                             if source_settings.get("output_format") == "original"
                             else "vertical"
                         },
-                        "captions": {
-                            "enabled": source_settings.get("add_subtitles", True),
-                            "font": task.get("font_family")
-                            if task.get("font_family")
-                            in {
-                                "TikTokSans-Regular",
-                                "Poppins-ExtraBold",
-                                "THEBOLDFONT",
-                            }
-                            else "TikTokSans-Regular",
-                            "color": task.get("font_color") or "#FFFFFF",
-                            "y": max(
-                                0.1,
-                                min(0.9, caption_settings.get("position_y") or 0.78),
-                            ),
-                        },
+                        "captions": initial_caption_style(
+                            task,
+                            caption_settings,
+                            source_settings.get("add_subtitles", True),
+                        ),
                         "words": [
                             {
                                 "id": f"word-{i}",
