@@ -12,13 +12,20 @@ export interface CaptionWord {
 }
 export interface CaptionStyle {
   enabled: boolean;
-  font: "TikTokSans-Regular" | "Poppins-ExtraBold" | "THEBOLDFONT";
+  font:
+    | "TikTokSans-Regular"
+    | "TikTokSans-Bold"
+    | "Poppins-ExtraBold"
+    | "THEBOLDFONT";
   size: number;
   color: string;
   accent: string;
   y: number;
   background: boolean;
   wordsPerLine: number;
+  /** Absent on drafts saved before the editor matched generated captions. */
+  karaoke?: boolean;
+  uppercase?: boolean;
 }
 export interface Framing {
   aspect: "vertical" | "square" | "original";
@@ -140,6 +147,12 @@ export function captionGroups(words: CaptionWord[], count: number) {
   }
   if (group.length) groups.push(group);
   return groups;
+}
+/** The spoken word stays active until the next word in its group starts. */
+export function activeWordIndex(group: CaptionWord[], time: number) {
+  for (let i = group.length - 1; i >= 0; i--)
+    if (time >= group[i].start) return i;
+  return -1;
 }
 export function outputTime(
   doc: EditDocument,

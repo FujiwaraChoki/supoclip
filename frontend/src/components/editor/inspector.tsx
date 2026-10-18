@@ -212,6 +212,7 @@ export function Inspector({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="TikTokSans-Regular">TikTok Sans</SelectItem>
+                    <SelectItem value="TikTokSans-Bold">TikTok Sans Bold</SelectItem>
                     <SelectItem value="Poppins-ExtraBold">
                       Poppins Extra Bold
                     </SelectItem>
@@ -223,7 +224,7 @@ export function Inspector({
                 label="Subtitle size"
                 value={doc.captions.size}
                 min={20}
-                max={100}
+                max={132}
                 onChange={(size) => caption({ size })}
               />
               <Range
@@ -253,6 +254,18 @@ export function Inspector({
                 label="Text background"
                 checked={doc.captions.background}
                 onChange={(background) => caption({ background })}
+              />
+              <SwitchRow
+                id="caption-karaoke"
+                label="Highlight spoken word"
+                checked={!!doc.captions.karaoke}
+                onChange={(karaoke) => caption({ karaoke })}
+              />
+              <SwitchRow
+                id="caption-uppercase"
+                label="Uppercase"
+                checked={!!doc.captions.uppercase}
+                onChange={(uppercase) => caption({ uppercase })}
               />
               <div className="flex items-center justify-between gap-3">
                 <Label className="text-sm font-normal">Words per caption</Label>

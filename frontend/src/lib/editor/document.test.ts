@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  activeWordIndex,
   captionGroups,
   editDuration,
   frameRect,
@@ -58,5 +59,12 @@ describe("non-destructive edits", () => {
         720,
       ),
     ).toEqual({ width: 1280, height: 720 });
+  });
+  it("keeps the spoken word active until the next one starts", () => {
+    const [group] = captionGroups(draft.words, 4);
+    expect(activeWordIndex(group, 0)).toBe(0);
+    expect(activeWordIndex(group, 0.9)).toBe(0);
+    expect(activeWordIndex(group, 1)).toBe(1);
+    expect(activeWordIndex(group, 2.4)).toBe(2);
   });
 });

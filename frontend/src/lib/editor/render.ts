@@ -1,4 +1,5 @@
 import {
+  activeWordIndex,
   captionGroups,
   frameRect,
   mappedWords,
@@ -57,7 +58,9 @@ export function drawEditorFrame(
   );
   if (!group) return;
   const style = doc.captions,
-    size = (style.size * width) / 1080;
+    size = (style.size * width) / 1080,
+    active = style.karaoke ? group[activeWordIndex(group, time)] : undefined,
+    label = (text: string) => (style.uppercase ? text.toUpperCase() : text);
   ctx.font = `${size}px "Editor-${style.font}", sans-serif`;
   ctx.textBaseline = "middle";
   // Fit each phrase in the safe width, using the same font for preview and browser export.
@@ -66,7 +69,7 @@ export function drawEditorFrame(
   let line: typeof group = [],
     lineWidth = 0;
   for (const word of group) {
-    const wordWidth = ctx.measureText(word.text).width;
+    const wordWidth = ctx.measureText(label(word.text)).width;
     if (line.length && lineWidth + space + wordWidth > width * 0.84) {
       lines.push(line);
       line = [];
@@ -78,7 +81,7 @@ export function drawEditorFrame(
   if (line.length) lines.push(line);
   lines.forEach((words, index) => {
     const total =
-      words.reduce((sum, w) => sum + ctx.measureText(w.text).width, 0) +
+      words.reduce((sum, w) => sum + ctx.measureText(label(w.text)).width, 0) +
       space * (words.length - 1);
     let x = (width - total) / 2;
     const y = height * style.y + (index - (lines.length - 1) / 2) * size * 1.2;
@@ -92,13 +95,15 @@ export function drawEditorFrame(
       );
     }
     for (const word of words) {
+      const text = label(word.text);
       ctx.lineWidth = Math.max(1, size * 0.08);
       ctx.lineJoin = "round";
       ctx.strokeStyle = "#101010";
-      if (!style.background) ctx.strokeText(word.text, x, y);
-      ctx.fillStyle = word.highlight ? style.accent : style.color;
-      ctx.fillText(word.text, x, y);
-      x += ctx.measureText(word.text).width + space;
+      if (!style.background) ctx.strokeText(text, x, y);
+      ctx.fillStyle =
+        word.highlight || word === active ? style.accent : style.color;
+      ctx.fillText(text, x, y);
+      x += ctx.measureText(text).width + space;
     }
   });
 }
