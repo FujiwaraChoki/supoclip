@@ -151,10 +151,14 @@ async def test_storage_failure_during_prepare_does_not_leave_preparing(tmp_path,
 
 
 def test_editor_starts_from_the_generated_caption_template():
+    from src.media.captions import get_safe_vertical_position
+
     style = initial_caption_style(
         {"caption_template": "hormozi", "font_family": None, "font_color": None},
         {},
         True,
+        1080,
+        1920,
     )
     assert style["karaoke"] is True
     assert style["uppercase"] is True
@@ -162,15 +166,33 @@ def test_editor_starts_from_the_generated_caption_template():
     assert style["background"] is False
     assert style["wordsPerLine"] == 3
     assert style["font"] == "THEBOLDFONT"
+    # Same pixel size and centre row as the generated 1080x1920 clip.
     assert style["size"] == round(32 * 1080 / 560)
+    assert style["y"] * 1920 == get_safe_vertical_position(1920, int(62 * 1.5), 0.74)
     EditDocument.model_validate(
         {"segments": [{"id": "s", "start": 0, "end": 1}], "captions": style}
     )
 
     minimal = initial_caption_style(
-        {"caption_template": "minimal", "font_size": 24}, {"position_y": 0.5}, False
+        {"caption_template": "minimal", "font_size": 24}, {"position_y": 0.5}, False, 1080, 1920
     )
     assert minimal["karaoke"] is False
     assert minimal["background"] is True
-    assert minimal["y"] == 0.5
     assert minimal["enabled"] is False
+    assert minimal["y"] < 0.5  # centred, not top-aligned, like the generated clip
+
+
+def test_editor_keeps_generated_font_and_size_extremes():
+    tiktok = initial_caption_style({"caption_template": "tiktok"}, {}, True, 1080, 1920)
+    assert tiktok["font"] == "TikTokSans-Bold"
+
+    largest = initial_caption_style({"font_size": 72}, {}, True, 1080, 1920)
+    assert largest["size"] == 132
+
+    # "original" clips keep the source size; the editor re-expresses it per 1080 px.
+    landscape = initial_caption_style({"font_size": 24}, {}, True, 1920, 1080)
+    assert landscape["size"] == round(round(24 * 1920 / 560) * 1080 / 1920)
+    for style in (tiktok, largest, landscape):
+        EditDocument.model_validate(
+            {"segments": [{"id": "s", "start": 0, "end": 1}], "captions": style}
+        )

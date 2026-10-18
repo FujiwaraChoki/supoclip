@@ -212,6 +212,7 @@ export function Inspector({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="TikTokSans-Regular">TikTok Sans</SelectItem>
+                    <SelectItem value="TikTokSans-Bold">TikTok Sans Bold</SelectItem>
                     <SelectItem value="Poppins-ExtraBold">
                       Poppins Extra Bold
                     </SelectItem>
@@ -223,7 +224,7 @@ export function Inspector({
                 label="Subtitle size"
                 value={doc.captions.size}
                 min={20}
-                max={100}
+                max={132}
                 onChange={(size) => caption({ size })}
               />
               <Range

@@ -6,8 +6,10 @@ import logging
 import re
 import subprocess
 import uuid
+from typing import get_args
 
 from ..editor_document import (
+    CaptionStyle,
     EditDocument,
     atomic_json,
     editor_dir,
@@ -110,29 +112,39 @@ def make_assets(directory: Path):
     }
 
 
-EDITOR_FONTS = {"TikTokSans-Regular", "Poppins-ExtraBold", "THEBOLDFONT"}
+EDITOR_FONTS = set(get_args(CaptionStyle.model_fields["font"].annotation))
 
 
-def initial_caption_style(task: dict, caption_settings: dict, enabled: bool) -> dict:
-    """Start the editor from the look the generated clip was rendered with."""
+def initial_caption_style(
+    task: dict, caption_settings: dict, enabled: bool, width: int, height: int
+) -> dict:
+    """Start the editor from the look the generated clip was rendered with.
+
+    ``width``/``height`` are the generated clip's dimensions; size and position
+    reproduce the generation renderer's pixel maths at that size.
+    """
     from ..caption_templates import get_template
+    from ..media.captions import get_safe_vertical_position, get_scaled_font_size
 
     template = get_template(task.get("caption_template") or "default")
     font = task.get("font_family") or template["font_family"]
     if font not in EDITOR_FONTS:
         font = template["font_family"] if template["font_family"] in EDITOR_FONTS else "TikTokSans-Regular"
-    # Generated captions scale with width / 560; the editor scales with width / 1080.
     base_size = caption_settings.get("font_size") or task.get("font_size") or template["font_size"]
+    font_px = get_scaled_font_size(int(base_size), width)
     color = task.get("font_color") or template["font_color"]
     accent = template.get("highlight_color") or "#FACC15"
     position_y = caption_settings.get("position_y") or template.get("position_y") or 0.78
+    # Generation centres the text at this pixel row; the editor stores it as a fraction.
+    center_px = get_safe_vertical_position(height, int(font_px * 1.5), float(position_y))
     return {
         "enabled": enabled,
         "font": font,
-        "size": max(20, min(100, round(float(base_size) * 1080 / 560))),
+        # The editor sizes text in 1080-wide units.
+        "size": max(20, min(132, round(font_px * 1080 / width))),
         "color": color if re.fullmatch(r"#[0-9a-fA-F]{6}", color or "") else "#FFFFFF",
         "accent": accent if re.fullmatch(r"#[0-9a-fA-F]{6}", accent) else "#FACC15",
-        "y": max(0.1, min(0.9, float(position_y))),
+        "y": max(0.1, min(0.9, center_px / height)),
         "background": bool(template.get("background") and template.get("background_color")),
         "wordsPerLine": max(1, min(8, int(template.get("max_words_per_line") or 4))),
         "karaoke": template.get("animation") == "karaoke",
@@ -218,19 +230,22 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 (clip.get("text") or "").split(), timed, metadata["duration"]
             )
             duration = metadata["duration"]
+            original_format = source_settings.get("output_format") == "original"
+            # Vertical clips are generated at 1080x1920; "original" keeps the source size.
+            clip_width, clip_height = (
+                (metadata["width"], metadata["height"]) if original_format else (1080, 1920)
+            )
             initial = (
                 EditDocument.model_validate(
                     {
                         "segments": [{"id": "original", "start": 0, "end": duration}],
-                        "framing": {
-                            "aspect": "original"
-                            if source_settings.get("output_format") == "original"
-                            else "vertical"
-                        },
+                        "framing": {"aspect": "original" if original_format else "vertical"},
                         "captions": initial_caption_style(
                             task,
                             caption_settings,
                             source_settings.get("add_subtitles", True),
+                            clip_width,
+                            clip_height,
                         ),
                         "words": [
                             {
