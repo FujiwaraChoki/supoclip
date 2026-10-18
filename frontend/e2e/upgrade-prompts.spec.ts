@@ -29,10 +29,9 @@ async function mockApp(page: Page, billing: object) {
 test("free users explore first and see plans when they generate", async ({ page }) => {
   await mockApp(page, free);
   await page.goto("/");
-  // The authenticated home page is lazy-loaded and compiled on its first visit.
   await expect(
     page.getByRole("main").getByText("Pick a plan to start clipping", { exact: true }),
-  ).toBeVisible({ timeout: 15_000 });
+  ).toBeVisible();
   await page.screenshot({ path: "test-results/upgrade-home-free.png" });
 
   await page.getByRole("textbox").first().fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");

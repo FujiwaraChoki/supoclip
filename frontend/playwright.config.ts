@@ -18,6 +18,8 @@ export default defineConfig({
   testIgnore: ["polish.spec.ts", "editor-studio.spec.ts", "local-workflow.spec.ts"],
   fullyParallel: false,
   retries: 0,
+  // `next dev` compiles each route on first visit, which can outlast the 5s default.
+  expect: { timeout: 15_000 },
   reporter: [["list"], ["html", { open: "never" }]],
   globalSetup: "./e2e/global-setup.ts",
   use: {

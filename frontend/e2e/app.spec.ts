@@ -34,8 +34,7 @@ test("regular user can browse seeded tasks and save preferences", async ({ page 
   await page.goto("/settings");
   await page.getByRole("switch", { name: /completion emails/i }).click();
   await page.getByRole("button", { name: /save preferences/i }).click();
-  // The save round-trips through a freshly compiled API route in CI.
-  await expect(page.getByText(/preferences saved/i)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/preferences saved/i)).toBeVisible();
 
   await page.goto("/admin");
   await expect(page.getByText(/not an admin/i)).toBeVisible();
