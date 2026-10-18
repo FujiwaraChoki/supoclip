@@ -118,6 +118,7 @@ ProcessingMode = Literal["fast", "balanced", "quality"]
 OutputFormat = Literal["vertical", "vertical_pan", "vertical_split", "original"]
 ExportPreset = Literal["tiktok", "reels", "shorts"]
 TERMINAL_STATES = {"completed", "error", "cancelled"}
+MAX_POLL_FAILURES = 5  # consecutive transient errors tolerated by wait_for_task
 VALID_OUTPUT_FORMATS = {"vertical", "vertical_pan", "vertical_split", "original"}
 
 
@@ -547,8 +548,19 @@ async def supoclip_wait_for_task(
     """
     deadline = time.monotonic() + timeout_seconds
     last: dict = {}
+    failures = 0
     while True:
-        last = await _client().request("GET", f"/tasks/{task_id}")
+        try:
+            last = await _client().request("GET", f"/tasks/{task_id}")
+            failures = 0
+        except SupoClipError as exc:
+            # A brief outage mid-wait should not discard a long wait, but auth
+            # or not-found errors will not fix themselves.
+            failures += 1
+            if not exc.transient or failures >= MAX_POLL_FAILURES or time.monotonic() >= deadline:
+                raise
+            await asyncio.sleep(poll_interval_seconds)
+            continue
         status = str(last.get("status", "unknown"))
         progress = last.get("progress", 0)
 

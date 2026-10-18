@@ -28,11 +28,28 @@ from .config import Settings
 
 
 class SupoClipError(Exception):
-    """A friendly, already-formatted error suitable for returning to the model."""
+    """A friendly, already-formatted error suitable for returning to the model.
+
+    ``status_code`` is the backend's HTTP status, or ``None`` when no response
+    was received (timeout, connection failure).
+    """
+
+    def __init__(self, message: str = "", status_code: Optional[int] = None):
+        super().__init__(message)
+        self.status_code = status_code
+
+    @property
+    def transient(self) -> bool:
+        """Whether retrying the same request may succeed."""
+        return self.status_code is None or self.status_code == 429 or self.status_code >= 500
 
 
 class AuthNotConfiguredError(SupoClipError):
     """Raised when an authenticated operation is attempted without credentials."""
+
+    @property
+    def transient(self) -> bool:
+        return False
 
 
 def _signed_headers(user_id: str, secret: str) -> Dict[str, str]:
@@ -176,7 +193,8 @@ class SupoClipClient:
     def _parse(response: httpx.Response, path: str) -> Any:
         if response.status_code >= 400:
             raise SupoClipError(
-                _error_message(response.status_code, response.text, path)
+                _error_message(response.status_code, response.text, path),
+                status_code=response.status_code,
             )
         if not response.content:
             return {}
