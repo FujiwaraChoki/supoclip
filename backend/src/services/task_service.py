@@ -144,6 +144,9 @@ class TaskService(ClipEditingMixin):
                         MediaStorage().save_youtube_metadata(video_id, video_path)
                     except Exception:
                         logger.exception("Could not back up YouTube word timings")
+                    if get_config().keep_youtube_source:
+                        logger.info("Keeping YouTube source for %s (KEEP_YOUTUBE_SOURCE)", video_id)
+                        return
                     cleanup_downloaded_files(video_id, source_path=video_path)
                     logger.info("Cleaned up YouTube source artifacts for %s", video_id)
                     return

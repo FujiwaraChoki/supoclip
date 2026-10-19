@@ -68,7 +68,9 @@ exports. Undo history and saved caption presets are local to the browser; the
 current draft is shared across devices. A changed original filename creates a new
 editing baseline rather than applying old offsets to different media.
 
-Preparation may redownload a YouTube source that generation cleanup removed.
+Preparation may redownload a YouTube source that generation cleanup removed. Set
+`KEEP_YOUTUBE_SOURCE=true` to keep the downloaded video instead, so opening the editor
+never depends on YouTube being reachable again (it costs disk space).
 Unavailable sources show a retryable error; the editor does not overlay a second
 set of captions on an already captioned clip. Preparation and export require a
 working ARQ worker and Redis connection.
