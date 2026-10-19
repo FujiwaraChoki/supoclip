@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { getMarketingLinks } from "@/lib/marketing-links";
-import { APP_STORE_URL, GITHUB_URL, LEGAL_ENTITY } from "@/lib/site";
+import { APP_STORE_URL, GITHUB_URL } from "@/lib/site";
 
 const linkClassName = "hover:text-foreground transition-colors";
 
@@ -44,7 +44,7 @@ export function SiteFooter() {
           <div className="mt-4 flex gap-4 text-xs text-muted-foreground">
             <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>GitHub</a>
             <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>iOS App</a>
-            <span>&copy; {new Date().getFullYear()} {LEGAL_ENTITY}</span>
+            <span>&copy; {new Date().getFullYear()}</span>
           </div>
         </div>
         {columns.map((column) => (
