@@ -1,7 +1,4 @@
 export const SITE_NAME = "SupoClip";
-/** The company that operates the hosted SupoClip service. */
-export const LEGAL_ENTITY = "Shiori LLC";
-export const LEGAL_ADDRESS = "8 The Green, Suite B, Dover, DE 19901, USA";
 export const DEFAULT_SITE_URL = "https://www.supoclip.com";
 export const HOSTED_APP_URL = DEFAULT_SITE_URL;
 export const GITHUB_URL = "https://github.com/FujiwaraChoki/supoclip";
