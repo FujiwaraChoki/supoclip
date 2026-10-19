@@ -33,6 +33,7 @@ from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import get_config
 from ...youtube_utils import async_get_youtube_video_info
+from ...youtube_ranges import parse_youtube_range, youtube_range_duration
 from ...font_registry import is_font_accessible
 from ...clip_cleanup import (
     new_task_cleanup_settings,
@@ -50,6 +51,16 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, Any]:
     """Check duration before creating a task or consuming a generation."""
+    def invalid_range(exc: ValueError) -> HTTPException:
+        return HTTPException(status_code=422, detail={
+            "code": "INVALID_VIDEO_RANGE",
+            "message": f"{exc}. No generation was used.",
+        })
+
+    try:
+        parse_youtube_range(url)
+    except ValueError as exc:
+        raise invalid_range(exc) from None
     try:
         metadata = await asyncio.wait_for(async_get_youtube_video_info(url), timeout=15)
         duration = (metadata or {}).get("duration")
@@ -68,6 +79,11 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
                 ),
             },
         ) from None
+
+    try:
+        duration = youtube_range_duration(url, duration)
+    except ValueError as exc:
+        raise invalid_range(exc) from None
 
     if duration > duration_limit:
         raise HTTPException(

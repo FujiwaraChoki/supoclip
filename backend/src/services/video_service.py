@@ -3,6 +3,7 @@ Video service - handles video processing business logic.
 """
 
 import asyncio
+import math
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable, Awaitable
 import logging
@@ -17,7 +18,9 @@ from ..youtube_utils import (
     async_get_youtube_video_title,
     cleanup_downloaded_files,
     get_youtube_video_id,
+    get_youtube_cache_id,
 )
+from ..youtube_ranges import parse_youtube_range, youtube_range_duration
 from ..video_utils import (
     get_video_transcript,
     create_clips_with_transitions,
@@ -149,7 +152,7 @@ class VideoService:
             return None
 
         logger.info(f"Video downloaded successfully: {video_path}")
-        video_id = get_youtube_video_id(url)
+        video_id = get_youtube_cache_id(url)
         if video_id:
             try:
                 await run_in_thread(MediaStorage().restore_youtube_metadata, video_id, Path(video_path))
@@ -439,9 +442,18 @@ class VideoService:
                 await progress_callback(10, "Downloading video...", "processing")
 
             if source_type == "youtube":
+                requested_range = parse_youtube_range(url)
                 video_info = await async_get_youtube_video_info(url, task_id=task_id)
+                if requested_range and not video_info:
+                    raise ValueError("YouTube video duration could not be verified.")
+                expected_duration = None
                 if video_info:
                     duration = video_info.get("duration", 0)
+                    if requested_range:
+                        if not duration or not math.isfinite(duration) or duration <= 0:
+                            raise ValueError("YouTube video duration could not be verified.")
+                        duration = youtube_range_duration(url, duration)
+                        expected_duration = duration
                     if duration and duration > duration_limit:
                         mins = duration_limit // 60
                         raise Exception(
@@ -463,6 +475,12 @@ class VideoService:
 
             # Post-download duration guard (catches cases where preflight info was unavailable)
             file_duration = VideoService._get_file_duration(video_path)
+            if source_type == "youtube" and requested_range:
+                if (file_duration is None or not math.isfinite(file_duration)
+                        or file_duration <= 0
+                        or abs(file_duration - expected_duration)
+                        > max(1.0, expected_duration * 0.001)):
+                    raise ValueError("YouTube download is incomplete or has an invalid duration.")
             if file_duration and file_duration > duration_limit:
                 mins = duration_limit // 60
                 raise Exception(
@@ -646,7 +664,7 @@ class VideoService:
 
         except (Exception, asyncio.CancelledError) as e:
             if source_type == "youtube" and video_path is not None:
-                video_id = get_youtube_video_id(url)
+                video_id = get_youtube_cache_id(url)
                 if video_id:
                     try:
                         cleanup_downloaded_files(video_id, source_path=video_path)
