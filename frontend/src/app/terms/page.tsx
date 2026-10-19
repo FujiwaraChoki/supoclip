@@ -4,8 +4,9 @@ import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HOSTED_APP_URL, getSiteUrl } from "@/lib/blog-posts";
+import { LEGAL_ADDRESS, LEGAL_ENTITY } from "@/lib/site";
 
-const LAST_UPDATED = "July 2, 2026";
+const LAST_UPDATED = "October 19, 2026";
 const CONTACT_EMAIL = "support@supoclip.com";
 
 export const metadata: Metadata = {
@@ -79,6 +80,11 @@ export default function TermsOfServicePage() {
               hosted service (the &ldquo;Service&rdquo;), which turn long-form videos into short,
               captioned clips. By creating an account or using the Service you agree to these Terms.
               If you do not agree, do not use the Service.
+            </p>
+            <p>
+              The Service is operated by {LEGAL_ENTITY}, a Delaware limited liability company
+              (&ldquo;SupoClip,&rdquo; &ldquo;we,&rdquo; &ldquo;us&rdquo;), {LEGAL_ADDRESS}. These
+              Terms are an agreement between you and {LEGAL_ENTITY}.
             </p>
             <p>
               SupoClip is also available as open-source software you can self-host. These Terms
@@ -196,7 +202,8 @@ export default function TermsOfServicePage() {
           <Section title="Contact Us">
             <p>
               Questions about these Terms? Email us at{" "}
-              <a className="text-foreground underline" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>.
+              <a className="text-foreground underline" href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>{" "}
+              or write to {LEGAL_ENTITY}, {LEGAL_ADDRESS}.
             </p>
           </Section>
         </div>
