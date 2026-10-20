@@ -4,7 +4,7 @@ FROM python:3.11-slim
 # Install system dependencies including ffmpeg and unzip (for deno).
 # Noto provides fallback glyphs for multilingual captions (including Hindi)
 # and colour emoji. libass/fontconfig selects them when a chosen font lacks glyphs.
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     curl \
     unzip \
@@ -31,9 +31,12 @@ COPY pyproject.toml uv.lock* ./
 
 # New self-hosted setups can select CPU wheels without changing legacy builds.
 ARG BACKEND_CPU_ONLY=false
+# Keep downloaded wheels out of image layers. Local CPU processing does not
+# use Whisper's Linux-only Triton GPU kernels.
+ENV UV_NO_CACHE=1
 RUN uv venv .venv && \
     if [ "$BACKEND_CPU_ONLY" = "true" ]; then \
-      uv sync --frozen --extra cpu; \
+      uv sync --frozen --extra cpu --no-install-package triton; \
     else \
       uv sync --frozen --extra cuda; \
     fi

@@ -18,6 +18,9 @@ next-env.d.ts
 
 # Next.js
 .next/
+.next-*/
+test-results/
+playwright-report/
 out/
 
 # Production

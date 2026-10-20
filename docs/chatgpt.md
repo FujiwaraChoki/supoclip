@@ -89,6 +89,20 @@ short video. Check a subsequent refresh and sign-out as well. Eligibility and
 OpenAI's preview behavior can change; this implementation cannot guarantee
 access for every account.
 
+### First Docker startup
+
+`docker compose ps` lists containers, not image builds. A completed frontend
+build does not mean the backend and worker have finished. Check all build records
+with `docker buildx history ls`, and review the startup command's final result.
+
+If a build reports `Read-only file system`, check host free space with `df -h .`.
+A full host disk can leave Docker's VM storage read-only. Reclaim disposable
+build/dependency caches, restart Docker Desktop, and retry the failed build.
+Do not remove database volumes to fix a build-cache problem.
+
+Compose uses structured bind mounts with `create_host_path: false`, which also
+supports local project paths containing a colon without changing the folder name.
+
 ## Protocol references
 
 - [Open-source registration and sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)

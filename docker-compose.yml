@@ -22,9 +22,21 @@ services:
       # .env.example selects 3107 for new self-hosted installations.
       - "127.0.0.1:${FRONTEND_PORT:-3001}:3107"
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
-      - ./frontend/prisma:/app/prisma
+      - type: bind
+        source: ./frontend/src
+        target: /app/src
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./frontend/public
+        target: /app/public
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./frontend/prisma
+        target: /app/prisma
+        bind:
+          create_host_path: false
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - NEXT_TELEMETRY_DISABLED=1
@@ -88,11 +100,23 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
-      - ./backend/src:/app/src
+      - type: bind
+        source: ./backend/src
+        target: /app/src
+        bind:
+          create_host_path: false
       - uploads:/app/uploads
       - clips:/app/clips
-      - ./backend/fonts:/app/fonts
-      - ./backend/transitions:/app/transitions
+      - type: bind
+        source: ./backend/fonts
+        target: /app/fonts
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./backend/transitions
+        target: /app/transitions
+        bind:
+          create_host_path: false
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -244,11 +268,23 @@ services:
     platform: linux/amd64
     command: [".venv/bin/arq", "src.workers.tasks.WorkerSettings"]
     volumes:
-      - ./backend/src:/app/src
+      - type: bind
+        source: ./backend/src
+        target: /app/src
+        bind:
+          create_host_path: false
       - uploads:/app/uploads
       - clips:/app/clips
-      - ./backend/fonts:/app/fonts
-      - ./backend/transitions:/app/transitions
+      - type: bind
+        source: ./backend/fonts
+        target: /app/fonts
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./backend/transitions
+        target: /app/transitions
+        bind:
+          create_host_path: false
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -396,7 +432,11 @@ services:
       POSTGRES_PASSWORD: supoclip_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - type: bind
+        source: ./init.sql
+        target: /docker-entrypoint-initdb.d/init.sql
+        bind:
+          create_host_path: false
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U supoclip -d supoclip"]
