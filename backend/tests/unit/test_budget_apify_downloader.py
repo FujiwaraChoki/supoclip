@@ -297,26 +297,64 @@ def test_private_delivery_rejects_720_when_1080_requested(tmp_path, monkeypatch)
         mod._verify_media(tmp_path / 'video.mp4', dict(record(), minQuality=1080), mod.time.monotonic() + 30)
 
 
-@pytest.mark.parametrize('error_code,accepted', [('MISSING_OUTPUT_FILE', True), ('AUTH_FAILED', False)])
-def test_private_output_reporting_workaround_is_narrow(config, tmp_path, monkeypatch, error_code, accepted):
+@pytest.mark.parametrize('status,error_code,error_stage,accepted', [
+    ('completed', None, None, True),
+    ('success', None, None, True),
+    ('failed', 'MISSING_OUTPUT_FILE', 'delivery_failed', True),
+    ('failed', 'AUTH_FAILED', 'delivery_failed', False),
+    ('failed', 'MISSING_OUTPUT_FILE', 'task_timeout', False),
+    ('timeout', 'TIMEOUT', 'task_timeout', False),
+    ('failed', None, None, False),
+])
+def test_private_delivery_status_and_reporting_workaround(
+    config, tmp_path, monkeypatch, status, error_code, error_stage, accepted
+):
     actor = 'example/private-worker'
     config.apify_youtube_downloader_actor = actor
     monkeypatch.setenv('APIFY_YOUTUBE_PROVIDERS', json.dumps([dict(actor=actor, adapter='private_s3', build='1.0.0')]))
     monkeypatch.setattr('src.youtube_utils.get_youtube_video_info', lambda url: {'duration': 635})
     monkeypatch.setattr(mod, '_private_storage', lambda *a: (object(), {'quality': '1080'}))
     run = {'id': 'run1', 'status': 'SUCCEEDED', 'defaultDatasetId': 'ds1'}
-    row = {'id': VIDEO, 'status': 'failed', 'errorCode': error_code, 'errorStage': 'delivery_failed'}
+    row = {'id': VIDEO, 'status': status, 'errorCode': error_code, 'errorStage': error_stage}
     monkeypatch.setattr(mod, '_api', lambda session, method, *a, **kw: {'data': run} if method == 'POST' else [row])
     retrieve = Mock(side_effect=lambda storage, path, *a: (path.write_bytes(b'video'), record())[1])
     monkeypatch.setattr(mod, '_retrieve_private_file', retrieve)
-    monkeypatch.setattr(mod, '_verify_media', lambda *a: None)
+    verify = Mock()
+    monkeypatch.setattr(mod, '_verify_media', verify)
     if accepted:
         assert mod.download_budget_apify(VIDEO, tmp_path, '1080', 'secret').read_bytes() == b'video'
         retrieve.assert_called_once()
+        verify.assert_called_once()
+        assert verify.call_args.args[:2] == (retrieve.call_args.args[1], record())
     else:
         with pytest.raises(mod.BudgetApifyError, match='complete private delivery'):
             mod.download_budget_apify(VIDEO, tmp_path, '1080', 'secret')
         retrieve.assert_not_called()
+        verify.assert_not_called()
+
+
+def test_completed_private_delivery_still_rejects_low_quality(config, tmp_path, monkeypatch):
+    actor = 'example/private-worker'
+    config.apify_youtube_downloader_actor = actor
+    monkeypatch.setenv('APIFY_YOUTUBE_PROVIDERS', json.dumps([
+        dict(actor=actor, adapter='private_s3', build='1.0.0')
+    ]))
+    monkeypatch.setattr('src.youtube_utils.get_youtube_video_info', lambda url: {'duration': 635})
+    monkeypatch.setattr(mod, '_private_storage', lambda *a: (object(), {'quality': '1080'}))
+    run = {'id': 'run1', 'status': 'SUCCEEDED', 'defaultDatasetId': 'ds1'}
+    row = {'id': VIDEO, 'status': 'completed'}
+    monkeypatch.setattr(mod, '_api', lambda session, method, *a, **kw: {'data': run} if method == 'POST' else [row])
+    def retrieve(storage, path, *args):
+        path.write_bytes(b'video')
+        return dict(record(), minQuality=1080)
+    monkeypatch.setattr(mod, '_retrieve_private_file', retrieve)
+    probe = {'format': {'duration': '635'}, 'streams': [
+        {'codec_type': 'video', 'width': 640, 'height': 360}, {'codec_type': 'audio'}
+    ]}
+    monkeypatch.setattr(mod.subprocess, 'run', lambda *a, **k: SimpleNamespace(stdout=json.dumps(probe)))
+    with pytest.raises(mod.BudgetApifyError, match='incomplete or invalid media'):
+        mod.download_budget_apify(VIDEO, tmp_path, '1080', 'secret')
+    assert not list(tmp_path.iterdir())
 
 
 

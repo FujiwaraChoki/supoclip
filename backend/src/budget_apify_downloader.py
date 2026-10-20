@@ -365,7 +365,10 @@ def _run(actor, video_id, temp_dir, quality, token, run_timeout, charge_cap):
             if adapter == "private_s3":
                 row = next((row for row in items if isinstance(row, dict)
                             and row.get("id") == video_id), None)
-                if not row or (row.get("status") != "success" and not (
+                # Titan now reports completed deliveries as "completed". Keep
+                # its older false-failure workaround narrow; both paths still
+                # require a fresh versioned object and verified media below.
+                if not row or (row.get("status") not in {"success", "completed"} and not (
                         row.get("errorCode") == "MISSING_OUTPUT_FILE"
                         and row.get("errorStage") == "delivery_failed")):
                     raise BudgetApifyError("YouTube provider could not complete private delivery.")
