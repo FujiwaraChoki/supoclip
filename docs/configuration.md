@@ -1,5 +1,10 @@
 # Configuration
 
+Local self-hosters can also use an eligible ChatGPT plan for clip analysis via
+**Settings → Use your ChatGPT plan**, without an LLM API key. See the
+[ChatGPT setup guide](./chatgpt.md) for local callback requirements, separate
+transcription configuration, credential storage, and usage limits.
+
 This guide explains the important environment variables used by SupoClip and how they affect behavior.
 
 Most settings are sourced from `.env.example`, `docker-compose.yml`, and the backend configuration code in `backend/src/config.py`.

@@ -173,6 +173,7 @@ services:
       - "SES_FROM_EMAIL=${SES_FROM_EMAIL:-SupoClip <onboarding@example.com>}"
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3107}
       - DISCORD_FEEDBACK_WEBHOOK_URL=${DISCORD_FEEDBACK_WEBHOOK_URL}
+      - CHATGPT_REDIRECT_URI=${CHATGPT_REDIRECT_URI:-http://127.0.0.1:8000/chatgpt/callback}
       # Social publishing (OAuth apps; users connect their own accounts)
       - YOUTUBE_OAUTH_CLIENT_ID=${YOUTUBE_OAUTH_CLIENT_ID}
       - YOUTUBE_OAUTH_CLIENT_SECRET=${YOUTUBE_OAUTH_CLIENT_SECRET}

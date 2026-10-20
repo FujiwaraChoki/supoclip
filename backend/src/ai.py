@@ -559,6 +559,9 @@ def _build_transcript_model(
 
 def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
     """Get or create the transcript analysis agent (lazy initialization)."""
+    from .chatgpt_analysis import chatgpt_account, ChatGPTAnalysisAgent
+    if binding := chatgpt_account.get():
+        return ChatGPTAnalysisAgent(binding, TranscriptAnalysis, transcript_analysis_system_prompt)
     global _transcript_agent, _transcript_agent_signature
     runtime_config = get_config()
     provider, _ = _split_llm_name(runtime_config.llm)
@@ -637,6 +640,9 @@ _rerank_agent_signature: Optional[tuple[str | None, ...]] = None
 
 def get_rerank_agent() -> Agent[None, CandidateRanking]:
     """Get or create the candidate rerank agent (lazy initialization)."""
+    from .chatgpt_analysis import chatgpt_account, ChatGPTAnalysisAgent
+    if binding := chatgpt_account.get():
+        return ChatGPTAnalysisAgent(binding, CandidateRanking, candidate_rerank_system_prompt)
     global _rerank_agent, _rerank_agent_signature
     runtime_config = get_config()
     model_name = getattr(runtime_config, "rerank_llm", None) or runtime_config.llm
@@ -1295,6 +1301,9 @@ async def rerank_candidates(
         )
         reranked = apply_candidate_ranking(candidates, result.output)
     except Exception as error:
+        from .services.chatgpt_service import ChatGPTError
+        if isinstance(error, ChatGPTError):
+            raise
         # Do not log the error text: provider bodies may contain transcript data.
         logger.warning(
             "Candidate rerank failed (%s); keeping first-pass order", type(error).__name__
@@ -1364,6 +1373,10 @@ async def _analyze_transcript_windows(
             continue
         analyses.append(task.result())
 
+    from .services.chatgpt_service import ChatGPTError
+    for error in errors:
+        if isinstance(error, ChatGPTError):
+            raise error
     if not analyses:
         if errors:
             raise errors[0]

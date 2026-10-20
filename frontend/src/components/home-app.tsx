@@ -7,6 +7,7 @@ import {
   Loader2, Paintbrush, Paperclip, Upload, Wand2, X, Youtube,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
+import { ChatGPTPlanNotice } from "@/components/chatgpt-plan-notice";
 import { FONT_SEARCH_THRESHOLD, getYouTubeThumbnailUrl, uploadVideoFile } from "@/lib/video-upload";
 import { AppShell } from "@/components/app/app-shell";
 import { GenerationCard } from "@/components/app/generation-card";
@@ -585,6 +586,8 @@ export default function HomeApp() {
               </div>
             </div>
           </form>
+
+          <ChatGPTPlanNotice userId={session?.user?.id} />
 
           {isLoading && statusMessage && <p role="status" className="mt-3 text-center text-sm text-muted-foreground sm:hidden">{statusMessage}</p>}
 
