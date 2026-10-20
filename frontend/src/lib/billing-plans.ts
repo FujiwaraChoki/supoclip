@@ -14,6 +14,12 @@ export type PublicBillingPlan = {
 
 export const PAID_PLAN_IDS: BillingPlanId[] = ["pro", "scale"];
 
+export function billingPlanMessageKey(plan: string | null | undefined): "free" | "pro" | "scale" | "selfHost" {
+  if (plan === "pro" || plan === "scale") return plan;
+  if (plan === "self_host") return "selfHost";
+  return "free";
+}
+
 export function formatBillingPlanName(plan: string | null | undefined): string {
   if (plan === "pro") {
     return "Pro";

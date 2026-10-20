@@ -3,13 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
-import { CREATOR_OFFER_TEXT, captureCreatorCodeFromUrl } from "@/lib/creator-code";
+import { captureCreatorCodeFromUrl } from "@/lib/creator-code";
 
 const DISMISSED_KEY = "supoclip:creator-offer-dismissed";
 
 /** Quiet note for visitors who arrived through a creator's link. */
 export function CreatorOfferBanner() {
+  const t = useTranslations("marketing");
   const [code, setCode] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,10 +39,10 @@ export function CreatorOfferBanner() {
     <div className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-md items-center gap-3 rounded-2xl border bg-background/95 py-3 pl-4 pr-2 text-sm shadow-lg backdrop-blur">
       <span className="size-1.5 shrink-0 rounded-full bg-brand" aria-hidden />
       <p className="min-w-0 flex-1 leading-snug">
-        Code <span className="font-mono font-medium">{code}</span> applied: {CREATOR_OFFER_TEXT}.{" "}
-        <Link href="/sign-up" className="font-medium underline underline-offset-2">Start clipping</Link>
+        {t("creator.codeLead")} <span className="font-mono font-medium">{code}</span> {t("creator.codeTail")}{" "}
+        <Link href="/sign-up" className="font-medium underline underline-offset-2">{t("creator.start")}</Link>
       </p>
-      <button type="button" onClick={dismiss} className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Dismiss">
+      <button type="button" onClick={dismiss} className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label={t("creator.dismiss")}>
         <X className="size-4" />
       </button>
     </div>

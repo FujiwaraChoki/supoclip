@@ -1,0 +1,91 @@
+{
+  "status": {
+    "completed": "Fertig",
+    "processing": "Wird verarbeitet",
+    "queued": "In der Warteschlange",
+    "failed": "Fehlgeschlagen",
+    "cancelled": "Abgebrochen"
+  },
+  "loading": "Wird geladen",
+  "loadingEllipsis": "Wird geladen…",
+  "somethingWrong": "Etwas ist schiefgelaufen",
+  "tryAgain": "Nochmal versuchen",
+  "youtube": {
+    "aria": "Status der YouTube-Importe",
+    "title": "YouTube-Importe · {label}",
+    "degraded": "Eingeschränkt",
+    "outage": "Ausfall",
+    "maintenance": "Wartung",
+    "viewStatus": "Statusseite ansehen"
+  },
+  "card": {
+    "queued": "In der Warteschlange",
+    "finding": "Die besten Momente werden gesucht…",
+    "needsAttention": "Braucht Aufmerksamkeit",
+    "youtube": "YouTube",
+    "upload": "Upload",
+    "clips": "{count, plural, one {# Clip} other {# Clips}}",
+    "select": "{title} auswählen",
+    "deselect": "Auswahl von {title} aufheben"
+  },
+  "title": "Bibliothek",
+  "summary": "{count, plural, one {# Generierung} other {# Generierungen}} · zum Vorschauen darüberfahren, zum Verwalten auswählen",
+  "searchPlaceholder": "Nach Titel suchen",
+  "searchLabel": "Generierungen suchen",
+  "new": "Neu",
+  "filterLabel": "Generierungen filtern",
+  "filters": {
+    "all": "Alle",
+    "ready": "Fertig",
+    "active": "In Arbeit",
+    "attention": "Braucht Aufmerksamkeit"
+  },
+  "sortLabel": "Generierungen sortieren",
+  "sort": {
+    "newest": "Neueste",
+    "video": "Nach Video"
+  },
+  "selectAllGenerations": "Alle Generierungen auswählen",
+  "selectedOf": "{selected} von {total} ausgewählt",
+  "selectAll": "Alle auswählen",
+  "selected": "ausgewählt",
+  "signInTitle": "Anmeldung nötig",
+  "signInBody": "Du musst angemeldet sein, um deine Generierungen zu sehen.",
+  "signIn": "Anmelden",
+  "loadError": "Aufgaben konnten nicht geladen werden",
+  "refreshError": "Die Sammelaktion ist durch, aber die Liste konnte nicht aktualisiert werden.",
+  "cancel": {
+    "empty": "In der Auswahl sind keine aktiven Generierungen zum Abbrechen.",
+    "fallback": "Generierung konnte nicht abgebrochen werden",
+    "success": "{count, plural, one {# Generierung abgebrochen.} other {# Generierungen abgebrochen.}}",
+    "partial": "{success} abgebrochen, {failed} fehlgeschlagen. {error}",
+    "action": "Abbrechen",
+    "tooltip": "{count, plural, one {# aktive Generierung abbrechen} other {# aktive Generierungen abbrechen}}"
+  },
+  "resume": {
+    "empty": "In der Auswahl sind keine fehlgeschlagenen oder abgebrochenen Generierungen zum Fortsetzen.",
+    "fallback": "Generierung konnte nicht fortgesetzt werden",
+    "success": "{count, plural, one {# Generierung fortgesetzt.} other {# Generierungen fortgesetzt.}}",
+    "partial": "{success} fortgesetzt, {failed} fehlgeschlagen. {error}",
+    "action": "Fortsetzen",
+    "tooltip": "{count, plural, one {# fehlgeschlagene oder abgebrochene Generierung fortsetzen} other {# fehlgeschlagene oder abgebrochene Generierungen fortsetzen}}"
+  },
+  "delete": {
+    "empty": "Wähl mindestens eine Generierung zum Löschen aus.",
+    "fallback": "Generierung konnte nicht gelöscht werden",
+    "success": "{count, plural, one {# Generierung gelöscht.} other {# Generierungen gelöscht.}}",
+    "partial": "{success} gelöscht, {failed} fehlgeschlagen. {error}",
+    "action": "Löschen",
+    "tooltip": "{count, plural, one {# Generierung löschen} other {# Generierungen löschen}}",
+    "title": "{count, plural, one {# Generierung löschen?} other {# Generierungen löschen?}}",
+    "description": "{count, plural, one {Damit werden diese Generierung und alle zugehörigen Clips dauerhaft entfernt. Das lässt sich nicht rückgängig machen.} other {Damit werden diese Generierungen und alle zugehörigen Clips dauerhaft entfernt. Das lässt sich nicht rückgängig machen.}}",
+    "pending": "Wird gelöscht..."
+  },
+  "clearSelection": "Auswahl aufheben",
+  "cancelDialog": "Abbrechen",
+  "emptyTitle": "Noch keine Generierungen",
+  "emptyBody": "Füg einen YouTube-Link ein oder lad ein Video hoch, dann landen deine Clips hier.",
+  "create": "Neue Generierung erstellen",
+  "noQuery": "Nichts passt zu „{query}“.",
+  "noFilter": "Nichts passt zu diesem Filter."
+}

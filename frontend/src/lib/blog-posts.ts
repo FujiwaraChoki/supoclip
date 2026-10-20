@@ -105,6 +105,21 @@ export function getBlogPost(slug: string) {
   return blogPosts.find((post) => post.slug === slug);
 }
 
+/** Overlay translated title, description, and listing copy. Keywords stay English. */
+export function applyBlogCopy(post: BlogPost, translate: (key: string) => string): BlogPost {
+  const slug = post.slug;
+  return {
+    ...post,
+    title: translate(`${slug}.title`),
+    description: translate(`${slug}.description`),
+    eyebrow: translate(`${slug}.eyebrow`),
+    category: translate(`${slug}.category`),
+    readingTime: translate(`${slug}.readingTime`),
+    summary: translate(`${slug}.summary`),
+    image: post.image ? { ...post.image, alt: translate(`${slug}.imageAlt`) } : undefined,
+  };
+}
+
 export function getBlogPostMetadata(post: BlogPost): Metadata {
   const siteUrl = getSiteUrl();
   const url = `${siteUrl}/blog/${post.slug}`;

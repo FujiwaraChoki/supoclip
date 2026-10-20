@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "title": "Service status",
+    "description": "Current service status and incident updates for SupoClip."
+  },
+  "title": "Service status",
+  "intro": "Updates on the SupoClip hosted service.",
+  "unavailable": "Service status is temporarily unavailable. Please check back later.",
+  "states": {
+    "operational": "Operational",
+    "degraded": "Degraded",
+    "outage": "Outage",
+    "maintenance": "Maintenance",
+    "unknown": "Unknown"
+  },
+  "lastUpdated": "Last updated:",
+  "timezone": "(Zurich)",
+  "back": "Back to SupoClip"
+}

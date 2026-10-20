@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
+import { useTranslations } from "next-intl";
 import {
   AudioLines, Check, ChevronLeft, ChevronRight, Clapperboard, Download, Flame, Loader2, MessageSquare,
   Play, Scissors, Share2, Sparkles, Star, Trash2, TrendingUp,
@@ -34,8 +35,8 @@ export interface WallClip {
   hook_title: string | null;
 }
 
-function clipTitle(clip: WallClip) {
-  return clip.hook_title || `Clip ${clip.clip_order}`;
+function clipTitle(clip: WallClip, fallback: string) {
+  return clip.hook_title || fallback;
 }
 
 export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownload, onDelete }: {
@@ -48,12 +49,14 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
   onDownload: () => void;
   onDelete?: () => void;
 }) {
+  const t = useTranslations("task");
+  const title = clipTitle(clip, t("clipNumber", { order: clip.clip_order }));
   return (
     <article className="group @container animate-rise">
       <button
         type="button"
         onClick={onOpen}
-        aria-label={`Preview ${clipTitle(clip)}`}
+        aria-label={t("preview", { title })}
         className="block w-full rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
         <ClipCover
@@ -63,7 +66,7 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/25" />
           {best && (
             <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-foreground shadow">
-              <Flame className="size-3" />Top pick
+              <Flame className="size-3" />{t("topPick")}
             </span>
           )}
           {clip.virality_score > 0 && (
@@ -78,19 +81,19 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
         </ClipCover>
       </button>
       <div className="mt-2.5 px-0.5">
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{clipTitle(clip)}</h3>
+        <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{title}</h3>
         <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">{clip.start_time} – {clip.end_time}</p>
         <div className="mt-2 flex items-center gap-1">
-          <Button size="sm" variant="outline" className="h-7 flex-1 px-2 text-xs" onClick={onDownload} disabled={busy} aria-label={`Download ${clipTitle(clip)}`}>
-            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}<span className="hidden @min-[190px]:inline">Download</span>
+          <Button size="sm" variant="outline" className="h-7 flex-1 px-2 text-xs" onClick={onDownload} disabled={busy} aria-label={t("downloadNamed", { title })}>
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}<span className="hidden @min-[190px]:inline">{t("download")}</span>
           </Button>
           {editable && (
             <Button size="sm" variant="outline" className="h-7 px-2 text-xs" asChild>
-              <Link href={`/tasks/${taskId}/edit?clip=${clip.id}`}><Scissors className="size-3.5" />Edit</Link>
+              <Link href={`/tasks/${taskId}/edit?clip=${clip.id}`}><Scissors className="size-3.5" />{t("edit")}</Link>
             </Button>
           )}
           {onDelete && (
-            <Button size="icon-sm" variant="ghost" className="size-7 text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={onDelete} aria-label="Delete clip">
+            <Button size="icon-sm" variant="ghost" className="size-7 text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={onDelete} aria-label={t("deleteClip")}>
               <Trash2 className="size-3.5" />
             </Button>
           )}
@@ -101,10 +104,10 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
 }
 
 const BREAKDOWN = [
-  { key: "hook_score", label: "Hook", icon: MessageSquare },
-  { key: "engagement_score", label: "Engagement", icon: TrendingUp },
-  { key: "value_score", label: "Value", icon: Star },
-  { key: "shareability_score", label: "Shareability", icon: Share2 },
+  { key: "hook_score", labelKey: "hook", icon: MessageSquare },
+  { key: "engagement_score", labelKey: "engagement", icon: TrendingUp },
+  { key: "value_score", labelKey: "value", icon: Star },
+  { key: "shareability_score", labelKey: "shareability", icon: Share2 },
 ] as const;
 
 export function ClipFocus({ clip, taskId, index, total, busy, editable, onNavigate, onClose, onDownload, onDelete, hookTypeLabel, actions, children }: {
@@ -124,6 +127,7 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
   /** Extra detail content rendered below the transcript. */
   children?: React.ReactNode;
 }) {
+  const t = useTranslations("task");
   useEffect(() => {
     if (!clip) return;
     const onKey = (event: KeyboardEvent) => {
@@ -145,15 +149,15 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
             </div>
             <div className="flex min-h-0 flex-col overflow-y-auto">
               <div className="flex items-center justify-between gap-2 border-b px-5 py-3 pr-12 text-xs text-muted-foreground">
-                <span className="tabular-nums">Clip {index + 1} of {total}</span>
+                <span className="tabular-nums">{t("position", { current: index + 1, total })}</span>
                 <div className="flex items-center gap-1">
-                  <Button size="icon-sm" variant="ghost" onClick={() => onNavigate(-1)} aria-label="Previous clip"><ChevronLeft className="size-4" /></Button>
-                  <Button size="icon-sm" variant="ghost" onClick={() => onNavigate(1)} aria-label="Next clip"><ChevronRight className="size-4" /></Button>
+                  <Button size="icon-sm" variant="ghost" onClick={() => onNavigate(-1)} aria-label={t("previous")}><ChevronLeft className="size-4" /></Button>
+                  <Button size="icon-sm" variant="ghost" onClick={() => onNavigate(1)} aria-label={t("next")}><ChevronRight className="size-4" /></Button>
                 </div>
               </div>
               <div className="space-y-5 p-5">
                 <div>
-                  <DialogTitle className="font-display text-xl font-bold leading-tight">{clipTitle(clip)}</DialogTitle>
+                  <DialogTitle className="font-display text-xl font-bold leading-tight">{clipTitle(clip, t("clipNumber", { order: clip.clip_order }))}</DialogTitle>
                   <DialogDescription className="mt-1 tabular-nums">
                     {clip.start_time} – {clip.end_time} · {formatClipDuration(clip.duration)}
                   </DialogDescription>
@@ -164,18 +168,19 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                     <div className="flex items-center gap-4">
                       <ScoreRing score={clip.virality_score} size={56} className="text-foreground [&>span]:text-base" />
                       <div>
-                        <p className="text-sm font-semibold">Virality score</p>
+                        <p className="text-sm font-semibold">{t("virality")}</p>
                         <p className="text-xs text-muted-foreground">
-                          {clip.hook_type && clip.hook_type !== "none" ? `${hookTypeLabel(clip.hook_type)} · ` : ""}
-                          {Math.round(clip.relevance_score * 100)}% relevance
+                          {clip.hook_type && clip.hook_type !== "none"
+                            ? t("relevanceWithHook", { hook: hookTypeLabel(clip.hook_type), percent: Math.round(clip.relevance_score * 100) })
+                            : t("relevance", { percent: Math.round(clip.relevance_score * 100) })}
                         </p>
                       </div>
                     </div>
                     {BREAKDOWN.some(({ key }) => clip[key] > 0) && <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3">
-                      {BREAKDOWN.map(({ key, label, icon: Icon }) => (
+                      {BREAKDOWN.map(({ key, labelKey, icon: Icon }) => (
                         <div key={key} className="space-y-1.5">
                           <div className="flex items-center justify-between text-xs">
-                            <span className="flex items-center gap-1.5 text-muted-foreground"><Icon className="size-3" />{label}</span>
+                            <span className="flex items-center gap-1.5 text-muted-foreground"><Icon className="size-3" />{t(`scores.${labelKey}`)}</span>
                             <span className="font-medium tabular-nums">{clip[key]}/25</span>
                           </div>
                           <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -187,22 +192,22 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                   </section>
                 )}
 
-                {clip.text && <TranscriptPreview text={clip.text} clipTitle={clipTitle(clip)} />}
+                {clip.text && <TranscriptPreview text={clip.text} clipTitle={clipTitle(clip, t("clipNumber", { order: clip.clip_order }))} />}
                 {children}
               </div>
               <div className="mt-auto flex flex-wrap items-center gap-2 border-t bg-muted/30 px-5 py-3">
                 <Button size="sm" onClick={onDownload} disabled={busy}>
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}Download
+                  {busy ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}{t("download")}
                 </Button>
                 {editable && (
                   <Button size="sm" variant="outline" asChild>
-                    <Link href={`/tasks/${taskId}/edit?clip=${clip.id}`}><Scissors className="size-4" />Open in editor</Link>
+                    <Link href={`/tasks/${taskId}/edit?clip=${clip.id}`}><Scissors className="size-4" />{t("openInEditor")}</Link>
                   </Button>
                 )}
                 {actions}
                 {onDelete && (
                   <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={onDelete}>
-                    <Trash2 className="size-4" />Delete
+                    <Trash2 className="size-4" />{t("delete")}
                   </Button>
                 )}
               </div>
@@ -215,11 +220,11 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
 }
 
 const STEPS = [
-  { label: "Fetching video", icon: Download, until: 20 },
-  { label: "Transcribing", icon: AudioLines, until: 45 },
-  { label: "Finding moments", icon: Sparkles, until: 65 },
-  { label: "Rendering clips", icon: Clapperboard, until: 100 },
-];
+  { id: "fetching", icon: Download, until: 20 },
+  { id: "transcribing", icon: AudioLines, until: 45 },
+  { id: "finding", icon: Sparkles, until: 65 },
+  { id: "rendering", icon: Clapperboard, until: 100 },
+] as const;
 
 function stepFromMessage(message: string) {
   const text = message.toLowerCase();
@@ -231,6 +236,7 @@ function stepFromMessage(message: string) {
 }
 
 export function ProcessingPanel({ status, progress, message, readyCount }: { status: string; progress: number; message: string; readyCount: number }) {
+  const t = useTranslations("task");
   const byProgress = STEPS.findIndex((step) => progress < step.until);
   const activeStep = status === "queued" ? -1 : stepFromMessage(message) ?? (byProgress === -1 ? STEPS.length - 1 : byProgress);
   return (
@@ -240,9 +246,9 @@ export function ProcessingPanel({ status, progress, message, readyCount }: { sta
       </div>
       <div className="flex flex-col gap-6 p-5 sm:p-6 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
-          <p className="shimmer text-lg font-semibold">{message || (status === "queued" ? "Waiting in queue" : "Processing")}</p>
+          <p className="shimmer text-lg font-semibold">{message || (status === "queued" ? t("waiting") : t("processing"))}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {readyCount > 0 ? `${readyCount} clip${readyCount === 1 ? "" : "s"} ready below — more on the way.` : "Grab a coffee — clips appear here the moment they render."}
+            {readyCount > 0 ? t("clipsReady", { count: readyCount }) : t("grabCoffee")}
           </p>
         </div>
         <ol className="grid grid-cols-4 gap-2 md:flex md:gap-1">
@@ -250,7 +256,7 @@ export function ProcessingPanel({ status, progress, message, readyCount }: { sta
             const done = activeStep > index;
             const active = activeStep === index;
             return (
-              <li key={step.label} className="flex flex-col items-center gap-1.5 md:w-24">
+              <li key={step.id} className="flex flex-col items-center gap-1.5 md:w-24">
                 <span className={cn(
                   "flex size-9 items-center justify-center rounded-full border transition-colors",
                   done && "border-foreground bg-foreground text-background",
@@ -259,13 +265,13 @@ export function ProcessingPanel({ status, progress, message, readyCount }: { sta
                 )}>
                   {done ? <Check className="size-4" /> : active ? <step.icon className="size-4 motion-safe:animate-pulse" /> : <step.icon className="size-4" />}
                 </span>
-                <span className={cn("text-center text-[11px] leading-tight", active ? "font-medium text-foreground" : "text-muted-foreground")}>{step.label}</span>
+                <span className={cn("text-center text-[11px] leading-tight", active ? "font-medium text-foreground" : "text-muted-foreground")}>{t(`steps.${step.id}`)}</span>
               </li>
             );
           })}
         </ol>
       </div>
-      {progress > 0 && <p className="sr-only">{progress}% complete</p>}
+      {progress > 0 && <p className="sr-only">{t("percentComplete", { progress })}</p>}
     </section>
   );
 }

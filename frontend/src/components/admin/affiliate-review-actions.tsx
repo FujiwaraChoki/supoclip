@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -14,6 +15,7 @@ interface AffiliateReviewActionsProps {
 }
 
 export function AffiliateReviewActions({ affiliateId, status, appStoreCodeAdded }: AffiliateReviewActionsProps) {
+  const t = useTranslations("admin");
   const [pending, setPending] = useState<Action | null>(null);
   const [confirming, setConfirming] = useState<"decline" | "revoke" | null>(null);
   const [reason, setReason] = useState("");
@@ -31,12 +33,12 @@ export function AffiliateReviewActions({ affiliateId, status, appStoreCodeAdded 
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to update application");
+        throw new Error(data.error || t("creators.updateFailed"));
       }
       setConfirming(null);
       router.refresh();
     } catch (reviewError) {
-      setError(reviewError instanceof Error ? reviewError.message : "Failed to update application");
+      setError(reviewError instanceof Error ? reviewError.message : t("creators.updateFailed"));
     } finally {
       setPending(null);
     }
@@ -48,20 +50,20 @@ export function AffiliateReviewActions({ affiliateId, status, appStoreCodeAdded 
         <Input
           value={reason}
           onChange={(event) => setReason(event.target.value)}
-          placeholder={confirming === "decline" ? "Reason, sent to the applicant (optional)" : "Internal note (optional)"}
+          placeholder={confirming === "decline" ? t("creators.declineReason") : t("creators.revokeNote")}
           maxLength={1000}
           className="h-8 w-64 text-xs"
         />
         <div className="flex gap-2">
           <Button variant="ghost" size="sm" onClick={() => setConfirming(null)} disabled={pending !== null}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button variant="destructive" size="sm" onClick={() => review(confirming)} disabled={pending !== null}>
-            {pending ? "Saving..." : confirming === "decline" ? "Decline" : "Revoke"}
+            {pending ? t("savingDots") : confirming === "decline" ? t("creators.decline") : t("creators.revoke")}
           </Button>
         </div>
         {confirming === "revoke" && appStoreCodeAdded && (
-          <span className="text-xs text-muted-foreground">Also deactivate their code in App Store Connect.</span>
+          <span className="text-xs text-muted-foreground">{t("creators.deactivateStore")}</span>
         )}
         {error && <span className="text-xs text-red-600">{error}</span>}
       </div>
@@ -73,24 +75,24 @@ export function AffiliateReviewActions({ affiliateId, status, appStoreCodeAdded 
       {status === "pending" && (
         <>
           <Button variant="outline" size="sm" onClick={() => setConfirming("decline")} disabled={pending !== null}>
-            Decline
+            {t("creators.decline")}
           </Button>
           <Button size="sm" onClick={() => review("approve")} disabled={pending !== null}>
-            {pending === "approve" ? "Approving..." : "Approve"}
+            {pending === "approve" ? t("creators.approving") : t("creators.approve")}
           </Button>
         </>
       )}
       {status === "approved" &&
         (appStoreCodeAdded ? (
-          <span className="text-xs text-muted-foreground">App Store code added</span>
+          <span className="text-xs text-muted-foreground">{t("creators.storeCodeAdded")}</span>
         ) : (
           <Button variant="outline" size="sm" onClick={() => review("app_store_code_added")} disabled={pending !== null}>
-            {pending === "app_store_code_added" ? "Saving..." : "Mark App Store code added"}
+            {pending === "app_store_code_added" ? t("savingDots") : t("creators.markStoreCode")}
           </Button>
         ))}
       {status === "approved" && (
         <Button variant="outline" size="sm" onClick={() => setConfirming("revoke")} disabled={pending !== null}>
-          Revoke
+          {t("creators.revoke")}
         </Button>
       )}
       {error && <span className="text-xs text-red-600">{error}</span>}

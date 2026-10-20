@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, Megaphone, X } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useAnnouncements } from "@/hooks/use-announcements";
+import { intlLocale } from "@/i18n/config";
 import { cn } from "@/lib/utils";
 
 const READ_EVENT = "supoclip:announcements-read";
@@ -27,6 +29,8 @@ export function Announcements({ userId, compact = false, landing = false }: {
   compact?: boolean;
   landing?: boolean;
 }) {
+  const t = useTranslations("shell");
+  const locale = useLocale();
   const key = `supoclip:announcements-read:${userId ?? "visitor"}`;
   const [read, setRead] = useState<{ key: string; ids: string[] } | null>(null);
   const [open, setOpen] = useState(false);
@@ -51,8 +55,10 @@ export function Announcements({ userId, compact = false, landing = false }: {
   if (announcements.length === 0) return null;
 
   const unread = read?.key === key ? announcements.filter((item) => !read.ids.includes(item.id)).length : 0;
-  const label = landing ? announcements[0].title : "What's new";
-  const accessibleLabel = `What's new${unread ? `, ${unread} unread announcement${unread === 1 ? "" : "s"}` : ""}`;
+  const label = landing ? announcements[0].title : t("announcements.whatsNew");
+  const accessibleLabel = unread
+    ? t("announcements.whatsNewUnread", { count: unread })
+    : t("announcements.whatsNew");
 
   const changeOpen = (next: boolean) => {
     setOpen(next);
@@ -75,7 +81,7 @@ export function Announcements({ userId, compact = false, landing = false }: {
         <button
           type="button"
           aria-label={accessibleLabel}
-          title={compact ? "What's new" : undefined}
+          title={compact ? t("announcements.whatsNew") : undefined}
           className={cn(
             "relative flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             landing ? "rounded-full border border-brand/25 bg-brand-soft text-brand hover:border-brand/50" : "text-muted-foreground hover:bg-accent hover:text-foreground",
@@ -86,14 +92,14 @@ export function Announcements({ userId, compact = false, landing = false }: {
           {!compact && <span className="min-w-0 flex-1 text-left">{label}</span>}
           {unread > 0 && (compact
             ? <span aria-hidden className="absolute right-1 top-1 size-2 rounded-full bg-brand" />
-            : <span aria-hidden className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">{landing ? "New" : unread}</span>
+            : <span aria-hidden className="rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">{landing ? t("announcements.new") : unread}</span>
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align={landing ? "start" : "end"} sideOffset={8} collisionPadding={16} className="w-[min(22rem,calc(100vw-2rem))] rounded-2xl p-0" aria-label="Announcements">
+      <PopoverContent align={landing ? "start" : "end"} sideOffset={8} collisionPadding={16} className="w-[min(22rem,calc(100vw-2rem))] rounded-2xl p-0" aria-label={t("announcements.popover")}>
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h2 className="font-display text-base font-semibold">What&apos;s new in SupoClip</h2>
-          <button type="button" onClick={() => setOpen(false)} aria-label="Close announcements" className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <h2 className="font-display text-base font-semibold">{t("announcements.title")}</h2>
+          <button type="button" onClick={() => setOpen(false)} aria-label={t("announcements.close")} className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <X className="size-4" aria-hidden />
           </button>
         </div>
@@ -101,7 +107,7 @@ export function Announcements({ userId, compact = false, landing = false }: {
           {announcements.map((item) => (
             <article key={item.id} className="space-y-2 p-4">
               <time dateTime={item.publishedAt} className="text-xs text-muted-foreground">
-                {new Date(item.publishedAt).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
+                {new Date(item.publishedAt).toLocaleDateString(intlLocale(locale), { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
               </time>
               <h3 className="font-semibold leading-snug">{item.title}</h3>
               <p className="text-sm leading-relaxed text-muted-foreground">{item.description}</p>

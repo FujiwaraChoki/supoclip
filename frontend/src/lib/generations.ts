@@ -30,18 +30,27 @@ export function formatClipDuration(seconds: number) {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ["year", 31_536_000], ["month", 2_592_000], ["week", 604_800],
   ["day", 86_400], ["hour", 3_600], ["minute", 60],
 ];
 
-export function timeAgo(value: string) {
+const JUST_NOW: Record<string, string> = {
+  en: "just now",
+  es: "ahora mismo",
+  pt: "agora mesmo",
+  de: "gerade eben",
+  zh: "刚刚",
+};
+
+export function timeAgo(value: string, locale = "en") {
+  const intlLocale = locale === "zh" ? "zh-Hans" : locale === "pt" ? "pt-BR" : locale;
+  const relative = new Intl.RelativeTimeFormat(intlLocale, { numeric: "auto" });
   const seconds = (new Date(value).getTime() - Date.now()) / 1000;
   for (const [unit, size] of UNITS) {
     if (Math.abs(seconds) >= size) return relative.format(Math.round(seconds / size), unit);
   }
-  return "just now";
+  return JUST_NOW[locale] ?? JUST_NOW.en;
 }
 
 /** Tailwind classes for a 0–100 virality score. */

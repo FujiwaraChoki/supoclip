@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,8 @@ import {
   VolumeX,
 } from "lucide-react";
 import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
-import { getPublicBillingPlans } from "@/lib/billing-plans";
+import { billingPlanMessageKey, getPublicBillingPlans } from "@/lib/billing-plans";
+import { catalogKey } from "@/i18n/config";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import {
   OPUSCLIP_COMPARISON_HREF,
@@ -88,80 +90,54 @@ function ScrollReveal({
 }
 
 const FEATURES = [
-  {
-    icon: ScanFace,
-    title: "Face-Centered Cropping",
-    description:
-      "MediaPipe + OpenCV detects and tracks faces for perfect 9:16 vertical framing.",
-  },
-  {
-    icon: Type,
-    title: "Word-Synced Subtitles",
-    description:
-      "Word-level timestamps power perfectly timed, animated captions on every clip.",
-  },
-  {
-    icon: Target,
-    title: "Virality Scoring",
-    description:
-      "AI rates hook, engagement, value, and shareability — scored 0 to 100.",
-  },
-  {
-    icon: Film,
-    title: "B-Roll Overlays",
-    description:
-      "Automatically source and overlay relevant stock footage from Pexels.",
-  },
-  {
-    icon: Sparkles,
-    title: "Caption Templates",
-    description:
-      "Multiple animation styles and font presets to match your brand.",
-  },
-  {
-    icon: MonitorPlay,
-    title: "Platform Export",
-    description:
-      "One-click presets for TikTok, Reels, and Shorts with optimized encoding.",
-  },
-];
+  { icon: ScanFace, key: "faceCrop" },
+  { icon: Type, key: "subtitles" },
+  { icon: Target, key: "virality" },
+  { icon: Film, key: "broll" },
+  { icon: Sparkles, key: "templates" },
+  { icon: MonitorPlay, key: "export" },
+] as const;
 
-function getPlans() {
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+function getPlans(t: Translate, tCommon: Translate) {
   return [
     {
-      name: "Self-Hosted",
+      id: "selfHost",
+      name: tCommon("plans.selfHost"),
       price: "$0",
-      period: "forever",
-      description: "Run on your own computer. No subscription or monthly video limit.",
+      period: t("pricing.period.forever"),
+      description: t("pricing.selfHost.description"),
       features: [
-        "Face-centered cropping",
-        "Word-synced subtitles",
-        "Virality scoring",
-        "All export presets",
-        "Full source code access",
+        t("pricing.selfHost.features.crop"),
+        t("pricing.selfHost.features.subtitles"),
+        t("pricing.selfHost.features.virality"),
+        t("pricing.selfHost.features.exports"),
+        t("pricing.selfHost.features.source"),
       ],
-      cta: "View on GitHub",
+      cta: t("pricing.selfHost.cta"),
       ctaHref: GITHUB_URL,
       highlighted: false,
     },
     ...getPublicBillingPlans().map((plan) => ({
-      name: plan.name,
+      id: plan.id,
+      name: tCommon(`plans.${billingPlanMessageKey(plan.id)}`),
       price: `$${plan.priceMonthly}`,
-      period: "/month",
-      description: plan.description,
+      period: t("pricing.period.month"),
+      description: t(`pricing.${plan.id}.description`),
       features: [
-        `${plan.generationLimit} generations per month`,
-        "Face tracking, captions and virality scoring",
-        "B-Roll overlays",
-        "Caption templates",
-        "Platform export presets",
+        t("pricing.generationsPerMonth", { count: plan.generationLimit }),
+        t("pricing.hosted.tracking"),
+        t("pricing.hosted.broll"),
+        t("pricing.hosted.templates"),
+        t("pricing.hosted.exports"),
         ...(
           plan.id === "scale"
-            ? ["YouTube videos up to 3 hours", "Priority processing"]
-            : ["Early access to new features"]
+            ? [t("pricing.hosted.youtube3h"), t("pricing.hosted.priority")]
+            : [t("pricing.hosted.earlyAccess")]
         ),
       ],
-      cta: plan.cta,
+      cta: t(`pricing.${plan.id}.cta`),
       ctaHref: "",
       highlighted: plan.highlighted,
     })),
@@ -169,28 +145,10 @@ function getPlans() {
 }
 
 const STEPS = [
-  {
-    num: "01",
-    title: "Drop a link or file",
-    description:
-      "Paste any YouTube URL or drag-and-drop your own video file.",
-    icon: Youtube,
-  },
-  {
-    num: "02",
-    title: "AI finds the gold",
-    description:
-      "Transcription, virality scoring, and segment detection surface the best moments.",
-    icon: Wand2,
-  },
-  {
-    num: "03",
-    title: "Export & publish",
-    description:
-      "Get vertical, captioned, face-tracked clips ready for every platform.",
-    icon: Share2,
-  },
-];
+  { num: "01", key: "drop", icon: Youtube },
+  { num: "02", key: "gold", icon: Wand2 },
+  { num: "03", key: "export", icon: Share2 },
+] as const;
 
 // Featured on the landing page; the footer links every marketing page.
 const SEO_RESOURCES = [
@@ -203,6 +161,19 @@ const SEO_RESOURCES = [
 ].map((href) => getMarketingLink(href)).filter((link): link is MarketingLink => Boolean(link));
 
 export default function LandingPage() {
+  const t = useTranslations("marketing");
+  const tCommon = useTranslations("common");
+  const plans = getPlans(t, tCommon);
+  const features = FEATURES.map((feature) => ({
+    ...feature,
+    title: t(`features.items.${feature.key}.title`),
+    description: t(`features.items.${feature.key}.description`),
+  }));
+  const steps = STEPS.map((step) => ({
+    ...step,
+    title: t(`steps.items.${step.key}.title`),
+    description: t(`steps.items.${step.key}.description`),
+  }));
   const [scrolled, setScrolled] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const authEnabled = !isLandingOnlyModeEnabled;
@@ -249,37 +220,37 @@ export default function LandingPage() {
               href="#how-it-works"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              How It Works
+              {t("nav.howItWorks")}
             </a>
             <a
               href="#features"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              Features
+              {t("nav.features")}
             </a>
             <a
               href="#pricing"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              Pricing
+              {t("nav.pricing")}
             </a>
             <a
               href="#open-source"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              Open Source
+              {t("nav.openSource")}
             </a>
             <Link
               href="/blog"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              Blog
+              {t("nav.blog")}
             </Link>
             <Link
               href="/affiliate"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              Affiliate
+              {t("nav.affiliate")}
             </Link>
           </div>
 
@@ -289,17 +260,17 @@ export default function LandingPage() {
               <>
                 <Link href="/sign-in">
                   <Button variant="ghost" size="sm">
-                    Sign In
+                    {t("nav.signIn")}
                   </Button>
                 </Link>
                 <Link href="/sign-up">
-                  <Button size="sm">Get Started</Button>
+                  <Button size="sm">{t("nav.getStarted")}</Button>
                 </Link>
               </>
             ) : (
               <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
                 <Button size="sm">
-                  Open Hosted App
+                  {t("nav.openHosted")}
                   <ExternalLink className="w-3.5 h-3.5" />
                 </Button>
               </a>
@@ -312,7 +283,7 @@ export default function LandingPage() {
             size="sm"
             onClick={() => setMobileNavOpen(!mobileNavOpen)}
             className="md:hidden p-2"
-            aria-label="Toggle menu"
+            aria-label={t("nav.toggleMenu")}
           >
             {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </Button>
@@ -327,42 +298,42 @@ export default function LandingPage() {
                 onClick={() => setMobileNavOpen(false)}
                 className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
               >
-                How It Works
+                {t("nav.howItWorks")}
               </a>
               <a
                 href="#features"
                 onClick={() => setMobileNavOpen(false)}
                 className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
               >
-                Features
+                {t("nav.features")}
               </a>
               <a
                 href="#pricing"
                 onClick={() => setMobileNavOpen(false)}
                 className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
               >
-                Pricing
+                {t("nav.pricing")}
               </a>
               <a
                 href="#open-source"
                 onClick={() => setMobileNavOpen(false)}
                 className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
               >
-                Open Source
+                {t("nav.openSource")}
               </a>
               <Link
                 href="/blog"
                 onClick={() => setMobileNavOpen(false)}
                 className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
               >
-                Blog
+                {t("nav.blog")}
               </Link>
               <Link
                 href="/affiliate"
                 onClick={() => setMobileNavOpen(false)}
                 className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
               >
-                Affiliate
+                {t("nav.affiliate")}
               </Link>
               <Separator className="my-2" />
               <div className="flex flex-col gap-2 px-3 pt-1">
@@ -370,17 +341,17 @@ export default function LandingPage() {
                   <>
                     <Link href="/sign-in" onClick={() => setMobileNavOpen(false)}>
                       <Button variant="outline" size="sm" className="w-full">
-                        Sign In
+                        {t("nav.signIn")}
                       </Button>
                     </Link>
                     <Link href="/sign-up" onClick={() => setMobileNavOpen(false)}>
-                      <Button size="sm" className="w-full">Get Started</Button>
+                      <Button size="sm" className="w-full">{t("nav.getStarted")}</Button>
                     </Link>
                   </>
                 ) : (
                   <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
                     <Button size="sm" className="w-full">
-                      Open Hosted App
+                      {t("nav.openHosted")}
                       <ExternalLink className="w-3.5 h-3.5" />
                     </Button>
                   </a>
@@ -414,7 +385,7 @@ export default function LandingPage() {
                 style={{ animation: "landing-fade-in-up 0.6s ease-out both" }}
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                Open Source & Self-Hostable
+                {t("hero.badge")}
               </Badge>
 
               <h1
@@ -425,9 +396,9 @@ export default function LandingPage() {
                   animation: "landing-fade-in-up 0.6s ease-out 0.1s both",
                 }}
               >
-                Open-source AI video clipper
+                {t("hero.titleLine1")}
                 <br />
-                for better shorts
+                {t("hero.titleLine2")}
               </h1>
 
               <p
@@ -436,9 +407,7 @@ export default function LandingPage() {
                   animation: "landing-fade-in-up 0.6s ease-out 0.2s both",
                 }}
               >
-                Turn long videos into captioned YouTube Shorts, TikToks, and Reels
-                with AI-assisted highlight detection, virality scoring, and
-                face-aware vertical crops.
+                {t("hero.body")}
               </p>
 
               <div
@@ -450,14 +419,14 @@ export default function LandingPage() {
                 {authEnabled ? (
                   <Link href="/sign-up">
                     <Button size="lg" className="px-8 h-12 text-sm">
-                      Start Clipping
+                      {t("hero.startClipping")}
                       <ArrowRight className="w-4 h-4" />
                     </Button>
                   </Link>
                 ) : (
                   <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
                     <Button size="lg" className="px-8 h-12 text-sm">
-                      Use Hosted App
+                      {t("hero.useHosted")}
                       <ExternalLink className="w-4 h-4" />
                     </Button>
                   </a>
@@ -469,19 +438,19 @@ export default function LandingPage() {
                 >
                   <Button variant="outline" size="lg" className="px-8 h-12 text-sm">
                     <Github className="w-4 h-4" />
-                    View Source
+                    {t("hero.viewSource")}
                   </Button>
                 </a>
                 <a
                   href={APP_STORE_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="Download SupoClip on the App Store"
+                  aria-label={t("hero.appStoreAria")}
                   className="flex items-center"
                 >
                   <Image
                     src="/app-store-badge.svg"
-                    alt="Download on the App Store"
+                    alt={t("hero.appStoreAlt")}
                     width={135}
                     height={40}
                     className="h-12 w-auto"
@@ -496,9 +465,9 @@ export default function LandingPage() {
                 }}
               >
                 {[
-                  { icon: ScanFace, label: "9:16 Auto-Crop" },
-                  { icon: Type, label: "Word-Synced Captions" },
-                  { icon: Target, label: "Virality Scoring" },
+                  { icon: ScanFace, label: t("hero.chips.crop") },
+                  { icon: Type, label: t("hero.chips.captions") },
+                  { icon: Target, label: t("hero.chips.virality") },
                 ].map(({ icon: Icon, label }) => (
                   <div key={label} className="flex items-center gap-1.5">
                     <Icon className="w-3.5 h-3.5" />
@@ -520,7 +489,7 @@ export default function LandingPage() {
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={PRODUCT_HUNT_BADGE_URL}
-                  alt="SupoClip - Open-source AI clipper: long videos into viral shorts | Product Hunt"
+                  alt={t("hero.productHuntAlt")}
                   width={250}
                   height={54}
                 />
@@ -549,7 +518,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6">
           <ScrollReveal className="text-center mb-14">
             <p className="text-xs font-semibold tracking-[0.2em] uppercase text-muted-foreground mb-3">
-              How It Works
+              {t("nav.howItWorks")}
             </p>
             <h2
               className="text-3xl sm:text-4xl font-bold tracking-tight"
@@ -558,12 +527,12 @@ export default function LandingPage() {
                   "var(--font-syne), var(--font-geist-sans), system-ui",
               }}
             >
-              Three steps. Zero effort.
+              {t("steps.title")}
             </h2>
           </ScrollReveal>
 
           <div className="grid md:grid-cols-3 gap-6">
-            {STEPS.map((step, i) => (
+            {steps.map((step, i) => (
               <ScrollReveal key={step.num} delay={i * 0.1}>
                 <Card className="h-full py-0 gap-0 hover:shadow-md transition-shadow duration-300">
                   <CardContent className="p-8">
@@ -600,7 +569,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6">
           <ScrollReveal className="text-center mb-14">
             <p className="text-xs font-semibold tracking-[0.2em] uppercase text-muted-foreground mb-3">
-              Features
+              {t("nav.features")}
             </p>
             <h2
               className="text-3xl sm:text-4xl font-bold tracking-tight mb-4"
@@ -609,16 +578,15 @@ export default function LandingPage() {
                   "var(--font-syne), var(--font-geist-sans), system-ui",
               }}
             >
-              Everything you need to go viral
+              {t("features.title")}
             </h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Professional-grade video clipping with AI intelligence at every
-              step of the pipeline.
+              {t("features.body")}
             </p>
           </ScrollReveal>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {FEATURES.map((feature, i) => (
+            {features.map((feature, i) => (
               <ScrollReveal key={feature.title} delay={i * 0.07}>
                 <Card className="h-full py-0 gap-0 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                   <CardContent className="p-6">
@@ -654,7 +622,7 @@ export default function LandingPage() {
         <div className="relative max-w-5xl mx-auto px-6">
           <ScrollReveal className="text-center mb-16">
             <p className="text-xs font-semibold tracking-[0.2em] uppercase text-muted-foreground mb-3">
-              Pricing
+              {t("nav.pricing")}
             </p>
             <h2
               className="text-3xl sm:text-4xl font-bold tracking-tight mb-4"
@@ -663,17 +631,16 @@ export default function LandingPage() {
                   "var(--font-syne), var(--font-geist-sans), system-ui",
               }}
             >
-              Simple pricing, no surprises
+              {t("pricing.title")}
             </h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Free to self-host. Hosted plans start at $10/month, with processing
-              and hosting handled for you. Change or cancel anytime.
+              {t("pricing.body")}
             </p>
           </ScrollReveal>
 
           <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto items-start">
-            {getPlans().map((plan, i) => (
-              <ScrollReveal key={plan.name} delay={i * 0.12}>
+            {plans.map((plan, i) => (
+              <ScrollReveal key={plan.id} delay={i * 0.12}>
                 <Card
                   className={`relative py-0 gap-0 transition-all duration-300 hover:shadow-lg ${
                     plan.highlighted
@@ -685,7 +652,7 @@ export default function LandingPage() {
                     <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
                       <Badge className="bg-foreground text-background border-0 shadow-md gap-1.5 px-3 py-1">
                         <Zap className="w-3 h-3" />
-                        Most Popular
+                        {t("pricing.popular")}
                       </Badge>
                     </div>
                   )}
@@ -753,11 +720,11 @@ export default function LandingPage() {
                     {plan.ctaHref ? (
                       <div className="flex flex-col gap-3">
                         <p className="text-xs leading-relaxed text-muted-foreground">
-                          Setup required. You provide the hardware and any paid AI services you choose.
+                          {t("pricing.selfHost.setup")}
                         </p>
                         <Link href={SELF_HOSTING_GUIDE_HREF}>
                           <Button className="w-full h-11 text-sm" variant="outline" size="lg">
-                            Self-hosting guide
+                            {t(`links.${catalogKey(SELF_HOSTING_GUIDE_HREF)}.label`)}
                             <ArrowRight className="w-4 h-4" />
                           </Button>
                         </Link>
@@ -802,7 +769,7 @@ export default function LandingPage() {
                           variant={plan.highlighted ? "secondary" : "default"}
                           size="lg"
                         >
-                          Use Hosted App
+                          {t("hero.useHosted")}
                           <ExternalLink className="w-4 h-4" />
                         </Button>
                       </a>
@@ -815,12 +782,12 @@ export default function LandingPage() {
 
           <ScrollReveal delay={0.3}>
             <p className="text-center text-xs text-muted-foreground mt-10 max-w-md mx-auto">
-              Self-hosting? All features are free and unlimited.{" "}
+              {t("pricing.selfHostNote")}{" "}
               <Link
                 href={SELF_HOSTING_GUIDE_HREF}
                 className="underline underline-offset-2 hover:text-foreground transition-colors"
               >
-                See the self-hosting guide
+                {t("pricing.selfHostGuide")}
               </Link>
               .
             </p>
@@ -836,17 +803,16 @@ export default function LandingPage() {
           <ScrollReveal className="text-center mb-10">
             <Badge variant="outline" className="mb-6 gap-1.5">
               <Github className="w-3.5 h-3.5" />
-              AGPL-3.0 Licensed
+              {t("openSource.badge")}
             </Badge>
             <h2
               className="text-3xl sm:text-4xl font-bold tracking-tight mb-4"
               style={{ fontFamily: "var(--font-syne), system-ui" }}
             >
-              Built in the open
+              {t("openSource.title")}
             </h2>
             <p className="text-sm text-muted-foreground max-w-lg mx-auto">
-              Fully open source. Self-host on your infrastructure, contribute
-              features, or fork it and make it yours.
+              {t("openSource.body")}
             </p>
           </ScrollReveal>
 
@@ -854,7 +820,7 @@ export default function LandingPage() {
             <Card className="py-0 gap-0">
               <CardContent className="p-6 md:p-8">
                 <p className="text-xs font-medium text-muted-foreground mb-3">
-                  Self-host with Docker Compose:
+                  {t("openSource.commandLabel")}
                 </p>
                 <div className="bg-primary text-primary-foreground rounded-lg p-5 font-mono text-sm leading-loose overflow-x-auto">
                   <div>
@@ -868,7 +834,7 @@ export default function LandingPage() {
                     <span className="opacity-50">$</span>{" "}
                     cd supoclip && cp .env.example .env
                   </div>
-                  <div className="opacity-40"># add a transcription + LLM provider to .env</div>
+                  <div className="opacity-40">{t("openSource.comment")}</div>
                   <div>
                     <span className="opacity-50">$</span>{" "}
                     docker compose up -d --build
@@ -883,24 +849,24 @@ export default function LandingPage() {
                   >
                     <Button>
                       <Github className="w-4 h-4" />
-                      View on GitHub
+                      {t("pricing.selfHost.cta")}
                       <ExternalLink className="w-3.5 h-3.5 opacity-50" />
                     </Button>
                   </a>
                   <Link href={SELF_HOSTING_GUIDE_HREF}>
-                    <Button variant="outline">Self-hosting guide</Button>
+                    <Button variant="outline">{t(`links.${catalogKey(SELF_HOSTING_GUIDE_HREF)}.label`)}</Button>
                   </Link>
                   {authEnabled ? (
                     <Link href="/sign-up">
                       <Button variant="outline">
-                        Try the hosted version
+                        {t("openSource.tryHosted")}
                         <ArrowRight className="w-4 h-4" />
                       </Button>
                     </Link>
                   ) : (
                     <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
                       <Button variant="outline">
-                        Open hosted version
+                        {t("openSource.openHosted")}
                         <ExternalLink className="w-4 h-4" />
                       </Button>
                     </a>
@@ -919,14 +885,13 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl px-6">
           <ScrollReveal className="mb-12 text-center">
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Guides & Comparisons
+              {t("guides.eyebrow")}
             </p>
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              Learn the complete clipping workflow
+              {t("guides.title")}
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
-              Practical, source-backed pages for choosing a video clipper, self-hosting SupoClip,
-              and turning long recordings into short-form content.
+              {t("guides.body")}
             </p>
           </ScrollReveal>
           <div className="grid gap-5 md:grid-cols-2">
@@ -937,12 +902,12 @@ export default function LandingPage() {
                   className="group block h-full rounded-lg border bg-card p-6 transition-all hover:-translate-y-0.5 hover:border-foreground/25 hover:shadow-md"
                 >
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    {resource.eyebrow}
+                    {t(`links.${catalogKey(resource.href)}.eyebrow`)}
                   </p>
-                  <h3 className="mt-3 text-xl font-bold tracking-tight">{resource.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-muted-foreground">{resource.description}</p>
+                  <h3 className="mt-3 text-xl font-bold tracking-tight">{t(`links.${catalogKey(resource.href)}.title`)}</h3>
+                  <p className="mt-3 text-sm leading-7 text-muted-foreground">{t(`links.${catalogKey(resource.href)}.description`)}</p>
                   <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">
-                    Read guide <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    {t("guides.read")} <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </span>
                 </Link>
               </ScrollReveal>
@@ -960,23 +925,22 @@ export default function LandingPage() {
             className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-6"
             style={{ fontFamily: "var(--font-syne), system-ui" }}
           >
-            Ready to clip?
+            {t("cta.title")}
           </h2>
           <p className="text-base text-muted-foreground mb-8">
-            Turn your next video into scroll-stopping shorts. Use the hosted app,
-            or self-host the open-source version for free.
+            {t("cta.body")}
           </p>
           {authEnabled ? (
             <Link href="/sign-up">
               <Button size="lg" className="px-10 h-12 text-sm">
-                Get Started
+                {t("nav.getStarted")}
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
           ) : (
             <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
               <Button size="lg" className="px-10 h-12 text-sm">
-                Open Hosted App
+                {t("nav.openHosted")}
                 <ExternalLink className="w-4 h-4" />
               </Button>
             </a>
@@ -993,6 +957,7 @@ export default function LandingPage() {
 /* ─── Hero Visual ─── */
 
 function HeroVisual() {
+  const t = useTranslations("marketing");
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const [active, setActive] = useState(0);
   const [muted, setMuted] = useState(true);
@@ -1057,7 +1022,7 @@ function HeroVisual() {
                 {DEMO_SOURCE.title}
               </p>
               <p className="text-[10px] text-muted-foreground">
-                youtube.com · long-form source
+                {t("hero.player.source")}
               </p>
             </div>
             <ExternalLink className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
@@ -1068,7 +1033,7 @@ function HeroVisual() {
             <div className="flex-1 h-px bg-border" />
             <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
               <Scissors className="w-3 h-3 rotate-90" />
-              {DEMO_CLIPS.length} clips found
+              {t("hero.player.clipsFound", { count: DEMO_CLIPS.length })}
             </span>
             <div className="flex-1 h-px bg-border" />
           </div>
@@ -1106,7 +1071,7 @@ function HeroVisual() {
             <button
               type="button"
               onClick={togglePlay}
-              aria-label={playing ? "Pause clip" : "Play clip"}
+              aria-label={playing ? t("hero.player.pause") : t("hero.player.play")}
               className="absolute inset-0 flex items-center justify-center focus:outline-none"
             >
               <span
@@ -1122,7 +1087,7 @@ function HeroVisual() {
             <button
               type="button"
               onClick={() => setMuted((m) => !m)}
-              aria-label={muted ? "Unmute clip" : "Mute clip"}
+              aria-label={muted ? t("hero.player.unmute") : t("hero.player.mute")}
               className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-white/90 hover:bg-black/65 transition-colors"
             >
               {muted ? (
@@ -1188,7 +1153,7 @@ function HeroVisual() {
             href="/demo"
             className="mt-3 flex items-center justify-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
-            How these clips were made
+            {t("hero.player.howMade")}
             <ArrowRight className="w-3 h-3" />
           </Link>
         </CardContent>

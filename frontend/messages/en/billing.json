@@ -1,0 +1,94 @@
+{
+  "plans": {
+    "pro": {
+      "description": "For creators who clip consistently each month.",
+      "cta": "Upgrade to Pro"
+    },
+    "scale": {
+      "description": "For teams and high-volume publishing workflows.",
+      "cta": "Upgrade to Scale"
+    }
+  },
+  "highlights": {
+    "videos": "{count} videos clipped every month",
+    "youtube": "YouTube videos up to {length}",
+    "fonts": "Custom fonts, B-roll and caption templates",
+    "priority": "Priority processing"
+  },
+  "runtime": {
+    "minutes": "{count} min",
+    "hours": "{count} h",
+    "hoursMinutes": "{hours} h {minutes} min"
+  },
+  "perMonth": "/mo",
+  "videosEach": "{count} videos/mo · up to {length} each",
+  "mostPopular": "Most popular",
+  "currentPlan": "Current plan",
+  "plansLabel": "Plans",
+  "continueWith": "Continue with {name}",
+  "openingCheckout": "Opening secure checkout…",
+  "checkoutError": "We couldn't open checkout. Please try again.",
+  "maybeLater": "Maybe later",
+  "prorated": "You'll confirm the change on Stripe and only pay the prorated difference.",
+  "cancelAnytime": "Cancel anytime · Secure checkout with Stripe",
+  "appStore": "Your subscription is managed through the App Store. You can change plans in the SupoClip iOS app.",
+  "selfHosted": {
+    "title": "Self-hosted",
+    "body": "Run SupoClip on your own computer with no subscription or monthly video limit. Setup required; you provide the hardware and any paid AI services you choose.",
+    "guide": "Self-hosting guide"
+  },
+  "upgrade": {
+    "start": {
+      "eyebrow": "Ready when you are",
+      "title": "Turn long videos into ready-to-post clips",
+      "body": "Choose a hosted plan and we handle the processing, or self-host the open-source app on your own computer for free."
+    },
+    "limit": {
+      "eyebrow": "What a month",
+      "titleCount": "You've clipped all {count} videos on {plan}",
+      "titleAll": "You've used everything on {plan}",
+      "bodyRefreshKeep": "Your allowance refreshes on {date}. Keep the momentum going with {plan}: {count} videos a month.",
+      "bodyPeriodKeep": "Your allowance refreshes next billing period. Keep the momentum going with {plan}: {count} videos a month.",
+      "bodyRefresh": "Your allowance refreshes on {date}.",
+      "bodyPeriod": "Your allowance refreshes next billing period."
+    },
+    "long": {
+      "eyebrow": "A long one",
+      "title": "{plan} can take this {runtime} video",
+      "fallbackPlan": "A bigger plan",
+      "body": "{plan} covers YouTube videos up to {length}. {next} handles up to {nextLength}, so this one goes straight through. This try didn't use a generation.",
+      "bodyNoNext": "{plan} covers YouTube videos up to {length}.  This try didn't use a generation."
+    },
+    "fonts": {
+      "eyebrow": "Make it yours",
+      "title": "Captions in your brand's own font",
+      "body": "Upload any .ttf or .otf and use it across every clip, so your shorts look like they come from you."
+    },
+    "explore": {
+      "eyebrow": "More room to create",
+      "title": "Do more with {plan}",
+      "titleFallback": "Plans for every creator",
+      "body": "More videos each month, longer sources and priority processing."
+    }
+  },
+  "illustration": {
+    "fitsIn": "fits in {plan}",
+    "yourVideo": "Your video",
+    "today": "Today",
+    "videosUpFrom": "videos a month, up from {count}",
+    "videosWith": "videos a month with {plan}",
+    "sample": "and that's why",
+    "ownFont": "or your own .ttf",
+    "serif": "Serif",
+    "display": "Display",
+    "mono": "Mono"
+  },
+  "creatorCode": {
+    "applied": "Creator code <mono>{code}</mono>: 20% off your first 3 months.",
+    "remove": "Remove",
+    "prompt": "Have a creator code?",
+    "placeholder": "Creator code",
+    "apply": "Apply",
+    "invalid": "That code isn't valid."
+  }
+}

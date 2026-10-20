@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useTranslations } from "next-intl"
 
 import {
   Dialog,
@@ -17,6 +18,7 @@ interface TranscriptPreviewProps {
 }
 
 export function TranscriptPreview({ text, clipTitle }: TranscriptPreviewProps) {
+  const t = useTranslations("task")
   const previewRef = useRef<HTMLParagraphElement>(null)
   const [isTruncated, setIsTruncated] = useState(false)
 
@@ -41,7 +43,7 @@ export function TranscriptPreview({ text, clipTitle }: TranscriptPreviewProps) {
 
   return (
     <div className="mb-4">
-      <h4 className="mb-2 font-medium text-black">Transcript</h4>
+      <h4 className="mb-2 font-medium text-black">{t("transcript.heading")}</h4>
       <div className="rounded-lg bg-gray-50 p-3">
         <p ref={previewRef} className="line-clamp-4 text-sm leading-6 text-gray-700">
           {text}
@@ -54,14 +56,14 @@ export function TranscriptPreview({ text, clipTitle }: TranscriptPreviewProps) {
                 type="button"
                 className="mt-2 rounded-sm text-sm font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 transition-colors hover:decoration-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2"
               >
-                See more
+                {t("transcript.seeMore")}
               </button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Full transcript</DialogTitle>
+                <DialogTitle>{t("transcript.full")}</DialogTitle>
                 <DialogDescription>
-                  {clipTitle ? `Transcript for ${clipTitle}` : "Complete transcript for this clip"}
+                  {clipTitle ? t("transcript.forTitle", { title: clipTitle }) : t("transcript.complete")}
                 </DialogDescription>
               </DialogHeader>
               <div className="max-h-[60vh] overflow-y-auto rounded-lg bg-gray-50 p-4 text-sm leading-6 text-gray-700 whitespace-pre-wrap">

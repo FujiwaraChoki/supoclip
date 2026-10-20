@@ -1,0 +1,276 @@
+{
+  "chrome": {
+    "primaryNav": "Hauptnavigation",
+    "blog": "Blog",
+    "selfHost": "Selbst hosten",
+    "startClipping": "Leg los mit Clips",
+    "breadcrumbNav": "Brotkrumen",
+    "team": "SupoClip-Team",
+    "updated": "Aktualisiert am <date>{when}</date>",
+    "trySupoclip": "SupoClip ausprobieren",
+    "viewSource": "Quellcode ansehen",
+    "capabilityOverview": "Überblick der Funktionen",
+    "verified": "Produktdaten aus erster Hand, aus dem SupoClip-Repository und der gehosteten Anwendung, geprüft am {date}.",
+    "faqHeading": "Häufige Fragen",
+    "sourcesTitle": "Quellen und Prüfregeln",
+    "sourcesBody": "Produktfunktionen pflegt das SupoClip-Team und gleicht sie mit dem öffentlichen Repository ab. Die <source>Quelldateien</source> zeigen die Umsetzung. Diese Seite wird aktualisiert, wenn sich der Ablauf oder die unterstützte Konfiguration ändert."
+  },
+  "demo": {
+    "metaTitle": "SupoClip-Demo: echte KI-Clips aus einem langen Video",
+    "metaDescription": "Sieh dir vertikale Clips mit Untertiteln an, die SupoClip aus einer langen Podcast-Folge erzeugt hat, mit den Original-Zeitstempeln, Hook-Titeln und einer Erklärung jedes Schritts.",
+    "badge": "Demo",
+    "heading": "Eine lange Podcast-Folge rein, fertige vertikale Clips raus",
+    "intro": "Diese Clips hat SupoClip aus einem öffentlichen Langvideo erzeugt. Schau sie dir an und spring dann an die genaue Stelle im Original, um zu sehen, was die KI gewählt und wie sie den Ausschnitt gesetzt hat.",
+    "sourceLabel": "Quellvideo auf YouTube",
+    "clipsHeading": "Die Clips",
+    "seconds": "{count} s",
+    "videoDescription": "Vertikaler Clip, von SupoClip aus „{title}“ erzeugt ({range}). Web-Vorschau eines Clips von {duration}.",
+    "clipAria": "SupoClip-Clip: {hook}",
+    "clipMeta": "Quelle {range} · ganzer Clip {duration}",
+    "watchOriginal": "Diesen Moment im Original ansehen",
+    "previewNote": "<strong>Zu diesen Vorschauen.</strong> Damit die Seite schnell bleibt, sind die Dateien oben gekürzt ({lengths}) und auf 540×960 verkleinert. SupoClip rendert ganze Clips mit 1080×1920. Viralitätswerte oder Tempo-Zahlen zeigen wir hier nicht, weil eine einzelne Demo solche Aussagen nicht trägt. Der beste Test ist eine Aufnahme von dir.",
+    "pipelineHeading": "Was SupoClip gemacht hat",
+    "pipeline": {
+      "0": {
+        "title": "Transkribieren",
+        "detail": "Das Quell-Audio wird mit Zeitstempeln pro Wort transkribiert."
+      },
+      "1": {
+        "title": "Momente wählen",
+        "detail": "Ein LLM liest das Transkript in überlappenden Fenstern, schlägt in sich geschlossene Abschnitte vor und reiht sie dann nach Hook, Interaktion, Nutzen und Teilbarkeit."
+      },
+      "2": {
+        "title": "Einen Hook schreiben",
+        "detail": "Jeder Clip bekommt einen kurzen Hook-Titel, der in den ersten Sekunden oben ins Bild gebrannt wird."
+      },
+      "3": {
+        "title": "Auf 9:16 umrahmen",
+        "detail": "Jede Einstellung wird eingeordnet. Sprech-Einstellungen bekommen einen Ausschnitt, der dem Gesicht folgt. Diagramme, Folien und Bildschirme, wie die Hörer-Grafik später im ersten Clip, zeigen das ganze Bild über einem unscharfen Hintergrund. Wechsel sitzen auf den Schnitten der Quelle."
+      }
+    },
+    "pipelineNote": "Untertitel laufen Wort für Wort, und das aktive Wort wird hervorgehoben. Dieselbe Pipeline läuft in der gehosteten App und in einer <selfHost>selbst gehosteten Installation</selfHost>; der <guide>Leitfaden zum KI-Video-Clipper</guide> geht jede Stufe durch.",
+    "ctaTitle": "Probier es mit deinem eigenen Video",
+    "ctaBody": "Füg einen YouTube-Link ein oder lade eine Datei hoch. Prüf die vorgeschlagenen Clips, pass die Untertitel an und exportiere für Shorts, Reels oder TikTok.",
+    "startClipping": "Leg los mit Clips",
+    "selfHostGithub": "Von GitHub selbst hosten"
+  },
+  "ai-video-clipper": {
+    "metaTitle": "KI-Video-Clipper für Shorts, Reels und TikTok",
+    "metaDescription": "Mit SupoClip findest du Highlights in langen Videos, bewertest vielversprechende Momente, setzt gesichtsbezogene vertikale Ausschnitte, fügst Untertitel hinzu und exportierst Clips für Social Media.",
+    "eyebrow": "KI-Video-Clipping",
+    "heading": "KI-Video-Clipper, der aus langen Videos bessere Shorts macht",
+    "summary": "SupoClip verbindet Transkription, KI-gestützte Highlight-Erkennung, Viralitätsbewertung, gesichtsbezogenes Umrahmen, wortgenaue Untertitel und Export-Vorlagen in einem Open-Source-Ablauf.",
+    "tableCaption": "Funktionsmatrix für KI-Clipping in SupoClip",
+    "tableHeaders": {
+      "0": "Arbeitsschritt",
+      "1": "Manuell",
+      "2": "SupoClip"
+    },
+    "tableRows": {
+      "0": {
+        "0": "Momente finden",
+        "1": "Die ganze Aufnahme ansehen",
+        "2": "Transkribieren und Kandidaten bewerten"
+      },
+      "1": {
+        "0": "Umrahmen",
+        "1": "Jede Einstellung von Hand zuschneiden",
+        "2": "Gesichter für ein vertikales 9:16-Bild verfolgen"
+      },
+      "2": {
+        "0": "Untertiteln",
+        "1": "Untertitel von Hand timen",
+        "2": "Wortgenaue animierte Untertitel erzeugen"
+      },
+      "3": {
+        "0": "Exportieren",
+        "1": "Jede Plattform einzeln einstellen",
+        "2": "Vorlagen für Shorts, Reels und TikTok nutzen"
+      }
+    },
+    "sections": {
+      "0": {
+        "heading": "Was ein KI-Video-Clipper automatisieren sollte",
+        "p1": "Zeit frisst bei Kurzvideos nicht der eine Schnitt. Es ist dieselbe Prüfung, derselbe Ausschnitt, dieselben Untertitel und derselbe Export für jedes Quellvideo. Ein nützlicher KI-Clipper nimmt diese Wiederholung raus und lässt dich den finalen Schnitt bestimmen.",
+        "p2": "SupoClip startet beim Quell-Transkript, findet Kandidatenabschnitte und bewertet sie nach Hook, Interaktion, Nutzen und Teilbarkeit. Die Bewertung hilft bei der Prüfung. Sie verspricht nicht, dass ein Clip viral geht.",
+        "bullet1": "YouTube-URLs und hochgeladene Videodateien",
+        "bullet2": "KI-gestützte Kandidatenauswahl",
+        "bullet3": "Gesichtsbezogene vertikale Ausschnitte",
+        "bullet4": "Bearbeitbare Untertitel-Stile und Exportformate"
+      },
+      "1": {
+        "heading": "So läuft der SupoClip-Ablauf",
+        "p1": "Füg eine YouTube-URL ein oder lade eine Quelldatei hoch. SupoClip transkribiert die Aufnahme, schlägt Clip-Grenzen vor und zeigt die stärksten Kandidaten zur Prüfung. Gewählte Momente lassen sich als vertikale Videos mit Untertiteln für Kurzformate rendern.",
+        "p2": "Weil SupoClip Open Source ist, können Teams die Pipeline ansehen, unterstützte gehostete oder lokale Sprachmodelle wählen und die Verarbeitung an die eigene Infrastruktur anpassen. Wer das Deployment nicht selbst betreiben will, kann die gehostete Version nutzen.",
+        "link1": "Schritt für Schritt: aus einem YouTube-Video Shorts machen",
+        "link2": "Die Pipeline selbst mit Docker starten"
+      },
+      "2": {
+        "heading": "Für wen das gedacht ist",
+        "p1": "Der Ablauf passt zu Podcasts, Lehrenden, Gründerinnen und Gründern, Agenturen und Videoteams, die schon Langaufnahmen produzieren und einen wiederholbaren Weg zu mehr Kurzclips brauchen.",
+        "p2": "Besonders nützlich ist es, wenn dir die Kontrolle wichtig ist: Wer selbst hostet, behält die Anwendung und kann den Quellcode ändern, statt ganz von einer geschlossenen Schnittplattform abzuhängen.",
+        "link1": "Wie SupoClip im Vergleich zu OpusClip dasteht",
+        "link2": "Warum Teams einen Open-Source-Clipper wählen"
+      }
+    },
+    "faqs": {
+      "0": {
+        "question": "Was ist ein KI-Video-Clipper?",
+        "answer": "Ein KI-Video-Clipper analysiert eine längere Aufnahme und hilft, kurze Abschnitte zu finden, umzurahmen, zu untertiteln und Exporte für Kurzformate vorzubereiten."
+      },
+      "1": {
+        "question": "Kann SupoClip aus YouTube-Videos Shorts machen?",
+        "answer": "Ja. SupoClip nimmt YouTube-URLs an, findet Kandidatenmomente und kann vertikale Clips mit Untertiteln für YouTube Shorts rendern."
+      },
+      "2": {
+        "question": "Ist SupoClip Open Source?",
+        "answer": "Ja. Der SupoClip-Quellcode steht unter der AGPL-3.0-Lizenz und kann selbst gehostet oder verändert werden."
+      }
+    }
+  },
+  "open-source-video-clipper": {
+    "metaTitle": "Open-Source-Video-Clipper, den du selbst hosten kannst",
+    "metaDescription": "SupoClip ist ein Open-Source-KI-Video-Clipper für selbst gehostete Highlight-Erkennung, gesichtsbezogene vertikale Ausschnitte, Untertitel und Kurzformat-Exporte.",
+    "eyebrow": "Open Source und selbst gehostet",
+    "heading": "Open-Source-Video-Clipper mit voller Kontrolle über den Ablauf",
+    "summary": "Lass KI-gestütztes Video-Clipping auf deiner eigenen Infrastruktur laufen, sieh dir den Quellcode an, wähl den Modellanbieter und bestimm, wie Clips bewertet, untertitelt, gerahmt und exportiert werden.",
+    "tableCaption": "Nur gehostete und Open-Source-Clipping-Abläufe",
+    "tableHeaders": {
+      "0": "Entscheidung",
+      "1": "Nur gehostetes Tool",
+      "2": "Selbst gehostetes SupoClip"
+    },
+    "tableRows": {
+      "0": {
+        "0": "Quellcodezugriff",
+        "1": "Nicht verfügbar",
+        "2": "Volles AGPL-3.0-Repository"
+      },
+      "1": {
+        "0": "Infrastruktur",
+        "1": "Vom Anbieter gesteuert",
+        "2": "Dein Server oder lokale Umgebung"
+      },
+      "2": {
+        "0": "Modellwahl",
+        "1": "Vom Anbieter gewählt",
+        "2": "Unterstützte gehostete Anbieter oder Ollama"
+      },
+      "3": {
+        "0": "Anpassung",
+        "1": "Produkteinstellungen",
+        "2": "Quellcode von Anwendung und Pipeline"
+      }
+    },
+    "sections": {
+      "0": {
+        "heading": "Warum du eine Video-Clipping-Pipeline selbst hosten solltest",
+        "p1": "Selbst hosten lohnt sich, wenn ein Team Deployment, Anbieterwahl, Verarbeitungslimits oder Produktanpassungen selbst bestimmen will. Statt jede Ablaufentscheidung durch eine geschlossene Plattform zu schicken, kann die Anwendung neben der übrigen Infrastruktur des Teams laufen.",
+        "p2": "SupoClip enthält ein Next.js-Frontend, ein FastAPI-Backend, Hintergrund-Worker, PostgreSQL und Redis. Im Repository liegt ein Docker-Compose-Setup, mit dem die ganze Anwendung als ein Stack läuft."
+      },
+      "1": {
+        "heading": "Wofür du weiter verantwortlich bist",
+        "p1": "Open Source heißt nicht, dass jede Abhängigkeit kostenlos ist. Wer selbst hostet, stellt Rechenleistung, Speicher, Transkription und die Sprachmodell-Konfiguration selbst. Der Tausch ist Betriebsverantwortung gegen Kontrolle über den Quellcode.",
+        "p2": "Teams sollten außerdem die AGPL-3.0-Lizenz lesen, Umgebungsvariablen absichern, Abhängigkeiten aktuell halten und Worker sowie Speicher in Produktion beobachten.",
+        "bullet1": "Rechenleistung und dauerhaften Speicher bereitstellen",
+        "bullet2": "Transkription und Modellanbieter einrichten",
+        "bullet3": "Geheimnisse und geschützte Routen absichern",
+        "bullet4": "Verarbeitungsjobs und erzeugte Medien beobachten",
+        "link1": "Produktions-Checkliste in der Self-Hosting-Anleitung"
+      },
+      "2": {
+        "heading": "Mit Docker starten und bei Bedarf anpassen",
+        "p1": "Am schnellsten klonst du das Repository, kopierst die Umgebungsvorlage, trägst die nötigen Anbieter-Zugangsdaten ein und startest den Stack mit Docker Compose. Danach kannst du Bewertung, Untertitel-Vorlagen, Oberfläche oder Deployment anpassen, wenn sich der Ablauf ändert.",
+        "p2": "Wer keine Infrastruktur betreiben will, kann die gehostete SupoClip-Anwendung nutzen und das Open-Source-Repository als Migrationsweg behalten.",
+        "link1": "SupoClip mit Docker Compose selbst hosten",
+        "link2": "Selbst gehostetes SupoClip gegenüber gehostetem OpusClip"
+      }
+    },
+    "faqs": {
+      "0": {
+        "question": "Ist SupoClip kostenlos selbst zu hosten?",
+        "answer": "Der Quellcode ist unter der AGPL-3.0-Lizenz kostenlos. Für Infrastruktur und bezahlte Transkriptions- oder KI-Nutzung bleibst du verantwortlich."
+      },
+      "1": {
+        "question": "Kann SupoClip ein lokales Sprachmodell nutzen?",
+        "answer": "Ja. SupoClip unterstützt Ollama für die Clip-Auswahl, und TRANSCRIPTION_PROVIDER=whisper transkribiert lokal, statt AssemblyAI aufzurufen."
+      },
+      "2": {
+        "question": "Braucht SupoClip Docker?",
+        "answer": "Docker Compose ist der dokumentierte Weg für den ganzen Stack. Bei Bedarf lassen sich Next.js-Frontend, FastAPI-API, Worker, PostgreSQL und Redis getrennt betreiben."
+      }
+    }
+  },
+  "youtube-shorts-clipper": {
+    "metaTitle": "YouTube-Shorts-Clipper für lange Videos",
+    "metaDescription": "Mach aus langen YouTube-Videos vertikale Shorts mit Untertiteln, mit KI-gestützter Highlight-Erkennung, Viralitätsbewertung und gesichtsbezogenen 9:16-Ausschnitten.",
+    "eyebrow": "YouTube zu Shorts",
+    "heading": "YouTube-Shorts-Clipper, um lange Videos weiterzuverwenden",
+    "summary": "Füg eine YouTube-URL ein, prüf die von der KI gewählten Momente und erstelle vertikale Clips mit Untertiteln, ohne die ganze Aufnahme von Hand durchzugehen und umzurahmen.",
+    "tableCaption": "Ablauf vom Langvideo zu YouTube Shorts",
+    "tableHeaders": {
+      "0": "Schritt",
+      "1": "Eingabe",
+      "2": "Ausgabe"
+    },
+    "tableRows": {
+      "0": {
+        "0": "1. Importieren",
+        "1": "YouTube-URL",
+        "2": "Quell-Metadaten und Video"
+      },
+      "1": {
+        "0": "2. Analysieren",
+        "1": "Transkript",
+        "2": "Kandidatenabschnitte und Bewertungen"
+      },
+      "2": {
+        "0": "3. Formatieren",
+        "1": "Gewählter Moment",
+        "2": "Gesichtsbezogener 9:16-Clip"
+      },
+      "3": {
+        "0": "4. Abschließen",
+        "1": "Untertitel- und Exporteinstellungen",
+        "2": "Plattformfertiges Kurzvideo"
+      }
+    },
+    "sections": {
+      "0": {
+        "heading": "So machst du aus einem YouTube-Video Shorts",
+        "p1": "Start mit einem Video, das dir gehört oder das du weiterverwenden darfst. Füg die YouTube-URL in SupoClip ein, wähl Ausgabe und Untertitel, und starte die Verarbeitung. Die Anwendung transkribiert die Quelle und schlägt kurze Abschnitte zur Prüfung vor.",
+        "p2": "Wähl Momente, die ohne die restliche Folge verständlich sind. Starke Shorts setzen schnell Kontext, bringen eine klare Idee und enden, ohne auf Material angewiesen zu sein, das aus dem Clip rausfiel.",
+        "bullet1": "Nutze nah am Anfang einen klaren gesprochenen Hook",
+        "bullet2": "Eine Idee pro kurzen Clip",
+        "bullet3": "Prüf Namen, Zahlen und das Timing der Untertitel",
+        "bullet4": "Prüf, ob der vertikale Ausschnitt der sprechenden Person folgt"
+      },
+      "1": {
+        "heading": "Untertitel und vertikales Umrahmen",
+        "p1": "SupoClip nutzt Wort-Timing für synchrone Untertitel und kann Gesichter verfolgen, wenn Querformat zu einem vertikalen Bild wird. Untertitel-Vorlagen sind ein einheitlicher Start, Schrift, Farbe und Ausgabe lassen sich vor dem Rendern anpassen.",
+        "p2": "Automatische Ausschnitte solltest du trotzdem ansehen, vor allem wenn mehrere Personen zu sehen sind, Bildschirmfreigaben wichtig sind oder sich die sprechende Person schnell durchs Bild bewegt.",
+        "link1": "Was der KI-Clipper Stufe für Stufe automatisiert"
+      },
+      "2": {
+        "heading": "Einen wiederholbaren Weiterverwendungs-Ablauf bauen",
+        "p1": "Behandel jedes Langvideo als Quellbibliothek, nicht als einmaligen Upload. Verarbeite die Aufnahme, gruppiere Clips nach Thema und verknüpfe jeden Short mit dem längeren Video oder einer passenden Produktseite.",
+        "p2": "Schau, welche Themen Wiedergabezeit und Interaktion bringen, und nutz das für künftige Aufnahmen. Die Bewertungen von SupoClip helfen, Kandidaten zu priorisieren; Veröffentlichungsdaten sollten zeigen, was das Publikum wirklich schätzt.",
+        "link1": "Zwischen SupoClip und OpusClip wählen"
+      }
+    },
+    "faqs": {
+      "0": {
+        "question": "Kann ich eine YouTube-URL in SupoClip einfügen?",
+        "answer": "Ja. SupoClip unterstützt YouTube-URLs als Quelle für Transkription, Kandidatenauswahl und Clip-Erzeugung."
+      },
+      "1": {
+        "question": "Setzt SupoClip Untertitel auf Shorts?",
+        "answer": "Ja. Es unterstützt wortgenaue Untertitel und einstellbare Untertitel-Vorlagen für erzeugte Clips."
+      },
+      "2": {
+        "question": "Läuft jeder von der KI gewählte Clip gut?",
+        "answer": "Nein. Die KI-Bewertung hilft, Kandidaten zu priorisieren, aber du solltest Kontext, Genauigkeit, Ausschnitt und Passung für dein Publikum prüfen, bevor du veröffentlichst."
+      }
+    }
+  }
+}
