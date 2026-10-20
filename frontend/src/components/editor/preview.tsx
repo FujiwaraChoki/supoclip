@@ -179,13 +179,23 @@ export function Preview({
             ),
             (rect) =>
               context.drawImage(video, rect.x, rect.y, rect.width, rect.height),
+            asset.captionLooks,
           );
       }
       frame = requestAnimationFrame(draw);
     };
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [asset.height, asset.width, doc, loop, segmentIndex, select, videoRef]);
+  }, [
+    asset.captionLooks,
+    asset.height,
+    asset.width,
+    doc,
+    loop,
+    segmentIndex,
+    select,
+    videoRef,
+  ]);
   const step = (direction: number) => {
     const video = videoRef.current;
     if (!video) return;

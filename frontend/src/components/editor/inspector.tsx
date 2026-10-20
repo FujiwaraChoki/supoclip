@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -343,6 +344,22 @@ export function Inspector({
                   {applying ? "Applying…" : "Apply to all clips"}
                 </Button>
               </div>
+            </Section>
+            <Separator />
+            <Section
+              title="Hook title"
+              description="Shown at the top for the first few seconds. Leave empty to remove it."
+            >
+              <Input
+                aria-label="Hook title"
+                maxLength={200}
+                placeholder="No hook title"
+                value={doc.hookTitle ?? ""}
+                onChange={(e) => {
+                  const hookTitle = e.target.value;
+                  update((d) => ({ ...d, hookTitle }), "hook-title");
+                }}
+              />
             </Section>
             <Separator />
             <Section

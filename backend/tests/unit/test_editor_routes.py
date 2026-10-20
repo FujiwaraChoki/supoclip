@@ -154,3 +154,36 @@ async def test_local_preview_and_export_survive_storage_outage(client, monkeypat
     assert preview.status_code == export.status_code == 200
     assert preview.content == b"local preview"
     assert export.content == b"local export"
+
+
+async def test_old_drafts_regain_template_animation_and_hook_title(client):
+    http, service, doc, directory = client
+    service.task_repo.get_task_by_id.return_value = {
+        "id": "task",
+        "user_id": "owner",
+        "status": "completed",
+        "caption_template": "hormozi",
+    }
+    service.clip_repo.get_clip_by_id.return_value = {
+        **service.clip_repo.get_clip_by_id.return_value,
+        "hook_title": "Nobody tells you this",
+    }
+    # A draft saved before the editor kept the template and hook title.
+    old = {**doc, "captions": {k: v for k, v in doc["captions"].items() if k not in {"template", "karaoke", "uppercase"}}}
+    old.pop("hookTitle")
+    atomic_json(directory / "draft.json", {"revision": 3, "document": old})
+
+    state = (await http.get("/tasks/task/clips/clip/editor")).json()
+    captions = state["draft"]["document"]["captions"]
+    assert captions["template"] == "hormozi"
+    assert captions["karaoke"] is True and captions["uppercase"] is True
+    assert state["draft"]["document"]["hookTitle"] == "Nobody tells you this"
+    assert state["draft"]["revision"] == 3
+    assert state["captionLooks"]["hormozi"]["wordBox"] is True
+
+    # Drafts that already chose these values keep them.
+    current = {**doc, "hookTitle": "", "captions": {**doc["captions"], "karaoke": False}}
+    atomic_json(directory / "draft.json", {"revision": 4, "document": current})
+    state = (await http.get("/tasks/task/clips/clip/editor")).json()
+    assert state["draft"]["document"]["hookTitle"] == ""
+    assert state["draft"]["document"]["captions"]["karaoke"] is False
