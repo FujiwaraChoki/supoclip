@@ -9,7 +9,6 @@ from pydantic import ValidationError
 from src.editor_document import (
     EditDocument,
     RevisionConflict,
-    caption_groups,
     editor_dir,
     mapped_words,
     output_size,
@@ -84,7 +83,6 @@ def test_reordered_cuts_project_caption_timing():
     words = mapped_words(doc)
     assert [(w["start"], w["end"]) for w in words] == [(0, 0.25), (1.25, 1.5)]
     assert all(w["highlight"] for w in words)
-    assert len(caption_groups(words, 4)) == 2
     assert output_size(doc, 1920, 1080) == (1080, 1920)
     assert editor_dir("/tmp", "../task", "../clip", "../file").parent == Path(
         "/tmp/editor"
@@ -110,10 +108,66 @@ def test_karaoke_captions_highlight_each_spoken_word(tmp_path):
     write_ass(path, karaoke, 1080, 1920)
     events = [line for line in path.read_text().splitlines() if line.startswith("Dialogue:")]
     assert len(events) == 2
-    accent = "{\\c&H0000FF00&}"
+    accent = "\\c&H0000FF00&}"
     assert f"{accent}ONE" in events[0] and f"{accent}TWO" not in events[0]
     assert f"{accent}TWO" in events[1] and f"{accent}ONE" not in events[1]
     assert events[0].startswith("Dialogue: 0,0:00:00.00,0:00:00.50,")
+
+
+def test_edited_captions_keep_the_template_animation(tmp_path):
+    words = [
+        {"id": "a", "start": 0.0, "end": 0.4, "text": "one", "highlight": False},
+        {"id": "b", "start": 0.5, "end": 0.9, "text": "two", "highlight": False},
+    ]
+    segments = [{"id": "s", "start": 0, "end": 1}]
+    path = tmp_path / "captions.ass"
+
+    # "minimal" fades each line in and out rather than highlighting words.
+    write_ass(
+        path,
+        document(segments=segments, words=words, captions={"template": "minimal"}),
+        1080,
+        1920,
+    )
+    events = [line for line in path.read_text().splitlines() if line.startswith("Dialogue:")]
+    assert len(events) == 1 and "\\fad(120,120)" in events[0]
+
+    # "hormozi" is karaoke with a pill behind the spoken word and a spring entrance.
+    write_ass(
+        path,
+        document(
+            segments=segments,
+            words=words,
+            captions={"template": "hormozi", "karaoke": True},
+        ),
+        1080,
+        1920,
+    )
+    text = path.read_text()
+    assert text.count("Dialogue:") == 2
+    assert "\\fscx92" in text and "\\3c" in text
+
+
+def test_export_keeps_the_hook_title_even_without_captions(tmp_path):
+    path = tmp_path / "captions.ass"
+    segments = [{"id": "a", "start": 0, "end": 1}, {"id": "b", "start": 5, "end": 6}]
+    write_ass(
+        path,
+        document(segments=segments, captions={"enabled": False}, hookTitle="Stop doing this"),
+        1080,
+        1920,
+    )
+    events = [line for line in path.read_text().splitlines() if line.startswith("Dialogue:")]
+    assert len(events) == 1 and ",Hook," in events[0] and "Stop" in events[0]
+    # Timed against the edited 2s duration, not the last segment's 6s source end.
+    assert events[0].startswith("Dialogue: 1,0:00:00.12,0:00:01.75,")
+
+
+def test_captions_disabled_write_a_valid_empty_script(tmp_path):
+    path = tmp_path / "captions.ass"
+    write_ass(path, document(captions={"enabled": False}), 1080, 1920)
+    assert "Dialogue:" not in path.read_text()
+    assert "[Events]" in path.read_text()
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")

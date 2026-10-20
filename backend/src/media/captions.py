@@ -298,8 +298,15 @@ def build_assemblyai_ass_subtitles(
     caption_words: Optional[List[Dict[str, Any]]] = None,
     position_y_override: Optional[float] = None,
     highlight_words: Optional[List[str]] = None,
+    template_override: Optional[Dict[str, Any]] = None,
+    font_px_override: Optional[int] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
+
+    ``template_override`` replaces the named template with an already-resolved
+    one and ``font_px_override`` skips the width-based font scaling, for callers
+    (the clip editor) that hold the final style values themselves.
+
 
     Renders OpusClip-style captions: a per-word active highlight that pops, an
     accent colour on emphasised power/keyword words, contextual emojis, a thick
@@ -310,7 +317,7 @@ def build_assemblyai_ass_subtitles(
     """
     transcript_data = load_cached_transcript_data(video_path)
 
-    template = get_template(caption_template)
+    template = template_override or get_template(caption_template)
     effective_font_family = font_family or template["font_family"]
     effective_font_size = int(font_size) if font_size else int(template["font_size"])
     effective_font_color = font_color or template["font_color"]
@@ -353,7 +360,7 @@ def build_assemblyai_ass_subtitles(
         template.get("word_box_color") or template.get("highlight_color"), "#00BF49"
     )
 
-    font_px = get_scaled_font_size(effective_font_size, video_width)
+    font_px = font_px_override or get_scaled_font_size(effective_font_size, video_width)
     base_stroke = int(template.get("stroke_width", 3) or 0)
     # Scale the outline with the font so big captions keep a chunky, readable edge.
     outline_px = (

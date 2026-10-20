@@ -91,6 +91,7 @@ export async function exportDraft(
               at,
               (rect) =>
                 sample.draw(ctx, rect.x, rect.y, rect.width, rect.height),
+              asset.captionLooks,
             );
             await videoSource.add(at, end - start);
             progress(

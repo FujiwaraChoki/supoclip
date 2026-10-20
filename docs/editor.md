@@ -14,6 +14,10 @@ caption styling, framing, audio gain, and video effects separately from the medi
 - Correct individual words and their timestamps in **Captions**. Highlights apply
   to individual occurrences, including non-English words. The script editor keeps
   unchanged words anchored when adding or replacing text; review inserted timings.
+- Captions start from the clip's caption template, including its animation
+  (karaoke, pop, fade, bounce), outline, and active-word pill; the controls in
+  **Captions** adjust colours, size, and position on top of it. The AI hook title
+  is editable there too and shows at the top for the first few seconds.
 - Drag the preview vertically to position captions. Use **Framing** to drag the
   subject, choose fit/fill, zoom, and select vertical, square, or original format.
 - **Audio** controls exported gain/muting. Playback speed changes preview only.
@@ -45,9 +49,11 @@ renderer is shared by preview and browser export. AAC is preferred; browsers
 without AAC encoding use Opus in MP4 and show a compatibility notice. Background
 export is the most compatible choice. Keep the editor open for a browser export.
 
-The server uses FFmpeg/libass, while browser export uses canvas/WebCodecs. Both
-consume the same cut, word, style, framing, audio, and effects document. Font
-rasterization and color filtering can differ slightly between rendering engines.
+The server uses FFmpeg/libass with the same caption renderer as clip generation,
+while browser export uses canvas/WebCodecs. Both consume the same cut, word, style,
+framing, audio, and effects document. Font rasterization and color filtering can
+differ slightly between rendering engines, and power-word emphasis and emojis are
+only drawn by the server export.
 
 ## Persistence and operation
 

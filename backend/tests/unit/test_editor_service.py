@@ -161,6 +161,7 @@ def test_editor_starts_from_the_generated_caption_template():
         1920,
     )
     assert style["karaoke"] is True
+    assert style["template"] == "hormozi"
     assert style["uppercase"] is True
     assert style["accent"] == "#00FF66"
     assert style["background"] is False

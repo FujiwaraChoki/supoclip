@@ -21,7 +21,7 @@ from ...editor_document import (
     editor_lock,
     save_document,
 )
-from ...services.editor_service import read_state
+from ...services.editor_service import caption_looks, read_state, upgrade_document
 from ...services.task_service import TaskService
 from ...workers.job_queue import JobQueue
 from ...utils.async_helpers import run_in_thread
@@ -30,15 +30,20 @@ from .tasks import _require_task_owner, _read_json_object
 router = APIRouter(prefix="/tasks", tags=["editor"])
 
 
-async def context(request, db, task_id, clip_id):
+async def owned_context(request, db, task_id, clip_id):
     service = TaskService(db)
-    await _require_task_owner(request, service, db, task_id)
+    task = await _require_task_owner(request, service, db, task_id)
     clip = await service.clip_repo.get_clip_by_id(db, clip_id)
     if not clip or clip["task_id"] != task_id:
         raise HTTPException(404, "Clip not found")
     directory = editor_dir(service.config.temp_dir, task_id, clip_id, clip["filename"])
     await db.close()
     await run_in_thread(MediaStorage().restore_editor, directory, s3_backed=is_s3(clip["file_path"]))
+    return task, clip, directory
+
+
+async def context(request, db, task_id, clip_id):
+    _, clip, directory = await owned_context(request, db, task_id, clip_id)
     return clip, directory
 
 
@@ -55,8 +60,13 @@ def job_path(directory: Path, job_id: str):
 async def get_editor(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    clip, directory = await context(request, db, task_id, clip_id)
+    task, clip, directory = await owned_context(request, db, task_id, clip_id)
     state = await run_in_thread(read_state, directory)
+    if state.get("status") == "ready":
+        draft = state["draft"]
+        draft["document"] = upgrade_document(draft["document"], clip, task)
+        state["original"] = upgrade_document(state["original"], clip, task)
+        state["captionLooks"] = caption_looks()
     state["basis"] = clip["filename"]
     state["jobs"] = [
         {"id": p.stem[4:], **json.loads(p.read_text())}
@@ -295,7 +305,7 @@ async def export_file(
 @media_work
 async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     service = TaskService(db)
-    await _require_task_owner(request, service, db, task_id)
+    task = await _require_task_owner(request, service, db, task_id)
     payload = await _read_json_object(request)
     ids = payload.get("clip_ids")
     if (
@@ -321,7 +331,7 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
             {
                 "id": clip_id,
                 "filename": clip["filename"],
-                "document": state["draft"]["document"],
+                "document": upgrade_document(state["draft"]["document"], clip, task),
                 "state": {k: state[k] for k in ("width", "height", "hasAudio")},
                 "ranges": await run_in_thread(service._get_clip_source_ranges, clip),
             }

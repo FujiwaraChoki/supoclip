@@ -26,6 +26,22 @@ export interface CaptionStyle {
   /** Absent on drafts saved before the editor matched generated captions. */
   karaoke?: boolean;
   uppercase?: boolean;
+  /** Caption template the clip was generated with; supplies its animation and outline. */
+  template?: string;
+}
+/** Template styling the editor's own caption controls don't cover. */
+export interface CaptionLook {
+  animation: "none" | "karaoke" | "pop" | "fade" | "bounce";
+  wordPop: boolean;
+  wordBox: boolean;
+  wordBoxColor: string | null;
+  highlightColor: string | null;
+  emphasisColor: string | null;
+  strokeColor: string | null;
+  strokeWidth: number;
+  shadow: boolean;
+  glow: boolean;
+  backgroundColor: string | null;
 }
 export interface Framing {
   aspect: "vertical" | "square" | "original";
@@ -50,6 +66,8 @@ export interface EditDocument {
   effects: Effects;
   volume: number;
   muted: boolean;
+  /** Headline shown at the top for the first seconds; absent on very old drafts. */
+  hookTitle?: string;
 }
 export interface ExportJob {
   id: string;
@@ -70,6 +88,7 @@ export interface EditorState {
   draft: { revision: number; document: EditDocument };
   original: EditDocument;
   jobs: ExportJob[];
+  captionLooks?: Record<string, CaptionLook>;
 }
 export const DEFAULT_EFFECTS: Effects = {
   brightness: 100,
@@ -132,20 +151,11 @@ export function mappedWords(doc: EditDocument): CaptionWord[] {
   }
   return result;
 }
+/** Fixed-size word groups, chunked exactly as the generation renderer does. */
 export function captionGroups(words: CaptionWord[], count: number) {
   const groups: CaptionWord[][] = [];
-  let group: CaptionWord[] = [];
-  for (const word of words) {
-    if (
-      group.length &&
-      (group.length >= count || word.start - group[group.length - 1].end > 0.6)
-    ) {
-      groups.push(group);
-      group = [];
-    }
-    group.push(word);
-  }
-  if (group.length) groups.push(group);
+  for (let i = 0; i < words.length; i += count)
+    groups.push(words.slice(i, i + count));
   return groups;
 }
 /** The spoken word stays active until the next word in its group starts. */

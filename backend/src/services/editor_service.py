@@ -149,7 +149,52 @@ def initial_caption_style(
         "wordsPerLine": max(1, min(8, int(template.get("max_words_per_line") or 4))),
         "karaoke": template.get("animation") == "karaoke",
         "uppercase": bool(template.get("uppercase")),
+        "template": task.get("caption_template") or "default",
     }
+
+
+def upgrade_document(document: dict, clip: dict, task: dict) -> dict:
+    """Fill fields that drafts saved by older editor versions don't have.
+
+    Missing keys would otherwise validate to defaults that drop the generated
+    clip's animation and hook title.
+    """
+    from ..caption_templates import get_template
+
+    captions = dict(document.get("captions") or {})
+    template_id = captions.get("template") or task.get("caption_template") or "default"
+    template = get_template(template_id)
+    captions.setdefault("template", template_id)
+    captions.setdefault("karaoke", template.get("animation") == "karaoke")
+    captions.setdefault("uppercase", bool(template.get("uppercase")))
+    return {
+        **document,
+        "captions": captions,
+        "hookTitle": document.get("hookTitle", (clip.get("hook_title") or "")[:200]),
+    }
+
+
+def caption_looks() -> dict:
+    """Template styling the editor preview draws on top of its own caption style."""
+    from ..caption_templates import CAPTION_TEMPLATES, get_template
+
+    looks = {}
+    for template_id in CAPTION_TEMPLATES:
+        template = get_template(template_id)
+        looks[template_id] = {
+            "animation": template.get("animation", "karaoke"),
+            "wordPop": bool(template.get("word_pop", True)),
+            "wordBox": bool(template.get("word_box")),
+            "wordBoxColor": template.get("word_box_color") or template.get("highlight_color"),
+            "highlightColor": template.get("highlight_color"),
+            "emphasisColor": template.get("emphasis_color") or template.get("highlight_color"),
+            "strokeColor": template.get("stroke_color"),
+            "strokeWidth": int(template.get("stroke_width", 3) or 0),
+            "shadow": bool(template.get("shadow")),
+            "glow": bool(template.get("glow")),
+            "backgroundColor": template.get("background_color"),
+        }
+    return looks
 
 
 @media_work
@@ -247,6 +292,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                             clip_width,
                             clip_height,
                         ),
+                        "hookTitle": (clip.get("hook_title") or "")[:200],
                         "words": [
                             {
                                 "id": f"word-{i}",
