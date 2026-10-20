@@ -1,0 +1,8 @@
+{
+  "title": "SupoClip – Open-Source AI Video Clipper",
+  "titleTemplate": "%s | SupoClip",
+  "description": "Turn long videos into captioned short-form clips with open-source AI clipping, virality scoring, and face-aware vertical crops.",
+  "openGraphDescription": "Turn long videos into captioned short-form clips with open-source AI clipping.",
+  "twitterDescription": "Open-source AI clipping, virality scoring, captions, and face-aware vertical crops.",
+  "category": "video software"
+}

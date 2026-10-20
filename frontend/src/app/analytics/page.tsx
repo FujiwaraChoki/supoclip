@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ExternalLink } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,6 @@ import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import {
   PROVIDER_LABELS,
-  durationBucketLabel,
   formatDateTime,
   formatMetric,
   formatPercent,
@@ -47,6 +47,7 @@ interface ViewsTimeseries {
 const RANGES = [7, 30, 90] as const;
 
 function ViewsSection() {
+  const t = useTranslations("analytics");
   const [range, setRange] = useState<(typeof RANGES)[number]>(30);
   const [series, setSeries] = useState<ViewsTimeseries | null>(null);
 
@@ -66,18 +67,18 @@ function ViewsSection() {
   return (
     <section>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Daily views</h2>
+        <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground">{t("dailyViews")}</h2>
         <ToggleGroup
           type="single"
           size="sm"
           variant="outline"
           value={String(range)}
           onValueChange={(value) => value && setRange(Number(value) as (typeof RANGES)[number])}
-          aria-label="Time range"
+          aria-label={t("timeRange")}
         >
           {RANGES.map((option) => (
             <ToggleGroupItem key={option} value={String(option)} className="px-2.5 text-xs">
-              {option}d
+              {t("range", { count: option })}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
@@ -87,8 +88,7 @@ function ViewsSection() {
           <Skeleton className="h-[200px] w-full" />
         ) : series.measured_days < series.min_days ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
-            Your views chart appears after {series.min_days} days of results.{" "}
-            {series.measured_days} {series.measured_days === 1 ? "day" : "days"} so far.
+            {t("chartWaiting", { min: series.min_days, measured: series.measured_days })}
           </p>
         ) : (
           <ViewsChart days={series.days} />
@@ -99,6 +99,7 @@ function ViewsSection() {
 }
 
 export default function AnalyticsPage() {
+  const t = useTranslations("analytics");
   const { data: session, isPending } = useSession();
   const [performance, setPerformance] = useState<PerformanceSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,11 +109,11 @@ export default function AnalyticsPage() {
     if (!session?.user?.id || !socialAccess) return;
     fetch("/api/social/performance", { cache: "no-store" })
       .then(async (response) => {
-        if (!response.ok) throw new Error("Failed to load analytics");
+        if (!response.ok) throw new Error(t("loadError"));
         setPerformance((await response.json()) as PerformanceSummary);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load analytics"));
-  }, [session?.user?.id, socialAccess]);
+      .catch((err) => setError(err instanceof Error ? err.message : t("loadError")));
+  }, [session?.user?.id, socialAccess, t]);
 
   if (isPending) {
     return (
@@ -125,9 +126,9 @@ export default function AnalyticsPage() {
   if (!session?.user) {
     return (
       <main className="mx-auto max-w-md px-4 py-24 text-center">
-        <p className="mb-4 text-muted-foreground">Sign in to see how your clips perform.</p>
+        <p className="mb-4 text-muted-foreground">{t("signInBody")}</p>
         <Link href="/sign-in">
-          <Button>Sign In</Button>
+          <Button>{t("signIn")}</Button>
         </Link>
       </main>
     );
@@ -136,16 +137,15 @@ export default function AnalyticsPage() {
   return (
     <main className={PAGE}>
       <div className="mb-8">
-        <h1 className="font-display text-3xl font-bold tracking-tight">Analytics</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight">{t("title")}</h1>
         <p className="mt-2 text-muted-foreground">
-          How your published clips perform. SupoClip pulls views, likes and comments back from each
-          platform and uses them to steer future clip selection toward what works for your audience.
+          {t("intro")}
         </p>
       </div>
 
       {socialAccess === false ? (
         <p className="text-sm text-muted-foreground">
-          Analytics comes with social publishing, which isn&apos;t available on your account yet.
+          {t("unavailable")}
         </p>
       ) : error ? (
         <p className="text-sm text-destructive">{error}</p>
@@ -156,22 +156,24 @@ export default function AnalyticsPage() {
         </div>
       ) : performance.total_published === 0 ? (
         <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          <p>Nothing published yet.</p>
+          <p>{t("emptyTitle")}</p>
           <p className="mt-1">
-            Connect an account on the{" "}
-            <Link href="/settings/social" className="font-medium text-foreground underline underline-offset-4">
-              Social
-            </Link>{" "}
-            page, then use Publish on any clip. Results show up here within an hour.
+            {t.rich("emptyBody", {
+              social: (chunks) => (
+                <Link href="/settings/social" className="font-medium text-foreground underline underline-offset-4">
+                  {chunks}
+                </Link>
+              ),
+            })}
           </p>
         </div>
       ) : (
         <div className="space-y-10">
           <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatTile label="Published clips" value={formatMetric(performance.total_published)} />
-            <StatTile label="Views" value={formatMetric(sum(performance.by_provider.map((row) => row.total_views)))} />
-            <StatTile label="Likes" value={formatMetric(sum(performance.by_provider.map((row) => row.total_likes)))} />
-            <StatTile label="Comments" value={formatMetric(sum(performance.by_provider.map((row) => row.total_comments)))} />
+            <StatTile label={t("publishedClips")} value={formatMetric(performance.total_published)} />
+            <StatTile label={t("views")} value={formatMetric(sum(performance.by_provider.map((row) => row.total_views)))} />
+            <StatTile label={t("likes")} value={formatMetric(sum(performance.by_provider.map((row) => row.total_likes)))} />
+            <StatTile label={t("comments")} value={formatMetric(sum(performance.by_provider.map((row) => row.total_comments)))} />
           </section>
 
           <ViewsSection />
@@ -179,20 +181,21 @@ export default function AnalyticsPage() {
           <section className="rounded-xl border bg-muted/50 p-4 text-sm">
             {performance.personalization_active ? (
               <p>
-                Personalized clip selection is <span className="font-medium">on</span>. New generations
-                use your results from {performance.measured_posts} published clips.
+                {t.rich("personalOn", {
+                  count: performance.measured_posts,
+                  strong: (chunks) => <span className="font-medium">{chunks}</span>,
+                })}
               </p>
             ) : (
               <p className="text-muted-foreground">
-                Personalized clip selection turns on after {performance.min_posts_for_personalization} measured
-                clips. {performance.measured_posts} measured so far.
+                {t("personalOff", { min: performance.min_posts_for_personalization, count: performance.measured_posts })}
               </p>
             )}
           </section>
 
           {performance.top_posts.length > 0 && (
             <section>
-              <h2 className={SECTION_HEADING}>Top clips</h2>
+              <h2 className={SECTION_HEADING}>{t("topClips")}</h2>
               <div className="divide-y rounded-xl border bg-background">
                 {performance.top_posts.map((post) => (
                   <div key={post.id} className="flex items-center gap-3 px-4 py-3 text-sm">
@@ -200,22 +203,22 @@ export default function AnalyticsPage() {
                     <div className="min-w-0 flex-1">
                       {post.task_id ? (
                         <Link href={`/tasks/${post.task_id}`} className="block truncate font-medium hover:underline underline-offset-4">
-                          {post.hook_title || post.title || "Untitled clip"}
+                          {post.hook_title || post.title || t("untitled")}
                         </Link>
                       ) : (
-                        <p className="truncate font-medium">{post.hook_title || post.title || "Untitled clip"}</p>
+                        <p className="truncate font-medium">{post.hook_title || post.title || t("untitled")}</p>
                       )}
                       <p className="truncate text-xs text-muted-foreground">
-                        {post.hook_type ? `${post.hook_type} hook · ` : ""}
+                        {post.hook_type ? t("hookMeta", { hook: post.hook_type }) : ""}
                         {formatDateTime(post.published_at)}
                       </p>
                     </div>
                     <span className="shrink-0 tabular-nums font-semibold">
-                      {formatMetric(post.metrics?.views)} {post.metrics?.views === 1 ? "view" : "views"}
+                      {t("viewCount", { count: post.metrics?.views ?? 0, formatted: formatMetric(post.metrics?.views) })}
                     </span>
                     {post.external_url && (
                       <Button asChild size="icon" variant="ghost" className="size-8 text-muted-foreground">
-                        <a href={post.external_url} target="_blank" rel="noreferrer" aria-label="Open post">
+                        <a href={post.external_url} target="_blank" rel="noreferrer" aria-label={t("openPost")}>
                           <ExternalLink className="size-4" />
                         </a>
                       </Button>
@@ -228,17 +231,17 @@ export default function AnalyticsPage() {
 
           {performance.by_provider.length > 0 && (
             <section>
-              <h2 className={SECTION_HEADING}>By platform</h2>
+              <h2 className={SECTION_HEADING}>{t("byPlatform")}</h2>
               <div className="overflow-x-auto rounded-xl border bg-background">
                 <table className="w-full text-sm">
                   <thead className={TABLE_HEAD}>
                     <tr>
-                      <th className="px-3 py-2 font-medium">Platform</th>
-                      <th className="px-3 py-2 font-medium text-right">Posts</th>
-                      <th className="px-3 py-2 font-medium text-right">Views</th>
-                      <th className="px-3 py-2 font-medium text-right">Avg views</th>
-                      <th className="px-3 py-2 font-medium text-right">Likes</th>
-                      <th className="px-3 py-2 font-medium text-right">Comments</th>
+                      <th className="px-3 py-2 font-medium">{t("platform")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("posts")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("views")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("avgViews")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("likes")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("comments")}</th>
                     </tr>
                   </thead>
                   <tbody className="tabular-nums">
@@ -265,16 +268,16 @@ export default function AnalyticsPage() {
 
           {performance.by_hook_type.length > 0 && (
             <section>
-              <h2 className={SECTION_HEADING}>By hook type</h2>
+              <h2 className={SECTION_HEADING}>{t("byHook")}</h2>
               <div className="overflow-x-auto rounded-xl border bg-background">
                 <table className="w-full text-sm">
                   <thead className={TABLE_HEAD}>
                     <tr>
-                      <th className="px-3 py-2 font-medium">Hook</th>
-                      <th className="px-3 py-2 font-medium text-right">Posts</th>
-                      <th className="px-3 py-2 font-medium text-right">Median views</th>
-                      <th className="px-3 py-2 font-medium text-right">Engagement</th>
-                      <th className="px-3 py-2 font-medium text-right">Predicted score</th>
+                      <th className="px-3 py-2 font-medium">{t("hook")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("posts")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("medianViews")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("engagement")}</th>
+                      <th className="px-3 py-2 font-medium text-right">{t("predicted")}</th>
                     </tr>
                   </thead>
                   <tbody className="tabular-nums">
@@ -297,14 +300,18 @@ export default function AnalyticsPage() {
 
           {performance.by_duration.length > 0 && (
             <section>
-              <h2 className={SECTION_HEADING}>By clip length</h2>
+              <h2 className={SECTION_HEADING}>{t("byLength")}</h2>
               <div className={cn("grid gap-3", performance.by_duration.length > 2 ? "sm:grid-cols-4" : "sm:grid-cols-2")}>
                 {performance.by_duration.map((row) => (
                   <div key={row.bucket} className="rounded-xl border bg-background p-4">
-                    <p className="text-xs text-muted-foreground">{durationBucketLabel(row.bucket)}</p>
+                    <p className="text-xs text-muted-foreground">{
+                      row.bucket === "under_20s" || row.bucket === "20_to_35s" || row.bucket === "35_to_50s" || row.bucket === "over_50s"
+                        ? t(`duration.${row.bucket}`)
+                        : row.bucket
+                    }</p>
                     <p className="mt-1 text-2xl font-semibold tabular-nums">{formatMetric(row.avg_views)}</p>
                     <p className="text-xs text-muted-foreground">
-                      avg views · {row.posts} {row.posts === 1 ? "post" : "posts"}
+                      {t("avgViewsPosts", { count: row.posts })}
                     </p>
                   </div>
                 ))}

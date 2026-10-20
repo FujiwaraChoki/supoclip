@@ -1,32 +1,37 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { getTranslations } from "next-intl/server";
 import { ArrowRight, Clock, ExternalLink, Github, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SiteFooter } from "@/components/marketing/site-footer";
-import { HOSTED_APP_URL, blogPosts, getSiteUrl } from "@/lib/blog-posts";
+import { applyBlogCopy, HOSTED_APP_URL, blogPosts, getSiteUrl } from "@/lib/blog-posts";
 import { getMarketingLinks } from "@/lib/marketing-links";
 
-export const metadata: Metadata = {
-  title: { absolute: "SupoClip Blog | AI Video Clipping Guides" },
-  description:
-    "Practical guides, product comparisons, and creator workflows for turning long-form video into social-ready shorts with SupoClip.",
-  alternates: {
-    canonical: `${getSiteUrl()}/blog`,
-  },
-  openGraph: {
-    title: "SupoClip Blog",
-    description:
-      "Guides and comparisons for AI video clipping, auto captions, vertical reframing, and short-form video workflows.",
-    type: "website",
-    url: `${getSiteUrl()}/blog`,
-    siteName: "SupoClip",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("blog");
+  const url = `${getSiteUrl()}/blog`;
 
-export default function BlogIndexPage() {
-  const featuredPost = blogPosts[0];
+  return {
+    title: { absolute: t("index.metaTitle") },
+    description: t("index.metaDescription"),
+    alternates: { canonical: url },
+    openGraph: {
+      title: t("index.ogTitle"),
+      description: t("index.ogDescription"),
+      type: "website",
+      url,
+      siteName: "SupoClip",
+    },
+  };
+}
+
+export default async function BlogIndexPage() {
+  const t = await getTranslations("blog");
+  const translate = (key: string) => t(key);
+  const posts = blogPosts.map((post) => applyBlogCopy(post, translate));
+  const featuredPost = posts[0];
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -44,12 +49,12 @@ export default function BlogIndexPage() {
           <div className="flex items-center gap-2">
             <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
               <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
-                Hosted App
+                {t("index.hostedApp")}
                 <ExternalLink className="h-3.5 w-3.5" />
               </Button>
             </a>
             <Link href="/sign-up">
-              <Button size="sm">Start Clipping</Button>
+              <Button size="sm">{t("index.startClipping")}</Button>
             </Link>
           </div>
         </div>
@@ -60,12 +65,12 @@ export default function BlogIndexPage() {
           <div className="mb-5 flex flex-wrap gap-2">
             <Badge variant="secondary" className="gap-2">
               <Sparkles className="h-3.5 w-3.5" />
-              Creator Guides
+              {t("index.creatorGuides")}
             </Badge>
             <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
               <Badge variant="outline" className="gap-2">
                 <ExternalLink className="h-3.5 w-3.5" />
-                Try hosted SupoClip
+                {t("index.tryHosted")}
               </Badge>
             </a>
           </div>
@@ -74,11 +79,10 @@ export default function BlogIndexPage() {
               className="text-4xl font-extrabold tracking-tight sm:text-5xl"
               style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), system-ui" }}
             >
-              Practical guides for turning long videos into better shorts.
+              {t("index.heading")}
             </h1>
             <p className="mt-5 text-base leading-8 text-muted-foreground sm:text-lg">
-              Comparisons, workflows, and editing advice for creators who want a repeatable clipping workflow,
-              cleaner captions, and more control over their video pipeline.
+              {t("index.intro")}
             </p>
           </div>
         </div>
@@ -108,24 +112,24 @@ export default function BlogIndexPage() {
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <span className="inline-flex items-center gap-2 text-sm font-semibold">
-                Read article
+                {t("index.readArticle")}
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </span>
               <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                 <Github className="h-4 w-4" />
-                Open source
+                {t("index.openSource")}
               </span>
             </div>
           </article>
 
-          {featuredPost.image ? <Image src={featuredPost.image.src} alt={featuredPost.image.alt} width={featuredPost.image.width} height={featuredPost.image.height} sizes="(max-width: 768px) 100vw, 420px" className="h-full w-full rounded-lg object-cover" /> : <div className="rounded-lg border bg-muted/45 p-5"><p className="font-semibold">Open-source clipping</p></div>}
+          {featuredPost.image ? <Image src={featuredPost.image.src} alt={featuredPost.image.alt} width={featuredPost.image.width} height={featuredPost.image.height} sizes="(max-width: 768px) 100vw, 420px" className="h-full w-full rounded-lg object-cover" /> : <div className="rounded-lg border bg-muted/45 p-5"><p className="font-semibold">{t("index.openSourceClipping")}</p></div>}
 
         </Link>
 
-        {blogPosts.length > 1 && <section className="mt-12" aria-labelledby="more-articles"><h2 id="more-articles" className="text-2xl font-bold">More clipping guides</h2><div className="mt-6 grid gap-4 sm:grid-cols-2">{blogPosts.slice(1).map(post => <Link key={post.slug} href={`/blog/${post.slug}`} className="rounded-xl border p-6 hover:border-foreground/30"><p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{post.category}</p><h3 className="mt-3 text-xl font-bold">{post.title}</h3><p className="mt-3 text-sm leading-7 text-muted-foreground">{post.summary}</p><span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">Read article<ArrowRight className="h-4 w-4" /></span></Link>)}</div></section>}
+        {posts.length > 1 && <section className="mt-12" aria-labelledby="more-articles"><h2 id="more-articles" className="text-2xl font-bold">{t("index.moreGuides")}</h2><div className="mt-6 grid gap-4 sm:grid-cols-2">{posts.slice(1).map(post => <Link key={post.slug} href={`/blog/${post.slug}`} className="rounded-xl border p-6 hover:border-foreground/30"><p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{post.category}</p><h3 className="mt-3 text-xl font-bold">{post.title}</h3><p className="mt-3 text-sm leading-7 text-muted-foreground">{post.summary}</p><span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold">{t("index.readArticle")}<ArrowRight className="h-4 w-4" /></span></Link>)}</div></section>}
         <section className="mt-14" aria-labelledby="product-guides-heading">
           <h2 id="product-guides-heading" className="text-2xl font-bold tracking-tight">
-            Product guides
+            {t("index.productGuides")}
           </h2>
           <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {[...getMarketingLinks("product"), ...getMarketingLinks("guide").filter((link) => !link.href.startsWith("/blog/"))].map(({ href, label, description }) => (

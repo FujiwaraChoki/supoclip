@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { ArrowRight, Check, Loader2, Server, X } from "lucide-react";
 import { toast } from "sonner";
@@ -11,8 +12,7 @@ import { CapacityIllustration, FontIllustration, LengthIllustration } from "@/co
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { BillingSummary } from "@/hooks/use-billing-summary";
 import {
-  formatBillingPlanName,
-  formatMinutes,
+  billingPlanMessageKey,
   getNextBillingPlan,
   getPublicBillingPlans,
   isPaidBillingPlan,
@@ -90,49 +90,92 @@ function formatDate(value: string) {
   return date.toLocaleDateString(undefined, { month: "long", day: "numeric" });
 }
 
-function formatRuntime(seconds: number) {
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+export function useBillingPlanText() {
+  const t = useTranslations("billing");
+  const common = useTranslations("common");
+  const formatMinutes = (minutes: number) =>
+    minutes >= 60 && minutes % 60 === 0
+      ? common("duration.hours", { count: minutes / 60 })
+      : common("duration.minutes", { count: minutes });
+  const formatRuntime = (seconds: number) => {
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return t("runtime.minutes", { count: minutes });
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return rest ? t("runtime.hoursMinutes", { hours, minutes: rest }) : t("runtime.hours", { count: hours });
+  };
+  const planName = (plan: string | null | undefined) => common(`plans.${billingPlanMessageKey(plan)}`);
+  const highlights = (plan: { id: string; generationLimit: number; youtubeMaxMinutes: number }) => [
+    t("highlights.videos", { count: plan.generationLimit }),
+    t("highlights.youtube", { length: formatMinutes(plan.youtubeMaxMinutes) }),
+    plan.id === "pro" ? t("highlights.fonts") : t("highlights.priority"),
+  ];
+  return { t, common, formatMinutes, formatRuntime, planName, highlights };
 }
 
-function copyFor(reason: UpgradeReason, billing: UpgradeBilling | null | undefined, target: PublicBillingPlan | undefined) {
-  const planName = formatBillingPlanName(billing?.plan);
+function copyFor(
+  reason: UpgradeReason,
+  billing: UpgradeBilling | null | undefined,
+  target: PublicBillingPlan | undefined,
+  text: ReturnType<typeof useBillingPlanText>,
+) {
+  const planName = text.planName(billing?.plan);
+  const targetName = target ? text.planName(target.id) : undefined;
   const state = getUpgradeState(billing);
+  const t = text.t;
   switch (reason.kind) {
     case "start":
       return {
-        eyebrow: "Ready when you are",
-        title: "Turn long videos into ready-to-post clips",
-        body: "Choose a hosted plan and we handle the processing, or self-host the open-source app on your own computer for free.",
+        eyebrow: t("upgrade.start.eyebrow"),
+        title: t("upgrade.start.title"),
+        body: t("upgrade.start.body"),
       };
     case "limit":
       return {
-        eyebrow: "What a month",
-        title: state?.limit ? `You've clipped all ${state.limit} videos on ${planName}` : `You've used everything on ${planName}`,
-        body: target
-          ? `Your allowance refreshes${state?.resetsOn ? ` on ${state.resetsOn}` : " next billing period"}. Keep the momentum going with ${target.name}: ${target.generationLimit} videos a month.`
-          : `Your allowance refreshes${state?.resetsOn ? ` on ${state.resetsOn}` : " next billing period"}.`,
+        eyebrow: t("upgrade.limit.eyebrow"),
+        title: state?.limit
+          ? t("upgrade.limit.titleCount", { count: state.limit, plan: planName })
+          : t("upgrade.limit.titleAll", { plan: planName }),
+        body: targetName
+          ? t(state?.resetsOn ? "upgrade.limit.bodyRefreshKeep" : "upgrade.limit.bodyPeriodKeep", {
+              date: state?.resetsOn ?? "",
+              plan: targetName,
+              count: target?.generationLimit ?? 0,
+            })
+          : t(state?.resetsOn ? "upgrade.limit.bodyRefresh" : "upgrade.limit.bodyPeriod", {
+              date: state?.resetsOn ?? "",
+            }),
       };
     case "video_too_long":
       return {
-        eyebrow: "A long one",
-        title: `${target?.name ?? "A bigger plan"} can take this ${formatRuntime(reason.durationSeconds)} video`,
-        body: `${planName} covers YouTube videos up to ${formatMinutes(Math.round(reason.maxSeconds / 60))}. ${target ? `${target.name} handles up to ${formatMinutes(target.youtubeMaxMinutes)}, so this one goes straight through.` : ""} This try didn't use a generation.`,
+        eyebrow: t("upgrade.long.eyebrow"),
+        title: t("upgrade.long.title", {
+          plan: targetName ?? t("upgrade.long.fallbackPlan"),
+          runtime: text.formatRuntime(reason.durationSeconds),
+        }),
+        body: target
+          ? t("upgrade.long.body", {
+              plan: planName,
+              length: text.formatMinutes(Math.round(reason.maxSeconds / 60)),
+              next: targetName ?? "",
+              nextLength: text.formatMinutes(target.youtubeMaxMinutes),
+            })
+          : t("upgrade.long.bodyNoNext", {
+              plan: planName,
+              length: text.formatMinutes(Math.round(reason.maxSeconds / 60)),
+            }),
       };
     case "custom_fonts":
       return {
-        eyebrow: "Make it yours",
-        title: "Captions in your brand's own font",
-        body: "Upload any .ttf or .otf and use it across every clip, so your shorts look like they come from you.",
+        eyebrow: t("upgrade.fonts.eyebrow"),
+        title: t("upgrade.fonts.title"),
+        body: t("upgrade.fonts.body"),
       };
     default:
       return {
-        eyebrow: "More room to create",
-        title: target ? `Do more with ${target.name}` : "Plans for every creator",
-        body: "More videos each month, longer sources and priority processing.",
+        eyebrow: t("upgrade.explore.eyebrow"),
+        title: targetName ? t("upgrade.explore.title", { plan: targetName }) : t("upgrade.explore.titleFallback"),
+        body: t("upgrade.explore.body"),
       };
   }
 }
@@ -147,6 +190,7 @@ interface UpgradeDialogProps {
 }
 
 export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: UpgradeDialogProps) {
+  const text = useBillingPlanText();
   const state = getUpgradeState(billing);
   const allPlans = getPublicBillingPlans();
   // Free users choose between every plan; subscribers see their plan next to the step up.
@@ -166,7 +210,7 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
   }, [open]);
 
   const target = options.find((plan) => plan.id === selected) ?? options[0];
-  const copy = copyFor(reason, billing, target);
+  const copy = copyFor(reason, billing, target, text);
 
   const handleContinue = async () => {
     if (!target) return;
@@ -174,7 +218,7 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
     try {
       await startUpgrade(target.id, `${source}:${reason.kind}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "We couldn't open checkout. Please try again.");
+      toast.error(error instanceof Error ? error.message : text.t("checkoutError"));
       setIsRedirecting(false);
     }
   };
@@ -184,7 +228,7 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
       <DialogContent showCloseButton={false} className="max-h-[calc(100dvh-2rem)] max-w-3xl gap-0 overflow-x-hidden overflow-y-auto p-0 sm:grid-cols-[1.1fr_1fr]">
         <DialogClose className="absolute right-4 top-4 z-10 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <X className="size-4" />
-          <span className="sr-only">Close</span>
+          <span className="sr-only">{text.common("close")}</span>
         </DialogClose>
         <div className="flex flex-col p-6 sm:p-8">
           <p className="text-xs font-medium text-muted-foreground">{copy.eyebrow}</p>
@@ -193,10 +237,10 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
 
           {state?.managedByAppStore ? (
             <p className="mt-6 rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-              Your subscription is managed through the App Store. You can change plans in the SupoClip iOS app.
+              {text.t("appStore")}
             </p>
           ) : (
-            <div className="mt-6 space-y-2" role="radiogroup" aria-label="Plans">
+            <div className="mt-6 space-y-2" role="radiogroup" aria-label={text.t("plansLabel")}>
               {currentPlan && <PlanOption plan={currentPlan} current />}
               {options.map((plan) => (
                 <PlanOption
@@ -214,18 +258,15 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
             <div className="mt-3 rounded-lg border bg-muted/30 px-4 py-3">
               <div className="flex items-center gap-3">
                 <Server className="size-4 shrink-0 text-muted-foreground" />
-                <p className="flex-1 text-sm font-semibold">Self-hosted</p>
-                <span className="text-sm font-semibold">Free</span>
+                <p className="flex-1 text-sm font-semibold">{text.t("selfHosted.title")}</p>
+                <span className="text-sm font-semibold">{text.common("plans.free")}</span>
               </div>
-              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                Run SupoClip on your own computer with no subscription or monthly video limit.
-                Setup required; you provide the hardware and any paid AI services you choose.
-              </p>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{text.t("selfHosted.body")}</p>
               <Link
                 href="/blog/self-host-supoclip-docker"
                 className="mt-3 inline-flex items-center gap-1 text-sm font-medium underline underline-offset-4 hover:text-muted-foreground"
               >
-                Self-hosting guide <ArrowRight className="size-3.5" />
+                {text.t("selfHosted.guide")} <ArrowRight className="size-3.5" />
               </Link>
             </div>
           )}
@@ -236,19 +277,17 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
             {target && !state?.managedByAppStore && (
               <Button size="lg" onClick={handleContinue} disabled={isRedirecting}>
                 {isRedirecting ? <Loader2 className="size-4 animate-spin" /> : null}
-                {isRedirecting ? "Opening secure checkout…" : `Continue with ${target.name}`}
+                {isRedirecting ? text.t("openingCheckout") : text.t("continueWith", { name: text.planName(target.id) })}
                 {!isRedirecting && <ArrowRight className="size-4" />}
               </Button>
             )}
             <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-muted-foreground">
-              Maybe later
+              {text.t("maybeLater")}
             </Button>
           </div>
           {target && !state?.managedByAppStore && (
             <p className="mt-3 text-center text-[11px] text-muted-foreground">
-              {state?.isPaid
-                ? "You'll confirm the change on Stripe and only pay the prorated difference."
-                : "Cancel anytime · Secure checkout with Stripe"}
+              {state?.isPaid ? text.t("prorated") : text.t("cancelAnytime")}
             </p>
           )}
         </div>
@@ -280,6 +319,7 @@ function PlanOption({
   recommended?: boolean;
   onSelect?: () => void;
 }) {
+  const text = useBillingPlanText();
   return (
     <button
       type="button"
@@ -305,17 +345,17 @@ function PlanOption({
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2 text-sm font-semibold">
-          {plan.name}
-          {current && <span className="text-xs font-normal text-muted-foreground">Current plan</span>}
-          {recommended && <span className="text-xs font-normal text-muted-foreground">Most popular</span>}
+          {text.planName(plan.id)}
+          {current && <span className="text-xs font-normal text-muted-foreground">{text.t("currentPlan")}</span>}
+          {recommended && <span className="text-xs font-normal text-muted-foreground">{text.t("mostPopular")}</span>}
         </span>
         <span className="block text-xs text-muted-foreground">
-          {plan.generationLimit} videos/mo · up to {formatMinutes(plan.youtubeMaxMinutes)} each
+          {text.t("videosEach", { count: plan.generationLimit, length: text.formatMinutes(plan.youtubeMaxMinutes) })}
         </span>
       </span>
       <span className="text-sm font-semibold tabular-nums">
         ${plan.priceMonthly}
-        <span className="text-xs font-normal text-muted-foreground">/mo</span>
+        <span className="text-xs font-normal text-muted-foreground">{text.t("perMonth")}</span>
       </span>
     </button>
   );
@@ -331,6 +371,7 @@ function PlanShowcase({
   plan: PublicBillingPlan | undefined;
   currentPlan: PublicBillingPlan | undefined;
 }) {
+  const text = useBillingPlanText();
   return (
     <div className="hidden flex-col border-l bg-muted/50 p-8 sm:flex">
       <div className="flex flex-1 flex-col justify-center">
@@ -340,9 +381,9 @@ function PlanShowcase({
               durationSeconds={reason.durationSeconds}
               currentLimitSeconds={reason.maxSeconds}
               nextLimitSeconds={plan.youtubeMaxMinutes * 60}
-              durationLabel={formatRuntime(reason.durationSeconds)}
-              currentLabel={`${currentPlan?.name ?? "Today"} · ${formatMinutes(Math.round(reason.maxSeconds / 60))}`}
-              nextLabel={`${plan.name} · ${formatMinutes(plan.youtubeMaxMinutes)}`}
+              durationLabel={text.formatRuntime(reason.durationSeconds)}
+              currentLabel={`${currentPlan ? text.planName(currentPlan.id) : text.t("illustration.today")} · ${text.formatMinutes(Math.round(reason.maxSeconds / 60))}`}
+              nextLabel={`${text.planName(plan.id)} · ${text.formatMinutes(plan.youtubeMaxMinutes)}`}
             />
           ) : reason.kind === "custom_fonts" ? (
             <FontIllustration />
@@ -351,14 +392,14 @@ function PlanShowcase({
               key={plan.id}
               from={currentPlan?.generationLimit ?? 0}
               to={plan.generationLimit}
-              label={currentPlan ? `videos a month, up from ${currentPlan.generationLimit}` : `videos a month with ${plan.name}`}
+              label={currentPlan ? text.t("illustration.videosUpFrom", { count: currentPlan.generationLimit }) : text.t("illustration.videosWith", { plan: text.planName(plan.id) })}
             />
           ))}
       </div>
 
       {plan && (
         <ul className="mt-8 space-y-2 border-t pt-5">
-          {plan.highlights.map((highlight) => (
+          {text.highlights(plan).map((highlight) => (
             <li key={highlight} className="flex items-start gap-2 text-sm">
               <Check className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
               {highlight}

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import {
   AlertCircle,
   ArrowLeft,
@@ -42,18 +43,18 @@ import { Preview } from "./preview";
 import { Timeline } from "./timeline";
 import { Inspector, type InspectorTab } from "./inspector";
 import { ExportPanel, readyEditor, type ClipSummary } from "./export-panel";
-import { Keys, Panel, PanelHeader, ToolButton } from "./studio-ui";
+import { editorMessage, editorStatus, Keys, Panel, PanelHeader, ToolButton } from "./studio-ui";
 
 const SHORTCUTS: [string[], string][] = [
-  [["Space"], "Play / pause"],
-  [["←", "→"], "Previous / next frame"],
-  [["Shift", "←", "→"], "Jump one second"],
-  [["I"], "Set in point"],
-  [["O"], "Set out point"],
-  [["S"], "Split at playhead"],
-  [["Ctrl/⌘", "Z"], "Undo"],
-  [["Ctrl/⌘", "Shift", "Z"], "Redo"],
-  [["Ctrl/⌘", "S"], "Save draft"],
+  [["space"], "shortcuts.playPause"],
+  [["←", "→"], "shortcuts.frames"],
+  [["shift", "←", "→"], "shortcuts.jump"],
+  [["I"], "shortcuts.setIn"],
+  [["O"], "shortcuts.setOut"],
+  [["S"], "shortcuts.split"],
+  [["mod", "Z"], "shortcuts.undo"],
+  [["mod", "shift", "Z"], "shortcuts.redo"],
+  [["mod", "S"], "shortcuts.save"],
 ];
 
 // Widgets that own these keys natively; the editor shortcuts must not steal them.
@@ -78,6 +79,7 @@ export function EditorWorkspace({
   onSelect,
   refreshClips,
 }: Props) {
+  const t = useTranslations("editor");
   const endpoint = `/api/tasks/${taskId}/clips/${clip.id}/editor`;
   const editor = useEditor(endpoint),
     doc = editor.document,
@@ -103,9 +105,7 @@ export function EditorWorkspace({
     try {
       await editor.save();
     } catch {
-      toast.error(
-        "Your draft is kept locally. Save it before switching clips.",
-      );
+      toast.error(t("workspace.keepLocal"));
       return;
     }
     onSelect(id);
@@ -123,9 +123,9 @@ export function EditorWorkspace({
           document: { ...state.draft.document, captions: style },
         });
       }
-      toast.success("Caption style applied to all clips");
+      toast.success(t("workspace.styleApplied"));
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(editorMessage(t, (e as Error).message));
     }
   };
   const combine = async () => {
@@ -160,9 +160,9 @@ export function EditorWorkspace({
         }
       }
       await refreshClips(combinedId);
-      toast.success("Combined draft created. Original clips are unchanged.");
+      toast.success(t("workspace.combined"));
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(editorMessage(t, (e as Error).message));
     } finally {
       setCombining(false);
     }
@@ -208,8 +208,8 @@ export function EditorWorkspace({
         document
           .querySelector<HTMLButtonElement>(
             videoRef.current?.paused
-              ? 'button[aria-label="Play"]'
-              : 'button[aria-label="Pause"]',
+              ? `button[aria-label="${CSS.escape(t("preview.play"))}"]`
+              : `button[aria-label="${CSS.escape(t("preview.pause"))}"]`,
           )
           ?.click();
       }
@@ -267,16 +267,19 @@ export function EditorWorkspace({
     exportOpen,
     restoreOpen,
     reloadOpen,
+    t,
   ]);
   const saved = editor.status === "All changes saved",
     saving = editor.status === "Saving…";
+  const shortcutKey = (key: string) =>
+    key === "space" ? t("keys.space") : key === "shift" ? t("keys.shift") : key === "mod" ? t("keys.mod") : key;
   return (
     <div className="min-h-[calc(100dvh-73px)] bg-muted/40">
       <div className="border-b bg-background">
         <div className="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <Button variant="outline" size="icon" asChild>
-              <Link href={`/tasks/${taskId}`} aria-label="Back to generation">
+              <Link href={`/tasks/${taskId}`} aria-label={t("editPage.back")}>
                 <ArrowLeft />
               </Link>
             </Button>
@@ -286,10 +289,10 @@ export function EditorWorkspace({
                   href={`/tasks/${taskId}`}
                   className="truncate hover:text-foreground"
                 >
-                  Generation
+                  {t("workspace.generation")}
                 </Link>
                 <span aria-hidden>/</span>
-                <span className="text-foreground">Clip {clip.clip_order}</span>
+                <span className="text-foreground">{t("clipLabel", { order: clip.clip_order })}</span>
               </p>
               <h1 className="truncate font-display text-xl font-bold tracking-tight">
                 {title}
@@ -312,12 +315,12 @@ export function EditorWorkspace({
               ) : editor.error ? (
                 <CloudOff className="size-3.5" />
               ) : null}
-              {editor.status}
+              {editorStatus(t, editor.status)}
             </span>
             <div className="flex items-center rounded-md border bg-background shadow-xs">
               <ToolButton
-                label="Undo"
-                shortcut={["Ctrl/⌘", "Z"]}
+                label={t("workspace.undo")}
+                shortcut={[t("keys.mod"), "Z"]}
                 className="rounded-r-none"
                 disabled={!editor.canUndo}
                 onClick={editor.undo}
@@ -326,8 +329,8 @@ export function EditorWorkspace({
               </ToolButton>
               <Separator orientation="vertical" className="!h-5" />
               <ToolButton
-                label="Redo"
-                shortcut={["Ctrl/⌘", "Shift", "Z"]}
+                label={t("workspace.redo")}
+                shortcut={[t("keys.mod"), t("keys.shift"), "Z"]}
                 className="rounded-l-none"
                 disabled={!editor.canRedo}
                 onClick={editor.redo}
@@ -336,7 +339,7 @@ export function EditorWorkspace({
               </ToolButton>
             </div>
             <ToolButton
-              label="Keyboard shortcuts"
+              label={t("workspace.shortcuts")}
               shortcut="?"
               onClick={() => setHelpOpen(true)}
             >
@@ -344,7 +347,7 @@ export function EditorWorkspace({
             </ToolButton>
             <Button disabled={!doc} onClick={() => setExportOpen(true)}>
               <Download />
-              Export
+              {t("workspace.export")}
             </Button>
           </div>
         </div>
@@ -354,7 +357,7 @@ export function EditorWorkspace({
           <Alert variant="destructive">
             <AlertCircle />
             <AlertDescription className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <span className="mr-auto">{editor.error}</span>
+              <span className="mr-auto">{editorMessage(t, editor.error)}</span>
               <span className="flex flex-wrap gap-1">
                 {doc ? (
                   <>
@@ -363,7 +366,7 @@ export function EditorWorkspace({
                       variant="outline"
                       onClick={() => void editor.save().catch(() => {})}
                     >
-                      Retry save
+                      {t("workspace.retrySave")}
                     </Button>
                     <Button
                       size="sm"
@@ -377,14 +380,14 @@ export function EditorWorkspace({
                         )
                       }
                     >
-                      Back up draft
+                      {t("workspace.backup")}
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
                       onClick={() => setReloadOpen(true)}
                     >
-                      Reload saved version
+                      {t("workspace.reloadSaved")}
                     </Button>
                   </>
                 ) : (
@@ -396,11 +399,11 @@ export function EditorWorkspace({
                         await editorRequest(`${endpoint}/prepare`, "POST");
                         window.location.reload();
                       } catch (e) {
-                        toast.error((e as Error).message);
+                        toast.error(editorMessage(t, (e as Error).message));
                       }
                     }}
                   >
-                    Retry preparation
+                    {t("workspace.retryPreparation")}
                   </Button>
                 )}
               </span>
@@ -411,18 +414,17 @@ export function EditorWorkspace({
           <Alert variant="destructive">
             <AlertCircle />
             <AlertDescription>
-              Local draft storage is full or unavailable. Keep this tab open
-              until the server confirms your changes are saved.
+              {t("workspace.storageFull")}
             </AlertDescription>
           </Alert>
         )}
       </div>
       <div className="mx-auto grid max-w-[1800px] grid-cols-1 items-start gap-4 p-4 sm:px-6 md:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[232px_minmax(0,1fr)_340px] 2xl:grid-cols-[260px_minmax(0,1fr)_380px]">
         <Panel
-          aria-label="Your clips"
+          aria-label={t("workspace.yourClips")}
           className="md:col-span-2 xl:col-span-1 xl:sticky xl:top-4"
         >
-          <PanelHeader title="Clips">
+          <PanelHeader title={t("workspace.clips")}>
             <Badge variant="secondary" className="tabular-nums">
               {clips.length}
             </Badge>
@@ -456,22 +458,22 @@ export function EditorWorkspace({
                     className="min-w-0 flex-1 text-left outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
                     onClick={() => void switchClip(c.id)}
                     aria-pressed={active}
-                    aria-label={`Edit clip ${c.clip_order}`}
+                    aria-label={t("workspace.editClip", { order: c.clip_order })}
                   >
                     <span className="flex items-center justify-between gap-2 text-xs">
-                      <span className="font-medium">Clip {c.clip_order}</span>
+                      <span className="font-medium">{t("clipLabel", { order: c.clip_order })}</span>
                       <span className="text-muted-foreground tabular-nums">
                         {timecode(c.duration)}
                       </span>
                     </span>
                     <span className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                      {c.text || "Your next story starts here"}
+                      {c.text || t("workspace.storyFallback")}
                     </span>
                   </button>
                   <span className="relative z-10 flex flex-col items-center justify-between">
                     <Checkbox
-                      aria-label={`Select clip ${c.clip_order} for combine`}
-                      title="Select to combine"
+                      aria-label={t("workspace.selectClip", { order: c.clip_order })}
+                      title={t("workspace.selectToCombine")}
                       checked={order >= 0}
                       onCheckedChange={(checked) =>
                         setSelected((ids) =>
@@ -510,18 +512,17 @@ export function EditorWorkspace({
                   ) : (
                     <Layers />
                   )}
-                  {combining ? "Combining…" : `Combine ${selected.length} drafts`}
+                  {combining ? t("workspace.combining") : t("workspace.combine", { count: selected.length })}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Uses selection order and the first clip’s style. Originals are
-                  kept.
+                  {t("workspace.combineHint")}
                 </p>
               </>
             ) : (
               <p className="text-xs text-muted-foreground">
                 {selected.length === 1
-                  ? "Select one more clip to combine."
-                  : "Tick two or more clips to combine them into one draft."}
+                  ? t("workspace.combineOneMore")
+                  : t("workspace.combineEmpty")}
               </p>
             )}
             <Separator />
@@ -533,11 +534,10 @@ export function EditorWorkspace({
               onClick={() => setRestoreOpen(true)}
             >
               <RotateCcw />
-              Restore original
+              {t("workspace.restore")}
             </Button>
             <p className="text-xs text-muted-foreground">
-              Generated clips are never overwritten. Every change here is an
-              editable draft.
+              {t("workspace.draftNote")}
             </p>
           </div>
         </Panel>
@@ -590,13 +590,13 @@ export function EditorWorkspace({
             </div>
             <h2 className="font-display text-xl font-bold">
               {editor.error
-                ? "Let’s get your preview back"
-                : "Preparing your editing canvas"}
+                ? t("workspace.previewBack")
+                : t("workspace.preparingCanvas")}
             </h2>
             <p className="mt-2 max-w-sm text-sm text-muted-foreground">
               {editor.error
-                ? "Your original clip is safe. Retry preparation to continue."
-                : "Loading the original video, word timings, thumbnails, and audio waveform. This only happens once per clip."}
+                ? t("workspace.previewBackDetail")
+                : t("workspace.preparingDetail")}
             </p>
             {!editor.error && (
               <Loader2 className="mt-5 size-5 animate-spin text-muted-foreground" />
@@ -607,11 +607,11 @@ export function EditorWorkspace({
       <footer className="mx-auto hidden max-w-[1800px] flex-wrap items-center justify-end gap-x-4 gap-y-2 px-6 pb-6 text-xs text-muted-foreground md:flex">
         {(
           [
-            ["Space", "Play"],
-            ["I", "In"],
-            ["O", "Out"],
-            ["S", "Split"],
-            ["?", "All shortcuts"],
+            [t("keys.space"), t("preview.play")],
+            ["I", t("timeline.in")],
+            ["O", t("timeline.out")],
+            ["S", t("workspace.splitShort")],
+            ["?", t("workspace.allShortcuts")],
           ] as const
         ).map(([key, label]) => (
           <span key={key} className="flex items-center gap-1.5">
@@ -635,9 +635,9 @@ export function EditorWorkspace({
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Keyboard shortcuts</DialogTitle>
+            <DialogTitle>{t("workspace.shortcuts")}</DialogTitle>
             <DialogDescription>
-              Shortcuts work whenever you’re outside a text field.
+              {t("workspace.shortcutsDescription")}
             </DialogDescription>
           </DialogHeader>
           <dl className="divide-y rounded-lg border">
@@ -646,9 +646,9 @@ export function EditorWorkspace({
                 key={label}
                 className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
               >
-                <dt>{label}</dt>
+                <dt>{t(label)}</dt>
                 <dd>
-                  <Keys keys={keys} />
+                  <Keys keys={keys.map(shortcutKey)} />
                 </dd>
               </div>
             ))}
@@ -658,15 +658,14 @@ export function EditorWorkspace({
       <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Restore the original edit?</DialogTitle>
+            <DialogTitle>{t("workspace.restoreTitle")}</DialogTitle>
             <DialogDescription>
-              This resets cuts, captions, framing, audio, and effects. You can
-              undo this action.
+              {t("workspace.restoreDescription")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRestoreOpen(false)}>
-              Keep editing
+              {t("workspace.keepEditing")}
             </Button>
             <Button
               onClick={() => {
@@ -676,7 +675,7 @@ export function EditorWorkspace({
                 setRestoreOpen(false);
               }}
             >
-              Restore original
+              {t("workspace.restore")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -684,16 +683,14 @@ export function EditorWorkspace({
       <Dialog open={reloadOpen} onOpenChange={setReloadOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Load the saved version?</DialogTitle>
+            <DialogTitle>{t("workspace.reloadTitle")}</DialogTitle>
             <DialogDescription>
-              This replaces local changes and undo history with the server
-              draft. Back up your draft first if you want to keep your local
-              changes.
+              {t("workspace.reloadDescription")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setReloadOpen(false)}>
-              Keep local draft
+              {t("workspace.keepLocalDraft")}
             </Button>
             <Button
               onClick={async () => {
@@ -701,11 +698,11 @@ export function EditorWorkspace({
                   await editor.reload();
                   setReloadOpen(false);
                 } catch (e) {
-                  toast.error((e as Error).message);
+                  toast.error(editorMessage(t, (e as Error).message));
                 }
               }}
             >
-              Load saved version
+              {t("workspace.loadSaved")}
             </Button>
           </DialogFooter>
         </DialogContent>

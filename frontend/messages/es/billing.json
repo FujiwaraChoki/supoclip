@@ -1,0 +1,94 @@
+{
+  "plans": {
+    "pro": {
+      "description": "Para quienes recortan videos todos los meses.",
+      "cta": "Pasar a Pro"
+    },
+    "scale": {
+      "description": "Para equipos y flujos de publicación de alto volumen.",
+      "cta": "Pasar a Scale"
+    }
+  },
+  "highlights": {
+    "videos": "{count} videos recortados cada mes",
+    "youtube": "Videos de YouTube de hasta {length}",
+    "fonts": "Fuentes personalizadas, B-roll y plantillas de subtítulos",
+    "priority": "Procesamiento prioritario"
+  },
+  "runtime": {
+    "minutes": "{count} min",
+    "hours": "{count} h",
+    "hoursMinutes": "{hours} h {minutes} min"
+  },
+  "perMonth": "/mes",
+  "videosEach": "{count} videos/mes · hasta {length} cada uno",
+  "mostPopular": "Más popular",
+  "currentPlan": "Plan actual",
+  "plansLabel": "Planes",
+  "continueWith": "Continuar con {name}",
+  "openingCheckout": "Abriendo el pago seguro…",
+  "checkoutError": "No pudimos abrir el pago. Inténtalo de nuevo.",
+  "maybeLater": "Quizá después",
+  "prorated": "Confirmas el cambio en Stripe y solo pagas la diferencia prorrateada.",
+  "cancelAnytime": "Cancela cuando quieras · Pago seguro con Stripe",
+  "appStore": "Tu suscripción se administra en el App Store. Puedes cambiar de plan en la app de SupoClip para iOS.",
+  "selfHosted": {
+    "title": "Autohospedado",
+    "body": "Ejecuta SupoClip en tu computadora, sin suscripción ni límite mensual de videos. Hay que configurarlo; tú pones el equipo y los servicios de IA de pago que elijas.",
+    "guide": "Guía de autohospedaje"
+  },
+  "upgrade": {
+    "start": {
+      "eyebrow": "Cuando tú quieras",
+      "title": "Convierte videos largos en clips listos para publicar",
+      "body": "Elige un plan alojado y nosotros procesamos, o autohospeda la app de código abierto en tu computadora, gratis."
+    },
+    "limit": {
+      "eyebrow": "Menudo mes",
+      "titleCount": "Ya recortaste los {count} videos de {plan}",
+      "titleAll": "Ya usaste todo lo de {plan}",
+      "bodyRefreshKeep": "Tu cupo se renueva el {date}. Sigue con {plan}: {count} videos al mes.",
+      "bodyPeriodKeep": "Tu cupo se renueva en el próximo período de facturación. Sigue con {plan}: {count} videos al mes.",
+      "bodyRefresh": "Tu cupo se renueva el {date}.",
+      "bodyPeriod": "Tu cupo se renueva en el próximo período de facturación."
+    },
+    "long": {
+      "eyebrow": "Uno largo",
+      "title": "{plan} puede tomar este video de {runtime}",
+      "fallbackPlan": "Un plan más grande",
+      "body": "{plan} cubre videos de YouTube de hasta {length}. {next} llega hasta {nextLength}, así que este pasa directo. Este intento no usó una generación.",
+      "bodyNoNext": "{plan} cubre videos de YouTube de hasta {length}.  Este intento no usó una generación."
+    },
+    "fonts": {
+      "eyebrow": "Hazlo tuyo",
+      "title": "Subtítulos con la fuente de tu marca",
+      "body": "Sube cualquier .ttf o .otf y úsala en todos los clips, para que tus shorts se vean como tuyos."
+    },
+    "explore": {
+      "eyebrow": "Más espacio para crear",
+      "title": "Haz más con {plan}",
+      "titleFallback": "Planes para cada creador",
+      "body": "Más videos cada mes, fuentes más largas y procesamiento prioritario."
+    }
+  },
+  "illustration": {
+    "fitsIn": "cabe en {plan}",
+    "yourVideo": "Tu video",
+    "today": "Hoy",
+    "videosUpFrom": "videos al mes, desde {count}",
+    "videosWith": "videos al mes con {plan}",
+    "sample": "y por eso",
+    "ownFont": "o tu propio .ttf",
+    "serif": "Serif",
+    "display": "Display",
+    "mono": "Mono"
+  },
+  "creatorCode": {
+    "applied": "Código de creador <mono>{code}</mono>: 20% de descuento en tus primeros 3 meses.",
+    "remove": "Quitar",
+    "prompt": "¿Tienes un código de creador?",
+    "placeholder": "Código de creador",
+    "apply": "Aplicar",
+    "invalid": "Ese código no es válido."
+  }
+}

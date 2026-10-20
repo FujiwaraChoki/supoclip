@@ -1,6 +1,11 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { catalogKey } from "@/i18n/config";
 import { getMarketingLinks } from "@/lib/marketing-links";
 import { APP_STORE_URL, GITHUB_URL } from "@/lib/site";
 
@@ -8,22 +13,29 @@ const linkClassName = "hover:text-foreground transition-colors";
 
 /** Crawlable footer shared by the landing page, SEO pages, and blog. */
 export function SiteFooter() {
+  const t = useTranslations("marketing");
   const columns = [
-    { heading: "Guides", links: getMarketingLinks("guide").map(({ href, label }) => ({ href, label })) },
     {
-      heading: "Compare",
-      links: [...getMarketingLinks("comparison").map(({ href, label }) => ({ href, label })), { href: "/blog", label: "All articles" }],
+      id: "guides",
+      heading: t("footer.columns.guides"),
+      hrefs: getMarketingLinks("guide").map((link) => link.href),
     },
     {
-      heading: "Product",
-      links: [
-        ...getMarketingLinks("product").map(({ href, label }) => ({ href, label })),
-        { href: "/sign-up", label: "Start clipping" },
-        { href: "/#pricing", label: "Pricing" },
-        { href: "/affiliate", label: "Affiliate" },
-        { href: "/status", label: "Service status" },
-        { href: "/privacy", label: "Privacy" },
-        { href: "/terms", label: "Terms" },
+      id: "compare",
+      heading: t("footer.columns.compare"),
+      hrefs: [...getMarketingLinks("comparison").map((link) => link.href), "/blog"],
+    },
+    {
+      id: "product",
+      heading: t("footer.columns.product"),
+      hrefs: [
+        ...getMarketingLinks("product").map((link) => link.href),
+        "/sign-up",
+        "/#pricing",
+        "/affiliate",
+        "/status",
+        "/privacy",
+        "/terms",
       ],
     },
   ];
@@ -39,21 +51,22 @@ export function SiteFooter() {
             </span>
           </Link>
           <p className="mt-3 max-w-xs text-xs leading-6 text-muted-foreground">
-            Open-source AI video clipper. Use the hosted app or run it on your own infrastructure.
+            {t("footer.tagline")}
           </p>
+          <LanguageSwitcher variant="inline" className="mt-4 text-xs" />
           <div className="mt-4 flex gap-4 text-xs text-muted-foreground">
-            <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>GitHub</a>
-            <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>iOS App</a>
+            <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>{t("footer.github")}</a>
+            <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>{t("footer.ios")}</a>
             <span>&copy; {new Date().getFullYear()}</span>
           </div>
         </div>
         {columns.map((column) => (
-          <nav key={column.heading} aria-label={`${column.heading} links`}>
+          <nav key={column.id} aria-label={t("footer.columnLinks", { heading: column.heading })}>
             <p className="text-xs font-semibold uppercase tracking-[0.16em]">{column.heading}</p>
             <ul className="mt-4 space-y-2.5 text-xs text-muted-foreground">
-              {column.links.map((link) => (
-                <li key={link.href}>
-                  <Link href={link.href} className={linkClassName}>{link.label}</Link>
+              {column.hrefs.map((href) => (
+                <li key={href}>
+                  <Link href={href} className={linkClassName}>{t(`links.${catalogKey(href)}.label`)}</Link>
                 </li>
               ))}
             </ul>

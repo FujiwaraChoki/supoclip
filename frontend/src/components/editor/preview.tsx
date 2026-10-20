@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   Pause,
   Play,
@@ -63,6 +64,7 @@ export function Preview({
   update,
   videoRef,
 }: Props) {
+  const t = useTranslations("editor");
   const stageRef = useRef<HTMLDivElement>(null);
   const [previewWidth, setPreviewWidth] = useState(270);
   const canvasRef = useRef<HTMLCanvasElement>(null),
@@ -208,19 +210,23 @@ export function Preview({
     onTime(video.currentTime);
   };
   const hint = fontError
-    ? "Caption font could not load. Check your connection before exporting."
+    ? t("preview.fontError")
     : tab === "framing"
-      ? "Drag the video to reframe · captions stay in place"
+      ? t("preview.framingHint")
       : tab === "captions"
-        ? "Drag vertically to position captions"
+        ? t("preview.captionHint")
         : null;
   return (
-    <Panel aria-label="Video preview">
+    <Panel aria-label={t("preview.region")}>
       <div className="flex items-center justify-between gap-3 border-b px-4 py-2">
         <div className="flex items-center gap-2 text-sm font-semibold">
-          Preview
+          {t("preview.title")}
           <span className="text-xs font-normal text-muted-foreground tabular-nums">
-            {size.width} × {size.height} · {Math.round(asset.fps)} fps
+            {t("preview.size", {
+              width: size.width,
+              height: size.height,
+              fps: Math.round(asset.fps),
+            })}
           </span>
         </div>
         <Tooltip>
@@ -229,13 +235,13 @@ export function Preview({
               size="sm"
               pressed={guides}
               onPressedChange={setGuides}
-              aria-label="Safe area"
+              aria-label={t("preview.safeArea")}
             >
               <Scan />
-              <span className="hidden sm:inline">Safe area</span>
+              <span className="hidden sm:inline">{t("preview.safeArea")}</span>
             </Toggle>
           </TooltipTrigger>
-          <TooltipContent>Show where platform UI covers the video</TooltipContent>
+          <TooltipContent>{t("preview.safeAreaTip")}</TooltipContent>
         </Tooltip>
       </div>
       <div
@@ -278,7 +284,7 @@ export function Preview({
             ref={canvasRef}
             width={Math.round((size.width / size.height) * 640)}
             height={640}
-            aria-label="Edited video preview"
+            aria-label={t("preview.canvas")}
             className={`block h-full w-full touch-none ${tab === "framing" || tab === "captions" ? "cursor-move" : "cursor-default"}`}
             onPointerDown={(e) => {
               if (tab !== "framing" && tab !== "captions") return;
@@ -346,13 +352,13 @@ export function Preview({
           {guides && (
             <div className="pointer-events-none absolute inset-x-[8%] top-[10%] bottom-[20%] rounded-lg border border-dashed border-white/60">
               <span className="absolute -top-5 text-[10px] text-white/70">
-                Keep important content here
+                {t("preview.safeContent")}
               </span>
             </div>
           )}
           {mediaError && (
             <div className="absolute inset-0 flex flex-col justify-center gap-3 bg-stone-950/90 p-5 text-center text-sm text-white">
-              <p>Preview could not load.</p>
+              <p>{t("preview.loadFailed")}</p>
               <Button
                 variant="secondary"
                 size="sm"
@@ -361,7 +367,7 @@ export function Preview({
                   videoRef.current?.load();
                 }}
               >
-                Retry preview
+                {t("preview.retry")}
               </Button>
             </div>
           )}
@@ -380,14 +386,14 @@ export function Preview({
             <TooltipTrigger asChild>
               <Toggle
                 size="sm"
-                aria-label="Loop selected edit"
+                aria-label={t("preview.loop")}
                 pressed={loop}
                 onPressedChange={setLoop}
               >
                 <Repeat />
               </Toggle>
             </TooltipTrigger>
-            <TooltipContent>Loop playback</TooltipContent>
+            <TooltipContent>{t("preview.loopTip")}</TooltipContent>
           </Tooltip>
           <Select
             value={String(rate)}
@@ -395,7 +401,7 @@ export function Preview({
           >
             <SelectTrigger
               size="sm"
-              aria-label="Preview playback speed"
+              aria-label={t("preview.speed")}
               className="h-8 w-[4.5rem] border-transparent shadow-none hover:bg-accent tabular-nums"
             >
               <SelectValue />
@@ -411,7 +417,7 @@ export function Preview({
         </div>
         <div className="flex items-center gap-1">
           <ToolButton
-            label="Previous frame"
+            label={t("preview.previousFrame")}
             shortcut="←"
             onClick={() => step(-1)}
           >
@@ -420,7 +426,7 @@ export function Preview({
           <Button
             size="icon-lg"
             className="rounded-full"
-            aria-label={playing ? "Pause" : "Play"}
+            aria-label={playing ? t("preview.pause") : t("preview.play")}
             onClick={() => void play()}
           >
             {playing ? (
@@ -429,14 +435,14 @@ export function Preview({
               <Play className="ml-0.5 fill-current" />
             )}
           </Button>
-          <ToolButton label="Next frame" shortcut="→" onClick={() => step(1)}>
+          <ToolButton label={t("preview.nextFrame")} shortcut="→" onClick={() => step(1)}>
             <SkipForward />
           </ToolButton>
         </div>
         <div className="flex items-center justify-end gap-2 text-xs tabular-nums">
           {doc.muted && (
             <VolumeX
-              aria-label="Muted"
+              aria-label={t("preview.muted")}
               className="size-3.5 text-muted-foreground"
             />
           )}

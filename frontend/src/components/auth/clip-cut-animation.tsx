@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 /**
@@ -33,6 +34,7 @@ const WAVE = Array.from({ length: 54 }, (_, i) => {
 }).join("");
 
 export function ClipCutAnimation() {
+  const t = useTranslations("auth");
   const reduceMotion = useReducedMotion();
   const [cycle, setCycle] = useState(0);
   const [phase, setPhase] = useState<Phase>("scan");
@@ -54,7 +56,7 @@ export function ClipCutAnimation() {
 
   const shown: Phase = reduceMotion ? "clips" : phase;
   const at = (name: Phase) => PHASES[shown] >= PHASES[name];
-  const label = at("clips") ? "3 clips · captioned · ready to post" : "podcast-episode-42.mp4 · 1:24:10";
+  const label = at("clips") ? t("animation.ready") : t("animation.source");
 
   return (
     <motion.svg

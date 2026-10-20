@@ -1,0 +1,91 @@
+{
+  "status": {
+    "completed": "Concluído",
+    "processing": "Processando",
+    "queued": "Na fila",
+    "failed": "Falhou",
+    "cancelled": "Cancelado"
+  },
+  "loading": "Carregando",
+  "loadingEllipsis": "Carregando…",
+  "somethingWrong": "Algo deu errado",
+  "tryAgain": "Tentar de novo",
+  "youtube": {
+    "aria": "Status das importações do YouTube",
+    "title": "Importações do YouTube · {label}",
+    "degraded": "Instável",
+    "outage": "Indisponível",
+    "maintenance": "Manutenção",
+    "viewStatus": "Ver página de status"
+  },
+  "card": {
+    "queued": "Na fila",
+    "finding": "Encontrando os melhores momentos…",
+    "needsAttention": "Precisa de atenção",
+    "youtube": "YouTube",
+    "upload": "Envio",
+    "clips": "{count, plural, one {# clipe} other {# clipes}}",
+    "select": "Selecionar {title}",
+    "deselect": "Desmarcar {title}"
+  },
+  "title": "Biblioteca",
+  "summary": "{count, plural, one {# geração} other {# gerações}} · passe o cursor para pré-visualizar, selecione para gerenciar em lote",
+  "searchPlaceholder": "Buscar por título",
+  "searchLabel": "Buscar gerações",
+  "new": "Nova",
+  "filterLabel": "Filtrar gerações",
+  "filters": {
+    "all": "Todas",
+    "ready": "Prontas",
+    "active": "Em andamento",
+    "attention": "Precisam de atenção"
+  },
+  "sortLabel": "Ordenar gerações",
+  "sort": {
+    "newest": "Mais recentes",
+    "video": "Por vídeo"
+  },
+  "selectAllGenerations": "Selecionar todas as gerações",
+  "selectedOf": "{selected} de {total} selecionadas",
+  "selectAll": "Selecionar tudo",
+  "selected": "selecionadas",
+  "signInTitle": "É preciso entrar",
+  "signInBody": "Você precisa entrar para ver suas gerações.",
+  "signIn": "Entrar",
+  "loadError": "Falha ao carregar as tarefas",
+  "refreshError": "A ação em lote terminou, mas a lista não pôde ser atualizada.",
+  "cancel": {
+    "empty": "Não há gerações ativas na seleção para cancelar.",
+    "fallback": "Falha ao cancelar a geração",
+    "success": "{count, plural, one {# geração cancelada.} other {# gerações canceladas.}}",
+    "partial": "{success} canceladas, {failed} falharam. {error}",
+    "action": "Cancelar",
+    "tooltip": "Cancelar {count, plural, one {# geração ativa} other {# gerações ativas}}"
+  },
+  "resume": {
+    "empty": "Não há gerações com falha ou canceladas na seleção para retomar.",
+    "fallback": "Falha ao retomar a geração",
+    "success": "{count, plural, one {# geração retomada.} other {# gerações retomadas.}}",
+    "partial": "{success} retomadas, {failed} falharam. {error}",
+    "action": "Retomar",
+    "tooltip": "Retomar {count, plural, one {# geração com falha ou cancelada} other {# gerações com falha ou canceladas}}"
+  },
+  "delete": {
+    "empty": "Selecione pelo menos uma geração para excluir.",
+    "fallback": "Falha ao excluir a geração",
+    "success": "{count, plural, one {# geração excluída.} other {# gerações excluídas.}}",
+    "partial": "{success} excluídas, {failed} falharam. {error}",
+    "action": "Excluir",
+    "tooltip": "Excluir {count, plural, one {# geração} other {# gerações}}",
+    "title": "{count, plural, one {Excluir # geração?} other {Excluir # gerações?}}",
+    "description": "{count, plural, one {Isso remove permanentemente esta geração e todos os clipes associados. Não dá para desfazer.} other {Isso remove permanentemente estas gerações e todos os clipes associados. Não dá para desfazer.}}",
+    "pending": "Excluindo..."
+  },
+  "clearSelection": "Limpar seleção",
+  "cancelDialog": "Cancelar",
+  "emptyTitle": "Nenhuma geração ainda",
+  "emptyBody": "Cole um link do YouTube ou envie um vídeo e seus clipes aparecem aqui.",
+  "create": "Criar nova geração",
+  "noQuery": "Nada corresponde a “{query}”.",
+  "noFilter": "Nada corresponde a este filtro."
+}

@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "title": "服务状态",
+    "description": "SupoClip 的当前服务状态和事件更新。"
+  },
+  "title": "服务状态",
+  "intro": "SupoClip 托管服务的最新状态。",
+  "unavailable": "服务状态暂时无法获取。请稍后再查看。",
+  "states": {
+    "operational": "正常",
+    "degraded": "性能下降",
+    "outage": "中断",
+    "maintenance": "维护",
+    "unknown": "未知"
+  },
+  "lastUpdated": "最近更新：",
+  "timezone": "（苏黎世）",
+  "back": "返回 SupoClip"
+}

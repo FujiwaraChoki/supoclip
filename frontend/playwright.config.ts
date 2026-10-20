@@ -23,6 +23,7 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   globalSetup: "./e2e/global-setup.ts",
   use: {
+    locale: "en-US",
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? frontendBaseUrl,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",

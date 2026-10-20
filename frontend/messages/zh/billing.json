@@ -1,0 +1,94 @@
+{
+  "plans": {
+    "pro": {
+      "description": "适合每个月都稳定剪片的创作者。",
+      "cta": "升级到 Pro"
+    },
+    "scale": {
+      "description": "适合团队和大量发布的工作流。",
+      "cta": "升级到 Scale"
+    }
+  },
+  "highlights": {
+    "videos": "每月剪辑 {count} 个视频",
+    "youtube": "YouTube 视频最长 {length}",
+    "fonts": "自定义字体、B-roll 和字幕模板",
+    "priority": "优先处理"
+  },
+  "runtime": {
+    "minutes": "{count} 分钟",
+    "hours": "{count} 小时",
+    "hoursMinutes": "{hours} 小时 {minutes} 分钟"
+  },
+  "perMonth": "/月",
+  "videosEach": "每月 {count} 个视频 · 每个最长 {length}",
+  "mostPopular": "最受欢迎",
+  "currentPlan": "当前方案",
+  "plansLabel": "方案",
+  "continueWith": "继续使用 {name}",
+  "openingCheckout": "正在打开安全结账…",
+  "checkoutError": "无法打开结账。请重试。",
+  "maybeLater": "以后再说",
+  "prorated": "你会在 Stripe 确认变更，并只支付按比例计算的差价。",
+  "cancelAnytime": "可随时取消 · 通过 Stripe 安全结账",
+  "appStore": "你的订阅由 App Store 管理。可以在 SupoClip iOS 应用里更换方案。",
+  "selfHosted": {
+    "title": "自行托管",
+    "body": "在你自己的电脑上运行 SupoClip，没有订阅，也没有每月视频上限。需要自行安装；硬件和你选用的付费 AI 服务由你提供。",
+    "guide": "自行托管指南"
+  },
+  "upgrade": {
+    "start": {
+      "eyebrow": "随时可以开始",
+      "title": "把长视频做成可以直接发布的短片",
+      "body": "选择托管方案，由我们处理；也可以在自己的电脑上免费自托管这个开源应用。"
+    },
+    "limit": {
+      "eyebrow": "这个月用满了",
+      "titleCount": "你已经用完 {plan} 的 {count} 个视频",
+      "titleAll": "你已经用完 {plan} 的全部额度",
+      "bodyRefreshKeep": "额度会在 {date} 恢复。用 {plan} 继续：每月 {count} 个视频。",
+      "bodyPeriodKeep": "额度会在下个计费周期恢复。用 {plan} 继续：每月 {count} 个视频。",
+      "bodyRefresh": "额度会在 {date} 恢复。",
+      "bodyPeriod": "额度会在下个计费周期恢复。"
+    },
+    "long": {
+      "eyebrow": "这条比较长",
+      "title": "{plan} 可以处理这条 {runtime} 的视频",
+      "fallbackPlan": "更大的方案",
+      "body": "{plan} 支持最长 {length} 的 YouTube 视频。{next} 最长 {nextLength}，所以这条可以直接处理。这次尝试没有消耗一次生成。",
+      "bodyNoNext": "{plan} 支持最长 {length} 的 YouTube 视频。  这次尝试没有消耗一次生成。"
+    },
+    "fonts": {
+      "eyebrow": "做成你的风格",
+      "title": "用你品牌自己的字体做字幕",
+      "body": "上传任意 .ttf 或 .otf，用在每一条短片上，让你的 shorts 看起来就是你的。"
+    },
+    "explore": {
+      "eyebrow": "更多创作空间",
+      "title": "用 {plan} 做更多",
+      "titleFallback": "适合每位创作者的方案",
+      "body": "每月更多视频、更长的源视频，以及优先处理。"
+    }
+  },
+  "illustration": {
+    "fitsIn": "适合 {plan}",
+    "yourVideo": "你的视频",
+    "today": "当前",
+    "videosUpFrom": "每月视频数，原先 {count} 个",
+    "videosWith": "每月 {plan} 的视频数",
+    "sample": "所以才这样",
+    "ownFont": "或你自己的 .ttf",
+    "serif": "衬线",
+    "display": "展示",
+    "mono": "等宽"
+  },
+  "creatorCode": {
+    "applied": "创作者代码 <mono>{code}</mono>：前 3 个月立减 20%。",
+    "remove": "移除",
+    "prompt": "有创作者代码？",
+    "placeholder": "创作者代码",
+    "apply": "使用",
+    "invalid": "这个代码无效。"
+  }
+}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 
 interface AdminUserToggleProps {
@@ -11,6 +12,7 @@ interface AdminUserToggleProps {
 }
 
 export function AdminUserToggle({ userId, isAdmin, isCurrentUser }: AdminUserToggleProps) {
+  const t = useTranslations("admin");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -34,12 +36,12 @@ export function AdminUserToggle({ userId, isAdmin, isCurrentUser }: AdminUserTog
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to update user");
+        throw new Error(data.error || t("users.updateFailed"));
       }
 
       router.refresh();
     } catch (toggleError) {
-      setError(toggleError instanceof Error ? toggleError.message : "Failed to update user");
+      setError(toggleError instanceof Error ? toggleError.message : t("users.updateFailed"));
     } finally {
       setIsLoading(false);
     }
@@ -53,7 +55,7 @@ export function AdminUserToggle({ userId, isAdmin, isCurrentUser }: AdminUserTog
         onClick={handleToggle}
         disabled={isLoading || (isCurrentUser && isAdmin)}
       >
-        {isLoading ? "Saving..." : isAdmin ? "Remove Admin" : "Make Admin"}
+        {isLoading ? t("savingDots") : isAdmin ? t("users.removeAdmin") : t("users.makeAdmin")}
       </Button>
       {error && <span className="text-xs text-red-600">{error}</span>}
     </div>

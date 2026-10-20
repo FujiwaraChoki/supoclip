@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MessageSquare, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useSession } from "@/lib/auth-client";
 import { track } from "@/lib/datafast";
@@ -21,15 +22,15 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-const categories = [
-  { value: "bug", label: "Bug Report" },
-  { value: "feature", label: "Feature Request" },
-  { value: "general", label: "General Feedback" },
-  { value: "sales", label: "Sales Inquiry" },
-];
-
 export function FeedbackButton() {
+  const t = useTranslations("shell");
   const { data: session } = useSession();
+  const categories = [
+    { value: "bug", label: t("feedback.bug") },
+    { value: "feature", label: t("feedback.feature") },
+    { value: "general", label: t("feedback.general") },
+    { value: "sales", label: t("feedback.sales") },
+  ];
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState("");
   const [message, setMessage] = useState("");
@@ -50,10 +51,10 @@ export function FeedbackButton() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.detail || "Failed to submit feedback");
+        throw new Error(data?.detail || t("feedback.failed"));
       }
 
-      toast.success("Feedback submitted — thank you!");
+      toast.success(t("feedback.success"));
       track("feedback_submitted", {
         category,
       });
@@ -61,7 +62,7 @@ export function FeedbackButton() {
       setMessage("");
       setOpen(false);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : t("feedback.error"));
     } finally {
       setSubmitting(false);
     }
@@ -72,6 +73,7 @@ export function FeedbackButton() {
       <PopoverTrigger asChild>
         <Button
           size="icon"
+          aria-label={t("feedback.title")}
           className="fixed bottom-5 right-5 z-50 h-11 w-11 rounded-full shadow-lg max-md:[body:has([data-app-shell])_&]:bottom-[calc(5rem+env(safe-area-inset-bottom))]"
         >
           <MessageSquare className="h-5 w-5" />
@@ -84,11 +86,11 @@ export function FeedbackButton() {
         sideOffset={12}
       >
         <div className="space-y-3">
-          <h3 className="font-semibold text-sm">Send Feedback</h3>
+          <h3 className="font-semibold text-sm">{t("feedback.title")}</h3>
 
           <Select value={category} onValueChange={setCategory}>
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Category" />
+              <SelectValue placeholder={t("feedback.category")} />
             </SelectTrigger>
             <SelectContent>
               {categories.map((c) => (
@@ -100,7 +102,7 @@ export function FeedbackButton() {
           </Select>
 
           <Textarea
-            placeholder="Tell us what's on your mind..."
+            placeholder={t("feedback.placeholder")}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={4}
@@ -115,7 +117,7 @@ export function FeedbackButton() {
             {submitting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              "Submit"
+              t("feedback.submit")
             )}
           </Button>
         </div>

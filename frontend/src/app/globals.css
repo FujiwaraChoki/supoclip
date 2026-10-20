@@ -134,6 +134,10 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
+
+  html[lang="zh-Hans"] body {
+    font-family: var(--font-sans), "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  }
 }
 
 

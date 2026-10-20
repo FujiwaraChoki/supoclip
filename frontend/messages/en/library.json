@@ -1,0 +1,91 @@
+{
+  "status": {
+    "completed": "Completed",
+    "processing": "Processing",
+    "queued": "Queued",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "loading": "Loading",
+  "loadingEllipsis": "Loading…",
+  "somethingWrong": "Something went wrong",
+  "tryAgain": "Try again",
+  "youtube": {
+    "aria": "YouTube import status",
+    "title": "YouTube imports · {label}",
+    "degraded": "Degraded",
+    "outage": "Outage",
+    "maintenance": "Maintenance",
+    "viewStatus": "View status page"
+  },
+  "card": {
+    "queued": "Queued",
+    "finding": "Finding the best moments…",
+    "needsAttention": "Needs attention",
+    "youtube": "YouTube",
+    "upload": "Upload",
+    "clips": "{count, plural, one {# clip} other {# clips}}",
+    "select": "Select {title}",
+    "deselect": "Deselect {title}"
+  },
+  "title": "Library",
+  "summary": "{count, plural, one {# generation} other {# generations}} · hover to preview, select to batch-manage",
+  "searchPlaceholder": "Search by title",
+  "searchLabel": "Search generations",
+  "new": "New",
+  "filterLabel": "Filter generations",
+  "filters": {
+    "all": "All",
+    "ready": "Ready",
+    "active": "In progress",
+    "attention": "Needs attention"
+  },
+  "sortLabel": "Sort generations",
+  "sort": {
+    "newest": "Newest",
+    "video": "By video"
+  },
+  "selectAllGenerations": "Select all generations",
+  "selectedOf": "{selected} of {total} selected",
+  "selectAll": "Select all",
+  "selected": "selected",
+  "signInTitle": "Sign In Required",
+  "signInBody": "You need to be signed in to view your generations.",
+  "signIn": "Sign In",
+  "loadError": "Failed to load tasks",
+  "refreshError": "The batch action finished, but the list could not be refreshed.",
+  "cancel": {
+    "empty": "No active generations in selection to cancel.",
+    "fallback": "Failed to cancel generation",
+    "success": "{count, plural, one {# generation cancelled.} other {# generations cancelled.}}",
+    "partial": "{success} cancelled, {failed} failed. {error}",
+    "action": "Cancel",
+    "tooltip": "Cancel {count, plural, one {# active generation} other {# active generations}}"
+  },
+  "resume": {
+    "empty": "No failed or cancelled generations in selection to resume.",
+    "fallback": "Failed to resume generation",
+    "success": "{count, plural, one {# generation resumed.} other {# generations resumed.}}",
+    "partial": "{success} resumed, {failed} failed. {error}",
+    "action": "Resume",
+    "tooltip": "Resume {count, plural, one {# failed/cancelled generation} other {# failed/cancelled generations}}"
+  },
+  "delete": {
+    "empty": "Select at least one generation to delete.",
+    "fallback": "Failed to delete generation",
+    "success": "{count, plural, one {# generation deleted.} other {# generations deleted.}}",
+    "partial": "{success} deleted, {failed} failed. {error}",
+    "action": "Delete",
+    "tooltip": "Delete {count, plural, one {# generation} other {# generations}}",
+    "title": "{count, plural, one {Delete # generation?} other {Delete # generations?}}",
+    "description": "{count, plural, one {This will permanently remove this generation and all associated clips. This cannot be undone.} other {This will permanently remove these generations and all associated clips. This cannot be undone.}}",
+    "pending": "Deleting..."
+  },
+  "clearSelection": "Clear selection",
+  "cancelDialog": "Cancel",
+  "emptyTitle": "No generations yet",
+  "emptyBody": "Paste a YouTube link or upload a video and your clips will land here.",
+  "create": "Create New Generation",
+  "noQuery": "Nothing matches “{query}”.",
+  "noFilter": "Nothing matches this filter."
+}

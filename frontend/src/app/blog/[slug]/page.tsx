@@ -8,6 +8,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getLocale, getTranslations } from "next-intl/server";
 import {
   ArrowRight,
   Captions,
@@ -24,7 +25,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { HOSTED_APP_URL, blogPosts, getBlogPost, getBlogPostMetadata, getSiteUrl } from "@/lib/blog-posts";
+import { intlLocale } from "@/i18n/config";
+import { applyBlogCopy, HOSTED_APP_URL, blogPosts, getBlogPost, getBlogPostMetadata, getSiteUrl } from "@/lib/blog-posts";
 import { OPUSCLIP_COMPARISON_HREF, SELF_HOSTING_GUIDE_HREF } from "@/lib/marketing-links";
 
 interface BlogPostPageProps {
@@ -33,53 +35,10 @@ interface BlogPostPageProps {
   }>;
 }
 
-const comparisonRows = [
-  {
-    icon: ShieldCheck,
-    feature: "Free usage model",
-    supoclip: "Open source and self-hostable with no plan limits. Your costs are your own compute and API keys. The hosted app is paid.",
-    opusClip: "Free plan exists, but exports can include an OpusClip watermark.",
-  },
-  {
-    icon: Sparkles,
-    feature: "Clip discovery",
-    supoclip: "Transcribes long videos, scores segments, and surfaces promising short-form moments.",
-    opusClip: "AI clipping workflow built for finding social-ready clips from long videos.",
-  },
-  {
-    icon: ScanFace,
-    feature: "Vertical formatting",
-    supoclip: "Face-centered 9:16 cropping, subtitles, and platform-ready exports.",
-    opusClip: "Offers short-form exports and AI reframing for social platforms.",
-  },
-  {
-    icon: Github,
-    feature: "Control",
-    supoclip: "Full source access, editable deployment, and no vendor lock-in.",
-    opusClip: "Hosted product with managed workflows and subscription tiers.",
-  },
-];
-
-const faqs = [
-  {
-    icon: Sparkles,
-    question: "What is the best free OpusClip alternative?",
-    answer:
-      "SupoClip is a strong free OpusClip alternative if you want an open-source AI clip maker that you can self-host, customize, and run with your own video workflow.",
-  },
-  {
-    icon: ShieldCheck,
-    question: "Is SupoClip completely free?",
-    answer:
-      "The SupoClip codebase is free and open source, and self-hosted installs have no plan limits. You still pay for your own infrastructure and any transcription or LLM provider you configure. The hosted app requires a paid plan.",
-  },
-  {
-    icon: Captions,
-    question: "Does SupoClip add a watermark?",
-    answer:
-      "No. SupoClip's rendering pipeline has no watermark step, whether you use the hosted app or a self-hosted install.",
-  },
-];
+const comparisonIcons = [ShieldCheck, Sparkles, ScanFace, Github];
+const faqIcons = [Sparkles, ShieldCheck, Captions];
+const audienceIcons = [Play, ShieldCheck, Github];
+const statIcons = [ShieldCheck, Wand2, Github];
 
 const articleBodyClassName =
   "space-y-6 text-base leading-8 text-foreground [&_a]:font-medium [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-4 [&_h2]:mt-12 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:tracking-tight [&_h2]:text-foreground [&_h2]:first:mt-0 [&_li]:mt-2 [&_ol]:ml-5 [&_ol]:list-decimal [&_p]:text-muted-foreground";
@@ -96,16 +55,21 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
     return {};
   }
 
-  return getBlogPostMetadata(post);
+  const t = await getTranslations("blog");
+  return getBlogPostMetadata(applyBlogCopy(post, (key) => t(key)));
 }
 
 export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const { slug } = await params;
-  const post = getBlogPost(slug);
+  const basePost = getBlogPost(slug);
 
-  if (!post) {
+  if (!basePost) {
     notFound();
   }
+
+  const t = await getTranslations("blog");
+  const locale = await getLocale();
+  const post = applyBlogCopy(basePost, (key) => t(key));
 
   if (slug === "supoclip-vs-supo-live") {
     return <SupoLiveArticle post={post} />;
@@ -117,8 +81,13 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
     return <SelfHostingGuideArticle post={post} />;
   }
 
+  const key = "best-free-opusclip-alternative";
   const siteUrl = getSiteUrl();
   const articleUrl = `${siteUrl}/blog/${post.slug}`;
+  const faqs = [0, 1, 2].map((index) => ({
+    question: t(`${key}.faqs.${index}.question`),
+    answer: t(`${key}.faqs.${index}.answer`),
+  }));
   const articleJsonLd = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
@@ -138,6 +107,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         url: `${siteUrl}/logo.png`,
       },
     },
+    inLanguage: intlLocale(locale),
     mainEntityOfPage: articleUrl,
   };
   const faqJsonLd = {
@@ -178,17 +148,17 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           <div className="flex items-center gap-2">
             <Link href="/blog">
               <Button variant="ghost" size="sm">
-                Blog
+                {t("shell.blog")}
               </Button>
             </Link>
             <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
               <Button variant="ghost" size="sm" className="hidden sm:inline-flex">
-                Hosted App
+                {t("index.hostedApp")}
                 <ExternalLink className="h-3.5 w-3.5" />
               </Button>
             </a>
             <Link href="/sign-up">
-              <Button size="sm">Start Clipping</Button>
+              <Button size="sm">{t("index.startClipping")}</Button>
             </Link>
           </div>
         </div>
@@ -206,7 +176,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
                   <Badge variant="outline" className="gap-2">
                     <Play className="h-3.5 w-3.5" />
-                    Try hosted SupoClip
+                    {t("index.tryHosted")}
                   </Badge>
                 </a>
               </div>
@@ -217,13 +187,16 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 {post.title}
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
-                If you like the idea of OpusClip but want a free, open-source path, SupoClip gives
-                you the core workflow: find strong moments in long videos, reframe them vertically,
-                add captions, and export clips for Shorts, Reels, and TikTok.
+                {t(`${key}.lead`)}
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                 <span>{post.author}</span>
-                <span>Updated <time dateTime={post.updatedAt}>{formatArticleDate(post.updatedAt)}</time></span>
+                <span>
+                  {t.rich("shell.updated", {
+                    when: formatArticleDate(post.updatedAt, locale),
+                    date: (chunks) => <time dateTime={post.updatedAt}>{chunks}</time>,
+                  })}
+                </span>
                 <span className="flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5" />
                   {post.readingTime}
@@ -233,22 +206,18 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
             <aside className="rounded-lg border bg-background p-5 md:self-end">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Best for
+                {t(`${key}.bestFor`)}
               </p>
               <ul className="mt-5 space-y-3 text-sm">
-                {[
-                  { icon: Play, label: "Creators clipping YouTube videos into shorts" },
-                  { icon: ShieldCheck, label: "Teams that prefer self-hosting" },
-                  { icon: Github, label: "Developers who want source-level control" },
-                ].map(({ icon: Icon, label }) => (
-                  <li key={label} className="flex gap-3">
+                {audienceIcons.map((Icon, index) => (
+                  <li key={index} className="flex gap-3">
                     <Icon className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
-                    <span>{label}</span>
+                    <span>{t(`${key}.audience.${index}`)}</span>
                   </li>
                 ))}
               </ul>
               <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer" className="mt-5 inline-flex text-sm font-semibold">
-                Open hosted version
+                {t(`${key}.openHosted`)}
                 <ExternalLink className="ml-2 h-4 w-4" />
               </a>
             </aside>
@@ -258,126 +227,81 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         <section className="mx-auto grid max-w-6xl gap-12 px-6 py-12 lg:grid-cols-[minmax(0,1fr)_280px] lg:py-16">
           <div className="min-w-0">
             <div className={articleBodyClassName}>
+              <p>{t(`${key}.p1`)}</p>
               <p>
-                OpusClip helped define the modern AI clipping category: upload a long video, let AI
-                identify moments, and publish short clips faster. That workflow is useful. The
-                friction starts when you want a free route, more control, or a pipeline you can run
-                yourself.
+                {t.rich(`${key}.p2`, {
+                  hosted: (chunks) => (
+                    <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">{chunks}</a>
+                  ),
+                })}
               </p>
 
-              <p>
-                SupoClip is the best free OpusClip alternative for that specific creator: someone
-                who wants AI-assisted clip discovery, vertical exports, captions, and control over
-                the underlying system. You can also
-                {" "}
-                <a href={HOSTED_APP_URL} target="_blank" rel="noopener noreferrer">
-                  use hosted SupoClip
-                </a>
-                {" "}
-                on a paid plan if you want to skip setup entirely.
-              </p>
-
-              <h2 id="quick-verdict">Quick Verdict</h2>
-              <p>
-                Choose SupoClip if you want an open-source AI video clipper you can self-host.
-                Choose OpusClip if you want a managed hosted product and are comfortable with its
-                plan limits, watermark rules, and credit model.
-              </p>
+              <h2 id="quick-verdict">{t(`${key}.verdict.heading`)}</h2>
+              <p>{t(`${key}.verdict.body`)}</p>
 
               <div className="not-prose my-8 grid gap-4 sm:grid-cols-3">
-                {[
-                  { icon: ShieldCheck, label: "Cost", value: "Free source code" },
-                  { icon: Wand2, label: "Workflow", value: "Long video to shorts" },
-                  { icon: Github, label: "Control", value: "Self-hostable" },
-                ].map(({ icon: Icon, ...stat }) => (
-                  <div key={stat.label} className="rounded-lg border bg-muted/35 p-4">
+                {statIcons.map((Icon, index) => (
+                  <div key={index} className="rounded-lg border bg-muted/35 p-4">
                     <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                       <Icon className="h-4 w-4" />
-                      {stat.label}
+                      {t(`${key}.stats.${index}.label`)}
                     </p>
-                    <p className="mt-2 text-lg font-semibold">{stat.value}</p>
+                    <p className="mt-2 text-lg font-semibold">{t(`${key}.stats.${index}.value`)}</p>
                   </div>
                 ))}
               </div>
 
-              <h2>Why Creators Look for an OpusClip Alternative</h2>
+              <h2>{t(`${key}.why.heading`)}</h2>
+              <p>{t(`${key}.why.p1`)}</p>
+              <p>{t(`${key}.why.p2`)}</p>
+
+              <h2>{t(`${key}.different.heading`)}</h2>
+              <p>{t(`${key}.different.p1`)}</p>
               <p>
-                The usual reasons are simple: creators want lower costs, cleaner exports on a free
-                workflow, more control over processing, and fewer limits when they batch through old
-                YouTube videos, podcasts, webinars, or livestreams.
+                {t.rich(`${key}.different.p2`, {
+                  guide: (chunks) => <Link href={SELF_HOSTING_GUIDE_HREF}>{chunks}</Link>,
+                })}
               </p>
 
+              <h2 id="supoclip-vs-opusclip">{t(`${key}.compare.heading`)}</h2>
               <p>
-                OpusClip&apos;s own help center says free-plan exports can show an OpusClip
-                watermark, and its plans use credits for processing minutes. For casual testing,
-                that can be fine. For repeat clipping, it can push creators toward a paid hosted
-                workflow.
-              </p>
-
-              <h2>What Makes SupoClip Different</h2>
-              <p>
-                SupoClip is not just a thin wrapper around a hosted editor. It is a complete
-                open-source clipping app with a FastAPI backend, a Next.js frontend, background
-                workers, transcription, AI scoring, face-aware vertical reframing, caption styling,
-                and export presets.
-              </p>
-
-              <p>
-                That makes the tradeoff clear. You take on setup, but you gain ownership. You can
-                inspect the code, adapt it to your workflow, and decide which hosted AI providers
-                or local models to use. The <Link href={SELF_HOSTING_GUIDE_HREF}>self-hosting guide</Link>{" "}
-                walks through the setup, including a fully local Whisper + Ollama option.
-              </p>
-
-              <h2 id="supoclip-vs-opusclip">SupoClip vs OpusClip</h2>
-              <p>
-                The summary below covers the essentials. For a row-by-row comparison with a source
-                for every claim, read <Link href={OPUSCLIP_COMPARISON_HREF}>SupoClip vs OpusClip: a sourced comparison</Link>.
+                {t.rich(`${key}.compare.body`, {
+                  comparison: (chunks) => <Link href={OPUSCLIP_COMPARISON_HREF}>{chunks}</Link>,
+                })}
               </p>
             </div>
 
             <div className="my-8 overflow-hidden rounded-lg border">
               <div className="grid grid-cols-[0.85fr_1fr_1fr] bg-muted/50 text-sm font-semibold">
-                <div className="p-4">Feature</div>
+                <div className="p-4">{t(`${key}.table.feature`)}</div>
                 <div className="border-l p-4">SupoClip</div>
                 <div className="border-l p-4">OpusClip</div>
               </div>
-              {comparisonRows.map(({ icon: Icon, ...row }) => (
-                <div key={row.feature} className="grid grid-cols-[0.85fr_1fr_1fr] border-t text-sm">
+              {comparisonIcons.map((Icon, index) => (
+                <div key={index} className="grid grid-cols-[0.85fr_1fr_1fr] border-t text-sm">
                   <div className="flex items-start gap-2 p-4 font-medium">
                     <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                    {row.feature}
+                    {t(`${key}.table.rows.${index}.feature`)}
                   </div>
-                  <div className="border-l p-4 leading-6 text-muted-foreground">{row.supoclip}</div>
-                  <div className="border-l p-4 leading-6 text-muted-foreground">{row.opusClip}</div>
+                  <div className="border-l p-4 leading-6 text-muted-foreground">{t(`${key}.table.rows.${index}.supoclip`)}</div>
+                  <div className="border-l p-4 leading-6 text-muted-foreground">{t(`${key}.table.rows.${index}.opusclip`)}</div>
                 </div>
               ))}
             </div>
 
             <div className={articleBodyClassName}>
-              <h2>How SupoClip Works</h2>
+              <h2>{t(`${key}.how.heading`)}</h2>
               <ol>
-                <li>Paste a YouTube URL or upload a video.</li>
-                <li>SupoClip transcribes the source and finds candidate moments.</li>
-                <li>AI scores clips for hook strength, engagement, value, and shareability.</li>
-                <li>The editor creates vertical, captioned clips with face-aware framing.</li>
-                <li>You export shorts for YouTube Shorts, TikTok, Instagram Reels, or other feeds.</li>
+                {([0, 1, 2, 3, 4] as const).map((index) => (
+                  <li key={index}>{t(`${key}.how.steps.${index}`)}</li>
+                ))}
               </ol>
 
-              <h2>When SupoClip Is the Better Choice</h2>
-              <p>
-                SupoClip is best when you want a free OpusClip alternative with developer control.
-                It is especially useful for creators with a backlog of long videos, agencies that
-                want to customize clipping workflows, or technical teams that want AI video
-                clipping inside their own stack.
-              </p>
+              <h2>{t(`${key}.better.heading`)}</h2>
+              <p>{t(`${key}.better.body`)}</p>
 
-              <h2>When OpusClip May Still Be Better</h2>
-              <p>
-                OpusClip may still be the better fit if you want the convenience of a polished
-                hosted service and do not want to think about deployment, infrastructure, model
-                keys, queues, or maintenance.
-              </p>
+              <h2>{t(`${key}.opus.heading`)}</h2>
+              <p>{t(`${key}.opus.body`)}</p>
             </div>
 
             <section className="my-10 rounded-lg border bg-foreground p-6 text-background md:p-8">
@@ -385,23 +309,22 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
                 <div>
                   <p className="flex items-center gap-2 text-sm font-medium text-background/70">
                     <ListChecks className="h-4 w-4" />
-                    Free if you self-host, paid plans if you don&apos;t
-
+                    {t(`${key}.cta.kicker`)}
                   </p>
                   <h2
                     className="mt-2 text-2xl font-bold tracking-tight"
                     style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), system-ui" }}
                   >
-                    Start clipping with SupoClip.
+                    {t(`${key}.cta.title`)}
                   </h2>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <Link href={SELF_HOSTING_GUIDE_HREF}>
-                    <Button variant="secondary">Self-hosting guide</Button>
+                    <Button variant="secondary">{t(`${key}.cta.selfHost`)}</Button>
                   </Link>
                   <Link href="/sign-up">
                     <Button variant="secondary">
-                      Open app
+                      {t(`${key}.cta.openApp`)}
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   </Link>
@@ -416,42 +339,45 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             </section>
 
             <div className={articleBodyClassName}>
-              <h2 id="faq">FAQ</h2>
+              <h2 id="faq">{t("shell.faq")}</h2>
             </div>
 
             <div className="mt-6 space-y-4">
-              {faqs.map(({ icon: Icon, ...faq }) => (
-                <section key={faq.question} className="rounded-lg border p-5">
-                  <h3 className="flex items-center gap-2 font-semibold">
-                    <Icon className="h-4 w-4 text-muted-foreground" />
-                    {faq.question}
-                  </h3>
-                  <p className="mt-2 text-sm leading-7 text-muted-foreground">{faq.answer}</p>
-                </section>
-              ))}
+              {faqs.map((faq, index) => {
+                const Icon = faqIcons[index];
+                return (
+                  <section key={faq.question} className="rounded-lg border p-5">
+                    <h3 className="flex items-center gap-2 font-semibold">
+                      <Icon className="h-4 w-4 text-muted-foreground" />
+                      {faq.question}
+                    </h3>
+                    <p className="mt-2 text-sm leading-7 text-muted-foreground">{faq.answer}</p>
+                  </section>
+                );
+              })}
             </div>
 
             <Separator className="my-10" />
 
-            <RelatedGuides href={`/blog/${post.slug}`} heading="Related SupoClip guides" />
+            <RelatedGuides href={`/blog/${post.slug}`} heading={t(`${key}.relatedHeading`)} />
 
             <Separator className="my-10" />
 
             <section className="text-sm leading-7 text-muted-foreground">
-              <h2 className="text-base font-semibold text-foreground">Sources</h2>
+              <h2 className="text-base font-semibold text-foreground">{t(`${key}.sources.heading`)}</h2>
               <p className="mt-2">
-                OpusClip plan and watermark notes are based on the official OpusClip help center:
-                {" "}
-                <a href="https://help.opus.pro/docs/article/plans-and-credits" className="font-medium text-foreground underline underline-offset-4">
-                  plans and credits
-                </a>
-                {" "}
-                and
-                {" "}
-                <a href="https://help.opus.pro/docs/article/watermark" className="font-medium text-foreground underline underline-offset-4">
-                  watermark guidance
-                </a>
-                .
+                {t.rich(`${key}.sources.body`, {
+                  plans: (chunks) => (
+                    <a href="https://help.opus.pro/docs/article/plans-and-credits" className="font-medium text-foreground underline underline-offset-4">
+                      {chunks}
+                    </a>
+                  ),
+                  watermark: (chunks) => (
+                    <a href="https://help.opus.pro/docs/article/watermark" className="font-medium text-foreground underline underline-offset-4">
+                      {chunks}
+                    </a>
+                  ),
+                })}
               </p>
             </section>
           </div>
@@ -460,27 +386,24 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             <div className="sticky top-8 space-y-4">
               <div className="rounded-lg border p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Article
+                  {t(`${key}.toc.label`)}
                 </p>
                 <div className="mt-4 space-y-3 text-sm">
                   <a href="#quick-verdict" className="block text-muted-foreground hover:text-foreground">
-                    Quick verdict
+                    {t(`${key}.toc.verdict`)}
                   </a>
                   <a href="#supoclip-vs-opusclip" className="block text-muted-foreground hover:text-foreground">
-                    Comparison
+                    {t(`${key}.toc.comparison`)}
                   </a>
                   <a href="#faq" className="block text-muted-foreground hover:text-foreground">
-                    FAQ
+                    {t(`${key}.toc.faq`)}
                   </a>
                 </div>
               </div>
               <div className="rounded-lg border bg-muted/35 p-5">
                 <ShieldCheck className="h-5 w-5 text-green-600" />
-                <p className="mt-3 text-sm font-semibold">Open-source control</p>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Use SupoClip when you want the clipping workflow without handing every decision
-                  to a hosted platform.
-                </p>
+                <p className="mt-3 text-sm font-semibold">{t(`${key}.aside.title`)}</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{t(`${key}.aside.body`)}</p>
               </div>
             </div>
           </aside>

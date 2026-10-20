@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
 
 import { SocialProviderIcon } from "@/components/social-provider-icon";
+import { intlLocale } from "@/i18n/config";
 import { PROVIDER_LABELS, formatMetric, type SocialProviderId } from "@/lib/social";
 
 export interface DailyViews {
@@ -13,7 +15,6 @@ export interface DailyViews {
 
 const HEIGHT = 200;
 const PAD = { top: 12, right: 8, bottom: 24, left: 40 };
-const dayLabel = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 
 function parseDay(value: string) {
   const [year, month, day] = value.split("-").map(Number);
@@ -30,6 +31,12 @@ function niceCeil(value: number) {
 
 /** Daily new views as a single monochrome area; the platform split lives in the tooltip. */
 export function ViewsChart({ days }: { days: DailyViews[] }) {
+  const t = useTranslations("analytics");
+  const locale = useLocale();
+  const dayLabel = useMemo(
+    () => new Intl.DateTimeFormat(intlLocale(locale), { month: "short", day: "numeric" }),
+    [locale],
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [hovered, setHovered] = useState<number | null>(null);
@@ -79,7 +86,7 @@ export function ViewsChart({ days }: { days: DailyViews[] }) {
           width={width}
           height={HEIGHT}
           role="img"
-          aria-label={`Daily new views over ${days.length} days, ${formatMetric(total)} in total`}
+          aria-label={t("chart.summary", { days: days.length, total: formatMetric(total) })}
         >
           {[0, yMax / 2, yMax].map((tick) => {
             const y = PAD.top + plotHeight - (tick / yMax) * plotHeight;
@@ -132,7 +139,7 @@ export function ViewsChart({ days }: { days: DailyViews[] }) {
         >
           <p className="text-muted-foreground">{dayLabel.format(parseDay(active.date))}</p>
           <p className="text-sm font-semibold tabular-nums">
-            {formatMetric(active.views)} {active.views === 1 ? "view" : "views"}
+            {t("chart.viewCount", { count: active.views, formatted: formatMetric(active.views) })}
           </p>
           {Object.entries(active.by_provider).length > 1 &&
             Object.entries(active.by_provider).map(([provider, views]) => (
@@ -146,11 +153,11 @@ export function ViewsChart({ days }: { days: DailyViews[] }) {
       )}
 
       <table className="sr-only">
-        <caption>Daily new views</caption>
+        <caption>{t("chart.caption")}</caption>
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Views</th>
+            <th>{t("chart.date")}</th>
+            <th>{t("chart.views")}</th>
           </tr>
         </thead>
         <tbody>

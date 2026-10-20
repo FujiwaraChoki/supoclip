@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "title": "Estado del servicio",
+    "description": "Estado actual del servicio y actualizaciones de incidentes de SupoClip."
+  },
+  "title": "Estado del servicio",
+  "intro": "Actualizaciones del servicio alojado de SupoClip.",
+  "unavailable": "El estado del servicio no está disponible por el momento. Vuelve a intentarlo más tarde.",
+  "states": {
+    "operational": "Operativo",
+    "degraded": "Degradado",
+    "outage": "Interrupción",
+    "maintenance": "Mantenimiento",
+    "unknown": "Desconocido"
+  },
+  "lastUpdated": "Última actualización:",
+  "timezone": "(Zúrich)",
+  "back": "Volver a SupoClip"
+}

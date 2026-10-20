@@ -1,0 +1,276 @@
+{
+  "chrome": {
+    "primaryNav": "Navegação principal",
+    "blog": "Blog",
+    "selfHost": "Auto-hospedar",
+    "startClipping": "Comece a cortar",
+    "breadcrumbNav": "Trilha",
+    "team": "Equipe do SupoClip",
+    "updated": "Atualizado em <date>{when}</date>",
+    "trySupoclip": "Experimente o SupoClip",
+    "viewSource": "Ver o código",
+    "capabilityOverview": "Visão das capacidades",
+    "verified": "Dados de produto em primeira mão, do repositório do SupoClip e do aplicativo hospedado, verificados em {date}.",
+    "faqHeading": "Perguntas frequentes",
+    "sourcesTitle": "Fontes e política de revisão",
+    "sourcesBody": "As capacidades do produto são mantidas pela equipe do SupoClip e conferidas com o repositório público. Veja o <source>código-fonte</source> para detalhes de implementação. Esta página é atualizada quando o fluxo de trabalho ou a configuração suportada muda."
+  },
+  "demo": {
+    "metaTitle": "Demo do SupoClip: clipes reais de IA a partir de um vídeo longo",
+    "metaDescription": "Veja clipes verticais com legendas que o SupoClip gerou a partir de um episódio longo de podcast, com os timestamps originais, os títulos de gancho e uma explicação de cada etapa do processo.",
+    "badge": "Demo",
+    "heading": "Entra um episódio longo de podcast e saem clipes verticais prontos para publicar",
+    "intro": "O SupoClip gerou estes clipes a partir de um vídeo longo público. Assista e depois vá ao momento exato do original para ver o que a IA escolheu e como reenquadrou.",
+    "sourceLabel": "Vídeo original no YouTube",
+    "clipsHeading": "Os clipes",
+    "seconds": "{count} s",
+    "videoDescription": "Clipe vertical gerado pelo SupoClip a partir de \"{title}\" ({range}). Prévia na web de um clipe de {duration}.",
+    "clipAria": "Clipe do SupoClip: {hook}",
+    "clipMeta": "Original {range} · clipe completo {duration}",
+    "watchOriginal": "Ver este momento no original",
+    "previewNote": "<strong>Sobre estas prévias.</strong> Para esta página ficar rápida, os arquivos acima estão encurtados ({lengths}) e reduzidos para 540×960. O SupoClip renderiza os clipes completos em 1080×1920. Não mostramos notas de viralidade nem números de velocidade aqui porque uma demo só não sustenta essas afirmações. O melhor teste é uma gravação sua.",
+    "pipelineHeading": "O que o SupoClip fez",
+    "pipeline": {
+      "0": {
+        "title": "Transcrever",
+        "detail": "O áudio original é transcrito com timestamps por palavra."
+      },
+      "1": {
+        "title": "Escolher momentos",
+        "detail": "Um LLM lê a transcrição em janelas sobrepostas, propõe trechos que se sustentam sozinhos e depois os classifica entre si por gancho, engajamento, valor e potencial de compartilhamento."
+      },
+      "2": {
+        "title": "Escrever um gancho",
+        "detail": "Cada clipe recebe um título de gancho curto, gravado no topo do quadro nos primeiros segundos."
+      },
+      "3": {
+        "title": "Reenquadrar para 9:16",
+        "detail": "Cada tomada é classificada. Tomadas de fala recebem um corte que acompanha o rosto de quem fala. Gráficos, slides e telas, como o gráfico de ouvintes mais adiante no primeiro clipe, mostram o quadro inteiro sobre um fundo desfocado. As trocas acompanham os cortes de cena do original."
+      }
+    },
+    "pipelineNote": "As legendas são sincronizadas palavra por palavra, e a palavra ativa fica destacada. O mesmo processo roda no app hospedado e em uma <selfHost>instalação auto-hospedada</selfHost>; o <guide>guia do cortador de vídeo com IA</guide> cobre cada etapa.",
+    "ctaTitle": "Rode com o seu próprio vídeo",
+    "ctaBody": "Cole um link do YouTube ou envie um arquivo. Revise os clipes sugeridos, ajuste as legendas e exporte para Shorts, Reels ou TikTok.",
+    "startClipping": "Comece a cortar",
+    "selfHostGithub": "Auto-hospedar pelo GitHub"
+  },
+  "ai-video-clipper": {
+    "metaTitle": "Cortador de vídeo com IA para Shorts, Reels e TikTok",
+    "metaDescription": "Use o SupoClip para achar destaques em vídeos longos, pontuar momentos promissores, criar cortes verticais que seguem o rosto, adicionar legendas e exportar clipes prontos para as redes.",
+    "eyebrow": "Corte de vídeo com IA",
+    "heading": "Cortador de vídeo com IA para transformar vídeos longos em shorts melhores",
+    "summary": "O SupoClip reúne transcrição, detecção de destaques com IA, nota de viralidade, reenquadramento que segue o rosto, legendas sincronizadas por palavra e predefinições de exportação em um único fluxo de código aberto.",
+    "tableCaption": "Matriz de capacidades de corte com IA do SupoClip",
+    "tableHeaders": {
+      "0": "Etapa do fluxo",
+      "1": "Abordagem manual",
+      "2": "Abordagem do SupoClip"
+    },
+    "tableRows": {
+      "0": {
+        "0": "Encontrar momentos",
+        "1": "Rever a gravação inteira",
+        "2": "Transcrever e pontuar trechos candidatos"
+      },
+      "1": {
+        "0": "Reenquadrar",
+        "1": "Cortar cada tomada à mão",
+        "2": "Acompanhar rostos para um enquadramento vertical 9:16"
+      },
+      "2": {
+        "0": "Legendar",
+        "1": "Sincronizar legendas à mão",
+        "2": "Gerar legendas animadas sincronizadas por palavra"
+      },
+      "3": {
+        "0": "Exportar",
+        "1": "Configurar cada plataforma separadamente",
+        "2": "Usar predefinições para Shorts, Reels e TikTok"
+      }
+    },
+    "sections": {
+      "0": {
+        "heading": "O que um cortador de vídeo com IA deve automatizar",
+        "p1": "O que toma tempo na produção de formato curto não é um único corte. É repetir a mesma revisão, o reenquadramento, as legendas e a exportação em cada vídeo de origem. Um cortador de IA útil reduz essa repetição e deixa quem cria no controle do corte final.",
+        "p2": "O SupoClip parte da transcrição original, identifica trechos candidatos e dá nota a qualidades como força do gancho, engajamento, valor e potencial de compartilhamento. A nota ajuda na revisão; não promete que um clipe vai viralizar.",
+        "bullet1": "URLs do YouTube e arquivos de vídeo enviados",
+        "bullet2": "Seleção de candidatos com IA",
+        "bullet3": "Cortes verticais centrados no rosto",
+        "bullet4": "Estilos de legenda editáveis e formatos de exportação"
+      },
+      "1": {
+        "heading": "Como funciona o fluxo do SupoClip",
+        "p1": "Cole uma URL do YouTube ou envie um arquivo de origem. O SupoClip transcreve a gravação, propõe os limites de cada clipe e apresenta os candidatos mais fortes para revisão. Os momentos escolhidos podem ser renderizados como vídeos verticais com legendas para plataformas de formato curto.",
+        "p2": "Como o SupoClip é de código aberto, as equipes podem inspecionar o processo, escolher modelos de linguagem hospedados ou locais compatíveis e adaptar o processamento à própria infraestrutura. Também há uma versão hospedada para quem não quer cuidar da implantação.",
+        "link1": "Passo a passo: transforme um vídeo do YouTube em Shorts",
+        "link2": "Rode o processo você mesmo com Docker"
+      },
+      "2": {
+        "heading": "Para quem isto foi feito",
+        "p1": "O fluxo serve a podcasts, educadores, fundadores, agências e equipes de vídeo que já produzem gravações longas e precisam de um jeito repetível de publicar mais clipes curtos.",
+        "p2": "É especialmente útil quando a propriedade importa: quem auto-hospeda mantém o controle do aplicativo e pode modificar o código em vez de depender só de uma plataforma de edição fechada.",
+        "link1": "Como o SupoClip se compara com o OpusClip",
+        "link2": "Por que equipes escolhem um cortador de código aberto"
+      }
+    },
+    "faqs": {
+      "0": {
+        "question": "O que é um cortador de vídeo com IA?",
+        "answer": "Um cortador de vídeo com IA analisa uma gravação mais longa e ajuda a encontrar trechos curtos, reenquadrá-los, adicionar legendas e preparar exportações para plataformas de formato curto."
+      },
+      "1": {
+        "question": "O SupoClip transforma vídeos do YouTube em Shorts?",
+        "answer": "Sim. O SupoClip aceita URLs do YouTube, identifica momentos candidatos e pode renderizar clipes verticais com legendas adequados ao YouTube Shorts."
+      },
+      "2": {
+        "question": "O SupoClip é de código aberto?",
+        "answer": "Sim. O código do SupoClip está disponível sob a licença AGPL-3.0 e pode ser auto-hospedado ou modificado."
+      }
+    }
+  },
+  "open-source-video-clipper": {
+    "metaTitle": "Cortador de vídeo de código aberto que você pode auto-hospedar",
+    "metaDescription": "O SupoClip é um cortador de vídeo com IA de código aberto para detectar destaques, cortes verticais que seguem o rosto, legendas e exportações de formato curto no seu próprio servidor.",
+    "eyebrow": "Código aberto e auto-hospedado",
+    "heading": "Cortador de vídeo de código aberto com controle total do fluxo",
+    "summary": "Rode o corte de vídeo com IA na sua própria infraestrutura, inspecione o código, escolha o provedor do modelo e personalize como os clipes são pontuados, legendados, enquadrados e exportados.",
+    "tableCaption": "Fluxos de corte só hospedados e de código aberto",
+    "tableHeaders": {
+      "0": "Decisão",
+      "1": "Ferramenta só hospedada",
+      "2": "SupoClip auto-hospedado"
+    },
+    "tableRows": {
+      "0": {
+        "0": "Acesso ao código",
+        "1": "Indisponível",
+        "2": "Repositório completo AGPL-3.0"
+      },
+      "1": {
+        "0": "Infraestrutura",
+        "1": "Controlada pelo fornecedor",
+        "2": "Seu servidor ou ambiente local"
+      },
+      "2": {
+        "0": "Escolha do modelo",
+        "1": "Escolhida pelo fornecedor",
+        "2": "Provedores hospedados compatíveis ou Ollama"
+      },
+      "3": {
+        "0": "Personalização",
+        "1": "Ajustes do produto",
+        "2": "Código do aplicativo e do processo"
+      }
+    },
+    "sections": {
+      "0": {
+        "heading": "Por que auto-hospedar um processo de corte de vídeo",
+        "p1": "Auto-hospedar é útil quando uma equipe precisa de controle sobre a implantação, a escolha do provedor, os limites de processamento ou a personalização do produto. Em vez de passar cada decisão do fluxo por uma plataforma fechada, o aplicativo pode rodar junto com o resto da infraestrutura da equipe.",
+        "p2": "O SupoClip inclui um frontend em Next.js, um backend em FastAPI, workers em segundo plano, PostgreSQL e Redis. O repositório inclui uma configuração de Docker Compose para implantar o aplicativo completo como uma única pilha."
+      },
+      "1": {
+        "heading": "O que continua sendo sua responsabilidade",
+        "p1": "Código aberto não significa que cada dependência seja grátis. Quem auto-hospeda fornece a própria computação, o armazenamento, o serviço de transcrição e a configuração do modelo de linguagem. A troca é responsabilidade operacional em troca de controle sobre o código.",
+        "p2": "As equipes também devem revisar a licença AGPL-3.0, proteger as variáveis de ambiente, manter as dependências atualizadas e monitorar o worker e as camadas de armazenamento em produção.",
+        "bullet1": "Provisione computação e armazenamento persistente",
+        "bullet2": "Configure a transcrição e os provedores de modelo",
+        "bullet3": "Proteja segredos e rotas autenticadas",
+        "bullet4": "Monitore jobs de processamento e a mídia gerada",
+        "link1": "Lista de produção no guia de auto-hospedagem"
+      },
+      "2": {
+        "heading": "Comece com Docker e personalize quando precisar",
+        "p1": "O caminho mais rápido é clonar o repositório, copiar o modelo de ambiente, adicionar as credenciais de provedor necessárias e subir a pilha com Docker Compose. Depois, quem desenvolve pode mudar a lógica de pontuação, as predefinições de legenda, a interface ou o modelo de implantação conforme o fluxo evolui.",
+        "p2": "Quem prefere não operar infraestrutura pode usar o aplicativo hospedado do SupoClip e manter o repositório de código aberto como caminho de migração.",
+        "link1": "Auto-hospede o SupoClip com Docker Compose",
+        "link2": "SupoClip auto-hospedado versus OpusClip hospedado"
+      }
+    },
+    "faqs": {
+      "0": {
+        "question": "Auto-hospedar o SupoClip é grátis?",
+        "answer": "O código-fonte é gratuito sob a licença AGPL-3.0. Você continua responsável pela infraestrutura e por qualquer uso pago de transcrição ou de provedores de IA."
+      },
+      "1": {
+        "question": "O SupoClip pode usar um modelo de linguagem local?",
+        "answer": "Sim. O SupoClip aceita Ollama para escolher clipes, e TRANSCRIPTION_PROVIDER=whisper transcreve localmente em vez de chamar a AssemblyAI."
+      },
+      "2": {
+        "question": "O SupoClip exige Docker?",
+        "answer": "Docker Compose é o caminho documentado para a pilha completa. Quem desenvolve pode executar separados o frontend Next.js, a API FastAPI, o worker, o PostgreSQL e o Redis quando o ambiente exigir."
+      }
+    }
+  },
+  "youtube-shorts-clipper": {
+    "metaTitle": "Cortador de YouTube Shorts para vídeos longos",
+    "metaDescription": "Transforme vídeos longos do YouTube em Shorts verticais com legendas, com detecção de destaques com IA, nota de viralidade e cortes 9:16 que seguem o rosto.",
+    "eyebrow": "Do YouTube para Shorts",
+    "heading": "Cortador de YouTube Shorts para reaproveitar vídeos longos",
+    "summary": "Cole uma URL do YouTube, revise os momentos que a IA escolheu e crie clipes verticais com legendas sem percorrer nem reenquadrar à mão a gravação inteira.",
+    "tableCaption": "Fluxo de vídeo longo para YouTube Shorts",
+    "tableHeaders": {
+      "0": "Passo",
+      "1": "Entrada",
+      "2": "Saída"
+    },
+    "tableRows": {
+      "0": {
+        "0": "1. Importar",
+        "1": "URL do YouTube",
+        "2": "Metadados e vídeo de origem"
+      },
+      "1": {
+        "0": "2. Analisar",
+        "1": "Transcrição",
+        "2": "Trechos candidatos e notas"
+      },
+      "2": {
+        "0": "3. Formatar",
+        "1": "Momento escolhido",
+        "2": "Clipe 9:16 que segue o rosto"
+      },
+      "3": {
+        "0": "4. Finalizar",
+        "1": "Ajustes de legenda e exportação",
+        "2": "Vídeo curto pronto para a plataforma"
+      }
+    },
+    "sections": {
+      "0": {
+        "heading": "Como transformar um vídeo do YouTube em Shorts",
+        "p1": "Comece com um vídeo que seja seu ou que você tenha permissão para reaproveitar. Cole a URL do YouTube no SupoClip, escolha as opções de saída e de legenda e inicie o processamento. O aplicativo transcreve o original e propõe trechos curtos para revisão.",
+        "p2": "Escolha momentos que façam sentido sem o episódio em volta. Bons Shorts costumam dar contexto rápido, entregar uma ideia clara e terminar sem depender de trechos que ficaram de fora do clipe.",
+        "bullet1": "Use um gancho falado claro perto do começo",
+        "bullet2": "Mantenha uma ideia por clipe curto",
+        "bullet3": "Revise nomes, números e o tempo das legendas",
+        "bullet4": "Confirme que o enquadramento vertical siga quem está falando"
+      },
+      "1": {
+        "heading": "Legendas e reenquadramento vertical",
+        "p1": "O SupoClip usa tempo por palavra para criar legendas sincronizadas e pode acompanhar rostos ao passar de material horizontal para um quadro vertical. Os modelos de legenda dão um ponto de partida consistente, e fonte, cor e saída podem ser ajustados antes de renderizar.",
+        "p2": "Cortes automáticos ainda merecem uma revisão visual, principalmente quando várias pessoas aparecem, o compartilhamento de tela importa ou quem fala se move rápido pelo quadro.",
+        "link1": "O que o cortador de IA automatiza, etapa por etapa"
+      },
+      "2": {
+        "heading": "Monte um fluxo repetível para reaproveitar conteúdo",
+        "p1": "Trate cada vídeo longo como uma biblioteca de origem, não como um envio único. Processe a gravação, agrupe os clipes por tema e ligue cada Short de volta ao vídeo longo ou a uma página de produto relevante.",
+        "p2": "Acompanhe quais temas geram tempo de exibição e engajamento e use esses resultados para orientar as próximas gravações. As notas do SupoClip ajudam a priorizar candidatos; os dados de publicação devem decidir o que o público realmente valoriza.",
+        "link1": "Escolher entre SupoClip e OpusClip"
+      }
+    },
+    "faqs": {
+      "0": {
+        "question": "Posso colar uma URL do YouTube no SupoClip?",
+        "answer": "Sim. O SupoClip aceita URLs do YouTube como origem para transcrição, seleção de candidatos e geração de clipes."
+      },
+      "1": {
+        "question": "O SupoClip adiciona legendas aos Shorts?",
+        "answer": "Sim. Ele aceita legendas sincronizadas por palavra e modelos de legenda configuráveis para os clipes gerados."
+      },
+      "2": {
+        "question": "Todo clipe escolhido pela IA tem bom desempenho?",
+        "answer": "Não. A nota da IA ajuda a priorizar candidatos, mas quem cria deve revisar contexto, exatidão, enquadramento e encaixe com o público antes de publicar."
+      }
+    }
+  }
+}
