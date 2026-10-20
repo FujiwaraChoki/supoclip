@@ -1,6 +1,7 @@
 """Background preparation and rendering for the clip studio."""
 
 from pathlib import Path
+import functools
 import json
 import logging
 import re
@@ -153,6 +154,24 @@ def initial_caption_style(
     }
 
 
+def generated_emphasis(words: list[dict], task: dict) -> set[int]:
+    """Words the generated clip accented (power words, numbers, emoji words).
+
+    The editor seeds them as highlights so users see and can toggle them.
+    """
+    from ..caption_templates import get_template
+    from ..emoji_captions import annotate_caption_words
+    from ..media.captions import emoji_rendering_supported
+
+    template = get_template(task.get("caption_template") or "default")
+    _, emphasis = annotate_caption_words(
+        words,
+        enable_emoji=bool(template.get("emoji", True)) and emoji_rendering_supported(),
+        enable_emphasis=template.get("animation", "karaoke") != "none",
+    )
+    return emphasis
+
+
 def upgrade_document(document: dict, clip: dict, task: dict) -> dict:
     """Fill fields that drafts saved by older editor versions don't have.
 
@@ -162,11 +181,12 @@ def upgrade_document(document: dict, clip: dict, task: dict) -> dict:
     from ..caption_templates import get_template
 
     captions = dict(document.get("captions") or {})
-    template_id = captions.get("template") or task.get("caption_template") or "default"
-    template = get_template(template_id)
-    captions.setdefault("template", template_id)
-    captions.setdefault("karaoke", template.get("animation") == "karaoke")
-    captions.setdefault("uppercase", bool(template.get("uppercase")))
+    if not {"template", "karaoke", "uppercase"} <= captions.keys():
+        template_id = captions.get("template") or task.get("caption_template") or "default"
+        template = get_template(template_id)
+        captions.setdefault("template", template_id)
+        captions.setdefault("karaoke", template.get("animation") == "karaoke")
+        captions.setdefault("uppercase", bool(template.get("uppercase")))
     return {
         **document,
         "captions": captions,
@@ -174,6 +194,7 @@ def upgrade_document(document: dict, clip: dict, task: dict) -> dict:
     }
 
 
+@functools.cache
 def caption_looks() -> dict:
     """Template styling the editor preview draws on top of its own caption style."""
     from ..caption_templates import CAPTION_TEMPLATES, get_template
@@ -275,6 +296,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 (clip.get("text") or "").split(), timed, metadata["duration"]
             )
             duration = metadata["duration"]
+            emphasis = generated_emphasis(words, task)
             original_format = source_settings.get("output_format") == "original"
             # Vertical clips are generated at 1080x1920; "original" keeps the source size.
             clip_width, clip_height = (
@@ -299,6 +321,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                                 "start": max(0, min(w["start"], duration - 0.01)),
                                 "end": max(0.01, min(w["end"], duration)),
                                 "text": w["text"][:120],
+                                "highlight": i in emphasis,
                             }
                             for i, w in enumerate(words)
                             if w["start"] < duration and w["end"] > 0
@@ -445,6 +468,8 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             **entries[0]["document"],
             "segments": [{"id": "combined", "start": 0, "end": cursor}],
             "words": all_words,
+            # The first clip's headline doesn't describe the combination.
+            "hookTitle": "",
         }
         document = EditDocument.model_validate(initial).validate_duration(cursor)
         with tempfile.TemporaryDirectory(prefix="combine_", dir=directory) as temp:

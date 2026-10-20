@@ -2,6 +2,7 @@
 
 from typing import Any
 from typing import Dict
+from typing import Iterable
 from ..font_registry import FONTS_DIR
 from typing import List
 from typing import Optional
@@ -161,6 +162,7 @@ def escape_ass_text(value: str) -> str:
         .replace("{", "\\{")
         .replace("}", "\\}")
         .replace("\n", " ")
+        .replace("\r", " ")
         .strip()
     )
 
@@ -300,13 +302,11 @@ def build_assemblyai_ass_subtitles(
     highlight_words: Optional[List[str]] = None,
     template_override: Optional[Dict[str, Any]] = None,
     font_px_override: Optional[int] = None,
+    center_y_override: Optional[int] = None,
+    emphasis_indices: Optional[Iterable[int]] = None,
+    wrap_lines: bool = False,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
-
-    ``template_override`` replaces the named template with an already-resolved
-    one and ``font_px_override`` skips the width-based font scaling, for callers
-    (the clip editor) that hold the final style values themselves.
-
 
     Renders OpusClip-style captions: a per-word active highlight that pops, an
     accent colour on emphasised power/keyword words, contextual emojis, a thick
@@ -314,6 +314,12 @@ def build_assemblyai_ass_subtitles(
     When ``hook_title`` is set, an AI-written headline is burned into the top
     safe area while the hook plays out (it renders even when word-synced
     captions are unavailable or disabled via ``include_captions``).
+
+    The clip editor holds final style values itself: ``template_override``
+    replaces the named template, ``font_px_override`` skips width scaling,
+    ``center_y_override`` places the caption centre without the safe-area
+    clamp, ``emphasis_indices`` replaces automatic emphasis with exactly those
+    words, and ``wrap_lines`` lets libass wrap lines wider than the frame.
     """
     transcript_data = load_cached_transcript_data(video_path)
 
@@ -347,7 +353,9 @@ def build_assemblyai_ass_subtitles(
     glow = bool(template.get("glow"))
     has_outline = template.get("stroke_color") is not None
     # Emphasis colouring only makes sense when something distinguishes words.
-    enable_emphasis = animation != "none" or bool(highlight_words)
+    enable_emphasis = (
+        emphasis_indices is not None or animation != "none" or bool(highlight_words)
+    )
 
     primary = hex_to_ass_color(effective_font_color)
     highlight = hex_to_ass_color(template.get("highlight_color"), "#FFE000")
@@ -376,13 +384,22 @@ def build_assemblyai_ass_subtitles(
         else float(template.get("position_y", 0.80))
     )
     est_text_height = int(font_px * 1.5)
-    y_pos = get_safe_vertical_position(video_height, est_text_height, pos_y)
+    y_pos = (
+        int(center_y_override)
+        if center_y_override is not None
+        else get_safe_vertical_position(video_height, est_text_height, pos_y)
+    )
     font_name = ass_font_name(effective_font_family)
     border_style = (
         3
         if template.get("background") and template.get("background_color")
         else 1
     )
+    # libass fills BorderStyle 3 boxes with the outline colour and pads them by
+    # the outline width, so an outline-less template would get no box at all.
+    style_outline, style_bord = outline, outline_px
+    if border_style == 3:
+        style_outline, style_bord = back_color, max(outline_px, font_px // 6)
 
     hook_style_block = ""
     hook_events: List[str] = []
@@ -411,8 +428,10 @@ def build_assemblyai_ass_subtitles(
         relevant_words,
         caption_cues,
         enable_emoji=enable_emoji,
-        enable_emphasis=enable_emphasis,
+        enable_emphasis=enable_emphasis and emphasis_indices is None,
     )
+    if emphasis_indices is not None:
+        emphasis_idx = set(emphasis_indices)
     requested_highlights = {
         normalize_token(word)
         for word in (highlight_words or [])
@@ -431,12 +450,12 @@ def build_assemblyai_ass_subtitles(
 ScriptType: v4.00+
 PlayResX: {video_width}
 PlayResY: {video_height}
-WrapStyle: 2
+WrapStyle: {0 if wrap_lines else 2}
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_px},{primary},&H000000FF,{outline},{back_color},1,0,0,0,100,100,0,0,{border_style},{outline_px},{shadow_px},5,60,60,60,1
+Style: Default,{font_name},{font_px},{primary},&H000000FF,{style_outline},{back_color},1,0,0,0,100,100,0,0,{border_style},{style_bord},{shadow_px},5,60,60,60,1
 {hook_style_block}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

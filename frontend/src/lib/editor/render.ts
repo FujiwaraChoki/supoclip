@@ -14,6 +14,10 @@ const groupCache = new WeakMap<
   EditDocument,
   ReturnType<typeof captionGroups>
 >();
+const lookCache = new WeakMap<
+  EditDocument,
+  { looks?: Record<string, CaptionLook>; look: ReturnType<typeof resolveLook> }
+>();
 const loaded = new Map<string, Promise<void>>();
 export function loadEditorFont(name: string) {
   if (!loaded.has(name))
@@ -52,6 +56,15 @@ const HOOK_SECONDS = 4,
   HOOK_MIN_SECONDS = 1.5,
   HOOK_MARGIN = 0.07;
 
+/** libass sizes fonts by ascender + descender, not the em box CSS uses. */
+function setAssFont(ctx: CanvasRenderingContext2D, font: string, size: number) {
+  ctx.font = `${size}px "Editor-${font}", sans-serif`;
+  const metrics = ctx.measureText("A"),
+    height = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent;
+  if (height > 0)
+    ctx.font = `${(size * size) / height}px "Editor-${font}", sans-serif`;
+}
+
 /** Linear keyframes, as ASS `\t` interpolates them. */
 function keyframes(t: number, points: [number, number][]) {
   if (t <= points[0][0]) return points[0][1];
@@ -74,15 +87,27 @@ function resolveLook(doc: EditDocument, looks?: Record<string, CaptionLook>) {
       : look.animation;
   const tiedEmphasis =
     (look.emphasisColor ?? look.highlightColor) === look.highlightColor;
+  // The background toggle decides whether the template's box colour applies.
+  const backgroundColor = style.background
+    ? (look.backgroundColor ?? "#00000080")
+    : null;
   return {
     ...look,
     animation,
+    backgroundColor,
     emphasisColor: tiedEmphasis
       ? style.accent
       : (look.emphasisColor ?? style.accent),
     outlineColor: look.strokeColor ?? "#000000",
-    backColor: look.backgroundColor ?? "#00000080",
+    backColor: backgroundColor ?? "#00000080",
   };
+}
+function cachedLook(doc: EditDocument, looks?: Record<string, CaptionLook>) {
+  const cached = lookCache.get(doc);
+  if (cached && cached.looks === looks) return cached.look;
+  const look = resolveLook(doc, looks);
+  lookCache.set(doc, { looks, look });
+  return look;
 }
 
 export function drawEditorFrame(
@@ -105,7 +130,7 @@ export function drawEditorFrame(
   ctx.restore();
   // Lay text out in export pixels so preview and export share every measurement.
   const out = outputSize(doc, sourceWidth, sourceHeight),
-    look = resolveLook(doc, looks);
+    look = cachedLook(doc, looks);
   ctx.save();
   ctx.scale(width / out.width, height / out.height);
   if (doc.captions.enabled) drawCaptions(ctx, doc, out, time, look);
@@ -142,16 +167,9 @@ function drawCaptions(
         )
       : 0,
     shadow = look.shadow ? Math.max(2, Math.floor(size / 20)) : 0,
-    boxPadding = Math.max(outline + 2, Math.floor(size / 5));
-  // Same safe-area clamp as the generation renderer, centred on the caption.
-  const textHeight = Math.floor(size * 1.5),
-    centre = Math.max(
-      Math.max(40, Math.floor(height * 0.05)),
-      Math.min(
-        height * style.y,
-        height - Math.max(120, Math.floor(height * 0.1)) - textHeight,
-      ),
-    );
+    boxPadding = Math.max(outline + 2, Math.floor(size / 5)),
+    linePadding = Math.max(outline, Math.floor(size / 6)),
+    centre = Math.round(height * style.y);
   const t = time - group[0].start,
     remaining = group[group.length - 1].end - time;
   let scale = 1,
@@ -168,7 +186,7 @@ function drawCaptions(
   ctx.globalAlpha = alpha;
   ctx.translate(width / 2, centre);
   ctx.scale(scale, scale);
-  ctx.font = `bold ${size}px "Editor-${style.font}", sans-serif`;
+  setAssFont(ctx, style.font, size);
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
   // Fit each phrase in the safe width, using the same font for preview and browser export.
@@ -178,7 +196,8 @@ function drawCaptions(
     lineWidth = 0;
   for (const word of group) {
     const wordWidth = ctx.measureText(label(word.text)).width;
-    if (line.length && lineWidth + space + wordWidth > width * 0.84) {
+    // libass wraps inside the style's 60px side margins.
+    if (line.length && lineWidth + space + wordWidth > width - 120) {
       lines.push(line);
       line = [];
       lineWidth = 0;
@@ -192,15 +211,13 @@ function drawCaptions(
       words.reduce((sum, w) => sum + ctx.measureText(label(w.text)).width, 0) +
       space * (words.length - 1);
     const y = (index - (lines.length - 1) / 2) * size * 1.2;
-    if (style.background) {
-      // An opaque box, filled with the outline colour as libass does.
-      const pad = Math.max(outline, size * 0.1);
-      ctx.fillStyle = look.outlineColor;
+    if (look.backgroundColor) {
+      ctx.fillStyle = look.backgroundColor;
       ctx.fillRect(
-        -total / 2 - pad,
-        y - size * 0.6 - pad / 2,
-        total + pad * 2,
-        size * 1.2 + pad,
+        -total / 2 - linePadding,
+        y - size / 2 - linePadding,
+        total + linePadding * 2,
+        size + linePadding * 2,
       );
     }
     let x = -total / 2;
@@ -219,7 +236,7 @@ function drawCaptions(
           boxPadding,
         );
         ctx.fill();
-      } else if (!style.background && (outline || shadow)) {
+      } else if (!look.backgroundColor && (outline || shadow)) {
         ctx.save();
         if (shadow) {
           ctx.shadowColor = look.backColor;
@@ -294,6 +311,7 @@ function drawHookTitle(
         ? Math.max(30, Math.min(basePx, Math.floor(usable / (longest * 0.52))))
         : basePx;
   const hasOutline = !!look.strokeColor && look.strokeWidth > 0,
+    // Mirrors build_hook_title_ass: an opaque box only without an outline.
     boxed = !hasOutline && !!look.backgroundColor,
     outline = boxed
       ? Math.max(4, Math.floor(px / 6))
@@ -309,7 +327,7 @@ function drawHookTitle(
     scale = look.wordPop ? keyframes(t, [[0, 0.9], [0.16, 1]]) : 1;
   ctx.translate(width / 2, top + (lineHeight * lines.length) / 2);
   ctx.scale(scale, scale);
-  ctx.font = `bold ${px}px "Editor-${style.font}", sans-serif`;
+  setAssFont(ctx, style.font, px);
   ctx.textBaseline = "middle";
   ctx.lineJoin = "round";
   const space = ctx.measureText(" ").width;

@@ -219,9 +219,6 @@ def write_ass(path: Path, document: EditDocument, width: int, height: int):
     style = document.captions
     words = mapped_words(document) if style.enabled else []
     font_px = max(1, round(style.size * width / 1080))
-    # The generator centres text on a safe-area-clamped row; offset by half the
-    # text height it assumes so the editor's fraction stays the caption's centre.
-    position_y = style.y + int(font_px * 1.5) // 2 / height
     written = build_assemblyai_ass_subtitles(
         path,
         0,
@@ -232,10 +229,13 @@ def write_ass(path: Path, document: EditDocument, width: int, height: int):
         font_family=style.font,
         caption_words=words,
         include_captions=style.enabled,
-        position_y_override=position_y,
-        highlight_words=[w["text"] for w in words if w["highlight"]],
         template_override=editor_caption_template(style),
         font_px_override=font_px,
+        # The editor's position is the caption centre, already kept in range.
+        center_y_override=round(style.y * height),
+        # Highlights are per occurrence and already include the generated emphasis.
+        emphasis_indices=[i for i, w in enumerate(words) if w["highlight"]],
+        wrap_lines=True,
         hook_title=document.hookTitle.strip() or None,
     )
     if not written:

@@ -11,6 +11,7 @@ import pytest
 from src.editor_document import EditDocument, atomic_json, editor_dir
 from src.services.editor_service import (
     combine_editor,
+    generated_emphasis,
     initial_caption_style,
     prepare_editor,
     read_state,
@@ -111,6 +112,7 @@ async def test_combine_worker_keeps_inputs_and_creates_editable_draft(
         "clip2",
     ]
     assert combined["duration"] == pytest.approx(1.6, abs=0.1)
+    assert combined["draft"]["document"]["hookTitle"] == ""
     repository.reorder_task_clips.assert_awaited_once()
 
 
@@ -197,3 +199,10 @@ def test_editor_keeps_generated_font_and_size_extremes():
         EditDocument.model_validate(
             {"segments": [{"id": "s", "start": 0, "end": 1}], "captions": style}
         )
+
+
+def test_editor_seeds_the_generated_emphasis_as_highlights():
+    words = [{"text": t, "start": i, "end": i + 0.5} for i, t in enumerate("this changed everything for 90% of people".split())]
+    emphasis = generated_emphasis(words, {"caption_template": "default"})
+    assert {words[i]["text"] for i in emphasis} >= {"90%"}
+    assert "of" not in {words[i]["text"] for i in emphasis}
