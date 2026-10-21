@@ -10,10 +10,13 @@ import { Announcements } from "@/components/announcements";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { VIDEO_SOURCE_LABELS, VideoSourceIcon } from "@/components/video-source-icon";
 import {
   Scissors,
   Sparkles,
   Youtube,
+  Link2,
+  Upload,
   Github,
   ArrowRight,
   Play,
@@ -172,7 +175,7 @@ function getPlans(
 }
 
 const STEPS = [
-  { num: "01", key: "drop", icon: Youtube },
+  { num: "01", key: "drop", icon: Link2 },
   { num: "02", key: "gold", icon: Wand2 },
   { num: "03", key: "export", icon: Share2 },
 ] as const;
@@ -503,6 +506,25 @@ export default function LandingPage() {
                     {label}
                   </div>
                 ))}
+              </div>
+
+              <div
+                className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground"
+                style={{
+                  animation: "landing-fade-in-up 0.6s ease-out 0.45s both",
+                }}
+              >
+                <span className="font-medium text-foreground/80">{t("hero.sources.label")}</span>
+                {(["youtube", "twitch", "kick"] as const).map((source) => (
+                  <span key={source} className="flex items-center gap-1.5">
+                    <VideoSourceIcon source={source} className="w-3.5 h-3.5" aria-hidden />
+                    {VIDEO_SOURCE_LABELS[source]}
+                  </span>
+                ))}
+                <span className="flex items-center gap-1.5">
+                  <Upload className="w-3.5 h-3.5" />
+                  {t("hero.sources.upload")}
+                </span>
               </div>
 
               <a

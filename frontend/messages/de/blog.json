@@ -109,7 +109,7 @@
       "steps": {
         "0": {
           "title": "Eine Aufnahme mitbringen",
-          "detail": "Lade ein Video hoch oder nutze einen unterstützten YouTube-Link."
+          "detail": "Lade ein Video hoch oder nutze einen unterstützten YouTube-, Twitch- oder Kick-Link."
         },
         "1": {
           "title": "Die Momente finden",
@@ -403,7 +403,7 @@
       "labelEnv": ".env",
       "secrets": "Erzeuge jedes Geheimnis mit <code>openssl rand -base64 32</code>. <code>SELF_HOST=true</code> (der Standard) schaltet die Abrechnung aus und hebt die Generierungslimits pro Konto auf.",
       "build": "3. Bauen und starten",
-      "open": "Öffne <code>http://localhost:3107</code>, erstelle ein Konto und füg einen YouTube-Link ein oder lade eine Datei hoch. Die API-Doku liegt unter <code>http://localhost:8000/docs</code>."
+      "open": "Öffne <code>http://localhost:3107</code>, erstelle ein Konto und füg einen YouTube-, Twitch- oder Kick-Link ein oder lade eine Datei hoch. Die API-Doku liegt unter <code>http://localhost:8000/docs</code>."
     },
     "local": {
       "heading": "Option: vollständig lokale Transkription und Clip-Auswahl",
@@ -533,7 +533,7 @@
     "how": {
       "heading": "So funktioniert SupoClip",
       "steps": {
-        "0": "Füg eine YouTube-URL ein oder lade ein Video hoch.",
+        "0": "Füg eine YouTube-, Twitch- oder Kick-URL ein oder lade ein Video hoch.",
         "1": "SupoClip transkribiert die Quelle und findet Kandidatenmomente.",
         "2": "Die KI bewertet Clips nach Hook, Interaktion, Nutzen und Teilbarkeit.",
         "3": "Der Editor erzeugt vertikale Clips mit Untertiteln und gesichtsbezogenem Ausschnitt.",

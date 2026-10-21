@@ -109,7 +109,7 @@
       "steps": {
         "0": {
           "title": "带上一段录像",
-          "detail": "上传视频，或使用受支持的 YouTube 链接。"
+          "detail": "上传视频，或使用受支持的 YouTube、Twitch 或 Kick 链接。"
         },
         "1": {
           "title": "发现时刻",
@@ -403,7 +403,7 @@
       "labelEnv": ".env",
       "secrets": "用 <code>openssl rand -base64 32</code> 生成每个密钥。<code>SELF_HOST=true</code>（默认值）会关闭计费，并去掉按账号的生成上限。",
       "build": "3. 构建并启动",
-      "open": "打开 <code>http://localhost:3107</code>，创建账号，然后粘贴 YouTube 链接或上传文件。API 文档在 <code>http://localhost:8000/docs</code>。"
+      "open": "打开 <code>http://localhost:3107</code>，创建账号，然后粘贴 YouTube、Twitch 或 Kick 链接或上传文件。API 文档在 <code>http://localhost:8000/docs</code>。"
     },
     "local": {
       "heading": "选项：完全本地的转写和短片选择",
@@ -533,7 +533,7 @@
     "how": {
       "heading": "SupoClip 如何工作",
       "steps": {
-        "0": "粘贴 YouTube 链接或上传视频。",
+        "0": "粘贴 YouTube、Twitch 或 Kick 链接或上传视频。",
         "1": "SupoClip 转写源内容并找出候选时刻。",
         "2": "AI 按钩子强度、互动、价值和可分享性给短片打分。",
         "3": "编辑器做出带字幕、跟随人脸构图的竖屏短片。",

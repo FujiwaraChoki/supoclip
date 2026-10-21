@@ -50,7 +50,7 @@
     },
     "pipelineNote": "As legendas são sincronizadas palavra por palavra, e a palavra ativa fica destacada. O mesmo processo roda no app hospedado e em uma <selfHost>instalação auto-hospedada</selfHost>; o <guide>guia do cortador de vídeo com IA</guide> cobre cada etapa.",
     "ctaTitle": "Rode com o seu próprio vídeo",
-    "ctaBody": "Cole um link do YouTube ou envie um arquivo. Revise os clipes sugeridos, ajuste as legendas e exporte para Shorts, Reels ou TikTok.",
+    "ctaBody": "Cole um link do YouTube, da Twitch ou da Kick ou envie um arquivo. Revise os clipes sugeridos, ajuste as legendas e exporte para Shorts, Reels ou TikTok.",
     "startClipping": "Comece a cortar",
     "selfHostGithub": "Auto-hospedar pelo GitHub"
   },
@@ -93,14 +93,14 @@
         "heading": "O que um cortador de vídeo com IA deve automatizar",
         "p1": "O que toma tempo na produção de formato curto não é um único corte. É repetir a mesma revisão, o reenquadramento, as legendas e a exportação em cada vídeo de origem. Um cortador de IA útil reduz essa repetição e deixa quem cria no controle do corte final.",
         "p2": "O SupoClip parte da transcrição original, identifica trechos candidatos e dá nota a qualidades como força do gancho, engajamento, valor e potencial de compartilhamento. A nota ajuda na revisão; não promete que um clipe vai viralizar.",
-        "bullet1": "URLs do YouTube e arquivos de vídeo enviados",
+        "bullet1": "Links do YouTube, da Twitch e da Kick, além de arquivos de vídeo enviados",
         "bullet2": "Seleção de candidatos com IA",
         "bullet3": "Cortes verticais centrados no rosto",
         "bullet4": "Estilos de legenda editáveis e formatos de exportação"
       },
       "1": {
         "heading": "Como funciona o fluxo do SupoClip",
-        "p1": "Cole uma URL do YouTube ou envie um arquivo de origem. O SupoClip transcreve a gravação, propõe os limites de cada clipe e apresenta os candidatos mais fortes para revisão. Os momentos escolhidos podem ser renderizados como vídeos verticais com legendas para plataformas de formato curto.",
+        "p1": "Cole um link do YouTube, da Twitch ou da Kick ou envie um arquivo de origem. O SupoClip transcreve a gravação, propõe os limites de cada clipe e apresenta os candidatos mais fortes para revisão. Os momentos escolhidos podem ser renderizados como vídeos verticais com legendas para plataformas de formato curto.",
         "p2": "Como o SupoClip é de código aberto, as equipes podem inspecionar o processo, escolher modelos de linguagem hospedados ou locais compatíveis e adaptar o processamento à própria infraestrutura. Também há uma versão hospedada para quem não quer cuidar da implantação.",
         "link1": "Passo a passo: transforme um vídeo do YouTube em Shorts",
         "link2": "Rode o processo você mesmo com Docker"
@@ -125,6 +125,10 @@
       "2": {
         "question": "O SupoClip é de código aberto?",
         "answer": "Sim. O código do SupoClip está disponível sob a licença AGPL-3.0 e pode ser auto-hospedado ou modificado."
+      },
+      "3": {
+        "question": "Quais fontes de vídeo o SupoClip aceita?",
+        "answer": "Vídeos do YouTube, VODs e clipes da Twitch, VODs e clipes da Kick e arquivos de vídeo que você enviar. Transmissões ao vivo não são compatíveis, então corte o VOD quando a transmissão terminar."
       }
     }
   },

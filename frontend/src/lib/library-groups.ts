@@ -69,7 +69,7 @@ function createdAt(generation: GenerationSummary) {
   return Number.isNaN(time) ? 0 : time;
 }
 
-const GENERIC_TITLES = new Set(["uploaded video", "youtube video", "untitled video", "untitled"]);
+const GENERIC_TITLES = new Set(["uploaded video", "youtube video", "twitch video", "kick video", "untitled video", "untitled"]);
 const UUID_STEM = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const HEX_STEM = /^[0-9a-f]{16,}$/i;
 

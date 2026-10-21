@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { AlertTriangle, Check, Loader2, Youtube, Upload } from "lucide-react";
+import { AlertTriangle, Check, Loader2 } from "lucide-react";
 import { ClipCover, ScoreRing } from "@/components/app/clip-cover";
 import { StatusBadge, ACTIVE_TASK_STATUSES } from "@/components/app/status-badge";
+import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind } from "@/components/video-source-icon";
 import { coverClipUrl, timeAgo, type GenerationSummary } from "@/lib/generations";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +23,7 @@ export function GenerationCard({ generation, selected, onToggle, selectionDisabl
   const active = ACTIVE_TASK_STATUSES.includes(generation.status);
   const failed = generation.status === "error";
   const selectable = Boolean(onToggle);
-  const SourceIcon = generation.source_type === "youtube" ? Youtube : Upload;
+  const source = videoSourceKind(generation.source_type);
 
   return (
     <div className={cn("group relative", className)}>
@@ -54,7 +55,7 @@ export function GenerationCard({ generation, selected, onToggle, selectionDisabl
             </div>
           ) : null}
           <div className="absolute inset-x-3 bottom-2.5 flex items-center justify-between text-[11px] font-medium text-white/90">
-            <span className="flex items-center gap-1.5"><SourceIcon className="size-3.5" aria-hidden />{generation.source_type === "youtube" ? t("card.youtube") : t("card.upload")}</span>
+            <span className="flex items-center gap-1.5"><VideoSourceIcon source={source} className="size-3.5" aria-hidden />{source === "upload" ? t("card.upload") : VIDEO_SOURCE_LABELS[source]}</span>
             {generation.clips_count > 0 && <span className="tabular-nums">{t("card.clips", { count: generation.clips_count })}</span>}
           </div>
         </ClipCover>

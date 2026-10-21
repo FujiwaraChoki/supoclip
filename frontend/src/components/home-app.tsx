@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
   AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Crop, FileVideo,
-  Loader2, Paintbrush, Paperclip, Upload, Wand2, X, Youtube,
+  Loader2, Paintbrush, Paperclip, Upload, Link2, Wand2, X,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
+import { VideoSourceIcon } from "@/components/video-source-icon";
 import { FONT_SEARCH_THRESHOLD, getYouTubeThumbnailUrl, uploadVideoFile, validateVideoSourceUrl } from "@/lib/video-upload";
 import { AppShell } from "@/components/app/app-shell";
 import { GenerationCard } from "@/components/app/generation-card";
@@ -104,6 +105,8 @@ export default function HomeApp() {
     setUpgradeReason(reason);
   }, []);
   const youtubeThumbnailUrl = sourceType === "youtube" ? getYouTubeThumbnailUrl(url) : null;
+  // Brand mark of the pasted link; a neutral link icon until it is recognised.
+  const urlSource = url.trim() ? validateVideoSourceUrl(url).source : undefined;
 
   const refreshFonts = useCallback(async () => {
     try {
@@ -382,7 +385,7 @@ export default function HomeApp() {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={youtubeThumbnailUrl} alt="" className="mt-0.5 hidden h-11 w-[78px] shrink-0 rounded-lg object-cover sm:block" />
                   ) : (
-                    <span className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground"><Youtube className="size-5" /></span>
+                    <span className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">{urlSource ? <VideoSourceIcon source={urlSource} className="size-5" aria-hidden /> : <Link2 className="size-5" aria-hidden />}</span>
                   )}
                   <div className="min-w-0 flex-1">
                     <label htmlFor="youtube-url" className="sr-only">{t("youtubeUrl")}</label>

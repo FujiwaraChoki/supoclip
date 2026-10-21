@@ -84,7 +84,7 @@
   "clearSelection": "Borrar selección",
   "cancelDialog": "Cancelar",
   "emptyTitle": "Aún no hay generaciones",
-  "emptyBody": "Pega un enlace de YouTube o sube un video y tus clips aparecerán aquí.",
+  "emptyBody": "Pega un enlace de YouTube, Twitch o Kick o sube un video y tus clips aparecerán aquí.",
   "create": "Crear nueva generación",
   "noQuery": "Nada coincide con “{query}”.",
   "noFilter": "Nada coincide con este filtro."

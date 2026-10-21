@@ -146,7 +146,7 @@ After the stack is up:
 
 1. Load the homepage at `http://localhost:3107`.
 2. Create an account or sign in.
-3. Submit a YouTube URL or upload a video file.
+3. Submit a YouTube, Twitch, or Kick URL, or upload a video file.
 4. Open the task page and confirm progress updates appear.
 5. Wait for clip generation to finish.
 6. Open the clips list and verify playback and download work.

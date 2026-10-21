@@ -109,7 +109,7 @@
       "steps": {
         "0": {
           "title": "Traga uma gravação",
-          "detail": "Envie um vídeo ou use um link compatível do YouTube."
+          "detail": "Envie um vídeo ou use um link compatível do YouTube, da Twitch ou da Kick."
         },
         "1": {
           "title": "Descubra os momentos",
@@ -403,7 +403,7 @@
       "labelEnv": ".env",
       "secrets": "Gere cada segredo com <code>openssl rand -base64 32</code>. <code>SELF_HOST=true</code> (o padrão) deixa a cobrança desligada e remove os limites de geração por conta.",
       "build": "3. Faça o build e inicie",
-      "open": "Abra <code>http://localhost:3107</code>, crie uma conta e cole um link do YouTube ou envie um arquivo. A documentação da API fica em <code>http://localhost:8000/docs</code>."
+      "open": "Abra <code>http://localhost:3107</code>, crie uma conta e cole um link do YouTube, da Twitch ou da Kick ou envie um arquivo. A documentação da API fica em <code>http://localhost:8000/docs</code>."
     },
     "local": {
       "heading": "Opção: transcrição e seleção de clipes totalmente locais",
@@ -533,7 +533,7 @@
     "how": {
       "heading": "Como o SupoClip funciona",
       "steps": {
-        "0": "Cole uma URL do YouTube ou envie um vídeo.",
+        "0": "Cole uma URL do YouTube, da Twitch ou da Kick ou envie um vídeo.",
         "1": "O SupoClip transcreve o original e encontra momentos candidatos.",
         "2": "A IA pontua os clipes por força do gancho, engajamento, valor e potencial de compartilhamento.",
         "3": "O editor cria clipes verticais com legendas e enquadramento que segue o rosto.",

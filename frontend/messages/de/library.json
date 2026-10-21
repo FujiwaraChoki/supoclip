@@ -84,7 +84,7 @@
   "clearSelection": "Auswahl aufheben",
   "cancelDialog": "Abbrechen",
   "emptyTitle": "Noch keine Generierungen",
-  "emptyBody": "Füg einen YouTube-Link ein oder lad ein Video hoch, dann landen deine Clips hier.",
+  "emptyBody": "Füg einen YouTube-, Twitch- oder Kick-Link ein oder lad ein Video hoch, dann landen deine Clips hier.",
   "create": "Neue Generierung erstellen",
   "noQuery": "Nichts passt zu „{query}“.",
   "noFilter": "Nichts passt zu diesem Filter."
