@@ -1190,6 +1190,34 @@ def build_vertical_filter_plan(
     track, scene_cuts = analyzed[0], analyzed[1]
     face_samples = analyzed[2] if len(analyzed) > 2 else []
 
+    # A persistent reaction inset is independent of source camera cuts and
+    # speaker labels. Separate it before dominant-face tracking can confuse
+    # the inset with the source, or gallery/content fallbacks discard it.
+    from .reaction_layout import choose_reaction_layout, find_reactor_face
+
+    if find_reactor_face(width, height, face_samples):
+        # Tiny faces in the source wide shot need more detail than the normal
+        # 480px tracking pass. Keep its detections too: a profile/occluded face
+        # can be visible to only one of the two scales.
+        try:
+            _, _, detailed = analyze_vertical_clip(input_path, proc_width=960)
+            combined = []
+            for (t, coarse), (_, fine) in zip(face_samples, detailed):
+                boxes = []
+                for box in sorted(list(coarse) + list(fine), key=lambda f: f[2]*f[3], reverse=True):
+                    cx, cy = box[0]+box[2]/2, box[1]+box[3]/2
+                    if not any(x <= cx <= x+w and y <= cy <= y+h for x, y, w, h in boxes):
+                        boxes.append(box)
+                combined.append((t, boxes))
+            if len(combined) == len(face_samples):
+                face_samples = combined
+        except Exception as exc:
+            logger.debug("Reaction detail analysis unavailable: %s", exc)
+    reaction = choose_reaction_layout(input_path, width, height, duration, face_samples, scene_cuts)
+    if reaction:
+        logger.info("Reaction layout: inset %s, %d source sections", reaction['inset'], len(reaction['source_runs']))
+        return reaction['video_filter'], 'complex', reaction['caption_y']
+
     keys = build_crop_trajectory(track, width, crop_w) if track else []
     moving = bool(keys and trajectory_has_movement(keys, crop_w))
     static_x = 0
