@@ -68,6 +68,10 @@ EMOJI_FONT_NAME = "Noto Color Emoji"
 
 CLIP_END_SENTENCE_EXTENSION_SECONDS = 5.5
 
+# Matches the analysis cap (ai.MAX_ACCEPTED_CLIP_SECONDS). Rewinding a weak
+# opening or finishing a sentence must not turn an accepted clip into a longer one.
+MAX_RENDERED_CLIP_SECONDS = 60.0
+
 CLIP_END_PADDING_SECONDS = 0.35
 
 CLIP_START_SNAP_WINDOW_SECONDS = 3.0
