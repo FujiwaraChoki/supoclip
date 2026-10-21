@@ -243,7 +243,11 @@
     },
     "selfHostNote": "Self-hosting? All features are free and unlimited.",
     "selfHostGuide": "See the self-hosting guide",
-    "billedYearly": "${price}/mo, billed yearly"
+    "billedYearly": "${price}/mo, billed yearly",
+    "usageExample": {
+      "videos": "About {count} × {minutes}-minute source videos per month",
+      "clips": "Example: {count} short clips at {perVideo} per video. Output varies; your allowance counts source minutes."
+    }
   },
   "openSource": {
     "badge": "AGPL-3.0 Licensed",

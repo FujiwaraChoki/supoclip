@@ -243,7 +243,11 @@
     },
     "selfHostNote": "Auto-hospedando? Todos os recursos são grátis e ilimitados.",
     "selfHostGuide": "Ver o guia de auto-hospedagem",
-    "billedYearly": "${price}/mês, cobrado anualmente"
+    "billedYearly": "${price}/mês, cobrado anualmente",
+    "usageExample": {
+      "videos": "Cerca de {count} vídeos de origem de {minutes} minutos por mês",
+      "clips": "Exemplo: {count} clipes curtos com {perVideo} por vídeo. O resultado varia; a sua quota conta os minutos do vídeo de origem."
+    }
   },
   "openSource": {
     "badge": "Licença AGPL-3.0",

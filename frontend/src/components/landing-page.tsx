@@ -108,6 +108,9 @@ const FEATURES = [
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
+const PRICING_EXAMPLE_VIDEO_MINUTES = 30;
+const PRICING_EXAMPLE_CLIPS_PER_VIDEO = 6;
+
 function getPlans(
   t: Translate,
   tCommon: Translate,
@@ -122,6 +125,7 @@ function getPlans(
       period: t("pricing.period.forever"),
       note: null as string | null,
       soon: null as string | null,
+      usageExample: null as { videos: string; clips: string } | null,
       description: t("pricing.selfHost.description"),
       features: [
         t("pricing.selfHost.features.crop"),
@@ -134,23 +138,36 @@ function getPlans(
       ctaHref: GITHUB_URL,
       highlighted: false,
     },
-    ...getPublicBillingPlans().map((plan) => ({
-      id: plan.id,
-      name: tCommon(`plans.${billingPlanMessageKey(plan.id)}`),
-      price: `$${planPrice(plan, interval)}`,
-      period: interval === "year" ? t("pricing.period.year") : t("pricing.period.month"),
-      note: interval === "year" ? t("pricing.billedYearly", { price: annualMonthlyEquivalent(plan) }) : null,
-      soon: planText.comingSoon(plan),
-      description: t(`pricing.${plan.id}.description`),
-      features: [
-        ...planText.highlights(plan),
-        t("pricing.hosted.tracking"),
-        t("pricing.hosted.exports"),
-      ],
-      cta: t(`pricing.${plan.id}.cta`),
-      ctaHref: "",
-      highlighted: plan.highlighted,
-    })),
+    ...getPublicBillingPlans().map((plan) => {
+      const exampleVideos = Math.floor(plan.minuteLimit / PRICING_EXAMPLE_VIDEO_MINUTES);
+      return {
+        id: plan.id,
+        name: tCommon(`plans.${billingPlanMessageKey(plan.id)}`),
+        price: `$${planPrice(plan, interval)}`,
+        period: interval === "year" ? t("pricing.period.year") : t("pricing.period.month"),
+        note: interval === "year" ? t("pricing.billedYearly", { price: annualMonthlyEquivalent(plan) }) : null,
+        soon: planText.comingSoon(plan),
+        usageExample: exampleVideos > 0 ? {
+          videos: t("pricing.usageExample.videos", {
+            count: exampleVideos,
+            minutes: PRICING_EXAMPLE_VIDEO_MINUTES,
+          }),
+          clips: t("pricing.usageExample.clips", {
+            count: exampleVideos * PRICING_EXAMPLE_CLIPS_PER_VIDEO,
+            perVideo: PRICING_EXAMPLE_CLIPS_PER_VIDEO,
+          }),
+        } : null,
+        description: t(`pricing.${plan.id}.description`),
+        features: [
+          ...planText.highlights(plan),
+          t("pricing.hosted.tracking"),
+          t("pricing.hosted.exports"),
+        ],
+        cta: t(`pricing.${plan.id}.cta`),
+        ctaHref: "",
+        highlighted: plan.highlighted,
+      };
+    }),
   ];
 }
 
@@ -694,16 +711,16 @@ export default function LandingPage() {
                       </p>
                     </div>
 
-                    <div className={plan.note ? "mb-8" : "flex items-baseline gap-1 mb-8"}>
-                      <div className="flex items-baseline gap-1">
+                    <div className="mb-8 w-full @container">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                         <span
-                          className="text-5xl font-extrabold tracking-tight"
+                          className="max-w-full whitespace-nowrap text-[clamp(1.5rem,15cqi,3rem)] font-extrabold tracking-tight"
                           style={{ fontFamily: "var(--font-syne), system-ui" }}
                         >
                           {plan.price}
                         </span>
                         <span
-                          className={`text-sm ${
+                          className={`shrink-0 whitespace-nowrap text-sm ${
                             plan.highlighted
                               ? "text-primary-foreground/60"
                               : "text-muted-foreground"
@@ -757,6 +774,15 @@ export default function LandingPage() {
                         </li>
                       )}
                     </ul>
+
+                    {plan.usageExample && (
+                      <div className={`mb-6 space-y-1 text-xs leading-relaxed ${
+                        plan.highlighted ? "text-primary-foreground/75" : "text-muted-foreground"
+                      }`}>
+                        <p className="font-medium">{plan.usageExample.videos}</p>
+                        <p>{plan.usageExample.clips}</p>
+                      </div>
+                    )}
 
                     {plan.ctaHref ? (
                       <div className="flex flex-col gap-3">
