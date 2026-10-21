@@ -20,4 +20,5 @@ it("keeps SES recipient correlation across both migration runners without storin
   } finally {
     await db.close();
   }
-});
+  // Starting PGlite alone can exceed the 5s default on CI runners.
+}, 30_000);
