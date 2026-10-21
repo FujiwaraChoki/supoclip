@@ -246,6 +246,11 @@ OLLAMA_BASE_URL=http://localhost:11434/v1  # Optional for ollama:* models
 OLLAMA_API_KEY=...                   # Optional; required for Ollama Cloud
 RERANK_LLM=                          # Optional; model for the long-video candidate rerank (default: LLM)
 YOUTUBE_DOWNLOAD_PROVIDER=yt_dlp     # yt_dlp | apify
+YOUTUBE_PROXY_URL=                   # Optional residential proxy template; empty = off
+YOUTUBE_POT_PROVIDER_URL=            # Optional bgutil base URL (http://bgutil:4416)
+YOUTUBE_DOWNLOAD_MAX_BYTES=2000000000
+YOUTUBE_MAX_HEIGHT=1080              # Hard cap; lower values are honored
+APIFY_EXPENSIVE_FALLBACKS=false      # Skip high-cap Apify fallback actors
 
 # Optional
 PEXELS_API_KEY=...                   # B-roll stock footage
@@ -338,6 +343,12 @@ the app via `APP_STORE_ID`/`APP_STORE_URL` in `frontend/src/lib/site.ts`
 Apify requires `APIFY_API_TOKEN` and explicit worker configuration. Each provider
 falls back to the other when available. Paid worker identities belong in private
 environment configuration. See `backend/README.md` for setup.
+
+`YOUTUBE_PROXY_URL` (empty by default) puts yt-dlp through a residential proxy
+first: sticky `{session}` per job, IPv4, optional bgutil PO tokens, audio first,
+then only the padded clip ranges at or below 1080p. Cached audio and sections
+are reused by later edits. `APIFY_EXPENSIVE_FALLBACKS` defaults to off so
+high-cap fallback actors are not called. Runbook: `docs/youtube-download.md`.
 
 ## MCP Server
 

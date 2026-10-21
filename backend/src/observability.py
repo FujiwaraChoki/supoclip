@@ -129,6 +129,20 @@ class JsonLogFormatter(logging.Formatter):
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
 
+        # YouTube download attempts. These names are stable so Axiom can sum
+        # bytes per provider. Proxy URLs are never attached to the record.
+        for key in (
+            "youtube_provider",
+            "youtube_video_id",
+            "youtube_download_kind",
+            "youtube_outcome",
+            "youtube_bytes",
+            "task_id",
+        ):
+            value = getattr(record, key, None)
+            if value not in (None, ""):
+                payload[key] = value
+
         return json.dumps(payload, ensure_ascii=True)
 
 

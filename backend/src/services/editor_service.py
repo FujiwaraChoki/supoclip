@@ -256,6 +256,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     )
     from ..clip_editor import _caption_words_with_timings
     from ..clip_source_map import load_clip_caption_settings
+    from ..youtube_source import local_ranges_for
 
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
     storage = MediaStorage()
@@ -293,7 +294,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             if not source or not source.exists():
                 if source_type == "youtube":
                     downloaded = await service.video_service.download_video(
-                        source_url, quality=download_quality
+                        source_url, task_id=task_id, ranges=ranges, quality=download_quality
                     )
                     source = Path(downloaded) if downloaded else None
                     downloaded_source = source
@@ -303,17 +304,18 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 raise ValueError(
                     "The original source is unavailable. Restore the source file to edit this clip."
                 )
+            local_ranges = await run_in_thread(local_ranges_for, source, ranges)
             directory.mkdir(parents=True, exist_ok=True)
             clean = directory / "clean.mp4"
             rendered = await run_in_thread(
                 create_optimized_clip,
                 source,
-                ranges[0][0],
-                ranges[-1][1],
+                local_ranges[0][0],
+                local_ranges[-1][1],
                 clean,
                 add_subtitles=False,
                 output_format="original",
-                keep_ranges=ranges,
+                keep_ranges=local_ranges,
                 hook_title=None,
                 extend_to_sentence=False,
             )
@@ -321,7 +323,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 raise ValueError("Could not prepare the original video")
             metadata = await run_in_thread(make_assets, directory)
             transcript = load_cached_transcript_data(source)
-            timed = get_words_for_keep_ranges(transcript, ranges) if transcript else []
+            timed = get_words_for_keep_ranges(transcript, local_ranges) if transcript else []
             words = _caption_words_with_timings(
                 (clip.get("text") or "").split(), timed, metadata["duration"]
             )

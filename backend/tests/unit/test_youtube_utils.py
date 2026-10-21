@@ -663,7 +663,7 @@ def test_router_primary_leaves_ytdlp_until_all_paid_options_fail(
         set_config_override(None)
 
 
-def test_ytdlp_format_caps_height_only_when_asked(tmp_path):
+def test_ytdlp_format_enforces_global_cap_and_honors_lower_plan_cap(tmp_path):
     from src.youtube_utils import YouTubeDownloader
 
     config = Config()
@@ -671,8 +671,8 @@ def test_ytdlp_format_caps_height_only_when_asked(tmp_path):
     set_config_override(config)
     try:
         downloader = YouTubeDownloader()
-        assert downloader.get_optimal_download_options("abcdefghijk")["format"] == "bestvideo*+bestaudio/best"
+        assert downloader.get_optimal_download_options("abcdefghijk")["format"] == "bv*[height<=1080]+ba/b[height<=1080]"
         capped = downloader.get_optimal_download_options("abcdefghijk", 720)["format"]
-        assert capped.startswith("bestvideo*[height<=720]+bestaudio/best[height<=720]/")
+        assert capped == "bv*[height<=720]+ba/b[height<=720]"
     finally:
         set_config_override(None)

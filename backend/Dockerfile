@@ -42,6 +42,9 @@ RUN uv venv .venv && \
 # Also install from git to get the very latest commits
 RUN uv pip install --upgrade --force-reinstall yt-dlp
 RUN uv pip install --upgrade --force-reinstall "yt-dlp[default]"
+# PO-token plugin for the optional bgutil sidecar. Installed here so the
+# lockfile stays unchanged until a proxy deployment opts in.
+RUN uv pip install --upgrade bgutil-ytdlp-pot-provider
 
 # Copy source code
 COPY src/ ./src/

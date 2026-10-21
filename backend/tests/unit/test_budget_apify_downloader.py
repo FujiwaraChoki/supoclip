@@ -26,6 +26,7 @@ def config(tmp_path, monkeypatch):
     monkeypatch.delenv('APIFY_YOUTUBE_FALLBACK_ACTOR', raising=False)
     monkeypatch.delenv('APIFY_YOUTUBE_FALLBACK_ACTORS', raising=False)
     monkeypatch.delenv('APIFY_DOWNLOAD_MAX_CHARGE_USD', raising=False)
+    monkeypatch.delenv('APIFY_EXPENSIVE_FALLBACKS', raising=False)
     yield c
     set_config_override(None)
 
@@ -67,6 +68,7 @@ def test_ambiguous_submission_not_repeated(config):
     assert session.request.call_count == 1
 
 def test_only_explicit_apify_fallback(config, tmp_path, monkeypatch):
+    monkeypatch.setenv('APIFY_EXPENSIVE_FALLBACKS', 'true')
     monkeypatch.setenv('APIFY_YOUTUBE_FALLBACK_ACTOR', URLS)
     monkeypatch.setenv('APIFY_FALLBACK_MAX_CHARGE_USD', '1')
     calls = []
@@ -79,6 +81,7 @@ def test_only_explicit_apify_fallback(config, tmp_path, monkeypatch):
     assert calls == [(FILE, .02), (URLS, 1)]
 
 def test_permanent_failure_skips_fallback(config, tmp_path, monkeypatch):
+    monkeypatch.setenv('APIFY_EXPENSIVE_FALLBACKS', 'true')
     monkeypatch.setenv('APIFY_YOUTUBE_FALLBACK_ACTOR', URLS)
     run = Mock(side_effect=mod.BudgetApifyError('private video', permanent=True))
     monkeypatch.setattr(mod, '_run', run)
@@ -149,6 +152,7 @@ def test_transient_poll_failure_reuses_run_without_resubmission(config, tmp_path
 
 def test_ordered_fallbacks_share_one_spending_allowance(config, tmp_path, monkeypatch):
     config.apify_youtube_downloader_actor = URLS
+    monkeypatch.setenv('APIFY_EXPENSIVE_FALLBACKS', 'true')
     monkeypatch.setenv('APIFY_YOUTUBE_FALLBACK_ACTORS', SIGNED + ',' + MEDIA)
     calls = []
     def run(actor, *args):
@@ -163,6 +167,7 @@ def test_ordered_fallbacks_share_one_spending_allowance(config, tmp_path, monkey
 
 def test_unknown_charge_cannot_double_spend_with_fallback(config, tmp_path, monkeypatch):
     config.apify_youtube_downloader_actor = URLS
+    monkeypatch.setenv('APIFY_EXPENSIVE_FALLBACKS', 'true')
     monkeypatch.setenv('APIFY_YOUTUBE_FALLBACK_ACTORS', SIGNED + ',' + MEDIA)
     run = Mock(side_effect=mod.BudgetApifyError('submission response lost'))
     monkeypatch.setattr(mod, '_run', run)
@@ -172,6 +177,7 @@ def test_unknown_charge_cannot_double_spend_with_fallback(config, tmp_path, monk
 
 
 def test_duplicate_fallbacks_are_attempted_once(config, tmp_path, monkeypatch):
+    monkeypatch.setenv('APIFY_EXPENSIVE_FALLBACKS', 'true')
     monkeypatch.setenv('APIFY_YOUTUBE_FALLBACK_ACTORS', ','.join([FILE, FILE, URLS]))
     calls = []
     def run(actor, *args):
@@ -181,6 +187,22 @@ def test_duplicate_fallbacks_are_attempted_once(config, tmp_path, monkeypatch):
     monkeypatch.setattr(mod, '_run', run)
     mod.download_budget_apify(VIDEO, tmp_path, '1080', 'secret')
     assert calls == [FILE, URLS]
+
+
+def test_expensive_fallbacks_are_off_by_default(config, tmp_path, monkeypatch):
+    monkeypatch.setenv('APIFY_YOUTUBE_FALLBACK_ACTORS', URLS)
+    calls = []
+
+    def run(actor, *args):
+        calls.append(actor)
+        if actor == FILE:
+            raise mod.BudgetApifyError('timed out')
+        return tmp_path / 'result.mp4'
+
+    monkeypatch.setattr(mod, '_run', run)
+    with pytest.raises(mod.BudgetApifyError, match='timed out'):
+        mod.download_budget_apify(VIDEO, tmp_path, '1080', 'secret')
+    assert calls == [FILE]
 
 
 def test_signed_url_uses_independent_source_duration(config, tmp_path, monkeypatch):
@@ -469,6 +491,7 @@ def test_signed_adapter_uses_configured_metadata_without_google_key(config, tmp_
 
 
 def test_router_key_preserves_ordered_apify_fallbacks_and_shared_budget(config, tmp_path, monkeypatch):
+    monkeypatch.setenv('APIFY_EXPENSIVE_FALLBACKS', 'true')
     config.rapidapi_youtube_api_key = 'test-key'
     monkeypatch.setenv('APIFY_YOUTUBE_FALLBACK_ACTORS', URLS + ',' + SIGNED)
     calls = []
@@ -482,6 +505,7 @@ def test_router_key_preserves_ordered_apify_fallbacks_and_shared_budget(config, 
 
 
 def test_provider_timeout_aborts_before_next_fallback(config, tmp_path, monkeypatch):
+    monkeypatch.setenv('APIFY_EXPENSIVE_FALLBACKS', 'true')
     # A stalled actor must not consume the extra file-transfer allowance.
     pool = [dict(p, run_timeout_seconds=300) for p in PROVIDERS]
     monkeypatch.setenv('APIFY_YOUTUBE_PROVIDERS', json.dumps(pool))

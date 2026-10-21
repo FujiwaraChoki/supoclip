@@ -29,6 +29,7 @@ from .task_completion_email_service import (
 )
 from ..config import Config, get_config
 from ..youtube_utils import cleanup_downloaded_files, extract_video_id
+from ..youtube_source import load_time_map, localize_segment, restore_clip_timeline, transcript_source_for
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..clip_source_map import load_clip_caption_settings
@@ -154,7 +155,9 @@ class TaskService(ClipEditingMixin):
                 video_id = extract_video_id(url)
                 if video_id:
                     try:
-                        MediaStorage().save_youtube_metadata(video_id, video_path)
+                        MediaStorage().save_youtube_metadata(
+                            video_id, transcript_source_for(video_id, video_path)
+                        )
                     except Exception:
                         logger.exception("Could not back up YouTube word timings")
                     cleanup_downloaded_files(video_id, source_path=video_path)
@@ -416,6 +419,7 @@ class TaskService(ClipEditingMixin):
             )
 
             video_path = Path(result["video_path"])
+            time_map = await run_in_thread(load_time_map, video_path)
             total_clips = len(segments_to_render)
             clips_output_dir = Path(self.config.temp_dir) / "clips"
             clips_output_dir.mkdir(parents=True, exist_ok=True)
@@ -443,10 +447,12 @@ class TaskService(ClipEditingMixin):
                     f"Creating clip {i + 1}/{total_clips}...",
                 )
 
-                # Render single clip in thread pool
+                # A partial download is a concatenated timeline. Render against
+                # local timestamps, then store the clip against the source.
+                render_segment = localize_segment(segment, time_map) if time_map else segment
                 clip_info = await self.video_service.create_single_clip(
                     video_path,
-                    segment,
+                    render_segment,
                     i,
                     clips_output_dir,
                     font_family,
@@ -462,6 +468,10 @@ class TaskService(ClipEditingMixin):
                 await check_cancelled()
                 if clip_info is None:
                     continue  # Skip failed clip
+                if time_map:
+                    clip_info = await run_in_thread(
+                        restore_clip_timeline, clip_info, time_map, segment
+                    )
 
                 async with self._processing_transaction(task_id):
                     await check_cancelled()

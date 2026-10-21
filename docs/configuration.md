@@ -278,9 +278,26 @@ Automated tests cover mocked provider requests, PostgreSQL migrations and
 repository workflows, and the browser experience without keys. They do not
 verify platform app approval or live OAuth, uploads, and metrics.
 
+## YouTube proxy downloads
+
+Plain `yt-dlp` from a datacenter IP is often stopped with "Sign in to confirm you're not a bot". Set `YOUTUBE_PROXY_URL` to put a residential-proxy `yt-dlp` attempt first. Leave it empty and the download chain is unchanged. See [YouTube download runbook](./youtube-download.md) for the proxy template, the bgutil sidecar, and a canary check.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `YOUTUBE_PROXY_URL` | empty | Proxy template. `{session}` becomes a per-job sticky id. `{country}` is optional. |
+| `YOUTUBE_PROXY_COUNTRY` | empty | Two-letter country code substituted into `{country}`. Other values are ignored. |
+| `YOUTUBE_POT_PROVIDER_URL` | empty | bgutil HTTP base URL, for example `http://bgutil:4416`. |
+| `YOUTUBE_DOWNLOAD_MAX_BYTES` | `2000000000` | Per-job byte cap across audio, sections, and a full-file fallback. |
+| `YOUTUBE_SECTION_PADDING_SECONDS` | `10` | Padding around each selected clip before overlapping ranges merge. |
+| `YOUTUBE_MAX_HEIGHT` | `1080` | Video height cap. Values above 1080 are clamped. |
+| `YOUTUBE_SOURCE_CACHE` | `on` | Keep audio and sections so later edits reuse them. `off` deletes sources after each task. |
+| `YOUTUBE_SOURCE_CACHE_TTL_SECONDS` | `604800` | Age after which unused cache directories are removed. |
+
+With a proxy set, a job downloads modest audio first, picks clips, then fetches only the padded ranges at or below 1080p. Section bytes go through yt-dlp's own HTTP client. ffmpeg only trims files that are already local, because ffmpeg does not route SOCKS proxies and mishandles authenticated HTTP proxies.
+
 ## Apify YouTube Downloader
 
-SupoClip uses the actor explicitly configured in the private environment as the primary YouTube download path. Metadata preflight and fallback downloads rely on the local `yt-dlp` stack over a direct connection.
+SupoClip uses the actor explicitly configured in the private environment as the primary YouTube download path. Metadata preflight and fallback downloads rely on the local `yt-dlp` stack over a direct connection. When `YOUTUBE_PROXY_URL` is set, the proxy attempt runs before Apify.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -417,7 +434,12 @@ research outside the repository. No paid actor is selected by default.
 Provider identities and pinned builds belong in `APIFY_YOUTUBE_PROVIDERS`, a private
 JSON array of objects with `actor`, `build`, `adapter`, and optional `max_charge_usd` and `run_timeout_seconds` (60–1800).
 Set the primary in `APIFY_YOUTUBE_DOWNLOADER_ACTOR` and ordered fallback IDs in
-`APIFY_YOUTUBE_FALLBACK_ACTORS`. No paid actor is selected automatically. Supported
+`APIFY_YOUTUBE_FALLBACK_ACTORS`. No paid actor is selected automatically. Fallback
+actors after the primary stay unused unless `APIFY_EXPENSIVE_FALLBACKS=true`.
+Those extra actors are the ones that can spend up to their `$6` run cap (leave
+high-cap actors such as marielise.dev, scraper_one, and dami_studio out of the
+list unless that flag is on). A single cheap primary, such as a titan-style
+actor configured in the private environment, is the default. Supported
 adapters are `kv_file`, `url_objects`, `signed_url`, `kv_media`, and `private_s3`. Configure only
 workers whose input/output contract matches the selected adapter. Private provider
 research and production environment files must stay outside the repository.

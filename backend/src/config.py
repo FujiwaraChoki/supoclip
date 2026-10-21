@@ -44,13 +44,26 @@ class Config:
         self.apify_api_token = self._get_runtime_setting("APIFY_API_TOKEN")
         self.rapidapi_youtube_api_key = self._get_optional_env("RAPIDAPI_YOUTUBE_API_KEY")
         self.rapidapi_youtube_timeout_seconds = int(
-            os.getenv("RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS", "1200")
+            os.getenv("RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS", "300")
         )
         self.youtube_download_provider = self._normalize_youtube_download_provider(
             os.getenv("YOUTUBE_DOWNLOAD_PROVIDER", "yt_dlp")
         )
         self.youtube_metadata_provider = self._normalize_youtube_metadata_provider(
             os.getenv("YOUTUBE_METADATA_PROVIDER", "yt_dlp")
+        )
+        # Empty disables the residential-proxy yt-dlp path. Nothing in the
+        # download chain changes until this template is set.
+        self.youtube_proxy_url = os.getenv("YOUTUBE_PROXY_URL", "").strip()
+        self.youtube_proxy_timeout_seconds = self._get_int_env("YOUTUBE_PROXY_TIMEOUT_SECONDS", 300)
+        self.youtube_proxy_country = os.getenv("YOUTUBE_PROXY_COUNTRY", "").strip()
+        self.youtube_pot_provider_url = os.getenv("YOUTUBE_POT_PROVIDER_URL", "").strip()
+        self.youtube_download_max_bytes = self._get_int_env("YOUTUBE_DOWNLOAD_MAX_BYTES", 2_000_000_000)
+        self.youtube_section_padding_seconds = self._get_float_env("YOUTUBE_SECTION_PADDING_SECONDS", 10.0)
+        self.youtube_max_height = self._get_int_env("YOUTUBE_MAX_HEIGHT", 1080)
+        self.youtube_source_cache = self._get_bool_env("YOUTUBE_SOURCE_CACHE", True)
+        self.youtube_source_cache_ttl_seconds = self._get_int_env(
+            "YOUTUBE_SOURCE_CACHE_TTL_SECONDS", 604800
         )
         self.apify_youtube_default_quality = self._normalize_apify_quality(
             os.getenv("APIFY_YOUTUBE_DEFAULT_QUALITY", "1080")
@@ -257,6 +270,20 @@ class Config:
             "APIFY_API_TOKEN": self.apify_api_token,
             "PEXELS_API_KEY": self.pexels_api_key,
         }
+
+    @staticmethod
+    def _get_int_env(name: str, default: int) -> int:
+        try:
+            return int(os.getenv(name, str(default)))
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _get_float_env(name: str, default: float) -> float:
+        try:
+            return float(os.getenv(name, str(default)))
+        except (TypeError, ValueError):
+            return default
 
     @staticmethod
     def _get_bool_env(name: str, default: bool) -> bool:
