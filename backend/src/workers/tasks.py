@@ -10,7 +10,7 @@ from arq.worker import func
 from .media_cleanup import cleanup_media, sweep_orphaned_media
 from ..repositories.task_run_guard import TaskRunBusy
 
-from ..observability import configure_logging, set_trace_id
+from ..observability import configure_logging, set_trace_id, set_user_id
 
 configure_logging()
 
@@ -54,6 +54,7 @@ async def process_video_task(
     from ..workers.progress import ProgressTracker
 
     set_trace_id(f"task-{task_id}")
+    set_user_id(user_id)
     logger.info(f"Worker processing task {task_id}")
 
     # Create progress tracker

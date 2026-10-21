@@ -383,6 +383,15 @@ wheels = [
 ]
 
 [[package]]
+name = "backoff"
+version = "2.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/d7/5bbeb12c44d7c4f2fb5b56abce497eb5ed9f34d85701de869acedd602619/backoff-2.2.1.tar.gz", hash = "sha256:03f829f5bb1923180821643f8753b0502c3b682293992485b0eef2807afa5cba", size = 17001, upload-time = "2022-10-05T19:19:32.061Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/df/73/b6e24bd22e6720ca8ee9a85a0c4a2971af8497d8f3193fa05390cbd46e09/backoff-2.2.1-py3-none-any.whl", hash = "sha256:63579f9a0628e06278f7e47b7d7d5b6ce20dc65c5e96a6f3ca99a6adca0396e8", size = 15148, upload-time = "2022-10-05T19:19:30.546Z" },
+]
+
+[[package]]
 name = "backports-tarfile"
 version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2858,6 +2867,21 @@ wheels = [
 ]
 
 [[package]]
+name = "posthog"
+version = "7.73.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "backoff" },
+    { name = "distro" },
+    { name = "requests" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6e/4b/cb8d66266e780ef19d5a4fae4f6fe55bda4e639e506549c8fc98719ab5e9/posthog-7.73.2.tar.gz", hash = "sha256:84f89f29cae8ac30381a69a5487b2ea8ce3054d49203d8004fb8dd67ef8f8eba", size = 766266, upload-time = "2026-10-20T21:59:56.884Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/40/85/9234302aa1ccd75821a03c013f31acfbb759f2c4307db21aab6c49042418/posthog-7.73.2-py3-none-any.whl", hash = "sha256:d843e9d22f22dc396d1877d4f85ffeac39e7a3cd8548b9b896a762969e9e3290", size = 895859, upload-time = "2026-10-20T21:59:54.537Z" },
+]
+
+[[package]]
 name = "prompt-toolkit"
 version = "3.0.52"
 source = { registry = "https://pypi.org/simple" }
@@ -4019,6 +4043,7 @@ dependencies = [
     { name = "numpy" },
     { name = "openai-whisper" },
     { name = "opencv-python" },
+    { name = "posthog" },
     { name = "pydantic-ai" },
     { name = "python-dotenv" },
     { name = "redis" },
@@ -4065,6 +4090,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.24.0" },
     { name = "openai-whisper", specifier = ">=20250625" },
     { name = "opencv-python", specifier = ">=4.8.0" },
+    { name = "posthog", specifier = ">=7.73.2" },
     { name = "pydantic-ai", specifier = ">=1.89.1" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "redis", specifier = ">=5.0.0" },

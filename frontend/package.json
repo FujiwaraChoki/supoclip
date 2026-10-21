@@ -19,6 +19,7 @@
     "test:local": "playwright test --config playwright.local.config.ts"
   },
   "dependencies": {
+    "@posthog/nextjs-config": "^1.11.3",
     "@prisma/client": "^6.19.2",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-avatar": "^1.1.11",
@@ -39,6 +40,8 @@
     "next": "15.4.8",
     "next-intl": "^4.14.9",
     "next-themes": "^0.4.6",
+    "posthog-js": "^1.438.13",
+    "posthog-node": "^5.56.2",
     "prisma": "^6.19.2",
     "radix-ui": "^1.4.3",
     "react": "19.1.0",

@@ -1,0 +1,60 @@
+# Ships SupoClip container logs (and the host nginx's SupoClip access/error
+# logs) to Axiom. Started by docker-compose's "axiom" profile; see
+# docs/observability.md.
+
+sources:
+  containers:
+    type: docker_logs
+    # Prefix match: only this stack's containers, not other projects on the host.
+    include_containers: ["supoclip-"]
+    exclude_containers: ["supoclip-vector"]
+
+  nginx:
+    type: file
+    include:
+      - /var/log/nginx/supoclip.access.log
+      - /var/log/nginx/supoclip.error.log
+
+transforms:
+  containers_parsed:
+    type: remap
+    inputs: [containers]
+    source: |
+      .service = replace(string!(.container_name), "supoclip-", "")
+      del(.label)
+      del(.container_id)
+      del(.container_created_at)
+      del(.source_type)
+
+      # The backend and worker log one JSON object per line (observability.py).
+      parsed, err = parse_json(.message)
+      if err == null && is_object(parsed) {
+        . = merge!(., parsed)
+        .timestamp = parse_timestamp(.timestamp, "%+") ?? now()
+      }
+
+  containers_filtered:
+    type: filter
+    inputs: [containers_parsed]
+    # Health checks hit every 30s and say nothing.
+    condition: |
+      !match(string(.message) ?? "", r'(?:Incoming|Completed) request GET /health\b')
+
+  nginx_parsed:
+    type: remap
+    inputs: [nginx]
+    source: |
+      .service = "nginx"
+      del(.source_type)
+      parsed, err = parse_json(.message)
+      if err == null && is_object(parsed) {
+        . = merge!(., parsed)
+        del(.message)
+      }
+
+sinks:
+  axiom:
+    type: axiom
+    inputs: [containers_filtered, nginx_parsed]
+    dataset: "${AXIOM_DATASET:-supoclip-prod}"
+    token: "${AXIOM_TOKEN}"

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
+import { backendTraceHeaders } from "@/server/backend-api";
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -16,7 +17,7 @@ export async function GET() {
     "http://localhost:8000";
   const upstream = await fetch(`${apiUrl}/tasks/billing/summary`, {
     method: "GET",
-    headers: buildBackendAuthHeaders(session.user.id),
+    headers: { ...buildBackendAuthHeaders(session.user.id), ...(await backendTraceHeaders()) },
     cache: "no-store",
   });
 

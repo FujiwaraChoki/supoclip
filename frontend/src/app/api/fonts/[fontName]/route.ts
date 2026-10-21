@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
+import { backendTraceHeaders } from "@/server/backend-api";
 
 interface Params {
   params: Promise<{ fontName: string }>;
@@ -21,7 +22,7 @@ export async function GET(_: Request, { params }: Params) {
     "http://localhost:8000";
   const normalizedApiUrl = apiUrl.replace(/\/$/, "");
   const encodedFontName = encodeURIComponent(fontName);
-  const backendAuthHeaders = buildBackendAuthHeaders(session.user.id);
+  const backendAuthHeaders = { ...buildBackendAuthHeaders(session.user.id), ...(await backendTraceHeaders()) };
 
   let upstream = await fetch(`${normalizedApiUrl}/fonts/${encodedFontName}`, {
     headers: {
@@ -62,7 +63,7 @@ export async function DELETE(_: Request, { params }: Params) {
     "http://localhost:8000";
   const normalizedApiUrl = apiUrl.replace(/\/$/, "");
   const encodedFontName = encodeURIComponent(fontName);
-  const backendAuthHeaders = buildBackendAuthHeaders(session.user.id);
+  const backendAuthHeaders = { ...buildBackendAuthHeaders(session.user.id), ...(await backendTraceHeaders()) };
 
   const upstream = await fetch(`${normalizedApiUrl}/fonts/${encodedFontName}`, {
     method: "DELETE",

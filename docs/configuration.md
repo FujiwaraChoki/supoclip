@@ -77,6 +77,23 @@ SupoClip can send pageviews and custom product events to DataFast from the `fron
   - `preferences_saved`
   - `feedback_submitted`
 
+### PostHog (product analytics, session replay, error tracking)
+
+The web app can also report to PostHog. It stays fully disabled unless `NEXT_PUBLIC_POSTHOG_KEY` is set, so self-hosted installs send nothing by default.
+
+| Variable | Default | Kind | Purpose |
+|---|---|---|---|
+| `NEXT_PUBLIC_POSTHOG_KEY` | unset | build arg | PostHog project token (`phc_...`). Empty disables PostHog entirely |
+| `NEXT_PUBLIC_POSTHOG_HOST` | `https://eu.i.posthog.com` | build arg | Ingest host the `/ingest` proxy and the server client send to |
+| `POSTHOG_PERSONAL_API_KEY` | unset | build arg | Personal API key with error tracking write access; enables source map upload |
+| `POSTHOG_PROJECT_ID` | unset | build arg | PostHog project ID for source map upload |
+| `POSTHOG_RELEASE_VERSION` | unset | build arg | Optional release version (e.g. the git SHA) for uploaded source maps |
+
+- `NEXT_PUBLIC_*` values are inlined at build time, so pass them as Docker build args.
+- Events go through the same-origin `/ingest` reverse proxy (Next.js rewrites). Session replay masks all inputs; only identified users get person profiles, keyed by the Better Auth user id.
+- Browser errors, `error.tsx`/`global-error.tsx`, server request errors (`instrumentation.ts`), and 5xx responses from `/api/*` are reported as exceptions. Each `/api/*` request carries an `x-trace-id` that the route handlers forward to the backend, so an exception's `trace_id` matches the backend logs.
+- Source maps upload only when both `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` are present at build time.
+
 ## Processing Settings
 
 These settings affect clip generation speed, throughput, and defaults.
@@ -283,6 +300,8 @@ These are especially relevant in Docker and deployments:
 | `NEXT_PUBLIC_DATAFAST_WEBSITE_ID` | Public DataFast website ID |
 | `NEXT_PUBLIC_DATAFAST_DOMAIN` | Domain passed to the DataFast script |
 | `NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST` | Enables local DataFast testing |
+| `NEXT_PUBLIC_POSTHOG_KEY` | PostHog project token; empty disables PostHog |
+| `NEXT_PUBLIC_POSTHOG_HOST` | PostHog ingest host (default EU) |
 | `BACKEND_INTERNAL_URL` | Internal backend URL used by frontend server routes |
 | `BETTER_AUTH_URL` | Auth origin for Better Auth |
 | `NEXT_PUBLIC_SELF_HOST` | Exposes self-host mode to the frontend |

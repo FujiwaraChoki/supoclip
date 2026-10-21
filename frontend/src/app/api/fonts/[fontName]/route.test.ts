@@ -64,7 +64,7 @@ describe("DELETE /api/fonts/[fontName]", () => {
       "http://backend:8000/fonts/Brand%20Font",
       expect.objectContaining({
         method: "DELETE",
-        headers: { "x-supoclip-user-id": "user-1" },
+        headers: { "x-supoclip-user-id": "user-1", "x-trace-id": expect.any(String) },
       }),
     );
     expect(response.status).toBe(200);
