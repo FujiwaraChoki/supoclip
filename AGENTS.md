@@ -53,3 +53,13 @@ PRs should include:
 ## Security & Configuration Tips
 - Never commit real secrets; use `.env.example` as the template.
 - Required runtime keys include `ASSEMBLY_AI_API_KEY` and either one hosted LLM provider key (`OPENAI_API_KEY`, `GOOGLE_API_KEY`, or `ANTHROPIC_API_KEY`) or an Ollama model configuration (`LLM=ollama:*`, optional `OLLAMA_BASE_URL`).
+
+## Cursor Cloud specific instructions
+
+Cloud Agents do not use Docker for this repo. `.cursor/cloud-install.sh` installs apt packages (PostgreSQL 16, Redis 7, ffmpeg, fonts), uv, Python 3.11, pnpm 10.27.0, and Deno, then runs `uv sync --frozen --all-groups --extra cpu` in `backend/`, `pnpm install --frozen-lockfile` in `frontend/`, and `uv sync` in `mcp/`. `.cursor/cloud-start.sh` is the boot script. systemd is not running here, so Postgres is started with `pg_ctlcluster` and Redis with `redis-server --daemonize yes`.
+
+- Database: `postgresql://supoclip:supoclip_password@127.0.0.1:5432/supoclip`. The API and worker need the `postgresql+asyncpg://` form. Prisma migrate runs before the API starts.
+- API: http://127.0.0.1:8000 (docs at `/docs`). Worker: tmux session `supoclip-worker`. Frontend: http://127.0.0.1:3107.
+- `SELF_HOST=true`. Signup works without email verification. Dev secrets are the placeholders in `.env.example`.
+- `ASSEMBLY_AI_API_KEY` and an LLM key are unset. Uploads, task creation, and the worker run; transcription stops until a key is set, or Whisper plus Ollama is configured (`docs/testing-local.md`). YouTube metadata requests from this network are blocked by YouTube's bot check, so use a file upload unless `YOUTUBE_DATA_API_KEY` is set.
+- Checks: `make check`, `make test-backend`, and `cd frontend && pnpm run test:coverage`. Social publishing integration tests call authorize while `SOCIAL_PUBLISHING_ACCESS` defaults to `off`, so those ten tests return 403 unless the variable is `all`.
