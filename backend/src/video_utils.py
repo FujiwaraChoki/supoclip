@@ -1,5 +1,6 @@
 """Video utils helpers for the video pipeline."""
 
+from .clip_source_map import save_clip_caption_settings
 from .media.common import (
     Any,
     Dict,
@@ -261,6 +262,7 @@ def create_optimized_clip(
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
     hook_title: Optional[str] = None,
     extend_to_sentence: bool = True,
+    layout_report: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size)."""
     try:
@@ -339,11 +341,34 @@ def create_optimized_clip(
             # always 1080x1920, "original" keeps the (even) source size. Knowing
             # them lets us build the ASS captions up front and burn them in the
             # SAME pass as reframing — one encode instead of two.
+            src_w, src_h = ffprobe_video_size(source_clip_path)
             if reframe_format == "original":
-                src_w, src_h = ffprobe_video_size(source_clip_path)
                 target_width, target_height = round_to_even(src_w), round_to_even(src_h)
             else:
                 target_width, target_height = 1080, 1920
+
+            speaker_turns: List[Dict[str, Any]] = []
+            speaker_words: List[Dict[str, Any]] = []
+            vertical_plan = None
+            caption_y = None
+            if reframe_format == "vertical":
+                if get_config().speaker_framing:
+                    try:
+                        speaker_turns, speaker_words = build_clip_speaker_turns(
+                            video_path, effective_keep_ranges
+                        )
+                    except Exception as exc:
+                        logger.warning("Speaker turn extraction failed: %s", exc)
+                try:
+                    video_filter, mode, caption_y = build_vertical_filter_plan(
+                        source_clip_path, src_w, src_h, speaker_turns, speaker_words
+                    )
+                    vertical_plan = (video_filter, mode)
+                except Exception as exc:
+                    logger.warning("Vertical layout planning failed: %s", exc)
+                    caption_y = None
+            if layout_report is not None and caption_y is not None:
+                layout_report["caption_y"] = caption_y
 
             burn_ass_path: Optional[Path] = None
             fonts_dir: Optional[Path] = None
@@ -361,21 +386,12 @@ def create_optimized_clip(
                 effective_keep_ranges,
                 hook_title=hook_title,
                 include_captions=add_subtitles,
+                position_y_override=caption_y,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
                     font_family or get_template(caption_template)["font_family"]
                 )
-
-            speaker_turns: List[Dict[str, Any]] = []
-            speaker_words: List[Dict[str, Any]] = []
-            if reframe_format == "vertical" and get_config().speaker_framing:
-                try:
-                    speaker_turns, speaker_words = build_clip_speaker_turns(
-                        video_path, effective_keep_ranges
-                    )
-                except Exception as exc:
-                    logger.warning("Speaker turn extraction failed: %s", exc)
 
             framed_ok, _, _ = render_reframed_clip_ffmpeg(
                 source_clip_path,
@@ -385,6 +401,7 @@ def create_optimized_clip(
                 fonts_dir=fonts_dir,
                 speaker_turns=speaker_turns,
                 speaker_words=speaker_words,
+                vertical_plan=vertical_plan,
             )
             if not framed_ok:
                 raise RuntimeError("ffmpeg reframe render failed")
@@ -476,6 +493,7 @@ def create_clips_from_segments(
                 # the stored text word-for-word with the rendered timeline.
                 clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
 
+            layout_report: Dict[str, Any] = {}
             success = create_optimized_clip(
                 video_path,
                 start_seconds,
@@ -489,10 +507,15 @@ def create_clips_from_segments(
                 output_format,
                 keep_ranges,
                 hook_title=segment.get("hook_title"),
+                layout_report=layout_report,
             )
 
             if success:
                 save_clip_source_ranges(clip_path, keep_ranges)
+                if layout_report.get("caption_y") is not None:
+                    save_clip_caption_settings(
+                        clip_path, {"position_y": layout_report["caption_y"]}
+                    )
                 cleaned_duration = sum(end - start for start, end in keep_ranges)
                 clip_info = {
                     "clip_id": i + 1,

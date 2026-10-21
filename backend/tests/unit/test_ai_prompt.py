@@ -36,6 +36,10 @@ def test_system_prompt_enforces_grounding_rules():
         transcript_analysis_system_prompt
     )
     assert "Bad picks include intros" in transcript_analysis_system_prompt
+    assert "The clip's real first sentence is the hook" in (
+        transcript_analysis_system_prompt
+    )
+    assert "bare agreement" in transcript_analysis_system_prompt
     assert "Return valid JSON only" in transcript_analysis_system_prompt
     assert "Do not use \"segment\" as an output field. Use \"text\"." in (
         transcript_analysis_system_prompt
@@ -53,6 +57,7 @@ def test_build_transcript_analysis_prompt_requires_transcript_fidelity():
     assert "Do not reject or penalize a segment simply because of the subject matter" in prompt
     assert f"Most selected clips should be {IDEAL_CLIP_MIN_SECONDS}-{IDEAL_CLIP_MAX_SECONDS} seconds." in prompt
     assert "viewer would understand and care without seeing the rest" in prompt
+    assert "first word of a self-contained sentence" in prompt
     assert "Return one valid JSON object and nothing else." in prompt
     assert "No Markdown, headings, bullets, code fences" in prompt
     assert "[00:12 - 00:21] A strong opening line" in prompt

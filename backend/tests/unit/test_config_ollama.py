@@ -26,6 +26,13 @@ def test_youtube_duration_limit_uses_active_subscription_plan(monkeypatch):
     assert config.max_youtube_video_duration_for_plan("scale", "inactive") == 5400
 
 
+def test_hook_teaser_is_off_unless_requested(monkeypatch):
+    monkeypatch.delenv("HOOK_FIRST_TEASER", raising=False)
+    assert Config().hook_first_teaser is False
+    monkeypatch.setenv("HOOK_FIRST_TEASER", "true")
+    assert Config().hook_first_teaser is True
+
+
 def test_whisper_accepts_documented_model_size_setting(monkeypatch):
     monkeypatch.delenv("WHISPER_MODEL", raising=False)
     monkeypatch.setenv("WHISPER_MODEL_SIZE", "tiny")

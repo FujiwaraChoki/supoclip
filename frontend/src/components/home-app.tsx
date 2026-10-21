@@ -91,7 +91,7 @@ export default function HomeApp() {
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("vertical");
   const [addSubtitles, setAddSubtitles] = useState(true);
   const [cutLongPauses, setCutLongPauses] = useState(true);
-  const [pauseThresholdMs, setPauseThresholdMs] = useState("700");
+  const [pauseThresholdMs, setPauseThresholdMs] = useState("1200");
   const [removeFillerWords, setRemoveFillerWords] = useState(true);
   const [filteredWords, setFilteredWords] = useState("");
 
@@ -230,7 +230,7 @@ export default function HomeApp() {
       let videoUrl = url.trim();
       const normalizedPauseThreshold = Number.isFinite(Number(pauseThresholdMs))
         ? Math.max(250, Math.min(3000, Math.round(Number(pauseThresholdMs))))
-        : 700;
+        : 1200;
       const normalizedFilteredWords = filteredWords.split(",").map((word) => word.trim().toLowerCase()).filter(Boolean);
 
       if (sourceType === "upload" && file) {

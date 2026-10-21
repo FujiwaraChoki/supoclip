@@ -330,7 +330,7 @@ def test_vertical_plan_uses_speaker_chain_for_all_face_clips(monkeypatch, tmp_pa
     )
     turns = [{"speaker": "A", "start": 0, "end": 5}, {"speaker": "B", "start": 5, "end": 10}]
 
-    chain, mode = reframing.build_vertical_filter_plan(
+    chain, mode, _caption = reframing.build_vertical_filter_plan(
         tmp_path / "clip.mp4", 1920, 1080, turns, [_word(0, 1, "A")]
     )
 
@@ -344,7 +344,7 @@ def test_vertical_plan_falls_back_when_speaker_mapping_fails(monkeypatch, tmp_pa
     monkeypatch.setattr(speaker_framing, "build_speaker_crop_chain", lambda *a, **k: None)
     turns = [{"speaker": "A", "start": 0, "end": 5}, {"speaker": "B", "start": 5, "end": 10}]
 
-    chain, mode = reframing.build_vertical_filter_plan(
+    chain, mode, _caption = reframing.build_vertical_filter_plan(
         tmp_path / "clip.mp4", 1920, 1080, turns, [_word(0, 1, "A")]
     )
 
@@ -362,7 +362,7 @@ def test_vertical_plan_keeps_compositor_for_content_shots(monkeypatch, tmp_path)
     )
     turns = [{"speaker": "A", "start": 0, "end": 5}, {"speaker": "B", "start": 5, "end": 10}]
 
-    _, mode = reframing.build_vertical_filter_plan(
+    _, mode, _caption = reframing.build_vertical_filter_plan(
         tmp_path / "clip.mp4", 1920, 1080, turns, [_word(0, 1, "A")]
     )
 

@@ -66,7 +66,7 @@ VALID_OUTPUT_FORMATS = {"vertical", "vertical_pan", "vertical_split", "original"
 
 EMOJI_FONT_NAME = "Noto Color Emoji"
 
-CLIP_END_SENTENCE_EXTENSION_SECONDS = 3.0
+CLIP_END_SENTENCE_EXTENSION_SECONDS = 5.5
 
 CLIP_END_PADDING_SECONDS = 0.35
 
@@ -88,7 +88,7 @@ HOOK_TEASER_MIN_OFFSET_SECONDS = 3.0
 # CROSSFADE_MAX_SECONDS, which overlaps the two sides) about
 # PAUSE_RETAINED_SILENCE_SECONDS of silence remains audible. The padding is never
 # shorter than the crossfade, so the fade only ever blends silence, never words.
-PAUSE_RETAINED_SILENCE_SECONDS = 0.2
+PAUSE_RETAINED_SILENCE_SECONDS = 0.4
 
 CROSSFADE_MAX_SECONDS = 0.15
 

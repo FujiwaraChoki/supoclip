@@ -89,6 +89,7 @@ def extend_keep_ranges_to_sentence_boundary(
         return normalized
 
     extended_end = last_end
+    completed = False
     for word in nearby_words:
         word_end = float(word["end"])
         if word_end <= last_end + 0.05:
@@ -96,7 +97,16 @@ def extend_keep_ranges_to_sentence_boundary(
         extended_end = max(extended_end, word_end)
         if word_ends_sentence(str(word.get("text", ""))):
             extended_end += max(0.0, padding_seconds)
+            completed = True
             break
+
+    if not completed:
+        # The sentence we ran into does not finish inside the window. If it is
+        # only a short tail after a sentence that already landed, drop the tail
+        # ("...payoff. Before we started recording") instead of keeping a fragment.
+        trimmed = _drop_dangling_tail(normalized, transcript_data)
+        if trimmed[-1][1] < last_end - 0.05:
+            return trimmed
 
     if extended_end <= last_end:
         return normalized
@@ -108,6 +118,49 @@ def extend_keep_ranges_to_sentence_boundary(
         return normalized
 
     return [*normalized[:-1], (last_start, extended_end)]
+
+
+def _drop_dangling_tail(
+    keep_ranges: List[Tuple[float, float]],
+    transcript_data: Dict,
+) -> List[Tuple[float, float]]:
+    """Cut a short unfinished sentence that trails a completed one.
+
+    Extending forward cannot always reach the next period. A leftover like
+    "Before we started recording" after the payoff is the next thought's
+    opening, not part of this clip.
+    """
+    if not keep_ranges:
+        return keep_ranges
+    last_start, last_end = keep_ranges[-1]
+    words = get_absolute_words_in_range(
+        transcript_data, max(0.0, last_start), last_end + 0.05
+    )
+    if not words:
+        return keep_ranges
+    last_complete = None
+    for word in words:
+        if float(word["end"]) > last_end + 0.05:
+            break
+        if word_ends_sentence(str(word.get("text", ""))):
+            last_complete = word
+    if last_complete is None:
+        return keep_ranges
+    if last_end - float(last_complete["end"]) <= CLIP_END_PADDING_SECONDS + 0.2:
+        return keep_ranges
+    dangling = [
+        word for word in words if float(word["start"]) >= float(last_complete["end"]) - 0.02
+    ]
+    if not dangling or len(dangling) > 12:
+        return keep_ranges
+    if last_end - float(dangling[0]["start"]) > 4.0:
+        return keep_ranges
+    trimmed_end = min(last_end, float(last_complete["end"]) + CLIP_END_PADDING_SECONDS)
+    # A real clip should stay long enough to stand alone. Ranges that were
+    # already short (or a unit-test fixture) can still drop the fragment.
+    if last_end - last_start >= 8.0 and trimmed_end - last_start < 8.0:
+        return keep_ranges
+    return [*keep_ranges[:-1], (last_start, trimmed_end)]
 
 
 def _word_starts_sentence(
@@ -165,6 +218,127 @@ def _sentence_start_word_index(
     return index
 
 
+# Disfluencies are removed by filler cleanup. They are not a reason to pull
+# the previous sentence in; the first real word after them is the opening.
+_FILLER_TOKENS = {"um", "uh", "uhh", "uhm", "umm", "hmm"}
+
+# Openings that need the previous sentence before a new viewer can follow.
+# "I" / "we" / "so" are left out on purpose: they often start a real claim.
+_WEAK_OPENERS = {
+    "like",
+    "dude",
+    "yeah",
+    "yes",
+    "yep",
+    "yup",
+    "well",
+    "um",
+    "uh",
+    "uhh",
+    "right",
+    "okay",
+    "ok",
+    "exactly",
+    "totally",
+    "absolutely",
+    "hmm",
+    "he",
+    "she",
+    "they",
+    "them",
+    "him",
+    "her",
+}
+_BACK_REFERENCES = (
+    "we mentioned",
+    "i mentioned",
+    "you mentioned",
+    "as i said",
+    "like i said",
+    "i said",
+    "we said",
+    "before we started",
+    "that point",
+    "that sentiment",
+    "he made",
+    "she made",
+    "they made",
+)
+WEAK_OPENING_REWIND_SECONDS = 8.0
+
+
+def _normalize_opening_token(text: str) -> str:
+    return re.sub(r"[^a-z0-9']+", "", (text or "").lower())
+
+
+def _opening_phrase(words: List[Dict[str, Any]], index: int, limit: int = 12) -> str:
+    tokens: List[str] = []
+    cursor = index
+    while cursor < len(words) and len(tokens) < limit:
+        tokens.append(_normalize_opening_token(str(words[cursor].get("text", ""))))
+        if word_ends_sentence(str(words[cursor].get("text", ""))):
+            break
+        cursor += 1
+    return " ".join(token for token in tokens if token)
+
+
+def _content_word_index(words: List[Dict[str, Any]], index: int) -> int:
+    """Skip leading um/uh so the opening is judged on the first real word."""
+    cursor = index
+    while cursor < len(words):
+        token = _normalize_opening_token(str(words[cursor].get("text", "")))
+        if token not in _FILLER_TOKENS or word_ends_sentence(str(words[cursor].get("text", ""))):
+            return cursor
+        cursor += 1
+    return index
+
+
+def _opening_is_weak(words: List[Dict[str, Any]], index: int) -> bool:
+    """Whether this sentence starts on an agreement, a pronoun, or a back-reference.
+
+    A leading "um" is ignored: filler cleanup removes it, and the word after
+    it is the opening a viewer actually hears.
+    """
+    if index < 0 or index >= len(words):
+        return False
+    content = _content_word_index(words, index)
+    first = _normalize_opening_token(str(words[content].get("text", "")))
+    if first in _WEAK_OPENERS:
+        return True
+    phrase = _opening_phrase(words, content)
+    return any(reference in phrase for reference in _BACK_REFERENCES)
+
+
+def _previous_sentence_index(words: List[Dict[str, Any]], index: int) -> Optional[int]:
+    if index <= 0:
+        return None
+    cursor = index - 1
+    while cursor > 0 and not _word_starts_sentence(words, cursor):
+        cursor -= 1
+    return cursor
+
+
+def _prefer_self_contained_start(
+    words: List[Dict[str, Any]],
+    index: int,
+    position: float,
+    max_rewind: float = WEAK_OPENING_REWIND_SECONDS,
+) -> int:
+    """Step back one or two sentences when the opening depends on missing context."""
+    for _ in range(2):
+        if not _opening_is_weak(words, index):
+            break
+        previous = _previous_sentence_index(words, index)
+        if previous is None:
+            break
+        if float(words[index]["start"]) - float(words[previous]["start"]) > max_rewind:
+            break
+        if float(words[previous]["start"]) < position - max_rewind:
+            break
+        index = previous
+    return index
+
+
 def _start_before_word(
     words: List[Dict[str, Any]], index: int, lead_in_seconds: float
 ) -> float:
@@ -214,6 +388,7 @@ def snap_keep_ranges_to_sentence_start(
     index = _sentence_start_word_index(words, range_start, window_seconds)
     if index is None:
         return normalized
+    index = _prefer_self_contained_start(words, index, range_start)
     snapped_start = _start_before_word(words, index, lead_in_seconds)
     if abs(snapped_start - range_start) < 0.01 or range_end - snapped_start < 0.5:
         return normalized

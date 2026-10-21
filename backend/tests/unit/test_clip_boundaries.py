@@ -106,6 +106,145 @@ def test_start_without_boundary_in_window_stays_word_aligned():
     assert words[index]["start"] == pytest.approx(6.0)
 
 
+def _transcript(tmp_path, words):
+    path = tmp_path / "source.mp4"
+    path.with_suffix(".transcript_cache.json").write_text(
+        json.dumps({"version": 2, "words": _words(*words), "utterances": []}),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_pronoun_opening_rewinds_to_the_previous_sentence(tmp_path):
+    video = _transcript(
+        tmp_path,
+        [
+            ("The", 10.0, 10.2),
+            ("algorithm", 10.2, 10.6),
+            ("is", 10.6, 10.8),
+            ("the", 10.8, 11.0),
+            ("boss.", 11.0, 11.5),
+            ("He", 12.2, 12.4),
+            ("made", 12.4, 12.7),
+            ("a", 12.7, 12.8),
+            ("point", 12.8, 13.2),
+            ("about", 13.2, 13.5),
+            ("it.", 13.5, 20.0),
+        ],
+    )
+    ranges = timeline.snap_keep_ranges_to_sentence_start(video, [(12.2, 24.0)])
+    assert ranges[0][0] == pytest.approx(9.9)
+
+
+def test_agreement_opening_includes_the_point_being_agreed_with(tmp_path):
+    video = _transcript(
+        tmp_path,
+        [
+            ("Shipping", 8.0, 8.4),
+            ("weekly", 8.4, 8.8),
+            ("matters.", 8.8, 9.4),
+            ("Yes.", 10.2, 10.5),
+            ("And", 10.7, 10.9),
+            ("I", 10.9, 11.0),
+            ("share", 11.0, 11.3),
+            ("that", 11.3, 11.5),
+            ("sentiment.", 11.5, 20.0),
+        ],
+    )
+    ranges = timeline.snap_keep_ranges_to_sentence_start(video, [(10.2, 22.0)])
+    assert ranges[0][0] == pytest.approx(7.9)
+
+
+def test_back_reference_rewinds_to_the_thing_mentioned(tmp_path):
+    video = _transcript(
+        tmp_path,
+        [
+            ("We", 5.0, 5.2),
+            ("should", 5.2, 5.5),
+            ("go", 5.5, 5.7),
+            ("to", 5.7, 5.8),
+            ("VidCon.", 5.8, 6.4),
+            ("The", 8.0, 8.2),
+            ("conference", 8.2, 8.6),
+            ("that", 8.6, 8.8),
+            ("we", 8.8, 9.0),
+            ("mentioned", 9.0, 9.5),
+            ("was", 9.6, 9.8),
+            ("packed.", 9.8, 18.0),
+        ],
+    )
+    ranges = timeline.snap_keep_ranges_to_sentence_start(video, [(8.0, 20.0)])
+    assert ranges[0][0] == pytest.approx(4.9)
+
+
+def test_leading_filler_does_not_pull_the_previous_sentence(tmp_path):
+    video = _transcript(
+        tmp_path,
+        [
+            ("Okay.", 9.0, 9.4),
+            ("um", 10.05, 10.3),
+            ("so", 10.4, 10.6),
+            ("this", 10.6, 10.9),
+            ("works.", 10.9, 20.0),
+        ],
+    )
+    ranges = timeline.snap_keep_ranges_to_sentence_start(video, [(10.0, 22.0)])
+    assert ranges[0][0] == pytest.approx(9.95)
+
+
+def test_filler_before_an_agreement_still_rewinds(tmp_path):
+    video = _transcript(
+        tmp_path,
+        [
+            ("Shipping", 8.0, 8.4),
+            ("weekly", 8.4, 8.8),
+            ("matters.", 8.8, 9.4),
+            ("um", 10.0, 10.2),
+            ("yeah", 10.3, 10.6),
+            ("that", 10.7, 10.9),
+            ("works.", 10.9, 18.0),
+        ],
+    )
+    ranges = timeline.snap_keep_ranges_to_sentence_start(video, [(10.0, 20.0)])
+    assert ranges[0][0] == pytest.approx(7.9)
+
+
+def test_first_person_claim_is_not_rewound(tmp_path):
+    video = _transcript(
+        tmp_path,
+        [
+            ("Anyway.", 8.0, 8.5),
+            ("I", 10.0, 10.2),
+            ("lost", 10.2, 10.5),
+            ("forty", 10.5, 10.8),
+            ("thousand.", 10.8, 18.0),
+        ],
+    )
+    ranges = timeline.snap_keep_ranges_to_sentence_start(video, [(10.2, 20.0)])
+    assert ranges[0][0] == pytest.approx(9.9)
+
+
+def test_unfinished_tail_after_a_payoff_is_dropped(tmp_path, monkeypatch):
+    video = _transcript(
+        tmp_path,
+        [
+            ("That", 10.0, 10.3),
+            ("move", 10.3, 10.6),
+            ("is", 10.6, 10.8),
+            ("the", 10.8, 11.0),
+            ("whole", 11.0, 11.3),
+            ("game.", 11.3, 11.8),
+            ("Before", 12.4, 12.7),
+            ("we", 12.7, 12.9),
+            ("started", 12.9, 13.3),
+            ("recording", 13.3, 13.8),
+        ],
+    )
+    monkeypatch.setattr(timeline, "ffprobe_duration", lambda _path: 40.0)
+    ranges = timeline.extend_keep_ranges_to_sentence_boundary(video, [(10.0, 14.0)])
+    assert ranges[0][1] == pytest.approx(11.8 + timeline.CLIP_END_PADDING_SECONDS)
+
+
 def test_start_snapping_is_idempotent(video_path):
     once = timeline.snap_keep_ranges_to_sentence_start(video_path, [(13.0, 32.0)])
     twice = timeline.snap_keep_ranges_to_sentence_start(video_path, once)
