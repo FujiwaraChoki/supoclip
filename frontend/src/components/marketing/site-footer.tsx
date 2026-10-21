@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { catalogKey } from "@/i18n/config";
 import { getMarketingLinks } from "@/lib/marketing-links";
 import { APP_STORE_URL, GITHUB_URL } from "@/lib/site";
@@ -53,7 +52,6 @@ export function SiteFooter() {
           <p className="mt-3 max-w-xs text-xs leading-6 text-muted-foreground">
             {t("footer.tagline")}
           </p>
-          <LanguageSwitcher variant="inline" className="mt-4 text-xs" />
           <div className="mt-4 flex gap-4 text-xs text-muted-foreground">
             <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>{t("footer.github")}</a>
             <a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer" className={linkClassName}>{t("footer.ios")}</a>

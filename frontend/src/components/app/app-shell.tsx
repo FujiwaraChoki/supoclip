@@ -13,7 +13,6 @@ import { signOut, useSession } from "@/lib/auth-client";
 import { useBillingSummary } from "@/hooks/use-billing-summary";
 import { useSocialAccess } from "@/hooks/use-social-access";
 import { billingPlanMessageKey } from "@/lib/billing-plans";
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { getUpgradeState } from "@/components/billing/upgrade-prompt";
 import { fetchGenerations, timeAgo, type GenerationSummary } from "@/lib/generations";
 import { StatusBadge } from "@/components/app/status-badge";
@@ -124,7 +123,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mt-auto w-full space-y-2 pb-3">
           <Announcements key={user.id} userId={user.id} compact={compact} />
           {!compact && billing?.monetization_enabled && <UsageCard billing={billing} />}
-          <LanguageSwitcher compact={compact} />
           <UserRow compact={compact} name={user.name} email={user.email} />
         </div>
       </aside> : null}
