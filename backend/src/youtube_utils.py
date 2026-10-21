@@ -18,6 +18,7 @@ import yt_dlp
 
 from .apify_youtube_downloader import ApifyDownloadError, download_video_via_apify
 from .config import get_config
+from .rapidapi_youtube_downloader import RapidAPIDownloadError, download_video_via_rapidapi
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ YOUTUBE_METADATA_PROVIDER_YTDLP = "yt_dlp"
 YOUTUBE_METADATA_PROVIDER_DATA_API = "youtube_data_api"
 YOUTUBE_DOWNLOAD_PROVIDER_YTDLP = "yt_dlp"
 YOUTUBE_DOWNLOAD_PROVIDER_APIFY = "apify"
+YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI = "rapidapi"
 YOUTUBE_DATA_API_URL = "https://www.googleapis.com/youtube/v3/videos"
 
 
@@ -599,7 +601,7 @@ def download_youtube_video(
 ) -> Optional[Path]:
     """
     Download YouTube video using the configured provider.
-    Defaults to free yt-dlp downloads and optionally falls back to Apify when configured.
+    Defaults to free yt-dlp; paid-first deployments leave yt-dlp until last.
     """
     logger.info("Starting YouTube download: %s", url)
 
@@ -613,13 +615,29 @@ def download_youtube_video(
 
     config = get_config()
     primary_provider = config.youtube_download_provider
-    secondary_provider = (
-        YOUTUBE_DOWNLOAD_PROVIDER_APIFY
+    paid_providers = [YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI, YOUTUBE_DOWNLOAD_PROVIDER_APIFY]
+    if primary_provider != YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI:
+        paid_providers.reverse()
+    providers = (
+        [YOUTUBE_DOWNLOAD_PROVIDER_YTDLP, *paid_providers]
         if primary_provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
-        else YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
+        else [*paid_providers, YOUTUBE_DOWNLOAD_PROVIDER_YTDLP]
     )
 
-    for provider in (primary_provider, secondary_provider):
+    for provider in providers:
+        if provider == YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI:
+            if not config.rapidapi_youtube_api_key:
+                continue
+            try:
+                return download_video_via_rapidapi(
+                    video_id, downloader.temp_dir, config.rapidapi_youtube_api_key,
+                    quality=_resolve_apify_quality(url),
+                    timeout_seconds=config.rapidapi_youtube_timeout_seconds,
+                )
+            except RapidAPIDownloadError as exc:
+                logger.warning("API Router download failed for %s: %s", video_id, exc)
+            continue
+
         if provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP:
             downloaded_path = _download_youtube_video_with_ytdlp(
                 url,
@@ -650,6 +668,8 @@ def download_youtube_video(
             return downloaded_path
         except ApifyDownloadError as exc:
             logger.warning("Apify download failed for %s: %s", url, exc)
+            if exc.permanent:
+                return None
         except Exception as exc:
             logger.error("Unexpected Apify download error for %s: %s", url, exc)
 
@@ -701,7 +721,7 @@ def cleanup_downloaded_files(video_id: str, source_path: Optional[Path] = None):
     """Remove downloaded media while retaining word timings for cached jobs."""
     temp_dir = Path(get_config().temp_dir)
     provider_dir = False
-    if source_path is not None and source_path.parent.name.startswith(f"apify-{video_id}-"):
+    if source_path is not None and source_path.parent.name.startswith((f"apify-{video_id}-", f"rapidapi-{video_id}-")):
         candidate = source_path.parent.resolve()
         if candidate.parent != temp_dir.resolve():
             logger.warning("Refusing source cleanup outside the configured download directory")

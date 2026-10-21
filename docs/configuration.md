@@ -102,7 +102,8 @@ These settings affect clip generation speed, throughput, and defaults.
 |---|---|---|
 | `DEFAULT_PROCESSING_MODE` | `fast` | Default mode for new tasks |
 | `FAST_MODE_MAX_CLIPS` | `10` | Clip cap used by fast mode (never above `MAX_CLIPS`) |
-| `FAST_MODE_TRANSCRIPT_MODEL` | `nano` | Lightweight transcript path for fast mode |
+| `FAST_MODE_TRANSCRIPT_MODEL` | `universal-3-5-pro` | Fast mode uses the Pro model too; `universal-2` covers languages Pro doesn't. `nano`/`universal-2` select the cheaper model for self-hosting |
+| `ASSEMBLY_AI_REQUEST_TIMEOUT_SECONDS` | `60` | Per-request upload/submit timeout (5–300). Transient upload failures retry up to 3 times; the paid submission is attempted once |
 | `WHISPER_MODEL_SIZE` | `medium` in `.env.example` | Whisper model size when Whisper is used locally |
 | `QUEUED_TASK_TIMEOUT_SECONDS` | `180` | Marks stale queued tasks as failed instead of leaving them stuck forever |
 | `MAX_VIDEO_DURATION` | `5400` | Maximum accepted upload length and baseline YouTube length in seconds |
@@ -270,6 +271,22 @@ SupoClip uses the actor explicitly configured in the private environment as the 
 | `APIFY_API_TOKEN` | empty | Enables the primary Apify download flow |
 | `APIFY_YOUTUBE_DEFAULT_QUALITY` | `1080` | Requested Apify download resolution (`360`, `480`, `720`, or `1080`) |
 | `APIFY_RUN_TIMEOUT_SECONDS` | `900` | Maximum Apify actor run time before SupoClip gives up and falls back |
+
+## RapidAPI YouTube Downloader
+
+An optional paid download service. Set `YOUTUBE_DOWNLOAD_PROVIDER=rapidapi` to try it first, then
+the Apify pool, then yt-dlp; with `apify` it runs after the Apify pool. Missing settings skip it.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RAPIDAPI_YOUTUBE_API_KEY` | empty | RapidAPI key for the download service |
+| `RAPIDAPI_YOUTUBE_HOST` | empty | Extraction API host (private configuration) |
+| `RAPIDAPI_YOUTUBE_RELAY_HOST` | empty | Media relay host the API returns (private configuration) |
+| `RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS` | `1200` | Budget for extraction, transfer, muxing and verification (60–1800) |
+
+Each attempt makes one extraction request, downloads video and original audio in parallel
+ranges, muxes them and verifies byte counts, durations, both streams and decode samples before
+accepting the file. Any contract or relay change fails closed.
 
 ## YouTube Metadata Provider
 

@@ -22,3 +22,9 @@ def isolated_clip_edits(monkeypatch):
         "src.repositories.task_repository.TaskRepository.load_source_metadata",
         AsyncMock(return_value={}),
     )
+
+
+@pytest.fixture(autouse=True)
+def disable_paid_youtube_fallback(monkeypatch):
+    """Local dotenv credentials must never turn a unit test into a paid request."""
+    monkeypatch.setenv("RAPIDAPI_YOUTUBE_API_KEY", "")
