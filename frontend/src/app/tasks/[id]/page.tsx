@@ -146,7 +146,7 @@ export default function TaskPage() {
   const [projectFontColor, setProjectFontColor] = useState<string | null>(null);
   const [projectCaptionTemplate, setProjectCaptionTemplate] = useState("default");
   const [projectCutLongPauses, setProjectCutLongPauses] = useState(false);
-  const [projectPauseThresholdMs, setProjectPauseThresholdMs] = useState("700");
+  const [projectPauseThresholdMs, setProjectPauseThresholdMs] = useState("1200");
   const [projectRemoveFillerWords, setProjectRemoveFillerWords] = useState(false);
   const [projectFilteredWords, setProjectFilteredWords] = useState("");
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
@@ -253,7 +253,7 @@ export default function TaskPage() {
         setProjectFontColor(taskData.font_color ?? null);
         setProjectCaptionTemplate(taskData.caption_template || "default");
         setProjectCutLongPauses(Boolean(taskData.cut_long_pauses));
-        setProjectPauseThresholdMs(String(taskData.pause_threshold_ms || 700));
+        setProjectPauseThresholdMs(String(taskData.pause_threshold_ms || 1200));
         setProjectRemoveFillerWords(Boolean(taskData.remove_filler_words));
         setProjectFilteredWords((taskData.filtered_words || []).join(", "));
 
@@ -454,10 +454,10 @@ export default function TaskPage() {
   const handleApplyProjectSettings = async () => {
     if (!session?.user?.id || !params.id) return;
     const fontOptions = buildFontOptionsPayload(projectFontFamily, projectFontSize, projectFontColor);
-    const parsedPauseThreshold = Number(projectPauseThresholdMs || "700");
+    const parsedPauseThreshold = Number(projectPauseThresholdMs || "1200");
     const safePauseThreshold = Number.isFinite(parsedPauseThreshold)
       ? Math.max(250, Math.min(3000, Math.round(parsedPauseThreshold)))
-      : 700;
+      : 1200;
     const normalizedFilteredWords = projectFilteredWords
       .split(",")
       .map((word) => word.trim().toLowerCase())

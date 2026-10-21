@@ -36,7 +36,7 @@ async def test_load_task_source_settings_falls_back_when_redis_fails(monkeypatch
     assert settings["output_format"] == "vertical"
     assert settings["add_subtitles"] is True
     assert settings["cut_long_pauses"] is False
-    assert settings["pause_threshold_ms"] == 700
+    assert settings["pause_threshold_ms"] == 1200
     assert settings["remove_filler_words"] is False
     assert settings["filtered_words"] == []
 

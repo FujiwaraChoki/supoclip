@@ -199,8 +199,10 @@ class Config:
         self.fast_mode_transcript_model = os.getenv(
             "FAST_MODE_TRANSCRIPT_MODEL", "universal"
         )
-        # Open clips with the AI-picked hook line as a short cold-open teaser.
-        self.hook_first_teaser = self._get_bool_env("HOOK_FIRST_TEASER", True)
+        # Replay a later punchline before the clip. Off: the same line was
+        # playing twice (teaser, then again inside the clip) and the opening
+        # has to stand on its own. Set HOOK_FIRST_TEASER=true to opt back in.
+        self.hook_first_teaser = self._get_bool_env("HOOK_FIRST_TEASER", False)
         # Cut between speakers on multi-person wide shots using diarization.
         self.speaker_framing = self._get_bool_env("SPEAKER_FRAMING", True)
 
