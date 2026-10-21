@@ -68,25 +68,34 @@ docker compose up -d vector
 ### nginx
 
 On the production host nginx runs outside Docker and serves several sites into
-one shared `access.log`. Vector picks up SupoClip's requests once its vhost
-logs to its own files. Add to the `http` block (e.g.
-`/etc/nginx/conf.d/supoclip-log.conf`):
+one shared `access.log`. The SupoClip vhosts (`www` and `api`, port 443) also
+write their own files, which Vector picks up. They show what the backend never
+sees: 413s for oversized uploads, 502s while a container restarts, 504s on slow
+uploads, and frontend page/asset requests.
+
+`/etc/nginx/conf.d/supoclip-log.conf`:
 
 ```nginx
+# $uri, not $request_uri: query strings can carry tokens.
 log_format supoclip_json escape=json
-  '{"time":"$time_iso8601","remote_addr":"$remote_addr","method":"$request_method",'
-  '"host":"$host","path":"$request_uri","status":$status,"bytes":$body_bytes_sent,'
-  '"request_time":$request_time,"upstream_time":"$upstream_response_time",'
+  '{"time":"$time_iso8601","host":"$host","method":"$request_method","path":"$uri",'
+  '"status":$status,"bytes":$body_bytes_sent,"request_length":$request_length,'
+  '"request_time":$request_time,"upstream_status":"$upstream_status",'
+  '"upstream_time":"$upstream_response_time","remote_addr":"$remote_addr",'
   '"referer":"$http_referer","user_agent":"$http_user_agent",'
   '"trace_id":"$upstream_http_x_trace_id"}';
 ```
 
-and in each SupoClip `server` block (`sites-available/supoclip`):
+In the `www.supoclip.com` and `api.supoclip.com` 443 server blocks of
+`sites-available/supoclip` (the shared logs are listed again because a
+server-level `access_log` replaces the inherited one):
 
 ```nginx
+access_log /var/log/nginx/access.log;
 access_log /var/log/nginx/supoclip.access.log supoclip_json;
-error_log  /var/log/nginx/supoclip.error.log warn;
+error_log /var/log/nginx/error.log;
+error_log /var/log/nginx/supoclip.error.log warn;
 ```
 
-Then `sudo nginx -t && sudo systemctl reload nginx`. Add the new files to the
-existing logrotate rule for `/var/log/nginx/*.log` (it already matches them).
+Apply with `sudo nginx -t && sudo systemctl reload nginx`. The existing
+logrotate rule for `/var/log/nginx/*.log` covers the new files.
