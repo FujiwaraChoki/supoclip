@@ -13,7 +13,9 @@ from tests.unit.test_social_service import FakeProvider, FakeQueue
 
 
 @pytest.fixture
-async def social_setup(client, db_session, auth_headers, monkeypatch, tmp_path):
+async def social_setup(app, client, db_session, auth_headers, monkeypatch, tmp_path):
+    # Publishing is off by default; these tests exercise the enabled rollout.
+    monkeypatch.setattr(app.state.config, "social_publishing_access", "all")
     provider = FakeProvider()
     monkeypatch.setattr(social_service, "get_provider", lambda name, config=None: provider)
     monkeypatch.setenv("APP_SETTINGS_ENCRYPTION_KEY", "social-integration-test-key")

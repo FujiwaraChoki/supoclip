@@ -100,10 +100,12 @@ class VideoUtilsDiarizationTests(unittest.TestCase):
         self.assertEqual(payload["utterances"][0]["speaker"], "A")
         self.assertEqual(payload["utterances"][0]["words"][0]["speaker"], "A")
 
+    # Each transcription builds its own SDK client, which needs an API key.
+    @patch("src.media.transcription.aai.Client")
     @patch("src.media.transcription.aai.Transcriber")
     @patch("src.media.transcription.aai.TranscriptionConfig")
     def test_get_video_transcript_enables_speaker_labels(
-        self, mock_transcription_config, mock_transcriber
+        self, mock_transcription_config, mock_transcriber, _mock_client
     ):
         transcript = SimpleNamespace(
             status=video_utils.aai.TranscriptStatus.completed,
@@ -163,8 +165,8 @@ class VideoUtilsDiarizationTests(unittest.TestCase):
         self.assertEqual(payload["words"][0]["text"], "legacy")
 
     def test_assemblyai_speech_models_value_maps_legacy_aliases(self):
-        # AssemblyAI deprecated the singular speech_model; the plural list must
-        # only contain universal-3-pro and universal-2.
+        # AssemblyAI deprecated the singular speech_model; the plural list
+        # prefers the current Pro model with universal-2 as the fallback.
         self.assertEqual(
             video_utils._assemblyai_speech_models_value("nano"), ["universal-2"]
         )
@@ -172,19 +174,19 @@ class VideoUtilsDiarizationTests(unittest.TestCase):
             video_utils._assemblyai_speech_models_value("universal-2"),
             ["universal-2"],
         )
-        # Everything else (best, universal, default) prefers universal-3-pro
+        # Everything else (best, universal, default) prefers universal-3-5-pro
         # with universal-2 as the fallback.
         self.assertEqual(
             video_utils._assemblyai_speech_models_value("best"),
-            ["universal-3-pro", "universal-2"],
+            ["universal-3-5-pro", "universal-2"],
         )
         self.assertEqual(
             video_utils._assemblyai_speech_models_value("universal"),
-            ["universal-3-pro", "universal-2"],
+            ["universal-3-5-pro", "universal-2"],
         )
         self.assertEqual(
             video_utils._assemblyai_speech_models_value(None),
-            ["universal-3-pro", "universal-2"],
+            ["universal-3-5-pro", "universal-2"],
         )
 
     def test_get_video_transcript_dispatches_to_whisper(self):
