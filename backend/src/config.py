@@ -65,6 +65,14 @@ class Config:
         self.youtube_source_cache_ttl_seconds = self._get_int_env(
             "YOUTUBE_SOURCE_CACHE_TTL_SECONDS", 604800
         )
+        self.twitch_download_providers = os.getenv("TWITCH_DOWNLOAD_PROVIDERS", "proxy,direct,apify_twitch").strip()
+        self.kick_download_providers = os.getenv("KICK_DOWNLOAD_PROVIDERS", "proxy,direct_retry,apify_kick_hls,apify_kick_mp4").strip()
+        self.apify_twitch_actor = os.getenv("APIFY_TWITCH_ACTOR", "abotapi/twitch-scraper").strip()
+        self.apify_kick_hls_actor = os.getenv("APIFY_KICK_HLS_ACTOR", "hipersoft/kick-downloader").strip()
+        self.apify_kick_mp4_actor = os.getenv("APIFY_KICK_MP4_ACTOR", "parsebird/kick-video-downloader").strip()
+        self.apify_stream_enabled = self._get_bool_env("APIFY_STREAM_PROVIDERS", True)
+        self.apify_stream_timeout_seconds = self._get_int_env("APIFY_STREAM_TIMEOUT_SECONDS", 300)
+        self.apify_kick_max_video_size_mb = self._get_int_env("APIFY_KICK_MAX_VIDEO_SIZE_MB", 2000)
         self.apify_youtube_default_quality = self._normalize_apify_quality(
             os.getenv("APIFY_YOUTUBE_DEFAULT_QUALITY", "1080")
         )

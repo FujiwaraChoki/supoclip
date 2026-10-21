@@ -358,7 +358,7 @@ class TaskService(ClipEditingMixin):
 
             # Process video with progress updates
             max_video_duration = self.config.max_video_duration
-            if source_type == "youtube" and user_id:
+            if source_type in {"youtube", "twitch", "kick"} and user_id:
                 max_video_duration = self.config.max_youtube_video_duration_for_plan(
                     billing.get("plan"), billing.get("subscription_status")
                 )

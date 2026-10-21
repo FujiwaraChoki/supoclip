@@ -34,6 +34,7 @@ from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import get_config
 from ...youtube_utils import async_get_youtube_video_info
+from ...stream_source import fetch_stream_info, StreamSourceError
 from ...font_registry import is_font_accessible
 from ...clip_cleanup import (
     new_task_cleanup_settings,
@@ -84,6 +85,19 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
                 "max_duration_seconds": duration_limit,
             },
         )
+    return metadata
+
+async def _preflight_stream_source(url: str, source: str, duration_limit: int) -> Dict[str, Any]:
+    try:
+        metadata = await asyncio.wait_for(run_in_thread(fetch_stream_info, url), timeout=30)
+        duration = (metadata or {}).get("duration")
+        if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not math.isfinite(duration) or duration <= 0: raise ValueError("Invalid video duration")
+    except StreamSourceError as exc:
+        raise HTTPException(status_code=422, detail={"code":"VIDEO_UNAVAILABLE","message":str(exc)}) from None
+    except Exception:
+        raise HTTPException(status_code=503, detail={"code":"VIDEO_METADATA_UNAVAILABLE","message":"We couldn't fetch this video, try again later. No minutes were used."}) from None
+    if duration > duration_limit:
+        raise HTTPException(status_code=422, detail={"code":"VIDEO_TOO_LONG","message":f"This {source.title()} video is {duration / 60:.1f} minutes long. Your plan allows videos up to {duration_limit / 60:g} minutes. Choose a shorter VOD or clip. No minutes were used.","duration_seconds":duration,"max_duration_seconds":duration_limit})
     return metadata
 
 
@@ -406,6 +420,10 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
             )
             source_title = source_title or metadata.get("title") or "YouTube Video"
             duration_seconds = float(metadata["duration"])
+        elif source_type in {"twitch", "kick"}:
+            metadata = await _preflight_stream_source(raw_source["url"], source_type, billing["max_youtube_duration_seconds"])
+            source_title = source_title or metadata.get("title") or f"{source_type.title()} Video"
+            duration_seconds = float(metadata["duration"])
         else:
             duration_seconds = await _preflight_upload_source(
                 raw_source["url"], user_id, billing["max_upload_duration_seconds"]
@@ -486,7 +504,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     except HTTPException:
         raise
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e))
     except BillingLimitExceeded as e:
         raise HTTPException(
             status_code=402,

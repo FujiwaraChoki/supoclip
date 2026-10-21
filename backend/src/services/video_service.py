@@ -53,6 +53,7 @@ from ..ai import get_most_relevant_parts_by_transcript
 from ..config import get_config
 from ..media_storage import MediaStorage
 from ..media.ffmpeg import cap_video_short_side, ffprobe_duration
+from ..stream_source import detect_stream_source, download_stream_audio, download_stream_sections, download_stream_video, fetch_stream_info
 
 logger = logging.getLogger(__name__)
 UPLOAD_URL_PREFIX = "upload://"
@@ -485,13 +486,14 @@ class VideoService:
 
     @staticmethod
     def determine_source_type(url: str) -> str:
-        """Determine if source is YouTube or uploaded file."""
+        """Determine and validate the supported source type."""
         video_id = get_youtube_video_id(url)
         if video_id:
             return "youtube"
         if url.startswith(UPLOAD_URL_PREFIX):
             return "video_url"
-        raise ValueError("Only YouTube URLs or upload:// references are supported")
+        source, _kind, _source_id = detect_stream_source(url)
+        return source
 
     @staticmethod
     async def process_video_complete(
@@ -585,6 +587,15 @@ class VideoService:
                     )
                 if not video_path:
                     raise Exception("Failed to download video")
+            elif source_type in {"twitch", "kick"}:
+                video_info = await run_in_thread(fetch_stream_info, url)
+                duration = video_info.get("duration") if video_info else None
+                if duration and duration > duration_limit: raise Exception(f"Video is too long ({int(duration) // 60} min). Maximum allowed duration is {duration_limit // 60} minutes.")
+                try:
+                    video_path = await run_in_thread(download_stream_audio, url, duration); audio_first = True
+                except Exception as exc:
+                    logger.warning("Stream audio download unavailable; using full video: %s", exc)
+                    video_path = await run_in_thread(download_stream_video, url, duration)
             else:
                 video_path = (
                     await run_in_thread(VideoService.resolve_local_video_path, url)
@@ -766,16 +777,11 @@ class VideoService:
                         65, "Downloading selected segments...", "processing"
                     )
                 try:
-                    video_path = await run_in_thread(
-                        materialize_clip_source,
-                        url,
-                        video_id,
-                        segments_json,
-                        task_id=task_id,
-                        budget=job_budget,
-                        duration=file_duration,
-                        audio_path=audio_path,
-                    )
+                    if source_type in {"twitch", "kick"}:
+                        video_path = await run_in_thread(download_stream_sections, url, segments_json, file_duration)
+                        await run_in_thread(copy_transcript_sidecar, audio_path, video_path)
+                    else:
+                        video_path = await run_in_thread(materialize_clip_source, url, video_id, segments_json, task_id=task_id, budget=job_budget, duration=file_duration, audio_path=audio_path)
                 except DownloadBudgetExceeded as exc:
                     raise Exception(str(exc)) from exc
                 except Exception as exc:
@@ -783,13 +789,9 @@ class VideoService:
                         "Section download failed, falling back to a full download: %s",
                         exc,
                     )
-                    video_path = await VideoService.download_video(
-                        url,
-                        task_id=task_id,
-                        quality=download_quality,
-                        budget=job_budget,
-                        skip_proxy=not isinstance(exc, PartialDownloadUnavailable),
-                    )
+                    if source_type in {"twitch", "kick"}: video_path = await run_in_thread(download_stream_video, url, file_duration)
+                    else:
+                        video_path = await VideoService.download_video(url, task_id=task_id, quality=download_quality, budget=job_budget, skip_proxy=not isinstance(exc, PartialDownloadUnavailable))
                     if video_path and audio_path:
                         await run_in_thread(copy_transcript_sidecar, audio_path, video_path)
                         await run_in_thread(persist_cache_sidecar, video_path)

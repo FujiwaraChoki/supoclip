@@ -1,4 +1,4 @@
-import { uploadVideoFile } from "./video-upload";
+import { uploadVideoFile, validateVideoSourceUrl } from "./video-upload";
 
 describe("S3 video uploads", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -69,4 +69,9 @@ describe("S3 video uploads", () => {
     expect(fetchMock.mock.calls.some(([url]) => url === "/api/upload/abort")).toBe(false);
   });
 
+});
+
+describe("supported video source URLs", () => {
+  it.each([["https://www.youtube.com/watch?v=abcdefghijk", "youtube"], ["https://www.twitch.tv/videos/12345", "twitch"], ["https://clips.twitch.tv/FancyClip-abc", "twitch"], ["https://kick.com/creator/videos/12345678-1234-1234-1234-123456789abc", "kick"], ["https://kick.com/creator/clips/clip_abc", "kick"]])("accepts %s", (url, source) => expect(validateVideoSourceUrl(url)).toEqual({ source }));
+  it.each(["https://twitch.tv/creator", "https://kick.com/creator"])("rejects live URL %s", (url) => expect(validateVideoSourceUrl(url).error).toContain("Live streams aren't supported"));
 });
