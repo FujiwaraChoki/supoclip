@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 CACHE_DIRNAME = "youtube-cache"
 WORK_DIRNAME = "youtube-work"
 MANIFEST_NAME = "manifest.json"
+AUDIO_POLICY = "original-v1"
 
 
 def parse_clock(value) -> Optional[float]:
@@ -426,7 +427,8 @@ def _cache_lock(directory: Path):
 
 
 def _empty_manifest(video_id: str) -> dict:
-    return {"version": 1, "video_id": video_id, "audio": None, "full": None, "ranges": []}
+    return {"version": 1, "video_id": video_id, "audio_policy": AUDIO_POLICY,
+            "audio": None, "full": None, "ranges": []}
 
 
 def _load_manifest(directory: Path, video_id: str) -> dict:
@@ -440,6 +442,10 @@ def _load_manifest(directory: Path, video_id: str) -> dict:
     payload.setdefault("ranges", [])
     payload.setdefault("audio", None)
     payload.setdefault("full", None)
+    if payload.get("audio_policy") != AUDIO_POLICY:
+        # Earlier selection could choose an automatic dub. Keep a full source
+        # file, but regenerate analysis audio and sections under the new policy.
+        payload.update(audio=None, ranges=[], audio_policy=AUDIO_POLICY)
     return payload
 
 
@@ -626,7 +632,8 @@ def download_audio_for_job(
             return existing
     if not proxy_configured(runtime):
         raise YouTubeDownloadError("Audio-first download requires YOUTUBE_PROXY_URL")
-    downloaded = download_audio(url, video_id, directory / "audio", task_id=task_id, budget=budget)
+    # A new stem also avoids reusing transcript sidecars from the old track.
+    downloaded = download_audio(url, video_id, directory / f"audio-{AUDIO_POLICY}", task_id=task_id, budget=budget)
     with _cache_lock(directory):
         manifest = _load_manifest(directory, video_id)
         manifest["audio"] = downloaded.name
@@ -684,20 +691,25 @@ def assemble_timeline(
         raise YouTubeDownloadError("No cached media covers the requested ranges")
     trimmed: list[Path] = []
     bounds: list[tuple[float, float]] = []
-    for index, (piece, slice_start, slice_end) in enumerate(slices):
-        piece_path = dest.parent / f"slice-{index}.mp4"
-        offset = max(0.0, slice_start - piece.start)
-        duration = slice_end - slice_start
-        if abs(offset) < 0.05 and abs((piece.end - piece.start) - duration) < 0.05:
-            shutil.copy2(piece.path, piece_path)
-        else:
+    if len(slices) == 1:
+        piece, start, end = slices[0]
+        if abs(start - piece.start) < .05 and abs(end - piece.end) < .05:
+            shutil.copy2(piece.path, dest)
+            time_map = build_time_map([(start, end)])
+            save_time_map(dest, time_map)
+            return time_map
+    try:
+        for index, (piece, slice_start, slice_end) in enumerate(slices):
+            piece_path = dest.parent / f"slice-{index}.mkv"
+            trimmed.append(piece_path)
+            offset = max(0.0, slice_start - piece.start)
+            duration = slice_end - slice_start
             _trim_local(piece.path, piece_path, offset, duration)
-        trimmed.append(piece_path)
-        bounds.append((slice_start, slice_end))
-    if len(trimmed) == 1:
-        shutil.copy2(trimmed[0], dest)
-    else:
-        _concat_local(trimmed, dest)
+            bounds.append((slice_start, slice_end))
+        _concat_local(trimmed, dest, durations=[end - start for start, end in bounds])
+    finally:
+        for path in trimmed:
+            path.unlink(missing_ok=True)
     time_map = build_time_map(bounds)
     save_time_map(dest, time_map)
     return time_map
@@ -708,7 +720,13 @@ def _trim_local(source: Path, dest: Path, offset: float, duration: float) -> Non
         "ffmpeg", "-y", "-nostdin",
         "-ss", f"{offset:.3f}", "-i", str(source),
         "-t", f"{duration:.3f}",
-        "-c", "copy",
+        # Stream copy seeks to keyframes, extending cuts and shifting every
+        # later span away from the transcript's original-source timestamps.
+        "-map", "0:v:0", "-map", "0:a:0",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-threads", "2",
+        # Encode AAC only once after joining. Per-piece AAC priming otherwise
+        # becomes audible padding and shifts later transcript spans.
+        "-c:a", "pcm_s16le", "-ar", "48000",
         str(dest),
     ]
     result = subprocess.run(command, capture_output=True, text=True)
@@ -716,18 +734,21 @@ def _trim_local(source: Path, dest: Path, offset: float, duration: float) -> Non
         raise YouTubeDownloadError("Could not trim a cached section locally")
 
 
-def _concat_local(files: list[Path], dest: Path) -> None:
+def _concat_local(files: list[Path], dest: Path, *, durations: Optional[list[float]] = None) -> None:
     listing = dest.with_suffix(".concat.txt")
     lines = []
-    for path in files:
+    for index, path in enumerate(files):
         escaped = str(path.resolve()).replace("'", "'\\''")
         lines.append(f"file '{escaped}'")
+        if durations is not None:
+            # Use the source timeline, not encoder padding, for the next span.
+            lines.append(f"duration {durations[index]:.9f}")
     listing.write_text("\n".join(lines) + "\n", encoding="utf-8")
     command = [
         "ffmpeg", "-y", "-nostdin",
         "-f", "concat", "-safe", "0",
         "-i", str(listing),
-        "-c", "copy",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", "128k",
         str(dest),
     ]
     result = subprocess.run(command, capture_output=True, text=True)

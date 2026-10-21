@@ -14,6 +14,19 @@ Uploads and non-YouTube sources are unchanged. Without a proxy, YouTube jobs sti
 
 Section bytes go through yt-dlp's HTTP client. ffmpeg only trims and muxes local files. `--download-sections` is not used: ffmpeg does not route SOCKS proxies and does not reliably send authenticated HTTP proxy credentials, so the media would leave from the server IP.
 
+Complete, unencrypted HLS media playlists are read through that same proxy
+client, capped at 4 MB, and expanded using their `EXTINF` timings. Only the
+overlapping segments and any initialization segment are passed to yt-dlp as
+a shortened in-memory playlist. HLS audio renditions with omitted codec
+metadata are supported. Automatic dubs are excluded when selecting original
+audio for both analysis and sections.
+
+Local cuts use accurate video trimming and encode audio once after joining,
+so keyframe alignment and AAC padding do not shift later transcript spans.
+This uses additional local CPU for the selected ranges. Cache manifests mark
+the original-audio selection policy; older audio and section entries are
+regenerated, while an existing full source remains available.
+
 If a format has no timed fragments, the job falls back to a full 1080p download on yt-dlp's native downloader, then to the previous provider chain. `APIFY_EXPENSIVE_FALLBACKS` defaults to `false`, so only the primary Apify actor runs. Leave high-cap actors (marielise.dev, scraper_one, dami_studio, and anything else with a multi-dollar run cap) out of `APIFY_YOUTUBE_FALLBACK_ACTORS` unless that flag is `true`. Actor ids stay in private environment configuration.
 
 ## Bandwidth
@@ -27,6 +40,24 @@ Planning figure: about **0.18 GB per source hour**.
 
 Together that is about 0.18–0.25 GB per source hour. At $1/GB that is about $0.18–$0.25, against roughly $1.65 per video hour on the paid downloader path and up to $6 for a fallback actor run. A full 1080p download of a source hour is several times the section path; the per-job cap `YOUTUBE_DOWNLOAD_MAX_BYTES` (default 2 GB) stops a runaway fetch.
 
+These are planning estimates, not a bandwidth guarantee. Live or incomplete
+playlists, encrypted media, byte ranges, gaps, and discontinuities use the
+full-file fallback. That path consumes more bandwidth. Playlist bytes count
+toward the shared job byte limit as well as downloaded media.
+
+An isolated DataImpulse canary on 2026-10-21 downloaded full analysis audio
+and selected HLS ranges from two public sources:
+
+| Source length | Selected ranges including padding | Resolution | Audio + section bytes |
+| --- | --- | --- | --- |
+| 9m 48s | 70s | 720p | 24,387,300 |
+| 63m 23.5s | 105s | 1080p | 113,810,315 |
+
+Both reused the cache with zero additional proxy bytes. Audio correlation
+against the original analysis track was within 37 ms at every checked span,
+including near the end of the long source. These are measured examples,
+not whole-hour bandwidth projections or a production rollout.
+
 ## Proxy
 
 Use a provider that supports sticky sessions and HTTP proxies (DataImpulse is the reference at about $1/GB). Put the session and country in the URL template:
@@ -35,6 +66,19 @@ Use a provider that supports sticky sessions and HTTP proxies (DataImpulse is th
 YOUTUBE_PROXY_URL=http://user-country-{country}-session-{session}:pass@gw.example:823
 YOUTUBE_PROXY_COUNTRY=us
 ```
+
+For DataImpulse, use its documented username parameters rather than the
+generic example above:
+
+```env
+YOUTUBE_PROXY_URL=http://LOGIN__cr.{country};sessid.{session}:PASSWORD@gw.dataimpulse.com:823
+YOUTUBE_PROXY_COUNTRY=us
+```
+
+URL-encode special characters in the login and password. Session IDs normally
+keep an exit IP for about 30 minutes; an offline residential peer can cause
+the provider to replace the IP sooner. Verify the same exit is used for
+metadata, audio, and selected sections in a canary before enabling production.
 
 `{session}` becomes an 8–24 character id derived from the task id, so one job keeps one exit IP. `{country}` must be two letters; anything else is ignored and the placeholder is removed. Do not log the rendered URL.
 

@@ -9,6 +9,7 @@ server IP instead of the proxy.
 from __future__ import annotations
 
 import logging
+import math
 import re
 import shutil
 import subprocess
@@ -16,6 +17,7 @@ import threading
 from itertools import islice
 from pathlib import Path
 from typing import Any, Callable, Optional
+from urllib.parse import urljoin, urlsplit
 
 from .config import get_config
 
@@ -188,7 +190,6 @@ def base_proxy_params(task_id: Optional[str] = None, video_id: Optional[str] = N
         "quiet": True,
         "no_warnings": False,
         "overwrites": True,
-        "nocheckcertificate": True,
         "http_headers": {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -243,7 +244,13 @@ def _is_video_format(fmt: dict) -> bool:
 
 
 def _is_audio_only(fmt: dict) -> bool:
-    return fmt.get("acodec") not in (None, "none") and fmt.get("vcodec") in (None, "none")
+    # YouTube HLS audio renditions can omit CODECS in their master playlist.
+    # yt-dlp still explicitly marks them video-free; do not discard them.
+    audio = fmt.get("acodec") not in (None, "none") or (
+        fmt.get("vcodec") == "none" and fmt.get("acodec") is None
+        and "m3u8" in (fmt.get("protocol") or "")
+    )
+    return audio and fmt.get("vcodec") in (None, "none")
 
 
 def _fragmented(fmt: dict) -> bool:
@@ -294,25 +301,37 @@ def pick_audio_format(formats: list[dict], *, modest: bool = True) -> Optional[d
     candidates = [fmt for fmt in formats if _is_audio_only(fmt)]
     if not candidates:
         return None
+    originals = [fmt for fmt in candidates
+                 if (fmt.get("language_preference") or 0) > 0
+                 or re.search(r"\boriginal\b", fmt.get("format_note") or "", re.IGNORECASE)]
+    if originals:
+        candidates = originals
+    else:
+        candidates = [fmt for fmt in candidates
+                      if "dubbed" not in (fmt.get("format_note") or "").lower()]
+    if not candidates:
+        return None
     if modest:
         preferred = [
             fmt for fmt in candidates
-            if str(fmt.get("format_id")) == "140"
+            if str(fmt.get("format_id")).split("-", 1)[0] == "140"
             or ((fmt.get("abr") or 999) <= 160 and fmt.get("ext") in {"m4a", "mp4"})
         ]
         pool = preferred or candidates
         return min(
             pool,
             key=lambda fmt: (
-                0 if str(fmt.get("format_id")) == "140" else 1,
-                fmt.get("abr") or 0,
+                0 if str(fmt.get("format_id")).split("-", 1)[0] == "140" else 1,
+                -(fmt.get("abr") or 0),
                 fmt.get("filesize") or 0,
             ),
         )
 
     def score(fmt: dict) -> tuple:
         m4a = 1 if fmt.get("ext") in {"m4a", "mp4"} or str(fmt.get("format_id")) == "140" else 0
-        return (int(_has_media_timing(fmt)), int(_fragmented(fmt)), m4a, fmt.get("abr") or 0)
+        return (int(_has_media_timing(fmt)), int(_fragmented(fmt)), m4a,
+                fmt.get("abr") or fmt.get("tbr") or 0,
+                int("high" in (fmt.get("format_note") or "").lower()))
 
     return max(candidates, key=score)
 
@@ -335,6 +354,131 @@ def resolve_fragments(fmt: dict) -> Optional[list]:
     if not isinstance(fragments, list) or not fragments:
         return None
     return fragments
+
+
+def _hls_url(base: str, value: str) -> str:
+    try:
+        address = urljoin(base, value)
+        parsed = urlsplit(address)
+        valid = (parsed.scheme == "https" and parsed.hostname
+                 and parsed.hostname.endswith(".googlevideo.com")
+                 and not parsed.username and not parsed.password and parsed.port in (None, 443)
+                 and not any(char in address for char in '\r\n"'))
+    except ValueError:
+        valid = False
+    if not valid:
+        raise PartialDownloadUnavailable("HLS playlist contains an unsupported media address")
+    return address
+
+
+def parse_hls_fragments(playlist: str, base_url: str, duration: float) -> list[dict]:
+    """Expand a complete, unencrypted YouTube media playlist onto its source timeline.
+
+    Unsupported HLS features use the full-file fallback rather than guessing at
+    offsets, skipping content, or letting ffmpeg fetch a remote playlist.
+    """
+    from yt_dlp.utils import parse_m3u8_attributes
+
+    lines = [line.strip() for line in playlist.lstrip("\ufeff").splitlines() if line.strip()]
+    if not lines or lines[0] != "#EXTM3U" or lines[-1] != "#EXT-X-ENDLIST":
+        raise PartialDownloadUnavailable("Section downloads require a complete HLS media playlist")
+    fragments: list[dict] = []
+    cursor = 0.0
+    pending = None
+    sequence = 0
+    media_seen = False
+    for line in lines[1:]:
+        if line.startswith(("#EXT-X-STREAM-INF:", "#EXT-X-I-FRAME-STREAM-INF:",
+                            "#EXT-X-BYTERANGE:", "#EXT-X-DISCONTINUITY", "#EXT-X-GAP",
+                            "#EXT-X-SKIP:", "#EXT-X-START:", "#EXT-X-I-FRAMES-ONLY")):
+            # A zero discontinuity-sequence is normal for complete VOD playlists.
+            if line == "#EXT-X-DISCONTINUITY-SEQUENCE:0":
+                continue
+            raise PartialDownloadUnavailable("HLS playlist needs the full-file fallback")
+        if line.startswith("#EXT-X-KEY:"):
+            if parse_m3u8_attributes(line.partition(":")[2]).get("METHOD") != "NONE":
+                raise PartialDownloadUnavailable("Encrypted HLS is not supported by section downloads")
+        elif line.startswith("#EXT-X-MEDIA-SEQUENCE:"):
+            if media_seen:
+                raise PartialDownloadUnavailable("HLS sequence changed during the playlist")
+            try:
+                sequence = int(line.partition(":")[2])
+            except ValueError:
+                raise PartialDownloadUnavailable("Invalid HLS media sequence") from None
+            if sequence < 0:
+                raise PartialDownloadUnavailable("Invalid HLS media sequence")
+        elif line.startswith("#EXT-X-MAP:"):
+            attrs = parse_m3u8_attributes(line.partition(":")[2])
+            if media_seen or fragments or attrs.get("BYTERANGE") or not attrs.get("URI"):
+                raise PartialDownloadUnavailable("HLS initialization requires the full-file fallback")
+            fragments.append({"url": _hls_url(base_url, attrs["URI"]), "is_init": True})
+        elif line.startswith("#EXTINF:"):
+            if pending is not None:
+                raise PartialDownloadUnavailable("HLS segment has no media address")
+            try:
+                pending = float(line.partition(":")[2].split(",", 1)[0])
+            except ValueError:
+                raise PartialDownloadUnavailable("Invalid HLS segment duration") from None
+            if not math.isfinite(pending) or pending <= 0:
+                raise PartialDownloadUnavailable("Invalid HLS segment duration")
+        elif not line.startswith("#"):
+            if pending is None:
+                raise PartialDownloadUnavailable("HLS segment has no timing information")
+            fragments.append({"url": _hls_url(base_url, line), "start_time": cursor,
+                              "end_time": cursor + pending, "duration": pending,
+                              "media_sequence": sequence})
+            cursor += pending
+            sequence += 1
+            pending = None
+            media_seen = True
+    expected = float(duration)
+    if (pending is not None or not media_seen or not math.isfinite(expected) or expected <= 0
+            or abs(cursor - expected) > max(2.0, expected * .001)):
+        raise PartialDownloadUnavailable("HLS playlist does not cover the full source timeline")
+    return fragments
+
+
+def expand_hls_format(fmt: dict, options: dict, budget: ByteBudget, duration: float) -> dict:
+    if "m3u8" not in (fmt.get("protocol") or "") or _has_media_timing(fmt):
+        return fmt
+    import yt_dlp
+    from yt_dlp.networking import Request
+
+    address = _hls_url(fmt["url"], fmt["url"])
+    try:
+        with yt_dlp.YoutubeDL(options) as ydl:
+            response = ydl.urlopen(Request(address, headers=fmt.get("http_headers") or {}))
+            try:
+                base_url = _hls_url(address, response.url)
+                payload = response.read(4_000_001)
+            finally:
+                response.close()
+        budget.add(len(payload))
+        if len(payload) > 4_000_000:
+            raise PartialDownloadUnavailable("HLS playlist exceeds its size limit")
+        fragments = parse_hls_fragments(payload.decode("utf-8"), base_url, duration)
+    except (DownloadBudgetExceeded, PartialDownloadUnavailable):
+        raise
+    except Exception:
+        raise PartialDownloadUnavailable("Could not read a complete HLS media playlist") from None
+    return dict(fmt, fragments=fragments)
+
+
+def _section_hls_playlist(fragments: list[dict]) -> str:
+    media = [fragment for fragment in fragments if fragment.get("duration")]
+    if not media:
+        raise PartialDownloadUnavailable("No timed HLS segments cover this section")
+    lines = ["#EXTM3U", "#EXT-X-VERSION:7",
+             f"#EXT-X-TARGETDURATION:{math.ceil(max(f['duration'] for f in media))}",
+             f"#EXT-X-MEDIA-SEQUENCE:{media[0].get('media_sequence', 0)}",
+             "#EXT-X-PLAYLIST-TYPE:VOD"]
+    for fragment in fragments:
+        if fragment.get("is_init"):
+            lines.append(f'#EXT-X-MAP:URI="{fragment["url"]}"')
+        else:
+            lines.extend([f'#EXTINF:{fragment["duration"]:.9f},', fragment["url"]])
+    lines.append("#EXT-X-ENDLIST")
+    return "\n".join(lines) + "\n"
 
 
 def select_fragments_for_window(
@@ -416,6 +560,8 @@ def native_download_format(
     params.pop("download_ranges", None)
     params["outtmpl"] = str(dest_stem) + ".%(ext)s"
     params["overwrites"] = True
+    params["external_downloader"] = {"default": "native"}
+    params["skip_unavailable_fragments"] = False
     info: dict[str, Any] = {
         "id": video_id,
         "title": video_id,
@@ -439,6 +585,10 @@ def native_download_format(
         info["fragments"] = fragments
         protocol = fmt.get("protocol") or ""
         info["protocol"] = "m3u8_native" if "m3u8" in protocol else "http_dash_segments"
+        if "m3u8" in protocol:
+            # HlsFD ignores info['fragments']; give it only the selected playlist.
+            # This also preserves its native TS/fMP4 handling and local fixups.
+            info["hls_media_playlist_data"] = _section_hls_playlist(fragments)
     # Section metadata would make yt-dlp pick FFmpegFD and bypass the proxy.
     info.pop("section_start", None)
     info.pop("section_end", None)
@@ -538,6 +688,8 @@ def download_section_file(
         if not video_fmt or not audio_fmt:
             raise PartialDownloadUnavailable("No capped video or audio format is available")
         duration = info.get("duration") or 0
+        video_fmt = expand_hls_format(video_fmt, options, counter, duration)
+        audio_fmt = expand_hls_format(audio_fmt, options, counter, duration)
         window_end = min(end, float(duration)) if duration else end
         video_window = select_window(video_fmt, start, window_end)
         audio_window = select_window(audio_fmt, start, window_end)
@@ -552,6 +704,7 @@ def download_section_file(
         if media_end - media_start < 0.5:
             raise PartialDownloadUnavailable("Audio and video fragment windows do not overlap")
         work.mkdir(parents=True, exist_ok=True)
+        before_media = counter.snapshot()
         video_path = native_download_format(
             options, url, video_id, video_fmt, work / "video", video_fragments
         )
@@ -567,7 +720,8 @@ def download_section_file(
             audio_offset=max(0.0, media_start - audio_start),
             duration=media_end - media_start,
         )
-        nbytes = _account_file(dest, counter, before)
+        _account_file(dest, counter, before_media)
+        nbytes = counter.snapshot() - before
         log_youtube_attempt(
             provider=YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
             video_id=video_id,

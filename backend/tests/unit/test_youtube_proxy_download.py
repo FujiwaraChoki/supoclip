@@ -86,6 +86,7 @@ def test_proxy_options_force_ipv4_and_skip_player_clients(tmp_path):
     try:
         options = download_options("task12345678", VIDEO_ID, ByteBudget(1000))
         assert options["source_address"] == "0.0.0.0"
+        assert not options.get("nocheckcertificate", False)
         assert "download_ranges" not in options
         assert "player_client" not in json.dumps(options.get("extractor_args", {}))
         assert options["proxy"].startswith("http://user-session-")
@@ -270,6 +271,7 @@ def test_extending_a_range_fetches_only_the_gap(tmp_path, monkeypatch):
         "audio": None,
         "full": None,
         "ranges": [{"start": 0, "end": 30, "file": piece.name, "bytes": 6}],
+        "audio_policy": "original-v1",
     }))
     calls = []
 
