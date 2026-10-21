@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { ArrowRight, Check, Loader2, Server, X } from "lucide-react";
+import { ArrowRight, Check, Clock, Loader2, Server, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,15 @@ import { CapacityIllustration, FontIllustration, LengthIllustration } from "@/co
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { BillingSummary } from "@/hooks/use-billing-summary";
 import {
+  annualMonthlyEquivalent,
+  annualMonthsFree,
   billingPlanMessageKey,
   getNextBillingPlan,
   getPublicBillingPlans,
   isPaidBillingPlan,
+  planPrice,
+  socialPublishingStage,
+  type BillingInterval,
   type BillingPlanId,
   type PublicBillingPlan,
 } from "@/lib/billing-plans";
@@ -25,14 +30,21 @@ import { cn } from "@/lib/utils";
 
 export type UpgradeReason =
   | { kind: "start" }
-  | { kind: "limit" }
+  | { kind: "limit"; requiredMinutes?: number; remainingMinutes?: number }
   | { kind: "video_too_long"; durationSeconds: number; maxSeconds: number }
   | { kind: "custom_fonts" }
   | { kind: "explore" };
 
 type UpgradeBilling = Pick<
   BillingSummary,
-  "plan" | "subscription_status" | "subscription_provider" | "usage_count" | "usage_limit" | "remaining" | "period_end" | "upgrade_required"
+  | "plan"
+  | "subscription_status"
+  | "subscription_provider"
+  | "usage_count"
+  | "minute_limit"
+  | "remaining_minutes"
+  | "period_end"
+  | "upgrade_required"
 >;
 
 /**
@@ -45,9 +57,16 @@ export function upgradeReasonForError(
   nextPlanYoutubeMaxMinutes: number | undefined,
 ): UpgradeReason | null {
   if (code === "SUBSCRIPTION_REQUIRED") {
-    const billing = detail?.billing as { plan?: string; subscription_status?: string } | undefined;
+    const billing = detail?.billing as
+      | { plan?: string; subscription_status?: string; required_minutes?: number; remaining_minutes?: number | null }
+      | undefined;
     const isPaid = isPaidBillingPlan(billing?.plan) && ["active", "trialing"].includes(billing?.subscription_status ?? "");
-    return { kind: isPaid ? "limit" : "start" };
+    if (!isPaid) return { kind: "start" };
+    // The video is longer than the minutes left this month.
+    if (typeof billing?.required_minutes === "number" && typeof billing.remaining_minutes === "number") {
+      return { kind: "limit", requiredMinutes: billing.required_minutes, remainingMinutes: billing.remaining_minutes };
+    }
+    return { kind: "limit" };
   }
   if (code === "VIDEO_TOO_LONG" && nextPlanYoutubeMaxMinutes) {
     const durationSeconds = Number(detail?.duration_seconds);
@@ -66,11 +85,12 @@ export function getUpgradeState(billing: UpgradeBilling | null | undefined) {
   const nextPlan = getNextBillingPlan(isPaid ? billing.plan : "free");
   // App Store subscriptions can only change plans inside the iOS app.
   const managedByAppStore = isPaid && billing.subscription_provider === "apple";
-  const limit = billing.usage_limit;
-  const remaining = billing.remaining;
+  // Allowances are minutes of source video per month.
+  const limit = billing.minute_limit ?? null;
+  const remaining = billing.remaining_minutes ?? null;
   const atLimit = isPaid && billing.upgrade_required;
   const nearLimit =
-    isPaid && !atLimit && limit !== null && limit > 0 && remaining !== null && remaining <= Math.max(2, Math.ceil(limit * 0.2));
+    isPaid && !atLimit && limit !== null && limit > 0 && remaining !== null && remaining <= Math.ceil(limit * 0.2);
 
   return {
     isPaid,
@@ -105,12 +125,17 @@ export function useBillingPlanText() {
     return rest ? t("runtime.hoursMinutes", { hours, minutes: rest }) : t("runtime.hours", { count: hours });
   };
   const planName = (plan: string | null | undefined) => common(`plans.${billingPlanMessageKey(plan)}`);
-  const highlights = (plan: { id: string; generationLimit: number; youtubeMaxMinutes: number }) => [
-    t("highlights.videos", { count: plan.generationLimit }),
+  const highlights = (plan: PublicBillingPlan) => [
+    t("highlights.minutes", { length: formatMinutes(plan.minuteLimit) }),
+    plan.resolution === "1080p" ? t("highlights.fullHd") : t("highlights.hd"),
     t("highlights.youtube", { length: formatMinutes(plan.youtubeMaxMinutes) }),
+    ...(plan.scheduling && socialPublishingStage() === "live" ? [t("highlights.scheduling")] : []),
     plan.id === "pro" ? t("highlights.fonts") : t("highlights.priority"),
   ];
-  return { t, common, formatMinutes, formatRuntime, planName, highlights };
+  // Shown apart from the highlights with a "Coming soon" tag until publishing launches.
+  const comingSoon = (plan: PublicBillingPlan) =>
+    plan.scheduling && socialPublishingStage() === "soon" ? t("highlights.scheduling") : null;
+  return { t, common, formatMinutes, formatRuntime, planName, highlights, comingSoon };
 }
 
 function copyFor(
@@ -133,14 +158,17 @@ function copyFor(
     case "limit":
       return {
         eyebrow: t("upgrade.limit.eyebrow"),
-        title: state?.limit
-          ? t("upgrade.limit.titleCount", { count: state.limit, plan: planName })
-          : t("upgrade.limit.titleAll", { plan: planName }),
+        title:
+          reason.requiredMinutes !== undefined && reason.remainingMinutes !== undefined
+            ? t("upgrade.limit.titleShort", { required: reason.requiredMinutes, remaining: reason.remainingMinutes })
+            : state?.limit
+              ? t("upgrade.limit.titleMinutes", { length: text.formatMinutes(state.limit), plan: planName })
+              : t("upgrade.limit.titleAll", { plan: planName }),
         body: targetName
           ? t(state?.resetsOn ? "upgrade.limit.bodyRefreshKeep" : "upgrade.limit.bodyPeriodKeep", {
               date: state?.resetsOn ?? "",
               plan: targetName,
-              count: target?.generationLimit ?? 0,
+              length: text.formatMinutes(target?.minuteLimit ?? 0),
             })
           : t(state?.resetsOn ? "upgrade.limit.bodyRefresh" : "upgrade.limit.bodyPeriod", {
               date: state?.resetsOn ?? "",
@@ -198,6 +226,7 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
   const currentPlan = state?.isPaid ? allPlans.find((plan) => plan.id === billing?.plan) : undefined;
   const preferred = preferredPlan(reason, options);
   const [selected, setSelected] = useState<BillingPlanId | undefined>(preferred);
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>("month");
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
@@ -216,7 +245,7 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
     if (!target) return;
     setIsRedirecting(true);
     try {
-      await startUpgrade(target.id, `${source}:${reason.kind}`);
+      await startUpgrade(target.id, `${source}:${reason.kind}`, billingInterval);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : text.t("checkoutError"));
       setIsRedirecting(false);
@@ -240,18 +269,24 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
               {text.t("appStore")}
             </p>
           ) : (
-            <div className="mt-6 space-y-2" role="radiogroup" aria-label={text.t("plansLabel")}>
-              {currentPlan && <PlanOption plan={currentPlan} current />}
-              {options.map((plan) => (
-                <PlanOption
-                  key={plan.id}
-                  plan={plan}
-                  selected={plan.id === target?.id}
-                  recommended={options.length > 1 && plan.id === preferred}
-                  onSelect={() => setSelected(plan.id)}
-                />
-              ))}
-            </div>
+            <>
+              {options.length > 0 && (
+                <BillingIntervalToggle className="mt-6 self-start" value={billingInterval} onChange={setBillingInterval} plan={options[0]} />
+              )}
+              <div className="mt-3 space-y-2" role="radiogroup" aria-label={text.t("plansLabel")}>
+                {currentPlan && <PlanOption plan={currentPlan} interval={billingInterval} current />}
+                {options.map((plan) => (
+                  <PlanOption
+                    key={plan.id}
+                    plan={plan}
+                    interval={billingInterval}
+                    selected={plan.id === target?.id}
+                    recommended={options.length > 1 && plan.id === preferred}
+                    onSelect={() => setSelected(plan.id)}
+                  />
+                ))}
+              </div>
+            </>
           )}
 
           {!state?.isPaid && (
@@ -306,14 +341,57 @@ function preferredPlan(reason: UpgradeReason, options: PublicBillingPlan[]): Bil
   return (options.find((plan) => plan.highlighted) ?? options[0])?.id;
 }
 
+/** Monthly / yearly switch; the yearly label shows what it saves. */
+export function BillingIntervalToggle({
+  value,
+  onChange,
+  plan,
+  className,
+}: {
+  value: BillingInterval;
+  onChange: (interval: BillingInterval) => void;
+  /** Used to state the yearly saving. */
+  plan?: PublicBillingPlan;
+  className?: string;
+}) {
+  const text = useBillingPlanText();
+  const monthsFree = plan ? annualMonthsFree(plan) : 0;
+  return (
+    <div role="radiogroup" aria-label={text.t("interval.label")} className={cn("inline-flex rounded-lg border p-0.5 text-sm", className)}>
+      {(["month", "year"] as const).map((option) => (
+        <button
+          key={option}
+          type="button"
+          role="radio"
+          aria-checked={value === option}
+          onClick={() => onChange(option)}
+          className={cn(
+            "rounded-md px-3 py-1 font-medium transition-colors",
+            value === option ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {option === "month" ? text.t("interval.monthly") : text.t("interval.yearly")}
+          {option === "year" && monthsFree > 0 && (
+            <span className={cn("ml-1.5 text-xs font-normal", value === option ? "text-background/70" : "text-muted-foreground")}>
+              {text.t("interval.monthsFree", { count: monthsFree })}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function PlanOption({
   plan,
+  interval,
   current,
   selected,
   recommended,
   onSelect,
 }: {
   plan: PublicBillingPlan;
+  interval: BillingInterval;
   current?: boolean;
   selected?: boolean;
   recommended?: boolean;
@@ -350,12 +428,21 @@ function PlanOption({
           {recommended && <span className="text-xs font-normal text-muted-foreground">{text.t("mostPopular")}</span>}
         </span>
         <span className="block text-xs text-muted-foreground">
-          {text.t("videosEach", { count: plan.generationLimit, length: text.formatMinutes(plan.youtubeMaxMinutes) })}
+          {text.t("minutesEach", {
+            minutes: text.formatMinutes(plan.minuteLimit),
+            resolution: plan.resolution,
+            length: text.formatMinutes(plan.youtubeMaxMinutes),
+          })}
         </span>
       </span>
-      <span className="text-sm font-semibold tabular-nums">
-        ${plan.priceMonthly}
-        <span className="text-xs font-normal text-muted-foreground">{text.t("perMonth")}</span>
+      <span className="text-right text-sm font-semibold tabular-nums">
+        ${planPrice(plan, interval)}
+        <span className="text-xs font-normal text-muted-foreground">{interval === "year" ? text.t("perYear") : text.t("perMonth")}</span>
+        {interval === "year" && (
+          <span className="block text-[11px] font-normal text-muted-foreground">
+            {text.t("monthlyEquivalent", { price: annualMonthlyEquivalent(plan) })}
+          </span>
+        )}
       </span>
     </button>
   );
@@ -390,9 +477,13 @@ function PlanShowcase({
           ) : (
             <CapacityIllustration
               key={plan.id}
-              from={currentPlan?.generationLimit ?? 0}
-              to={plan.generationLimit}
-              label={currentPlan ? text.t("illustration.videosUpFrom", { count: currentPlan.generationLimit }) : text.t("illustration.videosWith", { plan: text.planName(plan.id) })}
+              from={currentPlan ? currentPlan.minuteLimit / 60 : 0}
+              to={plan.minuteLimit / 60}
+              label={
+                currentPlan
+                  ? text.t("illustration.hoursUpFrom", { count: currentPlan.minuteLimit / 60 })
+                  : text.t("illustration.hoursWith", { plan: text.planName(plan.id) })
+              }
             />
           ))}
       </div>
@@ -405,9 +496,27 @@ function PlanShowcase({
               {highlight}
             </li>
           ))}
+          {text.comingSoon(plan) && (
+            <li className="flex items-start gap-2 text-sm text-muted-foreground">
+              <Clock className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                {text.comingSoon(plan)} <ComingSoonTag />
+              </span>
+            </li>
+          )}
         </ul>
       )}
     </div>
+  );
+}
+
+/** Small muted tag for features that are announced but not live yet. */
+export function ComingSoonTag({ className }: { className?: string }) {
+  const text = useBillingPlanText();
+  return (
+    <span className={cn("ml-1 inline-block rounded-full border px-1.5 py-px align-middle text-[10px] font-medium leading-4", className)}>
+      {text.t("comingSoon")}
+    </span>
   );
 }
 

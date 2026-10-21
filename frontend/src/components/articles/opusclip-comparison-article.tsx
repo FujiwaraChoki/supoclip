@@ -116,10 +116,10 @@ export async function OpusClipComparisonArticle({ post }: { post: BlogPost }) {
         {t.rich(`${slug}.pricing.p2`, {
           proName: pro.name,
           proPrice: pro.priceMonthly,
-          proLimit: pro.generationLimit,
+          proLimit: pro.minuteLimit / 60,
           scaleName: scale.name,
           scalePrice: scale.priceMonthly,
-          scaleLimit: scale.generationLimit,
+          scaleLimit: scale.minuteLimit / 60,
           pro: (chunks) => <strong>{chunks}</strong>,
           scale: (chunks) => <strong>{chunks}</strong>,
           guide: (chunks) => <Link href={SELF_HOSTING_GUIDE_HREF}>{chunks}</Link>,

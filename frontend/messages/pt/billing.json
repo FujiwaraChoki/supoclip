@@ -1,19 +1,23 @@
 {
   "plans": {
     "pro": {
-      "description": "Para quem corta vídeos todo mês.",
-      "cta": "Mudar para o Pro"
+      "description": "Para criadores que fazem cortes com constância todo mês.",
+      "cta": "Fazer upgrade para Pro"
     },
     "scale": {
-      "description": "Para equipes e fluxos de publicação em alto volume.",
-      "cta": "Mudar para o Scale"
+      "description": "Para criadores que publicam todos os dias.",
+      "cta": "Fazer upgrade para Creator"
     }
   },
   "highlights": {
     "videos": "{count} vídeos cortados por mês",
     "youtube": "Vídeos do YouTube de até {length}",
     "fonts": "Fontes personalizadas, B-roll e modelos de legenda",
-    "priority": "Processamento prioritário"
+    "priority": "Processamento prioritário",
+    "minutes": "{length} de vídeo por mês",
+    "hd": "Clipes em 720p",
+    "fullHd": "Clipes em Full HD 1080p",
+    "scheduling": "Publique e agende clipes no YouTube e no TikTok automaticamente"
   },
   "runtime": {
     "minutes": "{count} min",
@@ -47,17 +51,19 @@
       "eyebrow": "Que mês",
       "titleCount": "Você já cortou os {count} vídeos do {plan}",
       "titleAll": "Você já usou tudo do {plan}",
-      "bodyRefreshKeep": "Sua cota renova em {date}. Siga com {plan}: {count} vídeos por mês.",
-      "bodyPeriodKeep": "Sua cota renova no próximo período de cobrança. Siga com {plan}: {count} vídeos por mês.",
-      "bodyRefresh": "Sua cota renova em {date}.",
-      "bodyPeriod": "Sua cota renova no próximo período de cobrança."
+      "bodyRefreshKeep": "Seus minutos renovam em {date}. Continue com o {plan}: {length} de vídeo por mês. Esta tentativa não usou minutos.",
+      "bodyPeriodKeep": "Seus minutos renovam no próximo mês. Continue com o {plan}: {length} de vídeo por mês. Esta tentativa não usou minutos.",
+      "bodyRefresh": "Seus minutos renovam em {date}. Esta tentativa não usou minutos.",
+      "bodyPeriod": "Seus minutos renovam no próximo mês. Esta tentativa não usou minutos.",
+      "titleShort": "Este vídeo precisa de {required} minutos e você tem {remaining}",
+      "titleMinutes": "Você usou todos os {length} do {plan} este mês"
     },
     "long": {
       "eyebrow": "Um longo",
       "title": "{plan} aceita este vídeo de {runtime}",
       "fallbackPlan": "Um plano maior",
-      "body": "{plan} cobre vídeos do YouTube de até {length}. {next} chega a {nextLength}, então este passa direto. Esta tentativa não usou uma geração.",
-      "bodyNoNext": "{plan} cobre vídeos do YouTube de até {length}.  Esta tentativa não usou uma geração."
+      "body": "O {plan} aceita vídeos do YouTube de até {length}. O {next} aceita até {nextLength}, então este passa direto. Esta tentativa não usou minutos.",
+      "bodyNoNext": "O {plan} aceita vídeos do YouTube de até {length}. Esta tentativa não usou minutos."
     },
     "fonts": {
       "eyebrow": "Deixe com a sua cara",
@@ -68,7 +74,7 @@
       "eyebrow": "Mais espaço para criar",
       "title": "Faça mais com {plan}",
       "titleFallback": "Planos para cada criador",
-      "body": "Mais vídeos por mês, fontes mais longas e processamento prioritário."
+      "body": "Mais vídeo por mês, clipes em Full HD, fontes mais longas e processamento prioritário."
     }
   },
   "illustration": {
@@ -81,7 +87,9 @@
     "ownFont": "ou a sua própria .ttf",
     "serif": "Serif",
     "display": "Display",
-    "mono": "Mono"
+    "mono": "Mono",
+    "hoursUpFrom": "horas de vídeo por mês, antes {count}",
+    "hoursWith": "horas de vídeo por mês com {plan}"
   },
   "creatorCode": {
     "applied": "Código de criador <mono>{code}</mono>: 20% de desconto nos 3 primeiros meses.",
@@ -90,5 +98,15 @@
     "placeholder": "Código de criador",
     "apply": "Aplicar",
     "invalid": "Esse código não é válido."
-  }
+  },
+  "minutesEach": "{minutes}/mês · {resolution} · até {length} cada",
+  "perYear": "/ano",
+  "monthlyEquivalent": "${price}/mês",
+  "interval": {
+    "label": "Período de cobrança",
+    "monthly": "Mensal",
+    "yearly": "Anual",
+    "monthsFree": "{count, plural, one {# mês grátis} other {# meses grátis}}"
+  },
+  "comingSoon": "Em breve"
 }

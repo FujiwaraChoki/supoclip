@@ -223,7 +223,7 @@
       },
       "2": {
         "question": "托管的 SupoClip 有免费方案吗？",
-        "answer": "没有。托管应用处理视频需要 Pro 或 Scale 订阅。免费路径是自托管开源代码，没有方案上限；你只为自己的基础设施和所配置的 AI 提供方付费。"
+        "answer": "没有。托管应用处理视频需要 Pro 或 Creator 订阅。免费路径是自托管开源代码，没有方案上限；你只为自己的基础设施和所配置的 AI 提供方付费。"
       },
       "3": {
         "question": "哪一个更快，或短片更好？",
@@ -279,7 +279,7 @@
     "pricing": {
       "heading": "定价模式：额度、方案，还是你自己的基础设施",
       "p1": "OpusClip 的<plans>方案与额度文章</plans>描述了用额度计算处理分钟的付费方案，以及一个免费方案。它的<watermark>水印文章</watermark>写明免费方案的导出可能带有 OpusClip 水印。方案价格和额度数量会变，所以请查看 OpusClip 当前的定价页，不要依赖抄进博客的数字。",
-      "p2": "SupoClip 有两条路。托管应用有 <pro>{proName}</pro>，每月 ${proPrice}，可处理 {proLimit} 个视频；以及 <scale>{scaleName}</scale>，每月 ${scalePrice}，可处理 {scaleLimit} 个视频。没有免费的托管方案；处理视频需要订阅。自托管这条路是没有方案上限的免费软件。你为服务器和所配置的 AI API 付费，<guide>自托管指南</guide>展示了一种完全本地、没有按次 AI 费用的安装。"
+      "p2": "SupoClip 有两条路。托管应用有 <pro>{proName}</pro>，每月 ${proPrice}，每月 {proLimit} 小时 720p 视频；以及 <scale>{scaleName}</scale>，每月 ${scalePrice}，每月 {scaleLimit} 小时 1080p 视频，按年付费可免费两个月。没有免费的托管方案；处理视频需要订阅。自托管这条路是没有方案上限的免费软件。你为服务器和所配置的 AI API 付费，<guide>自托管指南</guide>展示了一种完全本地、没有按次 AI 费用的安装。"
     },
     "chooseSupoclip": {
       "heading": "什么时候 SupoClip 更合适",

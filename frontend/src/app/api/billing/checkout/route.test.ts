@@ -47,6 +47,8 @@ describe("/api/billing/checkout", () => {
       ...env,
       STRIPE_PRO_PRICE_ID: "price_pro",
       STRIPE_SCALE_PRICE_ID: "price_scale",
+      STRIPE_PRO_ANNUAL_PRICE_ID: "price_pro_annual",
+      STRIPE_SCALE_ANNUAL_PRICE_ID: "price_scale_annual",
       NEXT_PUBLIC_APP_URL: "http://localhost:3107",
     };
     vi.mocked(auth.api.getSession).mockResolvedValue({
@@ -84,10 +86,61 @@ describe("/api/billing/checkout", () => {
     expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({
         line_items: [{ price: "price_scale", quantity: 1 }],
-        metadata: { userId: "user-1", plan: "scale" },
+        metadata: { userId: "user-1", plan: "scale", interval: "month" },
       }),
     );
     await expect(response.json()).resolves.toEqual({ url: "https://checkout.example/scale" });
+  });
+
+  it("uses the annual price when yearly billing is selected", async () => {
+    const stripe = {
+      checkout: {
+        sessions: { create: vi.fn().mockResolvedValue({ url: "https://checkout.example/annual" }) },
+      },
+    };
+    vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+    const response = await POST(
+      new Request("http://localhost/api/billing/checkout", {
+        method: "POST",
+        body: JSON.stringify({ plan: "pro", interval: "year" }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(stripe.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        line_items: [{ price: "price_pro_annual", quantity: 1 }],
+        metadata: { userId: "user-1", plan: "pro", interval: "year" },
+      }),
+    );
+  });
+
+  it("rejects an unknown billing interval", async () => {
+    const response = await POST(
+      new Request("http://localhost/api/billing/checkout", {
+        method: "POST",
+        body: JSON.stringify({ plan: "pro", interval: "week" }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(getStripeClient).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing annual price instead of charging monthly", async () => {
+    delete process.env.STRIPE_SCALE_ANNUAL_PRICE_ID;
+    vi.mocked(getStripeClient).mockReturnValue({ checkout: { sessions: { create: vi.fn() } } } as never);
+
+    const response = await POST(
+      new Request("http://localhost/api/billing/checkout", {
+        method: "POST",
+        body: JSON.stringify({ plan: "scale", interval: "year" }),
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ error: "Stripe yearly price is not configured for scale" });
   });
 
   describe("creator codes", () => {

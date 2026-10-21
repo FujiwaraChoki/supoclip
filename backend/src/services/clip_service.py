@@ -33,6 +33,7 @@ from ..clip_source_map import (
 )
 
 from ..media_storage import MediaStorage
+from ..media.ffmpeg import cap_video_short_side
 
 logger = logging.getLogger(__name__)
 
@@ -132,9 +133,12 @@ class ClipEditingMixin:
         if not clips:
             return
 
+        download_quality, output_short_side = await self._media_limits(task.get("user_id"))
         video_path: Path
         if source_type == "youtube":
-            downloaded = await self.video_service.download_video(source_url)
+            downloaded = await self.video_service.download_video(
+                source_url, quality=download_quality
+            )
             if not downloaded:
                 raise ValueError("Failed to download source video for regeneration")
             video_path = Path(downloaded)
@@ -188,6 +192,7 @@ class ClipEditingMixin:
                 output_format,
                 add_subtitles,
                 normalized_cleanup_settings,
+                max_short_side=output_short_side,
             )
         finally:
             if source_type == "youtube":
@@ -423,10 +428,11 @@ class ClipEditingMixin:
         processing_mode = (
             task.get("processing_mode") or self.config.default_processing_mode
         )
+        download_quality, output_short_side = await self._media_limits(task.get("user_id"))
         if source_url and source_type:
             cache_entry = await self.cache_repo.get_cache(
                 self.db,
-                self._build_cache_key(source_url, source_type, processing_mode),
+                self._build_cache_key(source_url, source_type, processing_mode, download_quality),
             )
             cached_video_path = cache_entry.get("video_path") if cache_entry else None
             if cached_video_path:
@@ -444,7 +450,9 @@ class ClipEditingMixin:
         downloaded_source: Optional[Path] = None
         if not transcript_video_path or not transcript_video_path.exists():
             if source_type == "youtube" and source_url:
-                downloaded = await self.video_service.download_video(source_url)
+                downloaded = await self.video_service.download_video(
+                    source_url, quality=download_quality
+                )
                 transcript_video_path = Path(downloaded) if downloaded else None
                 downloaded_source = transcript_video_path
             elif source_url:
@@ -487,6 +495,11 @@ class ClipEditingMixin:
                     source_ranges=source_ranges,
                     position_y=position_y,
                 )
+                if output_short_side:
+                    try:
+                        await run_in_thread(cap_video_short_side, output_path, output_short_side)
+                    except Exception as e:
+                        logger.warning(f"Keeping full-size caption edit for clip {clip_id}: {e}")
         finally:
             if downloaded_source is not None:
                 self._cleanup_source_video(downloaded_source, "youtube", source_url)

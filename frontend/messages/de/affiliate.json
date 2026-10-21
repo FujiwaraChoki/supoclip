@@ -23,7 +23,7 @@
   "offer": {
     "heading": "Was alle bekommen",
     "youTitle": "Du bekommst SupoClip Pro, kostenlos",
-    "youDetail": "Pro kostet normalerweise ${price}/Monat und enthält {limit} Videos im Monat. Freigegebene Creator bekommen es kostenlos, solange sie im Programm sind.",
+    "youDetail": "Pro kostet normalerweise ${price}/Monat und enthält {limit} Stunden Video pro Monat. Freigeschaltete Creator erhalten es kostenlos, solange sie im Programm sind.",
     "youDetailNoLimit": "Pro kostet normalerweise ${price}/Monat. Freigegebene Creator bekommen es kostenlos, solange sie im Programm sind.",
     "audienceTitle": "Dein Publikum bekommt 20% Rabatt",
     "audienceDetail": "Für die ersten 3 Monate, auf jedem Tarif. Es funktioniert über deinen Link oder indem jemand deinen Code an der Kasse eingibt."

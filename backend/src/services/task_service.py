@@ -22,7 +22,7 @@ from .video_service import VideoService
 from .clip_service import ClipEditingMixin
 from ..repositories.edit_transaction import serialized_task_edit, task_edit_transaction, TaskCancelled
 from ..repositories.task_run_guard import exclusive_task_run, task_run_guard
-from .billing_service import BillingService
+from .billing_service import BillingService, reduced_media_limits
 from .task_completion_email_service import (
     TaskCompletionEmailService,
     TaskCompletionRecipient,
@@ -53,12 +53,25 @@ class TaskService(ClipEditingMixin):
         self.config = config or get_config()
 
     @staticmethod
-    def _build_cache_key(url: str, source_type: str, processing_mode: str) -> str:
+    def _build_cache_key(
+        url: str, source_type: str, processing_mode: str, quality: Optional[str] = None
+    ) -> str:
         payload = (
             f"{source_type}|{processing_mode}|"
             f"{TRANSCRIPT_ANALYSIS_CACHE_VERSION}|{url.strip()}"
         )
+        # Reduced-quality YouTube downloads get their own entry so a 1080p
+        # request never reuses a 720p source. Full quality keeps the old key.
+        if quality and source_type == "youtube":
+            payload += f"|q{quality}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    async def _media_limits(self, user_id: Optional[str]) -> tuple[Optional[str], Optional[int]]:
+        """(download quality, clip cap) for the user's plan; see reduced_media_limits."""
+        if not user_id:
+            return None, None
+        summary = await BillingService(self.db, self.config).get_usage_summary(user_id)
+        return reduced_media_limits(summary)
 
     def _is_stale_queued_task(self, task: Dict[str, Any]) -> bool:
         """Detect queued tasks that have likely stalled due to worker issues."""
@@ -173,6 +186,7 @@ class TaskService(ClipEditingMixin):
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
+        source_duration_seconds: Optional[int] = None,
     ) -> str:
         """
         Create a new task with associated source.
@@ -211,6 +225,7 @@ class TaskService(ClipEditingMixin):
             caption_template=caption_template,
             include_broll=include_broll,
             processing_mode=processing_mode,
+            source_duration_seconds=source_duration_seconds,
         )
 
         logger.info(f"Created task {task_id} for user {user_id}")
@@ -281,7 +296,17 @@ class TaskService(ClipEditingMixin):
             logger.info(f"Starting processing for task {task_id}")
             started_at = datetime.utcnow()
             stage_timings: Dict[str, float] = {}
-            cache_key = self._build_cache_key(url, source_type, processing_mode)
+            billing = (
+                await BillingService(self.db, self.config).get_usage_summary(user_id)
+                if user_id
+                else {}
+            )
+            # Reduced-resolution plans download at their output quality and get
+            # a final downscale; 1080p plans keep the renderer's output.
+            download_quality, output_short_side = reduced_media_limits(billing)
+            cache_key = self._build_cache_key(
+                url, source_type, processing_mode, download_quality
+            )
 
             cache_entry = await self.cache_repo.get_cache(self.db, cache_key)
             cached_transcript = (
@@ -331,9 +356,6 @@ class TaskService(ClipEditingMixin):
             # Process video with progress updates
             max_video_duration = self.config.max_video_duration
             if source_type == "youtube" and user_id:
-                billing = await BillingService(self.db, self.config).get_usage_summary(
-                    user_id
-                )
                 max_video_duration = self.config.max_youtube_video_duration_for_plan(
                     billing.get("plan"), billing.get("subscription_status")
                 )
@@ -351,6 +373,7 @@ class TaskService(ClipEditingMixin):
                 output_format=output_format,
                 add_subtitles=add_subtitles,
                 max_video_duration=max_video_duration,
+                download_quality=download_quality,
                 cached_transcript=cached_transcript,
                 cached_analysis_json=cached_analysis_json,
                 progress_callback=update_progress,
@@ -433,6 +456,7 @@ class TaskService(ClipEditingMixin):
                     output_format,
                     add_subtitles,
                     normalized_cleanup_settings,
+                    max_short_side=output_short_side,
                 )
                 pending_clip_path = Path(clip_info["path"]) if clip_info else None
                 await check_cancelled()

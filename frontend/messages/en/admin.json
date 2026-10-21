@@ -63,13 +63,21 @@
   },
   "users": {
     "title": "Users",
-    "description": "Most recent users. Toggle admin access and inspect user tasks.",
+    "description": "Most recent users. Search by email or name to find anyone. Toggle admin access, grandfathered 1080p, and inspect tasks.",
     "adminBadge": "Admin",
     "joined": "{email} · joined {date}",
     "viewTasks": "View user tasks for {email}",
     "updateFailed": "Failed to update user",
     "removeAdmin": "Remove Admin",
-    "makeAdmin": "Make Admin"
+    "makeAdmin": "Make Admin",
+    "descriptionSearch": "Users matching “{query}”. Toggle admin access, grandfathered 1080p, and inspect tasks.",
+    "searchPlaceholder": "Search users",
+    "searchLabel": "Search users by email or name",
+    "clearSearch": "Clear",
+    "legacyBadge": "1080p kept",
+    "keepHd": "Keep 1080p",
+    "removeHd": "Remove 1080p",
+    "hdUpdateFailed": "Failed to update 1080p"
   },
   "explorer": {
     "title": "User Task Explorer",

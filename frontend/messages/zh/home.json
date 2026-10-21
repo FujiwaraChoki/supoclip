@@ -49,10 +49,22 @@
   "livePreview": "实时预览",
   "framing": "构图",
   "framingOptions": {
-    "vertical": { "label": "自动 9:16", "hint": "跟随人脸的竖屏裁切" },
-    "vertical_pan": { "label": "说话人跟随", "hint": "跟着正在说话的人" },
-    "vertical_split": { "label": "分屏", "hint": "两位说话人上下排列" },
-    "original": { "label": "原始", "hint": "保留源视频比例" }
+    "vertical": {
+      "label": "自动 9:16",
+      "hint": "跟随人脸的竖屏裁切"
+    },
+    "vertical_pan": {
+      "label": "说话人跟随",
+      "hint": "跟着正在说话的人"
+    },
+    "vertical_split": {
+      "label": "分屏",
+      "hint": "两位说话人上下排列"
+    },
+    "original": {
+      "label": "原始",
+      "hint": "保留源视频比例"
+    }
   },
   "captions": "字幕",
   "noCaptions": "无字幕",
@@ -68,7 +80,7 @@
   "extraWords": "额外要剪掉的词或短语",
   "extraWordsPlaceholder": "基本上、真的、说实话",
   "generate": "生成片段",
-  "limitNote": "{plan}：YouTube 视频最长 {minutes} 分钟。我们会在消耗一次生成前检查时长。",
+  "limitNote": "{plan}：YouTube 视频最长 {minutes} 分钟。每个视频按时长消耗分钟数，开始前会先检查。",
   "completionEmails": "完成邮件会遵循你在<settings>设置</settings>中的偏好。",
   "recent": "最近",
   "viewLibrary": "查看资料库",
@@ -84,16 +96,17 @@
   },
   "nudge": {
     "refreshesOn": "将于 {date} 重置。",
-    "refreshesNext": "下个计费周期重置。",
+    "refreshesNext": "下个月重置。",
     "startTitle": "选一个方案，开始剪辑",
-    "startDescription": "{price}/月起，可处理 {count} 个视频。你可以先把各项设置好。",
+    "startDescription": "每月 {price} 起，每月 {length} 视频。你可以先完成所有设置。",
     "seePlans": "查看方案",
-    "limitTitle": "你已经剪完本期的 {count} 个视频",
-    "limitWithPlan": "{refreshes}或者继续使用 {plan}：每月 {limit} 个。",
+    "limitTitle": "你本月已用完 {length} 视频",
+    "limitWithPlan": "{refreshes} 或者继续使用 {plan}：每月 {limit} 视频。",
     "limitAppStore": "{refreshes}你可以在 SupoClip iOS 应用里更改方案。",
     "getPlan": "获取 {plan}",
-    "remaining": "{count, plural, one {本期还剩 # 个视频} other {本期还剩 # 个视频}}",
-    "nearWithPlan": "{refreshes}需要更多额度？{plan} 每月给你 {limit} 个。",
-    "upgrade": "升级"
+    "remaining": "本月剩余 {count} 分钟视频",
+    "nearWithPlan": "{refreshes} 需要更多额度？{plan} 每月提供 {limit} 视频。",
+    "upgrade": "升级",
+    "limitTitleAll": "你本月的视频分钟数已用完"
   }
 }

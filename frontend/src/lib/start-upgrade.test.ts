@@ -33,7 +33,7 @@ describe("startUpgrade", () => {
 
     await startUpgrade("pro", "test");
 
-    expect(bodies(fetch)).toEqual([{ plan: "pro", code: "MAYA" }]);
+    expect(bodies(fetch)).toEqual([{ plan: "pro", interval: "month", code: "MAYA" }]);
   });
 
   it("drops a code that stopped being valid and checks out at the regular price", async () => {
@@ -45,7 +45,7 @@ describe("startUpgrade", () => {
 
     await startUpgrade("scale", "test");
 
-    expect(bodies(fetch)).toEqual([{ plan: "scale", code: "MAYA" }, { plan: "scale" }]);
+    expect(bodies(fetch)).toEqual([{ plan: "scale", interval: "month", code: "MAYA" }, { plan: "scale", interval: "month" }]);
     expect(getStoredCreatorCode()).toBeNull();
   });
 

@@ -23,7 +23,7 @@
   "offer": {
     "heading": "What everyone gets",
     "youTitle": "You get SupoClip Pro, free",
-    "youDetail": "Pro is normally ${price}/month and includes {limit} videos a month. Approved creators get it for free for as long as they're in the program.",
+    "youDetail": "Pro is normally ${price}/month and includes {limit} hours of video a month. Approved creators get it for free for as long as they're in the program.",
     "youDetailNoLimit": "Pro is normally ${price}/month. Approved creators get it for free for as long as they're in the program.",
     "audienceTitle": "Your audience gets 20% off",
     "audienceDetail": "For their first 3 months on any plan. It works through your link or by typing your code at checkout."

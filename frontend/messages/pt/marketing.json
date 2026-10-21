@@ -204,11 +204,12 @@
   },
   "pricing": {
     "title": "Preços simples, sem surpresas",
-    "body": "Grátis para auto-hospedar. Os planos hospedados começam em $10/mês, com processamento e hospedagem inclusos. Mude ou cancele quando quiser.",
+    "body": "Grátis para auto-hospedar. Os planos hospedados começam em ${price}/mês, com processamento e hospedagem inclusos. Mude ou cancele quando quiser.",
     "popular": "Mais popular",
     "period": {
       "forever": "para sempre",
-      "month": "/mês"
+      "month": "/mês",
+      "year": "/ano"
     },
     "generationsPerMonth": "{count} gerações por mês",
     "selfHost": {
@@ -228,8 +229,8 @@
       "cta": "Fazer upgrade para o Pro"
     },
     "scale": {
-      "description": "Para equipes e fluxos de publicação em alto volume.",
-      "cta": "Fazer upgrade para o Scale"
+      "description": "Para criadores que publicam todos os dias.",
+      "cta": "Fazer upgrade para Creator"
     },
     "hosted": {
       "tracking": "Rastreamento de rosto, legendas e pontuação de viralidade",
@@ -241,7 +242,8 @@
       "earlyAccess": "Acesso antecipado a novos recursos"
     },
     "selfHostNote": "Auto-hospedando? Todos os recursos são grátis e ilimitados.",
-    "selfHostGuide": "Ver o guia de auto-hospedagem"
+    "selfHostGuide": "Ver o guia de auto-hospedagem",
+    "billedYearly": "${price}/mês, cobrado anualmente"
   },
   "openSource": {
     "badge": "Licença AGPL-3.0",

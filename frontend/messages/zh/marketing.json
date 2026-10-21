@@ -204,11 +204,12 @@
   },
   "pricing": {
     "title": "价格简单，没有意外",
-    "body": "自托管免费。托管套餐每月 $10 起，处理和托管都帮你做好。随时更改或取消。",
+    "body": "自托管免费。托管套餐每月 ${price} 起，处理和托管都帮你做好。随时更改或取消。",
     "popular": "最受欢迎",
     "period": {
       "forever": "永久",
-      "month": "/月"
+      "month": "/月",
+      "year": "/年"
     },
     "generationsPerMonth": "每月 {count} 次生成",
     "selfHost": {
@@ -228,8 +229,8 @@
       "cta": "升级到 Pro"
     },
     "scale": {
-      "description": "适合团队和高产量的发布流程。",
-      "cta": "升级到 Scale"
+      "description": "适合每天发布内容的创作者。",
+      "cta": "升级到 Creator"
     },
     "hosted": {
       "tracking": "人脸跟踪、字幕和传播潜力评分",
@@ -241,7 +242,8 @@
       "earlyAccess": "抢先体验新功能"
     },
     "selfHostNote": "自托管？全部功能免费且不限量。",
-    "selfHostGuide": "查看自托管指南"
+    "selfHostGuide": "查看自托管指南",
+    "billedYearly": "${price}/月，按年计费"
   },
   "openSource": {
     "badge": "AGPL-3.0 许可",

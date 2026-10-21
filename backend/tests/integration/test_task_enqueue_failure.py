@@ -14,7 +14,7 @@ async def test_failed_enqueue_releases_generation_allowance(
     client, app, db_session, auth_headers, monkeypatch
 ):
     app.state.config.monetization_enabled = True
-    app.state.config.pro_plan_task_limit = 1
+    app.state.config.pro_plan_minute_limit = 1
     await create_user(
         db_session, user_id="user-1", plan="pro", subscription_status="active"
     )
@@ -36,7 +36,7 @@ async def test_failed_enqueue_releases_generation_allowance(
     assert task.status == "error"
     summary = await BillingService(db_session, app.state.config).get_usage_summary("user-1")
     assert summary["usage_count"] == 0
-    assert summary["remaining"] == 1
+    assert summary["remaining_minutes"] == 1
     metadata.assert_awaited_once()
     assert metadata.await_args.args[0] == task.id
     assert metadata.await_args.args[1]["output_format"] == "original"

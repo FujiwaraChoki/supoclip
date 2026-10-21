@@ -5,15 +5,19 @@
       "cta": "Upgrade to Pro"
     },
     "scale": {
-      "description": "For teams and high-volume publishing workflows.",
-      "cta": "Upgrade to Scale"
+      "description": "For creators publishing every day.",
+      "cta": "Upgrade to Creator"
     }
   },
   "highlights": {
     "videos": "{count} videos clipped every month",
     "youtube": "YouTube videos up to {length}",
     "fonts": "Custom fonts, B-roll and caption templates",
-    "priority": "Priority processing"
+    "priority": "Priority processing",
+    "minutes": "{length} of video every month",
+    "hd": "720p clips",
+    "fullHd": "Full HD 1080p clips",
+    "scheduling": "Auto-post and schedule clips to YouTube and TikTok"
   },
   "runtime": {
     "minutes": "{count} min",
@@ -47,17 +51,19 @@
       "eyebrow": "What a month",
       "titleCount": "You've clipped all {count} videos on {plan}",
       "titleAll": "You've used everything on {plan}",
-      "bodyRefreshKeep": "Your allowance refreshes on {date}. Keep the momentum going with {plan}: {count} videos a month.",
-      "bodyPeriodKeep": "Your allowance refreshes next billing period. Keep the momentum going with {plan}: {count} videos a month.",
-      "bodyRefresh": "Your allowance refreshes on {date}.",
-      "bodyPeriod": "Your allowance refreshes next billing period."
+      "bodyRefreshKeep": "Your minutes refresh on {date}. Keep the momentum going with {plan}: {length} of video a month. This try didn't use any minutes.",
+      "bodyPeriodKeep": "Your minutes refresh next month. Keep the momentum going with {plan}: {length} of video a month. This try didn't use any minutes.",
+      "bodyRefresh": "Your minutes refresh on {date}. This try didn't use any minutes.",
+      "bodyPeriod": "Your minutes refresh next month. This try didn't use any minutes.",
+      "titleShort": "This video needs {required} minutes, and you have {remaining} left",
+      "titleMinutes": "You've used all {length} on {plan} this month"
     },
     "long": {
       "eyebrow": "A long one",
       "title": "{plan} can take this {runtime} video",
       "fallbackPlan": "A bigger plan",
-      "body": "{plan} covers YouTube videos up to {length}. {next} handles up to {nextLength}, so this one goes straight through. This try didn't use a generation.",
-      "bodyNoNext": "{plan} covers YouTube videos up to {length}.  This try didn't use a generation."
+      "body": "{plan} covers YouTube videos up to {length}. {next} handles up to {nextLength}, so this one goes straight through. This try didn't use any minutes.",
+      "bodyNoNext": "{plan} covers YouTube videos up to {length}. This try didn't use any minutes."
     },
     "fonts": {
       "eyebrow": "Make it yours",
@@ -68,7 +74,7 @@
       "eyebrow": "More room to create",
       "title": "Do more with {plan}",
       "titleFallback": "Plans for every creator",
-      "body": "More videos each month, longer sources and priority processing."
+      "body": "More video each month, Full HD clips, longer sources and priority processing."
     }
   },
   "illustration": {
@@ -81,7 +87,9 @@
     "ownFont": "or your own .ttf",
     "serif": "Serif",
     "display": "Display",
-    "mono": "Mono"
+    "mono": "Mono",
+    "hoursUpFrom": "hours of video a month, up from {count}",
+    "hoursWith": "hours of video a month with {plan}"
   },
   "creatorCode": {
     "applied": "Creator code <mono>{code}</mono>: 20% off your first 3 months.",
@@ -90,5 +98,15 @@
     "placeholder": "Creator code",
     "apply": "Apply",
     "invalid": "That code isn't valid."
-  }
+  },
+  "minutesEach": "{minutes}/mo · {resolution} · up to {length} each",
+  "perYear": "/yr",
+  "monthlyEquivalent": "${price}/mo",
+  "interval": {
+    "label": "Billing period",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "monthsFree": "{count, plural, one {# month free} other {# months free}}"
+  },
+  "comingSoon": "Coming soon"
 }
