@@ -31,7 +31,11 @@
     "pickPlan": "Wähl einen Tarif, um loszulegen",
     "moreWith": "Mehr mit {name}",
     "left": "Noch {count} in diesem Zeitraum",
-    "videosThisPeriod": "Videos in diesem Zeitraum"
+    "videosThisPeriod": "Videos in diesem Zeitraum",
+    "minutesOf": "{used} / {limit} Min.",
+    "minutes": "{used} Min.",
+    "minutesLeft": "noch {count} Min. diesen Monat",
+    "minutesThisMonth": "Minuten Video diesen Monat"
   },
   "user": {
     "creator": "Creator",

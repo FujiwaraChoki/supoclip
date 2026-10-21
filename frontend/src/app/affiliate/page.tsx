@@ -44,7 +44,7 @@ export default async function AffiliatePage() {
   const t = await getTranslations("affiliate");
   const siteUrl = getSiteUrl();
   const pro = getPublicBillingPlans().find((plan) => plan.id === "pro");
-  const proPrice = pro?.priceMonthly ?? "10";
+  const proPrice = pro?.priceMonthly ?? "9.99";
   const steps = [
     { icon: Send, title: t("steps.apply.title"), detail: t("steps.apply.detail") },
     { icon: Search, title: t("steps.review.title"), detail: t("steps.review.detail") },
@@ -144,7 +144,7 @@ export default async function AffiliatePage() {
               <h3 className="mt-4 text-lg font-semibold">{t("offer.youTitle")}</h3>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 {pro
-                  ? t("offer.youDetail", { price: proPrice, limit: pro.generationLimit })
+                  ? t("offer.youDetail", { price: proPrice, limit: pro.minuteLimit / 60 })
                   : t("offer.youDetailNoLimit", { price: proPrice })}
               </p>
             </div>

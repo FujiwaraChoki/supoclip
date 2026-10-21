@@ -18,6 +18,7 @@ import yt_dlp
 
 from .apify_youtube_downloader import ApifyDownloadError, download_video_via_apify
 from .config import get_config
+from .rapidapi_youtube_downloader import RapidAPIDownloadError, download_video_via_rapidapi
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ YOUTUBE_METADATA_PROVIDER_YTDLP = "yt_dlp"
 YOUTUBE_METADATA_PROVIDER_DATA_API = "youtube_data_api"
 YOUTUBE_DOWNLOAD_PROVIDER_YTDLP = "yt_dlp"
 YOUTUBE_DOWNLOAD_PROVIDER_APIFY = "apify"
+YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI = "rapidapi"
 YOUTUBE_DATA_API_URL = "https://www.googleapis.com/youtube/v3/videos"
 
 
@@ -38,14 +40,25 @@ class YouTubeDownloader:
     def get_optimal_download_options(
         self,
         video_id: str,
+        max_height: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Get optimal yt-dlp options for high-quality downloads."""
+        """Get optimal yt-dlp options for high-quality downloads.
+
+        ``max_height`` caps the video height for plans with a lower output
+        resolution, falling back to the best stream if nothing fits.
+        """
         output_path = self.temp_dir / f"{video_id}.%(ext)s"
+        video_format = (
+            f"bestvideo*[height<={max_height}]+bestaudio/best[height<={max_height}]/"
+            "bestvideo*+bestaudio/best"
+            if max_height
+            else "bestvideo*+bestaudio/best"
+        )
 
         opts = {
             "outtmpl": str(output_path),
             # Use best available video/audio to avoid quality caps from container constraints.
-            "format": "bestvideo*+bestaudio/best",
+            "format": video_format,
             "format_sort": ["res", "fps"],
             "merge_output_format": "mp4",
             "writesubtitles": False,
@@ -444,10 +457,13 @@ async def async_get_youtube_video_title(url: str) -> Optional[str]:
 APIFY_LONG_VIDEO_MAX_QUALITY = "1080"
 
 
-def _resolve_apify_quality(url: str) -> str:
-    """Cap long videos at 1080p so the Apify run finishes before its timeout."""
+def _resolve_apify_quality(url: str, requested: Optional[str] = None) -> str:
+    """Pick the Apify quality: the plan's cap when lower than the default, and
+    at most 1080p for long videos so the run finishes before its timeout."""
     config = get_config()
     quality = config.apify_youtube_default_quality
+    if requested and int(requested) < int(quality):
+        quality = requested
     if int(quality) <= int(APIFY_LONG_VIDEO_MAX_QUALITY):
         return quality
 
@@ -472,10 +488,11 @@ def _resolve_apify_quality(url: str) -> str:
 def download_youtube_video_with_apify(
     url: str,
     video_id: str,
+    quality: Optional[str] = None,
 ) -> Path:
     config = get_config()
     downloader = YouTubeDownloader()
-    quality = _resolve_apify_quality(url)
+    quality = _resolve_apify_quality(url, quality)
     logger.info(
         "Attempting Apify YouTube download for %s with quality %s",
         video_id,
@@ -494,6 +511,7 @@ def _download_youtube_video_with_ytdlp(
     url: str,
     max_retries: int = 3,
     task_id: Optional[str] = None,
+    quality: Optional[str] = None,
 ) -> Optional[Path]:
     """
     Download YouTube video with optimized settings and retry logic.
@@ -527,7 +545,9 @@ def _download_youtube_video_with_ytdlp(
         try:
             logger.info("Download attempt %s/%s", attempt + 1, max_retries)
 
-            ydl_opts = downloader.get_optimal_download_options(video_id)
+            ydl_opts = downloader.get_optimal_download_options(
+                video_id, int(quality) if quality else None
+            )
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
@@ -596,10 +616,12 @@ def download_youtube_video(
     url: str,
     max_retries: int = 3,
     task_id: Optional[str] = None,
+    quality: Optional[str] = None,
 ) -> Optional[Path]:
     """
     Download YouTube video using the configured provider.
-    Defaults to free yt-dlp downloads and optionally falls back to Apify when configured.
+    Defaults to free yt-dlp; paid-first deployments leave yt-dlp until last.
+    ``quality`` (e.g. "720") caps the download for plans with a lower output resolution.
     """
     logger.info("Starting YouTube download: %s", url)
 
@@ -613,18 +635,35 @@ def download_youtube_video(
 
     config = get_config()
     primary_provider = config.youtube_download_provider
-    secondary_provider = (
-        YOUTUBE_DOWNLOAD_PROVIDER_APIFY
+    paid_providers = [YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI, YOUTUBE_DOWNLOAD_PROVIDER_APIFY]
+    if primary_provider != YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI:
+        paid_providers.reverse()
+    providers = (
+        [YOUTUBE_DOWNLOAD_PROVIDER_YTDLP, *paid_providers]
         if primary_provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
-        else YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
+        else [*paid_providers, YOUTUBE_DOWNLOAD_PROVIDER_YTDLP]
     )
 
-    for provider in (primary_provider, secondary_provider):
+    for provider in providers:
+        if provider == YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI:
+            if not config.rapidapi_youtube_api_key:
+                continue
+            try:
+                return download_video_via_rapidapi(
+                    video_id, downloader.temp_dir, config.rapidapi_youtube_api_key,
+                    quality=_resolve_apify_quality(url, quality),
+                    timeout_seconds=config.rapidapi_youtube_timeout_seconds,
+                )
+            except RapidAPIDownloadError as exc:
+                logger.warning("API Router download failed for %s: %s", video_id, exc)
+            continue
+
         if provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP:
             downloaded_path = _download_youtube_video_with_ytdlp(
                 url,
                 max_retries,
                 task_id,
+                quality,
             )
             if downloaded_path:
                 return downloaded_path
@@ -637,7 +676,7 @@ def download_youtube_video(
             continue
 
         try:
-            downloaded_path = download_youtube_video_with_apify(url, video_id)
+            downloaded_path = download_youtube_video_with_apify(url, video_id, quality)
             file_size = downloaded_path.stat().st_size
             width, height = _get_local_video_dimensions(downloaded_path)
             logger.info(
@@ -650,6 +689,8 @@ def download_youtube_video(
             return downloaded_path
         except ApifyDownloadError as exc:
             logger.warning("Apify download failed for %s: %s", url, exc)
+            if exc.permanent:
+                return None
         except Exception as exc:
             logger.error("Unexpected Apify download error for %s: %s", url, exc)
 
@@ -661,9 +702,10 @@ async def async_download_youtube_video(
     url: str,
     max_retries: int = 3,
     task_id: Optional[str] = None,
+    quality: Optional[str] = None,
 ) -> Optional[Path]:
     logger.info(f"Starting async YouTube download: {url}")
-    return await asyncio.to_thread(download_youtube_video, url, max_retries, task_id)
+    return await asyncio.to_thread(download_youtube_video, url, max_retries, task_id, quality)
 
 
 def get_video_duration(url: str) -> Optional[int]:
@@ -701,7 +743,7 @@ def cleanup_downloaded_files(video_id: str, source_path: Optional[Path] = None):
     """Remove downloaded media while retaining word timings for cached jobs."""
     temp_dir = Path(get_config().temp_dir)
     provider_dir = False
-    if source_path is not None and source_path.parent.name.startswith(f"apify-{video_id}-"):
+    if source_path is not None and source_path.parent.name.startswith((f"apify-{video_id}-", f"rapidapi-{video_id}-")):
         candidate = source_path.parent.resolve()
         if candidate.parent != temp_dir.resolve():
             logger.warning("Refusing source cleanup outside the configured download directory")

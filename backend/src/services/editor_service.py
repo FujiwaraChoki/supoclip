@@ -21,6 +21,32 @@ from ..utils.async_helpers import run_in_thread
 from ..media_storage import MediaStorage, STORAGE_ERRORS, media_work
 
 
+async def cap_export_for_plan(task_id: str, path: Path) -> None:
+    """Downscale an editor render for plans below 1080p.
+
+    Editor renders start from the original source, so they need the same
+    final pass as generated clips. A failed downscale keeps the full render.
+    """
+    from ..database import AsyncSessionLocal
+    from ..media.ffmpeg import cap_video_short_side
+    from .billing_service import FULL_HD_SHORT_SIDE, BillingService
+    from .task_service import TaskService
+
+    try:
+        async with AsyncSessionLocal() as db:
+            task = await TaskService(db).task_repo.get_task_by_id(db, task_id)
+            if not task or not task.get("user_id"):
+                return
+            billing = await BillingService(db).get_usage_summary(task["user_id"])
+        short_side = billing.get("output_short_side")
+        if short_side and short_side < FULL_HD_SHORT_SIDE:
+            await run_in_thread(cap_video_short_side, path, short_side)
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "Keeping full-size editor render for task %s", task_id, exc_info=True
+        )
+
+
 def read_state(directory: Path):
     path = directory / "asset.json"
     if not path.exists():
@@ -252,8 +278,10 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             ranges = await run_in_thread(service._get_clip_source_ranges, clip)
             source_url, source_type = task.get("source_url"), task.get("source_type")
             mode = task.get("processing_mode") or service.config.default_processing_mode
+            # Editor renders are downscaled for 720p plans, so their source can be too.
+            download_quality, _ = await service._media_limits(task.get("user_id"))
             cache = await service.cache_repo.get_cache(
-                db, service._build_cache_key(source_url, source_type, mode)
+                db, service._build_cache_key(source_url, source_type, mode, download_quality)
             )
             source = (
                 await run_in_thread(storage.local_path, cache["video_path"]) if cache and cache.get("video_path") else None
@@ -264,7 +292,9 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             await db.close()
             if not source or not source.exists():
                 if source_type == "youtube":
-                    downloaded = await service.video_service.download_video(source_url)
+                    downloaded = await service.video_service.download_video(
+                        source_url, quality=download_quality
+                    )
                     source = Path(downloaded) if downloaded else None
                     downloaded_source = source
                 else:
@@ -378,6 +408,7 @@ async def export_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: 
         await run_in_thread(
             render_document, directory, job_id, document, payload["preset"]
         )
+        await cap_export_for_plan(task_id, directory / f"export-{job_id}.mp4")
         await run_in_thread(MediaStorage().persist_editor_export, directory, job_id)
         atomic_json(
             directory / f"job-{job_id}.json", {"status": "completed", "progress": 100}
@@ -500,6 +531,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             # A symlink allows the second rendering pass to observe cancellation.
             (work / f"cancel-{job_id}").symlink_to(directory / f"cancel-{job_id}")
             await run_in_thread(render_document, work, job_id, document, "tiktok")
+            await cap_export_for_plan(task_id, work / f"export-{job_id}.mp4")
             new_filename = f"combined_{uuid.uuid4().hex}.mp4"
             clip_path = Path(get_config().temp_dir) / "clips" / new_filename
             clip_path.parent.mkdir(parents=True, exist_ok=True)

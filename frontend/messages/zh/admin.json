@@ -63,13 +63,21 @@
   },
   "users": {
     "title": "用户",
-    "description": "最近的用户。切换管理员权限并查看他们的任务。",
+    "description": "最近的用户。按邮箱或姓名搜索任意用户。切换管理员权限和保留的 1080p，并查看任务。",
     "adminBadge": "管理员",
     "joined": "{email} · 加入于 {date}",
     "viewTasks": "查看 {email} 的任务",
     "updateFailed": "无法更新用户",
     "removeAdmin": "取消管理员",
-    "makeAdmin": "设为管理员"
+    "makeAdmin": "设为管理员",
+    "descriptionSearch": "匹配“{query}”的用户。切换管理员权限和保留的 1080p，并查看任务。",
+    "searchPlaceholder": "搜索用户",
+    "searchLabel": "按邮箱或姓名搜索用户",
+    "clearSearch": "清除",
+    "legacyBadge": "保留 1080p",
+    "keepHd": "保留 1080p",
+    "removeHd": "移除 1080p",
+    "hdUpdateFailed": "无法更新 1080p"
   },
   "explorer": {
     "title": "用户任务",

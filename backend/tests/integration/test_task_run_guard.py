@@ -27,7 +27,7 @@ async def test_resume_waits_for_cancelled_worker_and_then_enqueues_only_once(
     async with sessions() as worker:
         service, _, clip_info = setup_worker(worker, tmp_path, original)
 
-        async def render(*_args):
+        async def render(*_args, **_kwargs):
             entered.set()
             await release.wait()
             return clip_info
@@ -71,7 +71,7 @@ async def test_duplicate_worker_cannot_overlap_or_repeat_completed_run(
         first, _, info = setup_worker(one, tmp_path, original)
         duplicate, _, _ = setup_worker(two, tmp_path, original)
 
-        async def render(*_args):
+        async def render(*_args, **_kwargs):
             entered.set()
             await release.wait()
             return info

@@ -63,13 +63,21 @@
   },
   "users": {
     "title": "Usuarios",
-    "description": "Usuarios más recientes. Activa o quita el acceso de admin e inspecciona sus tareas.",
+    "description": "Usuarios más recientes. Busca por correo o nombre para encontrar a cualquiera. Activa el acceso de administrador, el 1080p conservado y revisa tareas.",
     "adminBadge": "Admin",
     "joined": "{email} · se unió el {date}",
     "viewTasks": "Ver las tareas de {email}",
     "updateFailed": "No se pudo actualizar el usuario",
     "removeAdmin": "Quitar admin",
-    "makeAdmin": "Hacer admin"
+    "makeAdmin": "Hacer admin",
+    "descriptionSearch": "Usuarios que coinciden con «{query}». Activa el acceso de administrador, el 1080p conservado y revisa tareas.",
+    "searchPlaceholder": "Buscar usuarios",
+    "searchLabel": "Buscar usuarios por correo o nombre",
+    "clearSearch": "Borrar",
+    "legacyBadge": "1080p conservado",
+    "keepHd": "Conservar 1080p",
+    "removeHd": "Quitar 1080p",
+    "hdUpdateFailed": "No se pudo actualizar el 1080p"
   },
   "explorer": {
     "title": "Explorador de tareas",

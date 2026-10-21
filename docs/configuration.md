@@ -102,12 +102,13 @@ These settings affect clip generation speed, throughput, and defaults.
 |---|---|---|
 | `DEFAULT_PROCESSING_MODE` | `fast` | Default mode for new tasks |
 | `FAST_MODE_MAX_CLIPS` | `10` | Clip cap used by fast mode (never above `MAX_CLIPS`) |
-| `FAST_MODE_TRANSCRIPT_MODEL` | `nano` | Lightweight transcript path for fast mode |
+| `FAST_MODE_TRANSCRIPT_MODEL` | `universal-3-5-pro` | Fast mode uses the Pro model too; `universal-2` covers languages Pro doesn't. `nano`/`universal-2` select the cheaper model for self-hosting |
+| `ASSEMBLY_AI_REQUEST_TIMEOUT_SECONDS` | `60` | Per-request upload/submit timeout (5–300). Transient upload failures retry up to 3 times; the paid submission is attempted once |
 | `WHISPER_MODEL_SIZE` | `medium` in `.env.example` | Whisper model size when Whisper is used locally |
 | `QUEUED_TASK_TIMEOUT_SECONDS` | `180` | Marks stale queued tasks as failed instead of leaving them stuck forever |
 | `MAX_VIDEO_DURATION` | `5400` | Maximum accepted upload length and baseline YouTube length in seconds |
 | `PRO_YOUTUBE_MAX_VIDEO_DURATION` | `5400` | Maximum YouTube length for active or trialing Pro subscriptions, in seconds |
-| `SCALE_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum YouTube length for active or trialing Scale subscriptions, in seconds |
+| `SCALE_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum YouTube length for active or trialing Creator (`scale`) subscriptions, in seconds |
 | `MAX_CLIPS` | `10` | Hard cap on clips per task in every processing mode |
 | `CLIP_DURATION` | `30` | Default clip duration target in seconds |
 
@@ -146,13 +147,25 @@ These determine whether the app behaves like an open self-hosted product or a mo
 | `SELF_HOST` | `true` | When `true`, monetization is disabled |
 | `BACKEND_AUTH_SECRET` | unset in practice | Shared secret for trusted frontend-to-backend requests in hosted mode |
 | `AUTH_SIGNATURE_TTL_SECONDS` | `300` | Lifetime of backend request signatures |
-| `FREE_PLAN_TASK_LIMIT` | `10` | Hosted-mode free plan generation allowance |
-| `PRO_PLAN_TASK_LIMIT` | `50` | Hosted-mode Pro generation allowance |
-| `SCALE_PLAN_TASK_LIMIT` | `300` | Hosted-mode Scale generation allowance |
-| `NEXT_PUBLIC_PRO_PRICE_MONTHLY` | `10` | Frontend display price for the Pro plan |
-| `NEXT_PUBLIC_SCALE_PRICE_MONTHLY` | `50` | Frontend display price for the Scale plan |
-| `NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT` | `50` | Frontend display allowance for the Pro plan |
-| `NEXT_PUBLIC_SCALE_PLAN_TASK_LIMIT` | `300` | Frontend display allowance for the Scale plan |
+| `PRO_PLAN_MINUTE_LIMIT` | `600` | Hosted-mode Pro allowance, in minutes of source video per month (`0` = unlimited) |
+| `SCALE_PLAN_MINUTE_LIMIT` | `1500` | Hosted-mode Creator (`scale`) allowance, in minutes of source video per month |
+| `NEXT_PUBLIC_PRO_PRICE_MONTHLY` | `9.99` | Frontend display price for the Pro plan |
+| `NEXT_PUBLIC_SCALE_PRICE_MONTHLY` | `24.99` | Frontend display price for the Creator plan |
+| `NEXT_PUBLIC_PRO_PRICE_ANNUAL` | `99.90` | Frontend display price for a year of Pro |
+| `NEXT_PUBLIC_SCALE_PRICE_ANNUAL` | `249.90` | Frontend display price for a year of Creator |
+| `NEXT_PUBLIC_PRO_PLAN_MINUTE_LIMIT` | `600` | Frontend display allowance for the Pro plan |
+| `NEXT_PUBLIC_SCALE_PLAN_MINUTE_LIMIT` | `1500` | Frontend display allowance for the Creator plan |
+| `NEXT_PUBLIC_SOCIAL_PUBLISHING` | `soon` | How Creator's scheduled posting appears on pricing pages: `soon` ("Coming soon" tag, YouTube and TikTok), `live`, or `off` |
+
+Plans are metered in minutes of source video. A video's full length, rounded up
+to the minute, is charged when the task is created (YouTube length comes from
+the metadata preflight, uploads are probed with ffprobe). Jobs that fail without
+producing clips release their minutes. Allowances reset monthly, also on yearly
+plans. Pro clips are downscaled to 720p after rendering; Creator clips, and Pro
+subscribers who were subscribed before the change (`users.legacy_hd`), get
+1080p. 720p plans also download YouTube sources at 720p (capped below
+`APIFY_YOUTUBE_DEFAULT_QUALITY`, never above it), with a separate processing
+cache entry so a 1080p request never reuses a 720p source. Scheduling posts requires Creator; publishing immediately works on Pro.
 
 ### Stripe settings
 
@@ -163,7 +176,11 @@ Required when `SELF_HOST=false` and you want subscription management:
 | `STRIPE_SECRET_KEY` | Server-side Stripe API access |
 | `STRIPE_WEBHOOK_SECRET` | Verifies Stripe webhook signatures |
 | `STRIPE_PRO_PRICE_ID` | Price identifier for the Pro plan |
-| `STRIPE_SCALE_PRICE_ID` | Price identifier for the Scale plan |
+| `STRIPE_SCALE_PRICE_ID` | Price identifier for the Creator (`scale`) plan |
+| `STRIPE_PRO_ANNUAL_PRICE_ID` | Yearly price identifier for the Pro plan |
+| `STRIPE_SCALE_ANNUAL_PRICE_ID` | Yearly price identifier for the Creator plan |
+| `STRIPE_PRO_LEGACY_PRICE_IDS` | Comma-separated earlier Pro prices existing subscribers still pay; they stay Pro and keep 1080p |
+| `STRIPE_SCALE_LEGACY_PRICE_IDS` | Comma-separated earlier Creator prices that still map to Creator |
 | `STRIPE_PRICE_ID` | Legacy fallback price identifier for the Pro plan |
 | `STRIPE_CHECKOUT_URL` | Optional fallback checkout URL |
 | `STRIPE_CUSTOMER_PORTAL_URL` | Optional fallback billing portal URL |
@@ -271,6 +288,22 @@ SupoClip uses the actor explicitly configured in the private environment as the 
 | `APIFY_YOUTUBE_DEFAULT_QUALITY` | `1080` | Requested Apify download resolution (`360`, `480`, `720`, or `1080`) |
 | `APIFY_RUN_TIMEOUT_SECONDS` | `900` | Maximum Apify actor run time before SupoClip gives up and falls back |
 
+## RapidAPI YouTube Downloader
+
+An optional paid download service. Set `YOUTUBE_DOWNLOAD_PROVIDER=rapidapi` to try it first, then
+the Apify pool, then yt-dlp; with `apify` it runs after the Apify pool. Missing settings skip it.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RAPIDAPI_YOUTUBE_API_KEY` | empty | RapidAPI key for the download service |
+| `RAPIDAPI_YOUTUBE_HOST` | empty | Extraction API host (private configuration) |
+| `RAPIDAPI_YOUTUBE_RELAY_HOST` | empty | Media relay host the API returns (private configuration) |
+| `RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS` | `1200` | Budget for extraction, transfer, muxing and verification (60–1800) |
+
+Each attempt makes one extraction request, downloads video and original audio in parallel
+ranges, muxes them and verifies byte counts, durations, both streams and decode samples before
+accepting the file. Any contract or relay change fails closed.
+
 ## YouTube Metadata Provider
 
 YouTube metadata lookup is configurable independently from the download provider.
@@ -354,12 +387,16 @@ STRIPE_SECRET_KEY=your_key
 STRIPE_WEBHOOK_SECRET=your_key
 STRIPE_PRO_PRICE_ID=price_xxx
 STRIPE_SCALE_PRICE_ID=price_xxx
-PRO_PLAN_TASK_LIMIT=50
-SCALE_PLAN_TASK_LIMIT=300
-NEXT_PUBLIC_PRO_PRICE_MONTHLY=10
-NEXT_PUBLIC_SCALE_PRICE_MONTHLY=50
-NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT=50
-NEXT_PUBLIC_SCALE_PLAN_TASK_LIMIT=300
+STRIPE_PRO_ANNUAL_PRICE_ID=price_xxx
+STRIPE_SCALE_ANNUAL_PRICE_ID=price_xxx
+PRO_PLAN_MINUTE_LIMIT=600
+SCALE_PLAN_MINUTE_LIMIT=1500
+NEXT_PUBLIC_PRO_PRICE_MONTHLY=9.99
+NEXT_PUBLIC_SCALE_PRICE_MONTHLY=24.99
+NEXT_PUBLIC_PRO_PRICE_ANNUAL=99.90
+NEXT_PUBLIC_SCALE_PRICE_ANNUAL=249.90
+NEXT_PUBLIC_PRO_PLAN_MINUTE_LIMIT=600
+NEXT_PUBLIC_SCALE_PLAN_MINUTE_LIMIT=1500
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your_aws_access_key_id
 AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key

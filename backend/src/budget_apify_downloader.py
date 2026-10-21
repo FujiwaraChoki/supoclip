@@ -51,7 +51,8 @@ def _providers() -> dict:
         raise BudgetApifyError("Invalid Apify provider environment configuration.") from None
 
 
-MAX_BYTES = 2_000_000_000
+# Decimal GB, shared by streamed HTTP and versioned private-storage deliveries.
+MAX_BYTES = 10_000_000_000
 TERMINAL = {"SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"}
 PERMANENT = {"INVALID_INPUT", "VIDEO_UNAVAILABLE", "VIDEO_PRIVATE", "AGE_RESTRICTED",
              "MEMBERS_ONLY", "GEO_BLOCKED", "DRM_PROTECTED", "OVER_MAX_MINUTES"}
@@ -183,7 +184,11 @@ def _verify_media(path: Path, item: dict, deadline: float):
                 if min(stream.get("width", 0), stream.get("height", 0)) <= 0:
                     raise ValueError()
                 if item.get("minQuality") and min(stream["width"], stream["height"]) < item["minQuality"]:
-                    raise ValueError()
+                    raise BudgetApifyError(
+                        "YouTube provider delivered incomplete or invalid media "
+                        f"(received {stream['width']}x{stream['height']}; "
+                        f"minimum requested quality {item['minQuality']}p)."
+                    )
                 for field in ("width", "height"):
                     if item.get(field) and int(item[field]) != stream[field]:
                         raise ValueError()
@@ -332,7 +337,8 @@ def _run(actor, video_id, temp_dir, quality, token, run_timeout, charge_cap):
     else:
         body = {"urls": [f"https://www.youtube.com/watch?v={video_id}"], "quality": quality,
                 "subtitles": False, "maxVideos": 1, "maxMegabytes": min(1400, MAX_BYTES // 1_000_000)}
-    deadline = time.monotonic() + run_timeout + 240
+    run_deadline = time.monotonic() + run_timeout
+    deadline = run_deadline + 240  # Reserve separate time for file transfer and verification.
     folder = Path(tempfile.mkdtemp(prefix=f"apify-{video_id}-", dir=temp_dir))
     part = folder / f"{video_id}.mp4.part"
     path = folder / f"{video_id}.mp4"
@@ -341,16 +347,16 @@ def _run(actor, video_id, temp_dir, quality, token, run_timeout, charge_cap):
         with requests.Session() as api:
             api.headers["Authorization"] = "Bearer " + token
             # One submission only, including if its response is ambiguous.
-            run = _api(api, "POST", "acts/" + actor.replace("/", "~") + "/runs", deadline,
+            run = _api(api, "POST", "acts/" + actor.replace("/", "~") + "/runs", run_deadline,
                        params={"build": provider["build"], "memory": 2048, "timeout": run_timeout,
                                "maxTotalChargeUsd": charge_cap, "restartOnError": "false"}, json=body)["data"]
             logger.info("Apify download %s started (cap $%.3f)", run["id"], charge_cap)
             poll_failures = 0
             while run["status"] not in TERMINAL:
-                _remaining(deadline)
-                time.sleep(min(3, _remaining(deadline)))
+                _remaining(run_deadline)
+                time.sleep(min(3, _remaining(run_deadline)))
                 try:
-                    run = _api(api, "GET", "actor-runs/" + run["id"], deadline)["data"]
+                    run = _api(api, "GET", "actor-runs/" + run["id"], run_deadline)["data"]
                     poll_failures = 0
                 except BudgetApifyError:
                     poll_failures += 1

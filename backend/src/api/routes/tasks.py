@@ -27,6 +27,7 @@ from ...repositories.task_repository import TaskRepository
 from ...database import get_db
 from ...database import AsyncSessionLocal
 from ...services.task_service import TaskService
+from ...services.video_service import VideoService
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
 from ...workers.job_queue import JobQueue
@@ -64,7 +65,7 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
                 "code": "VIDEO_METADATA_UNAVAILABLE",
                 "message": (
                     "We couldn't verify this video's length. Please try again shortly "
-                    "or upload the video file. No generation was used."
+                    "or upload the video file. No minutes were used."
                 ),
             },
         ) from None
@@ -77,13 +78,47 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
                 "message": (
                     f"This video is {duration / 60:.1f} minutes long. Your plan allows "
                     f"YouTube videos up to {duration_limit / 60:g} minutes. "
-                    "Choose a shorter video. No generation was used."
+                    "Choose a shorter video. No minutes were used."
                 ),
                 "duration_seconds": duration,
                 "max_duration_seconds": duration_limit,
             },
         )
     return metadata
+
+
+async def _preflight_upload_source(url: str, user_id: str, duration_limit: int) -> float:
+    """Read an uploaded video's length so its minutes are charged up front."""
+    try:
+        duration = await run_in_thread(VideoService.probe_upload_duration, url, user_id)
+        if not math.isfinite(duration) or duration <= 0:
+            raise ValueError("Invalid video duration")
+    except Exception:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "VIDEO_METADATA_UNAVAILABLE",
+                "message": (
+                    "We couldn't read this video's length. Check that the file is a "
+                    "playable video and upload it again. No minutes were used."
+                ),
+            },
+        ) from None
+
+    if duration > duration_limit:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "VIDEO_TOO_LONG",
+                "message": (
+                    f"This video is {duration / 60:.1f} minutes long. Uploads can be "
+                    f"up to {duration_limit / 60:g} minutes. No minutes were used."
+                ),
+                "duration_seconds": duration,
+                "max_duration_seconds": duration_limit,
+            },
+        )
+    return duration
 
 
 def _normalize_font_size(value: Any, default: int = 24) -> Optional[int]:
@@ -370,11 +405,16 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                 raw_source["url"], billing["max_youtube_duration_seconds"]
             )
             source_title = source_title or metadata.get("title") or "YouTube Video"
+            duration_seconds = float(metadata["duration"])
+        else:
+            duration_seconds = await _preflight_upload_source(
+                raw_source["url"], user_id, billing["max_upload_duration_seconds"]
+            )
 
         async with generation_allowance_guard(
             db, user_id, enabled=runtime_config.monetization_enabled
         ):
-            await billing_service.assert_can_create_task(user_id)
+            await billing_service.assert_can_create_task(user_id, duration_seconds)
             # Create task
             task_id = await task_service.create_task_with_source(
                 user_id=user_id,
@@ -386,6 +426,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                 caption_template=caption_template,
                 include_broll=include_broll,
                 processing_mode=processing_mode,
+                source_duration_seconds=math.ceil(duration_seconds),
             )
 
             try:

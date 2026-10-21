@@ -26,7 +26,7 @@
     },
     "billing": {
       "title": "Abos und Abrechnung",
-      "p1": "Bezahlte Pläne (zum Beispiel Pro und Scale) schalten höhere monatliche Clip-Limits frei. Derselbe Plananspruch gilt für dein Konto, egal wo du ihn gekauft hast.",
+      "p1": "Bezahlte Pläne (zum Beispiel Pro und Creator) enthalten ein monatliches Kontingent an Minuten Quellvideo und eine maximale Ausgabeauflösung. Jedes Video verbraucht beim Start der Verarbeitung seine volle Länge, auf die Minute aufgerundet; Aufträge, die ohne Clips fehlschlagen, zählen nicht. Kontingente werden monatlich erneuert, auch bei jährlichen Plänen, und ungenutzte Minuten verfallen. Dasselbe Planrecht gilt für dein Konto, unabhängig davon, wo du es gekauft hast.",
       "webLabel": "Käufe im Web.",
       "web": "Web-Abos rechnet unser Zahlungsdienstleister Stripe monatlich ab. Sie verlängern sich automatisch, bis du sie kündigst. Du kannst jederzeit über das Abrechnungsportal in den Einstellungen kündigen; der Zugang bleibt bis zum Ende des bezahlten Zeitraums bestehen.",
       "iosLabel": "Käufe in der iOS-App.",

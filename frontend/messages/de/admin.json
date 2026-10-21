@@ -63,13 +63,21 @@
   },
   "users": {
     "title": "Nutzer",
-    "description": "Neueste Nutzer. Schalte den Admin-Zugang um und sieh dir ihre Aufgaben an.",
+    "description": "Neueste Nutzer. Suche nach E-Mail oder Name, um jeden zu finden. Admin-Zugriff und beibehaltenes 1080p umschalten und Aufgaben ansehen.",
     "adminBadge": "Admin",
     "joined": "{email} · beigetreten am {date}",
     "viewTasks": "Aufgaben von {email} ansehen",
     "updateFailed": "Nutzer konnte nicht aktualisiert werden",
     "removeAdmin": "Admin entfernen",
-    "makeAdmin": "Zum Admin machen"
+    "makeAdmin": "Zum Admin machen",
+    "descriptionSearch": "Nutzer passend zu „{query}“. Admin-Zugriff und beibehaltenes 1080p umschalten und Aufgaben ansehen.",
+    "searchPlaceholder": "Nutzer suchen",
+    "searchLabel": "Nutzer nach E-Mail oder Name suchen",
+    "clearSearch": "Zurücksetzen",
+    "legacyBadge": "1080p beibehalten",
+    "keepHd": "1080p beibehalten",
+    "removeHd": "1080p entfernen",
+    "hdUpdateFailed": "1080p konnte nicht aktualisiert werden"
   },
   "explorer": {
     "title": "Aufgaben-Explorer",

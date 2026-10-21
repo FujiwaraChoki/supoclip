@@ -4,6 +4,8 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { AdminUserToggle } from "@/components/admin/admin-user-toggle";
+import { LegacyHdToggle } from "@/components/admin/legacy-hd-toggle";
+import { formatBillingPlanName } from "@/lib/billing-plans";
 import { AffiliateReviewActions } from "@/components/admin/affiliate-review-actions";
 import {
   RuntimeSettingsForm,
@@ -60,7 +62,7 @@ function Gate({ title, message, children }: { title: string; message: string; ch
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ user?: string }>;
+  searchParams: Promise<{ user?: string; q?: string }>;
 }) {
   const t = await getTranslations("admin");
   const dateLocale = intlLocale(await getLocale());
@@ -80,7 +82,8 @@ export default async function AdminPage({
     return <Gate title={t("gate.title")} message={t("gate.notAdmin")} />;
   }
 
-  const { user: selectedUserId } = await searchParams;
+  const { user: selectedUserId, q } = await searchParams;
+  const userQuery = q?.trim() || "";
   const adminUserId = session.user.id;
 
   async function loadRuntimeSettings(): Promise<{
@@ -125,6 +128,15 @@ export default async function AdminPage({
     prisma.task.count({ where: { status: "completed" } }),
     prisma.task.count({ where: { status: { in: ACTIVE_TASK_STATUSES } } }),
     prisma.user.findMany({
+      where: userQuery
+        ? {
+            OR: [
+              { email: { contains: userQuery, mode: "insensitive" } },
+              { name: { contains: userQuery, mode: "insensitive" } },
+              { id: userQuery },
+            ],
+          }
+        : undefined,
       orderBy: { createdAt: "desc" },
       take: 30,
       select: {
@@ -133,6 +145,9 @@ export default async function AdminPage({
         name: true,
         is_admin: true,
         plan: true,
+        subscription_status: true,
+        subscription_provider: true,
+        legacy_hd: true,
         createdAt: true,
       },
     }),
@@ -333,7 +348,23 @@ export default async function AdminPage({
       </Panel>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <Panel title={t("users.title")} description={t("users.description")}>
+        <Panel
+          title={t("users.title")}
+          description={userQuery ? t("users.descriptionSearch", { query: userQuery }) : t("users.description")}
+          action={
+            <form action="/admin" className="flex items-center gap-2">
+              <input
+                type="search"
+                name="q"
+                defaultValue={userQuery}
+                placeholder={t("users.searchPlaceholder")}
+                aria-label={t("users.searchLabel")}
+                className="h-8 w-44 rounded-md border bg-background px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              {userQuery && <Link href="/admin" className="text-xs font-medium underline-offset-4 hover:underline">{t("users.clearSearch")}</Link>}
+            </form>
+          }
+        >
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y">
               <thead className="bg-muted/40"><tr><th className={th}>{t("columns.user")}</th><th className={th}>{t("columns.plan")}</th><th className={th}>{t("columns.tasks")}</th><th className={cn(th, "text-right")}>{t("columns.action")}</th></tr></thead>
@@ -347,14 +378,28 @@ export default async function AdminPage({
                       </p>
                       <p className="text-xs text-muted-foreground">{t("users.joined", { email: user.email, date: user.createdAt.toLocaleDateString(dateLocale) })}</p>
                     </td>
-                    <td className={td}><Badge variant="outline" className="capitalize">{user.plan}</Badge></td>
+                    <td className={td}>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Badge variant="outline">{formatBillingPlanName(user.plan)}</Badge>
+                        {user.legacy_hd && <Badge variant="outline">{t("users.legacyBadge")}</Badge>}
+                      </div>
+                      {user.plan !== "free" && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {user.subscription_status}{user.subscription_provider ? ` · ${user.subscription_provider}` : ""}
+                        </p>
+                      )}
+                    </td>
                     <td className={td}>
                       <Link href={`/admin?user=${user.id}`} className="tabular-nums underline-offset-4 hover:underline" aria-label={t("users.viewTasks", { email: user.email })}>
                         {generationCountByUser.get(user.id) || 0}
                       </Link>
                     </td>
                     <td className={cn(td, "text-right")}>
-                      <AdminUserToggle userId={user.id} isAdmin={user.is_admin} isCurrentUser={user.id === session.user.id} />
+                      <div className="flex flex-col items-end gap-2">
+                        <AdminUserToggle userId={user.id} isAdmin={user.is_admin} isCurrentUser={user.id === session.user.id} />
+                        {/* 1080p is only grandfathered on Pro; still allow removing a stale flag. */}
+                        {(user.plan === "pro" || user.legacy_hd) && <LegacyHdToggle userId={user.id} legacyHd={user.legacy_hd} />}
+                      </div>
                     </td>
                   </tr>
                 ))}

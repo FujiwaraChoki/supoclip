@@ -31,7 +31,11 @@
     "pickPlan": "Escolha um plano para começar a criar clipes",
     "moreWith": "Tenha mais com {name}",
     "left": "{count} restantes neste período",
-    "videosThisPeriod": "vídeos neste período"
+    "videosThisPeriod": "vídeos neste período",
+    "minutesOf": "{used} / {limit} min",
+    "minutes": "{used} min",
+    "minutesLeft": "restam {count} min este mês",
+    "minutesThisMonth": "minutos de vídeo este mês"
   },
   "user": {
     "creator": "Criador",

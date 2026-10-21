@@ -223,7 +223,7 @@
       },
       "2": {
         "question": "Hat gehostetes SupoClip einen Gratisplan?",
-        "answer": "Nein. Die gehostete App braucht ein Pro- oder Scale-Abo, um Videos zu verarbeiten. Der kostenlose Weg ist, den Open-Source-Code selbst zu hosten, ohne Planlimits; du zahlst nur deine Infrastruktur und die KI-Anbieter, die du einrichtest."
+        "answer": "Nein. Die gehostete App braucht ein Pro- oder Creator-Abo, um Videos zu verarbeiten. Der kostenlose Weg ist, den Open-Source-Code selbst zu hosten, ohne Planlimits; du zahlst nur deine Infrastruktur und die KI-Anbieter, die du einrichtest."
       },
       "3": {
         "question": "Welches ist schneller oder macht bessere Clips?",
@@ -279,7 +279,7 @@
     "pricing": {
       "heading": "Preismodell: Credits, Pläne oder deine eigene Infrastruktur",
       "p1": "Der <plans>Artikel zu Plänen und Credits</plans> von OpusClip beschreibt bezahlte Pläne, die Credits für Verarbeitungsminuten nutzen, plus einen Gratisplan. Der <watermark>Wasserzeichen-Artikel</watermark> sagt, dass Exporte im Gratisplan ein OpusClip-Wasserzeichen tragen können. Planpreise und Credit-Mengen ändern sich, also schau auf die aktuelle Preisseite von OpusClip, statt Zahlen aus einem Blogpost zu übernehmen.",
-      "p2": "SupoClip hat zwei Wege. Die gehostete App hat <pro>{proName}</pro> für ${proPrice}/Monat und {proLimit} Videos sowie <scale>{scaleName}</scale> für ${scalePrice}/Monat und {scaleLimit} Videos. Es gibt keinen gehosteten Gratisplan; Verarbeitung braucht ein Abo. Der selbst gehostete Weg ist kostenlose Software ohne Planlimits. Du zahlst den Server und die KI-APIs, die du einrichtest, und die <guide>Self-Hosting-Anleitung</guide> zeigt ein vollständig lokales Setup ohne KI-Gebühren pro Anfrage."
+      "p2": "SupoClip hat zwei Wege. Die gehostete App hat <pro>{proName}</pro> für ${proPrice}/Monat und {proLimit} Stunden Video in 720p sowie <scale>{scaleName}</scale> für ${scalePrice}/Monat und {scaleLimit} Stunden in 1080p, jährlich mit zwei Gratismonaten. Es gibt keinen gehosteten Gratisplan; Verarbeitung braucht ein Abo. Der selbst gehostete Weg ist kostenlose Software ohne Planlimits. Du zahlst den Server und die KI-APIs, die du einrichtest, und die <guide>Self-Hosting-Anleitung</guide> zeigt ein vollständig lokales Setup ohne KI-Gebühren pro Anfrage."
     },
     "chooseSupoclip": {
       "heading": "Wann SupoClip besser passt",

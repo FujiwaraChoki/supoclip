@@ -25,6 +25,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Config, get_config
+from .billing_service import BillingService
 from ..media_storage import STORAGE_ERRORS, MediaStorage, is_s3, media_work
 from ..repositories.clip_repository import ClipRepository
 from ..repositories.social_repository import SocialRepository, TERMINAL_POST_STATUSES
@@ -88,6 +89,10 @@ class SocialValidationError(SocialError):
     status_code = 400
 
 
+class SocialPlanRequired(SocialError):
+    status_code = 402
+
+
 class SocialService:
     """Business logic for social connections, posts and the performance loop."""
 
@@ -128,6 +133,11 @@ class SocialService:
             return False
         email = (row.email or "").strip().lower()
         return bool(row.is_admin) or email in self.config.social_publishing_allowed_emails
+
+    async def can_schedule(self, user_id: str) -> bool:
+        """Whether the user's plan includes scheduled publishing."""
+        summary = await BillingService(self.db, self.config).get_usage_summary(user_id)
+        return bool(summary.get("can_schedule_posts"))
 
     def _provider(self, name: str) -> SocialProvider:
         normalized = (name or "").strip().lower()
@@ -385,6 +395,11 @@ class SocialService:
         when = _parse_schedule(scheduled_for)
         now = datetime.now(timezone.utc)
         status = "scheduled" if when and when > now + timedelta(seconds=30) else "queued"
+        if status == "scheduled" and not await self.can_schedule(user_id):
+            raise SocialPlanRequired(
+                "Scheduling posts is available on the Creator plan. "
+                "You can still publish right away."
+            )
 
         post = await self.repo.create_post(
             self.db,

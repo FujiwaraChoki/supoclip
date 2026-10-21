@@ -37,7 +37,7 @@ async def test_concurrent_admissions_cannot_claim_the_same_allowance_slot(
     initialized_database, app, db_session, monkeypatch, first_action, second_action, limit
 ):
     app.state.config.monetization_enabled = True
-    app.state.config.pro_plan_task_limit = limit
+    app.state.config.pro_plan_minute_limit = limit
     await create_user(
         db_session, user_id="user-1", plan="pro", subscription_status="active"
     )
@@ -50,8 +50,10 @@ async def test_concurrent_admissions_cannot_claim_the_same_allowance_slot(
     checked = asyncio.Event()
     release = asyncio.Event()
     source = await create_source(db_session, source_type="video_url", url="upload://source.mp4")
+    # Every source is one minute long, so each admission claims one minute.
     retry_tasks = [await create_task(
-        db_session, user_id="user-1", source_id=source["id"], status="error"
+        db_session, user_id="user-1", source_id=source["id"], status="error",
+        source_duration_seconds=60,
     ) for _ in range(2)]
     monkeypatch.setattr(tasks.JobQueue, "enqueue_processing_job", AsyncMock(return_value="job-1"))
     redis = SimpleNamespace(delete=AsyncMock(), aclose=AsyncMock())
@@ -62,9 +64,11 @@ async def test_concurrent_admissions_cannot_claim_the_same_allowance_slot(
 
     async def pause_after_first_check(self, user_id, task_id=None):
         nonlocal calls
+        # create passes the source length; resume passes a task id.
+        resuming = isinstance(task_id, str)
         summary = (
-            await original_create(self, user_id) if task_id is None
-            else await original_resume(self, user_id, task_id)
+            await original_resume(self, user_id, task_id) if resuming
+            else await original_create(self, user_id, task_id)
         )
         calls += 1
         if calls == (2 if first_action == "create" else 1):

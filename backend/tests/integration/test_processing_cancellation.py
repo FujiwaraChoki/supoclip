@@ -44,7 +44,7 @@ async def test_cancel_during_final_render_keeps_cancelled_and_removes_unpublishe
     async with sessions() as worker, sessions() as api:
         service, clip_path, clip_info = setup_worker(worker, tmp_path, original)
 
-        async def render(*_args):
+        async def render(*_args, **_kwargs):
             entered.set()
             await release.wait()
             return clip_info

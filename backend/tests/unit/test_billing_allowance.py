@@ -30,7 +30,7 @@ def allowance_db():
     with engine.connect() as connection:
         connection.execute(text(
             "CREATE TABLE tasks (id TEXT PRIMARY KEY, user_id TEXT, "
-            "status TEXT, created_at TIMESTAMP)"
+            "status TEXT, created_at TIMESTAMP, source_duration_seconds INTEGER)"
         ))
         connection.execute(text(
             "CREATE TABLE generated_clips (id TEXT PRIMARY KEY, task_id TEXT)"
@@ -39,10 +39,10 @@ def allowance_db():
     engine.dispose()
 
 
-def _insert_task(connection, task_id="task-1", status="queued", user_id="user-1", created_at=CREATED_AT):
+def _insert_task(connection, task_id="task-1", status="queued", user_id="user-1", created_at=CREATED_AT, duration=60):
     connection.execute(
-        text("INSERT INTO tasks VALUES (:id, :user_id, :status, :created_at)"),
-        {"id": task_id, "user_id": user_id, "status": status, "created_at": created_at},
+        text("INSERT INTO tasks VALUES (:id, :user_id, :status, :created_at, :duration)"),
+        {"id": task_id, "user_id": user_id, "status": status, "created_at": created_at, "duration": duration},
     )
 
 
@@ -62,7 +62,7 @@ async def test_unsuccessful_jobs_only_count_when_they_delivered_clips(allowance_
         _insert_clip(allowance_db, "task-1", f"clip-{index}")
 
     service = BillingService(_SqlSession(allowance_db))
-    assert await service._count_tasks("user-1", PERIOD_START, PERIOD_END) == int(clip_count > 0)
+    assert (await service._count_usage("user-1", PERIOD_START, PERIOD_END))[0] == int(clip_count > 0)
 
 
 @pytest.mark.asyncio
@@ -70,7 +70,7 @@ async def test_unsuccessful_jobs_only_count_when_they_delivered_clips(allowance_
 async def test_active_completed_and_unknown_jobs_keep_their_slot(allowance_db, status):
     _insert_task(allowance_db, status=status)
     service = BillingService(_SqlSession(allowance_db))
-    assert await service._count_tasks("user-1", PERIOD_START, PERIOD_END) == 1
+    assert (await service._count_usage("user-1", PERIOD_START, PERIOD_END))[0] == 1
 
 
 @pytest.mark.asyncio
@@ -83,14 +83,14 @@ async def test_allowance_is_scoped_to_user_period_and_matching_output(allowance_
     _insert_task(allowance_db, "start", created_at=PERIOD_START)
     _insert_task(allowance_db, "end", created_at=PERIOD_END)
     service = BillingService(_SqlSession(allowance_db))
-    assert await service._count_tasks("user-1", PERIOD_START, PERIOD_END) == 2
+    assert (await service._count_usage("user-1", PERIOD_START, PERIOD_END))[0] == 2
 
 
 @pytest.mark.asyncio
 async def test_failure_releases_slot_and_resumed_job_reserves_it_again(allowance_db, monkeypatch):
     config = Config()
     config.monetization_enabled = True
-    config.pro_plan_task_limit = 1
+    config.pro_plan_minute_limit = 1
     service = BillingService(_SqlSession(allowance_db), config)
 
     async def billing_row(_user_id):
@@ -106,7 +106,7 @@ async def test_failure_releases_slot_and_resumed_job_reserves_it_again(allowance
         allowance_db.execute(text("UPDATE tasks SET status = :status"), {"status": status})
         summary = await service.get_usage_summary("user-1")
         assert summary["usage_count"] == expected_count
-        assert summary["remaining"] == 1 - expected_count
+        assert summary["remaining_minutes"] == 1 - expected_count
         if expected_count:
             with pytest.raises(BillingLimitExceeded):
                 await service.assert_can_create_task("user-1")
@@ -125,7 +125,7 @@ async def test_failure_releases_slot_and_resumed_job_reserves_it_again(allowance
 async def test_full_quota_resume_requires_an_already_counted_task(allowance_db, monkeypatch, status, has_output):
     config = Config()
     config.monetization_enabled = True
-    config.pro_plan_task_limit = 1
+    config.pro_plan_minute_limit = 1
     service = BillingService(_SqlSession(allowance_db), config)
 
     async def billing_row(_user_id):
@@ -149,7 +149,7 @@ async def test_full_quota_resume_requires_an_already_counted_task(allowance_db, 
 async def test_refunded_failure_can_resume_with_available_slot(allowance_db, monkeypatch):
     config = Config()
     config.monetization_enabled = True
-    config.pro_plan_task_limit = 1
+    config.pro_plan_minute_limit = 1
     service = BillingService(_SqlSession(allowance_db), config)
 
     async def billing_row(_user_id):
@@ -160,7 +160,7 @@ async def test_refunded_failure_can_resume_with_available_slot(allowance_db, mon
 
     monkeypatch.setattr(service, "_load_user_billing_row", billing_row)
     _insert_task(allowance_db, "resume", status="error")
-    assert (await service.assert_can_resume_task("user-1", "resume"))["remaining"] == 1
+    assert (await service.assert_can_resume_task("user-1", "resume"))["remaining_minutes"] == 1
 
 
 @pytest.mark.asyncio
@@ -190,7 +190,7 @@ async def test_inactive_subscription_cannot_resume_even_with_partial_output(allo
 async def test_resume_cannot_borrow_other_user_or_previous_period_output(allowance_db, monkeypatch, user_id, created_at):
     config = Config()
     config.monetization_enabled = True
-    config.pro_plan_task_limit = 1
+    config.pro_plan_minute_limit = 1
     service = BillingService(_SqlSession(allowance_db), config)
 
     async def billing_row(_user_id):
@@ -205,3 +205,36 @@ async def test_resume_cannot_borrow_other_user_or_previous_period_output(allowan
     _insert_clip(allowance_db, "resume", "partial")
     with pytest.raises(BillingLimitExceeded):
         await service.assert_can_resume_task("user-1", "resume")
+
+
+@pytest.mark.asyncio
+async def test_usage_sums_started_minutes_and_ignores_unknown_durations(allowance_db):
+    _insert_task(allowance_db, "short", duration=61)  # 2 started minutes
+    _insert_task(allowance_db, "long", duration=1800)  # 30 minutes
+    _insert_task(allowance_db, "upload-pending", duration=None)
+    _insert_task(allowance_db, "refunded", status="error", duration=3600)
+    service = BillingService(_SqlSession(allowance_db))
+    assert await service._count_usage("user-1", PERIOD_START, PERIOD_END) == (3, 32)
+
+
+@pytest.mark.asyncio
+async def test_known_source_length_must_fit_remaining_minutes(allowance_db, monkeypatch):
+    config = Config()
+    config.monetization_enabled = True
+    config.pro_plan_minute_limit = 30
+    service = BillingService(_SqlSession(allowance_db), config)
+
+    async def billing_row(_user_id):
+        return {
+            "plan": "pro", "subscription_status": "active",
+            "billing_period_start": PERIOD_START, "billing_period_end": PERIOD_END,
+        }
+
+    monkeypatch.setattr(service, "_load_user_billing_row", billing_row)
+    _insert_task(allowance_db, "used", duration=20 * 60)
+
+    assert (await service.assert_can_create_task("user-1", 10 * 60))["remaining_minutes"] == 10
+    with pytest.raises(BillingLimitExceeded) as exc:
+        await service.assert_can_create_task("user-1", 10 * 60 + 1)
+    assert exc.value.summary["required_minutes"] == 11
+    assert "11 minutes long" in exc.value.summary["reason"]

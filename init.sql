@@ -31,7 +31,9 @@ CREATE TABLE users (
     billing_period_start TIMESTAMP WITH TIME ZONE,
     billing_period_end TIMESTAMP WITH TIME ZONE,
     trial_ends_at TIMESTAMP WITH TIME ZONE,
-    subscription_cancel_at TIMESTAMP WITH TIME ZONE
+    subscription_cancel_at TIMESTAMP WITH TIME ZONE,
+    -- Pro subscribers from before the 720p change keep 1080p while subscribed
+    legacy_hd BOOLEAN NOT NULL DEFAULT false
 );
 
 -- Source table (created before tasks since tasks reference sources)
@@ -56,6 +58,8 @@ CREATE TABLE tasks (
     progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
     progress_message TEXT,
     source_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- Source length charged against the monthly minute allowance
+    source_duration_seconds INTEGER,
 
     -- Font customization fields
     font_family VARCHAR(100) DEFAULT 'TikTokSans-Regular',

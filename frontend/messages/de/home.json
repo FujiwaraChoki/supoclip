@@ -49,10 +49,22 @@
   "livePreview": "Live-Vorschau",
   "framing": "Bildausschnitt",
   "framingOptions": {
-    "vertical": { "label": "Auto 9:16", "hint": "Vertikaler Zuschnitt, der dem Gesicht folgt" },
-    "vertical_pan": { "label": "Sprecher-Schwenk", "hint": "Folgt der Person, die gerade spricht" },
-    "vertical_split": { "label": "Geteilter Bildschirm", "hint": "Zwei Sprecher übereinander" },
-    "original": { "label": "Original", "hint": "Seitenverhältnis der Quelle behalten" }
+    "vertical": {
+      "label": "Auto 9:16",
+      "hint": "Vertikaler Zuschnitt, der dem Gesicht folgt"
+    },
+    "vertical_pan": {
+      "label": "Sprecher-Schwenk",
+      "hint": "Folgt der Person, die gerade spricht"
+    },
+    "vertical_split": {
+      "label": "Geteilter Bildschirm",
+      "hint": "Zwei Sprecher übereinander"
+    },
+    "original": {
+      "label": "Original",
+      "hint": "Seitenverhältnis der Quelle behalten"
+    }
   },
   "captions": "Untertitel",
   "noCaptions": "Keine Untertitel",
@@ -68,7 +80,7 @@
   "extraWords": "Weitere Wörter oder Sätze zum Schneiden",
   "extraWordsPlaceholder": "im Grunde, wortwörtlich, ehrlich gesagt",
   "generate": "Clips erzeugen",
-  "limitNote": "{plan}: YouTube-Videos bis {minutes} Minuten. Wir prüfen die Länge, bevor eine Generierung verbraucht wird.",
+  "limitNote": "{plan}: YouTube-Videos bis {minutes} Minuten. Jedes Video verbraucht seine Länge in Minuten, geprüft vor dem Start.",
   "completionEmails": "E-Mails zum Abschluss folgen deiner Einstellung unter <settings>Einstellungen</settings>.",
   "recent": "Zuletzt",
   "viewLibrary": "Bibliothek ansehen",
@@ -84,16 +96,17 @@
   },
   "nudge": {
     "refreshesOn": "Erneuert sich am {date}.",
-    "refreshesNext": "Erneuert sich in der nächsten Abrechnungsperiode.",
+    "refreshesNext": "Erneuert sich nächsten Monat.",
     "startTitle": "Wähl einen Plan, um mit dem Schneiden zu starten",
-    "startDescription": "Ab {price}/Monat für {count} Videos. Du kannst vorher alles einrichten.",
+    "startDescription": "Ab {price}/Monat für {length} Video pro Monat. Du kannst vorher alles einrichten.",
     "seePlans": "Pläne ansehen",
-    "limitTitle": "Du hast alle {count} Videos in diesem Zeitraum geschnitten",
-    "limitWithPlan": "{refreshes} Oder mach weiter mit {plan}: {limit} im Monat.",
+    "limitTitle": "Du hast diesen Monat alle {length} Video genutzt",
+    "limitWithPlan": "{refreshes} Oder mach weiter mit {plan}: {limit} Video pro Monat.",
     "limitAppStore": "{refreshes} Pläne änderst du in der SupoClip-iOS-App.",
     "getPlan": "{plan} holen",
-    "remaining": "{count, plural, one {Noch # Video in diesem Zeitraum} other {Noch # Videos in diesem Zeitraum}}",
-    "nearWithPlan": "{refreshes} Brauchst du mehr Spielraum? {plan} gibt dir {limit} im Monat.",
-    "upgrade": "Upgrade"
+    "remaining": "{count, plural, one {Noch # Minute Video diesen Monat} other {Noch # Minuten Video diesen Monat}}",
+    "nearWithPlan": "{refreshes} Brauchst du mehr Spielraum? {plan} gibt dir {limit} Video pro Monat.",
+    "upgrade": "Upgrade",
+    "limitTitleAll": "Du hast die Videominuten dieses Monats genutzt"
   }
 }
