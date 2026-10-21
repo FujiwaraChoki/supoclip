@@ -52,7 +52,8 @@ FROM base AS builder
 WORKDIR /app
 
 # Install OpenSSL (required for Prisma)
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# ca-certificates: the PostHog CLI (source map upload) needs system roots for TLS.
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
