@@ -1,8 +1,8 @@
 {
   "metadata": {
     "title": "SupoClip – Clipper de vídeo com IA de código aberto para Shorts",
-    "description": "Transforme vídeos longos em YouTube Shorts, TikToks e Reels legendados, com clipping de IA de código aberto, pontuação de viralidade e cortes 9:16 centrados no rosto.",
-    "openGraphDescription": "Transforme vídeos longos em YouTube Shorts, TikToks e Reels legendados com clipping de IA de código aberto.",
+    "description": "Transforme vídeos longos e VODs da Twitch ou da Kick em YouTube Shorts, TikToks e Reels legendados, com clipping de IA de código aberto, pontuação de viralidade e cortes 9:16 centrados no rosto.",
+    "openGraphDescription": "Transforme vídeos longos e VODs da Twitch ou da Kick em YouTube Shorts, TikToks e Reels legendados com clipping de IA de código aberto.",
     "twitterDescription": "Clipping de IA de código aberto, pontuação de viralidade, legendas e cortes verticais centrados no rosto.",
     "keywords": {
       "clipper": "clipper de vídeo com IA",
@@ -133,7 +133,7 @@
     "badge": "Código aberto e auto-hospedável",
     "titleLine1": "Clipper de vídeo com IA de código aberto",
     "titleLine2": "para shorts melhores",
-    "body": "Transforme vídeos longos em YouTube Shorts, TikToks e Reels legendados, com detecção de destaques por IA, pontuação de viralidade e cortes verticais centrados no rosto.",
+    "body": "Transforme vídeos do YouTube, VODs da Twitch e da Kick ou seus próprios arquivos em Shorts, TikToks e Reels legendados, com detecção de destaques por IA, pontuação de viralidade e cortes verticais centrados no rosto.",
     "startClipping": "Comece a criar clipes",
     "useHosted": "Usar o app hospedado",
     "viewSource": "Ver o código",
@@ -153,6 +153,10 @@
       "unmute": "Ativar o som do clipe",
       "mute": "Silenciar clipe",
       "howMade": "Como estes clipes foram feitos"
+    },
+    "sources": {
+      "label": "Funciona com",
+      "upload": "Seus próprios arquivos"
     }
   },
   "steps": {
@@ -160,7 +164,7 @@
     "items": {
       "drop": {
         "title": "Solte um link ou um arquivo",
-        "description": "Cole qualquer URL do YouTube ou arraste o seu próprio arquivo de vídeo."
+        "description": "Cole um link do YouTube, da Twitch ou da Kick (VOD ou clipe) ou arraste o seu próprio arquivo de vídeo."
       },
       "gold": {
         "title": "A IA encontra o ouro",

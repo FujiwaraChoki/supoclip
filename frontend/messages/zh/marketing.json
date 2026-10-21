@@ -1,8 +1,8 @@
 {
   "metadata": {
     "title": "SupoClip – 面向 Shorts 的开源 AI 视频剪辑工具",
-    "description": "用开源 AI 剪辑、传播潜力评分和人脸感知的 9:16 裁切，把长视频变成带字幕的 YouTube Shorts、TikTok 和 Reels。",
-    "openGraphDescription": "用开源 AI 剪辑，把长视频变成带字幕的 YouTube Shorts、TikTok 和 Reels。",
+    "description": "用开源 AI 剪辑、传播潜力评分和人脸感知的 9:16 裁切，把长视频和 Twitch、Kick 回放变成带字幕的 YouTube Shorts、TikTok 和 Reels。",
+    "openGraphDescription": "用开源 AI 剪辑，把长视频和 Twitch、Kick 回放变成带字幕的 YouTube Shorts、TikTok 和 Reels。",
     "twitterDescription": "开源 AI 剪辑、传播潜力评分、字幕，以及人脸感知的竖屏裁切。",
     "keywords": {
       "clipper": "AI 视频剪辑工具",
@@ -133,7 +133,7 @@
     "badge": "开源，可自托管",
     "titleLine1": "开源 AI 视频剪辑工具",
     "titleLine2": "做出更好的短视频",
-    "body": "借助 AI 高光检测、传播潜力评分和人脸感知的竖屏裁切，把长视频变成带字幕的 YouTube Shorts、TikTok 和 Reels。",
+    "body": "借助 AI 高光检测、传播潜力评分和人脸感知的竖屏裁切，把 YouTube 视频、Twitch 和 Kick 回放或你自己上传的文件变成带字幕的 Shorts、TikTok 和 Reels。",
     "startClipping": "开始剪辑",
     "useHosted": "使用托管应用",
     "viewSource": "查看源码",
@@ -153,6 +153,10 @@
       "unmute": "取消静音",
       "mute": "静音",
       "howMade": "这些短片是怎么做出来的"
+    },
+    "sources": {
+      "label": "支持",
+      "upload": "你自己的文件"
     }
   },
   "steps": {
@@ -160,7 +164,7 @@
     "items": {
       "drop": {
         "title": "丢入链接或文件",
-        "description": "粘贴任意 YouTube 链接，或拖放你自己的视频文件。"
+        "description": "粘贴 YouTube、Twitch 或 Kick 链接（回放或剪辑），或拖放你自己的视频文件。"
       },
       "gold": {
         "title": "AI 找出精华",

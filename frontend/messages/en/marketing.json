@@ -1,8 +1,8 @@
 {
   "metadata": {
     "title": "SupoClip – Open-Source AI Video Clipper for Shorts",
-    "description": "Turn long videos into captioned YouTube Shorts, TikToks, and Reels with open-source AI clipping, virality scoring, and face-aware 9:16 crops.",
-    "openGraphDescription": "Turn long videos into captioned YouTube Shorts, TikToks, and Reels with open-source AI clipping.",
+    "description": "Turn long videos and Twitch or Kick VODs into captioned YouTube Shorts, TikToks, and Reels with open-source AI clipping, virality scoring, and face-aware 9:16 crops.",
+    "openGraphDescription": "Turn long videos and Twitch or Kick VODs into captioned YouTube Shorts, TikToks, and Reels with open-source AI clipping.",
     "twitterDescription": "Open-source AI clipping, virality scoring, captions, and face-aware vertical crops.",
     "keywords": {
       "clipper": "AI video clipper",
@@ -133,7 +133,7 @@
     "badge": "Open Source & Self-Hostable",
     "titleLine1": "Open-source AI video clipper",
     "titleLine2": "for better shorts",
-    "body": "Turn long videos into captioned YouTube Shorts, TikToks, and Reels with AI-assisted highlight detection, virality scoring, and face-aware vertical crops.",
+    "body": "Turn YouTube videos, Twitch and Kick VODs, or your own uploads into captioned Shorts, TikToks, and Reels with AI-assisted highlight detection, virality scoring, and face-aware vertical crops.",
     "startClipping": "Start Clipping",
     "useHosted": "Use Hosted App",
     "viewSource": "View Source",
@@ -153,6 +153,10 @@
       "unmute": "Unmute clip",
       "mute": "Mute clip",
       "howMade": "How these clips were made"
+    },
+    "sources": {
+      "label": "Works with",
+      "upload": "Your own files"
     }
   },
   "steps": {
@@ -160,7 +164,7 @@
     "items": {
       "drop": {
         "title": "Drop a link or file",
-        "description": "Paste any YouTube URL or drag-and-drop your own video file."
+        "description": "Paste a YouTube, Twitch, or Kick link (VOD or clip), or drag-and-drop your own video file."
       },
       "gold": {
         "title": "AI finds the gold",

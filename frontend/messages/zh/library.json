@@ -84,7 +84,7 @@
   "clearSelection": "清除选择",
   "cancelDialog": "取消",
   "emptyTitle": "还没有生成记录",
-  "emptyBody": "粘贴 YouTube 链接或上传视频，片段会出现在这里。",
+  "emptyBody": "粘贴 YouTube、Twitch 或 Kick 链接或上传视频，片段会出现在这里。",
   "create": "新建生成",
   "noQuery": "没有与“{query}”匹配的内容。",
   "noFilter": "没有与此筛选匹配的内容。"

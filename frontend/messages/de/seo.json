@@ -50,7 +50,7 @@
     },
     "pipelineNote": "Untertitel laufen Wort für Wort, und das aktive Wort wird hervorgehoben. Dieselbe Pipeline läuft in der gehosteten App und in einer <selfHost>selbst gehosteten Installation</selfHost>; der <guide>Leitfaden zum KI-Video-Clipper</guide> geht jede Stufe durch.",
     "ctaTitle": "Probier es mit deinem eigenen Video",
-    "ctaBody": "Füg einen YouTube-Link ein oder lade eine Datei hoch. Prüf die vorgeschlagenen Clips, pass die Untertitel an und exportiere für Shorts, Reels oder TikTok.",
+    "ctaBody": "Füg einen YouTube-, Twitch- oder Kick-Link ein oder lade eine Datei hoch. Prüf die vorgeschlagenen Clips, pass die Untertitel an und exportiere für Shorts, Reels oder TikTok.",
     "startClipping": "Leg los mit Clips",
     "selfHostGithub": "Von GitHub selbst hosten"
   },
@@ -93,14 +93,14 @@
         "heading": "Was ein KI-Video-Clipper automatisieren sollte",
         "p1": "Zeit frisst bei Kurzvideos nicht der eine Schnitt. Es ist dieselbe Prüfung, derselbe Ausschnitt, dieselben Untertitel und derselbe Export für jedes Quellvideo. Ein nützlicher KI-Clipper nimmt diese Wiederholung raus und lässt dich den finalen Schnitt bestimmen.",
         "p2": "SupoClip startet beim Quell-Transkript, findet Kandidatenabschnitte und bewertet sie nach Hook, Interaktion, Nutzen und Teilbarkeit. Die Bewertung hilft bei der Prüfung. Sie verspricht nicht, dass ein Clip viral geht.",
-        "bullet1": "YouTube-URLs und hochgeladene Videodateien",
+        "bullet1": "YouTube-, Twitch- und Kick-Links sowie hochgeladene Videodateien",
         "bullet2": "KI-gestützte Kandidatenauswahl",
         "bullet3": "Gesichtsbezogene vertikale Ausschnitte",
         "bullet4": "Bearbeitbare Untertitel-Stile und Exportformate"
       },
       "1": {
         "heading": "So läuft der SupoClip-Ablauf",
-        "p1": "Füg eine YouTube-URL ein oder lade eine Quelldatei hoch. SupoClip transkribiert die Aufnahme, schlägt Clip-Grenzen vor und zeigt die stärksten Kandidaten zur Prüfung. Gewählte Momente lassen sich als vertikale Videos mit Untertiteln für Kurzformate rendern.",
+        "p1": "Füg einen YouTube-, Twitch- oder Kick-Link ein oder lade eine Quelldatei hoch. SupoClip transkribiert die Aufnahme, schlägt Clip-Grenzen vor und zeigt die stärksten Kandidaten zur Prüfung. Gewählte Momente lassen sich als vertikale Videos mit Untertiteln für Kurzformate rendern.",
         "p2": "Weil SupoClip Open Source ist, können Teams die Pipeline ansehen, unterstützte gehostete oder lokale Sprachmodelle wählen und die Verarbeitung an die eigene Infrastruktur anpassen. Wer das Deployment nicht selbst betreiben will, kann die gehostete Version nutzen.",
         "link1": "Schritt für Schritt: aus einem YouTube-Video Shorts machen",
         "link2": "Die Pipeline selbst mit Docker starten"
@@ -125,6 +125,10 @@
       "2": {
         "question": "Ist SupoClip Open Source?",
         "answer": "Ja. Der SupoClip-Quellcode steht unter der AGPL-3.0-Lizenz und kann selbst gehostet oder verändert werden."
+      },
+      "3": {
+        "question": "Welche Videoquellen unterstützt SupoClip?",
+        "answer": "YouTube-Videos, Twitch-VODs und -Clips, Kick-VODs und -Clips sowie hochgeladene Videodateien. Livestreams werden nicht unterstützt – clippe das VOD, sobald der Stream vorbei ist."
       }
     }
   },

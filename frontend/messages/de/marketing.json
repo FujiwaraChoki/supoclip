@@ -1,8 +1,8 @@
 {
   "metadata": {
     "title": "SupoClip – Open-Source-KI-Videoclipper für Shorts",
-    "description": "Mach aus langen Videos untertitelte YouTube Shorts, TikToks und Reels – mit Open-Source-KI-Clipping, Viralitätsbewertung und gesichtsbewussten 9:16-Schnitten.",
-    "openGraphDescription": "Mach aus langen Videos untertitelte YouTube Shorts, TikToks und Reels mit Open-Source-KI-Clipping.",
+    "description": "Mach aus langen Videos und Twitch- oder Kick-VODs untertitelte YouTube Shorts, TikToks und Reels – mit Open-Source-KI-Clipping, Viralitätsbewertung und gesichtsbewussten 9:16-Schnitten.",
+    "openGraphDescription": "Mach aus langen Videos und Twitch- oder Kick-VODs untertitelte YouTube Shorts, TikToks und Reels mit Open-Source-KI-Clipping.",
     "twitterDescription": "Open-Source-KI-Clipping, Viralitätsbewertung, Untertitel und gesichtsbewusste Hochformatschnitte.",
     "keywords": {
       "clipper": "KI-Videoclipper",
@@ -133,7 +133,7 @@
     "badge": "Open Source & selbst hostbar",
     "titleLine1": "Open-Source-KI-Videoclipper",
     "titleLine2": "für bessere Shorts",
-    "body": "Mach aus langen Videos untertitelte YouTube Shorts, TikToks und Reels – mit KI-gestützter Highlight-Erkennung, Viralitätsbewertung und gesichtsbewussten Hochformatschnitten.",
+    "body": "Mach aus YouTube-Videos, Twitch- und Kick-VODs oder eigenen Uploads untertitelte Shorts, TikToks und Reels – mit KI-gestützter Highlight-Erkennung, Viralitätsbewertung und gesichtsbewussten Hochformatschnitten.",
     "startClipping": "Jetzt clippen",
     "useHosted": "Gehostete App nutzen",
     "viewSource": "Quellcode ansehen",
@@ -153,6 +153,10 @@
       "unmute": "Ton einschalten",
       "mute": "Ton ausschalten",
       "howMade": "So sind diese Clips entstanden"
+    },
+    "sources": {
+      "label": "Funktioniert mit",
+      "upload": "Eigene Dateien"
     }
   },
   "steps": {
@@ -160,7 +164,7 @@
     "items": {
       "drop": {
         "title": "Link oder Datei ablegen",
-        "description": "Füge eine YouTube-URL ein oder zieh deine eigene Videodatei per Drag-and-drop hinein."
+        "description": "Füge einen YouTube-, Twitch- oder Kick-Link (VOD oder Clip) ein oder zieh deine eigene Videodatei per Drag-and-drop hinein."
       },
       "gold": {
         "title": "Die KI findet die besten Stellen",

@@ -23,6 +23,7 @@ If you are new to the project, start here:
   - Processing modes
   - Auth and monetization settings
   - YouTube auth rotation settings
+  - Twitch and Kick import providers
   - Feedback and email configuration
 - [App Guide](./app-guide.md)
   - Main screens and routes

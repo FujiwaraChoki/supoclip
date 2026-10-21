@@ -109,7 +109,7 @@
       "steps": {
         "0": {
           "title": "Bring a recording",
-          "detail": "Upload a video or use a supported YouTube link."
+          "detail": "Upload a video or use a supported YouTube, Twitch, or Kick link."
         },
         "1": {
           "title": "Discover the moments",
@@ -403,7 +403,7 @@
       "labelEnv": ".env",
       "secrets": "Generate each secret with <code>openssl rand -base64 32</code>. <code>SELF_HOST=true</code> (the default) keeps billing off and removes per-account generation limits.",
       "build": "3. Build and start",
-      "open": "Open <code>http://localhost:3107</code>, create an account, and paste a YouTube link or upload a file. API docs are at <code>http://localhost:8000/docs</code>."
+      "open": "Open <code>http://localhost:3107</code>, create an account, and paste a YouTube, Twitch, or Kick link or upload a file. API docs are at <code>http://localhost:8000/docs</code>."
     },
     "local": {
       "heading": "Option: fully local transcription and clip selection",
@@ -533,7 +533,7 @@
     "how": {
       "heading": "How SupoClip Works",
       "steps": {
-        "0": "Paste a YouTube URL or upload a video.",
+        "0": "Paste a YouTube, Twitch, or Kick URL or upload a video.",
         "1": "SupoClip transcribes the source and finds candidate moments.",
         "2": "AI scores clips for hook strength, engagement, value, and shareability.",
         "3": "The editor creates vertical, captioned clips with face-aware framing.",

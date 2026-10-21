@@ -84,7 +84,7 @@
   "clearSelection": "Clear selection",
   "cancelDialog": "Cancel",
   "emptyTitle": "No generations yet",
-  "emptyBody": "Paste a YouTube link or upload a video and your clips will land here.",
+  "emptyBody": "Paste a YouTube, Twitch, or Kick link or upload a video and your clips will land here.",
   "create": "Create New Generation",
   "noQuery": "Nothing matches “{query}”.",
   "noFilter": "Nothing matches this filter."

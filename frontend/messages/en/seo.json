@@ -50,7 +50,7 @@
     },
     "pipelineNote": "Captions are timed word by word, and the active word is highlighted. The same pipeline runs in the hosted app and in a <selfHost>self-hosted install</selfHost>; the <guide>AI video clipper guide</guide> covers each stage.",
     "ctaTitle": "Run it on your own video",
-    "ctaBody": "Paste a YouTube link or upload a file. Review the suggested clips, adjust the captions, and export for Shorts, Reels, or TikTok.",
+    "ctaBody": "Paste a YouTube, Twitch, or Kick link or upload a file. Review the suggested clips, adjust the captions, and export for Shorts, Reels, or TikTok.",
     "startClipping": "Start clipping",
     "selfHostGithub": "Self-host from GitHub"
   },
@@ -93,14 +93,14 @@
         "heading": "What an AI video clipper should automate",
         "p1": "The time-consuming part of short-form production is not one edit. It is repeating the same review, reframing, captioning, and export work for every source video. A useful AI clipper reduces that repetition while keeping the creator in control of the final cut.",
         "p2": "SupoClip starts from the source transcript, identifies candidate segments, and scores them for qualities such as hook strength, engagement, value, and shareability. The score is a review aid, not a promise that a clip will go viral.",
-        "bullet1": "YouTube URLs and uploaded video files",
+        "bullet1": "YouTube, Twitch, and Kick links, plus uploaded video files",
         "bullet2": "AI-assisted candidate selection",
         "bullet3": "Face-centered vertical crops",
         "bullet4": "Editable caption styles and export formats"
       },
       "1": {
         "heading": "How the SupoClip workflow works",
-        "p1": "Paste a YouTube URL or upload a source file. SupoClip transcribes the recording, proposes clip boundaries, and presents the strongest candidates for review. Selected moments can then be rendered as vertical, captioned videos for short-form platforms.",
+        "p1": "Paste a YouTube, Twitch, or Kick link or upload a source file. SupoClip transcribes the recording, proposes clip boundaries, and presents the strongest candidates for review. Selected moments can then be rendered as vertical, captioned videos for short-form platforms.",
         "p2": "Because SupoClip is open source, teams can inspect the pipeline, choose supported hosted or local language models, and adapt processing to their own infrastructure. A hosted version is also available for creators who do not want to manage deployment.",
         "link1": "Step-by-step: turn a YouTube video into Shorts",
         "link2": "Run the pipeline yourself with Docker"
@@ -125,6 +125,10 @@
       "2": {
         "question": "Is SupoClip open source?",
         "answer": "Yes. The SupoClip codebase is available under the AGPL-3.0 license and can be self-hosted or modified."
+      },
+      "3": {
+        "question": "Which video sources does SupoClip accept?",
+        "answer": "YouTube videos, Twitch VODs and clips, Kick VODs and clips, and video files you upload. Live streams aren't supported, so clip the VOD once the stream has ended."
       }
     }
   },

@@ -1,8 +1,8 @@
 {
   "metadata": {
     "title": "SupoClip – Recortador de video con IA de código abierto para Shorts",
-    "description": "Convierte videos largos en YouTube Shorts, TikToks y Reels con subtítulos, recorte con IA de código abierto, puntuación de viralidad y encuadres 9:16 centrados en el rostro.",
-    "openGraphDescription": "Convierte videos largos en YouTube Shorts, TikToks y Reels con subtítulos y recorte con IA de código abierto.",
+    "description": "Convierte videos largos y VODs de Twitch o Kick en YouTube Shorts, TikToks y Reels con subtítulos, recorte con IA de código abierto, puntuación de viralidad y encuadres 9:16 centrados en el rostro.",
+    "openGraphDescription": "Convierte videos largos y VODs de Twitch o Kick en YouTube Shorts, TikToks y Reels con subtítulos y recorte con IA de código abierto.",
     "twitterDescription": "Recorte con IA de código abierto, puntuación de viralidad, subtítulos y encuadres verticales centrados en el rostro.",
     "keywords": {
       "clipper": "recortador de video con IA",
@@ -133,7 +133,7 @@
     "badge": "Código abierto y autoalojable",
     "titleLine1": "Recortador de video con IA de código abierto",
     "titleLine2": "para mejores shorts",
-    "body": "Convierte videos largos en YouTube Shorts, TikToks y Reels con subtítulos, detección de momentos asistida por IA, puntuación de viralidad y encuadres verticales centrados en el rostro.",
+    "body": "Convierte videos de YouTube, VODs de Twitch y Kick o tus propios archivos en Shorts, TikToks y Reels con subtítulos, detección de momentos asistida por IA, puntuación de viralidad y encuadres verticales centrados en el rostro.",
     "startClipping": "Empieza a recortar",
     "useHosted": "Usar la app alojada",
     "viewSource": "Ver el código",
@@ -153,6 +153,10 @@
       "unmute": "Activar sonido del clip",
       "mute": "Silenciar clip",
       "howMade": "Cómo se hicieron estos clips"
+    },
+    "sources": {
+      "label": "Funciona con",
+      "upload": "Tus propios archivos"
     }
   },
   "steps": {
@@ -160,7 +164,7 @@
     "items": {
       "drop": {
         "title": "Suelta un enlace o un archivo",
-        "description": "Pega cualquier URL de YouTube o arrastra tu propio archivo de video."
+        "description": "Pega un enlace de YouTube, Twitch o Kick (VOD o clip) o arrastra tu propio archivo de video."
       },
       "gold": {
         "title": "La IA encuentra lo mejor",

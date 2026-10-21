@@ -51,15 +51,14 @@ import {
   Settings2,
   Share2,
   Trash2,
-  Upload,
   X,
-  Youtube,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import Link from "next/link";
 import { ClipTile, ClipFocus, ProcessingPanel, EmptyState } from "@/components/app/clip-wall";
 import { intlLocale } from "@/i18n/config";
 import { timeAgo } from "@/lib/generations";
+import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind, type VideoSourceKind } from "@/components/video-source-icon";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 import { ClipPostList, ClipPublishButton, useSocialPostToasts } from "@/components/clip-publisher";
@@ -116,8 +115,13 @@ interface TaskDetails {
   share_enabled?: boolean;
 }
 
+function sourceLabel(source: VideoSourceKind, uploadLabel: string) {
+  return source === "upload" ? uploadLabel : VIDEO_SOURCE_LABELS[source];
+}
+
 export default function TaskPage() {
   const t = useTranslations("task");
+  const tLibrary = useTranslations("library");
   const locale = useLocale();
   const params = useParams();
   const router = useRouter();
@@ -671,7 +675,7 @@ export default function TaskPage() {
             )}
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
               <StatusBadge status={task.status} />
-              <span className="flex items-center gap-1.5 capitalize">{task.source_type === "youtube" ? <Youtube className="size-3.5" /> : <Upload className="size-3.5" />}{task.source_type}</span>
+              <span className="flex items-center gap-1.5"><VideoSourceIcon source={videoSourceKind(task.source_type)} className="size-3.5" aria-hidden />{sourceLabel(videoSourceKind(task.source_type), tLibrary("card.upload"))}</span>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className="flex cursor-default items-center gap-1.5"><Clock className="size-3.5" />{timeAgo(task.created_at, locale)}</span>

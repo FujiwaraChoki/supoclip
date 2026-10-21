@@ -50,7 +50,7 @@
     },
     "pipelineNote": "字幕按词对齐时间，当前词会高亮。同一套流程在托管应用和<selfHost>自托管安装</selfHost>里都会运行；<guide>AI 视频剪辑指南</guide>说明了每个阶段。",
     "ctaTitle": "用你自己的视频跑一遍",
-    "ctaBody": "粘贴 YouTube 链接或上传文件。查看建议的短片，调整字幕，再导出到 Shorts、Reels 或 TikTok。",
+    "ctaBody": "粘贴 YouTube、Twitch 或 Kick 链接或上传文件。查看建议的短片，调整字幕，再导出到 Shorts、Reels 或 TikTok。",
     "startClipping": "开始剪辑",
     "selfHostGithub": "从 GitHub 自行托管"
   },
@@ -93,14 +93,14 @@
         "heading": "AI 视频剪辑工具应该自动化什么",
         "p1": "短视频制作费时的不是一次剪辑，而是对每条源视频重复同样的审看、重构图、字幕和导出。好用的 AI 剪辑会减少这种重复，同时把成片的决定权留在创作者手里。",
         "p2": "SupoClip 从源转写出发，找出候选片段，并按钩子强度、互动、价值和可分享性打分。分数是审看时的辅助，并不保证短片会火。",
-        "bullet1": "YouTube 链接和上传的视频文件",
+        "bullet1": "YouTube、Twitch 和 Kick 链接，以及上传的视频文件",
         "bullet2": "AI 辅助的候选选择",
         "bullet3": "以人脸为中心的竖屏裁切",
         "bullet4": "可编辑的字幕样式和导出格式"
       },
       "1": {
         "heading": "SupoClip 的流程怎么工作",
-        "p1": "粘贴 YouTube 链接或上传源文件。SupoClip 会转写录像，提议短片起止点，并把最强的候选交给你审看。选中的时刻可以渲染成带字幕的竖屏视频，用于短视频平台。",
+        "p1": "粘贴 YouTube、Twitch 或 Kick 链接或上传源文件。SupoClip 会转写录像，提议短片起止点，并把最强的候选交给你审看。选中的时刻可以渲染成带字幕的竖屏视频，用于短视频平台。",
         "p2": "因为 SupoClip 是开源的，团队可以检查流程、选择受支持的托管或本地语言模型，并把处理适配到自己的基础设施。不想自己管部署的创作者也可以用托管版本。",
         "link1": "逐步说明：把 YouTube 视频做成 Shorts",
         "link2": "用 Docker 自己跑这套流程"
@@ -125,6 +125,10 @@
       "2": {
         "question": "SupoClip 是开源的吗？",
         "answer": "是的。SupoClip 的代码以 AGPL-3.0 许可证提供，可以自托管或修改。"
+      },
+      "3": {
+        "question": "SupoClip 支持哪些视频来源？",
+        "answer": "YouTube 视频、Twitch 回放和剪辑、Kick 回放和剪辑，以及你上传的视频文件。不支持直播，请在直播结束后剪辑回放。"
       }
     }
   },

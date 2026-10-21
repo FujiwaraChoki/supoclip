@@ -50,7 +50,7 @@
     },
     "pipelineNote": "Los subtítulos se sincronizan palabra por palabra, y la palabra activa se resalta. El mismo proceso corre en la app alojada y en una <selfHost>instalación autoalojada</selfHost>; la <guide>guía del recortador de video con IA</guide> cubre cada etapa.",
     "ctaTitle": "Pruébalo con tu propio video",
-    "ctaBody": "Pega un enlace de YouTube o sube un archivo. Revisa los clips sugeridos, ajusta los subtítulos y exporta para Shorts, Reels o TikTok.",
+    "ctaBody": "Pega un enlace de YouTube, Twitch o Kick o sube un archivo. Revisa los clips sugeridos, ajusta los subtítulos y exporta para Shorts, Reels o TikTok.",
     "startClipping": "Empieza a recortar",
     "selfHostGithub": "Autoalojar desde GitHub"
   },
@@ -93,14 +93,14 @@
         "heading": "Qué debería automatizar un recortador de video con IA",
         "p1": "Lo que consume tiempo en la producción de formato corto no es un solo corte. Es repetir la misma revisión, el reencuadre, los subtítulos y la exportación en cada video de origen. Un recortador de IA útil reduce esa repetición y deja a quien crea el control del corte final.",
         "p2": "SupoClip parte de la transcripción original, identifica segmentos candidatos y les pone puntaje por cualidades como fuerza del gancho, interacción, valor y facilidad para compartir. El puntaje ayuda a revisar; no promete que un clip se vuelva viral.",
-        "bullet1": "URL de YouTube y archivos de video subidos",
+        "bullet1": "Enlaces de YouTube, Twitch y Kick, además de archivos de video subidos",
         "bullet2": "Selección de candidatos asistida por IA",
         "bullet3": "Recortes verticales centrados en el rostro",
         "bullet4": "Estilos de subtítulos editables y formatos de exportación"
       },
       "1": {
         "heading": "Cómo funciona el flujo de SupoClip",
-        "p1": "Pega una URL de YouTube o sube un archivo de origen. SupoClip transcribe la grabación, propone los límites de cada clip y presenta los candidatos más fuertes para que los revises. Los momentos elegidos se pueden renderizar como videos verticales con subtítulos para plataformas de formato corto.",
+        "p1": "Pega un enlace de YouTube, Twitch o Kick o sube un archivo de origen. SupoClip transcribe la grabación, propone los límites de cada clip y presenta los candidatos más fuertes para que los revises. Los momentos elegidos se pueden renderizar como videos verticales con subtítulos para plataformas de formato corto.",
         "p2": "Como SupoClip es de código abierto, los equipos pueden inspeccionar el proceso, elegir modelos de lenguaje alojados o locales compatibles y adaptar el procesamiento a su propia infraestructura. También hay una versión alojada para quien no quiere administrar el despliegue.",
         "link1": "Paso a paso: convierte un video de YouTube en Shorts",
         "link2": "Ejecuta el proceso tú mismo con Docker"
@@ -125,6 +125,10 @@
       "2": {
         "question": "¿SupoClip es de código abierto?",
         "answer": "Sí. El código de SupoClip está disponible bajo la licencia AGPL-3.0 y se puede autoalojar o modificar."
+      },
+      "3": {
+        "question": "¿Qué fuentes de video acepta SupoClip?",
+        "answer": "Videos de YouTube, VODs y clips de Twitch, VODs y clips de Kick, y archivos de video que subas. Las transmisiones en vivo no son compatibles, así que recorta el VOD cuando termine la transmisión."
       }
     }
   },
