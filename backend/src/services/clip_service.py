@@ -33,6 +33,13 @@ from ..clip_source_map import (
 )
 
 from ..media_storage import MediaStorage
+from ..youtube_source import (
+    load_time_map,
+    local_ranges_for,
+    localize_segment,
+    ranges_from_segments,
+    restore_clip_timeline,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -132,9 +139,47 @@ class ClipEditingMixin:
         if not clips:
             return
 
+        segments = []
+        for clip in clips:
+            source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
+            bounds = source_range_bounds(source_ranges)
+            if bounds:
+                start_time = self._seconds_to_mmss(bounds[0])
+                end_time = self._seconds_to_mmss(bounds[1])
+            else:
+                start_time = clip["start_time"]
+                end_time = clip["end_time"]
+
+            segments.append(
+                {
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    **(
+                        {"source_ranges": source_ranges}
+                        if should_recompute_cleanup
+                        else {"keep_ranges": source_ranges}
+                    ),
+                    "text": clip.get("text") or "",
+                    "relevance_score": clip.get("relevance_score", 0.5),
+                    "reasoning": clip.get("reasoning")
+                    or "Regenerated with updated settings",
+                    "virality_score": clip.get("virality_score", 0),
+                    "hook_score": clip.get("hook_score", 0),
+                    "engagement_score": clip.get("engagement_score", 0),
+                    "value_score": clip.get("value_score", 0),
+                    "shareability_score": clip.get("shareability_score", 0),
+                    "hook_type": clip.get("hook_type"),
+                    "hook_title": clip.get("hook_title"),
+                }
+            )
+
         video_path: Path
         if source_type == "youtube":
-            downloaded = await self.video_service.download_video(source_url)
+            downloaded = await self.video_service.download_video(
+                source_url,
+                task_id=task_id,
+                ranges=ranges_from_segments(segments),
+            )
             if not downloaded:
                 raise ValueError("Failed to download source video for regeneration")
             video_path = Path(downloaded)
@@ -144,43 +189,14 @@ class ClipEditingMixin:
                 raise ValueError("Source video file no longer exists")
 
         try:
-            segments = []
-            for clip in clips:
-                source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
-                bounds = source_range_bounds(source_ranges)
-                if bounds:
-                    start_time = self._seconds_to_mmss(bounds[0])
-                    end_time = self._seconds_to_mmss(bounds[1])
-                else:
-                    start_time = clip["start_time"]
-                    end_time = clip["end_time"]
-
-                segments.append(
-                    {
-                        "start_time": start_time,
-                        "end_time": end_time,
-                        **(
-                            {"source_ranges": source_ranges}
-                            if should_recompute_cleanup
-                            else {"keep_ranges": source_ranges}
-                        ),
-                        "text": clip.get("text") or "",
-                        "relevance_score": clip.get("relevance_score", 0.5),
-                        "reasoning": clip.get("reasoning")
-                        or "Regenerated with updated settings",
-                        "virality_score": clip.get("virality_score", 0),
-                        "hook_score": clip.get("hook_score", 0),
-                        "engagement_score": clip.get("engagement_score", 0),
-                        "value_score": clip.get("value_score", 0),
-                        "shareability_score": clip.get("shareability_score", 0),
-                        "hook_type": clip.get("hook_type"),
-                        "hook_title": clip.get("hook_title"),
-                    }
-                )
-
+            time_map = await run_in_thread(load_time_map, video_path)
+            render_segments = [
+                localize_segment(segment, time_map) if time_map else segment
+                for segment in segments
+            ]
             clips_info = await self.video_service.create_video_clips(
                 video_path,
-                segments,
+                render_segments,
                 font_family,
                 font_size,
                 font_color,
@@ -189,6 +205,13 @@ class ClipEditingMixin:
                 add_subtitles,
                 normalized_cleanup_settings,
             )
+            if time_map:
+                for clip_info in clips_info:
+                    index = int(clip_info.get("clip_id") or 0) - 1
+                    if 0 <= index < len(segments):
+                        await run_in_thread(
+                            restore_clip_timeline, clip_info, time_map, segments[index]
+                        )
         finally:
             if source_type == "youtube":
                 self._cleanup_source_video(video_path, source_type, source_url)
@@ -441,10 +464,15 @@ class ClipEditingMixin:
 
         # Always render from the source; overlaying an already captioned clip
         # stacks old and new captions and compounds quality loss on every save.
+        source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
         downloaded_source: Optional[Path] = None
         if not transcript_video_path or not transcript_video_path.exists():
             if source_type == "youtube" and source_url:
-                downloaded = await self.video_service.download_video(source_url)
+                downloaded = await self.video_service.download_video(
+                    source_url,
+                    task_id=task_id,
+                    ranges=source_ranges,
+                )
                 transcript_video_path = Path(downloaded) if downloaded else None
                 downloaded_source = transcript_video_path
             elif source_url:
@@ -454,8 +482,10 @@ class ClipEditingMixin:
 
         try:
             settings = await self._load_task_source_settings(task_id)
-            source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
-            bounds = source_range_bounds(source_ranges)
+            local_ranges = await run_in_thread(
+                local_ranges_for, transcript_video_path, source_ranges
+            )
+            bounds = source_range_bounds(local_ranges)
             if not bounds:
                 raise ValueError("Clip source timing is unavailable")
             output_dir = Path(self.config.temp_dir) / "clips"
@@ -466,7 +496,7 @@ class ClipEditingMixin:
                     create_optimized_clip, transcript_video_path, bounds[0], bounds[1], clean_path,
                     add_subtitles=False,
                     output_format=settings.get("output_format", "vertical"),
-                    keep_ranges=source_ranges,
+                    keep_ranges=local_ranges,
                     hook_title=clip.get("hook_title"),
                     font_family=task.get("font_family") or None,
                     font_size=task.get("font_size") or None,
@@ -484,7 +514,7 @@ class ClipEditingMixin:
                     font_color=task.get("font_color") or None,
                     caption_template=task.get("caption_template") or "default",
                     transcript_video_path=transcript_video_path,
-                    source_ranges=source_ranges,
+                    source_ranges=local_ranges,
                     position_y=position_y,
                 )
         finally:

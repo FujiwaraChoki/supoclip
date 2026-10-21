@@ -452,6 +452,15 @@ def download_budget_apify(video_id: str, temp_dir: Path, quality: str, token: st
     if not fallback:
         fallback = os.getenv("APIFY_YOUTUBE_FALLBACK_ACTOR", "").strip().lower()
     candidates = list(dict.fromkeys([actor, *[value.strip() for value in fallback.split(",") if value.strip()]]))[:3]
+    # The $6-cap fallback actors (the ones beyond the cheap primary) stay off
+    # unless a deployment explicitly opts in. The primary actor is unchanged.
+    expensive = os.getenv("APIFY_EXPENSIVE_FALLBACKS", "false").strip().lower() in {"1", "true", "yes", "on"}
+    if not expensive and len(candidates) > 1:
+        logger.info(
+            "Skipping %s Apify fallback actor(s); set APIFY_EXPENSIVE_FALLBACKS=true to enable them",
+            len(candidates) - 1,
+        )
+        candidates = candidates[:1]
     if any(candidate not in providers for candidate in candidates):
         raise BudgetApifyError("Unsupported Apify fallback configuration.")
     try:

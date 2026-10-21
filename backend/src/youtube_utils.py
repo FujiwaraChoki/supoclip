@@ -18,6 +18,17 @@ import yt_dlp
 
 from .apify_youtube_downloader import ApifyDownloadError, download_video_via_apify
 from .config import get_config
+from .youtube_proxy import (
+    YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
+    ByteBudget,
+    DownloadBudgetExceeded,
+    base_proxy_params,
+    download_full_with_proxy,
+    log_youtube_attempt,
+    proxy_configured,
+    redact_secrets,
+    video_format_selector,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +55,9 @@ class YouTubeDownloader:
 
         opts = {
             "outtmpl": str(output_path),
-            # Use best available video/audio to avoid quality caps from container constraints.
-            "format": "bestvideo*+bestaudio/best",
+            # Cap at 1080p. Vertical clips are 1080x1920, and a 4K source
+            # multiplies bandwidth without improving the export.
+            "format": video_format_selector(),
             "format_sort": ["res", "fps"],
             "merge_output_format": "mp4",
             "writesubtitles": False,
@@ -81,7 +93,7 @@ class YouTubeDownloader:
         return opts
 
 
-def _build_info_options() -> Dict[str, Any]:
+def _build_info_options(task_id: Optional[str] = None) -> Dict[str, Any]:
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
@@ -96,6 +108,13 @@ def _build_info_options() -> Dict[str, Any]:
         },
         "nocheckcertificate": True,
     }
+    if proxy_configured():
+        # Metadata must leave through the same proxy as the media, or YouTube
+        # bot-checks the server IP before a download starts. No player client
+        # is pinned; yt-dlp keeps its defaults.
+        ydl_opts.update(base_proxy_params(task_id))
+        ydl_opts["skip_download"] = True
+        ydl_opts["quiet"] = True
     return ydl_opts
 
 
@@ -267,12 +286,12 @@ def validate_youtube_url(url: str) -> bool:
     return video_id is not None
 
 
-def _fetch_video_info_with_ytdlp(url: str) -> Dict[str, Any]:
+def _fetch_video_info_with_ytdlp(url: str, task_id: Optional[str] = None) -> Dict[str, Any]:
     video_id = get_youtube_video_id(url)
     if not video_id:
         raise ValueError(f"Invalid YouTube URL: {url}")
 
-    ydl_opts = _build_info_options()
+    ydl_opts = _build_info_options(task_id)
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
 
@@ -365,8 +384,6 @@ def get_youtube_video_info(
     url: str,
     task_id: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    del task_id  # Reserved for future provider-specific tracing.
-
     video_id = get_youtube_video_id(url)
     if not video_id:
         logger.error("Invalid YouTube URL: %s", url)
@@ -387,7 +404,11 @@ def get_youtube_video_info(
             if provider == YOUTUBE_METADATA_PROVIDER_DATA_API:
                 video_info = _fetch_video_info_with_youtube_data_api(url)
             else:
-                video_info = _fetch_video_info_with_ytdlp(url)
+                video_info = (
+                    _fetch_video_info_with_ytdlp(url, task_id)
+                    if task_id
+                    else _fetch_video_info_with_ytdlp(url)
+                )
 
             if index == 0:
                 logger.info(
@@ -592,14 +613,49 @@ def _download_youtube_video_with_ytdlp(
     return None
 
 
+def _provider_order(config, *, skip_proxy: bool) -> list[str]:
+    """Proxy yt-dlp first when configured, then the existing chain."""
+    order: list[str] = []
+    if proxy_configured(config) and not skip_proxy:
+        order.append(YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY)
+    primary = config.youtube_download_provider
+    secondary = (
+        YOUTUBE_DOWNLOAD_PROVIDER_APIFY
+        if primary == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
+        else YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
+    )
+    for provider in (primary, secondary):
+        if provider not in order:
+            order.append(provider)
+    return order
+
+
+def _note_attempt(provider: str, video_id: str, task_id: Optional[str], budget: ByteBudget, before: int, *, outcome: str, error: Optional[str] = None) -> None:
+    log_youtube_attempt(
+        provider=provider,
+        video_id=video_id,
+        kind="full",
+        outcome=outcome,
+        nbytes=max(0, budget.snapshot() - before),
+        task_id=task_id,
+        error=error,
+    )
+
+
 def download_youtube_video(
     url: str,
     max_retries: int = 3,
     task_id: Optional[str] = None,
+    *,
+    budget: Optional[ByteBudget] = None,
+    skip_proxy: bool = False,
 ) -> Optional[Path]:
     """
-    Download YouTube video using the configured provider.
-    Defaults to free yt-dlp downloads and optionally falls back to Apify when configured.
+    Download a full YouTube video using the configured provider chain.
+
+    When ``YOUTUBE_PROXY_URL`` is set, a 1080p yt-dlp download through that
+    proxy is attempted first. The clip pipeline prefers audio-then-sections
+    and uses this full-file chain only as a fallback.
     """
     logger.info("Starting YouTube download: %s", url)
 
@@ -612,46 +668,55 @@ def download_youtube_video(
     _remove_cached_downloads(downloader.temp_dir, video_id)
 
     config = get_config()
-    primary_provider = config.youtube_download_provider
-    secondary_provider = (
-        YOUTUBE_DOWNLOAD_PROVIDER_APIFY
-        if primary_provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
-        else YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
-    )
+    job_budget = budget or ByteBudget(getattr(config, "youtube_download_max_bytes", 2_000_000_000))
 
-    for provider in (primary_provider, secondary_provider):
-        if provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP:
-            downloaded_path = _download_youtube_video_with_ytdlp(
-                url,
-                max_retries,
-                task_id,
-            )
-            if downloaded_path:
-                return downloaded_path
-
-            logger.warning("yt-dlp download failed for %s", url)
-            continue
-
-        if not config.apify_api_token:
-            logger.info("APIFY_API_TOKEN not set; skipping Apify download for %s", url)
-            continue
-
+    for provider in _provider_order(config, skip_proxy=skip_proxy):
+        before = job_budget.snapshot()
         try:
-            downloaded_path = download_youtube_video_with_apify(url, video_id)
-            file_size = downloaded_path.stat().st_size
-            width, height = _get_local_video_dimensions(downloaded_path)
-            logger.info(
-                "Apify download successful: %s (%sMB, %sx%s)",
-                downloaded_path.name,
-                file_size // 1024 // 1024,
-                width,
-                height,
-            )
-            return downloaded_path
-        except ApifyDownloadError as exc:
-            logger.warning("Apify download failed for %s: %s", url, exc)
+            if provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY:
+                downloaded_path = download_full_with_proxy(
+                    url, video_id, downloader.temp_dir, task_id=task_id, budget=job_budget,
+                )
+            elif provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP:
+                downloaded_path = _download_youtube_video_with_ytdlp(url, max_retries, task_id)
+            else:
+                if not config.apify_api_token:
+                    logger.info("APIFY_API_TOKEN not set; skipping Apify download for %s", url)
+                    continue
+                downloaded_path = download_youtube_video_with_apify(url, video_id)
+        except DownloadBudgetExceeded as exc:
+            _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
+            raise
         except Exception as exc:
-            logger.error("Unexpected Apify download error for %s: %s", url, exc)
+            _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
+            logger.warning(
+                "%s download failed for %s: %s", provider, url, redact_secrets(str(exc)),
+            )
+            continue
+
+        if not downloaded_path:
+            _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error="no file")
+            logger.warning("%s download failed for %s", provider, url)
+            continue
+
+        file_size = downloaded_path.stat().st_size if downloaded_path.is_file() else 0
+        if job_budget.snapshot() == before and file_size:
+            try:
+                job_budget.add(file_size)
+            except DownloadBudgetExceeded as exc:
+                _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
+                raise
+        width, height = _get_local_video_dimensions(downloaded_path)
+        logger.info(
+            "YouTube download successful via %s: %s (%s bytes, %sx%s)",
+            provider,
+            downloaded_path.name,
+            file_size,
+            width,
+            height,
+        )
+        _note_attempt(provider, video_id, task_id, job_budget, before, outcome="success")
+        return downloaded_path
 
     logger.error("All YouTube download providers failed for %s", url)
     return None
@@ -661,9 +726,19 @@ async def async_download_youtube_video(
     url: str,
     max_retries: int = 3,
     task_id: Optional[str] = None,
+    *,
+    budget: Optional[ByteBudget] = None,
+    skip_proxy: bool = False,
 ) -> Optional[Path]:
     logger.info(f"Starting async YouTube download: {url}")
-    return await asyncio.to_thread(download_youtube_video, url, max_retries, task_id)
+    return await asyncio.to_thread(
+        download_youtube_video,
+        url,
+        max_retries,
+        task_id,
+        budget=budget,
+        skip_proxy=skip_proxy,
+    )
 
 
 def get_video_duration(url: str) -> Optional[int]:
@@ -698,7 +773,25 @@ def is_video_suitable_for_processing(
 
 
 def cleanup_downloaded_files(video_id: str, source_path: Optional[Path] = None):
-    """Remove downloaded media while retaining word timings for cached jobs."""
+    """Remove downloaded media while retaining word timings for cached jobs.
+
+    Files under ``youtube-cache`` are the reusable audio and section store.
+    ``youtube-work`` holds a per-job timeline assembled from that store and
+    can be removed once clips have been rendered.
+    """
+    from .youtube_source import WORK_DIRNAME, is_preserved_cache_path, is_youtube_work_path
+
+    if is_preserved_cache_path(source_path):
+        logger.info("Keeping cached YouTube source for %s", video_id)
+        return
+    if is_youtube_work_path(source_path):
+        work_dir = source_path if source_path.is_dir() else source_path.parent
+        if WORK_DIRNAME in work_dir.parts and work_dir.name != WORK_DIRNAME:
+            import shutil
+            shutil.rmtree(work_dir, ignore_errors=True)
+            logger.info("Removed temporary YouTube timeline for %s", video_id)
+        return
+
     temp_dir = Path(get_config().temp_dir)
     provider_dir = False
     if source_path is not None and source_path.parent.name.startswith(f"apify-{video_id}-"):

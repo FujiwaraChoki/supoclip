@@ -12,11 +12,20 @@ import uuid
 
 from ..utils.async_helpers import run_in_thread
 from ..youtube_utils import (
-    async_download_youtube_video,
     async_get_youtube_video_info,
     async_get_youtube_video_title,
     cleanup_downloaded_files,
+    download_youtube_video,
     get_youtube_video_id,
+)
+from ..youtube_proxy import ByteBudget, DownloadBudgetExceeded, proxy_configured
+from ..youtube_source import (
+    cached_full_media,
+    download_audio_for_job,
+    materialize_clip_source,
+    resolve_full_youtube_download,
+    copy_transcript_sidecar,
+    persist_cache_sidecar,
 )
 from ..video_utils import (
     get_video_transcript,
@@ -137,19 +146,68 @@ class VideoService:
         raise ValueError("Only upload:// references are allowed for local video sources")
 
     @staticmethod
-    async def download_video(url: str, task_id: Optional[str] = None) -> Optional[Path]:
+    async def download_video(
+        url: str,
+        task_id: Optional[str] = None,
+        ranges: Optional[list] = None,
+        budget: Optional[ByteBudget] = None,
+        skip_proxy: bool = False,
+    ) -> Optional[Path]:
         """
-        Download a YouTube video asynchronously.
+        Download YouTube media for rendering.
+
+        With a proxy configured, ``ranges`` downloads only those padded
+        sections (reusing the cache). Otherwise this returns a full file,
+        stored so later edits do not fetch it again.
         """
         logger.info(f"Starting video download: {url}")
-        video_path = await async_download_youtube_video(url, 3, task_id)
+        video_id = get_youtube_video_id(url)
+
+        def _resolve() -> Optional[Path]:
+            if not video_id:
+                return None
+            job_budget = budget or ByteBudget(get_config().youtube_download_max_bytes)
+            if ranges:
+                try:
+                    segments = [
+                        {"start_time": start, "end_time": end}
+                        for start, end in ranges
+                    ]
+                    return materialize_clip_source(
+                        url,
+                        video_id,
+                        segments,
+                        task_id=task_id,
+                        budget=job_budget,
+                    )
+                except DownloadBudgetExceeded:
+                    raise
+                except Exception as exc:
+                    logger.warning(
+                        "Section download unavailable for %s, using a full file: %s",
+                        video_id,
+                        exc,
+                    )
+            return resolve_full_youtube_download(
+                url,
+                video_id,
+                lambda **kwargs: download_youtube_video(url, 3, task_id, **kwargs),
+                task_id=task_id,
+                budget=job_budget,
+                skip_proxy=skip_proxy,
+            )
+
+        try:
+            video_path = await run_in_thread(_resolve)
+        except DownloadBudgetExceeded:
+            logger.error("YouTube download exceeded the per-job byte limit: %s", url)
+            raise
 
         if not video_path:
             logger.error(f"Failed to download video: {url}")
             return None
 
         logger.info(f"Video downloaded successfully: {video_path}")
-        video_id = get_youtube_video_id(url)
         if video_id:
             try:
                 await run_in_thread(MediaStorage().restore_youtube_metadata, video_id, Path(video_path))
@@ -424,6 +482,7 @@ class VideoService:
                           Signature: async def callback(progress: int, message: str, status: str)
         """
         video_path: Optional[Path] = None
+        audio_first = False
         try:
             runtime_config = get_config()
             duration_limit = (
@@ -449,7 +508,42 @@ class VideoService:
                             f"Maximum allowed duration is {mins} minutes."
                         )
 
-                video_path = await VideoService.download_video(url, task_id=task_id)
+                video_id = get_youtube_video_id(url)
+                job_budget = ByteBudget(
+                    getattr(runtime_config, "youtube_download_max_bytes", 2_000_000_000)
+                )
+                cached_full = (
+                    await run_in_thread(cached_full_media, video_id) if video_id else None
+                )
+                # Audio first only when a proxy is configured and we do not
+                # already have the full source cached. Uploads never reach here.
+                if proxy_configured(runtime_config) and video_id and not cached_full:
+                    try:
+                        video_path = await run_in_thread(
+                            download_audio_for_job,
+                            url,
+                            video_id,
+                            task_id=task_id,
+                            budget=job_budget,
+                        )
+                        audio_first = True
+                    except DownloadBudgetExceeded as exc:
+                        raise Exception(str(exc)) from exc
+                    except Exception as exc:
+                        logger.warning(
+                            "Proxy audio download failed for %s, falling back to a full file: %s",
+                            video_id,
+                            exc,
+                        )
+                        audio_first = False
+                        video_path = await VideoService.download_video(
+                            url, task_id=task_id, budget=job_budget,
+                        )
+                else:
+                    audio_first = False
+                    video_path = cached_full or await VideoService.download_video(
+                        url, task_id=task_id, budget=job_budget,
+                    )
                 if not video_path:
                     raise Exception("Failed to download video")
             else:
@@ -497,6 +591,7 @@ class VideoService:
                 await run_in_thread(MediaStorage().save_source_metadata, video_path)
             except Exception:
                 logger.warning("Source word timings retained locally for upload retry")
+            await run_in_thread(persist_cache_sidecar, video_path)
 
             # Step 3: AI analysis
             if should_cancel and await should_cancel():
@@ -624,6 +719,42 @@ class VideoService:
                         runtime_config.clip_duration,
                     )
                 ]
+
+            if audio_first:
+                audio_path = video_path
+                if progress_callback:
+                    await progress_callback(
+                        65, "Downloading selected segments...", "processing"
+                    )
+                try:
+                    video_path = await run_in_thread(
+                        materialize_clip_source,
+                        url,
+                        video_id,
+                        segments_json,
+                        task_id=task_id,
+                        budget=job_budget,
+                        duration=file_duration,
+                        audio_path=audio_path,
+                    )
+                except DownloadBudgetExceeded as exc:
+                    raise Exception(str(exc)) from exc
+                except Exception as exc:
+                    logger.warning(
+                        "Section download failed, falling back to a full download: %s",
+                        exc,
+                    )
+                    video_path = await VideoService.download_video(
+                        url,
+                        task_id=task_id,
+                        budget=job_budget,
+                        skip_proxy=True,
+                    )
+                    if video_path and audio_path:
+                        await run_in_thread(copy_transcript_sidecar, audio_path, video_path)
+                        await run_in_thread(persist_cache_sidecar, video_path)
+                if not video_path:
+                    raise Exception("Failed to download selected segments")
 
             return {
                 "segments": segments_json,
