@@ -205,6 +205,10 @@ RevenueCat `...scale.monthly/annual` product IDs); only the display name changed
 - **Scheduling** social posts requires Creator (`can_schedule_posts`); publishing
   immediately works on Pro.
 - **Annual** checkout: `interval: "year"` uses `STRIPE_PRO_/SCALE_ANNUAL_PRICE_ID`.
+- **Stripe prices (2026-10):** new subscribers get new prices (lookup keys `pro_monthly_2026_10`,
+  `pro_yearly_2026_10`, `creator_monthly_2026_10`, `creator_yearly_2026_10`). The earlier Pro price stays
+  for existing subscribers via `STRIPE_PRO_LEGACY_PRICE_IDS`; the webhook maps it to Pro and sets
+  `legacy_hd`, so dropping it from that list would downgrade those subscribers on their next renewal.
 
 ## Creator (affiliate) program
 

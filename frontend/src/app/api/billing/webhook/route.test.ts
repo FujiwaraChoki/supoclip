@@ -30,6 +30,7 @@ describe("/api/billing/webhook", () => {
       STRIPE_PRO_PRICE_ID: "price_pro",
       STRIPE_SCALE_PRICE_ID: "price_scale",
       STRIPE_PRO_ANNUAL_PRICE_ID: "price_pro_annual",
+      STRIPE_PRO_LEGACY_PRICE_IDS: "price_pro_2025, price_pro_2026_03",
     };
   });
 
@@ -79,6 +80,17 @@ describe("/api/billing/webhook", () => {
     const data = await sendSubscriptionEvent("canceled", "price_pro");
     expect(data.plan).toBe("free");
     expect(data.legacy_hd).toBe(false);
+  });
+
+  it("keeps subscribers on an earlier Pro price on Pro, with 1080p", async () => {
+    const data = await sendSubscriptionEvent("active", "price_pro_2026_03");
+    expect(data.plan).toBe("pro");
+    expect(data.legacy_hd).toBe(true);
+  });
+
+  it("does not grandfather the current Pro price", async () => {
+    const data = await sendSubscriptionEvent("active", "price_pro");
+    expect(data).not.toHaveProperty("legacy_hd");
   });
 
   it("keeps grandfathered 1080p through a failed payment", async () => {

@@ -1,4 +1,4 @@
-import { getPlanIdForStripePrice } from "@/server/billing-plans";
+import { getPlanIdForStripePrice, isGrandfatheredProPrice } from "@/server/billing-plans";
 import { getPrismaClient } from "@/server/prisma";
 import Stripe from "stripe";
 
@@ -55,6 +55,10 @@ export async function upsertSubscriptionState(subscription: Stripe.Subscription)
 
   const paidPlan = getPaidSubscriptionPlan(subscription);
   const plan = paidPlan || "free";
+  // Subscribers still on the pre-2026-10 Pro price keep 1080p, even if they
+  // were past due when the flag was backfilled.
+  const onGrandfatheredPrice =
+    paidPlan === "pro" && subscription.items.data.some((item) => isGrandfatheredProPrice(item.price?.id));
 
   // A non-paid Stripe state must not clobber an entitlement owned by the App
   // Store; only a paid Stripe grant may take over from an Apple subscription.
@@ -75,7 +79,11 @@ export async function upsertSubscriptionState(subscription: Stripe.Subscription)
       subscription_cancel_at: toDate(cancelAt),
       // Grandfathered 1080p ends once the subscription is cancelled; a failed
       // payment (past_due/unpaid) keeps it so recovering customers retain it.
-      ...(status === "canceled" || status === "incomplete_expired" ? { legacy_hd: false } : {}),
+      ...(onGrandfatheredPrice
+        ? { legacy_hd: true }
+        : status === "canceled" || status === "incomplete_expired"
+          ? { legacy_hd: false }
+          : {}),
     },
   });
 }

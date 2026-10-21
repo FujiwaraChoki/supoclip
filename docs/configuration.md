@@ -179,6 +179,8 @@ Required when `SELF_HOST=false` and you want subscription management:
 | `STRIPE_SCALE_PRICE_ID` | Price identifier for the Creator (`scale`) plan |
 | `STRIPE_PRO_ANNUAL_PRICE_ID` | Yearly price identifier for the Pro plan |
 | `STRIPE_SCALE_ANNUAL_PRICE_ID` | Yearly price identifier for the Creator plan |
+| `STRIPE_PRO_LEGACY_PRICE_IDS` | Comma-separated earlier Pro prices existing subscribers still pay; they stay Pro and keep 1080p |
+| `STRIPE_SCALE_LEGACY_PRICE_IDS` | Comma-separated earlier Creator prices that still map to Creator |
 | `STRIPE_PRICE_ID` | Legacy fallback price identifier for the Pro plan |
 | `STRIPE_CHECKOUT_URL` | Optional fallback checkout URL |
 | `STRIPE_CUSTOMER_PORTAL_URL` | Optional fallback billing portal URL |
