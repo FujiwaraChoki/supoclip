@@ -86,7 +86,7 @@
       "billingLabel": "Billing information.",
       "billing": "Paid plans are processed by our payment processor, Stripe. We do not store your full card number; we retain your subscription status and a customer identifier needed to manage billing.",
       "usageLabel": "Usage, device, and log data.",
-      "usage": "We collect session identifiers, IP address, and basic technical logs to operate, secure, and debug the Service. If analytics are enabled for the hosted site, we use a privacy-friendly analytics provider that does not build cross-site advertising profiles.",
+      "usage": "We collect session identifiers, IP address, and basic technical logs to operate, secure, and debug the Service. If analytics are enabled for the hosted site, we use a privacy-friendly analytics provider that does not build cross-site advertising profiles. We also use PostHog on the hosted site to understand how the product is used, to replay sessions (with everything typed into form fields masked), and to receive error reports so we can fix problems.",
       "campaignLabel": "Campaign and referral information.",
       "campaign1": "When you visit our website while signed out, your browser keeps a record of how you first arrived, for up to 90 days. It stores this in your browser's local storage, not in a cookie. The record includes campaign tags in the link you followed (such as <utmSource>utm_source</utmSource>, <utmCampaign>utm_campaign</utmCampaign>, or a <ref>ref</ref> code), the domain of the referring website (not the full address), the page you landed on, and the time of that visit. Page addresses are reduced to their route, so share links and project IDs are never recorded. Nothing is recorded while you are signed in.",
       "campaign2": "The first account to sign in on that browser claims the record, and it is then deleted from the browser so no other account can use it. If that account is new, we save the record to it once, shortly after sign-up. We also note when you first download or export a clip. We use this to learn which channels bring people who find SupoClip useful. If analytics are enabled, the sign-up and clip-export events we send to our analytics provider include the same campaign fields. We don't use this information for advertising or sell it. You can remove the record from your browser by clearing site data for supoclip.com."
@@ -125,6 +125,7 @@
       "li5": "<label>Hosting & infrastructure</label> — to run the Service.",
       "li6": "<label>Analytics</label> — when enabled, to measure site visits, sign-ups, and clip exports.",
       "li7": "<label>YouTube, TikTok, and Instagram (Meta)</label> — only if you connect an account, to publish the clips you choose and read their statistics (see Connected Social Accounts).",
+      "li8": "<label>PostHog</label> — on the hosted site, product analytics, session replays with form inputs masked, and error reports. Hosted in the EU.",
       "closing": "We do not sell your personal information, and we do not use it for cross-context behavioral advertising. We may disclose information if required by law or to protect the rights, safety, and security of our users and the Service."
     },
     "retention": {

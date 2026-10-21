@@ -278,6 +278,23 @@ Edit `backend/src/ai.py`: `simplified_system_prompt` controls selection criteria
 - Each segment gets an AI-written `hook_title` (3-9 words) burned into the top safe area for the first ~4s (`build_hook_title_ass` in `video_utils.py`), persisted on `generated_clips.hook_title`
 - Static talking-head crops get a slow ~5% Ken Burns punch-in (`kenburns_zoom_fragment`); tracked pans and split screens keep their own motion
 
+## Observability
+
+Errors and analytics go to PostHog (project "SupoClip", EU, id `314504`); logs go to
+Axiom (dataset `supoclip-prod`). Everything is off unless tokens are set. Details in
+`docs/observability.md`.
+
+- **Backend/worker:** `src/observability.py` sends every log record with a traceback to
+  PostHog (`POSTHOG_PROJECT_TOKEN`) and stamps logs with `service`, `trace_id`, `user_id`.
+  The auth helpers bind the user (`bind_request_user`).
+- **Web:** `posthog-js` in `instrumentation-client.ts` (analytics, replay, exceptions) via the
+  `/ingest` rewrite; `instrumentation.ts` reports server errors. `lib/trace-fetch.ts` tags
+  every `/api/*` call with `x-trace-id`, which the proxies forward to the backend.
+- **Correlation:** an exception's `trace_id` property matches `trace_id` in Axiom logs
+  (worker jobs: `task-<id>`); the PostHog distinct id is the Better Auth user id everywhere.
+- **Logs:** the `vector` service (`observability/vector.yaml`, compose profile `axiom`)
+  ships `supoclip-*` container logs and the host nginx's SupoClip logs.
+
 ## iOS App
 
 A native iOS app ships on the App Store

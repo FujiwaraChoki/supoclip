@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { intlLocale } from "@/i18n/config";
 import { HOSTED_APP_URL, getSiteUrl } from "@/lib/blog-posts";
 
-const LAST_UPDATED = "2026-10-16";
+const LAST_UPDATED = "2026-10-21";
 const CONTACT_EMAIL = "privacy@supoclip.com";
 
 function formatLegalDate(locale: string) {
@@ -187,7 +187,7 @@ export default async function PrivacyPolicyPage() {
           <Section title={t("privacy.processors.title")}>
             <p>{t("privacy.processors.intro")}</p>
             <ul className="list-disc space-y-2 pl-6">
-              {(["li1", "li2", "li3", "li4", "li5", "li6", "li7"] as const).map((key) => (
+              {(["li1", "li2", "li3", "li4", "li5", "li6", "li7", "li8"] as const).map((key) => (
                 <li key={key}>
                   {t.rich(`privacy.processors.${key}`, {
                     label: (chunks) => <span className="text-foreground">{chunks}</span>,

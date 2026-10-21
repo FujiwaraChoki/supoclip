@@ -16,6 +16,12 @@ services:
         - NEXT_PUBLIC_DATAFAST_WEBSITE_ID=${NEXT_PUBLIC_DATAFAST_WEBSITE_ID:-}
         - NEXT_PUBLIC_DATAFAST_DOMAIN=${NEXT_PUBLIC_DATAFAST_DOMAIN:-}
         - NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST=${NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST:-false}
+        - NEXT_PUBLIC_POSTHOG_KEY=${NEXT_PUBLIC_POSTHOG_KEY:-}
+        - NEXT_PUBLIC_POSTHOG_HOST=${NEXT_PUBLIC_POSTHOG_HOST:-https://eu.i.posthog.com}
+        # Source map upload to PostHog error tracking; skipped unless both are set.
+        - POSTHOG_PERSONAL_API_KEY=${POSTHOG_PERSONAL_API_KEY:-}
+        - POSTHOG_PROJECT_ID=${POSTHOG_PROJECT_ID:-}
+        - POSTHOG_RELEASE_VERSION=${POSTHOG_RELEASE_VERSION:-}
     container_name: supoclip-frontend
     ports:
       # Keep the legacy port for deployments whose proxy already uses 3001.
@@ -53,6 +59,8 @@ services:
       - NEXT_PUBLIC_DATAFAST_WEBSITE_ID=${NEXT_PUBLIC_DATAFAST_WEBSITE_ID:-}
       - NEXT_PUBLIC_DATAFAST_DOMAIN=${NEXT_PUBLIC_DATAFAST_DOMAIN:-}
       - NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST=${NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST:-false}
+      - NEXT_PUBLIC_POSTHOG_KEY=${NEXT_PUBLIC_POSTHOG_KEY:-}
+      - NEXT_PUBLIC_POSTHOG_HOST=${NEXT_PUBLIC_POSTHOG_HOST:-https://eu.i.posthog.com}
       - STRIPE_CHECKOUT_URL=${STRIPE_CHECKOUT_URL}
       - STRIPE_CUSTOMER_PORTAL_URL=${STRIPE_CUSTOMER_PORTAL_URL}
       - REVENUECAT_WEBHOOK_AUTH_HEADER=${REVENUECAT_WEBHOOK_AUTH_HEADER}
@@ -96,6 +104,9 @@ services:
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
+      - SUPOCLIP_SERVICE=backend
+      - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}
+      - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}
       - DATABASE_URL=postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip
       - TEMP_DIR=/app/uploads
       - MEDIA_STORAGE=${MEDIA_STORAGE:-local}
@@ -251,6 +262,9 @@ services:
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
+      - SUPOCLIP_SERVICE=worker
+      - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}
+      - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}
       - DATABASE_URL=postgresql+asyncpg://supoclip:supoclip_password@postgres:5432/supoclip
       - TEMP_DIR=/app/uploads
       - MEDIA_STORAGE=${MEDIA_STORAGE:-local}
@@ -358,6 +372,21 @@ services:
       retries: 3
       start_period: 60s
 
+  # Ships container logs to Axiom. Opt-in: COMPOSE_PROFILES=axiom + AXIOM_TOKEN.
+  vector:
+    image: timberio/vector:0.60.0-alpine
+    container_name: supoclip-vector
+    profiles: ["axiom"]
+    volumes:
+      - ./observability/vector.yaml:/etc/vector/vector.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log/nginx:/var/log/nginx:ro
+      - vector_data:/var/lib/vector
+    environment:
+      - AXIOM_TOKEN=${AXIOM_TOKEN:-}
+      - AXIOM_DATASET=${AXIOM_DATASET:-supoclip-prod}
+    restart: unless-stopped
+
   # Redis for caching and job queues (useful for video processing)
   redis:
     image: redis:7-alpine
@@ -413,6 +442,8 @@ volumes:
   postgres_data:
     driver: local
   mcp_downloads:
+    driver: local
+  vector_data:
     driver: local
 
 networks:

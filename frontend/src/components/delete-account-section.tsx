@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2, TriangleAlert } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { track } from "@/lib/datafast";
+import { resetAnalytics } from "@/lib/posthog";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ export function DeleteAccountSection({ email, hasAppStoreSubscription = false }:
     track("account_deleted");
     // The server already revoked every session; this clears any client state.
     await authClient.signOut().catch(() => undefined);
+    resetAnalytics();
     router.push("/");
     router.refresh();
   };

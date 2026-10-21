@@ -9,6 +9,7 @@ import { DataFastIdentity } from "@/components/datafast-identity";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FeedbackButton } from "@/components/feedback-button";
+import { PostHogIdentity } from "@/components/posthog-identity";
 import { intlLocale } from "@/i18n/config";
 import { APP_STORE_ID, getSiteUrl } from "@/lib/site";
 
@@ -115,6 +116,7 @@ export default async function RootLayout({
           <TooltipProvider>
             {children}
             <DataFastIdentity />
+            <PostHogIdentity />
             <AttributionTracker />
             <FeedbackButton />
             <Toaster />

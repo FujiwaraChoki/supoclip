@@ -32,6 +32,7 @@ from .observability import (
     generate_trace_id,
     get_trace_id,
     set_trace_id,
+    set_user_id,
 )
 
 configure_logging()
@@ -113,10 +114,15 @@ def create_app(
         try:
             response = await call_next(request)
         except Exception:
+            set_user_id(getattr(request.state, "user_id", None))
             logger.exception("Unhandled exception while processing request")
             clear_trace_id()
+            set_user_id(None)
             raise
 
+        # The endpoint ran in its own context; bring the user it authenticated
+        # back into this one so the completion log line carries it.
+        set_user_id(getattr(request.state, "user_id", None))
         elapsed_ms = round((time.perf_counter() - started_at) * 1000, 2)
         response.headers[TRACE_HEADER] = trace_id
         logger.info(
@@ -127,6 +133,7 @@ def create_app(
             elapsed_ms,
         )
         clear_trace_id()
+        set_user_id(None)
         return response
 
     @app.exception_handler(HTTPException)
@@ -152,8 +159,9 @@ def create_app(
         )
 
     @app.exception_handler(Exception)
-    async def unhandled_exception_handler(_: Request, exc: Exception):
+    async def unhandled_exception_handler(request: Request, exc: Exception):
         trace_id = get_trace_id()
+        set_user_id(getattr(request.state, "user_id", None))
         logger.error("Unhandled server error: %s", exc, exc_info=True)
         return JSONResponse(
             status_code=500,

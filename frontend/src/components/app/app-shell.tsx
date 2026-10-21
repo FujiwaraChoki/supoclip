@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { signOut, useSession } from "@/lib/auth-client";
+import { resetAnalytics } from "@/lib/posthog";
 import { useBillingSummary } from "@/hooks/use-billing-summary";
 import { useSocialAccess } from "@/hooks/use-social-access";
 import { billingPlanMessageKey } from "@/lib/billing-plans";
@@ -222,7 +223,7 @@ function UserRow({ compact, name, email }: { compact: boolean; name?: string | n
   const [signingOut, setSigningOut] = useState(false);
   const handleSignOut = async () => {
     setSigningOut(true);
-    try { await signOut(); window.location.assign("/sign-in"); }
+    try { await signOut(); resetAnalytics(); window.location.assign("/sign-in"); }
     catch { toast.error(t("user.signOutError")); setSigningOut(false); }
   };
   return (
