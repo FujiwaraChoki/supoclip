@@ -46,7 +46,7 @@ test("free users explore first and see plans when they generate", async ({ page 
   await expect(dialog.getByText("Turn long videos into ready-to-post clips")).toBeVisible();
   await expect(dialog.getByRole("radiogroup", { name: "Plans" }).getByRole("radio")).toHaveCount(2);
   await dialog.getByRole("radio", { name: /Yearly/ }).click();
-  await expect(dialog.getByText("$100")).toBeVisible();
+  await expect(dialog.getByText("$99.90")).toBeVisible();
   await expect(dialog.getByText("$8.33/mo")).toBeVisible();
   await page.waitForTimeout(2200);
   await page.screenshot({ path: "test-results/upgrade-dialog-free.png" });
