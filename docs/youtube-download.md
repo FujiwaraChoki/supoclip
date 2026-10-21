@@ -27,7 +27,9 @@ This uses additional local CPU for the selected ranges. Cache manifests mark
 the original-audio selection policy; older audio and section entries are
 regenerated, while an existing full source remains available.
 
-If a format has no timed fragments, the job falls back to a full 1080p download on yt-dlp's native downloader, then to the previous provider chain. `APIFY_EXPENSIVE_FALLBACKS` defaults to `false`, so only the primary Apify actor runs. Leave high-cap actors (marielise.dev, scraper_one, dami_studio, and anything else with a multi-dollar run cap) out of `APIFY_YOUTUBE_FALLBACK_ACTORS` unless that flag is `true`. Actor ids stay in private environment configuration.
+If a format cannot be sliced, the job tries a bounded full 1080p download through the proxy. A proxy network failure skips that repeat attempt. With a proxy configured, the fallback order is always **proxy → API Router → Apify primary (Titan in production) → configured emergency actors → direct yt-dlp**, regardless of the legacy primary-provider setting. `APIFY_EXPENSIVE_FALLBACKS` defaults to `false`, so only the primary Apify actor runs. Production explicitly enables Marielise then Scraper One with a shared $1 Apify budget and a $0.50 per-actor ceiling (Titan keeps its smaller $0.03 cap). The spending allowance is shared, not reset between actors. Leave high-cap actors (marielise.dev, scraper_one, dami_studio, and anything else with a multi-dollar run cap) out of `APIFY_YOUTUBE_FALLBACK_ACTORS` unless that flag is `true`. Actor ids stay in private environment configuration.
+
+Proxy attempts and API Router default to 300 seconds each (`YOUTUBE_PROXY_TIMEOUT_SECONDS` and `RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS`). Proxy socket requests and progress checks honor the attempt deadline; a timed-out provider hands off to the next provider. Production actor run timeouts are 300 seconds, with a separate bounded allowance for file transfer and verification. The worker job deadline is independent of actor deadlines.
 
 ## Bandwidth
 

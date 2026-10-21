@@ -83,7 +83,8 @@ async def list_providers(request: Request, db: AsyncSession = Depends(get_db)):
     enabled = await service.has_access(user_id)
     if not enabled:
         providers = [{**provider, "configured": False} for provider in providers]
-    return {"enabled": enabled, "providers": providers}
+    can_schedule = enabled and await service.can_schedule(user_id)
+    return {"enabled": enabled, "can_schedule": can_schedule, "providers": providers}
 
 
 @router.get("/connections")

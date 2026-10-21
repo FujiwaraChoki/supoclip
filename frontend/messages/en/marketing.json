@@ -204,11 +204,12 @@
   },
   "pricing": {
     "title": "Simple pricing, no surprises",
-    "body": "Free to self-host. Hosted plans start at $10/month, with processing and hosting handled for you. Change or cancel anytime.",
+    "body": "Free to self-host. Hosted plans start at ${price}/month, with processing and hosting handled for you. Change or cancel anytime.",
     "popular": "Most Popular",
     "period": {
       "forever": "forever",
-      "month": "/month"
+      "month": "/month",
+      "year": "/year"
     },
     "generationsPerMonth": "{count} generations per month",
     "selfHost": {
@@ -228,8 +229,8 @@
       "cta": "Upgrade to Pro"
     },
     "scale": {
-      "description": "For teams and high-volume publishing workflows.",
-      "cta": "Upgrade to Scale"
+      "description": "For creators publishing every day.",
+      "cta": "Upgrade to Creator"
     },
     "hosted": {
       "tracking": "Face tracking, captions and virality scoring",
@@ -241,7 +242,8 @@
       "earlyAccess": "Early access to new features"
     },
     "selfHostNote": "Self-hosting? All features are free and unlimited.",
-    "selfHostGuide": "See the self-hosting guide"
+    "selfHostGuide": "See the self-hosting guide",
+    "billedYearly": "${price}/mo, billed yearly"
   },
   "openSource": {
     "badge": "AGPL-3.0 Licensed",

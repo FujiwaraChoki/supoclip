@@ -37,8 +37,15 @@ class Config:
         self.assembly_ai_http_timeout_seconds = int(
             os.getenv("ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS", "900")
         )
+        self.assembly_ai_request_timeout_seconds = max(5, min(300, int(
+            os.getenv("ASSEMBLY_AI_REQUEST_TIMEOUT_SECONDS", "60")
+        )))
         self.pexels_api_key = self._get_runtime_setting("PEXELS_API_KEY")
         self.apify_api_token = self._get_runtime_setting("APIFY_API_TOKEN")
+        self.rapidapi_youtube_api_key = self._get_optional_env("RAPIDAPI_YOUTUBE_API_KEY")
+        self.rapidapi_youtube_timeout_seconds = int(
+            os.getenv("RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS", "300")
+        )
         self.youtube_download_provider = self._normalize_youtube_download_provider(
             os.getenv("YOUTUBE_DOWNLOAD_PROVIDER", "yt_dlp")
         )
@@ -48,6 +55,7 @@ class Config:
         # Empty disables the residential-proxy yt-dlp path. Nothing in the
         # download chain changes until this template is set.
         self.youtube_proxy_url = os.getenv("YOUTUBE_PROXY_URL", "").strip()
+        self.youtube_proxy_timeout_seconds = self._get_int_env("YOUTUBE_PROXY_TIMEOUT_SECONDS", 300)
         self.youtube_proxy_country = os.getenv("YOUTUBE_PROXY_COUNTRY", "").strip()
         self.youtube_pot_provider_url = os.getenv("YOUTUBE_POT_PROVIDER_URL", "").strip()
         self.youtube_download_max_bytes = self._get_int_env("YOUTUBE_DOWNLOAD_MAX_BYTES", 2_000_000_000)
@@ -132,9 +140,9 @@ class Config:
         self.auth_signature_ttl_seconds = int(
             os.getenv("AUTH_SIGNATURE_TTL_SECONDS", "300")
         )
-        self.free_plan_task_limit = int(os.getenv("FREE_PLAN_TASK_LIMIT", "10"))
-        self.pro_plan_task_limit = int(os.getenv("PRO_PLAN_TASK_LIMIT", "50"))
-        self.scale_plan_task_limit = int(os.getenv("SCALE_PLAN_TASK_LIMIT", "300"))
+        # Monthly allowance in minutes of source video; 0 or less means unlimited.
+        self.pro_plan_minute_limit = int(os.getenv("PRO_PLAN_MINUTE_LIMIT", "600"))
+        self.scale_plan_minute_limit = int(os.getenv("SCALE_PLAN_MINUTE_LIMIT", "1500"))
         self.cors_origins = self._get_csv_env(
             "CORS_ORIGINS",
             [
@@ -209,10 +217,12 @@ class Config:
         self.default_processing_mode = os.getenv("DEFAULT_PROCESSING_MODE", "fast")
         self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "10"))
         self.fast_mode_transcript_model = os.getenv(
-            "FAST_MODE_TRANSCRIPT_MODEL", "universal"
+            "FAST_MODE_TRANSCRIPT_MODEL", "universal-3-5-pro"
         )
-        # Open clips with the AI-picked hook line as a short cold-open teaser.
-        self.hook_first_teaser = self._get_bool_env("HOOK_FIRST_TEASER", True)
+        # Replay a later punchline before the clip. Off: the same line was
+        # playing twice (teaser, then again inside the clip) and the opening
+        # has to stand on its own. Set HOOK_FIRST_TEASER=true to opt back in.
+        self.hook_first_teaser = self._get_bool_env("HOOK_FIRST_TEASER", False)
         # Cut between speakers on multi-person wide shots using diarization.
         self.speaker_framing = self._get_bool_env("SPEAKER_FRAMING", True)
 
@@ -323,7 +333,7 @@ class Config:
     @staticmethod
     def _normalize_youtube_download_provider(value: str | None) -> str:
         normalized = (value or "").strip().lower().replace("-", "_")
-        if normalized == "apify":
+        if normalized in {"apify", "rapidapi"}:
             return normalized
         return "yt_dlp"
 

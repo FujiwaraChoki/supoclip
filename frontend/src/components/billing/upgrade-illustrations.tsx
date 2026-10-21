@@ -43,11 +43,11 @@ function ClipGlyph({ highlight }: { highlight?: boolean }) {
   );
 }
 
-const fanSize = (videos: number) => (videos <= 0 ? 0 : videos <= 60 ? 5 : 9);
+const fanSize = (hours: number) => (hours <= 0 ? 0 : hours <= 12 ? 5 : 9);
 
 /**
- * More clips per month: a fan whose size follows the plan (5 cards for Pro,
- * 9 for Scale). Cards you already have stay faint; the new ones fan in.
+ * More video per month: a fan whose size follows the plan's monthly hours (5
+ * cards for Pro, 9 for Creator). Cards you already have stay faint; the new ones fan in.
  */
 export function CapacityIllustration({ from, to, label }: { from: number; to: number; label: string }) {
   const reduceMotion = useReducedMotion();

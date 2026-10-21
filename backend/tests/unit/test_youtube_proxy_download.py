@@ -128,11 +128,12 @@ def test_provider_order_puts_proxy_first():
     settings = Settings()
     assert _provider_order(settings, skip_proxy=False) == [
         YOUTUBE_DOWNLOAD_PROVIDER_YTDLP,
+        "rapidapi",
         YOUTUBE_DOWNLOAD_PROVIDER_APIFY,
     ]
     settings.youtube_proxy_url = PROXY
-    assert _provider_order(settings, skip_proxy=False)[0] == "yt_dlp_proxy"
-    assert _provider_order(settings, skip_proxy=True)[0] == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
+    assert _provider_order(settings, skip_proxy=False) == ["yt_dlp_proxy", "rapidapi", "apify", "yt_dlp"]
+    assert _provider_order(settings, skip_proxy=True) == ["rapidapi", "apify", "yt_dlp"]
 
 
 def test_timed_fragments_win_over_byte_range_chunks():
@@ -364,3 +365,72 @@ def test_assemble_timeline_uses_local_files_only(tmp_path):
     assert dest.exists() and dest.stat().st_size > 0
     assert time_map.to_local(10) == pytest.approx(0)
     assert time_map.to_local(40.5) == pytest.approx(1.5)
+
+
+def test_proxy_failure_then_router_timeout_reaches_apify_before_direct(tmp_path, monkeypatch):
+    from src import youtube_utils as utils
+    from src.rapidapi_youtube_downloader import RapidAPIDownloadError
+    from src.youtube_proxy import DownloadDeadlineExceeded
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    config.youtube_proxy_url = PROXY
+    config.youtube_download_provider = 'yt_dlp'  # Legacy setting cannot reorder backups.
+    config.rapidapi_youtube_api_key = 'test-key'
+    config.apify_api_token = 'test-token'
+    calls = []
+
+    def fail_proxy(*a, **kw):
+        calls.append('proxy')
+        raise DownloadDeadlineExceeded('proxy timed out')
+
+    def fail_router(*a, **kw):
+        calls.append('router')
+        assert kw['timeout_seconds'] == 300
+        raise RapidAPIDownloadError('router timed out')
+
+    def apify(*a, **kw):
+        calls.append('apify')
+        target = tmp_path / 'complete.mp4'
+        target.write_bytes(b'complete')
+        return target
+
+    monkeypatch.setattr(utils, 'download_full_with_proxy', fail_proxy)
+    monkeypatch.setattr(utils, 'download_video_via_rapidapi', fail_router)
+    monkeypatch.setattr(utils, '_resolve_apify_quality', lambda *a: '1080')
+    monkeypatch.setattr(utils, 'download_youtube_video_with_apify', apify)
+    monkeypatch.setattr(utils, '_get_local_video_dimensions', lambda *a: (1920, 1080))
+    monkeypatch.setattr(utils, '_download_youtube_video_with_ytdlp',
+                        lambda *a, **kw: pytest.fail('Direct yt-dlp ran before the paid backups'))
+    set_config_override(config)
+    try:
+        assert utils.download_youtube_video('https://youtube.com/watch?v=abcdefghijk').is_file()
+        assert calls == ['proxy', 'router', 'apify']
+    finally:
+        set_config_override(None)
+
+
+def test_proxy_deadline_stops_new_requests_and_slow_progress(monkeypatch):
+    from src import youtube_proxy as proxy
+    from unittest.mock import MagicMock
+    from yt_dlp.networking import Request
+    now = [100.0]
+    monkeypatch.setattr(proxy.time, 'monotonic', lambda: now[0])
+    client = MagicMock()
+    client.__enter__.return_value = client
+    original_open = client.urlopen
+    monkeypatch.setattr('yt_dlp.YoutubeDL', lambda *a: client)
+    with proxy._proxy_client({'_youtube_deadline': 105}) as bounded:
+        request = Request('https://manifest.googlevideo.com/video')
+        bounded.urlopen(request)
+        assert request.extensions['timeout'] == 5
+        now[0] = 104
+    assert original_open.call_count == 1
+    # An expired attempt never opens another socket, even with no byte progress.
+    with pytest.raises(proxy.DownloadDeadlineExceeded):
+        with proxy._proxy_client({'_youtube_deadline': 103}):
+            pytest.fail('Expired downloader entered')
+    monkeypatch.setattr(proxy, 'base_proxy_params', lambda *a: {})
+    options = proxy.download_options(None, 'abcdefghijk', ByteBudget(10000))
+    now[0] += 301
+    with pytest.raises(proxy.DownloadDeadlineExceeded):
+        options['progress_hooks'][0]({'status': 'downloading', 'downloaded_bytes': 0})

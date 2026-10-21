@@ -26,7 +26,7 @@
     },
     "billing": {
       "title": "Assinaturas e cobrança",
-      "p1": "Os planos pagos (por exemplo Pro e Scale) liberam limites mensais mais altos de geração de clipes. O mesmo direito do plano vale para a sua conta, não importa onde você o comprou.",
+      "p1": "Os planos pagos (por exemplo Pro e Creator) incluem uma franquia mensal de minutos de vídeo de origem e uma resolução máxima de saída. Cada vídeo usa sua duração total, arredondada para o minuto, quando o processamento começa; trabalhos que falham sem gerar clipes não contam. As franquias renovam mensalmente, inclusive nos planos anuais, e minutos não usados não são acumulados. O mesmo direito do plano vale para sua conta, independentemente de onde você o comprou.",
       "webLabel": "Compras na web.",
       "web": "As assinaturas pela web são cobradas mensalmente pelo nosso processador de pagamentos, Stripe. Elas se renovam automaticamente até serem canceladas. Você pode cancelar quando quiser pelo portal de cobrança em Configurações; o acesso continua até o fim do período pago.",
       "iosLabel": "Compras no app de iOS.",

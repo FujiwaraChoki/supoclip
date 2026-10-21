@@ -17,7 +17,7 @@ def test_new_task_defaults_cleanup_on_when_fields_are_omitted():
         "remove_filler_words": True,
         "filtered_words": [],
     }
-    assert DEFAULT_PAUSE_THRESHOLD_MS == 700
+    assert DEFAULT_PAUSE_THRESHOLD_MS == 1200
 
 
 def test_new_task_explicit_false_turns_cleanup_off():

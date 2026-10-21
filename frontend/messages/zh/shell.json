@@ -31,7 +31,11 @@
     "pickPlan": "选择套餐，开始剪辑",
     "moreWith": "升级到 {name} 获得更多额度",
     "left": "本周期剩余 {count} 个",
-    "videosThisPeriod": "本周期的视频"
+    "videosThisPeriod": "本周期的视频",
+    "minutesOf": "{used} / {limit} 分钟",
+    "minutes": "{used} 分钟",
+    "minutesLeft": "本月剩余 {count} 分钟",
+    "minutesThisMonth": "本月视频分钟数"
   },
   "user": {
     "creator": "创作者",

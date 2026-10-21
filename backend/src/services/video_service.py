@@ -18,7 +18,7 @@ from ..youtube_utils import (
     download_youtube_video,
     get_youtube_video_id,
 )
-from ..youtube_proxy import ByteBudget, DownloadBudgetExceeded, proxy_configured
+from ..youtube_proxy import ByteBudget, DownloadBudgetExceeded, PartialDownloadUnavailable, proxy_configured
 from ..youtube_source import (
     cached_full_media,
     download_audio_for_job,
@@ -37,6 +37,7 @@ from ..video_utils import (
     build_keep_ranges_from_source_ranges,
     build_clip_signal_summary,
     apply_segment_hook_teaser,
+    clamp_keep_ranges_to_max_duration,
     extend_keep_ranges_to_sentence_boundary,
     keep_ranges_transcript_text,
     snap_clip_start_to_sentence,
@@ -51,6 +52,7 @@ from ..clip_source_map import (
 from ..ai import get_most_relevant_parts_by_transcript
 from ..config import get_config
 from ..media_storage import MediaStorage
+from ..media.ffmpeg import cap_video_short_side, ffprobe_duration
 
 logger = logging.getLogger(__name__)
 UPLOAD_URL_PREFIX = "upload://"
@@ -146,9 +148,20 @@ class VideoService:
         raise ValueError("Only upload:// references are allowed for local video sources")
 
     @staticmethod
+    def probe_upload_duration(url: str, user_id: str) -> float:
+        """Read an uploaded video's length without downloading it."""
+        if url.startswith("upload://s3/"):
+            storage = MediaStorage()
+            reference = storage.validate_source(url, user_id)
+            # ffprobe reads only the container headers through ranged requests.
+            return ffprobe_duration(storage.signed_url(reference, "source.mp4", expires_in=300))
+        return ffprobe_duration(VideoService.resolve_local_video_path(url))
+
+    @staticmethod
     async def download_video(
         url: str,
         task_id: Optional[str] = None,
+        quality: Optional[str] = None,
         ranges: Optional[list] = None,
         budget: Optional[ByteBudget] = None,
         skip_proxy: bool = False,
@@ -167,6 +180,7 @@ class VideoService:
             if not video_id:
                 return None
             job_budget = budget or ByteBudget(get_config().youtube_download_max_bytes)
+            bypass_proxy = skip_proxy
             if ranges:
                 try:
                     segments = [
@@ -183,6 +197,8 @@ class VideoService:
                 except DownloadBudgetExceeded:
                     raise
                 except Exception as exc:
+                    # Only unsupported slicing warrants a full proxy attempt.
+                    bypass_proxy = skip_proxy or not isinstance(exc, PartialDownloadUnavailable)
                     logger.warning(
                         "Section download unavailable for %s, using a full file: %s",
                         video_id,
@@ -191,10 +207,10 @@ class VideoService:
             return resolve_full_youtube_download(
                 url,
                 video_id,
-                lambda **kwargs: download_youtube_video(url, 3, task_id, **kwargs),
+                lambda **kwargs: download_youtube_video(url, 3, task_id, quality, **kwargs),
                 task_id=task_id,
                 budget=job_budget,
-                skip_proxy=skip_proxy,
+                skip_proxy=bypass_proxy,
             )
 
         try:
@@ -286,9 +302,11 @@ class VideoService:
         output_format: str = "vertical",
         add_subtitles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        max_short_side: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
         Create standalone video clips from segments with optional subtitles.
+        ``max_short_side`` downscales the finished clips for plans below 1080p.
         Runs in thread pool as video processing is CPU-intensive.
         output_format: 'vertical' (9:16) or 'original' (keep source size, faster).
         add_subtitles: False skips subtitles; with original format uses ffmpeg stream copy (no re-encode).
@@ -311,6 +329,13 @@ class VideoService:
             cleanup_settings,
         )
 
+        if max_short_side:
+            for clip_info in clips_info:
+                try:
+                    await run_in_thread(cap_video_short_side, Path(clip_info["path"]), max_short_side)
+                except Exception as e:
+                    logger.warning(f"Keeping full-size clip {clip_info.get('filename')}: {e}")
+
         logger.info(f"Successfully created {len(clips_info)} clips")
         return clips_info
 
@@ -327,8 +352,12 @@ class VideoService:
         output_format: str = "vertical",
         add_subtitles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        max_short_side: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Render a single clip in the thread pool and return clip_info dict, or None on failure."""
+        """Render a single clip in the thread pool and return clip_info dict, or None on failure.
+
+        ``max_short_side`` downscales the finished clip for plans below 1080p.
+        """
         try:
             provided_keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
             source_ranges = normalize_source_ranges(segment.get("source_ranges"))
@@ -379,6 +408,7 @@ class VideoService:
                 # Snapping, cleanup and the teaser change what is spoken; keep
                 # the stored text word-for-word with the rendered timeline.
                 clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
+            keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges)
 
             success = await run_in_thread(
                 create_optimized_clip,
@@ -394,11 +424,19 @@ class VideoService:
                 output_format,
                 keep_ranges,
                 segment.get("hook_title"),
+                extend_to_sentence=False,
             )
 
             if not success:
                 logger.error(f"Failed to create clip {clip_index + 1}")
                 return None
+
+            if max_short_side:
+                try:
+                    await run_in_thread(cap_video_short_side, clip_path, max_short_side)
+                except Exception as e:
+                    # A higher-resolution clip beats losing the clip entirely.
+                    logger.warning(f"Keeping full-size clip {clip_index + 1}: {e}")
 
             save_clip_source_ranges(clip_path, keep_ranges)
             cleaned_duration = sum(end - start for start, end in keep_ranges)
@@ -468,6 +506,7 @@ class VideoService:
         output_format: str = "vertical",
         add_subtitles: bool = True,
         max_video_duration: Optional[int] = None,
+        download_quality: Optional[str] = None,
         cached_transcript: Optional[str] = None,
         cached_analysis_json: Optional[str] = None,
         progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]] = None,
@@ -537,12 +576,12 @@ class VideoService:
                         )
                         audio_first = False
                         video_path = await VideoService.download_video(
-                            url, task_id=task_id, budget=job_budget,
+                            url, task_id=task_id, quality=download_quality, budget=job_budget, skip_proxy=True,
                         )
                 else:
                     audio_first = False
                     video_path = cached_full or await VideoService.download_video(
-                        url, task_id=task_id, budget=job_budget,
+                        url, task_id=task_id, quality=download_quality, budget=job_budget,
                     )
                 if not video_path:
                     raise Exception("Failed to download video")
@@ -747,8 +786,9 @@ class VideoService:
                     video_path = await VideoService.download_video(
                         url,
                         task_id=task_id,
+                        quality=download_quality,
                         budget=job_budget,
-                        skip_proxy=True,
+                        skip_proxy=not isinstance(exc, PartialDownloadUnavailable),
                     )
                     if video_path and audio_path:
                         await run_in_thread(copy_transcript_sidecar, audio_path, video_path)

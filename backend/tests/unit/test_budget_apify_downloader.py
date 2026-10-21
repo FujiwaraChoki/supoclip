@@ -247,6 +247,57 @@ def test_missing_size_requires_bounded_identity_http_length(tmp_path, monkeypatc
         mod._download('https://cdn.example.com/file', target, {}, {}, 'secret', mod.time.monotonic() + 30, allow_size_header=True)
 
 
+@pytest.mark.parametrize('size', [2_007_450_000, 10_000_000_000])
+def test_signed_delivery_admits_large_files_through_10gb(tmp_path, monkeypatch, size):
+    # Admit the size without allocating gigabytes; a deliberately empty stream
+    # must still fail the independent transfer-completeness check.
+    response = Mock(status_code=200, is_redirect=False,
+                    headers={'Content-Length': str(size)})
+    response.iter_content.return_value = []
+    session = Mock()
+    session.__enter__ = Mock(return_value=session)
+    session.__exit__ = Mock(return_value=False)
+    session.get.return_value = response
+    monkeypatch.setattr(mod.requests, 'Session', lambda: session)
+    monkeypatch.setattr(mod, '_public_https', lambda url: mod.urlsplit(url))
+
+    with pytest.raises(mod.BudgetApifyError, match='transfer was incomplete'):
+        mod._download('https://cdn.example.com/file', tmp_path / 'file', {}, {},
+                      'secret', mod.time.monotonic() + 30, allow_size_header=True)
+
+    response.iter_content.assert_called_once()
+    response.close.assert_called_once()
+
+
+def test_signed_delivery_rejects_above_10gb_before_reading_body(tmp_path, monkeypatch):
+    response = Mock(status_code=200, is_redirect=False,
+                    headers={'Content-Length': '10000000001'})
+    session = Mock()
+    session.__enter__ = Mock(return_value=session)
+    session.__exit__ = Mock(return_value=False)
+    session.get.return_value = response
+    monkeypatch.setattr(mod.requests, 'Session', lambda: session)
+    monkeypatch.setattr(mod, '_public_https', lambda url: mod.urlsplit(url))
+
+    with pytest.raises(mod.BudgetApifyError, match='no usable size'):
+        mod._download('https://cdn.example.com/file', tmp_path / 'file', {}, {},
+                      'secret', mod.time.monotonic() + 30, allow_size_header=True)
+
+    response.iter_content.assert_not_called()
+    response.close.assert_called_once()
+    assert not (tmp_path / 'file').exists()
+
+
+def test_known_delivery_size_above_10gb_rejected_before_network(tmp_path, monkeypatch):
+    session = Mock()
+    monkeypatch.setattr(mod.requests, 'Session', session)
+    with pytest.raises(mod.BudgetApifyError, match='exceeds the download size limit'):
+        mod._download('https://cdn.example.com/file', tmp_path / 'file',
+                      {'fileSizeBytes': 10_000_000_001}, {}, 'secret',
+                      mod.time.monotonic() + 30)
+    session.assert_not_called()
+
+
 def test_event_prices_reserve_charge_even_when_usage_total_lags():
     run = {'usageTotalUsd': .004, 'chargedEventCounts': {'start': 1, 'download': 1},
            'pricingInfo': {'pricingModel': 'PAY_PER_EVENT', 'pricingPerEvent': {'actorChargeEvents':
@@ -292,7 +343,10 @@ def test_private_delivery_pins_fresh_version_and_checks_complete_size(tmp_path):
     stream.close.assert_called_once()
 
 
-@pytest.mark.parametrize('version,age,size', [('old', 0, 5), ('null', 0, 5), ('new', 60, 5), ('new', 0, 0)])
+@pytest.mark.parametrize('version,age,size', [
+    ('old', 0, 5), ('null', 0, 5), ('new', 60, 5), ('new', 0, 0),
+    ('new', 0, 10_000_000_001),
+])
 def test_private_delivery_rejects_stale_unversioned_or_empty_object(tmp_path, version, age, size):
     from datetime import datetime, timezone, timedelta
     client = Mock(); now = datetime.now(timezone.utc)
@@ -309,6 +363,28 @@ def test_private_delivery_rejects_short_transfer_and_closes_stream(tmp_path):
     stream = Mock(); stream.iter_chunks.return_value = [b'bad']; client.get_object.return_value = {'Body': stream}
     with pytest.raises(mod.BudgetApifyError, match='fresh complete'):
         mod._retrieve_private_file((client, 'b', 'k', None, now), tmp_path / 'part', 635, '1080', mod.time.monotonic() + 30)
+    stream.close.assert_called_once()
+
+
+@pytest.mark.parametrize('size', [2_007_450_000, 10_000_000_000])
+def test_private_delivery_admits_large_objects_but_still_checks_completeness(tmp_path, size):
+    from datetime import datetime, timezone
+    client = Mock()
+    now = datetime.now(timezone.utc)
+    client.head_object.return_value = {
+        'VersionId': 'new', 'ContentLength': size, 'LastModified': now,
+    }
+    stream = Mock()
+    stream.iter_chunks.return_value = []
+    client.get_object.return_value = {'Body': stream}
+
+    with pytest.raises(mod.BudgetApifyError, match='fresh complete'):
+        mod._retrieve_private_file((client, 'bucket', 'key', None, now),
+                                   tmp_path / 'part', 635, '1080',
+                                   mod.time.monotonic() + 30)
+
+    client.get_object.assert_called_once_with(Bucket='bucket', Key='key', VersionId='new')
+    stream.iter_chunks.assert_called_once()
     stream.close.assert_called_once()
 
 
@@ -374,7 +450,7 @@ def test_completed_private_delivery_still_rejects_low_quality(config, tmp_path, 
         {'codec_type': 'video', 'width': 640, 'height': 360}, {'codec_type': 'audio'}
     ]}
     monkeypatch.setattr(mod.subprocess, 'run', lambda *a, **k: SimpleNamespace(stdout=json.dumps(probe)))
-    with pytest.raises(mod.BudgetApifyError, match='incomplete or invalid media'):
+    with pytest.raises(mod.BudgetApifyError, match='received 640x360; minimum requested quality 1080p'):
         mod.download_budget_apify(VIDEO, tmp_path, '1080', 'secret')
     assert not list(tmp_path.iterdir())
 
@@ -391,9 +467,10 @@ def test_private_preflight_allows_hidden_missing_key_without_list_permission(con
               "WRITER_SECRET_ACCESS_KEY": "test-writer-secret", "READER_ACCESS_KEY_ID": "test-reader",
               "READER_SECRET_ACCESS_KEY": "test-reader-secret"}
     for name, value in values.items(): monkeypatch.setenv("APIFY_STORAGE_" + name, value)
-    storage, body = mod._private_storage(VIDEO, "1080", 600)
+    storage, body = mod._private_storage(VIDEO, "1080", 300)
     assert storage[3] is None
     assert body["quality"] == "1080"
+    assert body["maxWaitSec"] == 270
     with pytest.raises(mod.BudgetApifyError, match="fresh complete"):
         mod._retrieve_private_file(storage, tmp_path / 'part', 635, "1080", mod.time.monotonic() + 30)
 
@@ -411,3 +488,54 @@ def test_signed_adapter_uses_configured_metadata_without_google_key(config, tmp_
     monkeypatch.setattr(mod, "_verify_media", lambda *a: None)
     assert mod.download_budget_apify(VIDEO, tmp_path, "1080", "test-token").is_file()
     metadata.assert_called_once()
+
+
+def test_router_key_preserves_ordered_apify_fallbacks_and_shared_budget(config, tmp_path, monkeypatch):
+    monkeypatch.setenv('APIFY_EXPENSIVE_FALLBACKS', 'true')
+    config.rapidapi_youtube_api_key = 'test-key'
+    monkeypatch.setenv('APIFY_YOUTUBE_FALLBACK_ACTORS', URLS + ',' + SIGNED)
+    calls = []
+    def run(actor, *args):
+        calls.append((actor, args[-1]))
+        raise mod.BudgetApifyError('timed out', spent=.02 if actor == FILE else 1)
+    monkeypatch.setattr(mod, '_run', run)
+    with pytest.raises(mod.BudgetApifyError):
+        mod.download_budget_apify(VIDEO, tmp_path, '1080', 'secret')
+    assert calls == [(FILE, .02), (URLS, 5.98), (SIGNED, 4.98)]
+
+
+def test_provider_timeout_aborts_before_next_fallback(config, tmp_path, monkeypatch):
+    monkeypatch.setenv('APIFY_EXPENSIVE_FALLBACKS', 'true')
+    # A stalled actor must not consume the extra file-transfer allowance.
+    pool = [dict(p, run_timeout_seconds=300) for p in PROVIDERS]
+    monkeypatch.setenv('APIFY_YOUTUBE_PROVIDERS', json.dumps(pool))
+    monkeypatch.setenv('APIFY_YOUTUBE_FALLBACK_ACTORS', URLS)
+    now = [1000.0]
+    monkeypatch.setattr(mod.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(mod.time, 'sleep', lambda seconds: now.__setitem__(0, now[0] + seconds))
+    events = []
+    def api(session, method, path, deadline, **kwargs):
+        if method == 'POST':
+            if FILE.replace('/', '~') in path:
+                assert kwargs['params']['timeout'] == 300
+                assert deadline == 1300
+                return {'data': {'id': 'stalled', 'status': 'RUNNING'}}
+            events.append('fallback')
+            assert now[0] == 1300
+            return {'data': {'id': 'next', 'status': 'SUCCEEDED', 'defaultDatasetId': 'ds'}}
+        if path == 'actor-runs/stalled':
+            mod._remaining(deadline)
+            return {'data': {'id': 'stalled', 'status': 'RUNNING'}}
+        return [dict(record(), status='success', downloadUrl='https://cdn.example.com/video.mp4')]
+    monkeypatch.setattr(mod, '_api', api)
+    session = Mock()
+    session.headers = {}
+    session.__enter__ = Mock(return_value=session)
+    session.__exit__ = Mock(return_value=False)
+    session.post.side_effect = lambda *a, **kw: (events.append('abort'), Mock())[1]
+    monkeypatch.setattr(mod.requests, 'Session', lambda: session)
+    monkeypatch.setattr(mod, '_download', lambda url, path, *a, **kw: path.write_bytes(b'video'))
+    monkeypatch.setattr(mod, '_verify_media', lambda *a: None)
+    assert mod.download_budget_apify(VIDEO, tmp_path, '1080', 'secret').is_file()
+    assert events == ['abort', 'fallback']
+    assert not list(tmp_path.glob('*/' + VIDEO + '.mp4.part'))

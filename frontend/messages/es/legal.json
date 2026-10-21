@@ -26,7 +26,7 @@
     },
     "billing": {
       "title": "Suscripciones y facturación",
-      "p1": "Los planes de pago (por ejemplo Pro y Scale) desbloquean límites mensuales más altos de generación de clips. El mismo derecho del plan se aplica a tu cuenta sin importar dónde lo hayas comprado.",
+      "p1": "Los planes de pago (por ejemplo Pro y Creator) incluyen una asignación mensual de minutos de vídeo de origen y una resolución máxima de salida. Cada vídeo consume su duración completa, redondeada al minuto, cuando empieza el procesamiento; los trabajos que fallan sin generar clips no cuentan. Las asignaciones se renuevan cada mes, también en los planes anuales, y los minutos no usados no se acumulan. El mismo derecho del plan se aplica a tu cuenta independientemente de dónde lo hayas comprado.",
       "webLabel": "Compras en la web.",
       "web": "Las suscripciones web las cobra mensualmente nuestro procesador de pagos, Stripe. Se renuevan automáticamente hasta que las canceles. Puedes cancelar cuando quieras desde el portal de facturación en Configuración; el acceso continúa hasta el final del período pagado.",
       "iosLabel": "Compras en la app de iOS.",

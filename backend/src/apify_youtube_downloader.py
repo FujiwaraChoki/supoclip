@@ -29,6 +29,10 @@ ALLOWED_APIFY_QUALITIES = {"360", "480", "720", "1080", "1440", "2160"}
 class ApifyDownloadError(RuntimeError):
     """Raised when the Apify YouTube download flow cannot produce a local file."""
 
+    def __init__(self, message: str, *, permanent: bool = False):
+        super().__init__(message)
+        self.permanent = permanent
+
 
 def normalize_apify_quality(value: Optional[str]) -> str:
     normalized = (value or "").strip()
@@ -189,7 +193,7 @@ def download_video_via_apify(
                 resolved_token,
             )
         except BudgetApifyError as exc:
-            raise ApifyDownloadError(str(exc)) from None
+            raise ApifyDownloadError(str(exc), permanent=exc.permanent) from None
 
     resolved_quality = normalize_apify_quality(
         quality or config.apify_youtube_default_quality

@@ -228,15 +228,19 @@ def build_hook_title_ass(
     outline = hex_to_ass_color(template.get("stroke_color") or "#000000", "#000000")
     back_color = hex_to_ass_color(template.get("background_color"), "#00000080")
 
-    # Slightly smaller than the captions so the spoken words stay the hero.
-    base_px = max(34, min(66, int(caption_font_px * 0.82)))
+    # Larger than the captions: the headline is what a scrolling viewer reads
+    # before the spoken line. Long titles wrap to two lines, and a line that
+    # still does not fit (a long compound word, or two long lines) shrinks
+    # below the preferred size so it is not clipped at the frame edge.
+    base_px = min(96, max(caption_font_px + 8, int(round(caption_font_px * 1.35))))
     usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_TOP_MARGIN_FRAC))
     max_chars = max(10, int(usable_width / (base_px * 0.52)))
     lines = _balance_title_lines(title_text.split(), max_chars)
     longest = max(len(line) for line in lines)
     hook_px = base_px
     if longest > max_chars:
-        hook_px = max(30, min(base_px, int(usable_width / (longest * 0.52))))
+        fitted = int(usable_width / (longest * 0.52))
+        hook_px = min(base_px, max(1, fitted))
 
     base_stroke = int(template.get("stroke_width", 3) or 0)
     has_outline = template.get("stroke_color") is not None and base_stroke > 0

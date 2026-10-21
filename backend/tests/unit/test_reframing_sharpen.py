@@ -25,8 +25,11 @@ def test_static_vertical_crop_sharpens_after_upscale():
         patch.object(reframing, "analyze_vertical_clip", return_value=([], [])),
         patch.object(reframing, "detect_optimal_crop_region", return_value=(656, 0, 608, 1080)),
     ):
-        video_filter, mode = reframing.build_vertical_filter_plan(Path("in.mp4"), 1920, 1080)
+        video_filter, mode, caption_y = reframing.build_vertical_filter_plan(
+            Path("in.mp4"), 1920, 1080
+        )
 
+    assert caption_y is None
     assert mode == "vf"
     assert video_filter.endswith(
         f"scale=1080:1920:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1"

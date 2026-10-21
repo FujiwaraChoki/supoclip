@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { intlLocale } from "@/i18n/config";
 import { HOSTED_APP_URL, getSiteUrl } from "@/lib/blog-posts";
 
-const LAST_UPDATED = "2026-07-02";
+const LAST_UPDATED = "2026-10-21";
 const CONTACT_EMAIL = "support@supoclip.com";
 
 function formatLegalDate(locale: string) {

@@ -23,7 +23,7 @@
   "offer": {
     "heading": "每个人能得到什么",
     "youTitle": "你免费获得 SupoClip Pro",
-    "youDetail": "Pro 通常为每月 ${price}，包含每月 {limit} 个视频。获批的创作者在计划期间免费使用。",
+    "youDetail": "Pro 通常为每月 ${price}，每月包含 {limit} 小时视频。获批的创作者在参与计划期间可免费使用。",
     "youDetailNoLimit": "Pro 通常为每月 ${price}。获批的创作者在计划期间免费使用。",
     "audienceTitle": "你的观众享 20% 折扣",
     "audienceDetail": "任意方案的前 3 个月。通过你的链接，或在结账时输入你的代码即可。"

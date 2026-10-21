@@ -10,6 +10,7 @@ from src.config import Config
 from src.media_storage import MediaStorage
 from src.services import social_service as social_module
 from src.services.social_service import (
+    SocialPlanRequired,
     SocialNotFound,
     SocialService,
     SocialValidationError,
@@ -548,6 +549,32 @@ async def test_create_post_queues_immediately_and_snapshots_clip(service):
     assert service.queue_adapter.jobs == [
         ("publish_social_post", (post["id"],), {"_job_id": f"social:{post['id']}:0"})
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("plan,can_schedule", [("pro", False), ("scale", True)])
+async def test_scheduling_follows_the_plan_but_publishing_now_does_not(service, monkeypatch, plan, can_schedule):
+    async def summary(_self, _user_id):
+        return {"plan": plan, "can_schedule_posts": can_schedule}
+
+    monkeypatch.setattr(social_module.BillingService, "get_usage_summary", summary)
+    account = await _connect(service)
+    when = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+    post_args = dict(
+        task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title="t", caption="c", hashtags=None, privacy_level="private",
+    )
+
+    if can_schedule:
+        scheduled = await service.create_post("user-1", **post_args, scheduled_for=when)
+        assert scheduled["status"] == "scheduled"
+    else:
+        with pytest.raises(SocialPlanRequired) as error:
+            await service.create_post("user-1", **post_args, scheduled_for=when)
+        assert error.value.status_code == 402
+        assert "Creator plan" in str(error.value)
+    published = await service.create_post("user-1", **post_args, scheduled_for=None)
+    assert published["status"] == "queued"
 
 
 @pytest.mark.asyncio

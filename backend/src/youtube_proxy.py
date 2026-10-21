@@ -14,6 +14,8 @@ import re
 import shutil
 import subprocess
 import threading
+import time
+from contextlib import contextmanager
 from itertools import islice
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -44,6 +46,41 @@ class DownloadBudgetExceeded(YouTubeDownloadError):
 
 class PartialDownloadUnavailable(YouTubeDownloadError):
     """The formats cannot be sliced without an ffmpeg network fetch."""
+
+
+class DownloadDeadlineExceeded(YouTubeDownloadError):
+    """One proxy attempt expired; independent providers may still be tried."""
+
+
+def _check_deadline(options: dict) -> float:
+    deadline = options.get("_youtube_deadline")
+    remaining = deadline - time.monotonic() if deadline is not None else 20.0
+    if remaining <= 0:
+        raise DownloadDeadlineExceeded("Residential proxy download attempt timed out")
+    return remaining
+
+
+@contextmanager
+def _proxy_client(options: dict):
+    import yt_dlp
+    from yt_dlp.networking import Request
+
+    _check_deadline(options)
+    with yt_dlp.YoutubeDL(options) as client:
+        if "_youtube_deadline" in options:
+            original_open = client.urlopen
+
+            def bounded_open(request):
+                remaining = _check_deadline(options)
+                if isinstance(request, str):
+                    request = Request(request)
+                # Bound each socket operation by the remaining attempt time.
+                request.extensions["timeout"] = min(20.0, remaining)
+                return original_open(request)
+
+            client.urlopen = bounded_open
+        yield client
+        _check_deadline(options)
 
 
 class ByteBudget:
@@ -183,8 +220,8 @@ def base_proxy_params(task_id: Optional[str] = None, video_id: Optional[str] = N
         # yt-dlp treats 0.0.0.0 as "force IPv4" (the -4 flag).
         "source_address": "0.0.0.0",
         "socket_timeout": 30,
-        "retries": 3,
-        "fragment_retries": 5,
+        "retries": 1,
+        "fragment_retries": 1,
         "concurrent_fragment_downloads": 4,
         "noplaylist": True,
         "quiet": True,
@@ -233,7 +270,16 @@ def download_options(
 ) -> dict[str, Any]:
     """Options for a native yt-dlp download. Never sets ``download_ranges``."""
     options = base_proxy_params(task_id, video_id)
-    options["progress_hooks"] = [_progress_hook(budget, seen if seen is not None else {})]
+    options["_youtube_deadline"] = time.monotonic() + max(
+        30, getattr(get_config(), "youtube_proxy_timeout_seconds", 300)
+    )
+    count_bytes = _progress_hook(budget, seen if seen is not None else {})
+
+    def bounded_progress(status):
+        _check_deadline(options)
+        count_bytes(status)
+
+    options["progress_hooks"] = [bounded_progress]
     # Guard: section cuts must not be delegated to ffmpeg's protocol handler.
     options.pop("download_ranges", None)
     return options
@@ -446,7 +492,7 @@ def expand_hls_format(fmt: dict, options: dict, budget: ByteBudget, duration: fl
 
     address = _hls_url(fmt["url"], fmt["url"])
     try:
-        with yt_dlp.YoutubeDL(options) as ydl:
+        with _proxy_client(options) as ydl:
             response = ydl.urlopen(Request(address, headers=fmt.get("http_headers") or {}))
             try:
                 base_url = _hls_url(address, response.url)
@@ -457,10 +503,10 @@ def expand_hls_format(fmt: dict, options: dict, budget: ByteBudget, duration: fl
         if len(payload) > 4_000_000:
             raise PartialDownloadUnavailable("HLS playlist exceeds its size limit")
         fragments = parse_hls_fragments(payload.decode("utf-8"), base_url, duration)
-    except (DownloadBudgetExceeded, PartialDownloadUnavailable):
+    except (DownloadBudgetExceeded, DownloadDeadlineExceeded, PartialDownloadUnavailable):
         raise
     except Exception:
-        raise PartialDownloadUnavailable("Could not read a complete HLS media playlist") from None
+        raise YouTubeDownloadError("Could not fetch the HLS media playlist through the proxy") from None
     return dict(fmt, fragments=fragments)
 
 
@@ -592,7 +638,7 @@ def native_download_format(
     # Section metadata would make yt-dlp pick FFmpegFD and bypass the proxy.
     info.pop("section_start", None)
     info.pop("section_end", None)
-    with yt_dlp.YoutubeDL(params) as ydl:
+    with _proxy_client(params) as ydl:
         ydl.process_info(info)
     return _find_download(dest_stem)
 
@@ -603,7 +649,7 @@ def extract_video_info(url: str, options: dict[str, Any]) -> dict:
     params = dict(options)
     params.pop("download_ranges", None)
     params.update({"skip_download": True, "quiet": True, "noplaylist": True})
-    with yt_dlp.YoutubeDL(params) as ydl:
+    with _proxy_client(params) as ydl:
         info = ydl.extract_info(url, download=False)
     if not isinstance(info, dict):
         raise YouTubeDownloadError("yt-dlp returned no video info")
@@ -755,6 +801,7 @@ def download_full_with_proxy(
     *,
     task_id: Optional[str] = None,
     budget: Optional[ByteBudget] = None,
+    quality: Optional[str] = None,
 ) -> Path:
     """Full-file fallback through the proxy, capped at 1080p, native downloader."""
     import yt_dlp
@@ -766,13 +813,13 @@ def download_full_with_proxy(
     dest_dir.mkdir(parents=True, exist_ok=True)
     options = download_options(task_id, video_id, counter, seen=seen)
     options.update({
-        "format": video_format_selector(),
+        "format": video_format_selector(int(quality) if quality else None),
         "merge_output_format": "mp4",
         "outtmpl": str(dest_dir / f"{video_id}.%(ext)s"),
     })
     options.pop("download_ranges", None)
     try:
-        with yt_dlp.YoutubeDL(options) as ydl:
+        with _proxy_client(options) as ydl:
             ydl.download([url])
         path = _find_download(dest_dir / video_id)
         _account_file(path, counter, before)

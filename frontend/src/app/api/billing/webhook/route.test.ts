@@ -29,7 +29,73 @@ describe("/api/billing/webhook", () => {
       STRIPE_WEBHOOK_SECRET: "whsec_test",
       STRIPE_PRO_PRICE_ID: "price_pro",
       STRIPE_SCALE_PRICE_ID: "price_scale",
+      STRIPE_PRO_ANNUAL_PRICE_ID: "price_pro_annual",
+      STRIPE_PRO_LEGACY_PRICE_IDS: "price_pro_2025, price_pro_2026_03",
     };
+  });
+
+  async function sendSubscriptionEvent(status: string, priceId: string) {
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    vi.mocked(getServerStripeClient).mockReturnValue({
+      webhooks: {
+        constructEvent: vi.fn().mockReturnValue({
+          id: `evt_${status}_${priceId}`,
+          type: "customer.subscription.updated",
+          data: {
+            object: {
+              id: "sub_123",
+              customer: "cus_123",
+              status,
+              trial_end: null,
+              items: {
+                data: [{ price: { id: priceId }, current_period_start: 1770000000, current_period_end: 1801536000 }],
+              },
+            },
+          },
+        }),
+      },
+    } as never);
+    vi.mocked(getPrismaClient).mockReturnValue({
+      stripeWebhookEvent: { create: vi.fn().mockResolvedValue({}), delete: vi.fn().mockResolvedValue({}) },
+      user: { updateMany },
+    } as never);
+    const response = await POST(
+      new Request("http://localhost/api/billing/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      }),
+    );
+    expect(response.status).toBe(200);
+    return updateMany.mock.calls[0][0].data as Record<string, unknown>;
+  }
+
+  it("maps an annual price to its plan", async () => {
+    const data = await sendSubscriptionEvent("active", "price_pro_annual");
+    expect(data.plan).toBe("pro");
+    expect(data).not.toHaveProperty("legacy_hd");
+  });
+
+  it("ends grandfathered 1080p when the subscription is cancelled", async () => {
+    const data = await sendSubscriptionEvent("canceled", "price_pro");
+    expect(data.plan).toBe("free");
+    expect(data.legacy_hd).toBe(false);
+  });
+
+  it("keeps subscribers on an earlier Pro price on Pro, with 1080p", async () => {
+    const data = await sendSubscriptionEvent("active", "price_pro_2026_03");
+    expect(data.plan).toBe("pro");
+    expect(data.legacy_hd).toBe(true);
+  });
+
+  it("does not grandfather the current Pro price", async () => {
+    const data = await sendSubscriptionEvent("active", "price_pro");
+    expect(data).not.toHaveProperty("legacy_hd");
+  });
+
+  it("keeps grandfathered 1080p through a failed payment", async () => {
+    const data = await sendSubscriptionEvent("past_due", "price_pro");
+    expect(data).not.toHaveProperty("legacy_hd");
   });
 
   afterAll(() => {

@@ -31,7 +31,11 @@
     "pickPlan": "Pick a plan to start clipping",
     "moreWith": "Get more with {name}",
     "left": "{count} left this period",
-    "videosThisPeriod": "videos this period"
+    "videosThisPeriod": "videos this period",
+    "minutesOf": "{used} / {limit} min",
+    "minutes": "{used} min",
+    "minutesLeft": "{count} min left this month",
+    "minutesThisMonth": "minutes of video this month"
   },
   "user": {
     "creator": "Creator",

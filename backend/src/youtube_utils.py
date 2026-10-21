@@ -29,6 +29,7 @@ from .youtube_proxy import (
     redact_secrets,
     video_format_selector,
 )
+from .rapidapi_youtube_downloader import RapidAPIDownloadError, download_video_via_rapidapi
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ YOUTUBE_METADATA_PROVIDER_YTDLP = "yt_dlp"
 YOUTUBE_METADATA_PROVIDER_DATA_API = "youtube_data_api"
 YOUTUBE_DOWNLOAD_PROVIDER_YTDLP = "yt_dlp"
 YOUTUBE_DOWNLOAD_PROVIDER_APIFY = "apify"
+YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI = "rapidapi"
 YOUTUBE_DATA_API_URL = "https://www.googleapis.com/youtube/v3/videos"
 
 
@@ -49,15 +51,20 @@ class YouTubeDownloader:
     def get_optimal_download_options(
         self,
         video_id: str,
+        max_height: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Get optimal yt-dlp options for high-quality downloads."""
+        """Get optimal yt-dlp options for high-quality downloads.
+
+        ``max_height`` caps the video height for plans with a lower output
+        resolution, falling back to the best stream if nothing fits.
+        """
         output_path = self.temp_dir / f"{video_id}.%(ext)s"
 
         opts = {
             "outtmpl": str(output_path),
             # Cap at 1080p. Vertical clips are 1080x1920, and a 4K source
             # multiplies bandwidth without improving the export.
-            "format": video_format_selector(),
+            "format": video_format_selector(max_height),
             "format_sort": ["res", "fps"],
             "merge_output_format": "mp4",
             "writesubtitles": False,
@@ -465,10 +472,13 @@ async def async_get_youtube_video_title(url: str) -> Optional[str]:
 APIFY_LONG_VIDEO_MAX_QUALITY = "1080"
 
 
-def _resolve_apify_quality(url: str) -> str:
-    """Cap long videos at 1080p so the Apify run finishes before its timeout."""
+def _resolve_apify_quality(url: str, requested: Optional[str] = None) -> str:
+    """Pick the Apify quality: the plan's cap when lower than the default, and
+    at most 1080p for long videos so the run finishes before its timeout."""
     config = get_config()
     quality = config.apify_youtube_default_quality
+    if requested and int(requested) < int(quality):
+        quality = requested
     if int(quality) <= int(APIFY_LONG_VIDEO_MAX_QUALITY):
         return quality
 
@@ -493,10 +503,11 @@ def _resolve_apify_quality(url: str) -> str:
 def download_youtube_video_with_apify(
     url: str,
     video_id: str,
+    quality: Optional[str] = None,
 ) -> Path:
     config = get_config()
     downloader = YouTubeDownloader()
-    quality = _resolve_apify_quality(url)
+    quality = _resolve_apify_quality(url, quality)
     logger.info(
         "Attempting Apify YouTube download for %s with quality %s",
         video_id,
@@ -515,6 +526,7 @@ def _download_youtube_video_with_ytdlp(
     url: str,
     max_retries: int = 3,
     task_id: Optional[str] = None,
+    quality: Optional[str] = None,
 ) -> Optional[Path]:
     """
     Download YouTube video with optimized settings and retry logic.
@@ -548,7 +560,9 @@ def _download_youtube_video_with_ytdlp(
         try:
             logger.info("Download attempt %s/%s", attempt + 1, max_retries)
 
-            ydl_opts = downloader.get_optimal_download_options(video_id)
+            ydl_opts = downloader.get_optimal_download_options(
+                video_id, int(quality) if quality else None
+            )
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
@@ -614,19 +628,22 @@ def _download_youtube_video_with_ytdlp(
 
 
 def _provider_order(config, *, skip_proxy: bool) -> list[str]:
-    """Proxy yt-dlp first when configured, then the existing chain."""
+    """Proxy, API Router, bounded Apify pool, then direct yt-dlp."""
     order: list[str] = []
     if proxy_configured(config) and not skip_proxy:
         order.append(YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY)
+    # A configured proxy always uses the independent paid backups before
+    # retrying yt-dlp from the same datacenter that YouTube already blocks.
     primary = config.youtube_download_provider
-    secondary = (
-        YOUTUBE_DOWNLOAD_PROVIDER_APIFY
-        if primary == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
-        else YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
-    )
-    for provider in (primary, secondary):
-        if provider not in order:
-            order.append(provider)
+    paid = [YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI, YOUTUBE_DOWNLOAD_PROVIDER_APIFY]
+    if proxy_configured(config) or primary == YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI:
+        rest = [*paid, YOUTUBE_DOWNLOAD_PROVIDER_YTDLP]
+    elif primary == YOUTUBE_DOWNLOAD_PROVIDER_APIFY:
+        rest = [YOUTUBE_DOWNLOAD_PROVIDER_APIFY, YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI,
+                YOUTUBE_DOWNLOAD_PROVIDER_YTDLP]
+    else:
+        rest = [YOUTUBE_DOWNLOAD_PROVIDER_YTDLP, *paid]
+    order.extend(rest)
     return order
 
 
@@ -646,6 +663,7 @@ def download_youtube_video(
     url: str,
     max_retries: int = 3,
     task_id: Optional[str] = None,
+    quality: Optional[str] = None,
     *,
     budget: Optional[ByteBudget] = None,
     skip_proxy: bool = False,
@@ -675,18 +693,31 @@ def download_youtube_video(
         try:
             if provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY:
                 downloaded_path = download_full_with_proxy(
-                    url, video_id, downloader.temp_dir, task_id=task_id, budget=job_budget,
+                    url, video_id, downloader.temp_dir, task_id=task_id, budget=job_budget, quality=quality,
+                )
+            elif provider == YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI:
+                if not config.rapidapi_youtube_api_key:
+                    continue
+                downloaded_path = download_video_via_rapidapi(
+                    video_id, downloader.temp_dir, config.rapidapi_youtube_api_key,
+                    quality=_resolve_apify_quality(url, quality),
+                    timeout_seconds=config.rapidapi_youtube_timeout_seconds,
                 )
             elif provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP:
-                downloaded_path = _download_youtube_video_with_ytdlp(url, max_retries, task_id)
+                downloaded_path = _download_youtube_video_with_ytdlp(url, max_retries, task_id, quality)
             else:
                 if not config.apify_api_token:
                     logger.info("APIFY_API_TOKEN not set; skipping Apify download for %s", url)
                     continue
-                downloaded_path = download_youtube_video_with_apify(url, video_id)
+                downloaded_path = download_youtube_video_with_apify(url, video_id, quality)
         except DownloadBudgetExceeded as exc:
             _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
             raise
+        except ApifyDownloadError as exc:
+            _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
+            if exc.permanent:
+                return None
+            continue
         except Exception as exc:
             _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
             logger.warning(
@@ -726,6 +757,7 @@ async def async_download_youtube_video(
     url: str,
     max_retries: int = 3,
     task_id: Optional[str] = None,
+    quality: Optional[str] = None,
     *,
     budget: Optional[ByteBudget] = None,
     skip_proxy: bool = False,
@@ -736,6 +768,7 @@ async def async_download_youtube_video(
         url,
         max_retries,
         task_id,
+        quality,
         budget=budget,
         skip_proxy=skip_proxy,
     )
@@ -794,7 +827,7 @@ def cleanup_downloaded_files(video_id: str, source_path: Optional[Path] = None):
 
     temp_dir = Path(get_config().temp_dir)
     provider_dir = False
-    if source_path is not None and source_path.parent.name.startswith(f"apify-{video_id}-"):
+    if source_path is not None and source_path.parent.name.startswith((f"apify-{video_id}-", f"rapidapi-{video_id}-")):
         candidate = source_path.parent.resolve()
         if candidate.parent != temp_dir.resolve():
             logger.warning("Refusing source cleanup outside the configured download directory")

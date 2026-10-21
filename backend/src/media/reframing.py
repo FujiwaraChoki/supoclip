@@ -684,42 +684,58 @@ def _open_face_detectors():
     return open_yunet_detector(), open_haar_cascade()
 
 
-def _detect_dominant_face(frame_bgr, face_detector, haar) -> Optional[Tuple[float, float]]:
-    """Return (center_x_fraction, area_fraction) of the dominant face, or None."""
+def _detect_face_boxes(frame_bgr, face_detector, haar) -> List[Tuple[float, float, float, float]]:
+    """All face boxes (x, y, w, h) in a frame, largest first. Frame-pixel coordinates."""
     h, w = frame_bgr.shape[:2]
     frame_area = float(max(1, w * h))
-    best: Optional[Tuple[float, float, float]] = None  # (score, cx, area_frac)
+    boxes: List[Tuple[float, float, float, float, float]] = []
 
     if face_detector is not None:
         try:
             for fx, fy, fw, fh, conf in face_detector.detect(frame_bgr):
-                score = fw * fh * conf
-                if fw > 10 and fh > 10 and (best is None or score > best[0]):
-                    best = (score, fx + fw / 2.0, (fw * fh) / frame_area)
+                if fw > 10 and fh > 10:
+                    boxes.append((float(fw * fh * conf), float(fx), float(fy), float(fw), float(fh)))
         except Exception as exc:
             logger.debug("YuNet detection failed on frame: %s", exc)
 
-    if best is None:
+    if not boxes:
         try:
             gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
             min_side = max(14, int(w * 0.04))
-            faces = haar.detectMultiScale(
+            for (fx, fy, fw, fh) in haar.detectMultiScale(
                 gray,
                 scaleFactor=1.2,  # coarser scale steps -> ~2x faster
                 minNeighbors=3,
                 minSize=(min_side, min_side),
                 maxSize=(int(w * 0.7), int(h * 0.7)),
-            )
-            for (fx, fy, fw, fh) in faces:
-                score = float(fw * fh)
-                if best is None or score > best[0]:
-                    best = (score, fx + fw / 2.0, (fw * fh) / frame_area)
+            ):
+                boxes.append((float(fw * fh), float(fx), float(fy), float(fw), float(fh)))
         except Exception:
             pass
 
-    if best is None:
+    boxes.sort(key=lambda item: item[0], reverse=True)
+    kept: List[Tuple[float, float, float, float]] = []
+    for _, fx, fy, fw, fh in boxes:
+        if (fw * fh) / frame_area < FACE_PRESENCE_MIN_AREA:
+            continue
+        cx, cy = fx + fw / 2, fy + fh / 2
+        if any(k[0] <= cx <= k[0] + k[2] and k[1] <= cy <= k[1] + k[3] for k in kept):
+            continue
+        kept.append((fx, fy, fw, fh))
+        if len(kept) >= 6:
+            break
+    return kept
+
+
+def _detect_dominant_face(frame_bgr, face_detector, haar) -> Optional[Tuple[float, float]]:
+    """Return (center_x_fraction, area_fraction) of the dominant face, or None."""
+    h, w = frame_bgr.shape[:2]
+    frame_area = float(max(1, w * h))
+    boxes = _detect_face_boxes(frame_bgr, face_detector, haar)
+    if not boxes:
         return None
-    return best[1] / w, best[2]
+    fx, fy, fw, fh = max(boxes, key=lambda box: box[2] * box[3])
+    return (fx + fw / 2.0) / w, (fw * fh) / frame_area
 
 
 def _scene_cuts_from_diffs(diffs: List[Tuple[float, float]]) -> List[float]:
@@ -746,18 +762,23 @@ def analyze_vertical_clip(
     *,
     sample_fps: float = 3.0,
     proc_width: int = 480,
-) -> Tuple[List[Tuple[float, Optional[float], float]], List[float]]:
+) -> Tuple[
+    List[Tuple[float, Optional[float], float]],
+    List[float],
+    List[Tuple[float, List[Tuple[float, float, float, float]]]],
+]:
     """Fast single-pass clip analysis: face track + scene cuts in one decode.
 
     Replaces slow per-sample random seeks (and a separate scene-detect pass) with
     a single sequential ffmpeg decode at low fps/resolution, piped straight into
     lightweight face detection. Scene cuts come from frame differences computed
-    in the same pass. Returns (track, scene_cuts) where track entries are
-    (t, center_x_in_source_px or None, area_frac).
+    in the same pass. Returns (track, scene_cuts, face_samples) where track
+    entries are (t, center_x_in_source_px or None, area_frac) and face_samples
+    are (t, [(x, y, w, h), ...]) in source pixels.
     """
     width, height = ffprobe_video_size(input_path)
     if width <= 0 or height <= 0:
-        return [], []
+        return [], [], []
     proc_w = round_to_even(min(proc_width, width))
     proc_h = round_to_even(max(2, int(round(proc_w * height / width))))
     frame_bytes = proc_w * proc_h * 3
@@ -775,13 +796,16 @@ def analyze_vertical_clip(
         )
     except Exception as exc:
         logger.warning("analyze_vertical_clip: ffmpeg spawn failed (%s)", exc)
-        return [], []
+        return [], [], []
 
     face_detector, haar = _open_face_detectors()
     track: List[Tuple[float, Optional[float], float]] = []
+    face_samples: List[Tuple[float, List[Tuple[float, float, float, float]]]] = []
     diffs: List[Tuple[float, float]] = []
     prev_small = None
     idx = 0
+    scale_x = width / proc_w
+    scale_y = height / proc_h
     try:
         while True:
             raw = proc.stdout.read(frame_bytes)
@@ -789,12 +813,17 @@ def analyze_vertical_clip(
                 break
             frame = np.frombuffer(raw, dtype=np.uint8).reshape(proc_h, proc_w, 3)
             t = idx / sample_fps
-            face = _detect_dominant_face(frame, face_detector, haar)
-            if face is None:
+            boxes = _detect_face_boxes(frame, face_detector, haar)
+            if not boxes:
                 track.append((t, None, 0.0))
+                face_samples.append((t, []))
             else:
-                cx_frac, area = face
-                track.append((t, cx_frac * width, area))
+                fx, fy, fw, fh = max(boxes, key=lambda box: box[2] * box[3])
+                area = (fw * fh) / float(proc_w * proc_h)
+                track.append((t, (fx + fw / 2.0) * scale_x, area))
+                face_samples.append(
+                    (t, [(bx * scale_x, by * scale_y, bw * scale_x, bh * scale_y) for bx, by, bw, bh in boxes])
+                )
             small = cv2.resize(frame, (32, 18)).astype(np.int16)
             if prev_small is not None:
                 diffs.append((t, float(np.mean(np.abs(small - prev_small)))))
@@ -807,7 +836,7 @@ def analyze_vertical_clip(
             pass
         proc.wait()
 
-    return track, _scene_cuts_from_diffs(diffs)
+    return track, _scene_cuts_from_diffs(diffs), face_samples
 
 
 def _median_filter(values: List[float], window: int = 3) -> List[float]:
@@ -1114,32 +1143,52 @@ def build_vertical_filter_plan(
     height: int,
     speaker_turns: Optional[List[Dict[str, Any]]] = None,
     speaker_words: Optional[List[Dict[str, Any]]] = None,
-) -> Tuple[str, str]:
+) -> Tuple[str, str, Optional[float]]:
     """Build the 9:16 reframing filter for the default vertical mode.
 
-    Returns (filter, mode): mode 'vf' is a simple crop chain; mode 'complex' is a
-    filter_complex producing [vout]. Talking-head-only clips use the cheap
-    tracked crop; clips containing content shots use the scene-aware compositor
-    so tweets / graphs / slides are shown in full instead of being cropped.
-    With diarized speaker turns, multi-person wide shots cut to whoever is
-    talking (see ``speaker_framing``); otherwise the dominant face is tracked.
+    Returns (filter, mode, caption_y). mode 'vf' is a simple crop chain; mode
+    'complex' is a filter_complex producing [vout]. caption_y is a 0-1 output
+    fraction that keeps captions off the detected face, or None to keep the
+    template default.
+
+    All-face clips use a face-aware layout when the subject would otherwise
+    sit low in a full-height crop (stacked call tiles, a wider stage for one
+    webcam, or the whole gallery). Well-framed closeups keep the tracked crop.
+    Clips containing content shots use the scene-aware compositor so tweets /
+    graphs / slides are shown in full. With diarized speaker turns, multi-person
+    wide shots that are not a video-call grid cut to whoever is talking.
     """
+    from .talking_head_layout import (
+        caption_y_below_subject,
+        choose_talking_head_layout,
+        dominant_face_bottom,
+    )
+
     crop_w, crop_h = compute_vertical_crop_dims(width, height)
     duration = ffprobe_duration(input_path)
+
+    def bleed_caption(samples) -> Optional[float]:
+        bottom = dominant_face_bottom(samples, height)
+        if bottom is None:
+            return None
+        adjusted = caption_y_below_subject(bottom)
+        return adjusted if adjusted > 0.805 else None
 
     # Narrow/portrait source: no horizontal room to crop — static fit, with a
     # slow punch-in so the frame still breathes.
     if crop_w >= width:
         sx, sy, sw, sh = detect_optimal_crop_region(input_path, 0, min(duration, 12.0))
         tail = kenburns_zoom_fragment(duration) or VERTICAL_SCALE_CHAIN
-        return (f"crop={sw}:{sh}:{sx}:{sy},{tail}", "vf")
+        return (f"crop={sw}:{sh}:{sx}:{sy},{tail}", "vf", None)
 
-    # One fast decode pass yields both the face track and the scene cuts.
+    # One fast decode pass yields the face track, face boxes, and scene cuts.
     try:
-        track, scene_cuts = analyze_vertical_clip(input_path)
+        analyzed = analyze_vertical_clip(input_path)
     except Exception as exc:
         logger.warning("Clip analysis failed (%s); using static crop", exc)
-        track, scene_cuts = [], []
+        analyzed = ([], [], [])
+    track, scene_cuts = analyzed[0], analyzed[1]
+    face_samples = analyzed[2] if len(analyzed) > 2 else []
 
     keys = build_crop_trajectory(track, width, crop_w) if track else []
     moving = bool(keys and trajectory_has_movement(keys, crop_w))
@@ -1160,6 +1209,14 @@ def build_vertical_filter_plan(
     # Decide the layout over time. All-face clips skip the compositor (cheaper).
     plan = build_layout_plan(track, scene_cuts, duration)
     fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "fit"]
+    if not fit_intervals:
+        talking = choose_talking_head_layout(width, height, face_samples, scene_cuts)
+        if talking:
+            logger.info(
+                "Face-aware vertical layout: %s (upscale %.2fx, caption_y %.2f)",
+                talking["kind"], talking["upscale"], talking["caption_y"],
+            )
+            return (talking["video_filter"], "complex", talking["caption_y"])
     if not fit_intervals and speaker_turns and speaker_words:
         # All-face clip with diarized speakers: cut to whoever is talking on
         # multi-person wide shots. Clips with content shots keep the
@@ -1175,7 +1232,7 @@ def build_vertical_filter_plan(
             logger.warning("Speaker framing failed (%s); tracking dominant face", exc)
             speaker_chain = None
         if speaker_chain:
-            return (speaker_chain, "vf")
+            return (speaker_chain, "vf", bleed_caption(face_samples))
     if not fit_intervals:
         # Static, all-face clip: add the slow Ken Burns punch-in. (The moving
         # tracked crop and the compositor path keep the plain chain — they
@@ -1183,8 +1240,12 @@ def build_vertical_filter_plan(
         if not moving:
             zoom = kenburns_zoom_fragment(duration)
             if zoom:
-                return (f"crop={crop_w}:{crop_h}:{static_x}:0,{zoom}", "vf")
-        return (crop_chain, "vf")
+                return (
+                    f"crop={crop_w}:{crop_h}:{static_x}:0,{zoom}",
+                    "vf",
+                    bleed_caption(face_samples),
+                )
+        return (crop_chain, "vf", bleed_caption(face_samples))
 
     face_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "face"]
     logger.info(
@@ -1194,6 +1255,7 @@ def build_vertical_filter_plan(
     return (
         build_vertical_compositor_filter(crop_chain, face_intervals, fit_intervals),
         "complex",
+        bleed_caption(face_samples),
     )
 
 
@@ -1205,6 +1267,7 @@ def render_reframed_clip_ffmpeg(
     fonts_dir: Optional[Path] = None,
     speaker_turns: Optional[List[Dict[str, Any]]] = None,
     speaker_words: Optional[List[Dict[str, Any]]] = None,
+    vertical_plan: Optional[Tuple[str, str]] = None,
 ) -> Tuple[bool, int, int]:
     """Render the final framed clip and (optionally) burn subtitles in one pass.
 
@@ -1282,11 +1345,14 @@ def render_reframed_clip_ffmpeg(
         ]
         return run_ffmpeg_command(command).returncode == 0, 1080, 1920
 
-    # Default "vertical": scene-aware — tracked crop for face shots, blurred-
-    # background full-frame fit for content shots (tweets/graphs/slides).
-    video_filter, mode = build_vertical_filter_plan(
-        input_path, width, height, speaker_turns, speaker_words
-    )
+    # Default "vertical": face-aware for low webcams and calls, tracked crop
+    # for a well-framed closeup, blurred full-frame fit for content shots.
+    if vertical_plan is not None:
+        video_filter, mode = vertical_plan
+    else:
+        video_filter, mode, _caption_y = build_vertical_filter_plan(
+            input_path, width, height, speaker_turns, speaker_words
+        )
     if mode == "complex":
         if subs:
             graph = f"{video_filter};[vout]{subs}[v]"
