@@ -108,6 +108,7 @@ These settings affect clip generation speed, throughput, and defaults.
 | `MAX_VIDEO_DURATION` | `5400` | Maximum accepted upload length and baseline YouTube length in seconds |
 | `PRO_YOUTUBE_MAX_VIDEO_DURATION` | `5400` | Maximum YouTube length for active or trialing Pro subscriptions, in seconds |
 | `SCALE_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum YouTube length for active or trialing Scale subscriptions, in seconds |
+| `KEEP_YOUTUBE_SOURCE` | `false` | Keep the downloaded YouTube video after a task so the editor can reuse it instead of downloading it again. Uses more disk (one video per YouTube task) |
 | `MAX_CLIPS` | `10` | Hard cap on clips per task in every processing mode |
 | `CLIP_DURATION` | `30` | Default clip duration target in seconds |
 

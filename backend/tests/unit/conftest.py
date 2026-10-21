@@ -22,3 +22,9 @@ def isolated_clip_edits(monkeypatch):
         "src.repositories.task_repository.TaskRepository.load_source_metadata",
         AsyncMock(return_value={}),
     )
+
+
+@pytest.fixture(autouse=True)
+def default_keep_youtube_source(monkeypatch):
+    """Unit tests assume the default (source deleted) whatever the developer's environment."""
+    monkeypatch.delenv("KEEP_YOUTUBE_SOURCE", raising=False)

@@ -89,6 +89,9 @@ class Config:
         self.media_s3_session_token = self._get_optional_env("MEDIA_S3_SESSION_TOKEN")
         self.media_url_ttl_seconds = min(3600, max(60, int(os.getenv("MEDIA_URL_TTL_SECONDS", "900"))))
         self.media_cache_ttl_seconds = max(14400, int(os.getenv("MEDIA_CACHE_TTL_SECONDS", "86400")))
+        # Keep the downloaded YouTube video after a task so the clip editor can reuse it
+        # instead of downloading it again (which YouTube may refuse).
+        self.keep_youtube_source = os.getenv("KEEP_YOUTUBE_SOURCE", "false").strip().lower() in {"1", "true", "yes"}
         self.media_orphan_grace_seconds = max(86400, int(os.getenv("MEDIA_ORPHAN_GRACE_SECONDS", "86400")))
         self.media_upload_concurrency = max(1, int(os.getenv("MEDIA_UPLOAD_CONCURRENCY", "3")))
         self.media_upload_daily_limit = max(1, int(os.getenv("MEDIA_UPLOAD_DAILY_LIMIT", "20")))
