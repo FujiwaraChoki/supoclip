@@ -243,7 +243,11 @@
     },
     "selfHostNote": "¿Autoalojas? Todas las funciones son gratis e ilimitadas.",
     "selfHostGuide": "Ver la guía de autoalojamiento",
-    "billedYearly": "${price}/mes, facturado anualmente"
+    "billedYearly": "${price}/mes, facturado anualmente",
+    "usageExample": {
+      "videos": "Aproximadamente {count} vídeos originales de {minutes} minutos al mes",
+      "clips": "Ejemplo: {count} clips cortos a {perVideo} por vídeo. El resultado varía; tu cuota cuenta los minutos del vídeo original."
+    }
   },
   "openSource": {
     "badge": "Licencia AGPL-3.0",
