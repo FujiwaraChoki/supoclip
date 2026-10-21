@@ -383,6 +383,9 @@ services:
       - /var/log/nginx:/var/log/nginx:ro
       - vector_data:/var/lib/vector
     environment:
+      # Vector 0.60+ only expands ${...} in its config with this set; without
+      # it the literal "${AXIOM_TOKEN}" is sent and Axiom answers Unauthorized.
+      - VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION=true
       - AXIOM_TOKEN=${AXIOM_TOKEN:-}
       - AXIOM_DATASET=${AXIOM_DATASET:-supoclip-prod}
     restart: unless-stopped
