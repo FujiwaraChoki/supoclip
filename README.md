@@ -55,6 +55,8 @@ SupoClip gives you the same core pipeline without the leash:
 
 ## Features
 
+- **Multiple link sources** — import YouTube videos, Twitch VODs and clips, or Kick VODs and clips (live streams are not supported), as well as uploaded files
+
 - **AI clip selection** — an LLM (Gemini, GPT, Claude, or a local Ollama model) picks the 3–7 most clip-worthy segments from the transcript
 - **Virality scoring** — every clip gets hook, engagement, value, and shareability scores
 - **Smart vertical cropping** — face detection keeps the speaker centered in the 9:16 frame

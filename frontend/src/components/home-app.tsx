@@ -8,7 +8,7 @@ import {
   Loader2, Paintbrush, Paperclip, Upload, Wand2, X, Youtube,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
-import { FONT_SEARCH_THRESHOLD, getYouTubeThumbnailUrl, uploadVideoFile } from "@/lib/video-upload";
+import { FONT_SEARCH_THRESHOLD, getYouTubeThumbnailUrl, uploadVideoFile, validateVideoSourceUrl } from "@/lib/video-upload";
 import { AppShell } from "@/components/app/app-shell";
 import { GenerationCard } from "@/components/app/generation-card";
 import { VideoDownloadStatus } from "@/components/app/video-download-status";
@@ -218,6 +218,10 @@ export default function HomeApp() {
     if (generationRequiresUpgrade) {
       openUpgrade({ kind: upgradeState?.isPaid ? "limit" : "start" });
       return;
+    }
+    if (sourceType !== "upload") {
+      const validation = validateVideoSourceUrl(url);
+      if (validation.error) { setError(validation.error); return; }
     }
 
     setIsLoading(true);

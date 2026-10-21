@@ -36,6 +36,7 @@ from ..clip_source_map import load_clip_caption_settings
 from ..media_storage import MediaStorage, media_work
 from ..utils.async_helpers import run_in_thread
 from ..repositories.media_repository import queue_delete, guard_source_creation
+from ..stream_source import cleanup_stream_path, cleanup_stream_task, seed_stream_resolution
 
 logger = logging.getLogger(__name__)
 PROCESSING_CACHE_VERSION = "20260319_grounded_segments_v1"
@@ -166,6 +167,16 @@ class TaskService(ClipEditingMixin):
             except Exception as e:
                 logger.warning("Failed YouTube source cleanup: %s", e)
 
+        if source_type in {"twitch", "kick"}:
+            try:
+                # Removes only the operation (processing job or one editor
+                # render) that produced this file, never a concurrent edit's.
+                if cleanup_stream_path(video_path):
+                    logger.info("Cleaned up stream source artifacts")
+                    return
+            except Exception as e:
+                logger.warning("Failed stream source cleanup: %s", e)
+
         # Fallback / upload path: at least drop the transcription audio sidecar
         # (e.g. "<stem>.transcription.mp3") next to the source file.
         try:
@@ -258,6 +269,20 @@ class TaskService(ClipEditingMixin):
 
     def _task_run_guard(self, task_id: str):
         return task_run_guard(self.db, task_id)
+
+    async def _seed_stream_source(self, task_id: str) -> None:
+        """Reuse the preflight's length and any cheap actor result in the worker."""
+        try:
+            task = await self.task_repo.get_task_by_id(self.db, task_id) or {}
+            metadata = await self.task_repo.load_source_metadata(self.db, task_id) or {}
+            await run_in_thread(
+                seed_stream_resolution,
+                task_id,
+                metadata.get("stream_resolution"),
+                task.get("source_duration_seconds"),
+            )
+        except Exception as exc:  # the worker can still resolve everything itself
+            logger.warning("Could not seed stream source details: %s", exc)
 
     @exclusive_task_run
     @media_work
@@ -358,10 +383,13 @@ class TaskService(ClipEditingMixin):
 
             # Process video with progress updates
             max_video_duration = self.config.max_video_duration
-            if source_type == "youtube" and user_id:
+            if source_type in {"youtube", "twitch", "kick"} and user_id:
                 max_video_duration = self.config.max_youtube_video_duration_for_plan(
                     billing.get("plan"), billing.get("subscription_status")
                 )
+
+            if source_type in {"twitch", "kick"}:
+                await self._seed_stream_source(task_id)
 
             pipeline_start = perf_counter()
             result = await self.video_service.process_video_complete(
@@ -611,6 +639,10 @@ class TaskService(ClipEditingMixin):
             raise
         finally:
             await run_in_thread(self._cleanup_source_video, video_path, source_type, url)
+            if source_type in {"twitch", "kick"}:
+                # Also handles failures before process_video_complete returns a
+                # path (and therefore before the generic path cleanup can run).
+                await run_in_thread(cleanup_stream_task, task_id)
 
     async def _send_completion_notification_if_needed(
         self, *, task_id: str, clips_count: int

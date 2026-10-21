@@ -19,6 +19,7 @@ import re
 import secrets
 import math
 import asyncio
+import time
 from ...utils.async_helpers import run_in_thread
 
 from ...repositories.generation_allowance_guard import generation_allowance_guard, GenerationAllowanceBusy
@@ -34,6 +35,11 @@ from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import get_config
 from ...youtube_utils import async_get_youtube_video_info
+from ...stream_source import (
+    PREFLIGHT_DEADLINE_SECONDS as STREAM_PREFLIGHT_DEADLINE_SECONDS,
+    StreamSourceError,
+    fetch_stream_info,
+)
 from ...font_registry import is_font_accessible
 from ...clip_cleanup import (
     new_task_cleanup_settings,
@@ -85,6 +91,39 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
             },
         )
     return metadata
+
+async def _preflight_stream_source(url: str, source: str, duration_limit: int) -> Dict[str, Any]:
+    try:
+        # One overall deadline: yt-dlp (proxy, direct) metadata, then the cheap
+        # metadata actor only when both fail. The full-video actor never runs
+        # here; the worker owns the rest of the fallback chain.
+        metadata = await asyncio.wait_for(
+            run_in_thread(fetch_stream_info, url, deadline_seconds=STREAM_PREFLIGHT_DEADLINE_SECONDS),
+            timeout=STREAM_PREFLIGHT_DEADLINE_SECONDS + 5,
+        )
+        duration = (metadata or {}).get("duration")
+        if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not math.isfinite(duration) or duration <= 0:
+            raise ValueError("Invalid video duration")
+    except StreamSourceError as exc:
+        raise HTTPException(status_code=422, detail={"code": "VIDEO_UNAVAILABLE", "message": str(exc)}) from None
+    except Exception:
+        raise HTTPException(status_code=503, detail={"code": "VIDEO_METADATA_UNAVAILABLE", "message": "We couldn't fetch this video, try again later. No minutes were used."}) from None
+    if duration > duration_limit:
+        raise HTTPException(status_code=422, detail={"code": "VIDEO_TOO_LONG", "message": f"This {source.title()} video is {duration / 60:.1f} minutes long. Your plan allows videos up to {duration_limit / 60:g} minutes. Choose a shorter VOD or clip. No minutes were used.", "duration_seconds": duration, "max_duration_seconds": duration_limit})
+    return metadata
+
+
+def _stream_resolution_metadata(metadata: Dict[str, Any] | None) -> Dict[str, Any]:
+    """Persist a preflight actor result so the worker does not pay for it again."""
+    if not metadata or not metadata.get("media_url") or not str(metadata.get("provider", "")).startswith("apify_"):
+        return {}
+    return {
+        "stream_resolution": {
+            key: metadata.get(key)
+            for key in ("provider", "id", "title", "duration", "media_url")
+        }
+        | {"resolved_at": time.time()}
+    }
 
 
 async def _preflight_upload_source(url: str, user_id: str, duration_limit: int) -> float:
@@ -398,14 +437,26 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
 
         task_service = TaskService(db)
 
-        source_type = task_service.video_service.determine_source_type(raw_source["url"])
+        try:
+            source_type = task_service.video_service.determine_source_type(raw_source["url"])
+        except ValueError as exc:
+            # Only rejected http(s) stream URLs are a 422 validation error.
+            # Local paths and other non-URL sources keep the historic 404.
+            if not str(raw_source["url"]).strip().lower().startswith(("http://", "https://")):
+                raise
+            raise HTTPException(status_code=422, detail=str(exc)) from None
         source_title = raw_source.get("title")
+        stream_metadata: Dict[str, Any] | None = None
         if source_type == "youtube":
             metadata = await _preflight_youtube_source(
                 raw_source["url"], billing["max_youtube_duration_seconds"]
             )
             source_title = source_title or metadata.get("title") or "YouTube Video"
             duration_seconds = float(metadata["duration"])
+        elif source_type in {"twitch", "kick"}:
+            stream_metadata = await _preflight_stream_source(raw_source["url"], source_type, billing["max_youtube_duration_seconds"])
+            source_title = source_title or stream_metadata.get("title") or f"{source_type.title()} Video"
+            duration_seconds = float(stream_metadata["duration"])
         else:
             duration_seconds = await _preflight_upload_source(
                 raw_source["url"], user_id, billing["max_upload_duration_seconds"]
@@ -435,7 +486,10 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
                 await _save_task_source_metadata(
                     task_id,
                     _merge_task_source_metadata(
-                        {"processing_job_id": processing_job_id},
+                        {
+                            "processing_job_id": processing_job_id,
+                            **_stream_resolution_metadata(stream_metadata),
+                        },
                         source_url=raw_source["url"],
                         source_type=source_type,
                         output_format=output_format,
