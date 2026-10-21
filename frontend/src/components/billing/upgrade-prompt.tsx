@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { ArrowRight, Check, Loader2, Server, X } from "lucide-react";
+import { ArrowRight, Check, Clock, Loader2, Server, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
   getPublicBillingPlans,
   isPaidBillingPlan,
   planPrice,
+  socialPublishingStage,
   type BillingInterval,
   type BillingPlanId,
   type PublicBillingPlan,
@@ -109,9 +110,6 @@ function formatDate(value: string) {
   return date.toLocaleDateString(undefined, { month: "long", day: "numeric" });
 }
 
-// Scheduling is enforced per plan already; only advertise it once publishing launches.
-const advertiseScheduling = () => process.env.NEXT_PUBLIC_SOCIAL_PUBLISHING === "1";
-
 export function useBillingPlanText() {
   const t = useTranslations("billing");
   const common = useTranslations("common");
@@ -131,10 +129,13 @@ export function useBillingPlanText() {
     t("highlights.minutes", { length: formatMinutes(plan.minuteLimit) }),
     plan.resolution === "1080p" ? t("highlights.fullHd") : t("highlights.hd"),
     t("highlights.youtube", { length: formatMinutes(plan.youtubeMaxMinutes) }),
-    ...(plan.scheduling && advertiseScheduling() ? [t("highlights.scheduling")] : []),
+    ...(plan.scheduling && socialPublishingStage() === "live" ? [t("highlights.scheduling")] : []),
     plan.id === "pro" ? t("highlights.fonts") : t("highlights.priority"),
   ];
-  return { t, common, formatMinutes, formatRuntime, planName, highlights };
+  // Shown apart from the highlights with a "Coming soon" tag until publishing launches.
+  const comingSoon = (plan: PublicBillingPlan) =>
+    plan.scheduling && socialPublishingStage() === "soon" ? t("highlights.scheduling") : null;
+  return { t, common, formatMinutes, formatRuntime, planName, highlights, comingSoon };
 }
 
 function copyFor(
@@ -495,9 +496,27 @@ function PlanShowcase({
               {highlight}
             </li>
           ))}
+          {text.comingSoon(plan) && (
+            <li className="flex items-start gap-2 text-sm text-muted-foreground">
+              <Clock className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                {text.comingSoon(plan)} <ComingSoonTag />
+              </span>
+            </li>
+          )}
         </ul>
       )}
     </div>
+  );
+}
+
+/** Small muted tag for features that are announced but not live yet. */
+export function ComingSoonTag({ className }: { className?: string }) {
+  const text = useBillingPlanText();
+  return (
+    <span className={cn("ml-1 inline-block rounded-full border px-1.5 py-px align-middle text-[10px] font-medium leading-4", className)}>
+      {text.t("comingSoon")}
+    </span>
   );
 }
 

@@ -44,6 +44,20 @@ export function isPaidBillingPlan(plan: string | null | undefined): plan is Bill
   return plan === "pro" || plan === "scale";
 }
 
+export type SocialPublishingStage = "off" | "soon" | "live";
+
+/**
+ * How plan pages present scheduled posting (a Creator feature):
+ * hidden ("off"), marked "Coming soon" (default, while platform reviews are
+ * pending), or listed as a live feature ("live"). Set NEXT_PUBLIC_SOCIAL_PUBLISHING.
+ */
+export function socialPublishingStage(): SocialPublishingStage {
+  const value = process.env.NEXT_PUBLIC_SOCIAL_PUBLISHING?.trim().toLowerCase();
+  if (value === "off" || value === "0") return "off";
+  if (value === "live" || value === "1") return "live";
+  return "soon";
+}
+
 export function isBillingInterval(value: unknown): value is BillingInterval {
   return value === "month" || value === "year";
 }
@@ -59,8 +73,6 @@ export function getPublicBillingPlans(): PublicBillingPlan[] {
   // Mirrors the backend's PRO_/SCALE_YOUTUBE_MAX_VIDEO_DURATION defaults.
   const proYoutubeMinutes = parseInt(process.env.NEXT_PUBLIC_PRO_YOUTUBE_MAX_MINUTES || "90", 10);
   const scaleYoutubeMinutes = parseInt(process.env.NEXT_PUBLIC_SCALE_YOUTUBE_MAX_MINUTES || "180", 10);
-  // Scheduling is enforced per plan already; only advertise it once publishing launches.
-  const advertiseScheduling = process.env.NEXT_PUBLIC_SOCIAL_PUBLISHING === "1";
 
   return [
     {
@@ -96,7 +108,6 @@ export function getPublicBillingPlans(): PublicBillingPlan[] {
         `${formatMinutes(scaleMinutes)} of video every month`,
         "Full HD 1080p clips",
         `YouTube videos up to ${formatMinutes(scaleYoutubeMinutes)}`,
-        ...(advertiseScheduling ? ["Schedule posts to TikTok, YouTube and Instagram"] : []),
         "Priority processing",
       ],
       cta: "Upgrade to Creator",

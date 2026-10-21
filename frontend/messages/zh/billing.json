@@ -17,7 +17,7 @@
     "minutes": "每月 {length} 视频",
     "hd": "720p 片段",
     "fullHd": "全高清 1080p 片段",
-    "scheduling": "定时发布到 TikTok、YouTube 和 Instagram"
+    "scheduling": "自动发布和定时发布片段到 YouTube 和 TikTok"
   },
   "runtime": {
     "minutes": "{count} 分钟",
@@ -107,5 +107,6 @@
     "monthly": "按月",
     "yearly": "按年",
     "monthsFree": "免费 {count} 个月"
-  }
+  },
+  "comingSoon": "即将推出"
 }

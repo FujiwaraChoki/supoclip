@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ExternalLink,
   Check,
+  Clock,
   Zap,
   Menu,
   X,
@@ -41,7 +42,7 @@ import {
   planPrice,
   type BillingInterval,
 } from "@/lib/billing-plans";
-import { BillingIntervalToggle, useBillingPlanText } from "@/components/billing/upgrade-prompt";
+import { BillingIntervalToggle, ComingSoonTag, useBillingPlanText } from "@/components/billing/upgrade-prompt";
 import { catalogKey } from "@/i18n/config";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import {
@@ -120,6 +121,7 @@ function getPlans(
       price: "$0",
       period: t("pricing.period.forever"),
       note: null as string | null,
+      soon: null as string | null,
       description: t("pricing.selfHost.description"),
       features: [
         t("pricing.selfHost.features.crop"),
@@ -138,6 +140,7 @@ function getPlans(
       price: `$${planPrice(plan, interval)}`,
       period: interval === "year" ? t("pricing.period.year") : t("pricing.period.month"),
       note: interval === "year" ? t("pricing.billedYearly", { price: annualMonthlyEquivalent(plan) }) : null,
+      soon: planText.comingSoon(plan),
       description: t(`pricing.${plan.id}.description`),
       features: [
         ...planText.highlights(plan),
@@ -741,6 +744,18 @@ export default function LandingPage() {
                           </span>
                         </li>
                       ))}
+                      {plan.soon && (
+                        <li className="flex items-start gap-3 text-sm">
+                          <Clock
+                            className={`w-4 h-4 mt-0.5 shrink-0 ${
+                              plan.highlighted ? "text-primary-foreground/60" : "text-muted-foreground"
+                            }`}
+                          />
+                          <span className={plan.highlighted ? "text-primary-foreground/70" : "text-muted-foreground"}>
+                            {plan.soon} <ComingSoonTag />
+                          </span>
+                        </li>
+                      )}
                     </ul>
 
                     {plan.ctaHref ? (

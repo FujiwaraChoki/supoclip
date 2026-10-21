@@ -25,14 +25,14 @@ import {
   type BillingPlanId,
 } from "@/lib/billing-plans";
 import { LanguageSwitcher } from "@/components/language-switcher";
-import { BillingIntervalToggle, UpgradeNudge, getUpgradeState, useBillingPlanText } from "@/components/billing/upgrade-prompt";
+import { BillingIntervalToggle, ComingSoonTag, UpgradeNudge, getUpgradeState, useBillingPlanText } from "@/components/billing/upgrade-prompt";
 import type { BillingSummary } from "@/hooks/use-billing-summary";
 import { startUpgrade } from "@/lib/start-upgrade";
 import { CreatorCodeField } from "@/components/billing/creator-code-field";
 import { toast } from "sonner";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { AlertCircle, Bot, Check, ChevronRight, CreditCard, Languages, Loader2, Mail, Megaphone, Share2, Type } from "lucide-react";
+import { AlertCircle, Bot, Check, ChevronRight, Clock, CreditCard, Languages, Loader2, Mail, Megaphone, Share2, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 
@@ -531,6 +531,12 @@ export default function SettingsPage() {
                             <Check className="mt-0.5 size-3 shrink-0" />{highlight}
                           </span>
                         ))}
+                        {plans.comingSoon(plan) && (
+                          <span className="flex items-start gap-1.5 text-xs text-muted-foreground/80">
+                            <Clock className="mt-0.5 size-3 shrink-0" />
+                            <span>{plans.comingSoon(plan)} <ComingSoonTag /></span>
+                          </span>
+                        )}
                       </span>
                       <span className={cn("mt-4 flex h-9 items-center justify-center rounded-lg text-sm font-medium", plan.highlighted ? "bg-primary text-primary-foreground" : "bg-muted")}>
                         {isBillingActionLoading ? t("plan.openingCheckout") : t("plan.choose", { name: plans.planName(plan.id) })}

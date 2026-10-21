@@ -155,7 +155,7 @@ These determine whether the app behaves like an open self-hosted product or a mo
 | `NEXT_PUBLIC_SCALE_PRICE_ANNUAL` | `250` | Frontend display price for a year of Creator |
 | `NEXT_PUBLIC_PRO_PLAN_MINUTE_LIMIT` | `600` | Frontend display allowance for the Pro plan |
 | `NEXT_PUBLIC_SCALE_PLAN_MINUTE_LIMIT` | `1500` | Frontend display allowance for the Creator plan |
-| `NEXT_PUBLIC_SOCIAL_PUBLISHING` | unset | Set to `1` to list scheduled posting among Creator's features |
+| `NEXT_PUBLIC_SOCIAL_PUBLISHING` | `soon` | How Creator's scheduled posting appears on pricing pages: `soon` ("Coming soon" tag, YouTube and TikTok), `live`, or `off` |
 
 Plans are metered in minutes of source video. A video's full length, rounded up
 to the minute, is charged when the task is created (YouTube length comes from

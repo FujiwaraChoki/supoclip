@@ -17,7 +17,7 @@
     "minutes": "{length} Video pro Monat",
     "hd": "Clips in 720p",
     "fullHd": "Clips in Full HD 1080p",
-    "scheduling": "Beiträge für TikTok, YouTube und Instagram planen"
+    "scheduling": "Clips automatisch auf YouTube und TikTok posten und planen"
   },
   "runtime": {
     "minutes": "{count} Min.",
@@ -107,5 +107,6 @@
     "monthly": "Monatlich",
     "yearly": "Jährlich",
     "monthsFree": "{count, plural, one {# Monat gratis} other {# Monate gratis}}"
-  }
+  },
+  "comingSoon": "Demnächst"
 }

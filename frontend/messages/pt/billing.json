@@ -17,7 +17,7 @@
     "minutes": "{length} de vídeo por mês",
     "hd": "Clipes em 720p",
     "fullHd": "Clipes em Full HD 1080p",
-    "scheduling": "Agende publicações no TikTok, YouTube e Instagram"
+    "scheduling": "Publique e agende clipes no YouTube e no TikTok automaticamente"
   },
   "runtime": {
     "minutes": "{count} min",
@@ -107,5 +107,6 @@
     "monthly": "Mensal",
     "yearly": "Anual",
     "monthsFree": "{count, plural, one {# mês grátis} other {# meses grátis}}"
-  }
+  },
+  "comingSoon": "Em breve"
 }
