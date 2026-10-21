@@ -187,6 +187,13 @@ class ClipEditingMixin:
             if not downloaded:
                 raise ValueError("Failed to download source video for regeneration")
             video_path = Path(downloaded)
+        elif source_type in {"twitch", "kick"}:
+            # Its own stream-work operation; cleaned below without touching
+            # any other edit of this task.
+            video_path = await run_in_thread(
+                download_stream_sections, source_url, segments,
+                task.get("source_duration_seconds"), task_id,
+            )
         else:
             video_path = await run_in_thread(self.video_service.resolve_local_video_path, source_url)
             if not video_path.exists():
@@ -218,7 +225,7 @@ class ClipEditingMixin:
                             restore_clip_timeline, clip_info, time_map, segments[index]
                         )
         finally:
-            if source_type == "youtube":
+            if source_type in {"youtube", "twitch", "kick"}:
                 self._cleanup_source_video(video_path, source_type, source_url)
 
         await self.clip_repo.delete_clips_by_task(self.db, task_id)
@@ -486,7 +493,7 @@ class ClipEditingMixin:
                 transcript_video_path = await run_in_thread(
                     download_stream_sections, source_url,
                     [{"start_time": start, "end_time": end} for start, end in source_ranges],
-                    None, task_id,
+                    task.get("source_duration_seconds"), task_id,
                 )
                 downloaded_source = transcript_video_path
             elif source_url:

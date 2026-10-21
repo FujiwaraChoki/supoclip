@@ -25,6 +25,7 @@ from ..youtube_source import (
     materialize_clip_source,
     resolve_full_youtube_download,
     copy_transcript_sidecar,
+    load_time_map,
     persist_cache_sidecar,
 )
 from ..video_utils import (
@@ -53,7 +54,14 @@ from ..ai import get_most_relevant_parts_by_transcript
 from ..config import get_config
 from ..media_storage import MediaStorage
 from ..media.ffmpeg import cap_video_short_side, ffprobe_duration
-from ..stream_source import detect_stream_source, download_stream_audio, download_stream_sections, download_stream_video, fetch_stream_info
+from ..stream_source import (
+    PROCESSING_OPERATION,
+    StreamSourceError,
+    detect_stream_source,
+    download_stream_audio,
+    download_stream_sections,
+    download_stream_video,
+)
 
 logger = logging.getLogger(__name__)
 UPLOAD_URL_PREFIX = "upload://"
@@ -590,18 +598,25 @@ class VideoService:
                 if not video_path:
                     raise Exception("Failed to download video")
             elif source_type in {"twitch", "kick"}:
+                # The API preflight already measured the source (and the task
+                # seeds that length), so no second metadata request is made here.
+                # Each provider checks the plan cap before downloading media.
                 try:
-                    video_info = await run_in_thread(fetch_stream_info, url)
-                except Exception as exc:
-                    logger.info("Cheap stream metadata lookup failed; worker fallbacks will resolve media: %s", exc)
-                    video_info = {}
-                duration = video_info.get("duration") if video_info else None
-                if duration and duration > duration_limit: raise Exception(f"Video is too long ({int(duration) // 60} min). Maximum allowed duration is {duration_limit // 60} minutes.")
-                try:
-                    video_path = await run_in_thread(download_stream_audio, url, duration, task_id); audio_first = True
+                    video_path = await run_in_thread(
+                        download_stream_audio, url, None, task_id,
+                        max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                    )
+                    audio_first = True
+                except StreamSourceError:
+                    # Too long, private, or every provider already failed: a
+                    # full-video retry would only rerun the same chain.
+                    raise
                 except Exception as exc:
                     logger.warning("Stream audio download unavailable; using full video: %s", exc)
-                    video_path = await run_in_thread(download_stream_video, url, duration, task_id)
+                    video_path = await run_in_thread(
+                        download_stream_video, url, None, task_id,
+                        max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                    )
             else:
                 video_path = (
                     await run_in_thread(VideoService.resolve_local_video_path, url)
@@ -784,8 +799,15 @@ class VideoService:
                     )
                 try:
                     if source_type in {"twitch", "kick"}:
-                        video_path = await run_in_thread(download_stream_sections, url, segments_json, file_duration, task_id)
-                        await run_in_thread(copy_transcript_sidecar, audio_path, video_path)
+                        video_path = await run_in_thread(
+                            download_stream_sections, url, segments_json, file_duration, task_id,
+                            max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                        )
+                        # Shift word timings onto the stitched sections' timeline.
+                        await run_in_thread(
+                            copy_transcript_sidecar, audio_path, video_path,
+                            await run_in_thread(load_time_map, video_path),
+                        )
                     else:
                         video_path = await run_in_thread(materialize_clip_source, url, video_id, segments_json, task_id=task_id, budget=job_budget, duration=file_duration, audio_path=audio_path)
                 except DownloadBudgetExceeded as exc:
@@ -795,7 +817,13 @@ class VideoService:
                         "Section download failed, falling back to a full download: %s",
                         exc,
                     )
-                    if source_type in {"twitch", "kick"}: video_path = await run_in_thread(download_stream_video, url, file_duration, task_id)
+                    if source_type in {"twitch", "kick"}:
+                        if isinstance(exc, StreamSourceError):
+                            raise
+                        video_path = await run_in_thread(
+                            download_stream_video, url, file_duration, task_id,
+                            max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                        )
                     else:
                         video_path = await VideoService.download_video(url, task_id=task_id, quality=download_quality, budget=job_budget, skip_proxy=not isinstance(exc, PartialDownloadUnavailable))
                     if video_path and audio_path:

@@ -22,6 +22,13 @@ The Apify runs use small memory limits and charge caps. The final Kick provider 
 a complete 720p file and is therefore intentionally last; its size cap is duration-based,
 at least 100 MB, and never exceeds `APIFY_KICK_MAX_VIDEO_SIZE_MB`.
 
+Task creation runs a metadata preflight with one overall 30-second deadline: `yt-dlp`
+through the proxy, then direct, then (only if both fail) the cheap metadata actor
+(`apify_twitch` or `apify_kick_hls`). The full-video Kick actor never runs during
+preflight. An actor result found there is stored with the task and reused by the worker,
+so each actor runs at most once per task, and a chain that has failed completely is not
+rerun for the same job.
+
 This guide explains the important environment variables used by SupoClip and how they affect behavior.
 
 Most settings are sourced from `.env.example`, `docker-compose.yml`, and the backend configuration code in `backend/src/config.py`.

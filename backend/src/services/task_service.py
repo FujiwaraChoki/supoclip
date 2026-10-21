@@ -36,7 +36,7 @@ from ..clip_source_map import load_clip_caption_settings
 from ..media_storage import MediaStorage, media_work
 from ..utils.async_helpers import run_in_thread
 from ..repositories.media_repository import queue_delete, guard_source_creation
-from ..stream_source import cleanup_stream_task
+from ..stream_source import cleanup_stream_path, cleanup_stream_task, seed_stream_resolution
 
 logger = logging.getLogger(__name__)
 PROCESSING_CACHE_VERSION = "20260319_grounded_segments_v1"
@@ -169,12 +169,9 @@ class TaskService(ClipEditingMixin):
 
         if source_type in {"twitch", "kick"}:
             try:
-                stream_root = Path(self.config.temp_dir) / "stream-work"
-                resolved = video_path.resolve()
-                if resolved.is_relative_to(stream_root.resolve()):
-                    # Layout is stream-work/<task>/<attempt>/<provider>/<file>.
-                    relative = resolved.relative_to(stream_root.resolve())
-                    cleanup_stream_task(relative.parts[0])
+                # Removes only the operation (processing job or one editor
+                # render) that produced this file, never a concurrent edit's.
+                if cleanup_stream_path(video_path):
                     logger.info("Cleaned up stream source artifacts")
                     return
             except Exception as e:
@@ -272,6 +269,20 @@ class TaskService(ClipEditingMixin):
 
     def _task_run_guard(self, task_id: str):
         return task_run_guard(self.db, task_id)
+
+    async def _seed_stream_source(self, task_id: str) -> None:
+        """Reuse the preflight's length and any cheap actor result in the worker."""
+        try:
+            task = await self.task_repo.get_task_by_id(self.db, task_id) or {}
+            metadata = await self.task_repo.load_source_metadata(self.db, task_id) or {}
+            await run_in_thread(
+                seed_stream_resolution,
+                task_id,
+                metadata.get("stream_resolution"),
+                task.get("source_duration_seconds"),
+            )
+        except Exception as exc:  # the worker can still resolve everything itself
+            logger.warning("Could not seed stream source details: %s", exc)
 
     @exclusive_task_run
     @media_work
@@ -376,6 +387,9 @@ class TaskService(ClipEditingMixin):
                 max_video_duration = self.config.max_youtube_video_duration_for_plan(
                     billing.get("plan"), billing.get("subscription_status")
                 )
+
+            if source_type in {"twitch", "kick"}:
+                await self._seed_stream_source(task_id)
 
             pipeline_start = perf_counter()
             result = await self.video_service.process_video_complete(

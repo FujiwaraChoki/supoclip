@@ -303,7 +303,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                     source = await run_in_thread(
                         download_stream_sections, source_url,
                         [{"start_time": start, "end_time": end} for start, end in ranges],
-                        None, task_id,
+                        task.get("source_duration_seconds"), task_id,
                     )
                     downloaded_source = source
                 else:
