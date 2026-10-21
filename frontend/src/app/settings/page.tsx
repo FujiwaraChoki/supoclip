@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useSession } from "@/lib/auth-client";
+import { useSocialAccess } from "@/hooks/use-social-access";
 import { getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { UpgradeNudge, getUpgradeState, useBillingPlanText } from "@/components/billing/upgrade-prompt";
@@ -60,6 +61,7 @@ export default function SettingsPage() {
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [isBillingActionLoading, setIsBillingActionLoading] = useState(false);
   const { data: session, isPending } = useSession();
+  const socialAccess = useSocialAccess(Boolean(session?.user));
   const t = useTranslations("settings");
   const common = useTranslations("common");
   const tLang = useTranslations("language");
@@ -504,14 +506,16 @@ export default function SettingsPage() {
           <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
         </Link>
 
-        <Link href="/settings/social" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Share2 className="size-4" /></span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">{t("links.socialTitle")}</span>
-            <span className="block text-xs text-muted-foreground">{t("links.socialDescription")}</span>
-          </span>
-          <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-        </Link>
+        {socialAccess === true && (
+          <Link href="/settings/social" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Share2 className="size-4" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold">{t("links.socialTitle")}</span>
+              <span className="block text-xs text-muted-foreground">{t("links.socialDescription")}</span>
+            </span>
+            <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        )}
 
         <Link href="/settings/creator-program" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
           <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Megaphone className="size-4" /></span>

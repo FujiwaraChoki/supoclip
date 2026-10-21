@@ -483,6 +483,11 @@ class _UsersDb:
         return _Result()
 
 
+def test_social_publishing_access_defaults_to_off(monkeypatch):
+    monkeypatch.delenv("SOCIAL_PUBLISHING_ACCESS", raising=False)
+    assert Config().social_publishing_access == "off"
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("access", "allowlist", "expected"),

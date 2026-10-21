@@ -75,7 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const admin = Boolean((user as { is_admin?: boolean } | undefined)?.is_admin);
   const socialAccess = useSocialAccess(Boolean(user));
   const labeled = NAV.map((item) => ({ ...item, label: t(`nav.${item.labelKey}`) }));
-  const nav = labeled.filter((item) => !item.social || socialAccess);
+  const nav = labeled.filter((item) => !item.social || socialAccess === true);
   const mobileNav = nav.filter((item) => item.mobile !== false);
   const items = admin ? [...nav, { href: "/admin", label: t("nav.admin"), icon: Shield, match: (p: string) => p.startsWith("/admin") }] : nav;
 
@@ -273,7 +273,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
     const actions: PaletteEntry[] = [
       { id: "new", label: t("nav.newGeneration"), hint: t("palette.newHint"), href: "/", icon: Plus },
       { id: "library", label: t("palette.library"), href: "/list", icon: Film },
-      ...(socialAccess ? [{ id: "social", label: t("palette.social"), hint: t("palette.socialHint"), href: "/settings/social", icon: Share2 },
+      ...(socialAccess === true ? [{ id: "social", label: t("palette.social"), hint: t("palette.socialHint"), href: "/settings/social", icon: Share2 },
       { id: "analytics", label: t("nav.analytics"), hint: t("palette.analyticsHint"), href: "/analytics", icon: ChartColumn }] : []),
       { id: "keys", label: t("nav.agents"), hint: t("palette.agentsHint"), href: "/settings/api-keys", icon: Bot },
       { id: "settings", label: t("nav.settings"), href: "/settings", icon: Settings },

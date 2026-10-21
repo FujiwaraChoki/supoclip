@@ -5,13 +5,17 @@ import { useEffect, useState } from "react";
 // One request per page load, shared by the shell and the pages it wraps.
 let pending: Promise<boolean> | null = null;
 
+/** True only when this server explicitly grants social publishing. Missing or false stays hidden. */
+export function isSocialPublishingEnabled(data: { enabled?: boolean } | null | undefined) {
+  return data?.enabled === true;
+}
+
 function loadSocialAccess() {
   pending ??= fetch("/api/social/providers", { cache: "no-store" })
     .then(async (response) => {
       if (!response.ok) return false;
       const data = (await response.json()) as { enabled?: boolean };
-      // Servers that predate the rollout flag don't send it.
-      return data.enabled !== false;
+      return isSocialPublishingEnabled(data);
     })
     .catch(() => false);
   return pending;

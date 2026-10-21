@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScheduledPosts } from "@/components/scheduled-posts";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
+import { isSocialPublishingEnabled } from "@/hooks/use-social-access";
 import { useSession } from "@/lib/auth-client";
 import {
   PROVIDER_LABELS,
@@ -55,7 +56,7 @@ function SocialSettingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [providers, setProviders] = useState<SocialProviderStatus[]>([]);
-  const [enabled, setEnabled] = useState(true);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
   const [connections, setConnections] = useState<SocialConnection[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +78,7 @@ function SocialSettingsContent() {
         enabled?: boolean;
         providers: SocialProviderStatus[];
       };
-      setEnabled(providersData.enabled !== false);
+      setEnabled(isSocialPublishingEnabled(providersData));
       const connectionsData = connectionsResponse.ok
         ? ((await connectionsResponse.json()) as { connections: SocialConnection[] })
         : { connections: [] };
@@ -147,12 +148,16 @@ function SocialSettingsContent() {
     );
   }
 
-  if (!isFetching && !enabled) {
+  if (isFetching && enabled === null) {
+    return <PageSkeleton />;
+  }
+
+  if (enabled !== true) {
     return (
       <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 md:py-10">
         <h1 className="font-display text-3xl font-bold tracking-tight">{t("page.title")}</h1>
         <p className="mt-2 text-muted-foreground">
-          {t("page.unavailable")}
+          {error ?? t("page.unavailable")}
         </p>
       </main>
     );

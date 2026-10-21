@@ -190,6 +190,7 @@ that app from **Settings → Social Accounts**; tokens are stored encrypted with
 | `SOCIAL_METRICS_MAX_POST_AGE_DAYS` | Stop refreshing metrics for posts older than this (default `60`) |
 | `SOCIAL_PERFORMANCE_MIN_POSTS` | Measured posts required before clip selection is personalized (default `3`) |
 | `SOCIAL_PUBLISH_MAX_ATTEMPTS` | Retries for transient publish failures (default `3`) |
+| `SOCIAL_PUBLISHING_ACCESS` | `off` (default), `admins`, or `all`. `off` hides Social and Analytics from users. |
 
 Register this redirect URI on every platform, replacing `<provider>` with
 `youtube`, `tiktok` or `instagram`:

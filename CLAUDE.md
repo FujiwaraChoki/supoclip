@@ -227,7 +227,7 @@ YOUTUBE_OAUTH_CLIENT_ID=...          # Social publishing: Google OAuth client (+
 TIKTOK_CLIENT_KEY=...                # Social publishing: TikTok app (+ TIKTOK_CLIENT_SECRET)
 INSTAGRAM_APP_ID=...                 # Social publishing: Meta app with Instagram Login (+ _SECRET)
 SOCIAL_PERFORMANCE_MIN_POSTS=3       # Measured posts before AI selection is personalized
-SOCIAL_PUBLISHING_ACCESS=all         # Rollout gate: all | admins (admins + allowlist) | off
+SOCIAL_PUBLISHING_ACCESS=off         # Rollout gate: off (default) | admins (admins + allowlist) | all
 SOCIAL_PUBLISHING_ALLOWED_EMAILS=    # Comma-separated beta emails when access=admins
 REDIS_HOST=localhost                 # Default: localhost
 REDIS_PORT=6379                      # Default: 6379
@@ -254,9 +254,11 @@ Personalized analyses skip the shared `processing_cache` analysis entry.
 
 - **Pages:** `/settings/social` (accounts + every scheduled post) and `/analytics` (totals, daily
   views chart, top clips, breakdowns), both in the sidebar. Clips publish from the task page.
-- **Rollout gate:** `SOCIAL_PUBLISHING_ACCESS`. Outside the gate every `/social/*` route returns 403
-  except `GET /social/providers`, which reports `enabled: false` with all platforms unconfigured
-  (so the web and iOS hide publishing) and the disconnect routes (account deletion revokes tokens).
+- **Rollout gate:** `SOCIAL_PUBLISHING_ACCESS` defaults to `off`. Social and Analytics stay out of
+  the nav, command palette, and settings until it is `admins` or `all`. Outside the gate every
+  `/social/*` route returns 403 except `GET /social/providers`, which reports `enabled: false` with
+  all platforms unconfigured (clients hide publishing unless `enabled` is exactly true) and the
+  disconnect routes (account deletion revokes tokens).
 - **iOS app:** `POST .../authorize` with `{"client": "ios"}` prefixes the OAuth state with `m.`; the
   web callback then redirects to `supoclip://social-callback?provider&code&state` and the app
   completes `/callback` with its own session (the state stays bound to the starting user).
