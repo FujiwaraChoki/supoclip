@@ -123,3 +123,22 @@ def test_hook_title_is_larger_than_the_captions():
     assert size > 62
     assert events and "SOMEBODY" not in events[0]
     assert "boss" in events[0]
+
+
+def test_long_hook_title_shrinks_below_the_preferred_size():
+    word = "Donaudampfschifffahrtsgesellschaft"
+    style, events = build_hook_title_ass(
+        word,
+        {"font_color": "#FFFFFF", "stroke_color": "#000000", "stroke_width": 3, "shadow": True},
+        1080,
+        1920,
+        30.0,
+        "Arial",
+        62,
+    )
+
+    size = int(style.split(",")[2])
+    usable = 1080 - 2 * max(48, int(1080 * 0.07))
+    assert size < 64
+    assert size == max(1, int(usable / (len(word) * 0.52)))
+    assert word in events[0]

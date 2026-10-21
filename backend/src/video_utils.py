@@ -38,6 +38,7 @@ from .media.timeline import (
     build_clip_keep_ranges,
     build_hook_teaser_range,
     build_keep_ranges_from_source_ranges,
+    clamp_keep_ranges_to_max_duration,
     extend_keep_ranges_to_sentence_boundary,
     parse_timestamp_to_seconds,
     keep_ranges_transcript_text,
@@ -284,6 +285,9 @@ def create_optimized_clip(
             effective_keep_ranges = extend_keep_ranges_to_sentence_boundary(
                 video_path, effective_keep_ranges,
             )
+            effective_keep_ranges = clamp_keep_ranges_to_max_duration(
+                video_path, effective_keep_ranges,
+            )
         duration = sum(end - start for start, end in effective_keep_ranges)
         if duration <= 0:
             logger.error(f"Invalid clip duration: {duration:.1f}s")
@@ -492,6 +496,10 @@ def create_clips_from_segments(
                 # Snapping, cleanup and the teaser change what is spoken; keep
                 # the stored text word-for-word with the rendered timeline.
                 clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
+            # Rewind and sentence extension happen before this, so the stored
+            # ranges — and the render, which must not extend them again — stay
+            # inside the 60s cap.
+            keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges)
 
             layout_report: Dict[str, Any] = {}
             success = create_optimized_clip(
@@ -507,6 +515,7 @@ def create_clips_from_segments(
                 output_format,
                 keep_ranges,
                 hook_title=segment.get("hook_title"),
+                extend_to_sentence=False,
                 layout_report=layout_report,
             )
 

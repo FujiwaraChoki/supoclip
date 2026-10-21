@@ -13,6 +13,7 @@ import re
 from .common import (
     CLIP_END_PADDING_SECONDS,
     CLIP_END_SENTENCE_EXTENSION_SECONDS,
+    MAX_RENDERED_CLIP_SECONDS,
     CLIP_START_LEAD_IN_SECONDS,
     CLIP_START_SNAP_WINDOW_SECONDS,
     HOOK_TEASER_MAX_SECONDS,
@@ -161,6 +162,62 @@ def _drop_dangling_tail(
     if last_end - last_start >= 8.0 and trimmed_end - last_start < 8.0:
         return keep_ranges
     return [*keep_ranges[:-1], (last_start, trimmed_end)]
+
+
+def clamp_keep_ranges_to_max_duration(
+    video_path: Path,
+    keep_ranges: List[Tuple[float, float]],
+    max_seconds: float = MAX_RENDERED_CLIP_SECONDS,
+) -> List[Tuple[float, float]]:
+    """Shorten the end so a rewound or extended clip still plays within the cap.
+
+    Analysis already rejects segments longer than 60 seconds. Pulling the start
+    back to a self-contained sentence (up to 8s) or finishing the last sentence
+    can push the rendered timeline past that. The extra time comes off the end,
+    on a sentence boundary when one sits within a few seconds of the cap.
+    """
+    ranges = [(float(start), float(end)) for start, end in keep_ranges if end > start]
+    played = sum(end - start for start, end in ranges)
+    if not ranges or played <= max_seconds + 0.05:
+        return ranges
+
+    budget = max_seconds
+    trimmed: List[Tuple[float, float]] = []
+    for index, (start, end) in enumerate(ranges):
+        length = end - start
+        if length <= budget + 0.001:
+            trimmed.append((start, end))
+            budget -= length
+            continue
+        cut = start + max(0.0, budget)
+        if index == len(ranges) - 1:
+            cut = _end_at_cap(video_path, start, cut)
+        if cut - start >= 0.5:
+            trimmed.append((start, cut))
+        break
+    return trimmed or ranges
+
+
+def _end_at_cap(video_path: Path, range_start: float, cut: float) -> float:
+    """Land the cap on a nearby sentence end, otherwise on the last word before it."""
+    transcript_data = load_cached_transcript_data(video_path)
+    if not transcript_data:
+        return cut
+    words = get_absolute_words_in_range(transcript_data, range_start, cut + 0.05)
+    fitting = [word for word in words if float(word["end"]) <= cut + 0.05]
+    if not fitting:
+        return cut
+    word_end = float(fitting[-1]["end"])
+    sentence_end = None
+    for word in reversed(fitting):
+        if word_end - float(word["end"]) > 3.0:
+            break
+        if word_ends_sentence(str(word.get("text", ""))):
+            sentence_end = float(word["end"])
+            break
+    chosen = sentence_end if sentence_end is not None else word_end
+    padded = min(cut, chosen + CLIP_END_PADDING_SECONDS)
+    return max(range_start + 0.5, padded)
 
 
 def _word_starts_sentence(

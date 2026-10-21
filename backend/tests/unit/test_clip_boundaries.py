@@ -209,6 +209,52 @@ def test_filler_before_an_agreement_still_rewinds(tmp_path):
     assert ranges[0][0] == pytest.approx(7.9)
 
 
+def test_rewind_keeps_a_max_length_clip_within_sixty_seconds(tmp_path, monkeypatch):
+    video = _transcript(
+        tmp_path,
+        [
+            ("Shipping", 4.0, 4.4),
+            ("weekly", 4.4, 4.8),
+            ("matters.", 4.8, 5.4),
+            ("Yes.", 10.0, 10.4),
+            ("The", 10.8, 11.1),
+            ("point", 11.1, 11.5),
+            ("holds.", 61.6, 62.2),
+            ("Then", 63.0, 63.4),
+            ("we", 64.0, 64.2),
+            ("continued.", 68.0, 69.2),
+        ],
+    )
+    rendered = []
+
+    def fake_create(video_path, start, end, output_path, *args, **kwargs):
+        rendered.append(args[6])
+        assert kwargs.get("extend_to_sentence") is False
+        return True
+
+    monkeypatch.setattr(video_utils, "create_optimized_clip", fake_create)
+    monkeypatch.setattr(timeline, "get_config", lambda: SimpleNamespace(hook_first_teaser=False))
+    with patch("src.media.timeline.ffprobe_duration", return_value=120.0):
+        video_utils.create_clips_from_segments(
+            video,
+            [
+                {
+                    "start_time": "00:10",
+                    "end_time": "01:10",
+                    "text": "body",
+                    "relevance_score": 0.8,
+                    "reasoning": "",
+                }
+            ],
+            tmp_path / "clips",
+        )
+    ranges = rendered[0]
+    played = sum(end - start for start, end in ranges)
+    assert ranges[0][0] == pytest.approx(3.9)
+    assert played <= 60.05
+    assert ranges[-1][1] == pytest.approx(62.2 + timeline.CLIP_END_PADDING_SECONDS)
+
+
 def test_first_person_claim_is_not_rewound(tmp_path):
     video = _transcript(
         tmp_path,

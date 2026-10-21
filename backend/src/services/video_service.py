@@ -28,6 +28,7 @@ from ..video_utils import (
     build_keep_ranges_from_source_ranges,
     build_clip_signal_summary,
     apply_segment_hook_teaser,
+    clamp_keep_ranges_to_max_duration,
     extend_keep_ranges_to_sentence_boundary,
     keep_ranges_transcript_text,
     snap_clip_start_to_sentence,
@@ -348,6 +349,7 @@ class VideoService:
                 # Snapping, cleanup and the teaser change what is spoken; keep
                 # the stored text word-for-word with the rendered timeline.
                 clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
+            keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges)
 
             success = await run_in_thread(
                 create_optimized_clip,
@@ -363,6 +365,7 @@ class VideoService:
                 output_format,
                 keep_ranges,
                 segment.get("hook_title"),
+                extend_to_sentence=False,
             )
 
             if not success:
