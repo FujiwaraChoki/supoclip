@@ -630,12 +630,13 @@ def download_audio_for_job(
                 task_id=task_id,
             )
             return existing
-    if not proxy_configured(runtime):
-        raise YouTubeDownloadError("Audio-first download requires YOUTUBE_PROXY_URL")
-    # A new stem also avoids reusing transcript sidecars from the old track.
-    downloaded = download_audio(url, video_id, directory / f"audio-{AUDIO_POLICY}", task_id=task_id, budget=budget)
-    with _cache_lock(directory):
-        manifest = _load_manifest(directory, video_id)
+        if not proxy_configured(runtime):
+            raise YouTubeDownloadError("Audio-first download requires YOUTUBE_PROXY_URL")
+        # Hold the per-video lock through download and manifest publication.
+        # Concurrent jobs must not overwrite the same native downloader files.
+        downloaded = download_audio(
+            url, video_id, directory / f"audio-{AUDIO_POLICY}", task_id=task_id, budget=budget,
+        )
         manifest["audio"] = downloaded.name
         _save_manifest(directory, manifest)
     _persist_named(video_id, downloaded)
@@ -808,16 +809,17 @@ def materialize_clip_source(
         pieces = _pieces(directory, manifest)
         gaps = missing_intervals([(piece.start, piece.end) for piece in pieces], needed)
 
-    if gaps and not proxy_configured(runtime):
-        raise PartialDownloadUnavailable("Section download requires YOUTUBE_PROXY_URL")
+        if gaps and not proxy_configured(runtime):
+            raise PartialDownloadUnavailable("Section download requires YOUTUBE_PROXY_URL")
 
-    for gap_start, gap_end in gaps:
-        filename = _range_filename(gap_start, gap_end)
-        target = directory / filename
-        _path, media_start, media_end = download_section_file(
-            url, video_id, gap_start, gap_end, target, task_id=task_id, budget=counter,
-        )
-        with _cache_lock(directory):
+        # Recheck and fill gaps under the same lock so a waiting job reuses
+        # completed files instead of writing to another job's native parts.
+        for gap_start, gap_end in gaps:
+            filename = _range_filename(gap_start, gap_end)
+            target = directory / filename
+            _path, media_start, media_end = download_section_file(
+                url, video_id, gap_start, gap_end, target, task_id=task_id, budget=counter,
+            )
             manifest = _load_manifest(directory, video_id)
             manifest["ranges"] = [
                 item for item in manifest.get("ranges") or []
@@ -830,8 +832,8 @@ def materialize_clip_source(
                 "bytes": target.stat().st_size,
             })
             _save_manifest(directory, manifest)
-        _persist_named(video_id, target)
-        _persist_named(video_id, directory / MANIFEST_NAME)
+            _persist_named(video_id, target)
+            _persist_named(video_id, directory / MANIFEST_NAME)
 
     with _cache_lock(directory):
         manifest = _load_manifest(directory, video_id)

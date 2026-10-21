@@ -83,7 +83,8 @@ jobs:
         run: cd frontend && pnpm run test:coverage
 
   e2e:
-    runs-on: ubuntu-latest
+    # Playwright 1.59 does not support ubuntu-latest's Ubuntu 26.04 image.
+    runs-on: ubuntu-24.04
     needs:
       - backend
       - frontend
