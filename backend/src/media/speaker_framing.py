@@ -4,8 +4,8 @@ On a single-camera wide shot of a podcast or interview, the default vertical
 crop can only show one person at a time. This module uses the transcript's
 speaker labels to decide *who* is talking, matches each diarized speaker to a
 face position on screen by correlating mouth-region motion with their speech,
-and returns a crop that hard-cuts to the active speaker on each turn (the way a
-human editor cuts a podcast short).
+and hard-cuts to the active speaker on each turn. Sustained crosstalk switches
+to two face-centred panels that fill the vertical frame.
 
 Scope, deliberately conservative so a wrong guess never ships:
 - Only shots where two or more faces are visible together (wide shots) get
@@ -14,8 +14,9 @@ Scope, deliberately conservative so a wrong guess never ships:
 - Clips with content shots (no faces: slides, tweets, screen recordings) are
   left to the scene-aware compositor in ``reframing``; the caller only asks
   for speaker framing when its layout plan is all faces.
-- When the speaker-to-face mapping is not clearly better than the alternatives,
-  the caller falls back to dominant-face tracking.
+- When the speaker-to-face mapping is ambiguous, solo sections fall back to
+  dominant-face tracking. Showing both of two stable faces during overlap
+  does not need an identity mapping.
 """
 
 from itertools import permutations
@@ -26,7 +27,7 @@ import subprocess
 import cv2
 import numpy as np
 
-from .common import FACE_PRESENCE_MIN_AREA, VERTICAL_SCALE_CHAIN, logger
+from .common import FACE_PRESENCE_MIN_AREA, UPSCALE_SHARPEN_FILTER, VERTICAL_SCALE_CHAIN, logger
 from .ffmpeg import clamp_even, round_to_even
 from .timeline import get_words_for_keep_ranges
 from .transcription import load_cached_transcript_data
@@ -48,6 +49,10 @@ MIN_SEGMENT_SECONDS = 0.4
 SHOT_CONTRADICTION_MARGIN = 0.2
 MAX_FRAMED_SPEAKERS = 4
 MAX_FACE_CLUSTERS = 6
+OVERLAP_MIN_SECONDS = 0.6
+OVERLAP_WORD_GAP_SECONDS = 0.25
+OVERLAP_RELEASE_SECONDS = 0.35
+OVERLAP_CLUSTER_MIN_SUPPORT = 0.6
 
 
 def build_speaker_turns(
@@ -458,7 +463,7 @@ def build_speaker_activity(
     usable = shot_mask(wide_shots)
     baseline_usable = usable if baseline_shots is None else shot_mask(baseline_shots)
 
-    frame_speaker: List[Optional[str]] = [None] * n_frames
+    frame_speakers = [set() for _ in range(n_frames)]
     for word in words:
         speaker = word.get("speaker")
         if speaker is None:
@@ -466,8 +471,11 @@ def build_speaker_activity(
         lo = max(0, int(np.ceil(float(word["start"]) * fps)))
         hi = min(n_frames, int(np.floor(float(word["end"]) * fps)) + 1)
         for frame_index in range(lo, hi):
-            frame_speaker[frame_index] = str(speaker)
+            frame_speakers[frame_index].add(str(speaker))
 
+    # Crosstalk cannot establish who belongs to which face. Learn the mapping
+    # from solo speech instead of letting the last overlapping word win.
+    frame_speaker = [next(iter(s)) if len(s) == 1 else None for s in frame_speakers]
     has_speaker = np.array([s is not None for s in frame_speaker])
     speaking = has_speaker & usable
     baseline_speaking = has_speaker & baseline_usable
@@ -717,7 +725,129 @@ def build_step_x_expression(segments: Sequence[Tuple[float, float, int]]) -> str
     return build_crop_x_expression([(a, b, float(x), float(x)) for a, b, x in segments])
 
 
-def build_speaker_crop_chain(
+def _merge_intervals(
+    intervals: Sequence[Tuple[float, float]], gap: float = 0.0
+) -> List[Tuple[float, float]]:
+    merged: List[Tuple[float, float]] = []
+    for a, b in sorted(intervals):
+        if b <= a:
+            continue
+        if merged and a <= merged[-1][1] + gap:
+            merged[-1] = (merged[-1][0], max(b, merged[-1][1]))
+        else:
+            merged.append((a, b))
+    return merged
+
+
+def find_speaker_overlaps(
+    words: Sequence[Dict[str, Any]],
+    speakers: Sequence[str],
+    clusters: Sequence[Dict[str, float]],
+    analysis: Dict[str, Any],
+    wide_shots: Sequence[Tuple[float, float]],
+) -> List[Tuple[float, float]]:
+    """Sustained two-person speech, bounded by shots that show both faces.
+
+    Word timing is the primary signal. Some diarizers assign only one label
+    at a time even during crosstalk, so independently active mouth regions can
+    also request a split. That fallback requires speech, a clear quiet/talking
+    contrast for both mouths, and sustained activity; a scene cut or a brief
+    acknowledgement must not trigger a new layout.
+    """
+    if len(speakers) != 2 or len(clusters) != 2:
+        return []
+    speech = {
+        speaker: _merge_intervals(
+            [(float(w["start"]), float(w["end"])) for w in words if str(w.get("speaker")) == speaker],
+            OVERLAP_WORD_GAP_SECONDS,
+        )
+        for speaker in speakers
+    }
+    timed = [
+        (max(a, c), min(b, d))
+        for a, b in speech[speakers[0]] for c, d in speech[speakers[1]]
+        if min(b, d) > max(a, c)
+    ]
+    overlaps: List[Tuple[float, float]] = []
+    for start, end in wide_shots:
+        candidates = [(max(a, start), min(b, end)) for a, b in timed if a < end and b > start]
+        if analysis.get("motion_fps") and analysis.get("motion_cell"):
+            fps = analysis["motion_fps"]
+            times = np.arange(analysis["motion"].shape[0]) / fps
+            in_shot = (times >= start) & (times < end)
+            for cut in analysis.get("scene_cuts", []):
+                in_shot &= np.abs(times - cut) > 0.25
+            speaking = np.zeros(len(times), dtype=bool)
+            for ranges in speech.values():
+                for a, b in ranges:
+                    speaking |= (times >= a) & (times < b)
+            both_active = in_shot & speaking
+            common_motion = np.median(analysis["motion"], axis=(1, 2))
+            for cluster in clusters:
+                # Remove motion shared across the frame so a camera pan or
+                # exposure change cannot make both mouths appear active.
+                values = np.maximum(0.0, mouth_motion_series(analysis, cluster) - common_motion)
+                baseline = values[in_shot & speaking]
+                if len(baseline) < MIN_SPEAKER_SAMPLE_FRAMES:
+                    both_active[:] = False
+                    break
+                quiet, talking = np.percentile(baseline, [20, 80])
+                if talking - quiet < 0.5 or talking < quiet * 1.35:
+                    both_active[:] = False
+                    break
+                both_active &= values > quiet + (talking - quiet) * 0.5
+            indices = np.flatnonzero(both_active)
+            candidates.extend((i / fps, (i + 1) / fps) for i in indices)
+
+        observed = _merge_intervals(candidates)
+        sustained = []
+        for a, b in _merge_intervals(observed, OVERLAP_WORD_GAP_SECONDS):
+            support = sum(max(0.0, min(b, d) - max(a, c)) for c, d in observed)
+            if b - a >= OVERLAP_MIN_SECONDS - 1e-6 and support >= (b - a) * 0.6:
+                sustained.append((a, b))
+        # Keep panel order stable (left guest above right guest) and hold the
+        # layout briefly after crosstalk. Never carry it over a camera cut.
+        overlaps.extend(_merge_intervals([
+            (a, min(end, b + OVERLAP_RELEASE_SECONDS)) for a, b in sustained
+        ]))
+    return overlaps
+
+
+def build_stacked_overlap_filter(
+    crop_chain: str,
+    width: int,
+    height: int,
+    clusters: Sequence[Dict[str, float]],
+    overlaps: Sequence[Tuple[float, float]],
+) -> str:
+    """Full-bleed 1080x1920: two independent 1080x960 crops during overlap."""
+    branches = [f"[0:v]split=3[solo_src][top_src][bottom_src];[solo_src]{crop_chain}[solo]"]
+    for label, face in zip(("top", "bottom"), sorted(clusters, key=lambda c: c["cx"])):
+        # Match the panel's 9:8 aspect ratio in source pixels. Leave room for
+        # the head and shoulders, with the face in the upper part of its panel.
+        preferred_w = max(width / 2, face["w"] * 2.5, face["h"] * 2.5 * 9 / 8)
+        panel_w = round_to_even(int(min(width, height * 9 / 8, preferred_w)))
+        panel_h = min(round_to_even(height), round_to_even(int(panel_w * 8 / 9)))
+        x = clamp_even(int(face["cx"] - panel_w / 2), 0, width - panel_w)
+        y = clamp_even(int(face["cy"] - panel_h * 0.4), 0, height - panel_h)
+        branches.append(
+            f"[{label}_src]crop={panel_w}:{panel_h}:{x}:{y},"
+            f"scale=1080:960:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[{label}]"
+        )
+    branches.append("[top][bottom]vstack=inputs=2[stack]")
+
+    def enabled(intervals: Sequence[Tuple[float, float]]) -> str:
+        terms = [f"(gte(t\\,{a:.3f})-gte(t\\,{b:.3f}))" for a, b in intervals]
+        if len(terms) <= 4:
+            return "+".join(terms) or "0"
+        mid = len(intervals) // 2
+        return f"({enabled(intervals[:mid])})+({enabled(intervals[mid:])})"
+
+    branches.append(f"[solo][stack]overlay=0:0:enable='{enabled(overlaps)}'[vout]")
+    return ";".join(branches)
+
+
+def build_speaker_filter_plan(
     input_path: Path,
     width: int,
     height: int,
@@ -726,12 +856,13 @@ def build_speaker_crop_chain(
     duration: float,
     turns: Sequence[Dict[str, Any]],
     words: Sequence[Dict[str, Any]],
-) -> Optional[str]:
-    """ffmpeg -vf chain cutting between speakers, or None to use the default.
+) -> Optional[Tuple[str, str]]:
+    """Return (filter, vf/complex), or None to use the default face layout.
 
     The caller only invokes this for clips without content shots.
     """
-    if len(turns) < 2 or crop_w >= width or duration <= 0:
+    labelled = {str(w["speaker"]) for w in words if w.get("speaker") is not None}
+    if (len(turns) < 2 and len(labelled) < 2) or crop_w >= width or duration <= 0:
         return None
     analysis = analyze_speaker_clip(input_path, width, height)
     if not analysis:
@@ -761,11 +892,23 @@ def build_speaker_crop_chain(
     activity = build_speaker_activity(analysis, clusters, words, wide_shots, scene_cuts)
     mapping = assign_speakers_to_clusters(activity)
     if not mapping:
-        logger.info("Speaker framing skipped: speaker-to-face mapping ambiguous (%s)", activity)
-        return None
+        logger.info("Speaker cuts skipped: speaker-to-face mapping ambiguous (%s)", activity)
     # Speaker cuts only where every mapped face is on screen; other wide shots
     # get the per-shot face crop like any other shot.
-    mapped = [clusters[i] for i in sorted(set(mapping.values()))]
+    mapped = [clusters[i] for i in sorted(set((mapping or {}).values()))]
+    # A sporadic Haar hit on a hand or microphone must not disable an otherwise
+    # stable two-person layout. Without an identity mapping require stronger
+    # positional support than the solo-speaker mapper does.
+    overlap_clusters = mapped if len(mapped) == 2 else [
+        c for c in clusters if c["support"] >= OVERLAP_CLUSTER_MIN_SUPPORT
+    ]
+    overlap_shots = [
+        shot for shot in wide_shots
+        if len(overlap_clusters) == 2 and all(
+            rate >= WIDE_SHOT_MIN_RATE
+            for rate in wide_shot_cluster_hits(face_samples, shot, overlap_clusters, crop_w)
+        )
+    ]
     wide_shots = [
         shot for shot in wide_shots
         if all(
@@ -777,7 +920,7 @@ def build_speaker_crop_chain(
     # contradicts it (e.g. a reverse angle that swaps the guests' sides).
     validated = [
         shot for shot in wide_shots
-        if not shot_contradicts_mapping(
+        if mapping and not shot_contradicts_mapping(
             analysis, clusters, words, shot, wide_shots, scene_cuts, mapping
         )
     ]
@@ -787,12 +930,16 @@ def build_speaker_crop_chain(
             len(wide_shots) - len(validated),
         )
     wide_shots = validated
-    if not wide_shots:
+    # With exactly two stable faces, displaying both does not require knowing
+    # which label belongs to which face (e.g. an entirely overlapping clip).
+    speakers = sorted(labelled)
+    overlaps = find_speaker_overlaps(words, speakers, overlap_clusters, analysis, overlap_shots)
+    if not wide_shots and not overlaps:
         return None
 
     max_x = max(0, width - crop_w)
     cluster_x = [clamp_even(int(c["cx"] - crop_w / 2), 0, max_x) for c in clusters]
-    if len(set(cluster_x[i] for i in mapping.values())) < 2:
+    if mapping and len(set(cluster_x[i] for i in mapping.values())) < 2 and not overlaps:
         return None
     shot_x: Dict[Tuple[float, float], int] = {}
     for shot in shots:
@@ -806,9 +953,9 @@ def build_speaker_crop_chain(
             shot_x[shot] = clamp_even(int(np.median(centres) - crop_w / 2), 0, max_x)
 
     segments = build_speaker_segments(
-        turns, mapping, cluster_x, shots, wide_shots, shot_x, scene_cuts, duration
+        turns, mapping or {}, cluster_x, shots, wide_shots, shot_x, scene_cuts, duration
     )
-    if len(segments) < 2:
+    if len(segments) < 2 and not overlaps:
         return None
     # Shots without speaker cuts keep the default smooth face tracking when
     # their subject moves, instead of a single static crop.
@@ -823,9 +970,13 @@ def build_speaker_crop_chain(
     logger.info(
         "Speaker framing: %d speaker(s) mapped to faces, %d framing segment(s), "
         "%d tracked shot(s)",
-        len(mapping), len(segments), len(tracked),
+        len(mapping or {}), len(segments), len(tracked),
     )
-    return (
+    crop_chain = (
         f"crop={crop_w}:{crop_h}:x='{build_crop_x_expression(pieces)}':y=0,"
         f"{VERTICAL_SCALE_CHAIN}"
     )
+    if overlaps:
+        logger.info("Speaker framing: %d stacked overlap section(s)", len(overlaps))
+        return build_stacked_overlap_filter(crop_chain, width, height, overlap_clusters, overlaps), "complex"
+    return crop_chain, "vf"

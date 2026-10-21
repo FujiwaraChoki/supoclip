@@ -325,8 +325,8 @@ def test_vertical_plan_uses_speaker_chain_for_all_face_clips(monkeypatch, tmp_pa
     monkeypatch.setattr(reframing, "ffprobe_duration", lambda _: 10.0)
     monkeypatch.setattr(reframing, "analyze_vertical_clip", lambda *_: (_face_track(), []))
     monkeypatch.setattr(
-        speaker_framing, "build_speaker_crop_chain",
-        lambda *args, **kwargs: "crop=606:1080:x='0':y=0,scale=1080:1920",
+        speaker_framing, "build_speaker_filter_plan",
+        lambda *args, **kwargs: ("crop=606:1080:x='0':y=0,scale=1080:1920", "vf"),
     )
     turns = [{"speaker": "A", "start": 0, "end": 5}, {"speaker": "B", "start": 5, "end": 10}]
 
@@ -341,7 +341,7 @@ def test_vertical_plan_uses_speaker_chain_for_all_face_clips(monkeypatch, tmp_pa
 def test_vertical_plan_falls_back_when_speaker_mapping_fails(monkeypatch, tmp_path):
     monkeypatch.setattr(reframing, "ffprobe_duration", lambda _: 10.0)
     monkeypatch.setattr(reframing, "analyze_vertical_clip", lambda *_: (_face_track(), []))
-    monkeypatch.setattr(speaker_framing, "build_speaker_crop_chain", lambda *a, **k: None)
+    monkeypatch.setattr(speaker_framing, "build_speaker_filter_plan", lambda *a, **k: None)
     turns = [{"speaker": "A", "start": 0, "end": 5}, {"speaker": "B", "start": 5, "end": 10}]
 
     chain, mode, _caption = reframing.build_vertical_filter_plan(
@@ -357,7 +357,7 @@ def test_vertical_plan_keeps_compositor_for_content_shots(monkeypatch, tmp_path)
     track = _face_track(5.0) + [(5.0 + i / 3.0, None, 0.0) for i in range(15)]
     monkeypatch.setattr(reframing, "analyze_vertical_clip", lambda *_: (track, []))
     monkeypatch.setattr(
-        speaker_framing, "build_speaker_crop_chain",
+        speaker_framing, "build_speaker_filter_plan",
         lambda *a, **k: pytest.fail("content clips must not use speaker framing"),
     )
     turns = [{"speaker": "A", "start": 0, "end": 5}, {"speaker": "B", "start": 5, "end": 10}]
@@ -427,7 +427,7 @@ def test_wide_shot_from_another_angle_gets_its_own_face_crop(monkeypatch, tmp_pa
         {"speaker": "B", "start": 8.0, "end": 20.0},
     ]
 
-    chain = speaker_framing.build_speaker_crop_chain(
+    chain, mode = speaker_framing.build_speaker_filter_plan(
         tmp_path / "clip.mp4", 1920, 1080, 606, 1080, 20.0, turns, []
     )
 
@@ -528,7 +528,7 @@ def test_moving_single_face_shot_keeps_tracking(monkeypatch, tmp_path):
         {"speaker": "B", "start": 5.0, "end": 20.0},
     ]
 
-    chain = speaker_framing.build_speaker_crop_chain(
+    chain, mode = speaker_framing.build_speaker_filter_plan(
         tmp_path / "clip.mp4", 1920, 1080, 606, 1080, 20.0, turns, []
     )
 

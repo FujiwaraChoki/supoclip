@@ -1209,30 +1209,34 @@ def build_vertical_filter_plan(
     # Decide the layout over time. All-face clips skip the compositor (cheaper).
     plan = build_layout_plan(track, scene_cuts, duration)
     fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "fit"]
-    if not fit_intervals:
-        talking = choose_talking_head_layout(width, height, face_samples, scene_cuts)
-        if talking:
-            logger.info(
-                "Face-aware vertical layout: %s (upscale %.2fx, caption_y %.2f)",
-                talking["kind"], talking["upscale"], talking["caption_y"],
-            )
-            return (talking["video_filter"], "complex", talking["caption_y"])
-    if not fit_intervals and speaker_turns and speaker_words:
+    talking = choose_talking_head_layout(width, height, face_samples, scene_cuts) if not fit_intervals else None
+    if not fit_intervals and speaker_words and (not talking or talking["kind"] == "stack"):
         # All-face clip with diarized speakers: cut to whoever is talking on
         # multi-person wide shots. Clips with content shots keep the
         # compositor below, so slides/tweets are never cropped.
-        from .speaker_framing import build_speaker_crop_chain
+        from .speaker_framing import build_speaker_filter_plan
 
         try:
-            speaker_chain = build_speaker_crop_chain(
+            speaker_plan = build_speaker_filter_plan(
                 input_path, width, height, crop_w, crop_h, duration,
-                speaker_turns, speaker_words,
+                speaker_turns or [], speaker_words,
             )
         except Exception as exc:
             logger.warning("Speaker framing failed (%s); tracking dominant face", exc)
-            speaker_chain = None
-        if speaker_chain:
-            return (speaker_chain, "vf", bleed_caption(face_samples))
+            speaker_plan = None
+        if speaker_plan:
+            speaker_filter, speaker_mode = speaker_plan
+            if not talking or speaker_mode == "complex":
+                # Overlap gets full-bleed panels even if the wide shot looks
+                # like a call. Put captions between the two faces.
+                caption_y = 0.5 if speaker_mode == "complex" else bleed_caption(face_samples)
+                return speaker_filter, speaker_mode, caption_y
+    if talking:
+        logger.info(
+            "Face-aware vertical layout: %s (upscale %.2fx, caption_y %.2f)",
+            talking["kind"], talking["upscale"], talking["caption_y"],
+        )
+        return (talking["video_filter"], "complex", talking["caption_y"])
     if not fit_intervals:
         # Static, all-face clip: add the slow Ken Burns punch-in. (The moving
         # tracked crop and the compositor path keep the plain chain — they
