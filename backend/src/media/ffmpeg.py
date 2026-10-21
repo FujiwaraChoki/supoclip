@@ -212,16 +212,21 @@ def ffmpeg_escape_filter_path(path: Path) -> str:
 def build_final_video_encode_args(
     crf: int = FINAL_VIDEO_CRF,
     preset: str = FINAL_VIDEO_PRESET,
-    fps: int = OUTPUT_FPS,
+    fps: int | str = OUTPUT_FPS,
+    level: str = "4.1",
 ) -> List[str]:
-    """libx264 args for the quality-determining final pass (CFR, H.264 High)."""
+    """libx264 args for the quality-determining final pass (CFR, H.264 High).
+
+    Level 4.1 covers 1080p30. Original-format output at 60 fps (or 59.94)
+    needs 4.2 or x264 rejects the stream.
+    """
     return [
         "-c:v", "libx264",
         "-preset", preset,
         "-crf", str(crf),
         "-pix_fmt", "yuv420p",
         "-profile:v", "high",
-        "-level", "4.1",
+        "-level", level,
         "-r", str(fps),
         "-x264-params", "keyint=120:min-keyint=30:scenecut=40",
     ]

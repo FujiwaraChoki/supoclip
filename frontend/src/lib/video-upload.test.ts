@@ -1,6 +1,15 @@
-import { uploadVideoFile, validateVideoSourceUrl } from "./video-upload";
+import { uploadTooLargeMessage, uploadVideoFile, validateVideoSourceUrl } from "./video-upload";
 
 describe("S3 video uploads", () => {
+  it("rejects a file over the upload limit before requesting authorization", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["x"], "video.mp4", { type: "video/mp4" });
+    Object.defineProperty(file, "size", { value: 4_000_000_001 });
+    await expect(uploadVideoFile(file, 4_000_000_000)).rejects.toThrow(uploadTooLargeMessage(4_000_000_000, file.size));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   afterEach(() => vi.unstubAllGlobals());
 
   function authorization() {

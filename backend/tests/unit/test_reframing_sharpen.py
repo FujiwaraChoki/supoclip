@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from src.media import reframing
 from src.media.common import UPSCALE_SHARPEN_FILTER
+from src.media.source_limits import VideoGeometry
 
 
 class _Result:
@@ -72,6 +73,49 @@ def test_original_format_is_not_sharpened(tmp_path):
 
     assert ok is True
     assert UPSCALE_SHARPEN_FILTER not in " ".join(commands[0])
+
+
+def test_original_format_reencodes_sources_above_1080p(tmp_path):
+    commands = []
+
+    def fake_run(command, timeout=900):
+        commands.append(command)
+        return _Result()
+
+    with (
+        patch.object(reframing, "ffprobe_video_size", return_value=(3840, 2160)),
+        patch.object(reframing, "ffprobe_has_audio", return_value=True),
+        patch.object(reframing, "probe_video_geometry", return_value=VideoGeometry(3840, 2160, 120, 0)),
+        patch.object(reframing, "run_ffmpeg_command", side_effect=fake_run),
+    ):
+        ok, width, height = reframing.render_reframed_clip_ffmpeg(
+            tmp_path / "in.mp4", tmp_path / "out.mp4", "original"
+        )
+
+    assert ok is True
+    assert (width, height) == (1920, 1080)
+    video_filter = commands[0][commands[0].index("-vf") + 1]
+    assert "scale=1920:1080" in video_filter
+    assert "fps=60" in video_filter
+
+
+def test_original_format_copies_a_source_already_within_the_cap(tmp_path):
+    source = tmp_path / "in.mp4"
+    source.write_bytes(b"source-bytes")
+    output = tmp_path / "out.mp4"
+
+    with (
+        patch.object(reframing, "ffprobe_video_size", return_value=(1920, 1080)),
+        patch.object(reframing, "ffprobe_has_audio", return_value=False),
+        patch.object(reframing, "probe_video_geometry", return_value=VideoGeometry(1920, 1080, 30, 0)),
+        patch.object(reframing, "run_ffmpeg_command") as run,
+    ):
+        ok, width, height = reframing.render_reframed_clip_ffmpeg(source, output, "original")
+
+    assert ok is True
+    assert (width, height) == (1920, 1080)
+    assert output.read_bytes() == b"source-bytes"
+    run.assert_not_called()
 
 
 def test_split_layout_sharpens_both_tiles(tmp_path):

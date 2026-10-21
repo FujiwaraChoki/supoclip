@@ -13,6 +13,7 @@ import uuid
 
 from .caption_templates import get_template
 from .media.ffmpeg import ffmpeg_escape_filter_path
+from .media.source_limits import FPS_EPSILON, MAX_OUTPUT_FPS, probe_video_geometry
 from .video_utils import (
     ass_fonts_dir,
     build_assemblyai_ass_subtitles,
@@ -386,6 +387,9 @@ def export_with_preset(input_path: Path, output_dir: Path, preset_name: str) -> 
         f"pad={preset.width}:{preset.height}:(ow-iw)/2:(oh-ih)/2,"
         "setsar=1"
     )
+    geometry = probe_video_geometry(input_path)
+    if geometry and geometry.fps is not None and geometry.fps > MAX_OUTPUT_FPS + FPS_EPSILON:
+        scale_filter = f"fps={MAX_OUTPUT_FPS},{scale_filter}"
     command = [
         "ffmpeg",
         "-y",

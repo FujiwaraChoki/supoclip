@@ -14,6 +14,7 @@
     "uploadFont": "Failed to upload font",
     "uploadFontRetry": "Failed to upload font. Please try again.",
     "processVideo": "Failed to process video. Please try again.",
+    "fileTooLarge": "This file is {size}, which is over the {limit} upload limit. Try a shorter export or a smaller file.",
     "api": "API error: {status}"
   },
   "status": {
@@ -85,6 +86,7 @@
   "extraWordsPlaceholder": "basically, literally, to be honest",
   "generate": "Generate clips",
   "limitNote": "{plan}: YouTube, Twitch, and Kick videos up to {minutes} minutes. Each video uses its length in minutes, checked before we start.",
+  "uploadLimits": "Uploads up to {size}. Videos above 1080p or 60 fps are scaled down automatically, keeping their shape.",
   "completionEmails": "Completion emails follow your preference in <settings>Settings</settings>.",
   "recent": "Recent",
   "viewLibrary": "View library",

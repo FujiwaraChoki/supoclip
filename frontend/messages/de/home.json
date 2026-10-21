@@ -14,6 +14,7 @@
     "uploadFont": "Schrift konnte nicht hochgeladen werden",
     "uploadFontRetry": "Schrift konnte nicht hochgeladen werden. Versuch es noch einmal.",
     "processVideo": "Video konnte nicht verarbeitet werden. Versuch es noch einmal.",
+    "fileTooLarge": "Diese Datei ist {size} und damit über dem Upload-Limit von {limit}. Versuch einen kürzeren Export oder eine kleinere Datei.",
     "api": "API-Fehler: {status}"
   },
   "status": {
@@ -85,6 +86,7 @@
   "extraWordsPlaceholder": "im Grunde, wortwörtlich, ehrlich gesagt",
   "generate": "Clips erzeugen",
   "limitNote": "{plan}: YouTube-Videos bis {minutes} Minuten. Jedes Video verbraucht seine Länge in Minuten, geprüft vor dem Start.",
+  "uploadLimits": "Uploads bis {size}. Videos über 1080p oder 60 fps werden automatisch verkleinert, das Seitenverhältnis bleibt erhalten.",
   "completionEmails": "E-Mails zum Abschluss folgen deiner Einstellung unter <settings>Einstellungen</settings>.",
   "recent": "Zuletzt",
   "viewLibrary": "Bibliothek ansehen",

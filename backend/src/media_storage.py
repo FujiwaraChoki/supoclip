@@ -29,6 +29,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from .config import get_config
 from .editor_document import atomic_json
+from .media.upload_limits import upload_too_large_detail
 
 SIDECARS = (".source_map.json", ".transcript_cache.json")
 PART_BYTES = 64 * 1024 * 1024
@@ -158,8 +159,10 @@ class MediaStorage:
         metadata = self.client.head_object(Bucket=self.bucket, Key=self.parse(reference))
         size = metadata["ContentLength"]
         expected = metadata.get("Metadata", {}).get("expected-size")
-        if not 0 < size <= self.config.max_video_upload_bytes or (expected and size != int(expected)):
+        if size <= 0 or (expected and size != int(expected)):
             raise ValueError("Uploaded video has an invalid size")
+        if size > self.config.max_video_upload_bytes:
+            raise ValueError(upload_too_large_detail(self.config.max_video_upload_bytes))
         return reference
 
     def upload_file(self, path: Path, key: str, **extra) -> str:
@@ -252,7 +255,11 @@ class MediaStorage:
                     if not self._download(str(PurePosixPath(key).with_suffix(suffix)), sidecar, optional=True):
                         missing.touch()
             if not metadata_only and not path.exists():
-                self._download(key, path)
+                capped = self.capped_source_key(key)
+                # A previous job may already have stored a 1080p/60 master.
+                # Misses fall through to the original upload.
+                if not (capped and self._download(capped, path, optional=True)):
+                    self._download(key, path)
             return path
 
     def caption_settings(self, reference: str):
@@ -343,8 +350,10 @@ class MediaStorage:
             raise
 
     def begin_upload(self, user_id: str, filename: str, size: int, content_type: str, *, authorization=None):
-        if not 0 < size <= self.config.max_video_upload_bytes:
+        if type(size) is not int or size <= 0:
             raise ValueError("Uploaded file is too large or empty")
+        if size > self.config.max_video_upload_bytes:
+            raise ValueError(upload_too_large_detail(self.config.max_video_upload_bytes))
         extension = self.video_extension(filename, content_type)
         relative = f"{owner_key(user_id)}/{uuid.uuid4().hex}/video{extension}"
         key = self.key("sources", relative)
@@ -364,6 +373,31 @@ class MediaStorage:
             raise
         result["parts"] = parts
         return result
+
+    def capped_source_key(self, key: str) -> str | None:
+        """Derived object for a source that has already been capped to 1080p/60."""
+        if not key.startswith(self.key("sources") + "/"):
+            return None
+        path = PurePosixPath(key)
+        if path.stem.endswith(".capped"):
+            return None
+        return str(path.with_name(f"{path.stem}.capped.mp4"))
+
+    def store_capped_source(self, path: Path) -> None:
+        """Upload the local capped master next to the stored original.
+
+        The original object and its expected-size metadata stay put. Later
+        downloads use the capped object so the worker does not transcode the
+        same oversized upload on every edit.
+        """
+        marker = path.parent / ".reference"
+        if not self.enabled or not marker.is_file():
+            return
+        key = self.parse(marker.read_text())
+        capped = self.capped_source_key(key)
+        if not capped:
+            return
+        self.upload_file(path, capped, ContentType="video/mp4")
 
     def owned_upload_key(self, video_path: str, user_id: str) -> str:
         key = self.parse(self.source_reference(video_path))
@@ -398,6 +432,64 @@ class MediaStorage:
             raise ValueError("An upload ID is required")
         return {"parts": self.upload_part_urls(key, payload["uploadId"], size, numbers)}
 
+    def _list_uploaded_parts(self, key: str, upload_id: str) -> list[dict]:
+        collected: list[dict] = []
+        marker = None
+        while True:
+            kwargs: dict = {"Bucket": self.bucket, "Key": key, "UploadId": upload_id, "MaxParts": 1000}
+            if marker is not None:
+                kwargs["PartNumberMarker"] = marker
+            page = self.client.list_parts(**kwargs)
+            collected.extend(page.get("Parts") or [])
+            if not page.get("IsTruncated"):
+                return collected
+            marker = page.get("NextPartNumberMarker")
+            if marker is None:
+                return collected
+
+    def _require_declared_part_sizes(self, key: str, upload_id: str, size: int) -> None:
+        """Reject a multipart body that is not the size the part URLs signed.
+
+        Presigned Content-Length is not an S3 bucket policy. A client can PUT a
+        larger body when the signature does not pin that header, including a
+        chunked part up to S3's 5 GB part maximum. Listing the parts before
+        completion is what enforces the cap.
+        """
+        uploaded = self._list_uploaded_parts(key, upload_id)
+        expected_count = (size + PART_BYTES - 1) // PART_BYTES
+        expected_numbers = list(range(1, expected_count + 1))
+        # An incomplete set must stay open so the client can finish uploading.
+        # A part that is already larger than the signed length is aborted now:
+        # waiting for the other parts would leave a multi-gigabyte part in the
+        # bucket, and completing later would only then notice it.
+        seen: dict[int, int] = {}
+        oversized = False
+        for part in uploaded:
+            number = int(part.get("PartNumber") or 0)
+            part_size = int(part.get("Size") or 0)
+            if number not in expected_numbers or number in seen:
+                if part_size > PART_BYTES or part_size > self.config.max_video_upload_bytes:
+                    oversized = True
+                continue
+            expected_part = min(PART_BYTES, size - (number - 1) * PART_BYTES)
+            if part_size > expected_part or part_size > self.config.max_video_upload_bytes:
+                oversized = True
+                continue
+            seen[number] = part_size
+        if oversized or sum(seen.values()) > self.config.max_video_upload_bytes:
+            try:
+                self.client.abort_multipart_upload(Bucket=self.bucket, Key=key, UploadId=upload_id)
+            except ClientError as exc:
+                if exc.response["Error"]["Code"] != "NoSuchUpload":
+                    raise
+            raise ValueError(upload_too_large_detail(self.config.max_video_upload_bytes))
+        if sorted(seen) != expected_numbers:
+            raise ValueError("Multipart upload does not contain every expected part")
+        if any(seen[number] != min(PART_BYTES, size - (number - 1) * PART_BYTES) for number in expected_numbers):
+            raise ValueError("Uploaded video has an invalid size")
+        if sum(seen.values()) != size:
+            raise ValueError("Uploaded video has an invalid size")
+
     def complete_upload(self, user_id: str, payload: dict, *, size: int | None = None):
         key = self.owned_upload_key(payload["video_path"], user_id)
         parts = payload["parts"]
@@ -408,6 +500,8 @@ class MediaStorage:
             raise ValueError("Invalid multipart upload parts")
         if size is not None and len(parts) != (size + PART_BYTES - 1) // PART_BYTES:
             raise ValueError("Multipart upload does not contain every expected part")
+        if size is not None:
+            self._require_declared_part_sizes(key, payload["uploadId"], size)
         try:
             self.client.complete_multipart_upload(Bucket=self.bucket, Key=key, UploadId=payload["uploadId"],
                 MultipartUpload={"Parts": [{"PartNumber": p["partNumber"], "ETag": p["etag"]} for p in parts]})
@@ -446,6 +540,9 @@ class MediaStorage:
                 object_keys = [key]
                 if PurePosixPath(key).suffix.lower() in VIDEO_SUFFIXES:
                     object_keys.extend(str(PurePosixPath(key).with_suffix(s)) for s in SIDECARS)
+                    capped = self.capped_source_key(key)
+                    if capped:
+                        object_keys.append(capped)
                 for object_key in object_keys:
                     self.client.delete_object(Bucket=self.bucket, Key=object_key)
             return

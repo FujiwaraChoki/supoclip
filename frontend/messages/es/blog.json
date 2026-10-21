@@ -438,7 +438,7 @@
       "li5": "<strong>Cambia la contraseña de la base de datos.</strong> <code>docker-compose.yml</code> deja fijo <code>supoclip_password</code> en cuatro lugares: <code>POSTGRES_PASSWORD</code> en el servicio <code>postgres</code> y <code>DATABASE_URL</code> en los servicios <code>frontend</code>, <code>backend</code> y <code>worker</code>. Editar solo <code>POSTGRES_PASSWORD</code> en <code>.env</code> no cambia ninguno. Sobrescribe los cuatro, como se muestra abajo.",
       "li6": "<strong>Define <code>REDIS_PASSWORD</code></strong>; el contenedor de Redis activa AUTH cuando no está vacío.",
       "li7": "<strong>Cierra los registros</strong> con <code>DISABLE_SIGN_UP=true</code> si la instancia es solo para tu equipo.",
-      "li8": "<strong>Revisa los límites:</strong> <code>MAX_VIDEO_DURATION</code> (predeterminado 5400 s, 90 minutos) y <code>MAX_VIDEO_UPLOAD_BYTES</code> (unos 12 GB).",
+      "li8": "<strong>Revisa los límites:</strong> <code>MAX_VIDEO_DURATION</code> (predeterminado 5400 s, 90 minutos) y <code>MAX_VIDEO_UPLOAD_BYTES</code> (predeterminado 4 GB).",
       "labelReset": "docker-compose.override.yml (Compose v2.24+)",
       "passwordIntro": "Para la contraseña de la base de datos, pon un valor nuevo en <code>POSTGRES_PASSWORD</code> dentro de <code>.env</code>. Genéralo con <code>openssl rand -hex 24</code>, porque el hexadecimal no necesita escape dentro de una URL. Luego apunta los cuatro ajustes a ese valor en el mismo archivo de override:",
       "labelPassword": "docker-compose.override.yml (fúndelo en cualquier override que ya tengas)",

@@ -68,3 +68,30 @@ def test_overlay_custom_captions_uses_template_and_cached_word_timings(
     assert "0:00:00.20" in captured["content"]
     assert "0:00:00.80" in captured["content"]
     assert ",62," in captured["content"]
+
+
+def test_export_preset_drops_frame_rates_above_60(tmp_path, monkeypatch):
+    source = tmp_path / "clip.mp4"
+    source.write_bytes(b"clip")
+    commands = []
+    monkeypatch.setattr(clip_editor, "probe_video_geometry", lambda _path: type("Geometry", (), {"fps": 120})())
+    monkeypatch.setattr(clip_editor, "_run", lambda command: commands.append(command))
+
+    clip_editor.export_with_preset(source, tmp_path, "tiktok")
+
+    video_filter = commands[0][commands[0].index("-vf") + 1]
+    assert video_filter.startswith("fps=60,")
+    assert "scale=1080:1920" in video_filter
+
+
+def test_export_preset_keeps_frame_rates_at_or_below_60(tmp_path, monkeypatch):
+    source = tmp_path / "clip.mp4"
+    source.write_bytes(b"clip")
+    commands = []
+    monkeypatch.setattr(clip_editor, "probe_video_geometry", lambda _path: type("Geometry", (), {"fps": 30})())
+    monkeypatch.setattr(clip_editor, "_run", lambda command: commands.append(command))
+
+    clip_editor.export_with_preset(source, tmp_path, "shorts")
+
+    video_filter = commands[0][commands[0].index("-vf") + 1]
+    assert "fps=" not in video_filter

@@ -18,6 +18,13 @@ from ...utils.async_helpers import run_in_thread
 from ...database import get_db
 from ...auth_headers import resolve_authenticated_user_id
 from ...services.billing_service import BillingService
+from starlette.formparsers import MultiPartException, MultiPartParser
+
+from ...media.upload_limits import (
+    MULTIPART_FRAMING_BYTES,
+    reject_content_length,
+    upload_too_large_detail,
+)
 from ...font_registry import (
     FONTS_DIR,
     SUPPORTED_FONT_EXTENSIONS,
@@ -41,6 +48,64 @@ async def _get_authenticated_user_id(request: Request, db: AsyncSession) -> str:
     return await resolve_authenticated_user_id(request, db, config)
 
 
+async def _read_limited_upload_form(request: Request, max_bytes: int):
+    """Parse one video upload without buffering past the cap.
+
+    Starlette's default multipart parser spools a file part with no size
+    limit, so a chunked body or a spoofed short Content-Length (when the
+    server still delivers the rest) would fill the disk before the handler
+    ran. Oversized declared lengths are refused first. Everything else is
+    counted as it arrives, and a file past the cap becomes 413.
+    """
+    raw_headers = list(request.scope.get("headers") or [])
+    lengths = [
+        value.decode("latin-1").strip()
+        for name, value in raw_headers
+        if name.lower() == b"content-length"
+    ]
+    encodings = [
+        value.decode("latin-1").strip()
+        for name, value in raw_headers
+        if name.lower() == b"transfer-encoding"
+    ]
+    reason = reject_content_length(lengths, encodings, max_bytes)
+    if reason == "too_large":
+        raise HTTPException(status_code=413, detail=upload_too_large_detail(max_bytes))
+    if reason == "conflict":
+        raise HTTPException(status_code=400, detail="Conflicting upload length")
+    if reason == "malformed":
+        raise HTTPException(status_code=400, detail="A single Content-Length is required")
+
+    ceiling = max_bytes + MULTIPART_FRAMING_BYTES
+
+    async def chunks():
+        received = 0
+        async for chunk in request.stream():
+            received += len(chunk)
+            if received > ceiling:
+                raise HTTPException(status_code=413, detail=upload_too_large_detail(max_bytes))
+            yield chunk
+
+    parser = MultiPartParser(
+        request.headers,
+        chunks(),
+        max_files=1,
+        max_fields=8,
+        max_part_size=1024 * 1024,
+    )
+    try:
+        return await parser.parse()
+    except HTTPException:
+        for spool in parser._files_to_close_on_error:
+            spool.close()
+        raise
+    except MultiPartException as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from None
+    except KeyError:
+        # Starlette indexes Content-Type before it reports a multipart error.
+        raise HTTPException(status_code=400, detail="A multipart upload is required") from None
+
+
 async def _write_upload_to_disk(
     uploaded_file: UploadFile,
     target_path: Path,
@@ -59,7 +124,8 @@ async def _write_upload_to_disk(
                 written += len(chunk)
                 if written > max_bytes:
                     raise HTTPException(
-                        status_code=413, detail="Uploaded file is too large"
+                        status_code=413,
+                        detail=upload_too_large_detail(max_bytes),
                     )
 
                 await destination.write(chunk)
@@ -291,52 +357,53 @@ async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
     try:
         user_id = await _get_authenticated_user_id(request, db)
         config = get_config()
+        max_bytes = config.max_video_upload_bytes
+        form_data = await _read_limited_upload_form(request, max_bytes)
+        try:
+            video_file = cast(Any, form_data.get("video"))
 
-        # Get the form data
-        form_data = await request.form()
-        video_file = cast(Any, form_data.get("video"))
+            if not getattr(video_file, "filename", None) or not hasattr(video_file, "read"):
+                raise HTTPException(status_code=400, detail="No video file provided")
 
-        if not getattr(video_file, "filename", None) or not hasattr(video_file, "read"):
-            raise HTTPException(status_code=400, detail="No video file provided")
+            upload = cast(UploadFile, video_file)
+            upload_filename = upload.filename or "upload.mp4"
 
-        upload = cast(UploadFile, video_file)
-        upload_filename = upload.filename or "upload.mp4"
+            # Create uploads directory
+            uploads_dir = Path(config.temp_dir) / "uploads"
+            uploads_dir.mkdir(parents=True, exist_ok=True)
 
-        # Create uploads directory
-        uploads_dir = Path(config.temp_dir) / "uploads"
-        uploads_dir.mkdir(parents=True, exist_ok=True)
+            # Generate unique filename
+            file_extension = Path(upload_filename).suffix
+            unique_filename = f"{uuid.uuid4()}{file_extension}"
+            video_path = uploads_dir / unique_filename
 
-        # Generate unique filename
-        file_extension = Path(upload_filename).suffix
-        unique_filename = f"{uuid.uuid4()}{file_extension}"
-        video_path = uploads_dir / unique_filename
+            # Save the uploaded file
+            await _write_upload_to_disk(upload, video_path, max_bytes)
 
-        # Save the uploaded file
-        max_bytes = get_config().max_video_upload_bytes
-        await _write_upload_to_disk(upload, video_path, max_bytes)
+            storage = MediaStorage()
+            if storage.enabled:
+                session_id = None
+                try:
+                    session_id = await reserve_upload(db, user_id, video_path.stat().st_size, config)
+                    url, _ = await run_in_thread(storage.persist_source, video_path, user_id)
+                    await finish_upload(db, session_id, 'completed')
+                except BaseException:
+                    if session_id:
+                        await db.rollback()
+                        await finish_upload(db, session_id, 'aborted')
+                    raise
+                finally:
+                    video_path.unlink(missing_ok=True)
+                return {"message": "Video uploaded successfully", "video_path": url}
 
-        storage = MediaStorage()
-        if storage.enabled:
-            session_id = None
-            try:
-                session_id = await reserve_upload(db, user_id, video_path.stat().st_size, config)
-                url, _ = await run_in_thread(storage.persist_source, video_path, user_id)
-                await finish_upload(db, session_id, 'completed')
-            except BaseException:
-                if session_id:
-                    await db.rollback()
-                    await finish_upload(db, session_id, 'aborted')
-                raise
-            finally:
-                video_path.unlink(missing_ok=True)
-            return {"message": "Video uploaded successfully", "video_path": url}
+            logger.info(f"✅ Video uploaded successfully to: {video_path}")
 
-        logger.info(f"✅ Video uploaded successfully to: {video_path}")
-
-        return {
-            "message": "Video uploaded successfully",
-            "video_path": f"upload://{unique_filename}",
-        }
+            return {
+                "message": "Video uploaded successfully",
+                "video_path": f"upload://{unique_filename}",
+            }
+        finally:
+            await form_data.close()
     except UploadLimitReached as exc:
         raise HTTPException(429, str(exc)) from None
     except HTTPException:
