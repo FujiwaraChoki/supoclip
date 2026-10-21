@@ -228,7 +228,7 @@ For anything beyond local experimentation:
 - Decide whether you want self-host mode or monetized hosted mode before launch
 - Verify all callback URLs and origins match your deployed domain
 - If using DataFast, set `NEXT_PUBLIC_DATAFAST_DOMAIN` to the deployed root domain you want tracked
-- For hosted billing, create and verify the Stripe prices before deploy: Pro at `$10/month` and `$100/year`, Creator (`scale`) at `$25/month` and `$250/year`. Add the yearly prices to the customer portal's plan-switching products so subscribers can move between them
+- For hosted billing, create and verify the Stripe prices before deploy: Pro at `$9.99/month` and `$99.90/year`, Creator (`scale`) at `$24.99/month` and `$249.90/year`; keep the earlier Pro price in `STRIPE_PRO_LEGACY_PRICE_IDS`. Add the yearly prices to the customer portal's plan-switching products so subscribers can move between them
 
 ## Useful Commands
 

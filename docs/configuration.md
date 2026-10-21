@@ -149,10 +149,10 @@ These determine whether the app behaves like an open self-hosted product or a mo
 | `AUTH_SIGNATURE_TTL_SECONDS` | `300` | Lifetime of backend request signatures |
 | `PRO_PLAN_MINUTE_LIMIT` | `600` | Hosted-mode Pro allowance, in minutes of source video per month (`0` = unlimited) |
 | `SCALE_PLAN_MINUTE_LIMIT` | `1500` | Hosted-mode Creator (`scale`) allowance, in minutes of source video per month |
-| `NEXT_PUBLIC_PRO_PRICE_MONTHLY` | `10` | Frontend display price for the Pro plan |
-| `NEXT_PUBLIC_SCALE_PRICE_MONTHLY` | `25` | Frontend display price for the Creator plan |
-| `NEXT_PUBLIC_PRO_PRICE_ANNUAL` | `100` | Frontend display price for a year of Pro |
-| `NEXT_PUBLIC_SCALE_PRICE_ANNUAL` | `250` | Frontend display price for a year of Creator |
+| `NEXT_PUBLIC_PRO_PRICE_MONTHLY` | `9.99` | Frontend display price for the Pro plan |
+| `NEXT_PUBLIC_SCALE_PRICE_MONTHLY` | `24.99` | Frontend display price for the Creator plan |
+| `NEXT_PUBLIC_PRO_PRICE_ANNUAL` | `99.90` | Frontend display price for a year of Pro |
+| `NEXT_PUBLIC_SCALE_PRICE_ANNUAL` | `249.90` | Frontend display price for a year of Creator |
 | `NEXT_PUBLIC_PRO_PLAN_MINUTE_LIMIT` | `600` | Frontend display allowance for the Pro plan |
 | `NEXT_PUBLIC_SCALE_PLAN_MINUTE_LIMIT` | `1500` | Frontend display allowance for the Creator plan |
 | `NEXT_PUBLIC_SOCIAL_PUBLISHING` | `soon` | How Creator's scheduled posting appears on pricing pages: `soon` ("Coming soon" tag, YouTube and TikTok), `live`, or `off` |
@@ -391,10 +391,10 @@ STRIPE_PRO_ANNUAL_PRICE_ID=price_xxx
 STRIPE_SCALE_ANNUAL_PRICE_ID=price_xxx
 PRO_PLAN_MINUTE_LIMIT=600
 SCALE_PLAN_MINUTE_LIMIT=1500
-NEXT_PUBLIC_PRO_PRICE_MONTHLY=10
-NEXT_PUBLIC_SCALE_PRICE_MONTHLY=25
-NEXT_PUBLIC_PRO_PRICE_ANNUAL=100
-NEXT_PUBLIC_SCALE_PRICE_ANNUAL=250
+NEXT_PUBLIC_PRO_PRICE_MONTHLY=9.99
+NEXT_PUBLIC_SCALE_PRICE_MONTHLY=24.99
+NEXT_PUBLIC_PRO_PRICE_ANNUAL=99.90
+NEXT_PUBLIC_SCALE_PRICE_ANNUAL=249.90
 NEXT_PUBLIC_PRO_PLAN_MINUTE_LIMIT=600
 NEXT_PUBLIC_SCALE_PLAN_MINUTE_LIMIT=1500
 AWS_REGION=us-east-1

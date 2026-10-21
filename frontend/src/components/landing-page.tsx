@@ -646,7 +646,7 @@ export default function LandingPage() {
               {t("pricing.title")}
             </h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              {t("pricing.body")}
+              {t("pricing.body", { price: getPublicBillingPlans()[0]?.priceMonthly ?? "9.99" })}
             </p>
             <BillingIntervalToggle
               className="mt-6 bg-background"

@@ -204,7 +204,7 @@
   },
   "pricing": {
     "title": "Preços simples, sem surpresas",
-    "body": "Grátis para auto-hospedar. Os planos hospedados começam em $10/mês, com processamento e hospedagem inclusos. Mude ou cancele quando quiser.",
+    "body": "Grátis para auto-hospedar. Os planos hospedados começam em ${price}/mês, com processamento e hospedagem inclusos. Mude ou cancele quando quiser.",
     "popular": "Mais popular",
     "period": {
       "forever": "para sempre",

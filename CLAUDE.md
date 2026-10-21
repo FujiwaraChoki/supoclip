@@ -186,7 +186,7 @@ stored (`api_keys` table). The frontend manages keys at `/settings/api-keys`.
 
 ## Plans & billing
 
-Hosted plans are **Pro** ($10/mo, $100/yr) and **Creator** ($25/mo, $250/yr).
+Hosted plans are **Pro** ($9.99/mo, $99.90/yr) and **Creator** ($24.99/mo, $249.90/yr).
 Creator's internal plan id is still `scale` (DB `users.plan`, Stripe metadata,
 RevenueCat `...scale.monthly/annual` product IDs); only the display name changed.
 

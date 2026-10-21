@@ -44,7 +44,7 @@ export default async function AffiliatePage() {
   const t = await getTranslations("affiliate");
   const siteUrl = getSiteUrl();
   const pro = getPublicBillingPlans().find((plan) => plan.id === "pro");
-  const proPrice = pro?.priceMonthly ?? "10";
+  const proPrice = pro?.priceMonthly ?? "9.99";
   const steps = [
     { icon: Send, title: t("steps.apply.title"), detail: t("steps.apply.detail") },
     { icon: Search, title: t("steps.review.title"), detail: t("steps.review.detail") },

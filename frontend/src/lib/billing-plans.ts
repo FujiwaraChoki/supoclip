@@ -63,10 +63,10 @@ export function isBillingInterval(value: unknown): value is BillingInterval {
 }
 
 export function getPublicBillingPlans(): PublicBillingPlan[] {
-  const proPriceMonthly = process.env.NEXT_PUBLIC_PRO_PRICE_MONTHLY || "10";
-  const proPriceAnnual = process.env.NEXT_PUBLIC_PRO_PRICE_ANNUAL || "100";
-  const scalePriceMonthly = process.env.NEXT_PUBLIC_SCALE_PRICE_MONTHLY || "25";
-  const scalePriceAnnual = process.env.NEXT_PUBLIC_SCALE_PRICE_ANNUAL || "250";
+  const proPriceMonthly = process.env.NEXT_PUBLIC_PRO_PRICE_MONTHLY || "9.99";
+  const proPriceAnnual = process.env.NEXT_PUBLIC_PRO_PRICE_ANNUAL || "99.90";
+  const scalePriceMonthly = process.env.NEXT_PUBLIC_SCALE_PRICE_MONTHLY || "24.99";
+  const scalePriceAnnual = process.env.NEXT_PUBLIC_SCALE_PRICE_ANNUAL || "249.90";
   // Mirrors the backend's PRO_/SCALE_PLAN_MINUTE_LIMIT defaults.
   const proMinutes = parseInt(process.env.NEXT_PUBLIC_PRO_PLAN_MINUTE_LIMIT || "600", 10);
   const scaleMinutes = parseInt(process.env.NEXT_PUBLIC_SCALE_PLAN_MINUTE_LIMIT || "1500", 10);

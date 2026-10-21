@@ -204,7 +204,7 @@
   },
   "pricing": {
     "title": "Einfache Preise, keine Überraschungen",
-    "body": "Kostenlos selbst hosten. Gehostete Tarife starten bei $10/Monat, Verarbeitung und Hosting übernehmen wir. Jederzeit wechseln oder kündigen.",
+    "body": "Kostenlos selbst hosten. Gehostete Tarife starten bei ${price}/Monat, Verarbeitung und Hosting übernehmen wir. Jederzeit wechseln oder kündigen.",
     "popular": "Am beliebtesten",
     "period": {
       "forever": "für immer",
