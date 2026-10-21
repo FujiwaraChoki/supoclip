@@ -14,13 +14,15 @@ export function validateVideoSourceUrl(value: string): { source?: SupportedVideo
   if (host === "clips.twitch.tv" && /^\/[A-Za-z0-9_-]+$/.test(path)) return { source: "twitch" };
   if (["twitch.tv", "m.twitch.tv", "go.twitch.tv"].includes(host)) {
     if (/^\/videos\/\d+$/.test(path) || /^\/[A-Za-z0-9_]+\/clip\/[A-Za-z0-9_-]+$/.test(path)) return { source: "twitch" };
-    return { error: "Live streams aren't supported. Use a Twitch VOD or clip URL instead." };
+    if (/^\/[A-Za-z0-9_]+$/.test(path)) return { error: "Live streams aren't supported. Use a Twitch VOD or clip URL instead." };
+    return { error: "Enter a valid Twitch VOD or clip URL." };
   }
   if (host === "kick.com") {
-    const vod = /^\/[A-Za-z0-9_-]+\/videos\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path);
+    const vod = /^(?:\/[A-Za-z0-9_-]+\/videos|\/video)\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path);
     const clip = /^\/[A-Za-z0-9_-]+\/clips\/clip_[A-Za-z0-9_-]+$/.test(path) || (/^\/[A-Za-z0-9_-]+$/.test(path) && /^clip_[A-Za-z0-9_-]+$/.test(parsed.searchParams.get("clip") || ""));
     if (vod || clip) return { source: "kick" };
-    return { error: "Live streams aren't supported. Use a Kick VOD or clip URL instead." };
+    if (/^\/[A-Za-z0-9_-]+$/.test(path)) return { error: "Live streams aren't supported. Use a Kick VOD or clip URL instead." };
+    return { error: "Enter a valid Kick VOD or clip URL." };
   }
   return { error: "Enter a YouTube, Twitch VOD/clip, or Kick VOD/clip URL." };
 }

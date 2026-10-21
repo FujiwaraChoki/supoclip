@@ -492,6 +492,8 @@ class VideoService:
             return "youtube"
         if url.startswith(UPLOAD_URL_PREFIX):
             return "video_url"
+        if not url.startswith(("http://", "https://")):
+            raise ValueError("Only YouTube URLs or upload:// references are supported")
         source, _kind, _source_id = detect_stream_source(url)
         return source
 
@@ -588,14 +590,18 @@ class VideoService:
                 if not video_path:
                     raise Exception("Failed to download video")
             elif source_type in {"twitch", "kick"}:
-                video_info = await run_in_thread(fetch_stream_info, url)
+                try:
+                    video_info = await run_in_thread(fetch_stream_info, url)
+                except Exception as exc:
+                    logger.info("Cheap stream metadata lookup failed; worker fallbacks will resolve media: %s", exc)
+                    video_info = {}
                 duration = video_info.get("duration") if video_info else None
                 if duration and duration > duration_limit: raise Exception(f"Video is too long ({int(duration) // 60} min). Maximum allowed duration is {duration_limit // 60} minutes.")
                 try:
-                    video_path = await run_in_thread(download_stream_audio, url, duration); audio_first = True
+                    video_path = await run_in_thread(download_stream_audio, url, duration, task_id); audio_first = True
                 except Exception as exc:
                     logger.warning("Stream audio download unavailable; using full video: %s", exc)
-                    video_path = await run_in_thread(download_stream_video, url, duration)
+                    video_path = await run_in_thread(download_stream_video, url, duration, task_id)
             else:
                 video_path = (
                     await run_in_thread(VideoService.resolve_local_video_path, url)
@@ -778,7 +784,7 @@ class VideoService:
                     )
                 try:
                     if source_type in {"twitch", "kick"}:
-                        video_path = await run_in_thread(download_stream_sections, url, segments_json, file_duration)
+                        video_path = await run_in_thread(download_stream_sections, url, segments_json, file_duration, task_id)
                         await run_in_thread(copy_transcript_sidecar, audio_path, video_path)
                     else:
                         video_path = await run_in_thread(materialize_clip_source, url, video_id, segments_json, task_id=task_id, budget=job_budget, duration=file_duration, audio_path=audio_path)
@@ -789,7 +795,7 @@ class VideoService:
                         "Section download failed, falling back to a full download: %s",
                         exc,
                     )
-                    if source_type in {"twitch", "kick"}: video_path = await run_in_thread(download_stream_video, url, file_duration)
+                    if source_type in {"twitch", "kick"}: video_path = await run_in_thread(download_stream_video, url, file_duration, task_id)
                     else:
                         video_path = await VideoService.download_video(url, task_id=task_id, quality=download_quality, budget=job_budget, skip_proxy=not isinstance(exc, PartialDownloadUnavailable))
                     if video_path and audio_path:

@@ -18,11 +18,17 @@ LIVE_MESSAGE = "Live streams aren't supported. Use a VOD or clip URL instead."
 _TWITCH_VOD = re.compile(r"^/videos/(?P<id>\d+)/?$")
 _TWITCH_CHANNEL_CLIP = re.compile(r"^/[A-Za-z0-9_]+/clip/(?P<id>[A-Za-z0-9_-]+)/?$")
 _TWITCH_CLIP = re.compile(r"^/(?P<id>[A-Za-z0-9_-]+)/?$")
-_KICK_VOD = re.compile(r"^/[A-Za-z0-9_-]+/videos/(?P<id>[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})/?$")
+_KICK_VOD = re.compile(r"^(?:/[A-Za-z0-9_-]+/videos|/video)/(?P<id>[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})/?$")
 _KICK_CLIP = re.compile(r"^/[A-Za-z0-9_-]+/clips/(?P<id>clip_[A-Za-z0-9_-]+)/?$")
 
 class StreamSourceError(RuntimeError): pass
 class ProviderSkipped(RuntimeError): pass
+
+# Worker processes one task at a time per coroutine. This small, task-scoped
+# cache prevents paid actors from being started again for the audio, selected
+# section and full-video phases of the same task.
+_resolved_by_task: dict[str, dict] = {}
+_failed_tasks: set[str] = set()
 
 def detect_stream_source(url: str) -> tuple[str, str, str]:
     try: parsed = urlparse(url.strip())
@@ -32,7 +38,8 @@ def detect_stream_source(url: str) -> tuple[str, str, str]:
     if host in {"twitch.tv", "m.twitch.tv", "go.twitch.tv"}:
         if m := _TWITCH_VOD.fullmatch(path): return "twitch", "vod", m.group("id")
         if m := _TWITCH_CHANNEL_CLIP.fullmatch(path): return "twitch", "clip", m.group("id")
-        raise ValueError(LIVE_MESSAGE)
+        if re.fullmatch(r"/[A-Za-z0-9_]+", path): raise ValueError(LIVE_MESSAGE)
+        raise ValueError("Unsupported Twitch URL. Use a Twitch VOD or clip URL.")
     if host == "clips.twitch.tv":
         if m := _TWITCH_CLIP.fullmatch(path): return "twitch", "clip", m.group("id")
         raise ValueError("Invalid Twitch clip URL")
@@ -41,7 +48,8 @@ def detect_stream_source(url: str) -> tuple[str, str, str]:
         if m := _KICK_CLIP.fullmatch(path): return "kick", "clip", m.group("id")
         clip = parse_qs(parsed.query).get("clip", [""])[0]
         if re.fullmatch(r"clip_[A-Za-z0-9_-]+", clip) and re.fullmatch(r"/[A-Za-z0-9_-]+", path): return "kick", "clip", clip
-        raise ValueError(LIVE_MESSAGE)
+        if re.fullmatch(r"/[A-Za-z0-9_-]+", path): raise ValueError(LIVE_MESSAGE)
+        raise ValueError("Unsupported Kick URL. Use a Kick VOD or clip URL.")
     raise ValueError("Only YouTube, Twitch VOD/clip, Kick VOD/clip, or uploaded video sources are supported")
 
 def _provider_order(source: str, config=None) -> list[str]:
@@ -52,14 +60,14 @@ def _provider_order(source: str, config=None) -> list[str]:
     return [p for p in providers if not p.startswith("apify_")] + [p for p in providers if p.startswith("apify_")]
 
 def _is_private_error(exc):
-    return any(x in str(exc).lower() for x in ("sub-only", "subscriber-only", "subscribers only", "private video", "login required", "members-only", "not available due to privacy"))
+    return any(x in str(exc).lower() for x in ("sub-only", "subscriber-only", "subscribers only", "private video", "login required", "members-only", "not available due to privacy", "does not exist", "deleted vod", "video has been deleted"))
 
 def _ydl_options(provider, output, *, audio=False, ranges=None):
-    c=get_config(); opts={"outtmpl":str(output),"noplaylist":True,"quiet":True,"no_warnings":True,"retries":3 if provider=="direct_retry" else 1,"fragment_retries":3,"max_filesize":c.youtube_download_max_bytes}
+    c=get_config(); opts={"outtmpl":str(output),"noplaylist":True,"quiet":True,"no_warnings":True,"retries":1,"fragment_retries":3,"socket_timeout":10,"max_filesize":c.youtube_download_max_bytes}
     if provider=="proxy":
         if not c.youtube_proxy_url: raise ProviderSkipped("proxy is not configured")
         opts["proxy"]=render_proxy_url(c.youtube_proxy_url,sticky_session_id(None,output.parent.parent.name),normalize_country(c.youtube_proxy_country))
-    opts["format"]="bestaudio/best" if audio else f"bestvideo[height<={c.youtube_max_height}]+bestaudio/best[height<={c.youtube_max_height}]/best"
+    opts["format"]="bestaudio/worst[height<=360]/worst" if audio else f"bestvideo[height<={c.youtube_max_height}]+bestaudio/best[height<={c.youtube_max_height}]/best"
     if not audio: opts["merge_output_format"]="mkv"
     if ranges:
         opts["download_ranges"]=lambda _i,_y:[{"start_time":a,"end_time":b} for a,b in ranges]; opts["force_keyframes_at_cuts"]=True
@@ -67,8 +75,13 @@ def _ydl_options(provider, output, *, audio=False, ranges=None):
 
 def _run_ytdlp(url, provider, output, *, download, audio=False, ranges=None):
     from yt_dlp import YoutubeDL
-    if provider=="direct_retry": time.sleep(.25)
-    with YoutubeDL(_ydl_options(provider,output,audio=audio,ranges=ranges)) as ydl: return ydl.extract_info(url,download=download)
+    attempts = 2 if provider == "direct_retry" else 1
+    for attempt in range(attempts):
+        try:
+            with YoutubeDL(_ydl_options(provider,output,audio=audio,ranges=ranges)) as ydl: return ydl.extract_info(url,download=download)
+        except Exception:
+            if attempt + 1 == attempts: raise
+            time.sleep(.75)
 
 def _actor_items(actor, run_input, charge):
     c=get_config()
@@ -82,11 +95,22 @@ def _actor_items(actor, run_input, charge):
     except Exception as exc: raise RuntimeError(f"Apify actor failed: {exc}") from exc
 
 def _matches(requested, item):
-    values=[item.get("id"),item.get("url"),item.get("inputUrl"),item.get("kickUrl")]
-    return any(requested.lower() in str(v).lower() for v in values if v)
+    requested = requested.lower()
+    for value in (item.get("id"), item.get("videoId"), item.get("vodId")):
+        if value is not None and str(value).lower() == requested:
+            return True
+    for value in (item.get("url"), item.get("inputUrl"), item.get("kickUrl")):
+        if not value: continue
+        try:
+            _source, _kind, candidate = detect_stream_source(str(value))
+        except ValueError:
+            continue
+        if candidate.lower() == requested:
+            return True
+    return False
 
 def _duration(item, provider):
-    value=item.get("durationSeconds",item.get("durationSec",item.get("duration")))
+    value=item.get("lengthSeconds",item.get("durationSeconds",item.get("durationSec",item.get("duration"))))
     if value is None: return None
     value=float(value)
     return value/1000 if provider=="apify_kick_mp4" else value
@@ -112,14 +136,16 @@ def _apify_info(url, provider, expected_duration=None):
     if expected_duration and duration and abs(duration-expected_duration)>max(5,expected_duration*.01): raise RuntimeError("actor result duration does not match requested video")
     return {"id":source_id,"title":item.get("title"),"duration":duration,"media_url":item[media_key],"provider":provider}
 
-def fetch_stream_info(url: str) -> dict:
+def fetch_stream_info(url: str, allow_apify: bool = False) -> dict:
     source,_,_=detect_stream_source(url); failures=[]
     for provider in _provider_order(source):
+        if provider.startswith("apify_") and not allow_apify:
+            continue
         try:
             info=_apify_info(url,provider) if provider.startswith("apify_") else (_run_ytdlp(url,provider,Path("unused"),download=False) or {})
             if not info.get("duration"): raise RuntimeError("provider returned no duration")
             logger.info("Stream metadata fetched provider=%s source=%s",provider,source); return info
-        except ProviderSkipped as exc: logger.info("Skipping stream provider provider=%s source=%s: %s",provider,source,exc)
+        except ProviderSkipped as exc: logger.warning("Stream metadata provider unavailable provider=%s source=%s: %s",provider,source,exc); failures.append(exc)
         except Exception as exc:
             if _is_private_error(exc): raise StreamSourceError(PRIVATE_VOD_MESSAGE) from exc
             failures.append(exc); logger.warning("Stream metadata provider failed provider=%s source=%s: %s",provider,source,exc)
@@ -139,51 +165,96 @@ def _stream_download(response, destination: Path, max_bytes: int):
             if total > max_bytes: raise RuntimeError("Video download exceeds the configured byte budget")
             handle.write(chunk)
 
-def _download(url: str, *, audio=False, ranges=None, expected_duration=None) -> Path:
-    source,kind,source_id=detect_stream_source(url); c=get_config(); root=Path(c.temp_dir)/"stream-work"/f"{source}-{source_id}-{uuid.uuid4().hex}"; root.mkdir(parents=True,exist_ok=True)
+def _ffmpeg_local(source: Path, template: Path, *, audio=False, ranges=None) -> list[Path]:
+    """Extract derivatives from an actor-downloaded local MPEG-TS file."""
+    outputs=[]
+    if ranges:
+        for index, (start, end) in enumerate(ranges, 1):
+            output=Path(str(template).replace("%(section_number)03d", f"{index:03d}").replace("%(ext)s", "mkv"))
+            subprocess.run(["ffmpeg","-y","-ss",str(start),"-i",str(source),"-t",str(end-start),"-c","copy",str(output)],check=True,capture_output=True)
+            outputs.append(output)
+    elif audio:
+        output=template.with_name("source.mp3")
+        subprocess.run(["ffmpeg","-y","-i",str(source),"-vn","-codec:a","libmp3lame",str(output)],check=True,capture_output=True)
+        outputs.append(output)
+    else:
+        output=template.with_name("source.mp4")
+        subprocess.run(["ffmpeg","-y","-i",str(source),"-c","copy",str(output)],check=True,capture_output=True)
+        outputs.append(output)
+    return outputs
+
+def _download(url: str, *, audio=False, ranges=None, expected_duration=None, task_id=None) -> Path:
+    source,kind,source_id=detect_stream_source(url); c=get_config(); task_root=Path(c.temp_dir)/"stream-work"/(task_id or f"unscoped-{uuid.uuid4().hex}"); root=task_root/uuid.uuid4().hex; root.mkdir(parents=True,exist_ok=True)
+    if task_id and task_id in _failed_tasks:
+        shutil.rmtree(root,ignore_errors=True)
+        raise StreamSourceError(FETCH_FAILED_MESSAGE)
     failures=[]; expected=expected_duration
-    for provider in _provider_order(source):
+    providers = _provider_order(source)
+    cached_provider = (_resolved_by_task.get(task_id or "") or {}).get("provider")
+    if cached_provider in providers:
+        providers = providers[providers.index(cached_provider):]
+    for provider in providers:
         attempt=root/provider; attempt.mkdir(exist_ok=True); template=attempt/("section-%(section_number)03d.%(ext)s" if ranges else "source.%(ext)s")
         try:
             if provider.startswith("apify_"):
-                info=_apify_info(url,provider,expected)
+                cached=_resolved_by_task.get(task_id or "")
+                if cached and cached.get("provider") == provider:
+                    info=cached
+                else:
+                    info=_apify_info(url,provider,expected)
+                    if task_id: _resolved_by_task[task_id]=info
                 media=info["media_url"]; reported=info.get("duration")
                 if reported: expected=expected or reported
                 if provider=="apify_kick_mp4":
                     raw=attempt/"source.ts"; _stream_download(requests.get(media,stream=True,timeout=c.apify_stream_timeout_seconds),raw,c.youtube_download_max_bytes)
                     actual=_probe(raw)
                     if reported and actual and abs(actual-reported)>max(5,reported*.01): raise RuntimeError("downloaded media duration does not match actor result")
-                    remux=attempt/"source.mp4"; subprocess.run(["ffmpeg","-y","-i",str(raw),"-c","copy",str(remux)],check=True,capture_output=True)
-                    target=str(remux)
+                    _ffmpeg_local(raw,template,audio=audio,ranges=ranges)
+                    target=None
                 else:
                     target=media
                     actual=_probe(media)
                     if reported and actual and abs(actual-reported)>max(5,reported*.01): raise RuntimeError("stream duration does not match actor result")
                 # Actor URLs are direct-first; only use the configured proxy if direct media access fails.
-                try: _run_ytdlp(target,"direct",template,download=True,audio=audio,ranges=ranges)
-                except Exception:
-                    _run_ytdlp(target,"proxy",template,download=True,audio=audio,ranges=ranges)
+                if target:
+                    try: _run_ytdlp(target,"direct",template,download=True,audio=audio,ranges=ranges)
+                    except Exception:
+                        _run_ytdlp(target,"proxy",template,download=True,audio=audio,ranges=ranges)
                 if provider=="apify_kick_mp4":
-                    raw.unlink(missing_ok=True); remux.unlink(missing_ok=True)
+                    raw.unlink(missing_ok=True)
             else:
                 info=_run_ytdlp(url,provider,template,download=True,audio=audio,ranges=ranges) or {}; expected=expected or info.get("duration")
             files=sorted(p for p in attempt.iterdir() if p.is_file() and p.suffix not in {".part",".ytdl",".ts"})
             if not files: raise RuntimeError("provider returned no media file")
+            if task_id and not provider.startswith("apify_"):
+                _resolved_by_task[task_id]={"provider":provider,"duration":expected}
             logger.info("Stream download completed provider=%s source=%s kind=%s",provider,source,kind)
             if ranges:
                 if len(files)!=len(ranges): raise RuntimeError("provider did not return every requested section")
                 dest=root/"selected-segments.mkv"; assemble_timeline([(CachedPiece(a,b,p),a,b) for p,(a,b) in zip(files,ranges)],dest); return dest
             return files[0]
-        except ProviderSkipped as exc: shutil.rmtree(attempt,ignore_errors=True); logger.info("Skipping stream provider provider=%s source=%s: %s",provider,source,exc)
+        except ProviderSkipped as exc: shutil.rmtree(attempt,ignore_errors=True); failures.append(exc); logger.warning("Stream provider unavailable provider=%s source=%s; previous_error=%s: %s",provider,source,failures[-2] if len(failures)>1 else "none",exc)
         except Exception as exc:
             shutil.rmtree(attempt,ignore_errors=True)
             if _is_private_error(exc): raise StreamSourceError(PRIVATE_VOD_MESSAGE) from exc
             failures.append(exc); logger.warning("Stream download provider failed provider=%s source=%s: %s",provider,source,exc)
+    if task_id: _failed_tasks.add(task_id)
+    shutil.rmtree(root,ignore_errors=True)
     logger.error("All stream download providers failed source=%s failures=%s",source,failures); raise StreamSourceError(FETCH_FAILED_MESSAGE)
 
-def download_stream_audio(url, duration=None): return _download(url,audio=True,expected_duration=duration)
-def download_stream_video(url, duration=None): return _download(url,expected_duration=duration)
-def download_stream_sections(url,segments,duration=None):
+def download_stream_audio(url, duration=None, task_id=None): return _download(url,audio=True,expected_duration=duration,task_id=task_id)
+def download_stream_video(url, duration=None, task_id=None): return _download(url,expected_duration=duration,task_id=task_id)
+def download_stream_sections(url,segments,duration=None,task_id=None):
     ranges=merge_ranges(ranges_from_segments(segments),padding=get_config().youtube_section_padding_seconds,duration=duration)
     if not ranges: raise StreamSourceError("No valid video sections were selected")
-    return _download(url,ranges=ranges,expected_duration=duration)
+    return _download(url,ranges=ranges,expected_duration=duration,task_id=task_id)
+
+def clear_stream_task_cache(task_id: str | None) -> None:
+    if task_id:
+        _resolved_by_task.pop(task_id,None); _failed_tasks.discard(task_id)
+
+def cleanup_stream_task(task_id: str | None) -> None:
+    """Remove all source media and partials retained for one worker task."""
+    if task_id:
+        shutil.rmtree(Path(get_config().temp_dir)/"stream-work"/task_id,ignore_errors=True)
+    clear_stream_task_cache(task_id)

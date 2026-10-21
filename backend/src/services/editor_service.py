@@ -19,6 +19,7 @@ from ..editor_document import (
 )
 from ..utils.async_helpers import run_in_thread
 from ..media_storage import MediaStorage, STORAGE_ERRORS, media_work
+from ..stream_source import download_stream_sections
 
 
 async def cap_export_for_plan(task_id: str, path: Path) -> None:
@@ -298,6 +299,13 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                     )
                     source = Path(downloaded) if downloaded else None
                     downloaded_source = source
+                elif source_type in {"twitch", "kick"}:
+                    source = await run_in_thread(
+                        download_stream_sections, source_url,
+                        [{"start_time": start, "end_time": end} for start, end in ranges],
+                        None, task_id,
+                    )
+                    downloaded_source = source
                 else:
                     source = await run_in_thread(service.video_service.resolve_local_video_path, source_url)
             if not source or not source.exists():
@@ -383,7 +391,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
         )
     finally:
         if downloaded_source is not None:
-            service._cleanup_source_video(downloaded_source, "youtube", source_url)
+            service._cleanup_source_video(downloaded_source, source_type, source_url)
         elif source is not None:
             await run_in_thread(storage.save_source_metadata, source)
         await run_in_thread(storage.save_editor, directory)

@@ -36,6 +36,7 @@ from ..clip_source_map import load_clip_caption_settings
 from ..media_storage import MediaStorage, media_work
 from ..utils.async_helpers import run_in_thread
 from ..repositories.media_repository import queue_delete, guard_source_creation
+from ..stream_source import cleanup_stream_task
 
 logger = logging.getLogger(__name__)
 PROCESSING_CACHE_VERSION = "20260319_grounded_segments_v1"
@@ -165,6 +166,19 @@ class TaskService(ClipEditingMixin):
                     return
             except Exception as e:
                 logger.warning("Failed YouTube source cleanup: %s", e)
+
+        if source_type in {"twitch", "kick"}:
+            try:
+                stream_root = Path(self.config.temp_dir) / "stream-work"
+                resolved = video_path.resolve()
+                if resolved.is_relative_to(stream_root.resolve()):
+                    # Layout is stream-work/<task>/<attempt>/<provider>/<file>.
+                    relative = resolved.relative_to(stream_root.resolve())
+                    cleanup_stream_task(relative.parts[0])
+                    logger.info("Cleaned up stream source artifacts")
+                    return
+            except Exception as e:
+                logger.warning("Failed stream source cleanup: %s", e)
 
         # Fallback / upload path: at least drop the transcription audio sidecar
         # (e.g. "<stem>.transcription.mp3") next to the source file.
@@ -611,6 +625,10 @@ class TaskService(ClipEditingMixin):
             raise
         finally:
             await run_in_thread(self._cleanup_source_video, video_path, source_type, url)
+            if source_type in {"twitch", "kick"}:
+                # Also handles failures before process_video_complete returns a
+                # path (and therefore before the generic path cleanup can run).
+                await run_in_thread(cleanup_stream_task, task_id)
 
     async def _send_completion_notification_if_needed(
         self, *, task_id: str, clips_count: int

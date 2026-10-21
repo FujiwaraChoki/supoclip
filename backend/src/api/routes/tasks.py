@@ -89,7 +89,10 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
 
 async def _preflight_stream_source(url: str, source: str, duration_limit: int) -> Dict[str, Any]:
     try:
-        metadata = await asyncio.wait_for(run_in_thread(fetch_stream_info, url), timeout=30)
+        # Metadata preflight intentionally never invokes paid actors. yt-dlp's
+        # per-request socket timeout bounds this cheap proxy/direct check; the
+        # worker owns the complete fallback chain.
+        metadata = await run_in_thread(fetch_stream_info, url)
         duration = (metadata or {}).get("duration")
         if isinstance(duration, bool) or not isinstance(duration, (int, float)) or not math.isfinite(duration) or duration <= 0: raise ValueError("Invalid video duration")
     except StreamSourceError as exc:
@@ -412,7 +415,13 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
 
         task_service = TaskService(db)
 
-        source_type = task_service.video_service.determine_source_type(raw_source["url"])
+        try:
+            source_type = task_service.video_service.determine_source_type(raw_source["url"])
+        except ValueError as exc:
+            # URL validation is a request-shape error. Repository/service
+            # ValueErrors (notably a missing user/source) retain the historic
+            # 404 response below.
+            raise HTTPException(status_code=422, detail=str(exc)) from None
         source_title = raw_source.get("title")
         if source_type == "youtube":
             metadata = await _preflight_youtube_source(
@@ -504,7 +513,7 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     except HTTPException:
         raise
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e))
     except BillingLimitExceeded as e:
         raise HTTPException(
             status_code=402,

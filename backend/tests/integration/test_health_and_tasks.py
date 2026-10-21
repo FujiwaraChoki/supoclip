@@ -115,6 +115,38 @@ async def test_create_task_enqueues_a_job(client, db_session, auth_headers, monk
     assert payload["job_id"].startswith(payload["task_id"] + ":")
 
 
+@pytest.mark.parametrize(
+    ("url", "source_type"),
+    [
+        ("https://www.twitch.tv/videos/123456", "twitch"),
+        ("https://kick.com/video/12345678-1234-1234-1234-123456789abc", "kick"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_create_stream_task_persists_supported_source(
+    client, db_session, auth_headers, monkeypatch, url, source_type
+):
+    from unittest.mock import AsyncMock
+
+    monkeypatch.setattr(
+        "src.api.routes.tasks._preflight_stream_source",
+        AsyncMock(return_value={"duration": 60, "title": "Stream video"}),
+    )
+    await create_user(db_session, user_id="user-1", email="owner@example.com")
+
+    response = await client.post(
+        "/tasks/", headers=auth_headers, json={"source": {"url": url}}
+    )
+
+    assert response.status_code == 200
+    row = (
+        await db_session.execute(
+            text("SELECT type FROM sources WHERE url = :url"), {"url": url}
+        )
+    ).scalar_one()
+    assert row == source_type
+
+
 @pytest.mark.asyncio
 async def test_create_task_returns_serializable_subscription_gate(
     client, app, db_session, auth_headers

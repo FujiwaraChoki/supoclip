@@ -41,6 +41,7 @@ from ..youtube_source import (
     restore_clip_timeline,
 )
 from ..media.ffmpeg import cap_video_short_side
+from ..stream_source import download_stream_sections
 
 logger = logging.getLogger(__name__)
 
@@ -459,7 +460,7 @@ class ClipEditingMixin:
             cached_video_path = cache_entry.get("video_path") if cache_entry else None
             if cached_video_path:
                 transcript_video_path = await run_in_thread(MediaStorage().local_path, cached_video_path)
-            elif source_type != "youtube":
+            elif source_type not in {"youtube", "twitch", "kick"}:
                 try:
                     transcript_video_path = await run_in_thread(self.video_service.resolve_local_video_path,
                         source_url
@@ -480,6 +481,13 @@ class ClipEditingMixin:
                     ranges=source_ranges,
                 )
                 transcript_video_path = Path(downloaded) if downloaded else None
+                downloaded_source = transcript_video_path
+            elif source_type in {"twitch", "kick"} and source_url:
+                transcript_video_path = await run_in_thread(
+                    download_stream_sections, source_url,
+                    [{"start_time": start, "end_time": end} for start, end in source_ranges],
+                    None, task_id,
+                )
                 downloaded_source = transcript_video_path
             elif source_url:
                 transcript_video_path = await run_in_thread(self.video_service.resolve_local_video_path, source_url)
@@ -530,7 +538,7 @@ class ClipEditingMixin:
                         logger.warning(f"Keeping full-size caption edit for clip {clip_id}: {e}")
         finally:
             if downloaded_source is not None:
-                self._cleanup_source_video(downloaded_source, "youtube", source_url)
+                self._cleanup_source_video(downloaded_source, source_type, source_url)
         save_clip_source_ranges(output_path, source_ranges)
         save_clip_caption_settings(output_path, {
             "font_size": font_size if font_size is not None else task.get("font_size"),
