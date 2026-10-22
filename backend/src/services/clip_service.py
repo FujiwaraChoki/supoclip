@@ -453,6 +453,7 @@ class ClipEditingMixin:
             raise ValueError("Task not found")
 
         transcript_video_path: Optional[Path] = None
+        cached_video_path = None
         source_url = task.get("source_url")
         source_type = task.get("source_type")
         processing_mode = (
@@ -537,6 +538,10 @@ class ClipEditingMixin:
                     transcript_video_path=transcript_video_path,
                     source_ranges=local_ranges,
                     position_y=position_y,
+                    original_ranges=source_ranges,
+                    source_url=source_url,
+                    source_type=source_type,
+                    cached_video_path=cached_video_path,
                 )
                 if output_short_side:
                     try:

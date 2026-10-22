@@ -29,7 +29,9 @@ def downloaded_source(tmp_path: Path) -> Path:
 async def test_editor_preparation_removes_its_download(tmp_path, monkeypatch, render_succeeds):
     config = Config()
     config.temp_dir = str(tmp_path)
+    config.media_storage = "local"
     monkeypatch.setattr("src.config.get_config", lambda: config)
+    monkeypatch.setattr("src.media_storage.get_config", lambda: config)
     monkeypatch.setattr("src.youtube_utils.get_config", lambda: config)
     source = downloaded_source(tmp_path)
     clip = {"id": "clip", "task_id": "task", "filename": "clip.mp4", "file_path": str(tmp_path / "clip.mp4"), "text": ""}
@@ -64,6 +66,7 @@ async def test_editor_preparation_removes_its_download(tmp_path, monkeypatch, re
         "duration": 1.0, "hasAudio": False, "waveform": [],
     })
     monkeypatch.setattr("src.video_utils.load_cached_transcript_data", lambda _: None)
+    monkeypatch.setattr("src.clip_editor.transcribe_clip_segment", lambda *_args, **_kwargs: [])
 
     await editor_service.prepare_editor({}, "task", "clip", "clip.mp4")
 

@@ -1,3 +1,4 @@
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -6,6 +7,7 @@ from httpx import ASGITransport, AsyncClient
 import pytest
 
 from src.api.routes import editor
+from src.config import Config
 from src.database import get_db
 from src.editor_document import EditDocument, atomic_json, editor_dir
 
@@ -19,6 +21,10 @@ async def client(tmp_path, monkeypatch):
         clip_repo=SimpleNamespace(get_clip_by_id=AsyncMock(return_value=clip)),
         config=SimpleNamespace(temp_dir=str(tmp_path)),
     )
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    config.media_storage = "local"
+    monkeypatch.setattr("src.media_storage.get_config", lambda: config)
     monkeypatch.setattr(editor, "TaskService", lambda db: service)
     monkeypatch.setattr(
         "src.api.routes.tasks._get_user_id_from_headers",
@@ -41,6 +47,64 @@ async def client(tmp_path, monkeypatch):
         transport=ASGITransport(app=app), base_url="http://test"
     ) as http:
         yield http, service, doc, directory
+
+
+def _even_words(duration=2.0):
+    step = duration / 2
+    return [
+        {"id": "w0", "start": 0, "end": step, "text": "Hello", "highlight": True},
+        {"id": "w1", "start": step, "end": duration, "text": "friend", "highlight": False},
+    ]
+
+
+async def test_a_normal_draft_is_not_repaired_on_open(client):
+    http, _service, _doc, _directory = client
+    state = (await http.get("/tasks/task/clips/clip/editor")).json()
+    assert state["status"] == "ready"
+    assert state.get("captionTimingRepair") is None
+    editor.JobQueue.enqueue_job.assert_not_awaited()
+
+
+async def test_opening_an_even_spread_draft_queues_one_repair(client):
+    http, _service, doc, directory = client
+    broken = {**doc, "words": _even_words()}
+    atomic_json(directory / "draft.json", {"revision": 2, "document": broken})
+    atomic_json(directory / "original.json", broken)
+    first = await http.get("/tasks/task/clips/clip/editor")
+    assert first.status_code == 200
+    body = first.json()
+    assert body["status"] == "ready"
+    assert body["captionTiming"] == "estimated"
+    assert body["captionTimingRepair"] == "running"
+    assert body["draft"]["document"]["segments"] == doc["segments"]
+    editor.JobQueue.enqueue_job.assert_awaited_once_with(
+        "prepare_editor", "task", "clip", "clip.mp4"
+    )
+    second = await http.get("/tasks/task/clips/clip/editor")
+    assert second.json()["captionTimingRepair"] == "running"
+    editor.JobQueue.enqueue_job.assert_awaited_once()
+    prepared = await http.post("/tasks/task/clips/clip/editor/prepare")
+    assert prepared.status_code == 202
+    assert prepared.json()["status"] == "ready"
+    assert json.loads((directory / "asset.json").read_text())["status"] == "ready"
+    editor.JobQueue.enqueue_job.assert_awaited_once()
+
+
+async def test_repair_enqueue_failure_leaves_the_ready_draft(client, monkeypatch):
+    http, _service, doc, directory = client
+    monkeypatch.setattr(
+        editor.JobQueue, "enqueue_job", AsyncMock(side_effect=ConnectionError())
+    )
+    broken = {**doc, "words": _even_words()}
+    atomic_json(directory / "draft.json", {"revision": 0, "document": broken})
+    atomic_json(directory / "original.json", broken)
+    response = await http.get("/tasks/task/clips/clip/editor")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ready"
+    assert body["captionTiming"] == "estimated"
+    assert body["captionTimingRepair"] == "done"
+    assert json.loads((directory / "draft.json").read_text())["document"]["words"][0]["text"] == "Hello"
 
 
 async def test_drafts_require_task_and_clip_ownership(client, monkeypatch):

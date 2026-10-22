@@ -73,6 +73,7 @@ async def test_editor_prepare_save_render_and_combine(
     )
     queue = AsyncMock(return_value="queue-job")
     monkeypatch.setattr("src.api.routes.editor.JobQueue.enqueue_job", queue)
+    monkeypatch.setattr("src.clip_editor.transcribe_clip_segment", lambda *_args, **_kwargs: [])
     for clip_id in ids:
         endpoint = f"/tasks/{task_id}/clips/{clip_id}/editor"
         assert (await client.get(endpoint, headers=auth_headers)).json()[

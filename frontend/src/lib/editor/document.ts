@@ -89,6 +89,10 @@ export interface EditorState {
   original: EditDocument;
   jobs: ExportJob[];
   captionLooks?: Record<string, CaptionLook>;
+  /** speech: words follow the transcript. estimated: evenly spaced, no speech timings. */
+  captionTiming?: "speech" | "estimated";
+  /** running while a saved even-spread draft is being retimed. */
+  captionTimingRepair?: "running" | "done";
 }
 export const DEFAULT_EFFECTS: Effects = {
   brightness: 100,

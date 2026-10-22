@@ -85,6 +85,8 @@
     "transcript": "文字稿",
     "wordCount": "{count} 个词",
     "transcriptDescription": "改正一个词，不改变它的时间。点播放，在上下文里听一听。",
+    "timingWarning": "这些字幕被均匀铺在整段视频上，因为没有可用的语音时间。它们可能和声音对不上。",
+    "timingRepairing": "正在把字幕对齐到口播…",
     "editScript": "编辑文稿",
     "closeScript": "关闭文稿",
     "scriptAria": "字幕文本",

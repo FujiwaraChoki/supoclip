@@ -15,6 +15,7 @@ import hashlib
 import json
 import mimetypes
 import logging
+import os
 from pathlib import Path, PurePosixPath
 import shutil
 import threading
@@ -464,37 +465,143 @@ class MediaStorage:
     def editor_reference(self, directory: Path, filename: str = "") -> str:
         return self.reference(self.key("editor", directory.name, filename).rstrip("/"))
 
+    @contextmanager
+    def editor_sync(self, directory: Path, *, blocking: bool = True):
+        """Exclusive lock shared with editor restore and draft repair.
+
+        Hold this across a draft rewrite and its upload. Restore downloads a
+        missing file under the same lock, so a repaired draft cannot be
+        replaced by the older S3 object mid-write.
+        """
+        directory.mkdir(parents=True, exist_ok=True)
+        handle = (directory / ".sync").open("a")
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+            handle.close()
+
+    def write_editor_snapshot(self, directory: Path, *, metadata_only=False):
+        """Upload changed editor files. Caller holds ``editor_sync``."""
+        if not self.enabled:
+            return
+        manifest = directory / ".s3-manifest"
+        stamps = json.loads(manifest.read_text()) if manifest.exists() else {}
+        for path in sorted(directory.iterdir(), key=lambda p: (p.suffix != ".json", p.name)):
+            if not path.is_file() or path.name.startswith(".") or path.suffix not in {".json", ".jpg", ".mp4"}:
+                continue
+            if metadata_only and path.suffix != ".json":
+                continue
+            if path.name.startswith("export-") and path.suffix == ".mp4":
+                job = directory / f"job-{path.stem.removeprefix('export-')}.json"
+                if not job.exists() or json.loads(job.read_text()).get("status") != "completed":
+                    continue
+            if path.name == "clean.mp4":
+                asset = directory / "asset.json"
+                if not asset.exists() or json.loads(asset.read_text()).get("status") != "ready":
+                    continue
+            stat = path.stat()
+            stamp = [stat.st_size, stat.st_mtime_ns]
+            if stamps.get(path.name) == stamp:
+                continue
+            self.upload_file(path, self.parse(self.editor_reference(directory, path.name)))
+            stamps[path.name] = stamp
+            atomic_json(manifest, stamps)
+
     def save_editor(self, directory: Path, *, metadata_only=False, blocking=True):
         if not self.enabled:
             return
-        directory.mkdir(parents=True, exist_ok=True)
-        with (directory / ".sync").open("a") as lock:
+        try:
+            with self.editor_sync(directory, blocking=blocking):
+                self.write_editor_snapshot(directory, metadata_only=metadata_only)
+        except BlockingIOError:
+            return
+
+    def _remember_editor_stamp(self, directory: Path, name: str):
+        path = directory / name
+        if not path.exists():
+            return
+        manifest = directory / ".s3-manifest"
+        stamps = json.loads(manifest.read_text()) if manifest.exists() else {}
+        stat = path.stat()
+        stamps[name] = [stat.st_size, stat.st_mtime_ns]
+        atomic_json(manifest, stamps)
+
+    def adopt_remote_caption_repair(self, directory: Path) -> bool:
+        """Replace a local even-spread draft with a repaired copy stored in S3.
+
+        Local files win over S3 once they exist, so a machine that restored the
+        broken draft would keep serving it after another machine uploaded the
+        fix. Only an even-spread local draft is eligible, and only when the
+        stored draft no longer has that shape.
+        """
+        from .clip_editor import is_synthetic_caption_timing
+
+        draft_path = directory / "draft.json"
+        if not draft_path.is_file():
+            return False
+        if not self.bucket or (not self.enabled and not (directory / ".s3-manifest").exists()):
+            return False
+        try:
+            local = json.loads(draft_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return False
+        duration = None
+        asset_path = directory / "asset.json"
+        if asset_path.exists():
             try:
-                fcntl.flock(lock, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
-            except BlockingIOError:
-                return
-            manifest = directory / ".s3-manifest"
-            stamps = json.loads(manifest.read_text()) if manifest.exists() else {}
-            for path in sorted(directory.iterdir(), key=lambda p: (p.suffix != ".json", p.name)):
-                if not path.is_file() or path.name.startswith(".") or path.suffix not in {".json", ".jpg", ".mp4"}:
-                    continue
-                if metadata_only and path.suffix != ".json":
-                    continue
-                if path.name.startswith("export-") and path.suffix == ".mp4":
-                    job = directory / f"job-{path.stem.removeprefix('export-')}.json"
-                    if not job.exists() or json.loads(job.read_text()).get("status") != "completed":
-                        continue
-                if path.name == "clean.mp4":
-                    asset = directory / "asset.json"
-                    if not asset.exists() or json.loads(asset.read_text()).get("status") != "ready":
-                        continue
-                stat = path.stat()
-                stamp = [stat.st_size, stat.st_mtime_ns]
-                if stamps.get(path.name) == stamp:
-                    continue
-                self.upload_file(path, self.parse(self.editor_reference(directory, path.name)))
-                stamps[path.name] = stamp
-                atomic_json(manifest, stamps)
+                duration = json.loads(asset_path.read_text()).get("duration")
+            except (OSError, json.JSONDecodeError):
+                duration = None
+        words = ((local.get("document") or {}).get("words")) or []
+        if not is_synthetic_caption_timing(words, duration):
+            return False
+        remote_draft = directory / f".draft.remote.{uuid.uuid4().hex}"
+        remote_original = directory / f".original.remote.{uuid.uuid4().hex}"
+        try:
+            with self.editor_sync(directory):
+                try:
+                    current = json.loads(draft_path.read_text())
+                except (OSError, json.JSONDecodeError):
+                    return False
+                current_words = ((current.get("document") or {}).get("words")) or []
+                if not is_synthetic_caption_timing(current_words, duration):
+                    return False
+                if not self._download(
+                    self.parse(self.editor_reference(directory, "draft.json")),
+                    remote_draft,
+                    optional=True,
+                ):
+                    return False
+                try:
+                    remote = json.loads(remote_draft.read_text())
+                except (OSError, json.JSONDecodeError):
+                    return False
+                remote_words = ((remote.get("document") or {}).get("words")) or []
+                if is_synthetic_caption_timing(remote_words, duration):
+                    return False
+                os.replace(remote_draft, draft_path)
+                self._remember_editor_stamp(directory, "draft.json")
+                if self._download(
+                    self.parse(self.editor_reference(directory, "original.json")),
+                    remote_original,
+                    optional=True,
+                ):
+                    try:
+                        remote_original_doc = json.loads(remote_original.read_text())
+                    except (OSError, json.JSONDecodeError):
+                        remote_original_doc = None
+                    remote_original_words = (remote_original_doc or {}).get("words") or []
+                    if remote_original_doc is not None and not is_synthetic_caption_timing(
+                        remote_original_words, duration
+                    ):
+                        os.replace(remote_original, directory / "original.json")
+                        self._remember_editor_stamp(directory, "original.json")
+                return True
+        finally:
+            remote_draft.unlink(missing_ok=True)
+            remote_original.unlink(missing_ok=True)
 
     def persist_editor_export(self, directory: Path, job_id: str):
         if not self.enabled:
@@ -537,8 +644,7 @@ class MediaStorage:
         if stamps and all((directory / name).exists() for name in stamps
                           if not name.endswith(".mp4") or (media and name == "clean.mp4")):
             return
-        with (directory / ".sync").open("a") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+        with self.editor_sync(directory):
             manifest = directory / ".s3-manifest"
             stamps = json.loads(manifest.read_text()) if manifest.exists() else {}
             for page in self.client.get_paginator("list_objects_v2").paginate(Bucket=self.bucket, Prefix=prefix):

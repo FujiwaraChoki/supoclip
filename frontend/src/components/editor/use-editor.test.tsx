@@ -52,3 +52,60 @@ it("serializes overlapping saves and drains newer changes without losing a revis
   expect(result.current.status).toBe("All changes saved");
   expect(result.current.document?.volume).toBe(0.25);
 });
+
+it("adopts speech timings when a caption repair finishes and the draft is unchanged", async () => {
+  const storage = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => storage.set(key, value),
+  });
+  const even = {
+    ...draft,
+    words: [
+      { id: "a", start: 0, end: 1.5, text: "Hello", highlight: false },
+      { id: "b", start: 1.5, end: 3, text: "world", highlight: true },
+    ],
+  };
+  const timed = {
+    ...even,
+    words: [
+      { id: "a", start: 0.2, end: 0.5, text: "Hello", highlight: false },
+      { id: "b", start: 1.2, end: 1.7, text: "world", highlight: true },
+    ],
+  };
+  let gets = 0;
+  const methods: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url: string, init?: RequestInit) => {
+      methods.push(init?.method ?? "GET");
+      if ((init?.method ?? "GET") !== "GET") {
+        return new Response(JSON.stringify({ revision: 1 }));
+      }
+      gets += 1;
+      const repaired = gets > 1;
+      return new Response(
+        JSON.stringify({
+          status: "ready",
+          basis: "clip.mp4",
+          duration: 3,
+          captionTiming: repaired ? "speech" : "estimated",
+          captionTimingRepair: repaired ? "done" : "running",
+          draft: { revision: repaired ? 1 : 0, document: repaired ? timed : even },
+          original: repaired ? timed : even,
+        }),
+      );
+    }),
+  );
+  const { result } = renderHook(() => useEditor("/test/editor"));
+  await waitFor(() => expect(result.current.document?.words[0].start).toBe(0));
+  expect(result.current.asset?.captionTimingRepair).toBe("running");
+  await waitFor(
+    () => expect(result.current.document?.words[0].start).toBe(0.2),
+    { timeout: 4000 },
+  );
+  expect(result.current.document?.words[1].start).toBe(1.2);
+  expect(result.current.document?.segments).toEqual(draft.segments);
+  expect(result.current.asset?.captionTiming).toBe("speech");
+  expect(methods.filter((method) => method === "POST")).toEqual([]);
+});

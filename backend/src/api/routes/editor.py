@@ -21,7 +21,15 @@ from ...editor_document import (
     editor_lock,
     save_document,
 )
-from ...services.editor_service import caption_looks, read_state, upgrade_document
+from ...clip_editor import is_synthetic_caption_timing
+from ...services.editor_service import (
+    caption_looks,
+    finish_caption_timing,
+    mark_caption_repair_running,
+    read_state,
+    should_schedule_caption_repair,
+    upgrade_document,
+)
 from ...services.task_service import TaskService
 from ...workers.job_queue import JobQueue
 from ...utils.async_helpers import run_in_thread
@@ -47,6 +55,35 @@ async def context(request, db, task_id, clip_id):
     return clip, directory
 
 
+async def sync_caption_timing(directory: Path, state: dict, task_id: str, clip_id: str, filename: str):
+    """Queue a timing repair for an even-spread draft, and publish the flag.
+
+    A ready editor stays ready. Repair runs in the background so opening the
+    clip does not wipe the preview or the saved trims.
+    """
+    if state.get("status") != "ready":
+        return state
+    storage = MediaStorage()
+    words = ((state.get("draft") or {}).get("document") or {}).get("words") or []
+    synthetic = is_synthetic_caption_timing(words, state.get("duration"))
+    if not synthetic and (
+        state.get("captionTiming") == "estimated" or state.get("captionTimingRepair") == "running"
+    ):
+        await run_in_thread(finish_caption_timing, storage, directory, "speech")
+        return await run_in_thread(read_state, directory)
+    if not synthetic or not should_schedule_caption_repair(state):
+        if synthetic and not state.get("captionTiming"):
+            state["captionTiming"] = "estimated"
+        return state
+    if await run_in_thread(mark_caption_repair_running, storage, directory):
+        try:
+            await JobQueue.enqueue_job("prepare_editor", task_id, clip_id, filename)
+        except Exception:
+            logging.getLogger(__name__).exception("Could not queue caption timing repair")
+            await run_in_thread(finish_caption_timing, storage, directory, "estimated")
+    return await run_in_thread(read_state, directory)
+
+
 def job_path(directory: Path, job_id: str):
     if not re.fullmatch(r"[a-f0-9]{32}", job_id):
         raise HTTPException(404, "Export not found")
@@ -61,7 +98,14 @@ async def get_editor(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
     task, clip, directory = await owned_context(request, db, task_id, clip_id)
-    state = await run_in_thread(read_state, directory)
+    await run_in_thread(MediaStorage().adopt_remote_caption_repair, directory)
+    state = await sync_caption_timing(
+        directory,
+        await run_in_thread(read_state, directory),
+        task_id,
+        clip_id,
+        clip["filename"],
+    )
     if state.get("status") == "ready":
         draft = state["draft"]
         draft["document"] = upgrade_document(draft["document"], clip, task)
@@ -82,6 +126,12 @@ async def prepare(
     task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
     clip, directory = await context(request, db, task_id, clip_id)
+    await run_in_thread(MediaStorage().adopt_remote_caption_repair, directory)
+    state = await sync_caption_timing(
+        directory, read_state(directory), task_id, clip_id, clip["filename"]
+    )
+    if state["status"] in {"ready", "preparing"}:
+        return {"status": state["status"]}
     with editor_lock(directory):
         state = read_state(directory)
         if state["status"] in {"ready", "preparing"}:
