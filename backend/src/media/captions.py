@@ -210,6 +210,7 @@ def build_hook_title_ass(
     output_duration: float,
     font_name: str,
     caption_font_px: int,
+    position_y: Optional[float] = None,
 ) -> Tuple[str, List[str]]:
     """Build the (style_line, dialogue_events) for a burned-in hook title.
 
@@ -277,6 +278,8 @@ def build_hook_title_ass(
     if output_duration <= HOOK_TITLE_MIN_SECONDS:
         start, end = 0.0, max(0.5, output_duration)
     entrance = "\\fad(160,240)"
+    if position_y is not None:
+        entrance += f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})"
     if template.get("word_pop", True):
         entrance += "\\fscx90\\fscy90\\t(0,160,\\fscx100\\fscy100)"
     events = [
@@ -424,6 +427,9 @@ def build_assemblyai_ass_subtitles(
             output_duration,
             font_name,
             font_px,
+            # An upper-third caption seam belongs to a reaction stack. Keep
+            # the headline below the source subject, off the reactor's face.
+            position_y=0.94 if position_y_override is not None and position_y_override < .4 else None,
         )
         hook_style_block = f"{hook_style_line}\n"
 
