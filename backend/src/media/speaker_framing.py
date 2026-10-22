@@ -739,6 +739,40 @@ def _merge_intervals(
     return merged
 
 
+def _gap_has_speech(
+    start: float, end: float, intervals: Sequence[Tuple[float, float]]
+) -> bool:
+    """Whether any interval overlaps the open pause (start, end)."""
+    if end <= start:
+        return False
+    return any(b > start and a < end for a, b in intervals)
+
+
+def _merge_speaker_intervals(
+    intervals: Sequence[Tuple[float, float]],
+    other: Sequence[Tuple[float, float]],
+    gap: float,
+) -> List[Tuple[float, float]]:
+    """Merge one speaker's words across short pauses.
+
+    A pause is bridged only when the other speaker has no words inside it.
+    Filling a gap that the other speaker occupies turns ordinary turn-taking
+    into overlap that never happened.
+    """
+    merged = _merge_intervals(intervals)
+    if gap <= 0 or len(merged) < 2:
+        return merged
+    blockers = _merge_intervals(other)
+    result: List[Tuple[float, float]] = [merged[0]]
+    for start, end in merged[1:]:
+        prev_start, prev_end = result[-1]
+        if start <= prev_end + gap and not _gap_has_speech(prev_end, start, blockers):
+            result[-1] = (prev_start, max(prev_end, end))
+        else:
+            result.append((start, end))
+    return result
+
+
 def find_speaker_overlaps(
     words: Sequence[Dict[str, Any]],
     speakers: Sequence[str],
@@ -756,9 +790,21 @@ def find_speaker_overlaps(
     """
     if len(speakers) != 2 or len(clusters) != 2:
         return []
+    raw_speech = {
+        speaker: [
+            (float(w["start"]), float(w["end"]))
+            for w in words
+            if str(w.get("speaker")) == speaker
+        ]
+        for speaker in speakers
+    }
+    other_speaker = {speakers[0]: speakers[1], speakers[1]: speakers[0]}
+    # Bridge each speaker's own breaths, but not a gap the other person fills.
+    # The overlap windows below are what get the 250 ms flicker merge.
     speech = {
-        speaker: _merge_intervals(
-            [(float(w["start"]), float(w["end"])) for w in words if str(w.get("speaker")) == speaker],
+        speaker: _merge_speaker_intervals(
+            raw_speech[speaker],
+            raw_speech[other_speaker[speaker]],
             OVERLAP_WORD_GAP_SECONDS,
         )
         for speaker in speakers

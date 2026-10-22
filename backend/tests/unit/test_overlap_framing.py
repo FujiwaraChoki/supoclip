@@ -36,6 +36,35 @@ def test_word_gaps_do_not_flicker_the_split():
     assert overlaps(words) == [(1.0, 2.45)]
 
 
+def test_turn_taking_is_not_bridged_into_overlap():
+    # 200 ms words alternate, so each speaker's 200 ms pause is the other
+    # person's turn. Bridging those pauses (they are under 250 ms) used to
+    # report 0.8 s of crosstalk and switch to the stacked layout.
+    words = [
+        word(0.0, 0.2, "A"), word(0.2, 0.4, "B"),
+        word(0.4, 0.6, "A"), word(0.6, 0.8, "B"),
+        word(0.8, 1.0, "A"), word(1.0, 1.2, "B"),
+    ]
+    assert overlaps(words) == overlaps(list(reversed(words))) == []
+
+
+def test_a_pause_filled_by_the_other_speaker_is_not_bridged():
+    words = [
+        word(0.0, 1.0, "A"), word(1.2, 2.5, "A"),
+        word(1.0, 1.2, "B"), word(1.3, 2.5, "B"),
+    ]
+    assert overlaps(words) == [(1.3, 2.85)]
+
+
+def test_a_shared_pause_still_holds_the_stacked_layout():
+    # Neither speaker talks from 1.0-1.2, so that breath is not a turn.
+    words = [
+        word(0.0, 1.0, "A"), word(1.2, 2.4, "A"),
+        word(0.0, 1.0, "B"), word(1.2, 2.4, "B"),
+    ]
+    assert overlaps(words) == [(0.0, 2.75)]
+
+
 @pytest.mark.parametrize("words", [
     [word(0, 3, "A"), word(3, 5, "B")],
     [word(0, 4, "A"), word(2, 2.2, "B")],
