@@ -26,6 +26,10 @@ def _inside(face: Box, region: Box) -> bool:
     return x <= fx + fw / 2 <= x + w and y <= fy + fh / 2 <= y + h
 
 
+def _crop_inside(w: int, h: int, x: int, y: int, width: int, height: int) -> bool:
+    return w >= 2 and h >= 2 and x >= 0 and y >= 0 and x + w <= width and y + h <= height
+
+
 def find_reactor_face(width: int, height: int, samples: Sequence[FaceFrame]) -> Optional[Box]:
     """Find a small, stationary upper-corner face, supported across the clip."""
     if len(samples) < 8:
@@ -197,13 +201,26 @@ def build_reaction_layout(
     safe_x, safe_w = (0, int(ix)) if ix > width / 2 else (int(ix + iw), width - int(ix + iw))
     for i, (start, end, mode, faces) in enumerate(runs):
         pair = _source_pair(faces, width) if mode == 'wide' else None
+        guest_crops = []
         if pair and all(f[1] >= ih for f in pair):
-            graph.append(f'[part{i}]split=2[guest{i}a][guest{i}b]')
-            for label, guest in zip(('a', 'b'), pair):
-                gh = round_to_even(int(min(height-ih, max(guest[3]*3.2, guest[2]*3*640/1080))))
+            # A 9:8 panel wider than the frame cannot be placed. Two copies of
+            # the full frame are not a split; the wide crop below shows both.
+            y_min = round_to_even(int(ih))
+            for guest in pair:
+                gh = round_to_even(int(min(max(0, height-ih), max(guest[3]*3.2, guest[2]*3*640/1080))))
                 gw = round_to_even(int(gh * 1080/640))
+                if gw > width or y_min + gh > height:
+                    guest_crops = []
+                    break
                 gx = clamp_even(int(guest[0]+guest[2]/2-gw/2), 0, width-gw)
-                gy = clamp_even(int(guest[1]+guest[3]/2-gh*.42), round_to_even(int(ih)), height-gh)
+                gy = clamp_even(int(guest[1]+guest[3]/2-gh*.42), y_min, height-gh)
+                if not _crop_inside(gw, gh, gx, gy, width, height):
+                    guest_crops = []
+                    break
+                guest_crops.append((gw, gh, gx, gy))
+        if len(guest_crops) == 2 and guest_crops[0] != guest_crops[1]:
+            graph.append(f'[part{i}]split=2[guest{i}a][guest{i}b]')
+            for label, (gw, gh, gx, gy) in zip(('a', 'b'), guest_crops):
                 graph.append(f'[guest{i}{label}]crop={gw}:{gh}:{gx}:{gy},scale=1080:640:flags=lanczos,setsar=1[g{i}{label}]')
             graph.append(f'[g{i}a][g{i}b]vstack=inputs=2[p{i}]')
             enable = f'gte(t\\,{start:.3f})*lt(t\\,{end:.3f})'
@@ -214,17 +231,29 @@ def build_reaction_layout(
             if safe_x <= cx <= safe_x + safe_w:
                 cw = round_to_even(int(min(safe_w, height * 1080 / SOURCE_HEIGHT)))
                 ch = round_to_even(int(cw * SOURCE_HEIGHT / 1080))
-                x = clamp_even(int(cx - cw / 2), safe_x, safe_x + safe_w - cw)
+                x = clamp_even(int(cx - cw / 2), safe_x, max(safe_x, safe_x + safe_w - cw))
                 cy = float(np.median([f[1] + f[3] / 2 for f in faces]))
-                y = clamp_even(int(cy-ch*.4), 0, height-ch)
+                y = clamp_even(int(cy-ch*.4), 0, max(0, height-ch))
             else:
                 # A subject below the inset can live on the same side as the
                 # reactor. Crop below the camera rather than to an empty wall.
+                # Tall sources make the 9:16 window wider than the frame;
+                # shrink it instead of handing ffmpeg a crop past the edge.
                 y = round_to_even(int(ih))
-                ch = round_to_even(height-y)
+                ch = round_to_even(max(0, height-y))
                 cw = round_to_even(int(ch * 1080 / SOURCE_HEIGHT))
-                x = clamp_even(int(cx - cw / 2), 0, width-cw)
-            crop = f'crop={cw}:{ch}:{x}:{y},scale=1080:{SOURCE_HEIGHT}:flags=lanczos'
+                if cw > width:
+                    cw = round_to_even(width)
+                    ch = round_to_even(int(min(max(0, height-y), cw * SOURCE_HEIGHT / 1080)))
+                x = clamp_even(int(cx - cw / 2), 0, max(0, width-cw))
+            if _crop_inside(cw, ch, x, y, width, height):
+                crop = f'crop={cw}:{ch}:{x}:{y},scale=1080:{SOURCE_HEIGHT}:flags=lanczos'
+            else:
+                y = min(round_to_even(int(max(ih, 0))), round_to_even(max(0, height - 2)))
+                crop = (
+                    f'crop={round_to_even(width)}:{round_to_even(height - y)}:0:{y},'
+                    f'scale=1080:{SOURCE_HEIGHT}:force_original_aspect_ratio=decrease:flags=lanczos'
+                )
         elif mode == 'wide' and all(f[1] >= ih for f in faces):
             # Both guests in a wide shot sit below the upper-corner camera.
             y = round_to_even(int(ih))

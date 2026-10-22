@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 import subprocess
 from unittest.mock import patch
@@ -60,10 +61,53 @@ def test_wide_shot_retains_both_guests_and_source_content_is_not_top_cropped():
     assert '[part0]split=2[guest0a][guest0b]' in wide['video_filter']
     assert '[g0a][g0b]vstack=inputs=2[p0]' in wide['video_filter']
     assert '[reactor][base1]vstack=inputs=2[vout]' in wide['video_filter']
+    _assert_source_crops_fit(wide['video_filter'], 640, 360)
     frames = samples([REACTOR])
     content = reaction_layout.build_reaction_layout(640, 360, 6, REACTOR, INSET, frames)
     assert content['source_runs'][0][2] == 'content'
     assert '[part0]format=rgba,drawbox=x=480:y=0:w=160:h=120:color=black@0:t=fill:replace=1,scale=' in content['video_filter']
+
+
+def _assert_source_crops_fit(graph, width, height):
+    # crop=W:H:X:Y is in source pixels. The blurred plate's crop=540:640 has
+    # no origin because it runs after the downscale.
+    crops = [
+        tuple(int(v) for v in match)
+        for match in re.findall(r"crop=(\d+):(\d+):(\d+):(\d+)", graph)
+    ]
+    assert crops
+    for w, h, x, y in crops:
+        assert w % 2 == 0 and h % 2 == 0
+        assert w >= 2 and h >= 2
+        assert 0 <= x and x + w <= width
+        assert 0 <= y and y + h <= height
+
+
+def test_wide_guest_panels_that_exceed_the_frame_fall_back_to_one_crop():
+    # 1080x1400 is wider than 9:16, so reaction layout runs, but a 9:8 tile
+    # around these faces is wider than the frame. ffmpeg would reject it.
+    width, height = 1080, 1400
+    inset = (860., 0., 220., 200.)
+    reactor = (900., 30., 50., 70.)
+    guests = [(80., 400., 180., 230.), (700., 400., 180., 230.)]
+    plan = reaction_layout.build_reaction_layout(
+        width, height, 6, reactor, inset, samples([reactor, *guests]),
+    )
+    assert "split=2" not in plan["video_filter"]
+    assert "crop=1080:1200:0:200" in plan["video_filter"]
+    _assert_source_crops_fit(plan["video_filter"], width, height)
+
+
+def test_under_inset_closeup_is_shrunk_to_the_frame():
+    width, height = 1000, 1600
+    inset = (700., 0., 300., 250.)
+    reactor = (760., 40., 80., 100.)
+    subject = (760., 500., 140., 320.)
+    plan = reaction_layout.build_reaction_layout(
+        width, height, 6, reactor, inset, samples([reactor, subject]),
+    )
+    assert "crop=1000:1184:0:250" in plan["video_filter"]
+    _assert_source_crops_fit(plan["video_filter"], width, height)
 
 
 def test_source_guest_positions_are_not_pooled_across_camera_cuts():
