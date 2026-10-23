@@ -14,9 +14,12 @@ import httpx
 from pydantic_ai import Agent, NativeOutput
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model
+from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.profiles.openai import OpenAIModelProfile
+from pydantic_ai.profiles.anthropic import AnthropicModelProfile
+from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
@@ -522,11 +525,30 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
     return None
 
 
+def _uses_native_output(model_name: str) -> bool:
+    provider, name = _split_llm_name(model_name)
+    return provider == "openrouter" or (
+        provider == "anthropic" and name == "claude-sonnet-5-5"
+    )
+
+
 def _build_transcript_model(
     runtime_config: Config, model_name: str | None = None
 ) -> Model | str:
     model_name = model_name or runtime_config.llm
     provider, provider_model_name = _split_llm_name(model_name)
+    if provider == "anthropic" and _uses_native_output(model_name):
+        # The installed SDK predates Sonnet 5.5. This model requires native
+        # structured output rather than forced tool calls.
+        profile = AnthropicProvider.model_profile(provider_model_name).update(
+            AnthropicModelProfile(supports_json_schema_output=True)
+        )
+        return AnthropicModel(
+            provider_model_name,
+            provider=AnthropicProvider(api_key=runtime_config.anthropic_api_key),
+            profile=profile,
+            settings={"max_tokens": 8192},
+        )
     if provider == "openrouter":
         fallback = runtime_config.openrouter_fallback_model
         if not provider_model_name or "/" not in provider_model_name or "/" not in fallback:
@@ -588,7 +610,7 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
 
         _transcript_agent = Agent[None, TranscriptAnalysis](
             model=_build_transcript_model(runtime_config),
-            output_type=NativeOutput(TranscriptAnalysis, strict=True) if provider == "openrouter" else TranscriptAnalysis,
+            output_type=NativeOutput(TranscriptAnalysis, strict=True) if _uses_native_output(runtime_config.llm) else TranscriptAnalysis,
             system_prompt=transcript_analysis_system_prompt,
             # Some local Ollama/OpenAI-compatible endpoints can return formatted
             # prose before settling on schema-valid JSON. Keep retries limited
@@ -667,7 +689,7 @@ def get_rerank_agent() -> Agent[None, CandidateRanking]:
 
         _rerank_agent = Agent[None, CandidateRanking](
             model=_build_transcript_model(runtime_config, model_name),
-            output_type=NativeOutput(CandidateRanking, strict=True) if provider == "openrouter" else CandidateRanking,
+            output_type=NativeOutput(CandidateRanking, strict=True) if _uses_native_output(model_name) else CandidateRanking,
             system_prompt=candidate_rerank_system_prompt,
             output_retries=2,
         )
