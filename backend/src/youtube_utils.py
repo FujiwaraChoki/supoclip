@@ -106,6 +106,9 @@ def _build_info_options(task_id: Optional[str] = None) -> Dict[str, Any]:
         "no_warnings": True,
         "extractaudio": False,
         "skip_download": True,
+        # A watch?v=X&list=Y link otherwise resolves to the whole playlist,
+        # which has no duration and can take minutes to walk.
+        "noplaylist": True,
         "socket_timeout": 30,
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
