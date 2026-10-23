@@ -81,5 +81,6 @@ describe("upgradeReasonForError", () => {
 
   it("ignores unrelated errors", () => {
     expect(upgradeReasonForError("VIDEO_METADATA_UNAVAILABLE", null, 180)).toBeNull();
+    expect(upgradeReasonForError("VIDEO_METADATA_TIMEOUT", null, 180)).toBeNull();
   });
 });

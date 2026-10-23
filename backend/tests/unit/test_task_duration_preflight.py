@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -5,6 +6,7 @@ import pytest
 from fastapi import HTTPException
 
 from src.api.routes import tasks
+from src.config import set_config_override
 from src.services.video_service import VideoService
 
 
@@ -72,13 +74,62 @@ async def test_unverifiable_duration_does_not_consume_generation(monkeypatch, cr
 @pytest.mark.asyncio
 async def test_metadata_error_does_not_leak_provider_details(monkeypatch, creation):
     request, service, queue, _billing = creation
-    monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(side_effect=TimeoutError("secret provider details")))
+    monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(side_effect=RuntimeError("secret provider details")))
     with pytest.raises(HTTPException) as error:
         await tasks.create_task(request, db=None)
     assert error.value.status_code == 503
+    assert error.value.detail["code"] == "VIDEO_METADATA_UNAVAILABLE"
+    assert "timed out" not in error.value.detail["message"]
     assert "secret provider details" not in str(error.value.detail)
     service.create_task_with_source.assert_not_awaited()
     queue.enqueue_processing_job.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("configured", [None, "60"])
+async def test_youtube_preflight_timeout_default_and_override(monkeypatch, configured):
+    if configured is None:
+        monkeypatch.delenv("YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS", raising=False)
+        expected = 30.0
+    else:
+        monkeypatch.setenv("YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS", configured)
+        expected = float(configured)
+    set_config_override(None)
+    captured = {}
+
+    async def fake_wait_for(awaitable, timeout):
+        captured["timeout"] = timeout
+        return await awaitable
+
+    monkeypatch.setattr(tasks.asyncio, "wait_for", fake_wait_for)
+    monkeypatch.setattr(
+        tasks,
+        "async_get_youtube_video_info",
+        AsyncMock(return_value={"duration": 20, "title": "Ok"}),
+    )
+    result = await tasks._preflight_youtube_source("https://youtu.be/abcdefghijk", 5400)
+    assert captured["timeout"] == expected
+    assert result["duration"] == 20
+
+
+@pytest.mark.asyncio
+async def test_youtube_preflight_timeout_returns_a_clear_error(monkeypatch):
+    monkeypatch.setenv("YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS", "0.05")
+    set_config_override(None)
+
+    async def slow(_url):
+        await asyncio.sleep(2)
+        return {"duration": 10, "secret": "secret provider details"}
+
+    monkeypatch.setattr(tasks, "async_get_youtube_video_info", slow)
+    with pytest.raises(HTTPException) as error:
+        await tasks._preflight_youtube_source("https://youtu.be/abcdefghijk", 5400)
+    assert error.value.status_code == 503
+    assert error.value.detail["code"] == "VIDEO_METADATA_TIMEOUT"
+    message = error.value.detail["message"]
+    assert "timed out" in message
+    assert "No minutes were used" in message
+    assert "secret provider details" not in message
 
 
 @pytest.mark.asyncio

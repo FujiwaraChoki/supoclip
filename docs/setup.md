@@ -118,11 +118,25 @@ BACKEND_CPU_ONLY=true
 
 Then run `docker compose up -d --build backend worker`. Changing
 `TRANSCRIPTION_PROVIDER` alone does not change the installed Torch variant.
-The backend and worker still use `linux/amd64` on Apple Silicon via emulation;
-this option avoids NVIDIA downloads but does not enable Apple GPU acceleration.
-GPU deployments should retain `BACKEND_CPU_ONLY=false` and their existing
-GPU runtime configuration. Local Python users can select `uv sync --extra cpu`
-or `uv sync --extra cuda`; these extras are mutually exclusive.
+`BACKEND_CPU_ONLY` avoids NVIDIA downloads. It does not enable Apple GPU
+acceleration. GPU deployments should retain `BACKEND_CPU_ONLY=false` and their
+existing GPU runtime configuration. Local Python users can select
+`uv sync --extra cpu` or `uv sync --extra cuda`; these extras are mutually
+exclusive.
+
+Backend and worker images default to `linux/amd64` (`BACKEND_PLATFORM`). On
+Apple Silicon, Docker runs that image under emulation. yt-dlp's YouTube
+metadata step can then take around 15 seconds, so task creation waits up to
+`YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS` (default 30). If valid YouTube links still
+report that the length check timed out, set the timeout higher (for example
+`60`) and restart the backend.
+
+To build those two services for the host architecture, set
+`BACKEND_PLATFORM=linux/arm64` and `BACKEND_CPU_ONLY=true`, then run
+`docker compose up -d --build backend worker`. CUDA wheels are published for
+amd64, so GPU machines should keep `BACKEND_PLATFORM=linux/amd64`. Native
+arm64 images are best-effort: this does not publish a multi-arch image and
+does not add Apple GPU acceleration.
 
 The default Compose stack contains five services:
 

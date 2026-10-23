@@ -58,13 +58,34 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, Any]:
     """Check duration before creating a task or consuming a generation."""
+    # wait_for cancels the awaiting task when this elapses. A yt-dlp call already
+    # running inside asyncio.to_thread can finish in the background.
+    timeout_seconds = get_config().youtube_preflight_timeout_seconds
     try:
-        metadata = await asyncio.wait_for(async_get_youtube_video_info(url), timeout=15)
+        metadata = await asyncio.wait_for(
+            async_get_youtube_video_info(url),
+            timeout=timeout_seconds,
+        )
         duration = (metadata or {}).get("duration")
         if isinstance(duration, bool) or not isinstance(duration, (int, float)):
             raise ValueError("Missing video duration")
         if not math.isfinite(duration) or duration <= 0:
             raise ValueError("Invalid video duration")
+    except TimeoutError:
+        logger.warning(
+            "YouTube metadata preflight timed out after %s seconds",
+            timeout_seconds,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "VIDEO_METADATA_TIMEOUT",
+                "message": (
+                    "Checking this YouTube video's length timed out. Please try again "
+                    "shortly or upload the video file. No minutes were used."
+                ),
+            },
+        ) from None
     except Exception:
         raise HTTPException(
             status_code=503,
