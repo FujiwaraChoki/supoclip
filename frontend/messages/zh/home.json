@@ -51,7 +51,11 @@
   "framingOptions": {
     "vertical": {
       "label": "自动 9:16",
-      "hint": "跟随人脸的竖屏裁切"
+      "hint": "根据主体和场景内容自动调整"
+    },
+    "vertical_fit": {
+      "label": "完整画面 9:16",
+      "hint": "在竖屏画布中显示完整画面"
     },
     "vertical_pan": {
       "label": "说话人跟随",

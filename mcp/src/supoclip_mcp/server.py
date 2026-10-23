@@ -115,10 +115,10 @@ def _build_mcp() -> FastMCP:
 mcp = _build_mcp()
 
 ProcessingMode = Literal["fast", "balanced", "quality"]
-OutputFormat = Literal["vertical", "vertical_pan", "vertical_split", "original"]
+OutputFormat = Literal["vertical", "vertical_fit", "vertical_pan", "vertical_split", "original"]
 ExportPreset = Literal["tiktok", "reels", "shorts"]
 TERMINAL_STATES = {"completed", "error", "cancelled"}
-VALID_OUTPUT_FORMATS = {"vertical", "vertical_pan", "vertical_split", "original"}
+VALID_OUTPUT_FORMATS = {"vertical", "vertical_fit", "vertical_pan", "vertical_split", "original"}
 
 
 # --------------------------------------------------------------------------- #
@@ -378,7 +378,7 @@ async def supoclip_create_clip_task(
         url: YouTube or direct video URL to clip.
         title: Optional task title.
         processing_mode: 'fast' | 'balanced' | 'quality'.
-        output_format: 'vertical' | 'vertical_pan' | 'vertical_split' | 'original'.
+        output_format: 'vertical' | 'vertical_fit' (full frame on 9:16) | 'vertical_pan' | 'vertical_split' | 'original'.
         add_subtitles: Whether to burn in subtitles.
         caption_template: Caption template id.
         include_broll: Whether to add B-roll overlays.

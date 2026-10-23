@@ -51,7 +51,11 @@
   "framingOptions": {
     "vertical": {
       "label": "Auto 9:16",
-      "hint": "Recorte vertical que segue o rosto"
+      "hint": "Adapta-se aos sujeitos e ao contexto"
+    },
+    "vertical_fit": {
+      "label": "Imagem completa 9:16",
+      "hint": "Mostrar tudo em formato vertical"
     },
     "vertical_pan": {
       "label": "Panorâmica do falante",
