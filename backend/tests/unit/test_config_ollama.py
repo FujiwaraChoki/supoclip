@@ -1,3 +1,5 @@
+import pytest
+
 from src import config
 from src.config import Config
 
@@ -24,6 +26,28 @@ def test_youtube_duration_limit_uses_active_subscription_plan(monkeypatch):
     assert config.max_youtube_video_duration_for_plan("pro", "active") == 7200
     assert config.max_youtube_video_duration_for_plan("scale", "trialing") == 10800
     assert config.max_youtube_video_duration_for_plan("scale", "inactive") == 5400
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        (None, 30.0),
+        ("", 30.0),
+        ("60", 60.0),
+        ("45.5", 45.5),
+        ("0", 30.0),
+        ("-5", 30.0),
+        ("nope", 30.0),
+        ("inf", 30.0),
+        ("999", 180.0),
+    ],
+)
+def test_youtube_preflight_timeout_default_and_override(monkeypatch, raw, expected):
+    if raw is None:
+        monkeypatch.delenv("YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS", raising=False)
+    else:
+        monkeypatch.setenv("YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS", raw)
+    assert Config().youtube_preflight_timeout_seconds == expected
 
 
 def test_hook_teaser_is_off_unless_requested(monkeypatch):
