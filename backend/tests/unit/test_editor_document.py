@@ -291,3 +291,39 @@ def test_cancelled_render_does_not_publish_output(tmp_path):
     (tmp_path / f"cancel-{job_id}").touch()
     with pytest.raises(InterruptedError):
         run_render(["sleep", "10"], tmp_path, job_id, 1)
+    assert not (tmp_path / f"export-{job_id}.mp4").exists()
+
+
+def test_run_render_adds_progress_flags_only_for_ffmpeg(tmp_path, monkeypatch):
+    from src.editor_document import run_render
+
+    seen = {}
+
+    class Process:
+        returncode = 0
+
+        def poll(self):
+            return 0
+
+        def terminate(self):
+            pass
+
+        def kill(self):
+            pass
+
+        def wait(self, timeout=None):
+            return 0
+
+    def fake_popen(command, **kwargs):
+        seen["command"] = command
+        return Process()
+
+    monkeypatch.setattr("src.editor_document.subprocess.Popen", fake_popen)
+    job_id = "c" * 32
+    run_render(["ffmpeg", "-i", "in.mp4", "out.mp4"], tmp_path, job_id, 1)
+    progress = str(tmp_path / f"progress-{job_id}.txt")
+    assert seen["command"][:4] == ["ffmpeg", "-progress", progress, "-nostats"]
+    assert seen["command"][4:] == ["-i", "in.mp4", "out.mp4"]
+
+    run_render(["sleep", "10"], tmp_path, job_id, 1)
+    assert seen["command"] == ["sleep", "10"]
