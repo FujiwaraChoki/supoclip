@@ -196,6 +196,42 @@ async def test_plan_inference_requires_completed_stream_and_uses_no_unsupported_
     assert not {"temperature", "max_output_tokens", "previous_response_id", "tools"} & calls[0].keys()
 
 
+@pytest.mark.parametrize("output_type,payload", [
+    (ai.TranscriptAnalysis, {"most_relevant_segments": [], "summary": "Diagnostic", "key_topics": [], "broll_opportunities": None}),
+    (ai.CandidateRanking, {"ranking": []}),
+])
+async def test_real_clip_schemas_satisfy_strict_structured_output_contract(inference, output_type, payload):
+    calls, chunks, _ = inference
+    chunks[:] = [json.dumps(payload)]
+    result = await chatgpt_analysis.ChatGPTAnalysisAgent(("alice", "account", "model"), output_type, "instructions").run("transcript")
+    assert isinstance(result.output, output_type)
+    response_format = calls[0]["text"]["format"]
+    assert response_format["strict"] is True
+
+    def check_schema(node):
+        if isinstance(node, dict):
+            if node.get("type") == "object":
+                assert node["additionalProperties"] is False
+                assert set(node["required"]) == set(node["properties"])
+            for value in node.values():
+                check_schema(value)
+        elif isinstance(node, list):
+            for value in node:
+                check_schema(value)
+
+    check_schema(response_format["schema"])
+    if output_type is ai.TranscriptAnalysis:
+        broll = response_format["schema"]["properties"]["broll_opportunities"]
+        assert {"type": "null"} in broll["anyOf"]
+        assert "default" not in broll
+
+
+def test_invalid_schema_error_identifies_application_problem():
+    error = chatgpt_analysis.response_error("invalid_json_schema", 400)
+    assert "Update SupoClip" in str(error)
+    assert error.status_code == 502
+
+
 @pytest.mark.parametrize("terminal_event", [None, "response.failed", "response.incomplete"])
 async def test_interrupted_and_usage_failed_streams_never_return_partial_json(inference, terminal_event):
     calls, _, terminal = inference

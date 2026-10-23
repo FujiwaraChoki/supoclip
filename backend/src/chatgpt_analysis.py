@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import httpx
 from openai import APIError, AsyncOpenAI
+from openai.lib._pydantic import to_strict_json_schema
 from pydantic import ValidationError
 
 from .database import AsyncSessionLocal
@@ -16,6 +17,8 @@ chatgpt_account: ContextVar[tuple[str, str, str] | None] = ContextVar("chatgpt_a
 
 
 def response_error(code: str | None, status_code: int = 502) -> ChatGPTError:
+    if code == "invalid_json_schema":
+        return ChatGPTError("ChatGPT rejected the clip analysis format. Update SupoClip before retrying.", 502)
     if code in {"subscription_sharing_usage_limit_exceeded", "subscription_sharing_usage_unavailable"} or status_code == 429:
         return ChatGPTError("ChatGPT plan usage is unavailable or its limit was reached. Manage usage in ChatGPT settings before retrying.", 429)
     if status_code in {401, 403}:
@@ -44,7 +47,11 @@ class ChatGPTAnalysisAgent:
                         model=model, instructions=self.instructions, input=messages,
                         store=False, stream=True,
                         text={"format": {"type": "json_schema", "name": self.output_type.__name__,
-                                         "schema": self.output_type.model_json_schema()}},
+                                         # Match the SDK's structured-output helpers:
+                                         # raw Pydantic schemas omit required strict
+                                         # object/optional-field constraints.
+                                         "strict": True,
+                                         "schema": to_strict_json_schema(self.output_type)}},
                     )
                     completed, output = False, ""
                     async with stream:
