@@ -438,7 +438,7 @@
       "li5": "<strong>修改数据库密码。</strong><code>docker-compose.yml</code> 在四处写死了 <code>supoclip_password</code>：<code>postgres</code> 服务里的 <code>POSTGRES_PASSWORD</code>，以及 <code>frontend</code>、<code>backend</code> 和 <code>worker</code> 服务里的 <code>DATABASE_URL</code>。只改 <code>.env</code> 里的 <code>POSTGRES_PASSWORD</code> 一处都不会变。按下面的做法把四处都覆盖掉。",
       "li6": "<strong>设置 <code>REDIS_PASSWORD</code></strong>；它非空时，Redis 容器会启用 AUTH。",
       "li7": "<strong>关闭注册</strong>：如果实例只给你的团队用，设置 <code>DISABLE_SIGN_UP=true</code>。",
-      "li8": "<strong>看一下这些上限：</strong><code>MAX_VIDEO_DURATION</code>（默认 5400 秒，90 分钟）和 <code>MAX_VIDEO_UPLOAD_BYTES</code>（大约 12 GB）。",
+      "li8": "<strong>看一下这些上限：</strong><code>MAX_VIDEO_DURATION</code>（默认 5400 秒，90 分钟）和 <code>MAX_VIDEO_UPLOAD_BYTES</code>（默认 4 GB）。",
       "labelReset": "docker-compose.override.yml（Compose v2.24+）",
       "passwordIntro": "数据库密码方面，在 <code>.env</code> 的 <code>POSTGRES_PASSWORD</code> 里放一个新值。用 <code>openssl rand -hex 24</code> 生成，因为十六进制放进 URL 不用转义。然后在同一份 override 文件里把四处设置都指到它：",
       "labelPassword": "docker-compose.override.yml（合并进你已有的 override）",

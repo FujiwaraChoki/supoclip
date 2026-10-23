@@ -27,6 +27,8 @@ export interface BillingSummary {
   reason: string | null;
   max_youtube_duration_seconds?: number;
   max_upload_duration_seconds?: number;
+  /** Configured upload size cap in bytes. */
+  max_upload_bytes?: number;
 }
 
 // One in-flight request shared by the shell and the page it wraps.

@@ -4,14 +4,18 @@ from uuid import uuid4
 
 from sqlalchemy import text
 
+from ..media.upload_limits import upload_too_large_detail
+
 
 class UploadLimitReached(ValueError):
     pass
 
 
 async def reserve_upload(db, user_id: str, size: int, config):
-    if type(size) is not int or not 0 < size <= config.max_video_upload_bytes:
+    if type(size) is not int or size <= 0:
         raise ValueError("Uploaded file is too large or empty")
+    if size > config.max_video_upload_bytes:
+        raise ValueError(upload_too_large_detail(config.max_video_upload_bytes))
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:owner, 113463))"), {"owner": user_id})
     counts = (await db.execute(text("""
         SELECT COUNT(*) FILTER (WHERE state IN ('reserved', 'uploading')) AS active,

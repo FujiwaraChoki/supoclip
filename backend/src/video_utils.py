@@ -29,6 +29,11 @@ from .media.ffmpeg import (
     run_ffmpeg_command,
     select_audio_stream_index,
 )
+from .media.source_limits import (
+    fit_within_1080p,
+    probe_video_geometry,
+    source_within_output_limits,
+)
 from .media.transcription import (
     get_video_transcript,
 )
@@ -299,8 +304,16 @@ def create_optimized_clip(
             f"subtitles={add_subtitles} template '{caption_template}' format={'original' if keep_original else 'vertical'}"
         )
 
-        # Fast path: no subtitles + original = ffmpeg stream copy (no re-encoding)
-        if not add_subtitles and not hook_title and keep_original and len(effective_keep_ranges) == 1 and extend_to_sentence:
+        # Fast path: no subtitles + original = ffmpeg stream copy (no re-encoding).
+        # Oversized or high-frame-rate sources fall through so the render caps them.
+        if (
+            not add_subtitles
+            and not hook_title
+            and keep_original
+            and len(effective_keep_ranges) == 1
+            and extend_to_sentence
+            and source_within_output_limits(video_path)
+        ):
             fast_path_start, fast_path_end = effective_keep_ranges[0]
             result = subprocess.run(
                 [
@@ -347,7 +360,17 @@ def create_optimized_clip(
             # SAME pass as reframing — one encode instead of two.
             src_w, src_h = ffprobe_video_size(source_clip_path)
             if reframe_format == "original":
-                target_width, target_height = round_to_even(src_w), round_to_even(src_h)
+                # Captions are burned after the 1080p/60 scale, so their play
+                # resolution has to be the capped display size. A 4K or rotated
+                # master would otherwise place them on the unscaled frame.
+                geometry = probe_video_geometry(source_clip_path)
+                if geometry is not None:
+                    target_width, target_height = fit_within_1080p(
+                        geometry.display_width, geometry.display_height
+                    )
+                    target_width, target_height = round_to_even(target_width), round_to_even(target_height)
+                else:
+                    target_width, target_height = round_to_even(src_w), round_to_even(src_h)
             else:
                 target_width, target_height = 1080, 1920
 

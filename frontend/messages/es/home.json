@@ -14,6 +14,7 @@
     "uploadFont": "No se pudo subir la fuente",
     "uploadFontRetry": "No se pudo subir la fuente. Inténtalo de nuevo.",
     "processVideo": "No se pudo procesar el video. Inténtalo de nuevo.",
+    "fileTooLarge": "Este archivo pesa {size} y supera el límite de subida de {limit}. Prueba con una exportación más corta o un archivo más pequeño.",
     "api": "Error de API: {status}"
   },
   "status": {
@@ -85,6 +86,7 @@
   "extraWordsPlaceholder": "básicamente, literalmente, la verdad",
   "generate": "Generar clips",
   "limitNote": "{plan}: vídeos de YouTube de hasta {minutes} minutos. Cada vídeo usa su duración en minutos, comprobada antes de empezar.",
+  "uploadLimits": "Subidas de hasta {size}. Los videos por encima de 1080p o 60 fps se reducen automáticamente, conservando la proporción.",
   "completionEmails": "Los correos de finalización siguen tu preferencia en <settings>Ajustes</settings>.",
   "recent": "Recientes",
   "viewLibrary": "Ver biblioteca",

@@ -438,7 +438,7 @@
       "li5": "<strong>Change the database password.</strong> <code>docker-compose.yml</code> hardcodes <code>supoclip_password</code> in four places: <code>POSTGRES_PASSWORD</code> in the <code>postgres</code> service and <code>DATABASE_URL</code> in the <code>frontend</code>, <code>backend</code>, and <code>worker</code> services. Editing <code>POSTGRES_PASSWORD</code> in <code>.env</code> alone changes none of them. Override all four, as shown below.",
       "li6": "<strong>Set <code>REDIS_PASSWORD</code></strong>; the Redis container enables AUTH when it is non-empty.",
       "li7": "<strong>Close sign-ups</strong> with <code>DISABLE_SIGN_UP=true</code> if the instance is just for your team.",
-      "li8": "<strong>Review the limits:</strong> <code>MAX_VIDEO_DURATION</code> (default 5400 s, 90 minutes) and <code>MAX_VIDEO_UPLOAD_BYTES</code> (about 12 GB).",
+      "li8": "<strong>Review the limits:</strong> <code>MAX_VIDEO_DURATION</code> (default 5400 s, 90 minutes) and <code>MAX_VIDEO_UPLOAD_BYTES</code> (default 4 GB).",
       "labelReset": "docker-compose.override.yml (Compose v2.24+)",
       "passwordIntro": "For the database password, put a new value in <code>POSTGRES_PASSWORD</code> in <code>.env</code>. Generate it with <code>openssl rand -hex 24</code>, because hex needs no escaping inside a URL. Then point all four settings at it in the same override file:",
       "labelPassword": "docker-compose.override.yml (merge into any override you already have)",

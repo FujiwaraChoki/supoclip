@@ -96,8 +96,11 @@ class Config:
         self.scale_youtube_max_video_duration = int(
             os.getenv("SCALE_YOUTUBE_MAX_VIDEO_DURATION", "10800")
         )
+        # 4 GB fits a full-length upload (the duration cap is 90 minutes) at a
+        # normal 1080p bitrate. Larger files make transcription, storage, and
+        # rendering slow and fragile.
         self.max_video_upload_bytes = int(
-            os.getenv("MAX_VIDEO_UPLOAD_BYTES", "12000000000")
+            os.getenv("MAX_VIDEO_UPLOAD_BYTES", "4000000000")
         )
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 

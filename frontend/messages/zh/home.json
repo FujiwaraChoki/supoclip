@@ -14,6 +14,7 @@
     "uploadFont": "字体上传失败",
     "uploadFontRetry": "字体上传失败。请再试一次。",
     "processVideo": "视频处理失败。请再试一次。",
+    "fileTooLarge": "这个文件有 {size}，超过了 {limit} 的上传上限。请换一个更短的导出或更小的文件。",
     "api": "API 错误：{status}"
   },
   "status": {
@@ -85,6 +86,7 @@
   "extraWordsPlaceholder": "基本上、真的、说实话",
   "generate": "生成片段",
   "limitNote": "{plan}：YouTube 视频最长 {minutes} 分钟。每个视频按时长消耗分钟数，开始前会先检查。",
+  "uploadLimits": "上传上限为 {size}。超过 1080p 或 60 fps 的视频会自动缩小，并保持原始比例。",
   "completionEmails": "完成邮件会遵循你在<settings>设置</settings>中的偏好。",
   "recent": "最近",
   "viewLibrary": "查看资料库",

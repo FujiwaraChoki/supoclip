@@ -58,7 +58,11 @@ then call the authenticated completion endpoint. Object keys include a hash of t
 owning user ID. PostgreSQL records the owner, upload ID, object path and expected
 size before returning authorization. Each part URL signs its exact byte length;
 refresh requests can only renew parts within that recorded size. Completion
-verifies the assembled size and the 12 GB limit. The backend also
+lists every part and rejects the upload unless each part is that signed size,
+then checks the assembled object against the same limit
+(`MAX_VIDEO_UPLOAD_BYTES`, default 4 GB). A direct `/upload` body is counted
+as it arrives, so a missing or spoofed `Content-Length` cannot store more
+than the cap. The backend also
 checks ownership and object size before admitting a task. Failed browser uploads
 are aborted; bucket lifecycle rules catch uploads abandoned by closing a tab.
 Expired part URLs can be refreshed during the session's one-day lifetime without
@@ -85,6 +89,10 @@ Download buttons request an attachment disposition; playback remains inline.
 
 FFmpeg uses temporary local copies. Uploaded originals remain in S3 while a task
 references them, so regeneration and caption editing can retrieve them later.
+Sources above 1080p or 60 fps are scaled down in the worker before transcription.
+The original object stays; the capped file is stored beside it as
+`{stem}.capped.mp4` and is what later jobs download, so the same upload is not
+transcoded on every edit.
 YouTube downloads are removed after processing and edits; subsequent edits can
 download them again. Word timings for uploaded sources and clips are retained.
 YouTube word timings are also backed up under `media/transcripts/` and restored

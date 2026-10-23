@@ -46,6 +46,13 @@ from .ffmpeg import (
     run_ffmpeg_command,
     subtitles_filter_fragment,
 )
+from .source_limits import (
+    FPS_EPSILON,
+    MAX_OUTPUT_FPS,
+    fit_within_1080p,
+    output_rate_token,
+    probe_video_geometry,
+)
 
 
 def detect_optimal_crop_region(
@@ -1416,14 +1423,43 @@ def render_reframed_clip_ffmpeg(
     audio_args = build_audio_output_args(has_audio)
 
     if output_format == "original":
-        out_w, out_h = round_to_even(width), round_to_even(height)
-        if not subs:
+        geometry = probe_video_geometry(input_path)
+        display_width = geometry.display_width if geometry else width
+        display_height = geometry.display_height if geometry else height
+        source_fps = geometry.fps if geometry else None
+        capped_width, capped_height = fit_within_1080p(display_width, display_height)
+        needs_scale = (capped_width, capped_height) != (display_width, display_height)
+        needs_fps = source_fps is not None and source_fps > MAX_OUTPUT_FPS + FPS_EPSILON
+        out_w, out_h = round_to_even(capped_width), round_to_even(capped_height)
+        # A source already within 1080p/60 can be copied. Anything above that is
+        # re-encoded so original-format output cannot exceed the cap.
+        if not subs and not needs_scale and not needs_fps:
             shutil.copyfile(input_path, output_path)
-            return True, out_w, out_h
+            return True, round_to_even(display_width), round_to_even(display_height)
+        filters: List[str] = []
+        if needs_scale:
+            filters.append(f"scale={out_w}:{out_h}:flags=lanczos,setsar=1")
+        if needs_fps and not subs:
+            filters.append(f"fps={MAX_OUTPUT_FPS}")
+        if subs:
+            filters.append(subs)
+        if not needs_scale:
+            filters.append("setsar=1")
+        if subs:
+            encode_fps: int | str = OUTPUT_FPS
+            encode_level = "4.1"
+        elif needs_fps or source_fps is None:
+            encode_fps = MAX_OUTPUT_FPS if needs_fps else OUTPUT_FPS
+            encode_level = "4.2" if needs_fps else "4.1"
+        else:
+            # 59.94 stays 60000/1001. Rounding it to 60 would drop or duplicate
+            # frames on an NTSC master that is already inside the cap.
+            encode_fps = output_rate_token(source_fps)
+            encode_level = "4.2" if source_fps > 30 + FPS_EPSILON else "4.1"
         command = [
             "ffmpeg", "-y", "-i", str(input_path),
-            "-vf", f"{subs},setsar=1",
-            *build_final_video_encode_args(),
+            "-vf", ",".join(filters),
+            *build_final_video_encode_args(fps=encode_fps, level=encode_level),
             *audio_args,
             "-movflags", "+faststart",
             str(output_path),

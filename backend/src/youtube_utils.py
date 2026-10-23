@@ -845,6 +845,20 @@ def cleanup_downloaded_files(video_id: str, source_path: Optional[Path] = None):
         except Exception as e:
             logger.warning(f"Failed to cleanup {file_path.name}: {e}")
 
+    # prepare_source leaves an empty flock file next to the download. The
+    # inode stays while the video is live so two workers cannot normalize
+    # different files under the same name. Once the video is gone, the lock
+    # is the only thing that would keep this directory from being removed.
+    if source_path is not None and not source_path.is_dir():
+        for leftover in (
+            source_path.with_name(f".{source_path.name}.normalize.lock"),
+            *source_path.parent.glob(f".{source_path.name}.*.capped.mp4"),
+        ):
+            try:
+                leftover.unlink(missing_ok=True)
+            except OSError as exc:
+                logger.warning("Failed to cleanup %s: %s", leftover.name, exc)
+
     if provider_dir:
         try:
             temp_dir.rmdir()

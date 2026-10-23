@@ -197,6 +197,7 @@ class BillingService:
                 "plan": "self_host",
                 "max_youtube_duration_seconds": self.config.max_video_duration,
                 "max_upload_duration_seconds": self.config.max_video_duration,
+                "max_upload_bytes": self.config.max_video_upload_bytes,
                 "subscription_status": "inactive",
                 "subscription_provider": None,
                 "period_start": None,
@@ -234,6 +235,7 @@ class BillingService:
                 plan, status
             ),
             "max_upload_duration_seconds": self.config.max_video_duration,
+            "max_upload_bytes": self.config.max_video_upload_bytes,
             "subscription_status": status,
             "subscription_provider": row.get("subscription_provider"),
             "period_start": start,

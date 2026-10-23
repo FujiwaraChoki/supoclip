@@ -200,6 +200,9 @@ class ClipEditingMixin:
                 raise ValueError("Source video file no longer exists")
 
         try:
+            # Cap the working file before localizing timestamps. The path does
+            # not change, so the timeline sidecar still applies.
+            video_path = await self.video_service.prepare_source(video_path)
             time_map = await run_in_thread(load_time_map, video_path)
             render_segments = [
                 localize_segment(segment, time_map) if time_map else segment
@@ -502,6 +505,7 @@ class ClipEditingMixin:
             raise ValueError("The source video is no longer available. Upload it again to edit captions.")
 
         try:
+            transcript_video_path = await self.video_service.prepare_source(transcript_video_path)
             settings = await self._load_task_source_settings(task_id)
             local_ranges = await run_in_thread(
                 local_ranges_for, transcript_video_path, source_ranges

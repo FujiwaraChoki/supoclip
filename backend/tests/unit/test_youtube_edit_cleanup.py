@@ -38,7 +38,10 @@ async def test_editor_preparation_removes_its_download(tmp_path, monkeypatch, re
         clip_repo=SimpleNamespace(get_clip_by_id=AsyncMock(return_value=clip)),
         task_repo=SimpleNamespace(get_task_by_id=AsyncMock(return_value=task)),
         cache_repo=SimpleNamespace(get_cache=AsyncMock(return_value=None)),
-        video_service=SimpleNamespace(download_video=AsyncMock(return_value=source)),
+        video_service=SimpleNamespace(
+            download_video=AsyncMock(return_value=source),
+            prepare_source=AsyncMock(side_effect=lambda path: path),
+        ),
         config=SimpleNamespace(default_processing_mode="fast"),
         _build_cache_key=lambda *_: "cache-key",
         _media_limits=AsyncMock(return_value=(None, None)),

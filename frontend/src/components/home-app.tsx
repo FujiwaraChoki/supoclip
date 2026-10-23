@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 import { VideoSourceIcon } from "@/components/video-source-icon";
-import { FONT_SEARCH_THRESHOLD, getYouTubeThumbnailUrl, uploadVideoFile, validateVideoSourceUrl } from "@/lib/video-upload";
+import { FONT_SEARCH_THRESHOLD, formatUploadLimit, getYouTubeThumbnailUrl, maxVideoUploadBytes, uploadVideoFile, validateVideoSourceUrl } from "@/lib/video-upload";
 import { AppShell } from "@/components/app/app-shell";
 import { GenerationCard } from "@/components/app/generation-card";
 import { VideoDownloadStatus } from "@/components/app/video-download-status";
@@ -107,6 +107,9 @@ export default function HomeApp() {
   const youtubeThumbnailUrl = sourceType === "youtube" ? getYouTubeThumbnailUrl(url) : null;
   // Brand mark of the pasted link; a neutral link icon until it is recognised.
   const urlSource = url.trim() ? validateVideoSourceUrl(url).source : undefined;
+  const uploadLimitBytes = billingSummary?.max_upload_bytes && billingSummary.max_upload_bytes > 0
+    ? billingSummary.max_upload_bytes
+    : maxVideoUploadBytes();
 
   const refreshFonts = useCallback(async () => {
     try {
@@ -153,6 +156,14 @@ export default function HomeApp() {
   const attachFile = (next: File | null) => {
     if (next && !next.type.startsWith("video/") && !/\.(mp4|mov|avi|mkv|webm|m4v)$/i.test(next.name)) {
       setError(t("errors.notVideo"));
+      return;
+    }
+    if (next && next.size > uploadLimitBytes) {
+      setError(t("errors.fileTooLarge", {
+        size: formatBytes(next.size),
+        limit: formatUploadLimit(uploadLimitBytes),
+      }));
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
     setError(null);
@@ -242,7 +253,7 @@ export default function HomeApp() {
 
       if (sourceType === "upload" && file) {
         setStatusMessage(t("status.uploading"));
-        videoUrl = await uploadVideoFile(file);
+        videoUrl = await uploadVideoFile(file, uploadLimitBytes);
       }
 
       setStatusMessage(sourceType === "youtube" ? t("status.checkingLength") : t("status.starting"));
@@ -356,6 +367,7 @@ export default function HomeApp() {
               type="file"
               accept="video/*"
               ref={fileInputRef}
+              aria-describedby="source-limits"
               onChange={(event) => attachFile(event.target.files?.[0] ?? null)}
               disabled={controlsDisabled}
               className="hidden"
@@ -396,7 +408,7 @@ export default function HomeApp() {
                       autoFocus
                       autoComplete="off"
                       placeholder={t("urlPlaceholder")}
-                      aria-describedby={limitNote ? "youtube-duration-limit" : undefined}
+                      aria-describedby="source-limits"
                       value={url}
                       onChange={(e) => setUrl(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void handleSubmit(); }}
@@ -410,7 +422,7 @@ export default function HomeApp() {
 
             <div className="flex flex-wrap items-center gap-1.5 px-3 pb-3 sm:px-4">
               {!file && (
-                <Chip onClick={() => fileInputRef.current?.click()} disabled={controlsDisabled} aria-label={t("uploadFile")}>
+                <Chip onClick={() => fileInputRef.current?.click()} disabled={controlsDisabled} aria-label={t("uploadFile")} aria-describedby="source-limits">
                   <Paperclip className="size-3.5" /><span className="hidden sm:inline">{t("upload")}</span>
                 </Chip>
               )}
@@ -611,7 +623,8 @@ export default function HomeApp() {
             </Alert>
           )}
 
-          <p id="youtube-duration-limit" className="mt-4 text-center text-xs text-muted-foreground">
+          <p id="source-limits" className="mt-4 text-center text-xs text-muted-foreground">
+            {t("uploadLimits", { size: formatUploadLimit(uploadLimitBytes) })}{" "}
             {limitNote ? `${limitNote} ` : ""}
             {t.rich("completionEmails", {
               settings: (chunks) => (
