@@ -48,6 +48,7 @@ from ...clip_cleanup import (
 )
 from ...video_utils import VALID_OUTPUT_FORMATS
 from ...admin_auth import require_admin_user, user_is_admin
+from ...source_submission import SourceAttempt
 import redis.asyncio as redis
 from ...clip_editor import export_with_preset, EXPORT_PRESETS
 
@@ -399,12 +400,26 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     Create a new task and enqueue it for processing.
     Returns task_id immediately.
     """
+    attempt = SourceAttempt(request, db)
+    try:
+        response = await _create_task(request, db, attempt)
+    except HTTPException as exc:
+        await attempt.rejected(exc.status_code, exc.detail)
+        raise
+    await attempt.accepted()
+    return response
+
+
+async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttempt):
     data = await _read_json_object(request)
 
     raw_source = data.get("source")
+    if isinstance(raw_source, dict):
+        attempt.note_url(raw_source.get("url"))
     if not isinstance(raw_source, dict) or not isinstance(raw_source.get("url"), str) or not raw_source["url"].strip():
         raise HTTPException(status_code=400, detail="Source URL is required")
     user_id = await _get_user_id_from_headers(request, db)
+    attempt.note_user(user_id)
 
     # Get font options
     font_options = data.get("font_options", {})
