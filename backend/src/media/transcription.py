@@ -11,6 +11,7 @@ import httpx
 import json
 import re
 import time
+from threading import Lock
 from .common import (
     ANALYSIS_LONG_UTTERANCE_MAX_DURATION_MS,
     ANALYSIS_LONG_UTTERANCE_MAX_WORDS,
@@ -171,16 +172,23 @@ def _assemblyai_speech_models_value(speech_model: str) -> List[str]:
     return ["universal-3-pro", "universal-2"]
 
 
+_WHISPER_MODEL_LOAD_LOCK = Lock()
+
+
 def _get_whisper_model(model_name: str = "base"):
     """Load and cache a Whisper model by name."""
     if not _WHISPER_AVAILABLE:
         raise RuntimeError(
             "Whisper is not installed. Install it with: uv add openai-whisper"
         )
-    if model_name not in _WHISPER_MODEL_CACHE:
-        logger.info("Loading Whisper model: %s", model_name)
-        _WHISPER_MODEL_CACHE[model_name] = _whisper.load_model(model_name)
-    return _WHISPER_MODEL_CACHE[model_name]
+    # Jobs run transcription in separate threads. Whisper downloads directly to
+    # its shared checkpoint path, so concurrent loads can overwrite a file that
+    # another job is still downloading or reading. Publish only a complete model.
+    with _WHISPER_MODEL_LOAD_LOCK:
+        if model_name not in _WHISPER_MODEL_CACHE:
+            logger.info("Loading Whisper model: %s", model_name)
+            _WHISPER_MODEL_CACHE[model_name] = _whisper.load_model(model_name)
+        return _WHISPER_MODEL_CACHE[model_name]
 
 
 def transcribe_with_whisper(
