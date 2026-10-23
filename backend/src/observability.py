@@ -138,6 +138,16 @@ class JsonLogFormatter(logging.Formatter):
             "youtube_outcome",
             "youtube_bytes",
             "task_id",
+            # Task-creation source submissions. Values are sanitized; the raw
+            # query string, fragment, and credentials are never attached.
+            "source_user_id",
+            "source_client",
+            "source_type",
+            "source_domain",
+            "source_url",
+            "source_outcome",
+            "source_status",
+            "source_reason",
         ):
             value = getattr(record, key, None)
             if value not in (None, ""):

@@ -34,6 +34,7 @@ from .observability import (
     set_trace_id,
     set_user_id,
 )
+from .source_submission import is_task_create_request, log_task_create_validation_error
 
 configure_logging()
 
@@ -149,9 +150,14 @@ def create_app(
         )
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(_: Request, exc: RequestValidationError):
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
         trace_id = get_trace_id()
-        logger.warning("Validation error: %s", exc.errors())
+        # Task creation logs a sanitized source line instead of exc.errors(),
+        # which includes the submitted input (query tokens and all).
+        if is_task_create_request(request.method, request.url.path):
+            await log_task_create_validation_error(request, exc)
+        else:
+            logger.warning("Validation error: %s", exc.errors())
         return JSONResponse(
             status_code=422,
             content={"detail": exc.errors(), "trace_id": trace_id},
