@@ -62,7 +62,7 @@ logger = logging.getLogger(__name__)
 
 TRANSCRIPT_CACHE_SCHEMA_VERSION = 2
 
-VALID_OUTPUT_FORMATS = {"vertical", "vertical_pan", "vertical_split", "original"}
+VALID_OUTPUT_FORMATS = {"vertical", "vertical_fit", "vertical_pan", "vertical_split", "original"}
 
 EMOJI_FONT_NAME = "Noto Color Emoji"
 

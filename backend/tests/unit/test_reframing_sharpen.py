@@ -22,7 +22,9 @@ def test_kenburns_fragment_sharpens_after_zoompan():
 def test_static_vertical_crop_sharpens_after_upscale():
     with (
         patch.object(reframing, "ffprobe_duration", return_value=2.0),
-        patch.object(reframing, "analyze_vertical_clip", return_value=([], [])),
+        patch.object(reframing, "analyze_vertical_clip", return_value=(
+            [(i / 3, 960.0, 0.04) for i in range(6)], [],
+        )),
         patch.object(reframing, "detect_optimal_crop_region", return_value=(656, 0, 608, 1080)),
     ):
         video_filter, mode, caption_y = reframing.build_vertical_filter_plan(

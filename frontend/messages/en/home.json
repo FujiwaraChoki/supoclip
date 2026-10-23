@@ -51,7 +51,11 @@
   "framingOptions": {
     "vertical": {
       "label": "Auto 9:16",
-      "hint": "Face-tracked vertical crop"
+      "hint": "Adapts to subjects and scene context"
+    },
+    "vertical_fit": {
+      "label": "Full frame 9:16",
+      "hint": "Show everything on a vertical canvas"
     },
     "vertical_pan": {
       "label": "Speaker pan",

@@ -51,7 +51,11 @@
   "framingOptions": {
     "vertical": {
       "label": "Auto 9:16",
-      "hint": "Recorte vertical que sigue el rostro"
+      "hint": "Se adapta a los sujetos y al contexto"
+    },
+    "vertical_fit": {
+      "label": "Imagen completa 9:16",
+      "hint": "Mostrar todo en formato vertical"
     },
     "vertical_pan": {
       "label": "Paneo del hablante",

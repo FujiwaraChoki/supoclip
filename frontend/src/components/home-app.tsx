@@ -44,9 +44,9 @@ interface CaptionTemplate {
   font_color?: string;
 }
 
-type OutputFormat = "vertical" | "vertical_pan" | "vertical_split" | "original";
+type OutputFormat = "vertical" | "vertical_fit" | "vertical_pan" | "vertical_split" | "original";
 
-const FRAMING_IDS: OutputFormat[] = ["vertical", "vertical_pan", "vertical_split", "original"];
+const FRAMING_IDS: OutputFormat[] = ["vertical", "vertical_fit", "vertical_pan", "vertical_split", "original"];
 
 const COLOR_SWATCHES = ["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"];
 
@@ -703,6 +703,8 @@ function FramingGlyph({ kind }: { kind: OutputFormat }) {
     <span className="flex h-12 items-center justify-center rounded-lg bg-muted" aria-hidden>
       {kind === "original" ? (
         <span className="h-6 w-10 rounded-[3px] border-2 border-foreground/70" />
+      ) : kind === "vertical_fit" ? (
+        <span className="flex h-9 w-5 items-center rounded-[3px] border-2 border-foreground/70"><span className="h-3 w-full bg-foreground/30" /></span>
       ) : kind === "vertical_split" ? (
         <span className="flex h-9 w-5 flex-col gap-0.5 rounded-[3px] border-2 border-foreground/70 p-0.5"><span className="flex-1 rounded-[1px] bg-foreground/30" /><span className="flex-1 rounded-[1px] bg-foreground/30" /></span>
       ) : (

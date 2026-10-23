@@ -252,8 +252,14 @@ def run_render(command: list[str], directory: Path, job_id: str, duration: float
     progress_path = directory / f"progress-{job_id}.txt"
     log_path = directory / f"log-{job_id}.txt"
     with log_path.open("w+") as log:
+        # -progress/-nostats are ffmpeg flags. A non-ffmpeg command (tests use
+        # sleep) must be started unchanged or GNU sleep rejects the extra args
+        # and the cancel path never runs.
+        launched = list(command)
+        if command and Path(command[0]).name == "ffmpeg":
+            launched = command[:1] + ["-progress", str(progress_path), "-nostats"] + command[1:]
         process = subprocess.Popen(
-            command[:1] + ["-progress", str(progress_path), "-nostats"] + command[1:],
+            launched,
             stdout=subprocess.DEVNULL,
             stderr=log,
         )
