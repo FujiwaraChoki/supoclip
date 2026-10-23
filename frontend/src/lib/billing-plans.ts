@@ -1,10 +1,17 @@
 export type BillingPlanId = "pro" | "scale";
+export type BillingInterval = "month" | "year";
 
 export type PublicBillingPlan = {
   id: BillingPlanId;
   name: string;
   priceMonthly: string;
-  generationLimit: number;
+  /** Price of a year, billed up front. */
+  priceAnnual: string;
+  /** Minutes of source video allowed each month. */
+  minuteLimit: number;
+  /** Output height label, e.g. "1080p". */
+  resolution: string;
+  scheduling: boolean;
   youtubeMaxMinutes: number;
   description: string;
   highlights: string[];
@@ -14,12 +21,18 @@ export type PublicBillingPlan = {
 
 export const PAID_PLAN_IDS: BillingPlanId[] = ["pro", "scale"];
 
+export function billingPlanMessageKey(plan: string | null | undefined): "free" | "pro" | "scale" | "selfHost" {
+  if (plan === "pro" || plan === "scale") return plan;
+  if (plan === "self_host") return "selfHost";
+  return "free";
+}
+
 export function formatBillingPlanName(plan: string | null | undefined): string {
   if (plan === "pro") {
     return "Pro";
   }
   if (plan === "scale") {
-    return "Scale";
+    return "Creator";
   }
   if (plan === "self_host") {
     return "Self-Hosted";
@@ -31,11 +44,32 @@ export function isPaidBillingPlan(plan: string | null | undefined): plan is Bill
   return plan === "pro" || plan === "scale";
 }
 
+export type SocialPublishingStage = "off" | "soon" | "live";
+
+/**
+ * How plan pages present scheduled posting (a Creator feature):
+ * hidden ("off"), marked "Coming soon" (default, while platform reviews are
+ * pending), or listed as a live feature ("live"). Set NEXT_PUBLIC_SOCIAL_PUBLISHING.
+ */
+export function socialPublishingStage(): SocialPublishingStage {
+  const value = process.env.NEXT_PUBLIC_SOCIAL_PUBLISHING?.trim().toLowerCase();
+  if (value === "off" || value === "0") return "off";
+  if (value === "live" || value === "1") return "live";
+  return "soon";
+}
+
+export function isBillingInterval(value: unknown): value is BillingInterval {
+  return value === "month" || value === "year";
+}
+
 export function getPublicBillingPlans(): PublicBillingPlan[] {
-  const proPriceMonthly = process.env.NEXT_PUBLIC_PRO_PRICE_MONTHLY || "10";
-  const scalePriceMonthly = process.env.NEXT_PUBLIC_SCALE_PRICE_MONTHLY || "50";
-  const proLimit = parseInt(process.env.NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT || "50", 10);
-  const scaleLimit = parseInt(process.env.NEXT_PUBLIC_SCALE_PLAN_TASK_LIMIT || "300", 10);
+  const proPriceMonthly = process.env.NEXT_PUBLIC_PRO_PRICE_MONTHLY || "9.99";
+  const proPriceAnnual = process.env.NEXT_PUBLIC_PRO_PRICE_ANNUAL || "99.90";
+  const scalePriceMonthly = process.env.NEXT_PUBLIC_SCALE_PRICE_MONTHLY || "24.99";
+  const scalePriceAnnual = process.env.NEXT_PUBLIC_SCALE_PRICE_ANNUAL || "249.90";
+  // Mirrors the backend's PRO_/SCALE_PLAN_MINUTE_LIMIT defaults.
+  const proMinutes = parseInt(process.env.NEXT_PUBLIC_PRO_PLAN_MINUTE_LIMIT || "600", 10);
+  const scaleMinutes = parseInt(process.env.NEXT_PUBLIC_SCALE_PLAN_MINUTE_LIMIT || "1500", 10);
   // Mirrors the backend's PRO_/SCALE_YOUTUBE_MAX_VIDEO_DURATION defaults.
   const proYoutubeMinutes = parseInt(process.env.NEXT_PUBLIC_PRO_YOUTUBE_MAX_MINUTES || "90", 10);
   const scaleYoutubeMinutes = parseInt(process.env.NEXT_PUBLIC_SCALE_YOUTUBE_MAX_MINUTES || "180", 10);
@@ -45,11 +79,15 @@ export function getPublicBillingPlans(): PublicBillingPlan[] {
       id: "pro",
       name: "Pro",
       priceMonthly: proPriceMonthly,
-      generationLimit: proLimit,
+      priceAnnual: proPriceAnnual,
+      minuteLimit: proMinutes,
+      resolution: "720p",
+      scheduling: false,
       youtubeMaxMinutes: proYoutubeMinutes,
       description: "For creators who clip consistently each month.",
       highlights: [
-        `${proLimit} videos clipped every month`,
+        `${formatMinutes(proMinutes)} of video every month`,
+        "720p clips",
         `YouTube videos up to ${formatMinutes(proYoutubeMinutes)}`,
         "Custom fonts, B-roll and caption templates",
       ],
@@ -58,20 +96,42 @@ export function getPublicBillingPlans(): PublicBillingPlan[] {
     },
     {
       id: "scale",
-      name: "Scale",
+      name: "Creator",
       priceMonthly: scalePriceMonthly,
-      generationLimit: scaleLimit,
+      priceAnnual: scalePriceAnnual,
+      minuteLimit: scaleMinutes,
+      resolution: "1080p",
+      scheduling: true,
       youtubeMaxMinutes: scaleYoutubeMinutes,
-      description: "For teams and high-volume publishing workflows.",
+      description: "For creators publishing every day.",
       highlights: [
-        `${scaleLimit} videos clipped every month`,
+        `${formatMinutes(scaleMinutes)} of video every month`,
+        "Full HD 1080p clips",
         `YouTube videos up to ${formatMinutes(scaleYoutubeMinutes)}`,
         "Priority processing",
       ],
-      cta: "Upgrade to Scale",
+      cta: "Upgrade to Creator",
       highlighted: false,
     },
   ];
+}
+
+/** The plan's price for one billing interval, as shown next to "/mo" or "/yr". */
+export function planPrice(plan: PublicBillingPlan, interval: BillingInterval): string {
+  return interval === "year" ? plan.priceAnnual : plan.priceMonthly;
+}
+
+/** What an annual plan works out to per month, e.g. "8.33". */
+export function annualMonthlyEquivalent(plan: PublicBillingPlan): string {
+  const monthly = Number(plan.priceAnnual) / 12;
+  return Number.isInteger(monthly) ? String(monthly) : monthly.toFixed(2);
+}
+
+/** How many months of the monthly price an annual plan saves, e.g. 2. */
+export function annualMonthsFree(plan: PublicBillingPlan): number {
+  const monthly = Number(plan.priceMonthly);
+  if (!monthly) return 0;
+  return Math.round(12 - Number(plan.priceAnnual) / monthly);
 }
 
 export function formatMinutes(minutes: number): string {

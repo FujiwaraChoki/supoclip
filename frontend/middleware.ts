@@ -18,6 +18,7 @@ export function middleware(request: NextRequest) {
     pathname === "/status" ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/billing/webhook") ||
+    pathname.startsWith("/ingest/") ||
     PUBLIC_FILE.test(pathname)
   ) {
     return NextResponse.next();

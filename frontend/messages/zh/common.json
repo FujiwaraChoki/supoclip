@@ -1,0 +1,19 @@
+{
+  "close": "关闭",
+  "cancel": "取消",
+  "save": "保存",
+  "saving": "正在保存…",
+  "loading": "加载中",
+  "tryAgain": "请重试。",
+  "justNow": "刚刚",
+  "plans": {
+    "free": "免费",
+    "pro": "Pro",
+    "scale": "Creator",
+    "selfHost": "自托管"
+  },
+  "duration": {
+    "hours": "{count} 小时",
+    "minutes": "{count} 分钟"
+  }
+}

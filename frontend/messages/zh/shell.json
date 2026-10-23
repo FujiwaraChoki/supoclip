@@ -1,0 +1,67 @@
+{
+  "nav": {
+    "create": "创建",
+    "library": "素材库",
+    "social": "社交",
+    "analytics": "数据分析",
+    "agents": "智能体与 API",
+    "settings": "设置",
+    "admin": "管理",
+    "newGeneration": "新建生成"
+  },
+  "search": {
+    "generations": "搜索生成记录",
+    "label": "搜索",
+    "mainNav": "主导航",
+    "mobileNav": "移动端导航",
+    "dialog": "搜索",
+    "placeholder": "搜索生成记录或跳转到…",
+    "inputLabel": "搜索生成记录或跳转到页面",
+    "empty": "没有与“{query}”匹配的结果。"
+  },
+  "palette": {
+    "newHint": "粘贴链接或上传文件",
+    "library": "打开素材库",
+    "social": "社交账号",
+    "socialHint": "连接 YouTube、TikTok 和 Instagram",
+    "analyticsHint": "已发布短片的表现",
+    "agentsHint": "API 密钥与 MCP"
+  },
+  "usage": {
+    "pickPlan": "选择套餐，开始剪辑",
+    "moreWith": "升级到 {name} 获得更多额度",
+    "left": "本周期剩余 {count} 个",
+    "videosThisPeriod": "本周期的视频",
+    "minutesOf": "{used} / {limit} 分钟",
+    "minutes": "{used} 分钟",
+    "minutesLeft": "本月剩余 {count} 分钟",
+    "minutesThisMonth": "本月视频分钟数"
+  },
+  "user": {
+    "creator": "创作者",
+    "signOut": "退出登录",
+    "signingOut": "正在退出…",
+    "signOutError": "无法退出登录。请重试。"
+  },
+  "announcements": {
+    "whatsNew": "新动态",
+    "whatsNewUnread": "新动态，{count, plural, other {# 条未读公告}}",
+    "title": "SupoClip 的新动态",
+    "close": "关闭公告",
+    "popover": "公告",
+    "new": "新"
+  },
+  "feedback": {
+    "title": "发送反馈",
+    "category": "类别",
+    "bug": "错误报告",
+    "feature": "功能建议",
+    "general": "一般反馈",
+    "sales": "销售咨询",
+    "placeholder": "告诉我们你在想什么...",
+    "submit": "提交",
+    "success": "反馈已提交 — 谢谢！",
+    "failed": "反馈提交失败",
+    "error": "出了点问题"
+  }
+}

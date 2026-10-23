@@ -1,0 +1,19 @@
+{
+  "close": "Close",
+  "cancel": "Cancel",
+  "save": "Save",
+  "saving": "Saving…",
+  "loading": "Loading",
+  "tryAgain": "Please try again.",
+  "justNow": "just now",
+  "plans": {
+    "free": "Free",
+    "pro": "Pro",
+    "scale": "Creator",
+    "selfHost": "Self-Hosted"
+  },
+  "duration": {
+    "hours": "{count, plural, one {# hour} other {# hours}}",
+    "minutes": "{count, plural, one {# minute} other {# minutes}}"
+  }
+}

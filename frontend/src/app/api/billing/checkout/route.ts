@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { monetizationEnabled } from "@/lib/monetization";
 import { getStripeClient } from "@/lib/stripe";
 import { getServerBillingPlan } from "@/server/billing-plans";
+import { isBillingInterval, type BillingInterval } from "@/lib/billing-plans";
 import { findCreatorOffer, INVALID_CREATOR_CODE, type CreatorOffer } from "@/server/affiliates";
 import type Stripe from "stripe";
 
@@ -22,11 +23,18 @@ export async function POST(request: Request) {
   }
 
   let requestedPlan = "pro";
+  let interval: BillingInterval = "month";
   let enteredCode: string | null = null;
   try {
     const body = await request.json();
     if (typeof body?.plan === "string") {
       requestedPlan = body.plan;
+    }
+    if (body?.interval !== undefined) {
+      if (!isBillingInterval(body.interval)) {
+        return NextResponse.json({ error: "Unknown billing interval" }, { status: 400 });
+      }
+      interval = body.interval;
     }
     if (typeof body?.code === "string" && body.code.trim()) {
       enteredCode = body.code.trim();
@@ -60,12 +68,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const priceId = billingPlan.priceId;
+  const priceId = billingPlan.priceIds[interval];
   if (!priceId) {
-    const fallbackUrl = billingPlan.id === "pro" ? process.env.STRIPE_CHECKOUT_URL : null;
+    const fallbackUrl =
+      billingPlan.id === "pro" && interval === "month" ? process.env.STRIPE_CHECKOUT_URL : null;
     if (!fallbackUrl) {
       return NextResponse.json(
-        { error: `Stripe price is not configured for ${billingPlan.id}` },
+        { error: `Stripe ${interval}ly price is not configured for ${billingPlan.id}` },
         { status: 500 }
       );
     }
@@ -131,6 +140,7 @@ export async function POST(request: Request) {
     metadata: {
       userId: session.user.id,
       plan: billingPlan.id,
+      interval,
       ...(offer ? { creator_code: offer.code } : {}),
     },
     line_items: [{ price: priceId, quantity: 1 }],

@@ -33,6 +33,8 @@ dependencies = [
     "httpx>=0.28.1",
     "openai>=2.0.0",
     "pyjwt[crypto]>=2.10.1",
+
+    "posthog>=7.73.2",
 ]
 
 [project.optional-dependencies]

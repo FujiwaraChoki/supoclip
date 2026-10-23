@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Check, Loader2, Youtube, Upload } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
+import { AlertTriangle, Check, Loader2 } from "lucide-react";
 import { ClipCover, ScoreRing } from "@/components/app/clip-cover";
 import { StatusBadge, ACTIVE_TASK_STATUSES } from "@/components/app/status-badge";
+import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind } from "@/components/video-source-icon";
 import { coverClipUrl, timeAgo, type GenerationSummary } from "@/lib/generations";
 import { cn } from "@/lib/utils";
 
@@ -16,10 +18,12 @@ export function GenerationCard({ generation, selected, onToggle, selectionDisabl
   selectionDisabled?: boolean;
   className?: string;
 }) {
+  const t = useTranslations("library");
+  const locale = useLocale();
   const active = ACTIVE_TASK_STATUSES.includes(generation.status);
   const failed = generation.status === "error";
   const selectable = Boolean(onToggle);
-  const SourceIcon = generation.source_type === "youtube" ? Youtube : Upload;
+  const source = videoSourceKind(generation.source_type);
 
   return (
     <div className={cn("group relative", className)}>
@@ -35,14 +39,14 @@ export function GenerationCard({ generation, selected, onToggle, selectionDisabl
           {active && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-stone-950/60 text-white">
               <Loader2 className="size-5 animate-spin" aria-hidden />
-              <span className="text-xs font-medium">{generation.status === "queued" ? "Queued" : "Finding the best moments…"}</span>
+              <span className="text-xs font-medium">{generation.status === "queued" ? t("card.queued") : t("card.finding")}</span>
               <div className="progress-sheen relative mt-1 h-0.5 w-24 overflow-hidden rounded-full bg-white/20" />
             </div>
           )}
           {failed && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-stone-950/70 text-white">
               <AlertTriangle className="size-5 text-amber-300" aria-hidden />
-              <span className="text-xs font-medium">Needs attention</span>
+              <span className="text-xs font-medium">{t("card.needsAttention")}</span>
             </div>
           )}
           {generation.top_virality_score ? (
@@ -51,14 +55,14 @@ export function GenerationCard({ generation, selected, onToggle, selectionDisabl
             </div>
           ) : null}
           <div className="absolute inset-x-3 bottom-2.5 flex items-center justify-between text-[11px] font-medium text-white/90">
-            <span className="flex items-center gap-1.5"><SourceIcon className="size-3.5" aria-hidden />{generation.source_type === "youtube" ? "YouTube" : "Upload"}</span>
-            {generation.clips_count > 0 && <span className="tabular-nums">{generation.clips_count} {generation.clips_count === 1 ? "clip" : "clips"}</span>}
+            <span className="flex items-center gap-1.5"><VideoSourceIcon source={source} className="size-3.5" aria-hidden />{source === "upload" ? t("card.upload") : VIDEO_SOURCE_LABELS[source]}</span>
+            {generation.clips_count > 0 && <span className="tabular-nums">{t("card.clips", { count: generation.clips_count })}</span>}
           </div>
         </ClipCover>
         <div className="mt-2.5 space-y-1 px-0.5">
           <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{generation.source_title}</h3>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{timeAgo(generation.created_at)}</span>
+            <span>{timeAgo(generation.created_at, locale)}</span>
             {(showStatus || generation.status !== "completed") && <StatusBadge status={generation.status} />}
           </div>
         </div>
@@ -68,7 +72,7 @@ export function GenerationCard({ generation, selected, onToggle, selectionDisabl
           type="button"
           role="checkbox"
           aria-checked={Boolean(selected)}
-          aria-label={selected ? `Deselect ${generation.source_title}` : `Select ${generation.source_title}`}
+          aria-label={selected ? t("card.deselect", { title: generation.source_title }) : t("card.select", { title: generation.source_title })}
           disabled={selectionDisabled}
           onClick={onToggle}
           className={cn(

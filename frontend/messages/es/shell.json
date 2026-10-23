@@ -1,0 +1,67 @@
+{
+  "nav": {
+    "create": "Crear",
+    "library": "Biblioteca",
+    "social": "Redes",
+    "analytics": "Analíticas",
+    "agents": "Agentes y API",
+    "settings": "Ajustes",
+    "admin": "Administración",
+    "newGeneration": "Nueva generación"
+  },
+  "search": {
+    "generations": "Buscar generaciones",
+    "label": "Buscar",
+    "mainNav": "Navegación principal",
+    "mobileNav": "Navegación móvil",
+    "dialog": "Buscar",
+    "placeholder": "Busca generaciones o salta a…",
+    "inputLabel": "Busca generaciones o salta a una página",
+    "empty": "Nada coincide con “{query}”."
+  },
+  "palette": {
+    "newHint": "Pega un enlace o sube un archivo",
+    "library": "Abrir biblioteca",
+    "social": "Cuentas sociales",
+    "socialHint": "Conecta YouTube, TikTok e Instagram",
+    "analyticsHint": "Cómo rinden tus clips publicados",
+    "agentsHint": "Claves de API y MCP"
+  },
+  "usage": {
+    "pickPlan": "Elige un plan para empezar a recortar",
+    "moreWith": "Consigue más con {name}",
+    "left": "{count} restantes en este período",
+    "videosThisPeriod": "videos en este período",
+    "minutesOf": "{used} / {limit} min",
+    "minutes": "{used} min",
+    "minutesLeft": "quedan {count} min este mes",
+    "minutesThisMonth": "minutos de vídeo este mes"
+  },
+  "user": {
+    "creator": "Creador",
+    "signOut": "Cerrar sesión",
+    "signingOut": "Cerrando sesión…",
+    "signOutError": "No se pudo cerrar la sesión. Inténtalo de nuevo."
+  },
+  "announcements": {
+    "whatsNew": "Novedades",
+    "whatsNewUnread": "Novedades, {count, plural, one {# anuncio sin leer} other {# anuncios sin leer}}",
+    "title": "Novedades en SupoClip",
+    "close": "Cerrar anuncios",
+    "popover": "Anuncios",
+    "new": "Nuevo"
+  },
+  "feedback": {
+    "title": "Enviar comentarios",
+    "category": "Categoría",
+    "bug": "Reporte de error",
+    "feature": "Solicitud de función",
+    "general": "Comentario general",
+    "sales": "Consulta de ventas",
+    "placeholder": "Cuéntanos qué tienes en mente...",
+    "submit": "Enviar",
+    "success": "Comentario enviado — ¡gracias!",
+    "failed": "No se pudo enviar el comentario",
+    "error": "Algo salió mal"
+  }
+}

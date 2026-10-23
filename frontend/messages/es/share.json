@@ -1,0 +1,13 @@
+{
+  "brand": "SupoClip",
+  "makeYourOwn": "Crea los tuyos",
+  "unavailableTitle": "Este enlace no está disponible",
+  "unavailable": "Este enlace para compartir no está disponible",
+  "createOwn": "Crea tus propios clips",
+  "eyebrow": "Generación compartida",
+  "summary": "{count, plural, one {# clip} other {# clips}} · {duration} de momentos destacados",
+  "topVirality": "puntaje de viralidad más alto",
+  "ctaTitle": "Convierte tus videos largos en clips como estos.",
+  "ctaBody": "SupoClip encuentra los mejores momentos, encuadra a quien habla y escribe los subtítulos. Código abierto y gratis para autoalojar.",
+  "try": "Probar SupoClip"
+}

@@ -107,12 +107,102 @@ def test_cache_sweep_removes_hidden_partial_downloads_after_a_crash(storage, tmp
     assert (directory / ".lease").exists()
 
 
+def test_capped_source_is_preferred_and_removed_with_the_original(storage, tmp_path):
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    key = storage.parse(storage.source_reference(url))
+    storage.client.objects[key] = b"original-4k"
+    capped = storage.capped_source_key(key)
+    assert capped.endswith("video.capped.mp4")
+    storage.client.objects[capped] = b"capped-1080"
+    restored = storage.local_path(storage.reference(key))
+    assert restored.read_bytes() == b"capped-1080"
+    assert restored.name == "video.mp4"
+
+    directory = tmp_path / "prepared"
+    directory.mkdir()
+    prepared = directory / "video.mp4"
+    prepared.write_bytes(b"fresh-cap")
+    (directory / ".reference").write_text(storage.reference(key))
+    storage.store_capped_source(prepared)
+    assert storage.client.objects[capped] == b"fresh-cap"
+    assert storage.client.objects[key] == b"original-4k"
+
+    storage.delete(storage.reference(key))
+    assert key not in storage.client.objects
+    assert capped not in storage.client.objects
+
+
+def test_completion_rejects_a_part_larger_than_the_signed_length(storage):
+    storage._client = Mock()
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    storage.client.list_parts.return_value = {
+        "Parts": [{"PartNumber": 1, "Size": 50}],
+        "IsTruncated": False,
+    }
+    with pytest.raises(ValueError, match="too large"):
+        storage.complete_upload("owner", {
+            "video_path": url,
+            "uploadId": "multipart",
+            "parts": [{"partNumber": 1, "etag": "etag"}],
+        }, size=10)
+    storage.client.complete_multipart_upload.assert_not_called()
+    storage.client.abort_multipart_upload.assert_called_once()
+
+
+def test_completion_aborts_an_oversized_part_before_the_upload_is_complete(storage):
+    storage._client = Mock()
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    storage.client.list_parts.return_value = {
+        "Parts": [{"PartNumber": 1, "Size": PART_BYTES + 1}],
+        "IsTruncated": False,
+    }
+    with pytest.raises(ValueError, match="too large"):
+        storage.complete_upload("owner", {
+            "video_path": url,
+            "uploadId": "multipart",
+            "parts": [
+                {"partNumber": 1, "etag": "etag-1"},
+                {"partNumber": 2, "etag": "etag-2"},
+            ],
+        }, size=PART_BYTES + 10)
+    storage.client.complete_multipart_upload.assert_not_called()
+    storage.client.abort_multipart_upload.assert_called_once()
+
+
+def test_completion_accepts_parts_that_match_the_signed_length(storage):
+    storage._client = Mock()
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    storage.client.list_parts.return_value = {
+        "Parts": [{"PartNumber": 1, "Size": 10}],
+        "IsTruncated": False,
+    }
+    storage.client.head_object.return_value = {
+        "ContentLength": 10,
+        "Metadata": {"expected-size": "10"},
+    }
+    assert storage.complete_upload("owner", {
+        "video_path": url,
+        "uploadId": "multipart",
+        "parts": [{"partNumber": 1, "etag": "etag"}],
+    }, size=10) == {"video_path": url}
+    storage.client.complete_multipart_upload.assert_called_once()
+
+
+def test_begin_upload_rejects_files_over_the_configured_limit(storage):
+    storage.config.max_video_upload_bytes = 4_000_000_000
+    storage._client = Mock()
+    with pytest.raises(ValueError, match="4 GB"):
+        storage.begin_upload("owner", "video.mp4", 4_000_000_001, "video/mp4")
+    storage.client.create_multipart_upload.assert_not_called()
+
+
 def test_multipart_supports_files_larger_than_s3_single_put_limit(storage):
     client = Mock()
     client.create_multipart_upload.return_value = {"UploadId": "multipart-id"}
     client.generate_presigned_url.return_value = "https://private-media/part"
     storage._client = client
     size = 12_000_000_000
+    storage.config.max_video_upload_bytes = size
     authorization = storage.begin_upload("owner", "original.mp4", size, "video/mp4")
     assert len(authorization["parts"]) == (size + PART_BYTES - 1) // PART_BYTES
     assert client.generate_presigned_url.call_args.kwargs["Params"]["PartNumber"] == len(authorization["parts"])

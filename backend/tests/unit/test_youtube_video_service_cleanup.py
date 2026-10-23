@@ -52,3 +52,22 @@ async def test_later_failure_cleans_downloaded_source(apify_setup, monkeypatch, 
         await VideoService.process_video_complete(URL, "youtube")
     assert not source.exists()
     assert not source_dir.exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unsupported', [True, False])
+async def test_only_unsupported_sections_retry_full_proxy(tmp_path, monkeypatch, unsupported):
+    from src.youtube_proxy import PartialDownloadUnavailable
+    from src.config import Config
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    monkeypatch.setattr(module, 'get_config', lambda: config)
+    failure = PartialDownloadUnavailable('unsupported playlist') if unsupported else RuntimeError('proxy blocked')
+    monkeypatch.setattr(module, 'materialize_clip_source', lambda *a, **kw: (_ for _ in ()).throw(failure))
+    captured = {}
+    def full(*a, **kwargs):
+        captured.update(kwargs)
+        return None
+    monkeypatch.setattr(module, 'resolve_full_youtube_download', full)
+    assert await VideoService.download_video(URL, ranges=[(10, 20)]) is None
+    assert captured['skip_proxy'] is not unsupported

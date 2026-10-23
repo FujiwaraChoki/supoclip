@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { signUp } from "../../lib/auth-client";
 import { attributionMetadata, getAnonymousAttribution } from "@/lib/attribution";
 import { postAuthPath } from "@/lib/auth-redirect";
@@ -9,16 +10,19 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 
 export function SignUp() {
+  const t = useTranslations("auth");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [ok, setOk] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage("");
+    setOk(false);
 
     const response = await signUp.email({
       email,
@@ -27,7 +31,7 @@ export function SignUp() {
     });
 
     if (response.error) {
-      setMessage(response.error.message || "Failed to create account");
+      setMessage(response.error.message || t("signUp.failed"));
       setLoading(false);
       return;
     }
@@ -36,7 +40,8 @@ export function SignUp() {
       auth_method: "email",
       ...attributionMetadata(getAnonymousAttribution()),
     });
-    setMessage("Account created successfully! Signing you in...");
+    setOk(true);
+    setMessage(t("signUp.success"));
     setLoading(false);
 
     // Automatically sign in after successful sign up
@@ -47,14 +52,14 @@ export function SignUp() {
 
   return (
     <div className="w-full">
-      <h1 className="font-display text-3xl font-bold tracking-tight">Create your account</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Start turning long videos into vertical, captioned clips.</p>
+      <h1 className="font-display text-3xl font-bold tracking-tight">{t("signUp.title")}</h1>
+      <p className="mt-2 text-sm text-muted-foreground">{t("signUp.subtitle")}</p>
       <div className="mt-8">
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             className="h-11"
             type="text"
-            placeholder="Full Name"
+            placeholder={t("signUp.name")}
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
@@ -63,7 +68,7 @@ export function SignUp() {
           <Input
             className="h-11"
             type="email"
-            placeholder="Email"
+            placeholder={t("signUp.email")}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -72,7 +77,7 @@ export function SignUp() {
           <Input
             className="h-11"
             type="password"
-            placeholder="Password"
+            placeholder={t("signUp.password")}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -80,11 +85,11 @@ export function SignUp() {
             minLength={8}
           />
           <Button type="submit" className="h-11 w-full" disabled={loading}>
-            {loading ? "Creating Account..." : "Sign Up"}
+            {loading ? t("signUp.submitting") : t("signUp.submit")}
           </Button>
         </form>
         {message && (
-          <p className={`mt-4 text-sm ${message.includes("successfully") ? "text-green-600" : "text-red-600"}`}>
+          <p className={`mt-4 text-sm ${ok ? "text-green-600" : "text-red-600"}`}>
             {message}
           </p>
         )}

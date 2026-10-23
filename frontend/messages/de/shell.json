@@ -1,0 +1,67 @@
+{
+  "nav": {
+    "create": "Erstellen",
+    "library": "Mediathek",
+    "social": "Social",
+    "analytics": "Analysen",
+    "agents": "Agenten & API",
+    "settings": "Einstellungen",
+    "admin": "Verwaltung",
+    "newGeneration": "Neue Generierung"
+  },
+  "search": {
+    "generations": "Generierungen suchen",
+    "label": "Suchen",
+    "mainNav": "Hauptnavigation",
+    "mobileNav": "Mobile Navigation",
+    "dialog": "Suchen",
+    "placeholder": "Generierungen suchen oder zu einer Seite springen…",
+    "inputLabel": "Generierungen suchen oder zu einer Seite springen",
+    "empty": "Nichts passt zu „{query}“."
+  },
+  "palette": {
+    "newHint": "Link einfügen oder hochladen",
+    "library": "Mediathek öffnen",
+    "social": "Social-Konten",
+    "socialHint": "YouTube, TikTok und Instagram verbinden",
+    "analyticsHint": "So laufen deine veröffentlichten Clips",
+    "agentsHint": "API-Schlüssel & MCP"
+  },
+  "usage": {
+    "pickPlan": "Wähl einen Tarif, um loszulegen",
+    "moreWith": "Mehr mit {name}",
+    "left": "Noch {count} in diesem Zeitraum",
+    "videosThisPeriod": "Videos in diesem Zeitraum",
+    "minutesOf": "{used} / {limit} Min.",
+    "minutes": "{used} Min.",
+    "minutesLeft": "noch {count} Min. diesen Monat",
+    "minutesThisMonth": "Minuten Video diesen Monat"
+  },
+  "user": {
+    "creator": "Creator",
+    "signOut": "Abmelden",
+    "signingOut": "Du wirst abgemeldet…",
+    "signOutError": "Abmelden hat nicht geklappt. Versuch es noch einmal."
+  },
+  "announcements": {
+    "whatsNew": "Neuigkeiten",
+    "whatsNewUnread": "Neuigkeiten, {count, plural, one {# ungelesene Ankündigung} other {# ungelesene Ankündigungen}}",
+    "title": "Neuigkeiten in SupoClip",
+    "close": "Ankündigungen schließen",
+    "popover": "Ankündigungen",
+    "new": "Neu"
+  },
+  "feedback": {
+    "title": "Feedback senden",
+    "category": "Kategorie",
+    "bug": "Fehler melden",
+    "feature": "Funktionswunsch",
+    "general": "Allgemeines Feedback",
+    "sales": "Vertriebsanfrage",
+    "placeholder": "Sag uns, was dir durch den Kopf geht...",
+    "submit": "Senden",
+    "success": "Feedback gesendet — danke!",
+    "failed": "Feedback konnte nicht gesendet werden",
+    "error": "Etwas ist schiefgelaufen"
+  }
+}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Save, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -24,17 +25,18 @@ type RuntimeSettingsFormProps = {
   settings: RuntimeSetting[];
 };
 
-function sourceBadge(setting: RuntimeSetting) {
+function sourceBadge(setting: RuntimeSetting, t: (key: string) => string) {
   if (setting.source === "environment") {
-    return <Badge className="bg-foreground text-background">Environment</Badge>;
+    return <Badge className="bg-foreground text-background">{t("runtime.environment")}</Badge>;
   }
   if (setting.source === "admin") {
-    return <Badge className="bg-brand-soft text-brand">Admin setting</Badge>;
+    return <Badge className="bg-brand-soft text-brand">{t("runtime.adminSetting")}</Badge>;
   }
-  return <Badge variant="outline">Unset</Badge>;
+  return <Badge variant="outline">{t("runtime.unset")}</Badge>;
 }
 
 export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
+  const t = useTranslations("admin");
   const router = useRouter();
   const [values, setValues] = useState<Record<string, string>>({});
   const [deleteKeys, setDeleteKeys] = useState<Record<string, boolean>>({});
@@ -98,14 +100,14 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
           detail?: string;
           error?: string;
         } | null;
-        setError(payload?.detail || payload?.error || "Failed to save settings");
+        setError(payload?.detail || payload?.error || t("runtime.saveFailed"));
         return;
       }
 
       setValues({});
       setDeleteKeys({});
       setPriorityOverrides({});
-      setMessage("Settings saved.");
+      setMessage(t("runtime.saved"));
       startTransition(() => router.refresh());
     } finally {
       setIsSaving(false);
@@ -123,7 +125,7 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-sm font-medium">{setting.label}</p>
-                {sourceBadge(setting)}
+                {sourceBadge(setting, t)}
               </div>
               <p className="mt-1 text-xs font-mono text-muted-foreground">{setting.key}</p>
             </div>
@@ -139,7 +141,7 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
                   }))
                 }
                 placeholder={
-                  setting.configured ? "Configured value is hidden" : "Add value"
+                  setting.configured ? t("runtime.hiddenValue") : t("runtime.addValue")
                 }
                 className="h-9 w-full rounded-lg border bg-background px-3 text-sm outline-none transition-shadow placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 autoComplete="off"
@@ -147,7 +149,7 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
               <p className="mt-1 text-xs text-muted-foreground">{setting.description}</p>
               {setting.overridden_by_env && (
                 <p className="mt-1 text-xs text-amber-700">
-                  The saved admin value is present but ignored while the env var is set.
+                  {t("runtime.envOverride")}
                 </p>
               )}
             </div>
@@ -167,7 +169,7 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
                 }
                 className="h-4 w-4 rounded border-border accent-foreground"
               />
-              Prefer saved
+              {t("runtime.preferSaved")}
             </label>
 
             <label className="flex items-center gap-2 text-sm text-muted-foreground lg:justify-end">
@@ -184,7 +186,7 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
                 className="h-4 w-4 rounded border-border accent-foreground"
               />
               <Trash2 className="h-4 w-4" aria-hidden="true" />
-              Clear saved
+              {t("runtime.clearSaved")}
             </label>
           </div>
         ))}
@@ -201,7 +203,7 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
           className="inline-flex h-9 items-center gap-2 rounded-lg bg-foreground px-4 text-sm font-medium text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Save className="h-4 w-4" aria-hidden="true" />
-          {isPending || isSaving ? "Saving" : "Save settings"}
+          {isPending || isSaving ? t("runtime.saving") : t("runtime.save")}
         </button>
       </div>
     </form>

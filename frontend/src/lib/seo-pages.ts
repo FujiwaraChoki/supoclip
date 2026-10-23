@@ -68,7 +68,7 @@ export const seoPages: SeoPage[] = [
           "SupoClip starts from the source transcript, identifies candidate segments, and scores them for qualities such as hook strength, engagement, value, and shareability. The score is a review aid, not a promise that a clip will go viral.",
         ],
         bullets: [
-          "YouTube URLs and uploaded video files",
+          "YouTube, Twitch, and Kick links, plus uploaded video files",
           "AI-assisted candidate selection",
           "Face-centered vertical crops",
           "Editable caption styles and export formats",
@@ -77,7 +77,7 @@ export const seoPages: SeoPage[] = [
       {
         heading: "How the SupoClip workflow works",
         paragraphs: [
-          "Paste a YouTube URL or upload a source file. SupoClip transcribes the recording, proposes clip boundaries, and presents the strongest candidates for review. Selected moments can then be rendered as vertical, captioned videos for short-form platforms.",
+          "Paste a YouTube, Twitch, or Kick link or upload a source file. SupoClip transcribes the recording, proposes clip boundaries, and presents the strongest candidates for review. Selected moments can then be rendered as vertical, captioned videos for short-form platforms.",
           "Because SupoClip is open source, teams can inspect the pipeline, choose supported hosted or local language models, and adapt processing to their own infrastructure. A hosted version is also available for creators who do not want to manage deployment.",
         ],
         links: [
@@ -112,6 +112,11 @@ export const seoPages: SeoPage[] = [
         question: "Is SupoClip open source?",
         answer:
           "Yes. The SupoClip codebase is available under the AGPL-3.0 license and can be self-hosted or modified.",
+      },
+      {
+        question: "Which video sources does SupoClip accept?",
+        answer:
+          "YouTube videos, Twitch VODs and clips, Kick VODs and clips, and video files you upload. Live streams aren't supported, so clip the VOD once the stream has ended.",
       },
     ],
   },

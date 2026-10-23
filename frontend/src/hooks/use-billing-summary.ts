@@ -10,13 +10,25 @@ export interface BillingSummary {
   cancel_at?: string | null;
   period_end?: string | null;
   usage_count: number;
+  /** Legacy per-task cap; plans are metered in minutes, so this is null for them. */
   usage_limit: number | null;
   remaining: number | null;
+  /** Minutes of source video charged this month. */
+  usage_minutes?: number;
+  minute_limit?: number | null;
+  remaining_minutes?: number | null;
+  /** Short side in pixels of delivered clips (720 or 1080); null when uncapped. */
+  output_short_side?: number | null;
+  legacy_hd?: boolean;
+  billing_interval?: "month" | "year";
+  can_schedule_posts?: boolean;
   can_create_task: boolean;
   upgrade_required: boolean;
   reason: string | null;
   max_youtube_duration_seconds?: number;
   max_upload_duration_seconds?: number;
+  /** Configured upload size cap in bytes. */
+  max_upload_bytes?: number;
 }
 
 // One in-flight request shared by the shell and the page it wraps.

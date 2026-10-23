@@ -1,0 +1,118 @@
+{
+  "greeting": {
+    "upLate": "Ainda acordado",
+    "goodMorning": "Bom dia",
+    "goodAfternoon": "Boa tarde",
+    "goodEvening": "Boa noite",
+    "named": "{greeting}, {name}"
+  },
+  "subtitle": "Solte um vídeo longo. Receba clipes legendados, prontos para publicar.",
+  "errors": {
+    "fonts": "Não foi possível carregar as fontes agora.",
+    "notVideo": "Isso não parece um arquivo de vídeo. Tente MP4, MOV, MKV ou WebM.",
+    "fontType": "Só arquivos .ttf e .otf são aceitos como fontes personalizadas.",
+    "uploadFont": "Falha ao enviar a fonte",
+    "uploadFontRetry": "Falha ao enviar a fonte. Tente de novo.",
+    "processVideo": "Falha ao processar o vídeo. Tente de novo.",
+    "fileTooLarge": "Este arquivo tem {size} e passa do limite de envio de {limit}. Tente uma exportação mais curta ou um arquivo menor.",
+    "api": "Erro de API: {status}"
+  },
+  "status": {
+    "uploading": "Enviando vídeo…",
+    "checkingLength": "Verificando a duração do vídeo…",
+    "starting": "Iniciando a geração…",
+    "working": "Trabalhando…",
+    "uploadingFont": "Enviando…"
+  },
+  "drop": "Solte para enviar seu vídeo",
+  "readyToUpload": "{size} · pronto para enviar",
+  "removeFile": "Remover arquivo",
+  "youtubeUrl": "URL do YouTube",
+  "urlPlaceholder": "Cole um link do YouTube ou solte um arquivo de vídeo",
+  "uploadFile": "Enviar um arquivo de vídeo",
+  "upload": "Enviar",
+  "defaultTemplate": "Padrão",
+  "defaultTemplateDescription": "Legendas palavra por palavra",
+  "captionStyle": "Estilo das legendas",
+  "customize": "Personalizar",
+  "resetTemplate": "Restaurar o modelo",
+  "font": "Fonte",
+  "uploadFont": "Enviar fonte",
+  "customFontsPaid": "Use suas próprias fontes com um plano pago",
+  "searchFonts": "Buscar fontes",
+  "templateDefault": "Padrão do modelo",
+  "noFontMatch": "Nenhuma fonte corresponde à sua busca",
+  "color": "Cor",
+  "template": "Modelo",
+  "captionColor": "Cor da legenda {color}",
+  "customColor": "Cor personalizada",
+  "customCaptionColor": "Cor de legenda personalizada",
+  "livePreview": "Prévia ao vivo",
+  "framing": "Enquadramento",
+  "framingOptions": {
+    "vertical": {
+      "label": "Auto 9:16",
+      "hint": "Adapta-se aos sujeitos e ao contexto"
+    },
+    "vertical_fit": {
+      "label": "Imagem completa 9:16",
+      "hint": "Mostrar tudo em formato vertical"
+    },
+    "vertical_pan": {
+      "label": "Panorâmica do falante",
+      "hint": "Segue quem está falando"
+    },
+    "vertical_split": {
+      "label": "Tela dividida",
+      "hint": "Dois falantes, um sobre o outro"
+    },
+    "original": {
+      "label": "Original",
+      "hint": "Mantém a proporção do vídeo original"
+    }
+  },
+  "captions": "Legendas",
+  "noCaptions": "Sem legendas",
+  "cleanup": "Limpeza",
+  "cleanupTitle": "Limpeza do clipe",
+  "cleanupBody": "Encurta os silêncios e corta sons de preenchimento na renderização.",
+  "shortenPauses": "Encurtar pausas longas",
+  "shortenPausesHint": "Corta silêncios maiores que isso até sobrar uma respiração curta",
+  "pauseThreshold": "Limite da pausa (ms)",
+  "milliseconds": "milissegundos",
+  "removeFillers": "Remover palavras de preenchimento",
+  "removeFillersHint": "“um”, “uh”, “erm” e sons parecidos",
+  "extraWords": "Palavras ou frases extras para cortar",
+  "extraWordsPlaceholder": "basicamente, literalmente, sendo sincero",
+  "generate": "Gerar clipes",
+  "limitNote": "{plan}: vídeos do YouTube de até {minutes} minutos. Cada vídeo usa sua duração em minutos, verificada antes de começar.",
+  "uploadLimits": "Envios de até {size}. Vídeos acima de 1080p ou 60 fps são reduzidos automaticamente, mantendo a proporção.",
+  "completionEmails": "Os e-mails de conclusão seguem sua preferência em <settings>Configurações</settings>.",
+  "recent": "Recentes",
+  "viewLibrary": "Ver biblioteca",
+  "recentEmpty": "Seus clipes aparecem aqui. Cole um link acima para fazer o primeiro lote.",
+  "previewHook": "O título do seu gancho fica aqui",
+  "previewCaptions": "É assim que suas legendas aparecem",
+  "captionSize": {
+    "size": "Tamanho",
+    "templateDefault": "Padrão do modelo",
+    "small": "Pequeno",
+    "medium": "Médio",
+    "large": "Grande"
+  },
+  "nudge": {
+    "refreshesOn": "Renova em {date}.",
+    "refreshesNext": "Renova no próximo mês.",
+    "startTitle": "Escolha um plano para começar a recortar",
+    "startDescription": "A partir de {price}/mês por {length} de vídeo por mês. Fique à vontade para configurar tudo antes.",
+    "seePlans": "Ver planos",
+    "limitTitle": "Você usou todos os {length} de vídeo deste mês",
+    "limitWithPlan": "{refreshes} Ou continue com o {plan}: {limit} de vídeo por mês.",
+    "limitAppStore": "{refreshes} Você pode mudar de plano no app iOS do SupoClip.",
+    "getPlan": "Assinar {plan}",
+    "remaining": "{count, plural, one {Resta # minuto de vídeo este mês} other {Restam # minutos de vídeo este mês}}",
+    "nearWithPlan": "{refreshes} Precisa de mais espaço? O {plan} oferece {limit} de vídeo por mês.",
+    "upgrade": "Fazer upgrade",
+    "limitTitleAll": "Você usou os minutos de vídeo deste mês"
+  }
+}

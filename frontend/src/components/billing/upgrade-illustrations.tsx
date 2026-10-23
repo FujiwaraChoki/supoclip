@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AnimatePresence, animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 
 /*
@@ -42,11 +43,11 @@ function ClipGlyph({ highlight }: { highlight?: boolean }) {
   );
 }
 
-const fanSize = (videos: number) => (videos <= 0 ? 0 : videos <= 60 ? 5 : 9);
+const fanSize = (hours: number) => (hours <= 0 ? 0 : hours <= 12 ? 5 : 9);
 
 /**
- * More clips per month: a fan whose size follows the plan (5 cards for Pro,
- * 9 for Scale). Cards you already have stay faint; the new ones fan in.
+ * More video per month: a fan whose size follows the plan's monthly hours (5
+ * cards for Pro, 9 for Creator). Cards you already have stay faint; the new ones fan in.
  */
 export function CapacityIllustration({ from, to, label }: { from: number; to: number; label: string }) {
   const reduceMotion = useReducedMotion();
@@ -99,6 +100,7 @@ export function LengthIllustration({
   nextLabel: string;
   durationLabel: string;
 }) {
+  const t = useTranslations("billing");
   const reduceMotion = useReducedMotion();
   const width = 280;
   const span = Math.max(nextLimitSeconds, durationSeconds);
@@ -107,7 +109,7 @@ export function LengthIllustration({
   return (
     <div>
       <p className="font-display text-5xl font-bold tracking-tight">{durationLabel}</p>
-      <p className="mt-1 text-sm text-muted-foreground">fits in {nextLabel.split(" · ")[0]}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{t("illustration.fitsIn", { plan: nextLabel.split(" · ")[0] })}</p>
       <svg viewBox={`-10 -40 ${width + 20} 110`} className="mt-10 w-full overflow-visible" aria-hidden>
         <g {...stroke}>
           <line x1={0} x2={width} y1={20} y2={20} strokeOpacity={0.25} />
@@ -136,7 +138,7 @@ export function LengthIllustration({
           />
         </g>
         <g fill="currentColor" fontSize={10}>
-          <text x={x(durationSeconds)} y={-14} textAnchor="middle" className="font-medium">Your video</text>
+          <text x={x(durationSeconds)} y={-14} textAnchor="middle" className="font-medium">{t("illustration.yourVideo")}</text>
           <text x={x(currentLimitSeconds)} y={56} textAnchor="middle" fillOpacity={0.6}>{currentLabel}</text>
           <text x={width} y={56} textAnchor="end" fillOpacity={0.6}>{nextLabel}</text>
         </g>
@@ -146,13 +148,14 @@ export function LengthIllustration({
 }
 
 const TYPEFACES = [
-  { name: "Serif", family: "Georgia, 'Times New Roman', serif", style: "italic" as const, weight: 400 },
-  { name: "Display", family: "var(--font-syne), system-ui, sans-serif", style: "normal" as const, weight: 700 },
-  { name: "Mono", family: "ui-monospace, SFMono-Regular, Menlo, monospace", style: "normal" as const, weight: 700 },
-];
+  { id: "serif", family: "Georgia, 'Times New Roman', serif", style: "italic" as const, weight: 400 },
+  { id: "display", family: "var(--font-syne), system-ui, sans-serif", style: "normal" as const, weight: 700 },
+  { id: "mono", family: "ui-monospace, SFMono-Regular, Menlo, monospace", style: "normal" as const, weight: 700 },
+] as const;
 
 /** A clip whose caption switches typeface, standing in for the user's own fonts. */
 export function FontIllustration() {
+  const t = useTranslations("billing");
   const reduceMotion = useReducedMotion();
   const [active, setActive] = useState(0);
   useEffect(() => {
@@ -174,7 +177,7 @@ export function FontIllustration() {
         <div className="absolute inset-x-3 bottom-[24%] flex h-9 items-center justify-center overflow-hidden">
           <AnimatePresence mode="popLayout" initial={false}>
             <motion.span
-              key={typeface.name}
+              key={typeface.id}
               className="text-center text-[11px] leading-tight"
               style={{ fontFamily: typeface.family, fontStyle: typeface.style, fontWeight: typeface.weight }}
               initial={{ y: 16, opacity: 0 }}
@@ -182,22 +185,22 @@ export function FontIllustration() {
               exit={{ y: -16, opacity: 0 }}
               transition={{ type: "spring", stiffness: 260, damping: 24 }}
             >
-              and that&apos;s why
+              {t("illustration.sample")}
             </motion.span>
           </AnimatePresence>
         </div>
       </div>
       <ul className="space-y-1.5 text-sm">
         {TYPEFACES.map((face, index) => (
-          <li key={face.name} className="relative flex items-center gap-2 px-2 py-1">
+          <li key={face.id} className="relative flex items-center gap-2 px-2 py-1">
             {index === active && (
               <motion.span layoutId="font-active" className="absolute inset-0 rounded-md bg-background shadow-sm ring-1 ring-border" transition={{ type: "spring", stiffness: 300, damping: 30 }} />
             )}
             <span className="relative w-8 text-sm" style={{ fontFamily: face.family, fontStyle: face.style, fontWeight: face.weight }}>Aa</span>
-            <span className={index === active ? "relative" : "relative text-muted-foreground"}>{face.name}</span>
+            <span className={index === active ? "relative" : "relative text-muted-foreground"}>{t(`illustration.${face.id}`)}</span>
           </li>
         ))}
-        <li className="px-2 pt-1 text-xs text-muted-foreground">or your own .ttf</li>
+        <li className="px-2 pt-1 text-xs text-muted-foreground">{t("illustration.ownFont")}</li>
       </ul>
     </div>
   );

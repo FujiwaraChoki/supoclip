@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
 
 export const DEFAULT_FORWARDED_HEADERS = [
@@ -26,6 +28,24 @@ export function buildBackendUrl(path: string) {
   return `${getBackendApiBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+const TRACE_ID_PATTERN = /^[A-Za-z0-9._-]{8,128}$/;
+
+/**
+ * Forward the browser's `x-trace-id` (set per request in `lib/trace-fetch.ts`)
+ * so backend logs and PostHog errors share an id. Outside a request, or when
+ * the header is missing or malformed, a fresh id is used.
+ */
+export async function backendTraceHeaders(): Promise<Record<string, string>> {
+  let incoming: string | null = null;
+  try {
+    const { headers } = await import("next/headers");
+    incoming = (await headers()).get("x-trace-id");
+  } catch {
+    // Not inside a request scope (scripts, tests).
+  }
+  return { "x-trace-id": incoming && TRACE_ID_PATTERN.test(incoming) ? incoming : randomUUID() };
+}
+
 export async function fetchBackend(
   path: string,
   init: RequestInit & {
@@ -39,6 +59,7 @@ export async function fetchBackend(
     redirect: "manual",
     ...rest,
     headers: {
+      ...(await backendTraceHeaders()),
       ...(userId ? buildBackendAuthHeaders(userId) : {}),
       ...(headers ?? {}),
       ...(extraHeaders ?? {}),

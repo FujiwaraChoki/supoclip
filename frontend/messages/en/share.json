@@ -1,0 +1,13 @@
+{
+  "brand": "SupoClip",
+  "makeYourOwn": "Make your own",
+  "unavailableTitle": "This link isn't available",
+  "unavailable": "This share link is unavailable",
+  "createOwn": "Create your own clips",
+  "eyebrow": "Shared generation",
+  "summary": "{count, plural, one {# clip} other {# clips}} · {duration} of highlights",
+  "topVirality": "top virality score",
+  "ctaTitle": "Turn your long videos into clips like these.",
+  "ctaBody": "SupoClip finds the best moments, frames the speaker and writes the captions. Open source and free to self-host.",
+  "try": "Try SupoClip"
+}

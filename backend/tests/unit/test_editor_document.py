@@ -9,7 +9,6 @@ from pydantic import ValidationError
 from src.editor_document import (
     EditDocument,
     RevisionConflict,
-    caption_groups,
     editor_dir,
     mapped_words,
     output_size,
@@ -84,7 +83,6 @@ def test_reordered_cuts_project_caption_timing():
     words = mapped_words(doc)
     assert [(w["start"], w["end"]) for w in words] == [(0, 0.25), (1.25, 1.5)]
     assert all(w["highlight"] for w in words)
-    assert len(caption_groups(words, 4)) == 2
     assert output_size(doc, 1920, 1080) == (1080, 1920)
     assert editor_dir("/tmp", "../task", "../clip", "../file").parent == Path(
         "/tmp/editor"
@@ -110,10 +108,110 @@ def test_karaoke_captions_highlight_each_spoken_word(tmp_path):
     write_ass(path, karaoke, 1080, 1920)
     events = [line for line in path.read_text().splitlines() if line.startswith("Dialogue:")]
     assert len(events) == 2
-    accent = "{\\c&H0000FF00&}"
+    accent = "\\c&H0000FF00&}"
     assert f"{accent}ONE" in events[0] and f"{accent}TWO" not in events[0]
     assert f"{accent}TWO" in events[1] and f"{accent}ONE" not in events[1]
     assert events[0].startswith("Dialogue: 0,0:00:00.00,0:00:00.50,")
+
+
+def test_edited_captions_keep_the_template_animation(tmp_path):
+    words = [
+        {"id": "a", "start": 0.0, "end": 0.4, "text": "one", "highlight": False},
+        {"id": "b", "start": 0.5, "end": 0.9, "text": "two", "highlight": False},
+    ]
+    segments = [{"id": "s", "start": 0, "end": 1}]
+    path = tmp_path / "captions.ass"
+
+    # "minimal" fades each line in and out rather than highlighting words.
+    write_ass(
+        path,
+        document(segments=segments, words=words, captions={"template": "minimal"}),
+        1080,
+        1920,
+    )
+    events = [line for line in path.read_text().splitlines() if line.startswith("Dialogue:")]
+    assert len(events) == 1 and "\\fad(120,120)" in events[0]
+
+    # "hormozi" is karaoke with a pill behind the spoken word and a spring entrance.
+    write_ass(
+        path,
+        document(
+            segments=segments,
+            words=words,
+            captions={"template": "hormozi", "karaoke": True},
+        ),
+        1080,
+        1920,
+    )
+    text = path.read_text()
+    assert text.count("Dialogue:") == 2
+    assert "\\fscx92" in text and "\\3c" in text
+
+
+def test_export_keeps_the_hook_title_even_without_captions(tmp_path):
+    path = tmp_path / "captions.ass"
+    segments = [{"id": "a", "start": 0, "end": 1}, {"id": "b", "start": 5, "end": 6}]
+    write_ass(
+        path,
+        document(segments=segments, captions={"enabled": False}, hookTitle="Stop doing this"),
+        1080,
+        1920,
+    )
+    events = [line for line in path.read_text().splitlines() if line.startswith("Dialogue:")]
+    assert len(events) == 1 and ",Hook," in events[0] and "Stop" in events[0]
+    # Timed against the edited 2s duration, not the last segment's 6s source end.
+    assert events[0].startswith("Dialogue: 1,0:00:00.12,0:00:01.75,")
+
+
+def test_export_follows_editor_highlights_position_and_wrapping(tmp_path):
+    words = [
+        {"id": "a", "start": 0.0, "end": 0.4, "text": "you", "highlight": False},
+        {"id": "b", "start": 0.5, "end": 0.9, "text": "need", "highlight": False},
+        {"id": "c", "start": 1.0, "end": 1.4, "text": "you", "highlight": True},
+        {"id": "d", "start": 1.5, "end": 1.9, "text": "money", "highlight": False},
+    ]
+    path = tmp_path / "captions.ass"
+    write_ass(
+        path,
+        document(
+            segments=[{"id": "s", "start": 0, "end": 2}],
+            words=words,
+            captions={"template": "hormozi", "karaoke": False, "y": 0.9, "accent": "#00FF00"},
+        ),
+        1080,
+        1920,
+    )
+    text = path.read_text()
+    assert "WrapStyle: 0" in text
+    # Centred exactly where the editor placed it, without the safe-area clamp.
+    assert "\\pos(540,1728)" in text
+    [event] = [line for line in text.splitlines() if line.startswith("Dialogue:")]
+    # Hormozi accents emphasis in its own yellow; only the highlighted
+    # occurrence gets it, with no automatic power words.
+    emphasis = "\\c&H0000E0FF&}"
+    assert event.count(emphasis) == 1 and f"{emphasis}you" in event
+    assert f"{emphasis}money" not in event
+
+
+def test_background_box_is_padded_and_uses_the_template_colour(tmp_path):
+    path = tmp_path / "captions.ass"
+    write_ass(
+        path,
+        document(captions={"template": "minimal", "background": True, "size": 60}),
+        1080,
+        1920,
+    )
+    style = next(line for line in path.read_text().splitlines() if line.startswith("Style: Default,"))
+    fields = style.split(",")
+    # OutlineColour fills the box: 50% black; BorderStyle 3 with real padding.
+    assert fields[5] == "&H7F000000&" and fields[15] == "3" and int(fields[16]) >= 10
+
+
+def test_captions_disabled_write_a_valid_empty_script(tmp_path):
+    path = tmp_path / "captions.ass"
+    write_ass(path, document(captions={"enabled": False}), 1080, 1920)
+    assert "Dialogue:" not in path.read_text()
+    assert "[Events]" in path.read_text()
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
@@ -193,3 +291,39 @@ def test_cancelled_render_does_not_publish_output(tmp_path):
     (tmp_path / f"cancel-{job_id}").touch()
     with pytest.raises(InterruptedError):
         run_render(["sleep", "10"], tmp_path, job_id, 1)
+    assert not (tmp_path / f"export-{job_id}.mp4").exists()
+
+
+def test_run_render_adds_progress_flags_only_for_ffmpeg(tmp_path, monkeypatch):
+    from src.editor_document import run_render
+
+    seen = {}
+
+    class Process:
+        returncode = 0
+
+        def poll(self):
+            return 0
+
+        def terminate(self):
+            pass
+
+        def kill(self):
+            pass
+
+        def wait(self, timeout=None):
+            return 0
+
+    def fake_popen(command, **kwargs):
+        seen["command"] = command
+        return Process()
+
+    monkeypatch.setattr("src.editor_document.subprocess.Popen", fake_popen)
+    job_id = "c" * 32
+    run_render(["ffmpeg", "-i", "in.mp4", "out.mp4"], tmp_path, job_id, 1)
+    progress = str(tmp_path / f"progress-{job_id}.txt")
+    assert seen["command"][:4] == ["ffmpeg", "-progress", progress, "-nostats"]
+    assert seen["command"][4:] == ["-i", "in.mp4", "out.mp4"]
+
+    run_render(["sleep", "10"], tmp_path, job_id, 1)
+    assert seen["command"] == ["sleep", "10"]

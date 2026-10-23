@@ -115,6 +115,88 @@ async def test_create_task_enqueues_a_job(client, db_session, auth_headers, monk
     assert payload["job_id"].startswith(payload["task_id"] + ":")
 
 
+@pytest.mark.parametrize(
+    ("url_template", "source_type", "resolution"),
+    [
+        ("https://www.twitch.tv/videos/{digits}", "twitch", None),
+        (
+            "https://kick.com/video/{uuid}",
+            "kick",
+            {"provider": "apify_kick_hls", "media_url": "https://media.test/master.m3u8"},
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_create_stream_task_persists_supported_source(
+    client, db_session, auth_headers, monkeypatch, url_template, source_type, resolution
+):
+    import uuid as uuid_module
+    from unittest.mock import AsyncMock
+
+    unique = uuid_module.uuid4()
+    url = url_template.format(digits=str(unique.int)[:12], uuid=unique)
+    metadata = {"duration": 60, "title": "Stream video", "provider": "direct"}
+    if resolution:
+        metadata |= resolution
+    monkeypatch.setattr(
+        "src.api.routes.tasks._preflight_stream_source",
+        AsyncMock(return_value=metadata),
+    )
+    await create_user(db_session, user_id="user-1", email="owner@example.com")
+
+    try:
+        response = await client.post(
+            "/tasks/", headers=auth_headers, json={"source": {"url": url}}
+        )
+
+        assert response.status_code == 200
+        row = (
+            await db_session.execute(
+                text(
+                    "SELECT s.type, t.source_metadata FROM tasks t "
+                    "JOIN sources s ON s.id = t.source_id WHERE s.url = :url"
+                ),
+                {"url": url},
+            )
+        ).one()
+        assert row[0] == source_type
+        stored = row[1].get("stream_resolution")
+        if resolution:
+            assert stored["provider"] == resolution["provider"]
+            assert stored["media_url"] == resolution["media_url"]
+            assert stored["duration"] == 60
+        else:
+            assert stored is None
+    finally:
+        await db_session.rollback()
+        await db_session.execute(
+            text(
+                "DELETE FROM tasks WHERE source_id IN "
+                "(SELECT id FROM sources WHERE url = :url)"
+            ),
+            {"url": url},
+        )
+        await db_session.execute(text("DELETE FROM sources WHERE url = :url"), {"url": url})
+        await db_session.commit()
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["https://twitch.tv/somechannel", "https://kick.com/somechannel/about"],
+)
+@pytest.mark.asyncio
+async def test_create_stream_task_rejects_unsupported_urls_with_422(
+    client, db_session, auth_headers, url
+):
+    await create_user(db_session, user_id="user-1", email="owner@example.com")
+
+    response = await client.post(
+        "/tasks/", headers=auth_headers, json={"source": {"url": url}}
+    )
+
+    assert response.status_code == 422
+
+
 @pytest.mark.asyncio
 async def test_create_task_returns_serializable_subscription_gate(
     client, app, db_session, auth_headers

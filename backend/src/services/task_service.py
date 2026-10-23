@@ -22,13 +22,14 @@ from .video_service import VideoService
 from .clip_service import ClipEditingMixin
 from ..repositories.edit_transaction import serialized_task_edit, task_edit_transaction, TaskCancelled
 from ..repositories.task_run_guard import exclusive_task_run, task_run_guard
-from .billing_service import BillingService
+from .billing_service import BillingService, reduced_media_limits
 from .task_completion_email_service import (
     TaskCompletionEmailService,
     TaskCompletionRecipient,
 )
 from ..config import Config, get_config
 from ..youtube_utils import cleanup_downloaded_files, extract_video_id
+from ..youtube_source import load_time_map, localize_segment, restore_clip_timeline, transcript_source_for
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..chatgpt_analysis import chatgpt_account
@@ -36,6 +37,7 @@ from ..clip_source_map import load_clip_caption_settings
 from ..media_storage import MediaStorage, media_work
 from ..utils.async_helpers import run_in_thread
 from ..repositories.media_repository import queue_delete, guard_source_creation
+from ..stream_source import cleanup_stream_path, cleanup_stream_task, seed_stream_resolution
 
 logger = logging.getLogger(__name__)
 PROCESSING_CACHE_VERSION = "20260319_grounded_segments_v1"
@@ -54,12 +56,25 @@ class TaskService(ClipEditingMixin):
         self.config = config or get_config()
 
     @staticmethod
-    def _build_cache_key(url: str, source_type: str, processing_mode: str) -> str:
+    def _build_cache_key(
+        url: str, source_type: str, processing_mode: str, quality: Optional[str] = None
+    ) -> str:
         payload = (
             f"{source_type}|{processing_mode}|"
             f"{TRANSCRIPT_ANALYSIS_CACHE_VERSION}|{url.strip()}"
         )
+        # Reduced-quality YouTube downloads get their own entry so a 1080p
+        # request never reuses a 720p source. Full quality keeps the old key.
+        if quality and source_type == "youtube":
+            payload += f"|q{quality}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    async def _media_limits(self, user_id: Optional[str]) -> tuple[Optional[str], Optional[int]]:
+        """(download quality, clip cap) for the user's plan; see reduced_media_limits."""
+        if not user_id:
+            return None, None
+        summary = await BillingService(self.db, self.config).get_usage_summary(user_id)
+        return reduced_media_limits(summary)
 
     def _is_stale_queued_task(self, task: Dict[str, Any]) -> bool:
         """Detect queued tasks that have likely stalled due to worker issues."""
@@ -142,7 +157,9 @@ class TaskService(ClipEditingMixin):
                 video_id = extract_video_id(url)
                 if video_id:
                     try:
-                        MediaStorage().save_youtube_metadata(video_id, video_path)
+                        MediaStorage().save_youtube_metadata(
+                            video_id, transcript_source_for(video_id, video_path)
+                        )
                     except Exception:
                         logger.exception("Could not back up YouTube word timings")
                     cleanup_downloaded_files(video_id, source_path=video_path)
@@ -150,6 +167,16 @@ class TaskService(ClipEditingMixin):
                     return
             except Exception as e:
                 logger.warning("Failed YouTube source cleanup: %s", e)
+
+        if source_type in {"twitch", "kick"}:
+            try:
+                # Removes only the operation (processing job or one editor
+                # render) that produced this file, never a concurrent edit's.
+                if cleanup_stream_path(video_path):
+                    logger.info("Cleaned up stream source artifacts")
+                    return
+            except Exception as e:
+                logger.warning("Failed stream source cleanup: %s", e)
 
         # Fallback / upload path: at least drop the transcription audio sidecar
         # (e.g. "<stem>.transcription.mp3") next to the source file.
@@ -174,6 +201,7 @@ class TaskService(ClipEditingMixin):
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
+        source_duration_seconds: Optional[int] = None,
     ) -> str:
         """
         Create a new task with associated source.
@@ -212,6 +240,7 @@ class TaskService(ClipEditingMixin):
             caption_template=caption_template,
             include_broll=include_broll,
             processing_mode=processing_mode,
+            source_duration_seconds=source_duration_seconds,
         )
 
         logger.info(f"Created task {task_id} for user {user_id}")
@@ -241,6 +270,20 @@ class TaskService(ClipEditingMixin):
 
     def _task_run_guard(self, task_id: str):
         return task_run_guard(self.db, task_id)
+
+    async def _seed_stream_source(self, task_id: str) -> None:
+        """Reuse the preflight's length and any cheap actor result in the worker."""
+        try:
+            task = await self.task_repo.get_task_by_id(self.db, task_id) or {}
+            metadata = await self.task_repo.load_source_metadata(self.db, task_id) or {}
+            await run_in_thread(
+                seed_stream_resolution,
+                task_id,
+                metadata.get("stream_resolution"),
+                task.get("source_duration_seconds"),
+            )
+        except Exception as exc:  # the worker can still resolve everything itself
+            logger.warning("Could not seed stream source details: %s", exc)
 
     @exclusive_task_run
     @media_work
@@ -289,7 +332,17 @@ class TaskService(ClipEditingMixin):
             logger.info(f"Starting processing for task {task_id}")
             started_at = datetime.utcnow()
             stage_timings: Dict[str, float] = {}
-            cache_key = self._build_cache_key(url, source_type, processing_mode)
+            billing = (
+                await BillingService(self.db, self.config).get_usage_summary(user_id)
+                if user_id
+                else {}
+            )
+            # Reduced-resolution plans download at their output quality and get
+            # a final downscale; 1080p plans keep the renderer's output.
+            download_quality, output_short_side = reduced_media_limits(billing)
+            cache_key = self._build_cache_key(
+                url, source_type, processing_mode, download_quality
+            )
 
             cache_entry = await self.cache_repo.get_cache(self.db, cache_key)
             cached_transcript = (
@@ -338,13 +391,13 @@ class TaskService(ClipEditingMixin):
 
             # Process video with progress updates
             max_video_duration = self.config.max_video_duration
-            if source_type == "youtube" and user_id:
-                billing = await BillingService(self.db, self.config).get_usage_summary(
-                    user_id
-                )
+            if source_type in {"youtube", "twitch", "kick"} and user_id:
                 max_video_duration = self.config.max_youtube_video_duration_for_plan(
                     billing.get("plan"), billing.get("subscription_status")
                 )
+
+            if source_type in {"twitch", "kick"}:
+                await self._seed_stream_source(task_id)
 
             pipeline_start = perf_counter()
             result = await self.video_service.process_video_complete(
@@ -359,6 +412,7 @@ class TaskService(ClipEditingMixin):
                 output_format=output_format,
                 add_subtitles=add_subtitles,
                 max_video_duration=max_video_duration,
+                download_quality=download_quality,
                 cached_transcript=cached_transcript,
                 cached_analysis_json=cached_analysis_json,
                 progress_callback=update_progress,
@@ -401,6 +455,7 @@ class TaskService(ClipEditingMixin):
             )
 
             video_path = Path(result["video_path"])
+            time_map = await run_in_thread(load_time_map, video_path)
             total_clips = len(segments_to_render)
             clips_output_dir = Path(self.config.temp_dir) / "clips"
             clips_output_dir.mkdir(parents=True, exist_ok=True)
@@ -428,10 +483,12 @@ class TaskService(ClipEditingMixin):
                     f"Creating clip {i + 1}/{total_clips}...",
                 )
 
-                # Render single clip in thread pool
+                # A partial download is a concatenated timeline. Render against
+                # local timestamps, then store the clip against the source.
+                render_segment = localize_segment(segment, time_map) if time_map else segment
                 clip_info = await self.video_service.create_single_clip(
                     video_path,
-                    segment,
+                    render_segment,
                     i,
                     clips_output_dir,
                     font_family,
@@ -441,11 +498,16 @@ class TaskService(ClipEditingMixin):
                     output_format,
                     add_subtitles,
                     normalized_cleanup_settings,
+                    max_short_side=output_short_side,
                 )
                 pending_clip_path = Path(clip_info["path"]) if clip_info else None
                 await check_cancelled()
                 if clip_info is None:
                     continue  # Skip failed clip
+                if time_map:
+                    clip_info = await run_in_thread(
+                        restore_clip_timeline, clip_info, time_map, segment
+                    )
 
                 async with self._processing_transaction(task_id):
                     await check_cancelled()
@@ -586,6 +648,10 @@ class TaskService(ClipEditingMixin):
         finally:
             chatgpt_account.reset(chatgpt_context_token)
             await run_in_thread(self._cleanup_source_video, video_path, source_type, url)
+            if source_type in {"twitch", "kick"}:
+                # Also handles failures before process_video_complete returns a
+                # path (and therefore before the generic path cleanup can run).
+                await run_in_thread(cleanup_stream_task, task_id)
 
     async def _send_completion_notification_if_needed(
         self, *, task_id: str, clips_count: int

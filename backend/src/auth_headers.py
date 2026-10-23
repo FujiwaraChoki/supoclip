@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Optional
 from fastapi import HTTPException, Request
 
 from .config import Config
+from .observability import bind_request_user
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -84,6 +85,12 @@ def get_signed_user_id(request: Request, config: Config) -> str:
 
 
 def get_authenticated_user_id(request: Request, config: Config) -> str:
+    user_id = _get_authenticated_user_id(request, config)
+    bind_request_user(request, user_id)
+    return user_id
+
+
+def _get_authenticated_user_id(request: Request, config: Config) -> str:
     if config.backend_auth_secret:
         has_signed_headers = bool(
             request.headers.get(TIMESTAMP_HEADER) or request.headers.get(SIGNATURE_HEADER)
@@ -123,6 +130,7 @@ async def resolve_authenticated_user_id(
         user_id = await ApiKeyRepository.resolve_user_id(db, hash_api_key(raw_key))
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid or revoked API key")
+        bind_request_user(request, user_id)
         return user_id
 
     return get_authenticated_user_id(request, config)

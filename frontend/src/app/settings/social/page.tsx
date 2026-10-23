@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
@@ -18,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScheduledPosts } from "@/components/scheduled-posts";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
+import { isSocialPublishingEnabled } from "@/hooks/use-social-access";
 import { useSession } from "@/lib/auth-client";
 import {
   PROVIDER_LABELS,
@@ -30,11 +32,12 @@ import {
 const SECTION_HEADING = "mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground";
 
 function ConnectionStatusBadge({ status }: { status: SocialConnection["status"] }) {
+  const t = useTranslations("social");
   if (status === "active") {
-    return <Badge variant="secondary">Connected</Badge>;
+    return <Badge variant="secondary">{t("page.connected")}</Badge>;
   }
   if (status === "reauth_required") {
-    return <Badge variant="destructive">Reconnect needed</Badge>;
+    return <Badge variant="destructive">{t("page.reconnectNeeded")}</Badge>;
   }
   return <Badge variant="outline">{status}</Badge>;
 }
@@ -48,11 +51,12 @@ function PageSkeleton() {
 }
 
 function SocialSettingsContent() {
+  const t = useTranslations("social");
   const { data: session, isPending } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [providers, setProviders] = useState<SocialProviderStatus[]>([]);
-  const [enabled, setEnabled] = useState(true);
+  const [enabled, setEnabled] = useState<boolean | null>(null);
   const [connections, setConnections] = useState<SocialConnection[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,24 +72,24 @@ function SocialSettingsContent() {
         fetch("/api/social/connections", { cache: "no-store" }),
       ]);
       if (!providersResponse.ok) {
-        throw new Error("Failed to load social accounts");
+        throw new Error(t("page.loadError"));
       }
       const providersData = (await providersResponse.json()) as {
         enabled?: boolean;
         providers: SocialProviderStatus[];
       };
-      setEnabled(providersData.enabled !== false);
+      setEnabled(isSocialPublishingEnabled(providersData));
       const connectionsData = connectionsResponse.ok
         ? ((await connectionsResponse.json()) as { connections: SocialConnection[] })
         : { connections: [] };
       setProviders(providersData.providers ?? []);
       setConnections(connectionsData.connections ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load social accounts");
+      setError(err instanceof Error ? err.message : t("page.loadError"));
     } finally {
       setIsFetching(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -101,16 +105,16 @@ function SocialSettingsContent() {
     if (!connected && !oauthError) return;
     if (connected) {
       const label = PROVIDER_LABELS[connected as keyof typeof PROVIDER_LABELS] ?? connected;
-      setNotice(`${label} connected${account ? ` as ${account}` : ""}.`);
+      setNotice(account ? t("page.connectedAs", { label, account }) : t("page.connectedNotice", { label }));
     }
     if (oauthError) {
       setError(oauthError);
     }
     router.replace("/settings/social");
-  }, [searchParams, router]);
+  }, [searchParams, router, t]);
 
   const handleDisconnect = async (connection: SocialConnection) => {
-    if (!window.confirm(`Disconnect ${connectionLabel(connection)}? Scheduled posts for it will be cancelled.`)) {
+    if (!window.confirm(t("page.disconnectConfirm", { account: connectionLabel(connection) }))) {
       return;
     }
     setDisconnectingId(connection.id);
@@ -119,11 +123,11 @@ function SocialSettingsContent() {
       const response = await fetch(`/api/social/connections/${connection.id}`, { method: "DELETE" });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data?.detail || "Failed to disconnect account");
+        throw new Error(data?.detail || t("page.disconnectError"));
       }
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to disconnect account");
+      setError(err instanceof Error ? err.message : t("page.disconnectError"));
     } finally {
       setDisconnectingId(null);
     }
@@ -136,20 +140,24 @@ function SocialSettingsContent() {
   if (!session?.user) {
     return (
       <main className="mx-auto max-w-md px-4 py-24 text-center">
-        <p className="mb-4 text-muted-foreground">Sign in to manage your social accounts.</p>
+        <p className="mb-4 text-muted-foreground">{t("page.signInBody")}</p>
         <Link href="/sign-in">
-          <Button>Sign In</Button>
+          <Button>{t("page.signIn")}</Button>
         </Link>
       </main>
     );
   }
 
-  if (!isFetching && !enabled) {
+  if (isFetching && enabled === null) {
+    return <PageSkeleton />;
+  }
+
+  if (enabled !== true) {
     return (
       <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 md:py-10">
-        <h1 className="font-display text-3xl font-bold tracking-tight">Social accounts</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight">{t("page.title")}</h1>
         <p className="mt-2 text-muted-foreground">
-          Publishing to YouTube, TikTok and Instagram isn&apos;t available on your account yet.
+          {error ?? t("page.unavailable")}
         </p>
       </main>
     );
@@ -161,10 +169,9 @@ function SocialSettingsContent() {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 md:py-10">
       <div className="mb-8">
-        <h1 className="font-display text-3xl font-bold tracking-tight">Social accounts</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight">{t("page.title")}</h1>
         <p className="mt-2 text-muted-foreground">
-          Connect the accounts you post to. Publish clips straight from a task page, schedule
-          them, and let SupoClip learn from how they perform.
+          {t("page.intro")}
         </p>
       </div>
 
@@ -183,7 +190,7 @@ function SocialSettingsContent() {
 
       {/* Connect */}
       <section className="mb-10">
-        <h2 className={SECTION_HEADING}>Connect an account</h2>
+        <h2 className={SECTION_HEADING}>{t("page.connectHeading")}</h2>
         {isFetching ? (
           <Skeleton className="h-20 w-full" />
         ) : (
@@ -198,7 +205,7 @@ function SocialSettingsContent() {
                   <SocialProviderIcon provider={provider.provider} className="size-5" />
                   {provider.display_name}
                 </span>
-                <span className="text-xs text-muted-foreground">Connect</span>
+                <span className="text-xs text-muted-foreground">{t("page.connect")}</span>
               </a>
             ))}
             {unconfiguredProviders.map((provider) => (
@@ -211,26 +218,24 @@ function SocialSettingsContent() {
                   <SocialProviderIcon provider={provider.provider} className="size-4 text-muted-foreground" />
                   {provider.display_name}
                 </p>
-                <p className="text-xs mt-1">Not configured on this server.</p>
+                <p className="text-xs mt-1">{t("page.notConfigured")}</p>
                 {provider.setup_hint && <p className="text-xs mt-1">{provider.setup_hint}</p>}
               </div>
             ))}
           </div>
         )}
         <p className="text-xs text-muted-foreground mt-3">
-          Instagram needs a professional (Business or Creator) account. TikTok posts stay private until
-          TikTok has audited this app. YouTube uploads from an unverified app are private until Google&apos;s
-          review completes.
+          {t("page.instagramNote")}
         </p>
       </section>
 
       {/* Connected */}
       <section className="mb-10">
-        <h2 className={SECTION_HEADING}>Connected accounts</h2>
+        <h2 className={SECTION_HEADING}>{t("page.connectedHeading")}</h2>
         {isFetching ? (
           <Skeleton className="h-20 w-full" />
         ) : connections.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No accounts connected yet.</p>
+          <p className="text-sm text-muted-foreground">{t("page.none")}</p>
         ) : (
           <div className="space-y-3">
             {connections.map((connection) => (
@@ -255,8 +260,8 @@ function SocialSettingsContent() {
                       <ConnectionStatusBadge status={connection.status} />
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Connected {formatDateTime(connection.created_at)}
-                      {connection.token_expires_at ? ` · Token renews before ${formatDateTime(connection.token_expires_at)}` : ""}
+                      {t("page.connectedOn", { date: formatDateTime(connection.created_at) })}
+                      {connection.token_expires_at ? t("page.tokenRenews", { date: formatDateTime(connection.token_expires_at) }) : ""}
                     </p>
                     {connection.status === "reauth_required" && connection.last_error && (
                       <p className="text-xs text-destructive mt-1">{connection.last_error}</p>
@@ -268,7 +273,7 @@ function SocialSettingsContent() {
                     <a href={`/api/social/connect/${connection.provider}`}>
                       <Button size="sm" variant="outline">
                         <RefreshCw className="w-4 h-4" />
-                        Reconnect
+                        {t("page.reconnect")}
                       </Button>
                     </a>
                   )}
@@ -280,7 +285,7 @@ function SocialSettingsContent() {
                     onClick={() => handleDisconnect(connection)}
                   >
                     <Trash2 className="w-4 h-4" />
-                    Disconnect
+                    {t("page.disconnect")}
                   </Button>
                 </div>
               </div>
@@ -297,9 +302,9 @@ function SocialSettingsContent() {
         className="group flex items-center justify-between gap-4 rounded-xl border bg-background p-4 text-sm transition-colors hover:border-foreground/25"
       >
         <span>
-          <span className="block font-medium">Analytics</span>
+          <span className="block font-medium">{t("page.analytics")}</span>
           <span className="block text-xs text-muted-foreground">
-            Views, likes and comments from your published clips, by platform, hook and length.
+            {t("page.analyticsHint")}
           </span>
         </span>
         <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />

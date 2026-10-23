@@ -65,6 +65,9 @@ class CaptionStyle(Model):
     # Colour the word being spoken with the accent, as the generated clip does.
     karaoke: bool = False
     uppercase: bool = False
+    # Caption template the clip was generated with; supplies the animation, outline,
+    # word pill and emphasis styling that the fields above don't expose.
+    template: str = Field(default="default", min_length=1, max_length=50)
 
 
 class Framing(Model):
@@ -92,6 +95,8 @@ class EditDocument(Model):
     effects: Effects = Field(default_factory=Effects)
     volume: float = Field(default=1, ge=0, le=2)
     muted: bool = False
+    # AI headline burned into the top safe area for the first seconds, as generated.
+    hookTitle: str = Field(default="", max_length=200)
 
     def validate_duration(self, duration: float):
         if any(s.end > duration + 0.05 for s in self.segments):
@@ -180,69 +185,65 @@ def mapped_words(document: EditDocument):
     return result
 
 
-def caption_groups(words: list[dict], count: int):
-    groups, group = [], []
-    for word in words:
-        if group and (len(group) >= count or word["start"] - group[-1]["end"] > 0.6):
-            groups.append(group)
-            group = []
-        group.append(word)
-    if group:
-        groups.append(group)
-    return groups
+def editor_caption_template(style: CaptionStyle) -> dict:
+    """The generation template with the editor's own style choices applied on top."""
+    from .caption_templates import get_template
+
+    template = dict(get_template(style.template))
+    # Templates that emphasise words in their highlight colour follow the editor's choice.
+    if (template.get("emphasis_color") or template.get("highlight_color")) == template.get("highlight_color"):
+        template["emphasis_color"] = style.accent
+    template.update(
+        font_color=style.color,
+        highlight_color=style.accent,
+        uppercase=style.uppercase,
+        max_words_per_line=style.wordsPerLine,
+    )
+    if style.background:
+        template["background"] = True
+        template["background_color"] = template.get("background_color") or "#00000080"
+    else:
+        template["background"] = False
+        template["background_color"] = None
+    if style.karaoke:
+        template["animation"] = "karaoke"
+    elif template["animation"] == "karaoke":
+        template["animation"] = "none"
+    return template
 
 
 def write_ass(path: Path, document: EditDocument, width: int, height: int):
-    from .clip_editor import _ass_color, _ass_timestamp, _escape_ass_text
-    from .font_registry import get_font_family_name, find_font_path
+    """Write captions with the generation renderer so edits keep the clip's animation."""
+    from .media.captions import build_assemblyai_ass_subtitles
 
     style = document.captions
-    size = style.size * width / 1080
-    font_path = find_font_path(style.font)
-    font = (get_font_family_name(font_path) if font_path else None) or "Arial"
-    header = f"""[Script Info]
-ScriptType: v4.00+
-PlayResX: {width}
-PlayResY: {height}
-WrapStyle: 0
-
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font},{size},{_ass_color(style.color)},&H000000FF,&H00101010,&H80101010,0,0,0,0,100,100,0,0,{3 if style.background else 1},{max(1, size * 0.1) if style.background else max(1, size * 0.04)},0,5,{int(width * 0.08)},{int(width * 0.08)},0,1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
-    lines = []
-    position = f"{{\\pos({width / 2:.2f},{height * style.y:.2f})}}"
-
-    def dialogue(start: float, end: float, group: list[dict], active: int | None):
-        text = " ".join(
-            "{\\c"
-            + _ass_color(
-                style.accent if index == active or word["highlight"] else style.color
-            )
-            + "}"
-            + _escape_ass_text(word["text"].upper() if style.uppercase else word["text"])
-            .replace("\n", " ")
-            .replace("\r", " ")
-            for index, word in enumerate(group)
+    words = mapped_words(document) if style.enabled else []
+    font_px = max(1, round(style.size * width / 1080))
+    written = build_assemblyai_ass_subtitles(
+        path,
+        0,
+        sum(s.end - s.start for s in document.segments),
+        width,
+        height,
+        path,
+        font_family=style.font,
+        caption_words=words,
+        include_captions=style.enabled,
+        template_override=editor_caption_template(style),
+        font_px_override=font_px,
+        # The editor's position is the caption centre, already kept in range.
+        center_y_override=round(style.y * height),
+        # Highlights are per occurrence and already include the generated emphasis.
+        emphasis_indices=[i for i, w in enumerate(words) if w["highlight"]],
+        wrap_lines=True,
+        hook_title=document.hookTitle.strip() or None,
+    )
+    if not written:
+        # Nothing to show (no captions or hook title): keep ffmpeg's ass filter valid.
+        path.write_text(
+            f"[Script Info]\nScriptType: v4.00+\nPlayResX: {width}\nPlayResY: {height}\n\n[Events]\n"
+            "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
         )
-        lines.append(
-            f"Dialogue: 0,{_ass_timestamp(start)},{_ass_timestamp(end)},Default,,0,0,0,,{position}{text}\n"
-        )
-
-    if style.enabled:
-        for group in caption_groups(mapped_words(document), style.wordsPerLine):
-            group_end = max(w["end"] for w in group)
-            if not style.karaoke:
-                dialogue(group[0]["start"], group_end, group, None)
-                continue
-            # One event per word, held until the next word starts.
-            for index, word in enumerate(group):
-                end = group[index + 1]["start"] if index + 1 < len(group) else group_end
-                dialogue(word["start"], max(end, word["start"] + 0.01), group, index)
-    path.write_text(header + "".join(lines))
 
 
 def run_render(command: list[str], directory: Path, job_id: str, duration: float):
@@ -251,8 +252,14 @@ def run_render(command: list[str], directory: Path, job_id: str, duration: float
     progress_path = directory / f"progress-{job_id}.txt"
     log_path = directory / f"log-{job_id}.txt"
     with log_path.open("w+") as log:
+        # -progress/-nostats are ffmpeg flags. A non-ffmpeg command (tests use
+        # sleep) must be started unchanged or GNU sleep rejects the extra args
+        # and the cancel path never runs.
+        launched = list(command)
+        if command and Path(command[0]).name == "ffmpeg":
+            launched = command[:1] + ["-progress", str(progress_path), "-nostats"] + command[1:]
         process = subprocess.Popen(
-            command[:1] + ["-progress", str(progress_path), "-nostats"] + command[1:],
+            launched,
             stdout=subprocess.DEVNULL,
             stderr=log,
         )

@@ -1,0 +1,13 @@
+{
+  "brand": "SupoClip",
+  "makeYourOwn": "Mach deine eigenen",
+  "unavailableTitle": "Dieser Link ist nicht verfügbar",
+  "unavailable": "Dieser Freigabelink ist nicht verfügbar",
+  "createOwn": "Erstell deine eigenen Clips",
+  "eyebrow": "Geteilte Generierung",
+  "summary": "{count, plural, one {# Clip} other {# Clips}} · {duration} Highlights",
+  "topVirality": "höchster Viralitätswert",
+  "ctaTitle": "Mach aus deinen langen Videos Clips wie diese.",
+  "ctaBody": "SupoClip findet die besten Momente, rahmt die sprechende Person ein und schreibt die Untertitel. Open Source und kostenlos selbst zu hosten.",
+  "try": "SupoClip ausprobieren"
+}

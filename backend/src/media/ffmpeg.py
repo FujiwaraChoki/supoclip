@@ -212,19 +212,56 @@ def ffmpeg_escape_filter_path(path: Path) -> str:
 def build_final_video_encode_args(
     crf: int = FINAL_VIDEO_CRF,
     preset: str = FINAL_VIDEO_PRESET,
-    fps: int = OUTPUT_FPS,
+    fps: int | str = OUTPUT_FPS,
+    level: str = "4.1",
 ) -> List[str]:
-    """libx264 args for the quality-determining final pass (CFR, H.264 High)."""
+    """libx264 args for the quality-determining final pass (CFR, H.264 High).
+
+    Level 4.1 covers 1080p30. Original-format output at 60 fps (or 59.94)
+    needs 4.2 or x264 rejects the stream.
+    """
     return [
         "-c:v", "libx264",
         "-preset", preset,
         "-crf", str(crf),
         "-pix_fmt", "yuv420p",
         "-profile:v", "high",
-        "-level", "4.1",
+        "-level", level,
         "-r", str(fps),
         "-x264-params", "keyint=120:min-keyint=30:scenecut=40",
     ]
+
+
+def cap_video_short_side(video_path: Path, short_side: int) -> bool:
+    """Downscale a rendered clip in place so its shorter side is at most
+    ``short_side`` pixels. Returns whether the file changed.
+
+    Rendering always happens at 1080 wide so captions and overlays keep their
+    layout; plans with a lower output resolution get this final pass.
+    """
+    width, height = ffprobe_video_size(video_path)
+    if min(width, height) <= short_side:
+        return False
+    scale = short_side / min(width, height)
+    target_width = round_to_even(round(width * scale))
+    target_height = round_to_even(round(height * scale))
+    capped_path = video_path.with_name(f".{video_path.stem}.capped{video_path.suffix}")
+    command = [
+        "ffmpeg", "-y", "-v", "error",
+        "-i", str(video_path),
+        "-map", "0:v:0", "-map", "0:a?",
+        "-vf", f"scale={target_width}:{target_height}:flags=lanczos,setsar=1",
+        *build_final_video_encode_args(),
+        "-c:a", "copy",
+        "-movflags", "+faststart",
+        str(capped_path),
+    ]
+    result = run_ffmpeg_command(command)
+    if result.returncode != 0 or not capped_path.exists():
+        capped_path.unlink(missing_ok=True)
+        raise RuntimeError(f"Unable to downscale {video_path}: {result.stderr[-500:]}")
+    capped_path.replace(video_path)
+    return True
 
 
 def build_audio_output_args(has_audio: bool, loudnorm: bool = True) -> List[str]:
@@ -290,16 +327,18 @@ def render_ranges_crossfade_ffmpeg(
     if fade <= 0:
         return False
     has_audio = audio_stream is not None
+    seek_args, origin = _input_window_for_ranges(keep_ranges)
 
     parts: List[str] = []
     for idx, (start, end) in enumerate(keep_ranges):
+        rel_start, rel_end = start - origin, end - origin
         parts.append(
-            f"[0:v]trim=start={start:.3f}:end={end:.3f},setpts=PTS-STARTPTS,"
+            f"[0:v]trim=start={rel_start:.3f}:end={rel_end:.3f},setpts=PTS-STARTPTS,"
             f"fps={OUTPUT_FPS},format=yuv420p,setsar=1[v{idx}]"
         )
         if has_audio:
             parts.append(
-                f"[0:a:{audio_stream}]atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS[a{idx}]"
+                f"[0:a:{audio_stream}]atrim=start={rel_start:.3f}:end={rel_end:.3f},asetpts=PTS-STARTPTS[a{idx}]"
             )
 
     cur_v = "[v0]"
@@ -324,7 +363,7 @@ def render_ranges_crossfade_ffmpeg(
         map_args += ["-map", cur_a]
 
     command = [
-        "ffmpeg", "-y", "-i", str(video_path),
+        "ffmpeg", "-y", *seek_args, "-i", str(video_path),
         "-filter_complex", ";".join(parts),
         *map_args,
         "-c:v", "libx264", "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF),
@@ -334,6 +373,29 @@ def render_ranges_crossfade_ffmpeg(
         command += ["-c:a", "aac", "-b:a", "192k"]
     command += ["-movflags", "+faststart", str(output_path)]
     return run_ffmpeg_command(command, timeout=1800).returncode == 0
+
+
+def _input_window_for_ranges(
+    keep_ranges: List[Tuple[float, float]],
+) -> Tuple[List[str], float]:
+    """Seek to the first kept moment and stop just after the last one.
+
+    Multi-range trims used to open the source at t=0, so a 40s clip taken from
+    minute 30 decoded the whole prefix. Timestamps after `-ss` (before `-i`)
+    start at 0, so callers subtract the returned origin from every trim.
+    """
+    origin = min(start for start, _ in keep_ranges)
+    end = max(end for _, end in keep_ranges)
+    # A few dozen milliseconds at the head is not worth a seek. Shifting trims
+    # without seeking would start each piece early, so leave those timestamps
+    # absolute.
+    if origin <= 0.05:
+        origin = 0.0
+    args: List[str] = []
+    if origin > 0:
+        args.extend(["-ss", f"{origin:.3f}"])
+    args.extend(["-t", f"{max(0.2, end - origin + 1.0):.3f}"])
+    return args, origin
 
 
 def render_source_ranges_ffmpeg(
@@ -388,16 +450,18 @@ def render_source_ranges_ffmpeg(
             return True
         logger.info("Crossfade stitch failed; falling back to hard concat")
 
+    seek_args, origin = _input_window_for_ranges(keep_ranges)
     filter_parts: List[str] = []
     concat_inputs: List[str] = []
     for idx, (start, end) in enumerate(keep_ranges):
+        rel_start, rel_end = start - origin, end - origin
         filter_parts.append(
-            f"[0:v]trim=start={start:.3f}:end={end:.3f},setpts=PTS-STARTPTS[v{idx}]"
+            f"[0:v]trim=start={rel_start:.3f}:end={rel_end:.3f},setpts=PTS-STARTPTS[v{idx}]"
         )
         concat_inputs.append(f"[v{idx}]")
         if has_audio:
             filter_parts.append(
-                f"[0:a:{audio_stream}]atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS[a{idx}]"
+                f"[0:a:{audio_stream}]atrim=start={rel_start:.3f}:end={rel_end:.3f},asetpts=PTS-STARTPTS[a{idx}]"
             )
             concat_inputs.append(f"[a{idx}]")
 
@@ -415,6 +479,7 @@ def render_source_ranges_ffmpeg(
     command = [
         "ffmpeg",
         "-y",
+        *seek_args,
         "-i",
         str(video_path),
         "-filter_complex",

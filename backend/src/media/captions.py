@@ -2,6 +2,7 @@
 
 from typing import Any
 from typing import Dict
+from typing import Iterable
 from ..font_registry import FONTS_DIR
 from typing import List
 from typing import Optional
@@ -161,6 +162,7 @@ def escape_ass_text(value: str) -> str:
         .replace("{", "\\{")
         .replace("}", "\\}")
         .replace("\n", " ")
+        .replace("\r", " ")
         .strip()
     )
 
@@ -208,6 +210,7 @@ def build_hook_title_ass(
     output_duration: float,
     font_name: str,
     caption_font_px: int,
+    position_y: Optional[float] = None,
 ) -> Tuple[str, List[str]]:
     """Build the (style_line, dialogue_events) for a burned-in hook title.
 
@@ -226,15 +229,19 @@ def build_hook_title_ass(
     outline = hex_to_ass_color(template.get("stroke_color") or "#000000", "#000000")
     back_color = hex_to_ass_color(template.get("background_color"), "#00000080")
 
-    # Slightly smaller than the captions so the spoken words stay the hero.
-    base_px = max(34, min(66, int(caption_font_px * 0.82)))
+    # Larger than the captions: the headline is what a scrolling viewer reads
+    # before the spoken line. Long titles wrap to two lines, and a line that
+    # still does not fit (a long compound word, or two long lines) shrinks
+    # below the preferred size so it is not clipped at the frame edge.
+    base_px = min(96, max(caption_font_px + 8, int(round(caption_font_px * 1.35))))
     usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_TOP_MARGIN_FRAC))
     max_chars = max(10, int(usable_width / (base_px * 0.52)))
     lines = _balance_title_lines(title_text.split(), max_chars)
     longest = max(len(line) for line in lines)
     hook_px = base_px
     if longest > max_chars:
-        hook_px = max(30, min(base_px, int(usable_width / (longest * 0.52))))
+        fitted = int(usable_width / (longest * 0.52))
+        hook_px = min(base_px, max(1, fitted))
 
     base_stroke = int(template.get("stroke_width", 3) or 0)
     has_outline = template.get("stroke_color") is not None and base_stroke > 0
@@ -271,6 +278,8 @@ def build_hook_title_ass(
     if output_duration <= HOOK_TITLE_MIN_SECONDS:
         start, end = 0.0, max(0.5, output_duration)
     entrance = "\\fad(160,240)"
+    if position_y is not None:
+        entrance += f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})"
     if template.get("word_pop", True):
         entrance += "\\fscx90\\fscy90\\t(0,160,\\fscx100\\fscy100)"
     events = [
@@ -298,6 +307,11 @@ def build_assemblyai_ass_subtitles(
     caption_words: Optional[List[Dict[str, Any]]] = None,
     position_y_override: Optional[float] = None,
     highlight_words: Optional[List[str]] = None,
+    template_override: Optional[Dict[str, Any]] = None,
+    font_px_override: Optional[int] = None,
+    center_y_override: Optional[int] = None,
+    emphasis_indices: Optional[Iterable[int]] = None,
+    wrap_lines: bool = False,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -307,10 +321,16 @@ def build_assemblyai_ass_subtitles(
     When ``hook_title`` is set, an AI-written headline is burned into the top
     safe area while the hook plays out (it renders even when word-synced
     captions are unavailable or disabled via ``include_captions``).
+
+    The clip editor holds final style values itself: ``template_override``
+    replaces the named template, ``font_px_override`` skips width scaling,
+    ``center_y_override`` places the caption centre without the safe-area
+    clamp, ``emphasis_indices`` replaces automatic emphasis with exactly those
+    words, and ``wrap_lines`` lets libass wrap lines wider than the frame.
     """
     transcript_data = load_cached_transcript_data(video_path)
 
-    template = get_template(caption_template)
+    template = template_override or get_template(caption_template)
     effective_font_family = font_family or template["font_family"]
     effective_font_size = int(font_size) if font_size else int(template["font_size"])
     effective_font_color = font_color or template["font_color"]
@@ -340,7 +360,9 @@ def build_assemblyai_ass_subtitles(
     glow = bool(template.get("glow"))
     has_outline = template.get("stroke_color") is not None
     # Emphasis colouring only makes sense when something distinguishes words.
-    enable_emphasis = animation != "none" or bool(highlight_words)
+    enable_emphasis = (
+        emphasis_indices is not None or animation != "none" or bool(highlight_words)
+    )
 
     primary = hex_to_ass_color(effective_font_color)
     highlight = hex_to_ass_color(template.get("highlight_color"), "#FFE000")
@@ -353,7 +375,7 @@ def build_assemblyai_ass_subtitles(
         template.get("word_box_color") or template.get("highlight_color"), "#00BF49"
     )
 
-    font_px = get_scaled_font_size(effective_font_size, video_width)
+    font_px = font_px_override or get_scaled_font_size(effective_font_size, video_width)
     base_stroke = int(template.get("stroke_width", 3) or 0)
     # Scale the outline with the font so big captions keep a chunky, readable edge.
     outline_px = (
@@ -369,13 +391,22 @@ def build_assemblyai_ass_subtitles(
         else float(template.get("position_y", 0.80))
     )
     est_text_height = int(font_px * 1.5)
-    y_pos = get_safe_vertical_position(video_height, est_text_height, pos_y)
+    y_pos = (
+        int(center_y_override)
+        if center_y_override is not None
+        else get_safe_vertical_position(video_height, est_text_height, pos_y)
+    )
     font_name = ass_font_name(effective_font_family)
     border_style = (
         3
         if template.get("background") and template.get("background_color")
         else 1
     )
+    # libass fills BorderStyle 3 boxes with the outline colour and pads them by
+    # the outline width, so an outline-less template would get no box at all.
+    style_outline, style_bord = outline, outline_px
+    if border_style == 3:
+        style_outline, style_bord = back_color, max(outline_px, font_px // 6)
 
     hook_style_block = ""
     hook_events: List[str] = []
@@ -396,6 +427,9 @@ def build_assemblyai_ass_subtitles(
             output_duration,
             font_name,
             font_px,
+            # An upper-third caption seam belongs to a reaction stack. Keep
+            # the headline below the source subject, off the reactor's face.
+            position_y=0.94 if position_y_override is not None and position_y_override < .4 else None,
         )
         hook_style_block = f"{hook_style_line}\n"
 
@@ -404,8 +438,10 @@ def build_assemblyai_ass_subtitles(
         relevant_words,
         caption_cues,
         enable_emoji=enable_emoji,
-        enable_emphasis=enable_emphasis,
+        enable_emphasis=enable_emphasis and emphasis_indices is None,
     )
+    if emphasis_indices is not None:
+        emphasis_idx = set(emphasis_indices)
     requested_highlights = {
         normalize_token(word)
         for word in (highlight_words or [])
@@ -424,12 +460,12 @@ def build_assemblyai_ass_subtitles(
 ScriptType: v4.00+
 PlayResX: {video_width}
 PlayResY: {video_height}
-WrapStyle: 2
+WrapStyle: {0 if wrap_lines else 2}
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,{font_name},{font_px},{primary},&H000000FF,{outline},{back_color},1,0,0,0,100,100,0,0,{border_style},{outline_px},{shadow_px},5,60,60,60,1
+Style: Default,{font_name},{font_px},{primary},&H000000FF,{style_outline},{back_color},1,0,0,0,100,100,0,0,{border_style},{style_bord},{shadow_px},5,60,60,60,1
 {hook_style_block}
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

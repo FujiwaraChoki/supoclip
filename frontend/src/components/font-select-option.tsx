@@ -1,6 +1,7 @@
 "use client";
 
 import { Trash2, Type } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useRef } from "react";
 
 import { SelectItem } from "@/components/ui/select";
@@ -25,8 +26,10 @@ export function FontSelectOption({
   isDeleting,
   onDelete,
 }: FontSelectOptionProps) {
+  const t = useTranslations("settings");
   const itemRef = useRef<HTMLDivElement>(null);
   const infoRef = useRef<HTMLButtonElement>(null);
+  const deleteLabel = t("fonts.delete", { name: font.display_name });
   return (
     <div className="flex items-center gap-1">
       <SelectItem
@@ -52,8 +55,8 @@ export function FontSelectOption({
         <button
           type="button"
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-gray-500 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50"
-          aria-label={`Delete ${font.display_name}`}
-          title={`Delete ${font.display_name}`}
+          aria-label={deleteLabel}
+          title={deleteLabel}
           disabled={isDeleting}
           onPointerDown={(event) => {
             event.preventDefault();

@@ -1,6 +1,15 @@
-import { uploadVideoFile } from "./video-upload";
+import { uploadTooLargeMessage, uploadVideoFile, validateVideoSourceUrl } from "./video-upload";
 
 describe("S3 video uploads", () => {
+  it("rejects a file over the upload limit before requesting authorization", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["x"], "video.mp4", { type: "video/mp4" });
+    Object.defineProperty(file, "size", { value: 4_000_000_001 });
+    await expect(uploadVideoFile(file, 4_000_000_000)).rejects.toThrow(uploadTooLargeMessage(4_000_000_000, file.size));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   afterEach(() => vi.unstubAllGlobals());
 
   function authorization() {
@@ -69,4 +78,15 @@ describe("S3 video uploads", () => {
     expect(fetchMock.mock.calls.some(([url]) => url === "/api/upload/abort")).toBe(false);
   });
 
+});
+
+describe("supported video source URLs", () => {
+  it.each([["https://www.youtube.com/watch?v=abcdefghijk", "youtube"], ["https://www.twitch.tv/videos/12345", "twitch"], ["https://clips.twitch.tv/FancyClip-abc", "twitch"], ["https://kick.com/creator/videos/12345678-1234-1234-1234-123456789abc", "kick"], ["https://kick.com/video/12345678-1234-1234-1234-123456789abc", "kick"], ["https://kick.com/creator/clips/clip_abc", "kick"]])("accepts %s", (url, source) => expect(validateVideoSourceUrl(url)).toEqual({ source }));
+  it.each(["https://twitch.tv/creator", "https://kick.com/creator"])("rejects live URL %s", (url) => expect(validateVideoSourceUrl(url).error).toContain("Live streams aren't supported"));
+  it.each([
+    ["https://www.twitch.tv/videos", "Enter a valid Twitch VOD or clip URL."],
+    ["https://www.twitch.tv/creator/videos", "Enter a valid Twitch VOD or clip URL."],
+    ["https://kick.com/creator/about", "Enter a valid Kick VOD or clip URL."],
+    ["https://kick.com/video/not-a-uuid", "Enter a valid Kick VOD or clip URL."],
+  ])("gives an unsupported-URL message for %s", (url, message) => expect(validateVideoSourceUrl(url).error).toBe(message));
 });

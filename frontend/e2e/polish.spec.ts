@@ -12,6 +12,31 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/tasks/one/clips/clip/file**", (route) => route.fulfill({ status: 404 }));
 });
 
+test("full-frame framing can be selected and submitted on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
+  await page.route(/\/api\/tasks\/?(\?.*)?$/, route => route.fulfill({ json: { tasks: [] } }));
+  await page.route("**/api/announcements**", route => route.fulfill({ json: { announcements: [] } }));
+  await page.route("**/api/service-status/video-downloads", route => route.fulfill({ json: { component: { status: "operational" } } }));
+  let submitted: Record<string, unknown> | undefined;
+  await page.route("**/api/tasks/create", async route => {
+    submitted = route.request().postDataJSON();
+    await route.fulfill({ json: { task_id: "one" } });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Auto 9:16", exact: true }).click();
+  const option = page.getByRole("radio", { name: /Full frame 9:16/ });
+  await option.click();
+  await expect(option).toHaveAttribute("aria-checked", "true");
+  await page.screenshot({ path: "test-results/full-frame-framing-mobile.png" });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.keyboard.press("Escape");
+  await page.getByPlaceholder("Paste a YouTube, Twitch, or Kick VOD/clip link").fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+  await page.getByRole("button", { name: "Generate clips", exact: true }).click();
+  await expect(page).toHaveURL(/\/tasks\/one$/);
+  expect(submitted?.output_format).toBe("vertical_fit");
+});
+
 
 test("results send editing to the selected clip and expose one status badge", async ({ page }) => {
   await page.goto("/tasks/one");

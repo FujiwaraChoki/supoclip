@@ -36,7 +36,7 @@ async def test_load_task_source_settings_falls_back_when_redis_fails(monkeypatch
     assert settings["output_format"] == "vertical"
     assert settings["add_subtitles"] is True
     assert settings["cut_long_pauses"] is False
-    assert settings["pause_threshold_ms"] == 700
+    assert settings["pause_threshold_ms"] == 1200
     assert settings["remove_filler_words"] is False
     assert settings["filtered_words"] == []
 
@@ -92,21 +92,25 @@ def test_merge_task_source_metadata_preserves_existing_render_settings():
     assert merged["filtered_words"] == ["basically"]
 
 
-def test_merge_task_source_metadata_accepts_smart_vertical_modes():
+@pytest.mark.parametrize("output_format", ["vertical_split", "vertical_fit"])
+def test_merge_task_source_metadata_accepts_smart_vertical_modes(output_format):
     merged = _merge_task_source_metadata(
         {},
         source_url="upload://demo.mp4",
         source_type="video_url",
-        output_format="vertical_split",
+        output_format=output_format,
         add_subtitles=True,
     )
 
-    assert merged["output_format"] == "vertical_split"
+    assert merged["output_format"] == output_format
 
 
 @pytest.mark.asyncio
-async def test_load_task_source_settings_accepts_speaker_pan_mode(monkeypatch):
-    payload = '{"output_format": "vertical_pan", "add_subtitles": true}'
+@pytest.mark.parametrize("output_format", ["vertical_pan", "vertical_fit"])
+async def test_load_task_source_settings_accepts_smart_vertical_mode(monkeypatch, output_format):
+    import json
+
+    payload = json.dumps({"output_format": output_format, "add_subtitles": True})
     monkeypatch.setattr(
         "src.services.clip_service.redis.Redis",
         lambda **_kwargs: _RedisClient(payload),
@@ -115,4 +119,4 @@ async def test_load_task_source_settings_accepts_speaker_pan_mode(monkeypatch):
     service = TaskService(db=None)
     settings = await service._load_task_source_settings("task-123")
 
-    assert settings["output_format"] == "vertical_pan"
+    assert settings["output_format"] == output_format

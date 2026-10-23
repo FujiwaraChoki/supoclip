@@ -86,6 +86,8 @@ model User {
   billing_period_end   DateTime? @db.Timestamptz
   trial_ends_at        DateTime? @db.Timestamptz
   subscription_cancel_at DateTime? @db.Timestamptz
+  // Pro subscribers from before the 720p change keep 1080p while subscribed
+  legacy_hd            Boolean   @default(false)
 
   // Relationships
   tasks         Task[]
@@ -175,6 +177,7 @@ model Task {
   progress             Int?      @default(0)
   progress_message     String?
   source_metadata      Json      @default("{}") @db.JsonB
+  source_duration_seconds Int?
   completion_notification_sent_at DateTime? @db.Timestamptz
   share_token          String?   @unique @db.VarChar(64)
   share_enabled        Boolean   @default(false)

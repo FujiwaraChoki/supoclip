@@ -33,6 +33,7 @@ class TaskRepository:
         caption_template: str = "default",
         include_broll: bool = False,
         processing_mode: str = "fast",
+        source_duration_seconds: Optional[int] = None,
     ) -> str:
         """Create a new task and return its ID."""
         task_id = str(uuid4())
@@ -42,12 +43,12 @@ class TaskRepository:
                     INSERT INTO tasks (
                         id, user_id, source_id, status, font_family, font_size, font_color,
                         caption_template, include_broll, processing_mode,
-                        created_at, updated_at
+                        source_duration_seconds, created_at, updated_at
                     )
                     VALUES (
                         :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
                         :caption_template, :include_broll, :processing_mode,
-                        NOW(), NOW()
+                        :source_duration_seconds, NOW(), NOW()
                     )
                     RETURNING id
                 """),
@@ -62,6 +63,7 @@ class TaskRepository:
                     "caption_template": caption_template,
                     "include_broll": include_broll,
                     "processing_mode": processing_mode,
+                    "source_duration_seconds": source_duration_seconds,
                 },
             )
         except Exception:

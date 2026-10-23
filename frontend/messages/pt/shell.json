@@ -1,0 +1,67 @@
+{
+  "nav": {
+    "create": "Criar",
+    "library": "Biblioteca",
+    "social": "Redes",
+    "analytics": "Análises",
+    "agents": "Agentes e API",
+    "settings": "Configurações",
+    "admin": "Administração",
+    "newGeneration": "Nova geração"
+  },
+  "search": {
+    "generations": "Buscar gerações",
+    "label": "Buscar",
+    "mainNav": "Navegação principal",
+    "mobileNav": "Navegação móvel",
+    "dialog": "Buscar",
+    "placeholder": "Busque gerações ou vá para…",
+    "inputLabel": "Busque gerações ou vá para uma página",
+    "empty": "Nada corresponde a “{query}”."
+  },
+  "palette": {
+    "newHint": "Cole um link ou envie um arquivo",
+    "library": "Abrir biblioteca",
+    "social": "Contas sociais",
+    "socialHint": "Conecte YouTube, TikTok e Instagram",
+    "analyticsHint": "Como os seus clipes publicados performam",
+    "agentsHint": "Chaves de API e MCP"
+  },
+  "usage": {
+    "pickPlan": "Escolha um plano para começar a criar clipes",
+    "moreWith": "Tenha mais com {name}",
+    "left": "{count} restantes neste período",
+    "videosThisPeriod": "vídeos neste período",
+    "minutesOf": "{used} / {limit} min",
+    "minutes": "{used} min",
+    "minutesLeft": "restam {count} min este mês",
+    "minutesThisMonth": "minutos de vídeo este mês"
+  },
+  "user": {
+    "creator": "Criador",
+    "signOut": "Sair",
+    "signingOut": "Saindo…",
+    "signOutError": "Não foi possível sair. Tente de novo."
+  },
+  "announcements": {
+    "whatsNew": "Novidades",
+    "whatsNewUnread": "Novidades, {count, plural, one {# anúncio não lido} other {# anúncios não lidos}}",
+    "title": "Novidades no SupoClip",
+    "close": "Fechar anúncios",
+    "popover": "Anúncios",
+    "new": "Novo"
+  },
+  "feedback": {
+    "title": "Enviar feedback",
+    "category": "Categoria",
+    "bug": "Relato de bug",
+    "feature": "Pedido de recurso",
+    "general": "Feedback geral",
+    "sales": "Consulta de vendas",
+    "placeholder": "Conta o que você está pensando...",
+    "submit": "Enviar",
+    "success": "Feedback enviado — obrigado!",
+    "failed": "Não foi possível enviar o feedback",
+    "error": "Algo deu errado"
+  }
+}

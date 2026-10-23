@@ -37,14 +37,42 @@ class Config:
         self.assembly_ai_http_timeout_seconds = int(
             os.getenv("ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS", "900")
         )
+        self.assembly_ai_request_timeout_seconds = max(5, min(300, int(
+            os.getenv("ASSEMBLY_AI_REQUEST_TIMEOUT_SECONDS", "60")
+        )))
         self.pexels_api_key = self._get_runtime_setting("PEXELS_API_KEY")
         self.apify_api_token = self._get_runtime_setting("APIFY_API_TOKEN")
+        self.rapidapi_youtube_api_key = self._get_optional_env("RAPIDAPI_YOUTUBE_API_KEY")
+        self.rapidapi_youtube_timeout_seconds = int(
+            os.getenv("RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS", "300")
+        )
         self.youtube_download_provider = self._normalize_youtube_download_provider(
             os.getenv("YOUTUBE_DOWNLOAD_PROVIDER", "yt_dlp")
         )
         self.youtube_metadata_provider = self._normalize_youtube_metadata_provider(
             os.getenv("YOUTUBE_METADATA_PROVIDER", "yt_dlp")
         )
+        # Empty disables the residential-proxy yt-dlp path. Nothing in the
+        # download chain changes until this template is set.
+        self.youtube_proxy_url = os.getenv("YOUTUBE_PROXY_URL", "").strip()
+        self.youtube_proxy_timeout_seconds = self._get_int_env("YOUTUBE_PROXY_TIMEOUT_SECONDS", 300)
+        self.youtube_proxy_country = os.getenv("YOUTUBE_PROXY_COUNTRY", "").strip()
+        self.youtube_pot_provider_url = os.getenv("YOUTUBE_POT_PROVIDER_URL", "").strip()
+        self.youtube_download_max_bytes = self._get_int_env("YOUTUBE_DOWNLOAD_MAX_BYTES", 2_000_000_000)
+        self.youtube_section_padding_seconds = self._get_float_env("YOUTUBE_SECTION_PADDING_SECONDS", 10.0)
+        self.youtube_max_height = self._get_int_env("YOUTUBE_MAX_HEIGHT", 1080)
+        self.youtube_source_cache = self._get_bool_env("YOUTUBE_SOURCE_CACHE", True)
+        self.youtube_source_cache_ttl_seconds = self._get_int_env(
+            "YOUTUBE_SOURCE_CACHE_TTL_SECONDS", 604800
+        )
+        self.twitch_download_providers = os.getenv("TWITCH_DOWNLOAD_PROVIDERS", "proxy,direct,apify_twitch").strip()
+        self.kick_download_providers = os.getenv("KICK_DOWNLOAD_PROVIDERS", "proxy,direct_retry,apify_kick_hls,apify_kick_mp4").strip()
+        self.apify_twitch_actor = os.getenv("APIFY_TWITCH_ACTOR", "abotapi/twitch-scraper").strip()
+        self.apify_kick_hls_actor = os.getenv("APIFY_KICK_HLS_ACTOR", "hipersoft/kick-downloader").strip()
+        self.apify_kick_mp4_actor = os.getenv("APIFY_KICK_MP4_ACTOR", "parsebird/kick-video-downloader").strip()
+        self.apify_stream_enabled = self._get_bool_env("APIFY_STREAM_PROVIDERS", True)
+        self.apify_stream_timeout_seconds = self._get_int_env("APIFY_STREAM_TIMEOUT_SECONDS", 300)
+        self.apify_kick_max_video_size_mb = self._get_int_env("APIFY_KICK_MAX_VIDEO_SIZE_MB", 2000)
         self.apify_youtube_default_quality = self._normalize_apify_quality(
             os.getenv("APIFY_YOUTUBE_DEFAULT_QUALITY", "1080")
         )
@@ -68,8 +96,11 @@ class Config:
         self.scale_youtube_max_video_duration = int(
             os.getenv("SCALE_YOUTUBE_MAX_VIDEO_DURATION", "10800")
         )
+        # 4 GB fits a full-length upload (the duration cap is 90 minutes) at a
+        # normal 1080p bitrate. Larger files make transcription, storage, and
+        # rendering slow and fragile.
         self.max_video_upload_bytes = int(
-            os.getenv("MAX_VIDEO_UPLOAD_BYTES", "12000000000")
+            os.getenv("MAX_VIDEO_UPLOAD_BYTES", "4000000000")
         )
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 
@@ -120,9 +151,9 @@ class Config:
         self.auth_signature_ttl_seconds = int(
             os.getenv("AUTH_SIGNATURE_TTL_SECONDS", "300")
         )
-        self.free_plan_task_limit = int(os.getenv("FREE_PLAN_TASK_LIMIT", "10"))
-        self.pro_plan_task_limit = int(os.getenv("PRO_PLAN_TASK_LIMIT", "50"))
-        self.scale_plan_task_limit = int(os.getenv("SCALE_PLAN_TASK_LIMIT", "300"))
+        # Monthly allowance in minutes of source video; 0 or less means unlimited.
+        self.pro_plan_minute_limit = int(os.getenv("PRO_PLAN_MINUTE_LIMIT", "600"))
+        self.scale_plan_minute_limit = int(os.getenv("SCALE_PLAN_MINUTE_LIMIT", "1500"))
         self.cors_origins = self._get_csv_env(
             "CORS_ORIGINS",
             [
@@ -181,10 +212,11 @@ class Config:
         self.social_publish_max_attempts = int(
             os.getenv("SOCIAL_PUBLISH_MAX_ATTEMPTS", "3")
         )
-        # Who may use social publishing: "all", "admins" (admins plus the
-        # allowlist below, for a gated rollout) or "off".
+        # Who may use social publishing: "off" (default; nav and pages stay
+        # hidden), "admins" (admins plus the allowlist, for a gated rollout)
+        # or "all".
         self.social_publishing_access = (
-            os.getenv("SOCIAL_PUBLISHING_ACCESS", "all").strip().lower() or "all"
+            os.getenv("SOCIAL_PUBLISHING_ACCESS", "off").strip().lower() or "off"
         )
         if self.social_publishing_access not in {"all", "admins", "off"}:
             raise ValueError("SOCIAL_PUBLISHING_ACCESS must be all, admins or off")
@@ -196,10 +228,12 @@ class Config:
         self.default_processing_mode = os.getenv("DEFAULT_PROCESSING_MODE", "fast")
         self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "10"))
         self.fast_mode_transcript_model = os.getenv(
-            "FAST_MODE_TRANSCRIPT_MODEL", "universal"
+            "FAST_MODE_TRANSCRIPT_MODEL", "universal-3-5-pro"
         )
-        # Open clips with the AI-picked hook line as a short cold-open teaser.
-        self.hook_first_teaser = self._get_bool_env("HOOK_FIRST_TEASER", True)
+        # Replay a later punchline before the clip. Off: the same line was
+        # playing twice (teaser, then again inside the clip) and the opening
+        # has to stand on its own. Set HOOK_FIRST_TEASER=true to opt back in.
+        self.hook_first_teaser = self._get_bool_env("HOOK_FIRST_TEASER", False)
         # Cut between speakers on multi-person wide shots using diarization.
         self.speaker_framing = self._get_bool_env("SPEAKER_FRAMING", True)
 
@@ -249,6 +283,20 @@ class Config:
         }
 
     @staticmethod
+    def _get_int_env(name: str, default: int) -> int:
+        try:
+            return int(os.getenv(name, str(default)))
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _get_float_env(name: str, default: float) -> float:
+        try:
+            return float(os.getenv(name, str(default)))
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
     def _get_bool_env(name: str, default: bool) -> bool:
         value = os.getenv(name)
         if value is None:
@@ -296,7 +344,7 @@ class Config:
     @staticmethod
     def _normalize_youtube_download_provider(value: str | None) -> str:
         normalized = (value or "").strip().lower().replace("-", "_")
-        if normalized == "apify":
+        if normalized in {"apify", "rapidapi"}:
             return normalized
         return "yt_dlp"
 

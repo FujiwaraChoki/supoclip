@@ -1,6 +1,7 @@
 """Background preparation and rendering for the clip studio."""
 
 from pathlib import Path
+import functools
 import json
 import logging
 import re
@@ -18,6 +19,33 @@ from ..editor_document import (
 )
 from ..utils.async_helpers import run_in_thread
 from ..media_storage import MediaStorage, STORAGE_ERRORS, media_work
+from ..stream_source import download_stream_sections
+
+
+async def cap_export_for_plan(task_id: str, path: Path) -> None:
+    """Downscale an editor render for plans below 1080p.
+
+    Editor renders start from the original source, so they need the same
+    final pass as generated clips. A failed downscale keeps the full render.
+    """
+    from ..database import AsyncSessionLocal
+    from ..media.ffmpeg import cap_video_short_side
+    from .billing_service import FULL_HD_SHORT_SIDE, BillingService
+    from .task_service import TaskService
+
+    try:
+        async with AsyncSessionLocal() as db:
+            task = await TaskService(db).task_repo.get_task_by_id(db, task_id)
+            if not task or not task.get("user_id"):
+                return
+            billing = await BillingService(db).get_usage_summary(task["user_id"])
+        short_side = billing.get("output_short_side")
+        if short_side and short_side < FULL_HD_SHORT_SIDE:
+            await run_in_thread(cap_video_short_side, path, short_side)
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "Keeping full-size editor render for task %s", task_id, exc_info=True
+        )
 
 
 def read_state(directory: Path):
@@ -149,7 +177,72 @@ def initial_caption_style(
         "wordsPerLine": max(1, min(8, int(template.get("max_words_per_line") or 4))),
         "karaoke": template.get("animation") == "karaoke",
         "uppercase": bool(template.get("uppercase")),
+        "template": task.get("caption_template") or "default",
     }
+
+
+def generated_emphasis(words: list[dict], task: dict) -> set[int]:
+    """Words the generated clip accented (power words, numbers, emoji words).
+
+    The editor seeds them as highlights so users see and can toggle them.
+    """
+    from ..caption_templates import get_template
+    from ..emoji_captions import annotate_caption_words
+    from ..media.captions import emoji_rendering_supported
+
+    template = get_template(task.get("caption_template") or "default")
+    _, emphasis = annotate_caption_words(
+        words,
+        enable_emoji=bool(template.get("emoji", True)) and emoji_rendering_supported(),
+        enable_emphasis=template.get("animation", "karaoke") != "none",
+    )
+    return emphasis
+
+
+def upgrade_document(document: dict, clip: dict, task: dict) -> dict:
+    """Fill fields that drafts saved by older editor versions don't have.
+
+    Missing keys would otherwise validate to defaults that drop the generated
+    clip's animation and hook title.
+    """
+    from ..caption_templates import get_template
+
+    captions = dict(document.get("captions") or {})
+    if not {"template", "karaoke", "uppercase"} <= captions.keys():
+        template_id = captions.get("template") or task.get("caption_template") or "default"
+        template = get_template(template_id)
+        captions.setdefault("template", template_id)
+        captions.setdefault("karaoke", template.get("animation") == "karaoke")
+        captions.setdefault("uppercase", bool(template.get("uppercase")))
+    return {
+        **document,
+        "captions": captions,
+        "hookTitle": document.get("hookTitle", (clip.get("hook_title") or "")[:200]),
+    }
+
+
+@functools.cache
+def caption_looks() -> dict:
+    """Template styling the editor preview draws on top of its own caption style."""
+    from ..caption_templates import CAPTION_TEMPLATES, get_template
+
+    looks = {}
+    for template_id in CAPTION_TEMPLATES:
+        template = get_template(template_id)
+        looks[template_id] = {
+            "animation": template.get("animation", "karaoke"),
+            "wordPop": bool(template.get("word_pop", True)),
+            "wordBox": bool(template.get("word_box")),
+            "wordBoxColor": template.get("word_box_color") or template.get("highlight_color"),
+            "highlightColor": template.get("highlight_color"),
+            "emphasisColor": template.get("emphasis_color") or template.get("highlight_color"),
+            "strokeColor": template.get("stroke_color"),
+            "strokeWidth": int(template.get("stroke_width", 3) or 0),
+            "shadow": bool(template.get("shadow")),
+            "glow": bool(template.get("glow")),
+            "backgroundColor": template.get("background_color"),
+        }
+    return looks
 
 
 @media_work
@@ -164,6 +257,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     )
     from ..clip_editor import _caption_words_with_timings
     from ..clip_source_map import load_clip_caption_settings
+    from ..youtube_source import local_ranges_for
 
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
     storage = MediaStorage()
@@ -186,8 +280,10 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             ranges = await run_in_thread(service._get_clip_source_ranges, clip)
             source_url, source_type = task.get("source_url"), task.get("source_type")
             mode = task.get("processing_mode") or service.config.default_processing_mode
+            # Editor renders are downscaled for 720p plans, so their source can be too.
+            download_quality, _ = await service._media_limits(task.get("user_id"))
             cache = await service.cache_repo.get_cache(
-                db, service._build_cache_key(source_url, source_type, mode)
+                db, service._build_cache_key(source_url, source_type, mode, download_quality)
             )
             source = (
                 await run_in_thread(storage.local_path, cache["video_path"]) if cache and cache.get("video_path") else None
@@ -198,8 +294,17 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             await db.close()
             if not source or not source.exists():
                 if source_type == "youtube":
-                    downloaded = await service.video_service.download_video(source_url)
+                    downloaded = await service.video_service.download_video(
+                        source_url, task_id=task_id, ranges=ranges, quality=download_quality
+                    )
                     source = Path(downloaded) if downloaded else None
+                    downloaded_source = source
+                elif source_type in {"twitch", "kick"}:
+                    source = await run_in_thread(
+                        download_stream_sections, source_url,
+                        [{"start_time": start, "end_time": end} for start, end in ranges],
+                        task.get("source_duration_seconds"), task_id,
+                    )
                     downloaded_source = source
                 else:
                     source = await run_in_thread(service.video_service.resolve_local_video_path, source_url)
@@ -207,17 +312,19 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 raise ValueError(
                     "The original source is unavailable. Restore the source file to edit this clip."
                 )
+            source = await service.video_service.prepare_source(source)
+            local_ranges = await run_in_thread(local_ranges_for, source, ranges)
             directory.mkdir(parents=True, exist_ok=True)
             clean = directory / "clean.mp4"
             rendered = await run_in_thread(
                 create_optimized_clip,
                 source,
-                ranges[0][0],
-                ranges[-1][1],
+                local_ranges[0][0],
+                local_ranges[-1][1],
                 clean,
                 add_subtitles=False,
                 output_format="original",
-                keep_ranges=ranges,
+                keep_ranges=local_ranges,
                 hook_title=None,
                 extend_to_sentence=False,
             )
@@ -225,11 +332,12 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 raise ValueError("Could not prepare the original video")
             metadata = await run_in_thread(make_assets, directory)
             transcript = load_cached_transcript_data(source)
-            timed = get_words_for_keep_ranges(transcript, ranges) if transcript else []
+            timed = get_words_for_keep_ranges(transcript, local_ranges) if transcript else []
             words = _caption_words_with_timings(
                 (clip.get("text") or "").split(), timed, metadata["duration"]
             )
             duration = metadata["duration"]
+            emphasis = generated_emphasis(words, task)
             original_format = source_settings.get("output_format") == "original"
             # Vertical clips are generated at 1080x1920; "original" keeps the source size.
             clip_width, clip_height = (
@@ -247,12 +355,14 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                             clip_width,
                             clip_height,
                         ),
+                        "hookTitle": (clip.get("hook_title") or "")[:200],
                         "words": [
                             {
                                 "id": f"word-{i}",
                                 "start": max(0, min(w["start"], duration - 0.01)),
                                 "end": max(0.01, min(w["end"], duration)),
                                 "text": w["text"][:120],
+                                "highlight": i in emphasis,
                             }
                             for i, w in enumerate(words)
                             if w["start"] < duration and w["end"] > 0
@@ -282,7 +392,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
         )
     finally:
         if downloaded_source is not None:
-            service._cleanup_source_video(downloaded_source, "youtube", source_url)
+            service._cleanup_source_video(downloaded_source, source_type, source_url)
         elif source is not None:
             await run_in_thread(storage.save_source_metadata, source)
         await run_in_thread(storage.save_editor, directory)
@@ -309,6 +419,7 @@ async def export_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: 
         await run_in_thread(
             render_document, directory, job_id, document, payload["preset"]
         )
+        await cap_export_for_plan(task_id, directory / f"export-{job_id}.mp4")
         await run_in_thread(MediaStorage().persist_editor_export, directory, job_id)
         atomic_json(
             directory / f"job-{job_id}.json", {"status": "completed", "progress": 100}
@@ -399,6 +510,8 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             **entries[0]["document"],
             "segments": [{"id": "combined", "start": 0, "end": cursor}],
             "words": all_words,
+            # The first clip's headline doesn't describe the combination.
+            "hookTitle": "",
         }
         document = EditDocument.model_validate(initial).validate_duration(cursor)
         with tempfile.TemporaryDirectory(prefix="combine_", dir=directory) as temp:
@@ -429,6 +542,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             # A symlink allows the second rendering pass to observe cancellation.
             (work / f"cancel-{job_id}").symlink_to(directory / f"cancel-{job_id}")
             await run_in_thread(render_document, work, job_id, document, "tiktok")
+            await cap_export_for_plan(task_id, work / f"export-{job_id}.mp4")
             new_filename = f"combined_{uuid.uuid4().hex}.mp4"
             clip_path = Path(get_config().temp_dir) / "clips" / new_filename
             clip_path.parent.mkdir(parents=True, exist_ok=True)

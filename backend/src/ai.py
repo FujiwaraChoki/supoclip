@@ -14,9 +14,12 @@ import httpx
 from pydantic_ai import Agent, NativeOutput
 from pydantic_ai.exceptions import ModelHTTPError
 from pydantic_ai.models import Model
+from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.ollama import OllamaModel
 from pydantic_ai.models.openrouter import OpenRouterModel
 from pydantic_ai.profiles.openai import OpenAIModelProfile
+from pydantic_ai.profiles.anthropic import AnthropicModelProfile
+from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.ollama import OllamaProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
@@ -401,11 +404,19 @@ HOOK TITLES ("hook_title" per segment):
 - Write it in the same language as the transcript
 - Good examples: "The $40k mistake I keep seeing", "Why nobody tells you this about VC", "Do this before your next interview"
 
+CLIP BOUNDARIES — OPENING AND ENDING:
+- start_time is the first word of a sentence a new viewer can understand with no prior context
+- Do not start mid-sentence, on a filler (like, dude, um, well), on a bare agreement (yes, yeah, right, exactly, totally), or on a pronoun that points at someone the viewer has not met yet (he, she, they)
+- Do not start on a back-reference ("as I said", "the thing we mentioned", "that point", "before we started recording") unless the clip also contains the thing being referenced
+- If the moment only makes sense with the previous sentence's noun, claim, or question, move start_time back to include that sentence
+- end_time is the last word of the sentence that lands the point. Do not stop mid-clause, and do not keep the opening words of the next unrelated thought
+- The clip's real first sentence is the hook. Do not choose a weak opening because a later line could be replayed in front of it
+
 COLD-OPEN HOOK ("hook_start_time"/"hook_end_time" per segment, optional):
-- If the segment's most gripping 2-5 second line (punchline, bold claim, shocking number, emotional peak) comes later in the clip, return its MM:SS range; it is replayed as a teaser before the clip starts
+- Prefer null. The clip is played from start_time; a later line is not replayed in front of it unless an operator explicitly enables that
+- Only set a range when a 2-5 second punchline later in the segment stands completely alone AND the real opening is already a full setup
 - Use timestamps from the transcript lines inside the segment, at least 3 seconds after start_time
-- The line must make sense on its own and must not spoil the setup in a confusing way
-- Set both to null when the clip already opens on its strongest line or no line qualifies
+- Set both to null when the clip already opens on its strongest line, or when replaying the line would just repeat it
 
 HOOK TYPES to identify:
 - "question": Opens with a question that creates curiosity
@@ -514,11 +525,30 @@ def _get_missing_llm_key_error(model_name: str, runtime_config: Config) -> Optio
     return None
 
 
+def _uses_native_output(model_name: str) -> bool:
+    provider, name = _split_llm_name(model_name)
+    return provider == "openrouter" or (
+        provider == "anthropic" and name == "claude-sonnet-5-5"
+    )
+
+
 def _build_transcript_model(
     runtime_config: Config, model_name: str | None = None
 ) -> Model | str:
     model_name = model_name or runtime_config.llm
     provider, provider_model_name = _split_llm_name(model_name)
+    if provider == "anthropic" and _uses_native_output(model_name):
+        # The installed SDK predates Sonnet 5.5. This model requires native
+        # structured output rather than forced tool calls.
+        profile = AnthropicProvider.model_profile(provider_model_name).update(
+            AnthropicModelProfile(supports_json_schema_output=True)
+        )
+        return AnthropicModel(
+            provider_model_name,
+            provider=AnthropicProvider(api_key=runtime_config.anthropic_api_key),
+            profile=profile,
+            settings={"max_tokens": 8192},
+        )
     if provider == "openrouter":
         fallback = runtime_config.openrouter_fallback_model
         if not provider_model_name or "/" not in provider_model_name or "/" not in fallback:
@@ -583,7 +613,7 @@ def get_transcript_agent() -> Agent[None, TranscriptAnalysis]:
 
         _transcript_agent = Agent[None, TranscriptAnalysis](
             model=_build_transcript_model(runtime_config),
-            output_type=NativeOutput(TranscriptAnalysis, strict=True) if provider == "openrouter" else TranscriptAnalysis,
+            output_type=NativeOutput(TranscriptAnalysis, strict=True) if _uses_native_output(runtime_config.llm) else TranscriptAnalysis,
             system_prompt=transcript_analysis_system_prompt,
             # Some local Ollama/OpenAI-compatible endpoints can return formatted
             # prose before settling on schema-valid JSON. Keep retries limited
@@ -665,7 +695,7 @@ def get_rerank_agent() -> Agent[None, CandidateRanking]:
 
         _rerank_agent = Agent[None, CandidateRanking](
             model=_build_transcript_model(runtime_config, model_name),
-            output_type=NativeOutput(CandidateRanking, strict=True) if provider == "openrouter" else CandidateRanking,
+            output_type=NativeOutput(CandidateRanking, strict=True) if _uses_native_output(model_name) else CandidateRanking,
             system_prompt=candidate_rerank_system_prompt,
             output_retries=2,
         )
@@ -733,7 +763,7 @@ def build_transcript_analysis_prompt(
     broll_instruction = ""
     if include_broll:
         broll_instruction = (
-            "\n5. Also identify B-roll opportunities for each chosen segment where stock footage could enhance the visual appeal."
+            "\n6. Also identify B-roll opportunities for each chosen segment where stock footage could enhance the visual appeal."
         )
     signal_section = ""
     if clip_signals:
@@ -754,7 +784,8 @@ Follow this workflow:
 1. Read the transcript as a sequence of timestamped spans.
 2. Select only contiguous ranges that already exist in the transcript.
 3. Prefer moments with a strong hook, clear payoff, emotional charge, or concrete value.
-4. For each chosen segment, use the earliest timestamp in the selected range as start_time and the latest timestamp in the selected range as end_time.{broll_instruction}
+4. For each chosen segment, use the earliest timestamp in the selected range as start_time and the latest timestamp in the selected range as end_time.
+5. start_time must be the first word of a self-contained sentence: never a mid-thought fragment, a filler, a bare agreement, or a reference to something this clip does not contain. end_time must finish that thought's last sentence and must not include the next thought's opening words.{broll_instruction}
 
 Selection target:
 - Choose {segment_target} segments total.
@@ -779,7 +810,7 @@ JSON-only output requirements:
 - No Markdown, headings, bullets, code fences, or explanatory text outside JSON.
 - Top-level keys: "most_relevant_segments", "summary", "key_topics", "broll_opportunities".{' Set "broll_opportunities" to null.' if not include_broll else ''}
 - Segment keys: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", "hook_title".
-- Optional segment keys "hook_start_time"/"hook_end_time": MM:SS range of the strongest 2-5 second line later in the segment (cold-open teaser), or null.
+- Optional segment keys "hook_start_time"/"hook_end_time": null unless a later 2-5 second line stands alone and the real opening is already a complete setup. The clip is not replayed from that line by default.
 - "hook_title" is a 3-9 word plain-text headline for the clip, in the transcript's language, grounded in the segment (no hashtags, emojis, or quotes).
 - Virality keys: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", "virality_reasoning".
 - Do not return segments shorter than {MIN_ACCEPTED_CLIP_SECONDS} seconds or longer than {MAX_ACCEPTED_CLIP_SECONDS} seconds.

@@ -1,0 +1,275 @@
+{
+  "metadata": {
+    "title": "SupoClip – Recortador de video con IA de código abierto para Shorts",
+    "description": "Convierte videos largos y VODs de Twitch o Kick en YouTube Shorts, TikToks y Reels con subtítulos, recorte con IA de código abierto, puntuación de viralidad y encuadres 9:16 centrados en el rostro.",
+    "openGraphDescription": "Convierte videos largos y VODs de Twitch o Kick en YouTube Shorts, TikToks y Reels con subtítulos y recorte con IA de código abierto.",
+    "twitterDescription": "Recorte con IA de código abierto, puntuación de viralidad, subtítulos y encuadres verticales centrados en el rostro.",
+    "keywords": {
+      "clipper": "recortador de video con IA",
+      "openSource": "recortador de video de código abierto",
+      "shorts": "recortador de YouTube Shorts",
+      "longToShorts": "video largo a shorts",
+      "maker": "creador de clips con IA"
+    },
+    "structured": {
+      "software": "Un recortador de video con IA de código abierto para encontrar momentos destacados, crear encuadres verticales, agregar subtítulos sincronizados por palabra y exportar videos cortos.",
+      "featureDiscovery": "Descubrimiento de clips asistido por IA y puntuación de viralidad",
+      "featureCrop": "Recorte vertical 9:16 centrado en el rostro",
+      "featureCaptions": "Subtítulos animados sincronizados por palabra",
+      "featureExports": "Exportaciones para YouTube Shorts, TikTok e Instagram Reels",
+      "featureSelfHost": "Autoalojamiento de código abierto",
+      "offerCategory": "Edición de código abierto autoalojada",
+      "ios": "La app de SupoClip para iOS: convierte videos largos en shorts verticales con subtítulos desde tu iPhone.",
+      "website": "Recorte de video con IA de código abierto para contenido de formato corto."
+    }
+  },
+  "footer": {
+    "tagline": "Recortador de video con IA de código abierto. Usa la app alojada o ejecútala en tu propia infraestructura.",
+    "github": "GitHub",
+    "ios": "App para iOS",
+    "columns": {
+      "guides": "Guías",
+      "compare": "Comparar",
+      "product": "Producto"
+    },
+    "columnLinks": "Enlaces de {heading}"
+  },
+  "creator": {
+    "codeLead": "Código",
+    "codeTail": "aplicado: 20% de descuento en tus primeros 3 meses.",
+    "start": "Empieza a recortar",
+    "dismiss": "Descartar"
+  },
+  "related": {
+    "continueExploring": "Sigue explorando",
+    "keepReading": "Sigue leyendo",
+    "relatedGuides": "Guías relacionadas de SupoClip",
+    "read": "Leer"
+  },
+  "links": {
+    "demo": {
+      "label": "Demo",
+      "eyebrow": "Demo",
+      "title": "Mira clips reales que SupoClip creó a partir de un video largo",
+      "description": "Mira el resultado y salta a cada momento en el video original."
+    },
+    "ai_video_clipper": {
+      "label": "Recortador de video con IA",
+      "eyebrow": "Recorte de video con IA",
+      "title": "Recortador de video con IA para Shorts, Reels y TikTok",
+      "description": "Cómo SupoClip encuentra momentos, puntúa candidatos, reencuadra rostros y agrega subtítulos."
+    },
+    "youtube_shorts_clipper": {
+      "label": "Recortador de YouTube Shorts",
+      "eyebrow": "De YouTube a Shorts",
+      "title": "Reutiliza videos largos de YouTube como Shorts",
+      "description": "Un flujo práctico para elegir, subtitular, reencuadrar y revisar clips."
+    },
+    "open_source_video_clipper": {
+      "label": "Recortador de código abierto",
+      "eyebrow": "Código abierto",
+      "title": "Un recortador de video de código abierto que puedes controlar",
+      "description": "Qué cambia el autoalojamiento en el control, los proveedores de modelos y la infraestructura."
+    },
+    "blog_self_host_supoclip_docker": {
+      "label": "Guía de autoalojamiento",
+      "eyebrow": "Guía de autoalojamiento",
+      "title": "Autoaloja SupoClip con Docker Compose",
+      "description": "Requisitos, variables de entorno, primer arranque, una instalación local completa y revisiones de producción."
+    },
+    "blog_supoclip_vs_opusclip": {
+      "label": "SupoClip vs OpusClip",
+      "eyebrow": "Comparación",
+      "title": "SupoClip vs OpusClip: una comparación con fuentes",
+      "description": "Modelo de precios, despliegue, marcas de agua y flujo de trabajo, con cada afirmación enlazada a una fuente."
+    },
+    "blog_best_free_opusclip_alternative": {
+      "label": "Alternativa autoalojada a OpusClip",
+      "eyebrow": "Comparación",
+      "title": "La mejor alternativa gratis y autoalojada a OpusClip",
+      "description": "Cuándo un recortador de código abierto y autoalojado conviene más que una herramienta basada en créditos."
+    },
+    "blog_supoclip_vs_supo_live": {
+      "label": "SupoClip vs supo.live",
+      "eyebrow": "Comparación",
+      "title": "SupoClip vs supo.live: control de código abierto",
+      "description": "Compara autoalojamiento, recorte con IA y flujos de edición antes de elegir una herramienta de video."
+    },
+    "sign_up": {
+      "label": "Empieza a recortar"
+    },
+    "pricing": {
+      "label": "Precios"
+    },
+    "affiliate": {
+      "label": "Afiliados"
+    },
+    "status": {
+      "label": "Estado del servicio"
+    },
+    "privacy": {
+      "label": "Privacidad"
+    },
+    "terms": {
+      "label": "Términos"
+    },
+    "blog": {
+      "label": "Todos los artículos"
+    }
+  },
+  "nav": {
+    "howItWorks": "Cómo funciona",
+    "features": "Funciones",
+    "pricing": "Precios",
+    "openSource": "Código abierto",
+    "blog": "Blog",
+    "affiliate": "Afiliados",
+    "signIn": "Iniciar sesión",
+    "getStarted": "Comenzar",
+    "openHosted": "Abrir la app alojada",
+    "toggleMenu": "Abrir o cerrar el menú"
+  },
+  "hero": {
+    "badge": "Código abierto y autoalojable",
+    "titleLine1": "Recortador de video con IA de código abierto",
+    "titleLine2": "para mejores shorts",
+    "body": "Convierte videos de YouTube, VODs de Twitch y Kick o tus propios archivos en Shorts, TikToks y Reels con subtítulos, detección de momentos asistida por IA, puntuación de viralidad y encuadres verticales centrados en el rostro.",
+    "startClipping": "Empieza a recortar",
+    "useHosted": "Usar la app alojada",
+    "viewSource": "Ver el código",
+    "appStoreAria": "Descarga SupoClip en el App Store",
+    "appStoreAlt": "Descargar en el App Store",
+    "chips": {
+      "crop": "Recorte automático 9:16",
+      "captions": "Subtítulos sincronizados",
+      "virality": "Puntuación de viralidad"
+    },
+    "productHuntAlt": "SupoClip - Recortador de video con IA de código abierto: videos largos en shorts virales | Product Hunt",
+    "player": {
+      "source": "youtube.com · video largo de origen",
+      "clipsFound": "{count} clips encontrados",
+      "pause": "Pausar clip",
+      "play": "Reproducir clip",
+      "unmute": "Activar sonido del clip",
+      "mute": "Silenciar clip",
+      "howMade": "Cómo se hicieron estos clips"
+    },
+    "sources": {
+      "label": "Funciona con",
+      "upload": "Tus propios archivos"
+    }
+  },
+  "steps": {
+    "title": "Tres pasos. Cero esfuerzo.",
+    "items": {
+      "drop": {
+        "title": "Suelta un enlace o un archivo",
+        "description": "Pega un enlace de YouTube, Twitch o Kick (VOD o clip) o arrastra tu propio archivo de video."
+      },
+      "gold": {
+        "title": "La IA encuentra lo mejor",
+        "description": "La transcripción, la puntuación de viralidad y la detección de segmentos sacan a la luz los mejores momentos."
+      },
+      "export": {
+        "title": "Exporta y publica",
+        "description": "Obtén clips verticales, con subtítulos y seguimiento de rostro, listos para cada plataforma."
+      }
+    }
+  },
+  "features": {
+    "title": "Todo lo que necesitas para volverte viral",
+    "body": "Recorte de video de nivel profesional, con inteligencia artificial en cada paso del proceso.",
+    "items": {
+      "faceCrop": {
+        "title": "Recorte centrado en el rostro",
+        "description": "MediaPipe + OpenCV detecta y sigue rostros para un encuadre vertical 9:16 perfecto."
+      },
+      "subtitles": {
+        "title": "Subtítulos sincronizados por palabra",
+        "description": "Las marcas de tiempo por palabra generan subtítulos animados perfectamente sincronizados en cada clip."
+      },
+      "virality": {
+        "title": "Puntuación de viralidad",
+        "description": "La IA evalúa el gancho, la interacción, el valor y la posibilidad de que lo compartan — de 0 a 100."
+      },
+      "broll": {
+        "title": "Superposiciones de B-roll",
+        "description": "Busca y superpone automáticamente material de archivo relevante de Pexels."
+      },
+      "templates": {
+        "title": "Plantillas de subtítulos",
+        "description": "Varios estilos de animación y tipografías para que coincidan con tu marca."
+      },
+      "export": {
+        "title": "Exportación por plataforma",
+        "description": "Ajustes de un clic para TikTok, Reels y Shorts con codificación optimizada."
+      }
+    }
+  },
+  "pricing": {
+    "title": "Precios simples, sin sorpresas",
+    "body": "Gratis para autoalojar. Los planes alojados empiezan en ${price} al mes, con el procesamiento y el alojamiento resueltos. Cambia o cancela cuando quieras.",
+    "popular": "Más popular",
+    "period": {
+      "forever": "para siempre",
+      "month": "/mes",
+      "year": "/año"
+    },
+    "generationsPerMonth": "{count} generaciones al mes",
+    "selfHost": {
+      "description": "Ejecútalo en tu propia computadora. Sin suscripción ni límite mensual de videos.",
+      "features": {
+        "crop": "Recorte centrado en el rostro",
+        "subtitles": "Subtítulos sincronizados por palabra",
+        "virality": "Puntuación de viralidad",
+        "exports": "Todos los ajustes de exportación",
+        "source": "Acceso completo al código fuente"
+      },
+      "cta": "Ver en GitHub",
+      "setup": "Requiere configuración. Tú pones el hardware y los servicios de IA de pago que elijas."
+    },
+    "pro": {
+      "description": "Para creadores que recortan de forma constante cada mes.",
+      "cta": "Mejorar a Pro"
+    },
+    "scale": {
+      "description": "Para creadores que publican cada día.",
+      "cta": "Mejorar a Creator"
+    },
+    "hosted": {
+      "tracking": "Seguimiento de rostro, subtítulos y puntuación de viralidad",
+      "broll": "Superposiciones de B-roll",
+      "templates": "Plantillas de subtítulos",
+      "exports": "Ajustes de exportación por plataforma",
+      "youtube3h": "Videos de YouTube de hasta 3 horas",
+      "priority": "Procesamiento prioritario",
+      "earlyAccess": "Acceso anticipado a funciones nuevas"
+    },
+    "selfHostNote": "¿Autoalojas? Todas las funciones son gratis e ilimitadas.",
+    "selfHostGuide": "Ver la guía de autoalojamiento",
+    "billedYearly": "${price}/mes, facturado anualmente",
+    "usageExample": {
+      "videos": "Aproximadamente {count} vídeos originales de {minutes} minutos al mes",
+      "clips": "Ejemplo: {count} clips cortos a {perVideo} por vídeo. El resultado varía; tu cuota cuenta los minutos del vídeo original."
+    }
+  },
+  "openSource": {
+    "badge": "Licencia AGPL-3.0",
+    "title": "Hecho en público",
+    "body": "Totalmente de código abierto. Autoalója en tu infraestructura, aporta funciones o haz un fork y adáptalo.",
+    "commandLabel": "Autoaloja con Docker Compose:",
+    "comment": "# agrega un proveedor de transcripción y de LLM en .env",
+    "tryHosted": "Probar la versión alojada",
+    "openHosted": "Abrir la versión alojada"
+  },
+  "guides": {
+    "eyebrow": "Guías y comparaciones",
+    "title": "Aprende el flujo completo de recorte",
+    "body": "Páginas prácticas y con fuentes para elegir un recortador de video, autoalojar SupoClip y convertir grabaciones largas en contenido corto.",
+    "read": "Leer la guía"
+  },
+  "cta": {
+    "title": "¿Listo para recortar?",
+    "body": "Convierte tu próximo video en shorts que detienen el scroll. Usa la app alojada o autoaloja la versión de código abierto gratis."
+  }
+}

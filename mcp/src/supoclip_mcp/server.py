@@ -115,10 +115,10 @@ def _build_mcp() -> FastMCP:
 mcp = _build_mcp()
 
 ProcessingMode = Literal["fast", "balanced", "quality"]
-OutputFormat = Literal["vertical", "vertical_pan", "vertical_split", "original"]
+OutputFormat = Literal["vertical", "vertical_fit", "vertical_pan", "vertical_split", "original"]
 ExportPreset = Literal["tiktok", "reels", "shorts"]
 TERMINAL_STATES = {"completed", "error", "cancelled"}
-VALID_OUTPUT_FORMATS = {"vertical", "vertical_pan", "vertical_split", "original"}
+VALID_OUTPUT_FORMATS = {"vertical", "vertical_fit", "vertical_pan", "vertical_split", "original"}
 
 
 # --------------------------------------------------------------------------- #
@@ -320,15 +320,18 @@ async def supoclip_list_fonts() -> str:
 )
 @tool_errors
 async def supoclip_billing_summary() -> str:
-    """Get the authenticated account's plan, usage and remaining quota.
+    """Get the authenticated account's plan, usage and remaining minutes.
 
-    Useful before creating tasks to check whether a paid plan / remaining quota
-    allows another video. Requires authentication.
+    Plans are metered in minutes of source video per month; a video uses its
+    full length (rounded up to the minute). Useful before creating tasks to
+    check whether the remaining minutes cover the next video. Requires
+    authentication.
 
     Returns:
-        str: JSON with ``plan``, ``subscription_status``, ``usage_count``,
-        ``usage_limit``, ``remaining``, ``upgrade_required`` and
-        ``monetization_enabled``.
+        str: JSON with ``plan`` (``pro`` or ``scale``, shown as Creator),
+        ``subscription_status``, ``usage_minutes``, ``minute_limit``,
+        ``remaining_minutes``, ``output_short_side`` (720 or 1080),
+        ``can_schedule_posts``, ``upgrade_required`` and ``monetization_enabled``.
     """
     data = await _client().request("GET", "/tasks/billing/summary")
     return _json(data)
@@ -375,7 +378,7 @@ async def supoclip_create_clip_task(
         url: YouTube or direct video URL to clip.
         title: Optional task title.
         processing_mode: 'fast' | 'balanced' | 'quality'.
-        output_format: 'vertical' | 'vertical_pan' | 'vertical_split' | 'original'.
+        output_format: 'vertical' | 'vertical_fit' (full frame on 9:16) | 'vertical_pan' | 'vertical_split' | 'original'.
         add_subtitles: Whether to burn in subtitles.
         caption_template: Caption template id.
         include_broll: Whether to add B-roll overlays.

@@ -1,9 +1,60 @@
 import { parseApiError, formatSupportMessage } from "@/lib/api-error";
 
-export const MAX_VIDEO_UPLOAD_BYTES = 12_000_000_000;
+/** Default upload cap: 4 GB. Matches the backend MAX_VIDEO_UPLOAD_BYTES default. */
+export const DEFAULT_MAX_VIDEO_UPLOAD_BYTES = 4_000_000_000;
+
+export function maxVideoUploadBytes(): number {
+  const raw = process.env.NEXT_PUBLIC_MAX_VIDEO_UPLOAD_BYTES;
+  if (!raw) return DEFAULT_MAX_VIDEO_UPLOAD_BYTES;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_MAX_VIDEO_UPLOAD_BYTES;
+}
+
+export function formatUploadLimit(bytes: number): string {
+  if (bytes >= 1e9) {
+    const gigabytes = bytes / 1e9;
+    const rounded = Math.round(gigabytes * 10) / 10;
+    return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)} GB`;
+  }
+  return `${Math.max(1, Math.round(bytes / 1e6))} MB`;
+}
+
+export function uploadTooLargeMessage(limitBytes: number, fileBytes?: number): string {
+  const limit = formatUploadLimit(limitBytes);
+  if (fileBytes && fileBytes > limitBytes) {
+    return `This file is ${formatUploadLimit(fileBytes)}, which is over the ${limit} upload limit. Try a shorter export or a smaller file.`;
+  }
+  return `This file is over the ${limit} upload limit. Try a shorter export or a smaller file.`;
+}
 
 // Only surface the font search box once the list is long enough to need it.
 export const FONT_SEARCH_THRESHOLD = 8;
+
+export type SupportedVideoSource = "youtube" | "twitch" | "kick";
+const TWITCH_RESERVED_PATHS = new Set(["/videos", "/directory", "/search", "/settings"]);
+const KICK_RESERVED_PATHS = new Set(["/video", "/videos", "/categories", "/browse", "/search"]);
+export function validateVideoSourceUrl(value: string): { source?: SupportedVideoSource; error?: string } {
+  let parsed: URL; try { parsed = new URL(value.trim()); } catch { return { error: "Enter a valid YouTube, Twitch VOD/clip, or Kick VOD/clip URL." }; }
+  if (!["http:", "https:"].includes(parsed.protocol)) return { error: "Enter a valid video URL." };
+  const host = parsed.hostname.toLowerCase().replace(/^www\./, ""), path = parsed.pathname.replace(/\/$/, "");
+  if (["youtu.be", "youtube.com", "m.youtube.com", "music.youtube.com"].includes(host)) return extractYouTubeVideoId(value) ? { source: "youtube" } : { error: "Enter a valid YouTube video URL." };
+  if (host === "clips.twitch.tv" && /^\/[A-Za-z0-9_-]+$/.test(path)) return { source: "twitch" };
+  if (["twitch.tv", "m.twitch.tv", "go.twitch.tv"].includes(host)) {
+    if (/^\/videos\/\d+$/.test(path) || /^\/[A-Za-z0-9_]+\/clip\/[A-Za-z0-9_-]+$/.test(path)) return { source: "twitch" };
+    // Mirrors the backend: only a bare channel page is a live stream; listing
+    // and directory pages get the unsupported-URL message.
+    if (/^\/[A-Za-z0-9_]+$/.test(path) && !TWITCH_RESERVED_PATHS.has(path.toLowerCase())) return { error: "Live streams aren't supported. Use a Twitch VOD or clip URL instead." };
+    return { error: "Enter a valid Twitch VOD or clip URL." };
+  }
+  if (host === "kick.com") {
+    const vod = /^(?:\/[A-Za-z0-9_-]+\/videos|\/video)\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path);
+    const clip = /^\/[A-Za-z0-9_-]+\/clips\/clip_[A-Za-z0-9_-]+$/.test(path) || (/^\/[A-Za-z0-9_-]+$/.test(path) && /^clip_[A-Za-z0-9_-]+$/.test(parsed.searchParams.get("clip") || ""));
+    if (vod || clip) return { source: "kick" };
+    if (/^\/[A-Za-z0-9_-]+$/.test(path) && !KICK_RESERVED_PATHS.has(path.toLowerCase())) return { error: "Live streams aren't supported. Use a Kick VOD or clip URL instead." };
+    return { error: "Enter a valid Kick VOD or clip URL." };
+  }
+  return { error: "Enter a YouTube, Twitch VOD/clip, or Kick VOD/clip URL." };
+}
 
 type DirectUploadAuthorization = {
   directUpload: true;
@@ -82,9 +133,12 @@ async function requestUploadAuthorization(file: File): Promise<UploadAuthorizati
   return response.json() as Promise<UploadAuthorization>;
 }
 
-export async function uploadVideoFile(file: File): Promise<string> {
-  if (file.size > MAX_VIDEO_UPLOAD_BYTES) {
-    throw new Error("Uploaded file is too large. Please upload a video under 12 GB.");
+export async function uploadVideoFile(
+  file: File,
+  maxBytes: number = maxVideoUploadBytes(),
+): Promise<string> {
+  if (file.size > maxBytes) {
+    throw new Error(uploadTooLargeMessage(maxBytes, file.size));
   }
 
   const uploadAuthorization = await requestUploadAuthorization(file);
@@ -92,7 +146,7 @@ export async function uploadVideoFile(file: File): Promise<string> {
     return uploadVideoFileToS3(file, uploadAuthorization);
   }
   if (!uploadAuthorization.directUpload) {
-    return uploadVideoFileViaProxy(file);
+    return uploadVideoFileViaProxy(file, maxBytes);
   }
 
   const formData = new FormData();
@@ -107,7 +161,7 @@ export async function uploadVideoFile(file: File): Promise<string> {
   if (!uploadResponse.ok) {
     const fallbackMessage =
       uploadResponse.status === 413
-        ? "Uploaded file is too large. Please upload a video under 12 GB."
+        ? uploadTooLargeMessage(maxBytes)
         : `Upload error: ${uploadResponse.status}`;
     const uploadError = await parseApiError(uploadResponse, fallbackMessage);
     throw new Error(formatSupportMessage(uploadError));
@@ -209,7 +263,10 @@ async function uploadVideoFileToS3(file: File, authorization: S3UploadAuthorizat
   }
 }
 
-export async function uploadVideoFileViaProxy(file: File): Promise<string> {
+export async function uploadVideoFileViaProxy(
+  file: File,
+  maxBytes: number = maxVideoUploadBytes(),
+): Promise<string> {
   const formData = new FormData();
   formData.append("video", file);
 
@@ -221,7 +278,7 @@ export async function uploadVideoFileViaProxy(file: File): Promise<string> {
   if (!uploadResponse.ok) {
     const fallbackMessage =
       uploadResponse.status === 413
-        ? "Uploaded file is too large. Please upload a video under 12 GB."
+        ? uploadTooLargeMessage(maxBytes)
         : `Upload error: ${uploadResponse.status}`;
     const uploadError = await parseApiError(uploadResponse, fallbackMessage);
     throw new Error(formatSupportMessage(uploadError));

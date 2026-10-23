@@ -1,0 +1,67 @@
+{
+  "nav": {
+    "create": "Create",
+    "library": "Library",
+    "social": "Social",
+    "analytics": "Analytics",
+    "agents": "Agents & API",
+    "settings": "Settings",
+    "admin": "Admin",
+    "newGeneration": "New generation"
+  },
+  "search": {
+    "generations": "Search generations",
+    "label": "Search",
+    "mainNav": "Main navigation",
+    "mobileNav": "Mobile navigation",
+    "dialog": "Search",
+    "placeholder": "Search generations or jump to…",
+    "inputLabel": "Search generations or jump to a page",
+    "empty": "Nothing matches “{query}”."
+  },
+  "palette": {
+    "newHint": "Paste a link or upload",
+    "library": "Open library",
+    "social": "Social accounts",
+    "socialHint": "Connect YouTube, TikTok & Instagram",
+    "analyticsHint": "How your published clips perform",
+    "agentsHint": "API keys & MCP"
+  },
+  "usage": {
+    "pickPlan": "Pick a plan to start clipping",
+    "moreWith": "Get more with {name}",
+    "left": "{count} left this period",
+    "videosThisPeriod": "videos this period",
+    "minutesOf": "{used} / {limit} min",
+    "minutes": "{used} min",
+    "minutesLeft": "{count} min left this month",
+    "minutesThisMonth": "minutes of video this month"
+  },
+  "user": {
+    "creator": "Creator",
+    "signOut": "Sign out",
+    "signingOut": "Signing out…",
+    "signOutError": "Could not sign out. Please try again."
+  },
+  "announcements": {
+    "whatsNew": "What's new",
+    "whatsNewUnread": "What's new, {count, plural, one {# unread announcement} other {# unread announcements}}",
+    "title": "What's new in SupoClip",
+    "close": "Close announcements",
+    "popover": "Announcements",
+    "new": "New"
+  },
+  "feedback": {
+    "title": "Send Feedback",
+    "category": "Category",
+    "bug": "Bug Report",
+    "feature": "Feature Request",
+    "general": "General Feedback",
+    "sales": "Sales Inquiry",
+    "placeholder": "Tell us what's on your mind...",
+    "submit": "Submit",
+    "success": "Feedback submitted — thank you!",
+    "failed": "Failed to submit feedback",
+    "error": "Something went wrong"
+  }
+}

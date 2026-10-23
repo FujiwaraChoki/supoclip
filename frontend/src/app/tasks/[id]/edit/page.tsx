@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { PageError, PageLoading } from "@/components/app/page-state";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { editorRequest } from "@/components/editor/use-editor";
 import type { ClipSummary } from "@/components/editor/export-panel";
 
 export default function TaskEditPage() {
+  const t = useTranslations("editor");
   const { id } = useParams<{ id: string }>();
   const requested = useSearchParams().get("clip");
   const [task, setTask] = useState<{
@@ -62,14 +64,14 @@ export default function TaskEditPage() {
       <div className="max-w-lg mx-auto px-4 py-24 text-center space-y-4">
         <h1 className="text-xl font-semibold">
           {task?.status !== "completed"
-            ? "Your clips are still processing"
-            : "No clips to edit yet"}
+            ? t("editPage.processing")
+            : t("editPage.empty")}
         </h1>
         <p className="text-sm text-muted-foreground">
-          The editor is ready once your generation completes.
+          {t("editPage.readyWhenComplete")}
         </p>
         <Button asChild>
-          <Link href={`/tasks/${id}`}>Back to generation</Link>
+          <Link href={`/tasks/${id}`}>{t("editPage.back")}</Link>
         </Button>
       </div>
     );
@@ -77,7 +79,7 @@ export default function TaskEditPage() {
     <EditorWorkspace
       key={`${id}:${clip.id}`}
       taskId={id}
-      title={task?.source_title || "Untitled generation"}
+      title={task?.source_title || t("editPage.untitled")}
       clips={clips}
       clip={clip}
       onSelect={(clipId) => {

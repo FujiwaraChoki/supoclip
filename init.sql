@@ -31,13 +31,15 @@ CREATE TABLE users (
     billing_period_start TIMESTAMP WITH TIME ZONE,
     billing_period_end TIMESTAMP WITH TIME ZONE,
     trial_ends_at TIMESTAMP WITH TIME ZONE,
-    subscription_cancel_at TIMESTAMP WITH TIME ZONE
+    subscription_cancel_at TIMESTAMP WITH TIME ZONE,
+    -- Pro subscribers from before the 720p change keep 1080p while subscribed
+    legacy_hd BOOLEAN NOT NULL DEFAULT false
 );
 
 -- Source table (created before tasks since tasks reference sources)
 CREATE TABLE sources (
     id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
-    type VARCHAR(20) CHECK (type IN ('youtube', 'video_url')) NOT NULL,
+    type VARCHAR(20) CONSTRAINT check_source_type CHECK (type IN ('youtube', 'video_url', 'twitch', 'kick')) NOT NULL,
     title VARCHAR(500) NOT NULL,
     url VARCHAR(1000),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -56,6 +58,8 @@ CREATE TABLE tasks (
     progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
     progress_message TEXT,
     source_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    -- Source length charged against the monthly minute allowance
+    source_duration_seconds INTEGER,
 
     -- Font customization fields
     font_family VARCHAR(100) DEFAULT 'TikTokSans-Regular',

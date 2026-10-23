@@ -1,0 +1,587 @@
+{
+  "shell": {
+    "home": "Início",
+    "blog": "Blog",
+    "blogNav": "Navegação do blog",
+    "allArticles": "Todos os artigos",
+    "startClipping": "Comece a cortar",
+    "breadcrumbNav": "Trilha",
+    "byline": "Por SupoClip · Atualizado em <date>{when}</date> · {readingTime}",
+    "updated": "Atualizado em <date>{when}</date>",
+    "inThisArticle": "Neste artigo",
+    "faqHeading": "Perguntas frequentes",
+    "faq": "Perguntas frequentes",
+    "startAria": "Comece com o SupoClip",
+    "ctaTitle": "Teste com uma gravação que você conhece bem.",
+    "ctaBody": "Use o app hospedado ou rode o mesmo código aberto na sua máquina.",
+    "getSource": "Pegue o código",
+    "keepReading": "Continue lendo"
+  },
+  "index": {
+    "metaTitle": "Blog do SupoClip | Guias de corte de vídeo com IA",
+    "metaDescription": "Guias práticos, comparações de produtos e fluxos de trabalho para transformar vídeos longos em shorts prontos para as redes com o SupoClip.",
+    "ogTitle": "Blog do SupoClip",
+    "ogDescription": "Guias e comparações sobre corte de vídeo com IA, legendas automáticas, reenquadramento vertical e fluxos de vídeo curto.",
+    "hostedApp": "App hospedado",
+    "startClipping": "Comece a cortar",
+    "creatorGuides": "Guias para criadores",
+    "tryHosted": "Experimente o SupoClip hospedado",
+    "heading": "Guias práticos para transformar vídeos longos em shorts melhores.",
+    "intro": "Comparações, fluxos de trabalho e conselhos de edição para quem quer um processo de corte repetível, legendas mais limpas e mais controle sobre o pipeline de vídeo.",
+    "readArticle": "Ler artigo",
+    "openSource": "Código aberto",
+    "openSourceClipping": "Corte de código aberto",
+    "moreGuides": "Mais guias de corte",
+    "productGuides": "Guias do produto"
+  },
+  "supoclip-vs-supo-live": {
+    "title": "SupoClip versus supo.live: por que o código aberto ganha",
+    "description": "Compare o SupoClip e o supo.live para corte de vídeo com IA. Veja por que o SupoClip ganha em controle de código aberto, auto-hospedagem e fluxos de vídeo personalizáveis.",
+    "eyebrow": "Alternativa ao supo.live",
+    "category": "Comparação",
+    "readingTime": "Leitura de 5 min",
+    "summary": "Para criadores e equipes que querem controle sobre o fluxo de corte, o SupoClip é a melhor alternativa de código aberto ao supo.live.",
+    "imageAlt": "Ilustração editorial de uma gravação de podcast virando três clipes de vídeo verticais",
+    "breadcrumb": "SupoClip versus supo.live",
+    "heroCaption": "Uma gravação, mais possibilidades. Ilustração editorial gerada por IA do fluxo de vídeo longo para shorts.",
+    "verdict": {
+      "kicker": "O veredito rápido",
+      "heading": "Escolha o SupoClip quando o controle importa.",
+      "body": "Código aberto. Sua implantação. Seu fluxo. Uma base sólida para transformar conteúdo gravado em shorts com legendas.",
+      "points": {
+        "0": "Inspecione e estenda o código",
+        "1": "Auto-hospede na sua infraestrutura",
+        "2": "Refine cada clipe pronto"
+      }
+    },
+    "toc": {
+      "comparison": "Compare as ferramentas",
+      "workflow": "Veja o fluxo",
+      "control": "Por que código aberto",
+      "cost": "Entenda os custos",
+      "faq": "Perguntas frequentes"
+    },
+    "body": {
+      "p1": "Escolher um cortador de vídeo com IA também é escolher quanto controle você mantém sobre o processo de produção. Se você quer transformar podcasts, entrevistas, palestras e gravações de transmissões em vídeos curtos, o SupoClip faz um caso claro: edição com IA, código que você pode inspecionar e um fluxo que você mesmo roda.",
+      "p2": "Nosso veredito: o SupoClip é a melhor alternativa para criadores, agências e desenvolvedores que priorizam código aberto, auto-hospedagem e personalização. Esta comparação é da equipe do SupoClip, com base em capacidades documentadas, e não um teste de qualidade de clipes nem de velocidade de processamento.",
+      "whatSupoclip": "O que é o SupoClip?",
+      "whatSupoclipBody": "O SupoClip é uma ferramenta de corte de vídeo com IA de código aberto, disponível em supoclip.com ou como aplicativo auto-hospedado. Ele analisa vídeos longos, escolhe momentos promissores e produz clipes verticais com corte centrado no rosto e legendas sincronizadas por palavra. Títulos de gancho, pontuação de clipes e B-roll opcional ajudam a transformar uma gravação bruta em material pronto para a sua revisão final. O <repo>repositório do SupoClip</repo> documenta os recursos e a instalação.",
+      "whatSupo": "O que é o supo.live?",
+      "whatSupoBody": "O supo.live divulga um serviço de corte hospedado tanto para gravações quanto para transmissões em andamento. A página inicial anuncia corte ao vivo, legendas estilizadas, rastreamento de rosto, um editor no navegador e publicações agendadas no TikTok, YouTube Shorts e X. Isso torna a publicação ao vivo o ponto de diferença mais claro. Veja o <site>resumo oficial de recursos do supo.live</site>."
+    },
+    "comparison": {
+      "heading": "SupoClip versus supo.live em um relance",
+      "caption": "Comparação de fluxos do SupoClip e do supo.live",
+      "priority": "Prioridade",
+      "note": "Os detalhes do supo.live refletem a <site>página inicial</site> conferida em 21 de setembro de 2026. Recursos e planos podem mudar.",
+      "rows": {
+        "deployment": {
+          "label": "Implantação",
+          "supoclip": "App hospedado ou implantação auto-hospedada",
+          "supolive": "Serviço hospedado"
+        },
+        "source": {
+          "label": "Acesso ao código",
+          "supoclip": "Repositório público AGPL-3.0",
+          "supolive": "Não anuncia na página inicial uma opção de código aberto nem de auto-hospedagem"
+        },
+        "usecase": {
+          "label": "Uso principal",
+          "supoclip": "Vídeos longos gravados virando shorts verticais",
+          "supolive": "Transmissões ao vivo e vídeos gravados"
+        },
+        "customization": {
+          "label": "Personalização",
+          "supoclip": "Modifique o código e configure o provedor do LLM",
+          "supolive": "Use o editor e os ajustes do serviço"
+        },
+        "usage": {
+          "label": "Modelo de uso",
+          "supoclip": "Auto-hospedar usa a sua computação e o orçamento do provedor",
+          "supolive": "Planos de assinatura com créditos de processamento"
+        }
+      }
+    },
+    "workflow": {
+      "heading": "De uma gravação a um fluxo repetível",
+      "intro": "Deixe a IA fazer a primeira passagem e depois use o seu julgamento editorial. Cada clipe deve fazer sentido sozinho, manter o contexto de quem fala e merecer um lugar no seu feed.",
+      "caption": "O fluxo do SupoClip para vídeo gravado. A IA sugere; você toma a decisão editorial final.",
+      "steps": {
+        "0": {
+          "title": "Traga uma gravação",
+          "detail": "Envie um vídeo ou use um link compatível do YouTube, da Twitch ou da Kick."
+        },
+        "1": {
+          "title": "Descubra os momentos",
+          "detail": "A transcrição e a pontuação de IA montam uma lista curta."
+        },
+        "2": {
+          "title": "Deixe o corte com a sua cara",
+          "detail": "Revise o tempo, o enquadramento vertical e as legendas."
+        },
+        "3": {
+          "title": "Exporte seus shorts",
+          "detail": "Prepare os clipes finais para as suas redes."
+        }
+      }
+    },
+    "editor": {
+      "aria": "Ver a captura do editor do SupoClip em tamanho completo",
+      "alt": "Editor do SupoClip com lista de clipes, prévia vertical, controles de estilo de legenda e uma linha do tempo",
+      "caption": "Dentro do editor do SupoClip: ajuste legendas, enquadramento e tempo antes de exportar. Captura real do produto com material de teste; clique para ampliar."
+    },
+    "control": {
+      "heading": "Por que o SupoClip é a melhor alternativa de código aberto",
+      "h1": "1. Você pode moldar o fluxo em torno do seu conteúdo",
+      "p1": "Um estúdio de podcast e um canal educativo podem querer clipes bem diferentes. Com o SupoClip, o acesso ao código deixa uma equipe técnica adaptar a lógica de seleção, o comportamento das legendas e as etapas de processamento às necessidades editoriais. Você pode ver como o sistema funciona e desenvolver mudanças na própria implantação. Essa flexibilidade é a maior vantagem do SupoClip em relação a depender só dos ajustes de um produto hospedado.",
+      "h2": "2. Você escolhe onde o aplicativo roda",
+      "p2": "Auto-hospedar dá controle sobre a infraestrutura do aplicativo, a configuração de armazenamento e o calendário de manutenção. Você pode levar o corte para um ambiente de produção que já existe e manter uma implantação que você administra. Se você usa transcrição na nuvem ou um LLM hospedado, esses provedores ainda recebem os dados de que precisam. Mudar para Whisper e Ollama locais mantém essa análise também no seu próprio hardware.",
+      "h3": "3. Você tem uma escolha prática de provedores de IA",
+      "p3": "O SupoClip aceita configurações de LLM para modelos do Google, OpenAI, Anthropic e Ollama local. Isso permite avaliar provedores com o seu conteúdo e o seu orçamento. A transcrição usa AssemblyAI por padrão e pode mudar para Whisper local ou, em links do YouTube, para legendas que já existem. O <guide>guia de auto-hospedagem</guide> percorre uma instalação totalmente local.",
+      "h4": "4. O seu fluxo de corte pode crescer para as suas próprias ferramentas",
+      "p4": "O SupoClip inclui uma API REST e um servidor MCP. Quem desenvolve pode ligar o corte a outros aplicativos ou a clientes de IA compatíveis em vez de tratar o navegador como a única entrada. Para uma agência que processa gravações recorrentes de clientes, isso abre espaço para um fluxo repetível em torno da própria revisão. A <api>referência da API</api> explica os endpoints disponíveis.",
+      "figureCaption": "O que você controla ao auto-hospedar",
+      "figureNote": "Provedores na nuvem são opcionais: Whisper e Ollama mantêm a transcrição e a seleção de clipes locais.",
+      "yours": {
+        "heading": "Sua implantação",
+        "li1": "Aplicativo e código-fonte",
+        "li2": "Armazenamento e recursos de processamento",
+        "li3": "Personalização editorial"
+      },
+      "connected": {
+        "heading": "Serviços de IA conectados",
+        "li1": "AssemblyAI ou Whisper local",
+        "li2": "LLM hospedado ou Ollama local",
+        "li3": "Custos do provedor e fluxos de dados"
+      }
+    },
+    "cost": {
+      "heading": "Custo: código grátis, custos reais de operação",
+      "p1": "O código aberto do SupoClip é grátis para auto-hospedar. Seus custos reais dependem de computação, armazenamento, transcrição, uso de modelos pagos e do tempo para manter a instalação. A capacidade segue os recursos que você provisiona e os limites do provedor. Pode atrair equipes que já operam infraestrutura, mas não promete que toda carga de trabalho saia mais barata.",
+      "p2": "O serviço hospedado do SupoClip é uma opção separada, com preços e termos próprios. Escolha-o quando quiser começar com menos instalação; escolha auto-hospedar quando o controle da implantação for a prioridade."
+    },
+    "choose": {
+      "heading": "Qual você deve escolher?",
+      "p1": "Escolha o SupoClip para uma biblioteca de podcasts, entrevistas, webinars ou VODs de transmissão que você queira reaproveitar com um pipeline personalizável. Ele junta descoberta de clipes, pontuação, legendas e enquadramento vertical, e deixa você inspecionar e ampliar o aplicativo.",
+      "p2": "Se o requisito essencial é cortar uma transmissão enquanto ela ainda está no ar e publicar os resultados automaticamente, avalie o fluxo ao vivo anunciado pelo supo.live. O fluxo do SupoClip para vídeo gravado não deve ser tratado como um substituto verificado dessas funções."
+    },
+    "start": {
+      "heading": "Comece a montar um fluxo de corte que você controla",
+      "p1": "O SupoClip é a nossa escolha para equipes que querem um corte com IA útil hoje e espaço para adaptá-lo amanhã. Comece com uma gravação representativa, revise os clipes sugeridos, refine legendas e enquadramento e exporte os resultados. Depois decida se a conveniência hospedada ou a própria implantação combina com o seu fluxo.",
+      "logoAlt": "Logotipo do SupoClip",
+      "cardTitle": "Sua próxima gravação merece uma segunda vida.",
+      "points": {
+        "0": "Comece com uma gravação que você conhece bem",
+        "1": "Revise os momentos sugeridos mais fortes",
+        "2": "Refine as legendas e exporte"
+      },
+      "try": "Experimente o SupoClip"
+    },
+    "faqs": {
+      "0": {
+        "question": "Qual é a melhor alternativa de código aberto ao supo.live?",
+        "answer": "O SupoClip é uma escolha forte para criadores e equipes que querem transformar vídeos gravados em shorts e manter acesso ao código, auto-hospedagem e controle do fluxo de corte com IA."
+      },
+      "1": {
+        "question": "Auto-hospedar o SupoClip é grátis?",
+        "answer": "O SupoClip oferece código-fonte grátis sob AGPL-3.0. Rodá-lo ainda envolve hardware ou hospedagem, armazenamento, transcrição e qualquer uso pago de LLM. O SupoClip hospedado tem termos de serviço e preços próprios."
+      },
+      "2": {
+        "question": "O SupoClip substitui o corte de transmissões ao vivo e a publicação automática?",
+        "answer": "Esta comparação recomenda o SupoClip para vídeos gravados e VODs de transmissão. O supo.live anuncia corte durante transmissões ao vivo e publicações sociais agendadas; essas capacidades não são apresentadas aqui como equivalentes do SupoClip."
+      }
+    },
+    "closing": "Explore o nosso <openSource>guia do cortador de vídeo de código aberto</openSource> ou leia a <comparison>comparação SupoClip versus OpusClip</comparison>."
+  },
+  "supoclip-vs-opusclip": {
+    "title": "SupoClip versus OpusClip: uma comparação com fontes",
+    "description": "SupoClip versus OpusClip em implantação, modelo de preço, marcas d'água, escolha de modelo e fluxo de trabalho, com uma fonte linkada para cada afirmação.",
+    "eyebrow": "Comparação com o OpusClip",
+    "category": "Comparação",
+    "readingTime": "Leitura de 7 min",
+    "summary": "Um lado a lado do que cada produto documenta, onde os dois diferem e qual combina com o seu fluxo.",
+    "breadcrumb": "SupoClip versus OpusClip",
+    "notCovered": "Não coberto pelas fontes abaixo",
+    "toc": {
+      "verdict": "Resposta curta",
+      "comparison": "Lado a lado",
+      "pricing": "Modelo de preço",
+      "choose-supoclip": "Quando o SupoClip encaixa",
+      "choose-opusclip": "Quando o OpusClip encaixa",
+      "test": "Faça seu próprio teste",
+      "sources": "Fontes",
+      "faq": "Perguntas frequentes"
+    },
+    "faqs": {
+      "0": {
+        "question": "O SupoClip é melhor que o OpusClip?",
+        "answer": "Depende do que você precisa. O SupoClip encaixa melhor se você quer acesso ao código, auto-hospedagem ou escolher os próprios modelos de IA. O OpusClip encaixa melhor se você quer um produto gerenciado com um nível grátis para testar. Não afirmamos que um produza clipes melhores, porque não rodamos um teste controlado que sustente isso."
+      },
+      "1": {
+        "question": "O SupoClip adiciona marca d'água?",
+        "answer": "Não. O pipeline de renderização do SupoClip não tem uma etapa de marca d'água, nem no app hospedado nem em uma instalação auto-hospedada. O centro de ajuda do OpusClip diz que exportações do plano grátis podem incluir uma marca d'água do OpusClip."
+      },
+      "2": {
+        "question": "O SupoClip hospedado tem um plano grátis?",
+        "answer": "Não. O app hospedado exige uma assinatura Pro ou Creator para processar vídeos. O caminho grátis é auto-hospedar o código aberto, onde não há limites de plano; você paga só a própria infraestrutura e os provedores de IA que configurar."
+      },
+      "3": {
+        "question": "Qual é mais rápido ou faz clipes melhores?",
+        "answer": "Não publicamos um teste controlado de velocidade ou qualidade de clipes, então não fazemos essa afirmação. Os resultados dependem dos seus vídeos e ajustes; os passos de teste justo nesta página mostram como compará-los no seu próprio conteúdo."
+      }
+    },
+    "intro": "O OpusClip ajudou a definir o corte com IA: você envia um vídeo longo e recebe clipes verticais curtos. O SupoClip faz o mesmo trabalho como projeto de código aberto que você pode usar hospedado ou rodar por conta própria. Esta comparação fica no que cada produto documenta. Afirmações sobre o SupoClip apontam para o nosso código. Afirmações sobre o OpusClip apontam para o centro de ajuda do próprio OpusClip. Onde uma fonte não cobre algo, a tabela diz isso em vez de adivinhar.",
+    "introNote": "Esta página não avalia a qualidade dos clipes, a exatidão das legendas nem a velocidade de processamento. Para comparar isso, veja <test>como fazer seu próprio teste</test>.",
+    "verdict": {
+      "heading": "A resposta curta",
+      "supoclip": "<strong>Escolha o SupoClip</strong> se você quer auto-hospedar, inspecionar ou modificar o código, escolher os próprios modelos de IA (inclusive os totalmente locais) ou exportar sem marca d'água.",
+      "opusclip": "<strong>Escolha o OpusClip</strong> se você quer um produto gerenciado que nunca precise implantar e quer começar em um plano grátis."
+    },
+    "comparison": {
+      "heading": "Lado a lado",
+      "caption": "Comparação de SupoClip e OpusClip com fontes",
+      "area": "Área",
+      "footnote": "“Não coberto pelas fontes abaixo” significa que os artigos citados do centro de ajuda do OpusClip não tratam disso. Não significa que o OpusClip não tenha o recurso. Confira <site>opus.pro</site> para o que não está listado aqui."
+    },
+    "rows": {
+      "deployment": {
+        "label": "Como você executa",
+        "supoclip": "App hospedado, app de iOS ou auto-hospedado com <compose>Docker Compose</compose>",
+        "opusclip": "Serviço hospedado"
+      },
+      "source": {
+        "label": "Código-fonte",
+        "supoclip": "Público, <license>AGPL-3.0</license>"
+      },
+      "pricing": {
+        "label": "Modelo de preço",
+        "supoclip": "Hospedado: planos mensais com um número fixo de vídeos. Auto-hospedado: sem limites de plano.",
+        "opusclip": "Planos com créditos por minutos de processamento, mais um plano grátis (<plans>centro de ajuda</plans>)"
+      },
+      "watermark": {
+        "label": "Marca d'água",
+        "supoclip": "Nenhuma; o <pipeline>pipeline de renderização</pipeline> não tem uma etapa de marca d'água",
+        "opusclip": "Exportações do plano grátis podem incluir uma (<watermark>centro de ajuda</watermark>)"
+      },
+      "models": {
+        "label": "Escolha do modelo de IA",
+        "supoclip": "OpenAI, Google, Anthropic, OpenRouter ou Ollama local (<config>configuração</config>)"
+      },
+      "transcription": {
+        "label": "Transcrição",
+        "supoclip": "AssemblyAI, Whisper local ou legendas do YouTube"
+      },
+      "automation": {
+        "label": "Automação",
+        "supoclip": "API REST com chaves por usuário e um <mcp>servidor MCP</mcp>"
+      }
+    },
+    "pricing": {
+      "heading": "Modelo de preço: créditos versus planos versus a sua própria infraestrutura",
+      "p1": "O <plans>artigo de planos e créditos</plans> do OpusClip descreve planos pagos que usam créditos por minutos de processamento, mais um plano grátis. O <watermark>artigo de marca d'água</watermark> diz que exportações do plano grátis podem levar uma marca d'água do OpusClip. Preços e quantidades de crédito mudam, então confira a página de preços atual do OpusClip em vez de confiar em números copiados num post.",
+      "p2": "O SupoClip oferece dois caminhos. O app hospedado tem <pro>{proName}</pro> a ${proPrice}/mês por {proLimit} horas de vídeo em 720p e <scale>{scaleName}</scale> a ${scalePrice}/mês por {scaleLimit} horas em 1080p, com cobrança anual e dois meses grátis. Não há plano hospedado grátis; processar exige uma assinatura. O caminho auto-hospedado é software grátis sem limites de plano. Você paga o servidor e as APIs de IA que configurar, e o <guide>guia de auto-hospedagem</guide> mostra uma instalação totalmente local sem taxas de IA por pedido."
+    },
+    "chooseSupoclip": {
+      "heading": "Quando o SupoClip encaixa melhor",
+      "li1": "<strong>Você precisa controlar para onde o vídeo vai.</strong> Auto-hospedar mantém o app, o banco de dados e os clipes renderizados na sua infraestrutura. Com Whisper e Ollama, a transcrição e a seleção de clipes também rodam localmente.",
+      "li2": "<strong>Você tem um acervo grande.</strong> Instalações auto-hospedadas não têm teto mensal de vídeos. A vazão depende do seu hardware e dos limites do provedor.",
+      "li3": "<strong>Você quer mudar como os clipes são escolhidos.</strong> O prompt de seleção, a pontuação, os modelos de legenda e a renderização estão no repositório.",
+      "li4": "<strong>Você está levando o corte para outra ferramenta.</strong> Chaves de API, uma API REST e um servidor MCP deixam scripts e agentes de IA criar e baixar clipes."
+    },
+    "chooseOpusclip": {
+      "heading": "Quando o OpusClip encaixa melhor",
+      "li1": "<strong>Você não quer operar nada.</strong> Auto-hospedar significa cuidar do Docker, das chaves de provedor, das atualizações e dos backups.",
+      "li2": "<strong>Você quer testar antes de pagar.</strong> O OpusClip documenta um plano grátis (com uma possível marca d'água). O SupoClip hospedado não tem um nível grátis.",
+      "li3": "<strong>Você depende de recursos que não estão aqui.</strong> Se um fluxo específico do OpusClip importa para você, confirme em opus.pro e teste se o SupoClip cobre isso antes de trocar."
+    },
+    "test": {
+      "heading": "Como fazer seu próprio teste justo",
+      "intro": "A comparação que mais importa é a feita no seu próprio conteúdo:",
+      "li1": "Escolha duas ou três gravações que representem o seu canal: uma fácil (uma pessoa falando) e uma difícil (várias pessoas, compartilhamento de tela).",
+      "li2": "Passe cada uma pelas duas ferramentas com os ajustes padrão e anote o tempo do envio até os clipes prontos.",
+      "li3": "Embaralhe os clipes e revise sem saber qual ferramenta fez cada um. Avalie se cada clipe faz sentido sem contexto, tem um gancho claro, enquadra quem fala corretamente e tem legendas corretas.",
+      "li4": "Conte as edições que cada clipe precisa antes de você publicar. O tempo de edição é um custo que o preço da assinatura não mostra.",
+      "demo": "Quer ver primeiro o resultado do SupoClip? A <demo>página de demo</demo> mostra clipes reais ao lado de links para os timestamps originais."
+    },
+    "sources": {
+      "heading": "Fontes",
+      "opus": "Centro de ajuda do OpusClip: <plans>Planos e créditos</plans> e <watermark>Marca d'água</watermark>. Os planos podem mudar; confirme os detalhes atuais em <site>opus.pro</site>.",
+      "supoclip": "SupoClip: <repo>repositório público</repo>, incluindo <compose>docker-compose.yml</compose>, <config>documentação de configuração</config> e <billing>regras de cobrança</billing>. Os preços hospedados vêm da seção de preços de supoclip.com."
+    }
+  },
+  "self-host-supoclip-docker": {
+    "title": "Como auto-hospedar o SupoClip com Docker Compose",
+    "description": "Auto-hospede o SupoClip, o cortador de vídeo com IA de código aberto: requisitos, configuração do .env, uma opção totalmente local com Whisper e Ollama, verificações da primeira execução e uma lista para produção.",
+    "eyebrow": "Guia de auto-hospedagem",
+    "category": "Guia",
+    "readingTime": "Leitura de 9 min",
+    "summary": "Um passo a passo prático da pilha Docker Compose do repositório: o que cada serviço faz, quais chaves você precisa, como rodar sem IA na nuvem e o que reforçar antes da produção.",
+    "breadcrumb": "Auto-hospedar o SupoClip",
+    "toc": {
+      "stack": "O que você executa",
+      "requirements": "Requisitos",
+      "install": "Instalar",
+      "local": "IA totalmente local",
+      "verify": "Verificar",
+      "production": "Lista para produção",
+      "upgrade": "Atualizações e backups",
+      "faq": "Perguntas frequentes"
+    },
+    "faqs": {
+      "0": {
+        "question": "O SupoClip auto-hospedado é grátis?",
+        "answer": "O código é grátis sob AGPL-3.0 e o modo auto-hospedado não tem limites de geração nem paywall. Você ainda paga o próprio hardware ou servidor, e qualquer transcrição na nuvem ou uso de LLM que configurar. Uma instalação com Whisper e Ollama evita taxas de IA por pedido, mas precisa de computação local suficiente."
+      },
+      "1": {
+        "question": "O SupoClip roda sem nenhum serviço de IA na nuvem?",
+        "answer": "Sim, para a análise de clipes. Defina TRANSCRIPTION_PROVIDER=whisper para transcrever localmente e LLM=ollama:<model> para escolher clipes com um modelo local. Baixar links do YouTube ainda precisa de internet; arquivos enviados não. O B-roll opcional usa a API do Pexels."
+      },
+      "2": {
+        "question": "Preciso de uma GPU?",
+        "answer": "Não. O modelo .env.example define BACKEND_CPU_ONLY=true, que instala o PyTorch só para CPU. A transcrição do Whisper só com CPU é mais lenta que uma API na nuvem, então vídeos longos demoram mais em hardware modesto."
+      },
+      "3": {
+        "question": "Funciona em Apple Silicon?",
+        "answer": "Sim, com uma ressalva: as imagens de backend e worker rodam como linux/amd64 sob emulação. BACKEND_CPU_ONLY=true evita downloads da NVIDIA, mas não ativa a aceleração da GPU da Apple."
+      },
+      "4": {
+        "question": "Como mantenho a minha instância privada?",
+        "answer": "Crie sua conta, depois defina DISABLE_SIGN_UP=true e recrie o contêiner do frontend. O Compose prende cada porta a 127.0.0.1, então nada fica público até você adicionar um proxy reverso."
+      }
+    },
+    "intro": "O SupoClip é o cortador de vídeo com IA de código aberto por trás do app hospedado em supoclip.com. O mesmo repositório traz uma pilha Docker Compose que você pode rodar num laptop, num servidor de casa ou num VPS. Este guia segue essa pilha exatamente como ela existe no <repo>repositório</repo>. Quando um passo depende do seu provedor ou do hardware, dizemos isso em vez de adivinhar.",
+    "introChoice": "Prefere não operar infraestrutura? O <hosted>app hospedado</hosted> roda o mesmo processo. Ainda escolhendo entre ferramentas? Leia primeiro a nossa <comparison>comparação SupoClip versus OpusClip</comparison>.",
+    "stack": {
+      "heading": "O que você está executando",
+      "lead": "<code>docker compose up</code> inicia estes contêineres, todos definidos em <compose>docker-compose.yml</compose>:",
+      "caption": "Serviços da pilha Docker Compose do SupoClip",
+      "service": "Serviço",
+      "role": "Função",
+      "port": "Porta do host",
+      "rows": {
+        "frontend": {
+          "role": "App web Next.js, autenticação e proxy da API",
+          "port": "FRONTEND_PORT (3107 em .env.example; 3001 se não for definido)"
+        },
+        "backend": {
+          "role": "API FastAPI; documentação em /docs",
+          "port": "8000"
+        },
+        "worker": {
+          "role": "Worker ARQ: baixa, transcreve, analisa e renderiza",
+          "port": "nenhuma"
+        },
+        "postgres": {
+          "role": "PostgreSQL 15: usuários, tarefas, clipes",
+          "port": "nenhuma"
+        },
+        "redis": {
+          "role": "Redis 7: fila de jobs e progresso ao vivo",
+          "port": "6379"
+        },
+        "mcp": {
+          "role": "Servidor MCP para clientes de IA (opcional mantê-lo rodando)",
+          "port": "9100"
+        }
+      },
+      "after": "Cada porta publicada fica presa a <code>127.0.0.1</code>, então uma instalação nova só é acessível a partir da própria máquina. Clipes gerados, envios, Postgres e Redis ficam em volumes nomeados do Docker, então sobrevivem a reinícios de contêineres. Se você não usa MCP, pare esse contêiner com <code>docker compose stop mcp</code>."
+    },
+    "requirements": {
+      "heading": "Requisitos",
+      "li1": "<strong>Docker</strong> com Compose v2 (<code>docker compose</code>) ou o <code>docker-compose</code> avulso, mais Git.",
+      "li2": "<strong>Uma fonte de transcrição</strong>, definida com <code>TRANSCRIPTION_PROVIDER</code>: <code>assemblyai</code> (padrão, precisa de <code>ASSEMBLY_AI_API_KEY</code>), <code>whisper</code> (local, sem chave) ou <code>youtube_captions</code> (só links do YouTube).",
+      "li3": "<strong>Um LLM para escolher clipes</strong>, definido com <code>LLM=provider:model</code>: OpenAI, Google, Anthropic, OpenRouter (cada um precisa da própria chave de API) ou um modelo local <code>ollama:</code>.",
+      "li4": "<strong>Opcional:</strong> <code>PEXELS_API_KEY</code> para sobreposições de B-roll.",
+      "note": "A primeira build das imagens baixa dependências de Python e Node. O <quickstart>início rápido</quickstart> estima 5–10 minutos; varia com a sua conexão e a CPU."
+    },
+    "install": {
+      "heading": "Instalar com Docker Compose",
+      "clone": "1. Clone e crie o seu arquivo de ambiente",
+      "labelTerminal": "terminal",
+      "providersHeading": "2. Escolha provedores em <code>.env</code>",
+      "providersBody": "O modelo usa por padrão <code>LLM=openrouter:anthropic/claude-sonnet-5.5</code>. O processamento falha se você não definir <code>OPENROUTER_API_KEY</code> ou não apontar <code>LLM</code> para um provedor do qual você tenha chave. Uma configuração mínima na nuvem fica assim:",
+      "labelEnv": ".env",
+      "secrets": "Gere cada segredo com <code>openssl rand -base64 32</code>. <code>SELF_HOST=true</code> (o padrão) deixa a cobrança desligada e remove os limites de geração por conta.",
+      "build": "3. Faça o build e inicie",
+      "open": "Abra <code>http://localhost:3107</code>, crie uma conta e cole um link do YouTube, da Twitch ou da Kick ou envie um arquivo. A documentação da API fica em <code>http://localhost:8000/docs</code>."
+    },
+    "local": {
+      "heading": "Opção: transcrição e seleção de clipes totalmente locais",
+      "intro": "Para manter transcrições e análise no seu próprio hardware, combine o Whisper local com um modelo do Ollama:",
+      "worker": "O worker faz as chamadas ao Ollama de dentro do contêiner, então o Ollama precisa ser alcançável a partir dali, não só do seu shell. Como chegar lá depende de onde o Ollama roda:",
+      "desktopHeading": "Ollama no host, com Docker Desktop (macOS, Windows)",
+      "desktop": "Não precisa de configuração extra. O Docker Desktop encaminha <code>host.docker.internal</code> para o host, então deixe <code>OLLAMA_BASE_URL</code> vazio e baixe o modelo com <code>ollama pull gpt-oss:20b</code>.",
+      "linuxHeading": "Ollama no host, com Docker Engine (Linux)",
+      "linux": "O Compose mapeia <code>host.docker.internal</code> para o gateway da bridge do Docker, mas o Ollama escuta só em <code>127.0.0.1</code> por padrão, então a conexão do worker é recusada. Faça o Ollama escutar em todas as interfaces:",
+      "expose": "Isso também expõe a porta 11434 nas suas interfaces de rede. O Ollama não tem autenticação, então bloqueie essa porta de fora da máquina com o firewall. Se o firewall filtrar tráfego das redes do Docker, permita também que os contêineres a alcancem.",
+      "containerHeading": "Ollama no próprio contêiner",
+      "container": "Adicione-o à pilha com um arquivo de override e depois aponte o SupoClip para o nome do serviço em vez do host:",
+      "labelOverride": "docker-compose.override.yml (una com qualquer override que você já tenha)",
+      "labelEnvTerminal": ".env e terminal",
+      "whichever": "Seja qual for a configuração, teste de dentro do worker antes de enviar um vídeo. A verificação procura <code>gpt-oss:20b</code> porque esse é o modelo do valor de exemplo de <code>LLM</code>. Se você escolheu outro modelo, troque pelo nome exato depois de <code>ollama:</code> no seu ajuste de <code>LLM</code>. O Ollama lista um modelo baixado sem tag como <code>name:latest</code>, então use essa forma na verificação.",
+      "ready": "<code>model ready</code> significa que o worker alcança o Ollama e que o modelo procurado está instalado. Sem saída, a conexão falhou ou o modelo falta, então rode o comando de novo sem o <code>grep</code> para ver qual é. Modelos menores do Whisper trocam exatidão por velocidade, e a qualidade do clipe depende do LLM. Compare um modelo local com um hospedado numa gravação que você conhece antes de trocar o acervo inteiro."
+    },
+    "verify": {
+      "heading": "Verifique a instalação",
+      "li1": "Crie uma conta e envie primeiro um vídeo curto, para uma configuração errada falhar rápido.",
+      "li2": "Confirme que a página da tarefa mostre o progresso. Se ficar na fila, veja os logs do worker.",
+      "li3": "Reproduza e baixe um clipe pronto.",
+      "stuck": "Tarefas travadas costumam ser uma chave de provedor faltando ou um worker que não alcança o Redis. O <guide>guia de solução de problemas</guide> cobre os casos comuns."
+    },
+    "production": {
+      "heading": "Lista para produção",
+      "intro": "O arquivo do Compose está afinado para começar. Antes de colocá-lo num domínio público:",
+      "li1": "<strong>Faça o build do frontend de produção.</strong> O Compose usa por padrão o target <code>development</code> com recarga a quente e monta <code>frontend/src</code> no contêiner. Defina <code>FRONTEND_BUILD_TARGET=runner</code> e <code>NODE_ENV=production</code> em <code>.env</code> e depois tire as montagens do código com o override abaixo.",
+      "li2": "<strong>Encerre HTTPS num proxy reverso</strong> (Caddy, nginx, Traefik) na frente da porta do frontend.",
+      "li3": "<strong>Exponha o backend para envios.</strong> Com <code>BACKEND_AUTH_SECRET</code> definido, os navegadores enviam arquivos de vídeo direto para <code>NEXT_PUBLIC_API_URL</code>. Aponte isso para uma URL HTTPS pública do backend e adicione a origem do frontend a <code>CORS_ORIGINS</code>.",
+      "li4": "<strong>Defina a origem pública em todo lugar:</strong> <code>NEXT_PUBLIC_APP_URL</code>, <code>BETTER_AUTH_URL</code> e <code>CORS_ORIGINS</code>. Valores <code>NEXT_PUBLIC_*</code> entram no build, então refaça o build do frontend depois de mudá-los.",
+      "li5": "<strong>Mude a senha do banco de dados.</strong> <code>docker-compose.yml</code> deixa <code>supoclip_password</code> fixo em quatro lugares: <code>POSTGRES_PASSWORD</code> no serviço <code>postgres</code> e <code>DATABASE_URL</code> nos serviços <code>frontend</code>, <code>backend</code> e <code>worker</code>. Editar só <code>POSTGRES_PASSWORD</code> em <code>.env</code> não muda nenhum deles. Sobrescreva os quatro, como mostrado abaixo.",
+      "li6": "<strong>Defina <code>REDIS_PASSWORD</code></strong>; o contêiner do Redis ativa AUTH quando o valor não está vazio.",
+      "li7": "<strong>Feche os cadastros</strong> com <code>DISABLE_SIGN_UP=true</code> se a instância for só para a sua equipe.",
+      "li8": "<strong>Revise os limites:</strong> <code>MAX_VIDEO_DURATION</code> (padrão 5400 s, 90 minutos) e <code>MAX_VIDEO_UPLOAD_BYTES</code> (padrão 4 GB).",
+      "labelReset": "docker-compose.override.yml (Compose v2.24+)",
+      "passwordIntro": "Para a senha do banco, coloque um valor novo em <code>POSTGRES_PASSWORD</code> dentro de <code>.env</code>. Gere com <code>openssl rand -hex 24</code>, porque hexadecimal não precisa de escape dentro de uma URL. Depois aponte as quatro configurações para ele no mesmo arquivo de override:",
+      "labelPassword": "docker-compose.override.yml (una com qualquer override que você já tenha)",
+      "existing": "O Postgres lê <code>POSTGRES_PASSWORD</code> só quando inicializa um volume de dados vazio. Numa instalação que já tem banco, mudar essa variável não muda a senha real. Troque-a primeiro dentro do Postgres, com o mesmo valor de <code>.env</code>. Depois recrie os serviços para que usem as URLs novas:",
+      "labelExisting": "terminal (banco existente)",
+      "docs": "<config>docs/configuration.md</config> lista cada variável, e <setup>docs/setup.md</setup> cobre portas personalizadas e URLs públicas."
+    },
+    "upgrade": {
+      "heading": "Atualizações e backups",
+      "intro": "<code>init.sql</code> cria o esquema só quando o volume do Postgres é inicializado pela primeira vez. Depois disso, nada atualiza o esquema automaticamente. Se uma versão nova adicionar arquivos em <code>frontend/prisma/migrations</code> ou <code>backend/migrations</code>, aplique-os você mesmo antes de reiniciar o app. Código novo contra o esquema antigo falha por colunas e tabelas faltando. Faça backup primeiro e pare os serviços do app para que não peguem o código novo cedo demais. O frontend de desenvolvimento recarrega a quente o código montado.",
+      "apply": "Leia cada arquivo listado e aplique-o numa única transação. Aplique migrações do Prisma em ordem de timestamp e as do backend em ordem numérica:",
+      "prisma": "Um banco criado por <code>init.sql</code> não tem histórico de migrações do Prisma. Não rode <code>prisma migrate deploy</code> nele: o Prisma repetiria cada migração desde a primeira e falharia em tabelas que já existem. Se você quer que o Prisma gerencie as migrações daqui para frente, primeiro faça o baseline com",
+      "prismaAfter": ", mas só para migrações cujas mudanças já estão no seu esquema. O Prisma pula de forma permanente qualquer migração que você marcar como aplicada, mesmo se as mudanças estiverem faltando.",
+      "volumes": "Faça backup também dos volumes <code>clips</code> e <code>uploads</code> se precisar guardar os vídeos renderizados. Nunca rode <code>docker compose down -v</code> numa instância que importa: isso apaga cada volume, inclusive o banco.",
+      "customize": "Quer personalizar a saída? Coloque fontes <code>.ttf</code> em <code>backend/fonts/</code> e transições <code>.mp4</code> em <code>backend/transitions/</code>. Elas aparecem no app automaticamente. Para automação, crie uma chave de API em Configurações e use a <api>API REST</api> ou o servidor MCP incluído."
+    }
+  },
+  "best-free-opusclip-alternative": {
+    "title": "A melhor alternativa grátis e auto-hospedada ao OpusClip",
+    "description": "Procura uma alternativa grátis ao OpusClip? O SupoClip é um criador de clipes com IA de código aberto que você pode auto-hospedar de graça. Ele transforma vídeos longos em shorts verticais com legendas.",
+    "eyebrow": "Alternativa ao OpusClip",
+    "category": "Comparação",
+    "readingTime": "Leitura de 6 min",
+    "summary": "O SupoClip foi feito para quem quer corte com IA no estilo do OpusClip na própria infraestrutura, sem outra assinatura baseada em créditos.",
+    "lead": "Se você gosta da ideia do OpusClip, mas quer um caminho grátis e de código aberto, o SupoClip entrega o fluxo central: achar momentos fortes em vídeos longos, reenquadrar na vertical, adicionar legendas e exportar clipes para Shorts, Reels e TikTok.",
+    "bestFor": "Ideal para",
+    "audience": {
+      "0": "Quem corta vídeos do YouTube em shorts",
+      "1": "Equipes que preferem auto-hospedar",
+      "2": "Desenvolvedores que querem controle do código"
+    },
+    "openHosted": "Abrir a versão hospedada",
+    "p1": "O OpusClip ajudou a definir a categoria moderna de corte com IA: você envia um vídeo longo, a IA identifica momentos e você publica clipes curtos mais rápido. Esse fluxo é útil. O atrito começa quando você quer um caminho grátis, mais controle ou um pipeline que você mesmo rode.",
+    "p2": "O SupoClip é a melhor alternativa grátis ao OpusClip para esse criador: alguém que quer descoberta de clipes com IA, exportações verticais, legendas e controle do sistema por baixo. Você também pode <hosted>usar o SupoClip hospedado</hosted> em um plano pago se quiser pular a instalação.",
+    "verdict": {
+      "heading": "Veredito rápido",
+      "body": "Escolha o SupoClip se você quer um cortador de vídeo com IA de código aberto que possa auto-hospedar. Escolha o OpusClip se você quer um produto hospedado gerenciado e aceita os limites de plano, as regras de marca d'água e o modelo de créditos."
+    },
+    "stats": {
+      "0": {
+        "label": "Custo",
+        "value": "Código-fonte grátis"
+      },
+      "1": {
+        "label": "Fluxo",
+        "value": "De vídeo longo para shorts"
+      },
+      "2": {
+        "label": "Controle",
+        "value": "Dá para auto-hospedar"
+      }
+    },
+    "why": {
+      "heading": "Por que criadores procuram uma alternativa ao OpusClip",
+      "p1": "Os motivos de sempre são simples: custos menores, exportações mais limpas em um fluxo grátis, mais controle do processamento e menos limites ao passar em lote vídeos antigos do YouTube, podcasts, webinars ou transmissões.",
+      "p2": "O próprio centro de ajuda do OpusClip diz que exportações do plano grátis podem mostrar uma marca d'água do OpusClip, e os planos usam créditos por minutos de processamento. Para um teste casual, pode servir. Para cortar com frequência, pode empurrar para um fluxo hospedado pago."
+    },
+    "different": {
+      "heading": "O que torna o SupoClip diferente",
+      "p1": "O SupoClip não é só uma camada fina em cima de um editor hospedado. É um app de corte de código aberto completo, com backend em FastAPI, frontend em Next.js, workers em segundo plano, transcrição, nota de IA, reenquadramento vertical que segue o rosto, estilos de legenda e predefinições de exportação.",
+      "p2": "Isso deixa a troca clara. Você assume a instalação, mas ganha propriedade. Pode inspecionar o código, adaptá-lo ao seu fluxo e decidir quais provedores de IA hospedados ou modelos locais usar. O <guide>guia de auto-hospedagem</guide> percorre a instalação, inclusive uma opção totalmente local com Whisper e Ollama."
+    },
+    "compare": {
+      "heading": "SupoClip versus OpusClip",
+      "body": "O resumo abaixo cobre o essencial. Para uma comparação linha a linha com uma fonte para cada afirmação, leia <comparison>SupoClip versus OpusClip: uma comparação com fontes</comparison>."
+    },
+    "table": {
+      "feature": "Recurso",
+      "rows": {
+        "0": {
+          "feature": "Modelo de uso grátis",
+          "supoclip": "Código aberto e auto-hospedável, sem limites de plano. Seus custos são a própria computação e as chaves de API. O app hospedado é pago.",
+          "opusclip": "Existe um plano grátis, mas as exportações podem incluir uma marca d'água do OpusClip."
+        },
+        "1": {
+          "feature": "Descoberta de clipes",
+          "supoclip": "Transcreve vídeos longos, pontua trechos e destaca momentos promissores de formato curto.",
+          "opusclip": "Fluxo de corte com IA feito para achar clipes prontos para as redes a partir de vídeos longos."
+        },
+        "2": {
+          "feature": "Formato vertical",
+          "supoclip": "Corte 9:16 centrado no rosto, legendas e exportações prontas para a plataforma.",
+          "opusclip": "Oferece exportações de formato curto e reenquadramento com IA para redes sociais."
+        },
+        "3": {
+          "feature": "Controle",
+          "supoclip": "Acesso completo ao código, implantação editável e sem ficar preso a um fornecedor.",
+          "opusclip": "Produto hospedado com fluxos gerenciados e níveis de assinatura."
+        }
+      }
+    },
+    "how": {
+      "heading": "Como o SupoClip funciona",
+      "steps": {
+        "0": "Cole uma URL do YouTube, da Twitch ou da Kick ou envie um vídeo.",
+        "1": "O SupoClip transcreve o original e encontra momentos candidatos.",
+        "2": "A IA pontua os clipes por força do gancho, engajamento, valor e potencial de compartilhamento.",
+        "3": "O editor cria clipes verticais com legendas e enquadramento que segue o rosto.",
+        "4": "Você exporta shorts para YouTube Shorts, TikTok, Instagram Reels ou outros feeds."
+      }
+    },
+    "better": {
+      "heading": "Quando o SupoClip é a melhor escolha",
+      "body": "O SupoClip é melhor quando você quer uma alternativa grátis ao OpusClip com controle de desenvolvimento. É especialmente útil para quem tem um acervo de vídeos longos, agências que querem personalizar o fluxo de corte ou equipes técnicas que querem corte com IA dentro da própria pilha."
+    },
+    "opus": {
+      "heading": "Quando o OpusClip ainda pode ser melhor",
+      "body": "O OpusClip ainda pode encaixar melhor se você quer a conveniência de um serviço hospedado polido e não quer pensar em implantação, infraestrutura, chaves de modelo, filas ou manutenção."
+    },
+    "cta": {
+      "kicker": "Grátis se você auto-hospeda, planos pagos se não",
+      "title": "Comece a cortar com o SupoClip.",
+      "selfHost": "Guia de auto-hospedagem",
+      "openApp": "Abrir o app"
+    },
+    "faqs": {
+      "0": {
+        "question": "Qual é a melhor alternativa grátis ao OpusClip?",
+        "answer": "O SupoClip é uma alternativa grátis forte ao OpusClip se você quer um criador de clipes com IA de código aberto que possa auto-hospedar, personalizar e rodar com o seu próprio fluxo de vídeo."
+      },
+      "1": {
+        "question": "O SupoClip é totalmente grátis?",
+        "answer": "O código do SupoClip é grátis e de código aberto, e as instalações auto-hospedadas não têm limites de plano. Você ainda paga a própria infraestrutura e qualquer provedor de transcrição ou LLM que configurar. O app hospedado exige um plano pago."
+      },
+      "2": {
+        "question": "O SupoClip adiciona marca d'água?",
+        "answer": "Não. O pipeline de renderização do SupoClip não tem uma etapa de marca d'água, seja no app hospedado ou em uma instalação auto-hospedada."
+      }
+    },
+    "relatedHeading": "Guias relacionados do SupoClip",
+    "sources": {
+      "heading": "Fontes",
+      "body": "As notas sobre planos e marca d'água do OpusClip se baseiam no centro de ajuda oficial do OpusClip: <plans>planos e créditos</plans> e <watermark>orientação sobre marca d'água</watermark>."
+    },
+    "toc": {
+      "label": "Artigo",
+      "verdict": "Veredito rápido",
+      "comparison": "Comparação",
+      "faq": "Perguntas frequentes"
+    },
+    "aside": {
+      "title": "Controle de código aberto",
+      "body": "Use o SupoClip quando quiser o fluxo de corte sem entregar cada decisão a uma plataforma hospedada."
+    }
+  }
+}

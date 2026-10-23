@@ -1,0 +1,275 @@
+{
+  "metadata": {
+    "title": "SupoClip – Clipper de vídeo com IA de código aberto para Shorts",
+    "description": "Transforme vídeos longos e VODs da Twitch ou da Kick em YouTube Shorts, TikToks e Reels legendados, com clipping de IA de código aberto, pontuação de viralidade e cortes 9:16 centrados no rosto.",
+    "openGraphDescription": "Transforme vídeos longos e VODs da Twitch ou da Kick em YouTube Shorts, TikToks e Reels legendados com clipping de IA de código aberto.",
+    "twitterDescription": "Clipping de IA de código aberto, pontuação de viralidade, legendas e cortes verticais centrados no rosto.",
+    "keywords": {
+      "clipper": "clipper de vídeo com IA",
+      "openSource": "clipper de vídeo de código aberto",
+      "shorts": "clipper de YouTube Shorts",
+      "longToShorts": "vídeo longo para shorts",
+      "maker": "criador de clipes com IA"
+    },
+    "structured": {
+      "software": "Um clipper de vídeo com IA de código aberto para encontrar destaques, criar cortes verticais, adicionar legendas sincronizadas por palavra e exportar vídeos curtos.",
+      "featureDiscovery": "Descoberta de clipes com IA e pontuação de viralidade",
+      "featureCrop": "Corte vertical 9:16 centrado no rosto",
+      "featureCaptions": "Legendas animadas sincronizadas por palavra",
+      "featureExports": "Exportações para YouTube Shorts, TikTok e Instagram Reels",
+      "featureSelfHost": "Auto-hospedagem de código aberto",
+      "offerCategory": "Edição de código aberto auto-hospedada",
+      "ios": "O app SupoClip para iOS: transforme vídeos longos em shorts verticais legendados no seu iPhone.",
+      "website": "Clipping de vídeo com IA de código aberto para conteúdo curto."
+    }
+  },
+  "footer": {
+    "tagline": "Clipper de vídeo com IA de código aberto. Use o app hospedado ou rode na sua própria infraestrutura.",
+    "github": "GitHub",
+    "ios": "App para iOS",
+    "columns": {
+      "guides": "Guias",
+      "compare": "Comparar",
+      "product": "Produto"
+    },
+    "columnLinks": "Links de {heading}"
+  },
+  "creator": {
+    "codeLead": "Código",
+    "codeTail": "aplicado: 20% de desconto nos seus primeiros 3 meses.",
+    "start": "Comece a criar clipes",
+    "dismiss": "Dispensar"
+  },
+  "related": {
+    "continueExploring": "Continue explorando",
+    "keepReading": "Continue lendo",
+    "relatedGuides": "Guias relacionados do SupoClip",
+    "read": "Ler"
+  },
+  "links": {
+    "demo": {
+      "label": "Demo",
+      "eyebrow": "Demo",
+      "title": "Veja clipes reais que o SupoClip fez a partir de um vídeo longo",
+      "description": "Assista ao resultado e pule para cada momento no vídeo original."
+    },
+    "ai_video_clipper": {
+      "label": "Clipper de vídeo com IA",
+      "eyebrow": "Clipping de vídeo com IA",
+      "title": "Clipper de vídeo com IA para Shorts, Reels e TikTok",
+      "description": "Como o SupoClip encontra momentos, pontua candidatos, reenquadra rostos e adiciona legendas."
+    },
+    "youtube_shorts_clipper": {
+      "label": "Clipper de YouTube Shorts",
+      "eyebrow": "Do YouTube para Shorts",
+      "title": "Reaproveite vídeos longos do YouTube em Shorts",
+      "description": "Um fluxo prático para escolher, legendar, reenquadrar e revisar clipes."
+    },
+    "open_source_video_clipper": {
+      "label": "Clipper de código aberto",
+      "eyebrow": "Código aberto",
+      "title": "Um clipper de vídeo de código aberto que você controla",
+      "description": "O que a auto-hospedagem muda em controle, provedores de modelo e infraestrutura."
+    },
+    "blog_self_host_supoclip_docker": {
+      "label": "Guia de auto-hospedagem",
+      "eyebrow": "Guia de auto-hospedagem",
+      "title": "Auto-hospede o SupoClip com Docker Compose",
+      "description": "Requisitos, variáveis de ambiente, primeira inicialização, uma instalação totalmente local e checagens de produção."
+    },
+    "blog_supoclip_vs_opusclip": {
+      "label": "SupoClip vs OpusClip",
+      "eyebrow": "Comparação",
+      "title": "SupoClip vs OpusClip: uma comparação com fontes",
+      "description": "Modelo de preço, implantação, marcas d'água e fluxo de trabalho, com cada afirmação ligada a uma fonte."
+    },
+    "blog_best_free_opusclip_alternative": {
+      "label": "Alternativa auto-hospedada ao OpusClip",
+      "eyebrow": "Comparação",
+      "title": "A melhor alternativa gratuita e auto-hospedada ao OpusClip",
+      "description": "Quando um clipper de código aberto e auto-hospedado é melhor do que uma ferramenta baseada em créditos."
+    },
+    "blog_supoclip_vs_supo_live": {
+      "label": "SupoClip vs supo.live",
+      "eyebrow": "Comparação",
+      "title": "SupoClip vs supo.live: controle de código aberto",
+      "description": "Compare auto-hospedagem, clipping com IA e fluxos de edição antes de escolher uma ferramenta de vídeo."
+    },
+    "sign_up": {
+      "label": "Comece a criar clipes"
+    },
+    "pricing": {
+      "label": "Preços"
+    },
+    "affiliate": {
+      "label": "Afiliados"
+    },
+    "status": {
+      "label": "Status do serviço"
+    },
+    "privacy": {
+      "label": "Privacidade"
+    },
+    "terms": {
+      "label": "Termos"
+    },
+    "blog": {
+      "label": "Todos os artigos"
+    }
+  },
+  "nav": {
+    "howItWorks": "Como funciona",
+    "features": "Recursos",
+    "pricing": "Preços",
+    "openSource": "Código aberto",
+    "blog": "Blog",
+    "affiliate": "Afiliados",
+    "signIn": "Entrar",
+    "getStarted": "Começar",
+    "openHosted": "Abrir o app hospedado",
+    "toggleMenu": "Abrir ou fechar o menu"
+  },
+  "hero": {
+    "badge": "Código aberto e auto-hospedável",
+    "titleLine1": "Clipper de vídeo com IA de código aberto",
+    "titleLine2": "para shorts melhores",
+    "body": "Transforme vídeos do YouTube, VODs da Twitch e da Kick ou seus próprios arquivos em Shorts, TikToks e Reels legendados, com detecção de destaques por IA, pontuação de viralidade e cortes verticais centrados no rosto.",
+    "startClipping": "Comece a criar clipes",
+    "useHosted": "Usar o app hospedado",
+    "viewSource": "Ver o código",
+    "appStoreAria": "Baixe o SupoClip na App Store",
+    "appStoreAlt": "Baixar na App Store",
+    "chips": {
+      "crop": "Corte automático 9:16",
+      "captions": "Legendas sincronizadas",
+      "virality": "Pontuação de viralidade"
+    },
+    "productHuntAlt": "SupoClip - Clipper de vídeo com IA de código aberto: vídeos longos em shorts virais | Product Hunt",
+    "player": {
+      "source": "youtube.com · vídeo longo de origem",
+      "clipsFound": "{count} clipes encontrados",
+      "pause": "Pausar clipe",
+      "play": "Reproduzir clipe",
+      "unmute": "Ativar o som do clipe",
+      "mute": "Silenciar clipe",
+      "howMade": "Como estes clipes foram feitos"
+    },
+    "sources": {
+      "label": "Funciona com",
+      "upload": "Seus próprios arquivos"
+    }
+  },
+  "steps": {
+    "title": "Três passos. Zero esforço.",
+    "items": {
+      "drop": {
+        "title": "Solte um link ou um arquivo",
+        "description": "Cole um link do YouTube, da Twitch ou da Kick (VOD ou clipe) ou arraste o seu próprio arquivo de vídeo."
+      },
+      "gold": {
+        "title": "A IA encontra o ouro",
+        "description": "A transcrição, a pontuação de viralidade e a detecção de trechos revelam os melhores momentos."
+      },
+      "export": {
+        "title": "Exporte e publique",
+        "description": "Receba clipes verticais, legendados e com rastreamento de rosto, prontos para cada plataforma."
+      }
+    }
+  },
+  "features": {
+    "title": "Tudo o que você precisa para viralizar",
+    "body": "Clipping de vídeo de nível profissional, com inteligência de IA em cada etapa do processo.",
+    "items": {
+      "faceCrop": {
+        "title": "Corte centrado no rosto",
+        "description": "MediaPipe + OpenCV detecta e acompanha rostos para um enquadramento vertical 9:16 perfeito."
+      },
+      "subtitles": {
+        "title": "Legendas sincronizadas por palavra",
+        "description": "Marcações de tempo por palavra geram legendas animadas no tempo certo em cada clipe."
+      },
+      "virality": {
+        "title": "Pontuação de viralidade",
+        "description": "A IA avalia gancho, engajamento, valor e potencial de compartilhamento — de 0 a 100."
+      },
+      "broll": {
+        "title": "Sobreposições de B-roll",
+        "description": "Busque e sobreponha automaticamente imagens de arquivo relevantes do Pexels."
+      },
+      "templates": {
+        "title": "Modelos de legenda",
+        "description": "Vários estilos de animação e fontes para combinar com a sua marca."
+      },
+      "export": {
+        "title": "Exportação por plataforma",
+        "description": "Predefinições de um clique para TikTok, Reels e Shorts com codificação otimizada."
+      }
+    }
+  },
+  "pricing": {
+    "title": "Preços simples, sem surpresas",
+    "body": "Grátis para auto-hospedar. Os planos hospedados começam em ${price}/mês, com processamento e hospedagem inclusos. Mude ou cancele quando quiser.",
+    "popular": "Mais popular",
+    "period": {
+      "forever": "para sempre",
+      "month": "/mês",
+      "year": "/ano"
+    },
+    "generationsPerMonth": "{count} gerações por mês",
+    "selfHost": {
+      "description": "Rode no seu próprio computador. Sem assinatura nem limite mensal de vídeos.",
+      "features": {
+        "crop": "Corte centrado no rosto",
+        "subtitles": "Legendas sincronizadas por palavra",
+        "virality": "Pontuação de viralidade",
+        "exports": "Todas as predefinições de exportação",
+        "source": "Acesso completo ao código-fonte"
+      },
+      "cta": "Ver no GitHub",
+      "setup": "Configuração necessária. Você fornece o hardware e os serviços de IA pagos que escolher."
+    },
+    "pro": {
+      "description": "Para criadores que fazem clipes com constância todo mês.",
+      "cta": "Fazer upgrade para o Pro"
+    },
+    "scale": {
+      "description": "Para criadores que publicam todos os dias.",
+      "cta": "Fazer upgrade para Creator"
+    },
+    "hosted": {
+      "tracking": "Rastreamento de rosto, legendas e pontuação de viralidade",
+      "broll": "Sobreposições de B-roll",
+      "templates": "Modelos de legenda",
+      "exports": "Predefinições de exportação por plataforma",
+      "youtube3h": "Vídeos do YouTube de até 3 horas",
+      "priority": "Processamento prioritário",
+      "earlyAccess": "Acesso antecipado a novos recursos"
+    },
+    "selfHostNote": "Auto-hospedando? Todos os recursos são grátis e ilimitados.",
+    "selfHostGuide": "Ver o guia de auto-hospedagem",
+    "billedYearly": "${price}/mês, cobrado anualmente",
+    "usageExample": {
+      "videos": "Cerca de {count} vídeos de origem de {minutes} minutos por mês",
+      "clips": "Exemplo: {count} clipes curtos com {perVideo} por vídeo. O resultado varia; a sua quota conta os minutos do vídeo de origem."
+    }
+  },
+  "openSource": {
+    "badge": "Licença AGPL-3.0",
+    "title": "Feito às claras",
+    "body": "Totalmente de código aberto. Auto-hospede na sua infraestrutura, contribua com recursos ou faça um fork e deixe do seu jeito.",
+    "commandLabel": "Auto-hospede com Docker Compose:",
+    "comment": "# adicione um provedor de transcrição e de LLM no .env",
+    "tryHosted": "Testar a versão hospedada",
+    "openHosted": "Abrir a versão hospedada"
+  },
+  "guides": {
+    "eyebrow": "Guias e comparações",
+    "title": "Aprenda o fluxo completo de clipping",
+    "body": "Páginas práticas e com fontes para escolher um clipper de vídeo, auto-hospedar o SupoClip e transformar gravações longas em conteúdo curto.",
+    "read": "Ler o guia"
+  },
+  "cta": {
+    "title": "Pronto para criar clipes?",
+    "body": "Transforme o seu próximo vídeo em shorts que param o scroll. Use o app hospedado ou auto-hospede a versão de código aberto de graça."
+  }
+}

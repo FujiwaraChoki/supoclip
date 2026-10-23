@@ -1,0 +1,118 @@
+{
+  "greeting": {
+    "upLate": "Up late",
+    "goodMorning": "Good morning",
+    "goodAfternoon": "Good afternoon",
+    "goodEvening": "Good evening",
+    "named": "{greeting}, {name}"
+  },
+  "subtitle": "Drop in a long video. Get back captioned, ready-to-post clips.",
+  "errors": {
+    "fonts": "Could not load fonts right now.",
+    "notVideo": "That doesn't look like a video file. Try MP4, MOV, MKV or WebM.",
+    "fontType": "Only .ttf and .otf files are supported for custom fonts.",
+    "uploadFont": "Failed to upload font",
+    "uploadFontRetry": "Failed to upload font. Please try again.",
+    "processVideo": "Failed to process video. Please try again.",
+    "fileTooLarge": "This file is {size}, which is over the {limit} upload limit. Try a shorter export or a smaller file.",
+    "api": "API error: {status}"
+  },
+  "status": {
+    "uploading": "Uploading video…",
+    "checkingLength": "Checking video length…",
+    "starting": "Starting generation…",
+    "working": "Working…",
+    "uploadingFont": "Uploading…"
+  },
+  "drop": "Drop to upload your video",
+  "readyToUpload": "{size} · ready to upload",
+  "removeFile": "Remove file",
+  "youtubeUrl": "YouTube, Twitch, or Kick URL",
+  "urlPlaceholder": "Paste a YouTube, Twitch, or Kick VOD/clip link",
+  "uploadFile": "Upload a video file",
+  "upload": "Upload",
+  "defaultTemplate": "Default",
+  "defaultTemplateDescription": "Word-by-word captions",
+  "captionStyle": "Caption style",
+  "customize": "Customize",
+  "resetTemplate": "Reset to template",
+  "font": "Font",
+  "uploadFont": "Upload font",
+  "customFontsPaid": "Use your own fonts with a paid plan",
+  "searchFonts": "Search fonts",
+  "templateDefault": "Template default",
+  "noFontMatch": "No fonts match your search",
+  "color": "Color",
+  "template": "Template",
+  "captionColor": "Caption color {color}",
+  "customColor": "Custom color",
+  "customCaptionColor": "Custom caption color",
+  "livePreview": "Live preview",
+  "framing": "Framing",
+  "framingOptions": {
+    "vertical": {
+      "label": "Auto 9:16",
+      "hint": "Adapts to subjects and scene context"
+    },
+    "vertical_fit": {
+      "label": "Full frame 9:16",
+      "hint": "Show everything on a vertical canvas"
+    },
+    "vertical_pan": {
+      "label": "Speaker pan",
+      "hint": "Follows whoever is talking"
+    },
+    "vertical_split": {
+      "label": "Split-screen",
+      "hint": "Two speakers stacked"
+    },
+    "original": {
+      "label": "Original",
+      "hint": "Keep the source aspect ratio"
+    }
+  },
+  "captions": "Captions",
+  "noCaptions": "No captions",
+  "cleanup": "Cleanup",
+  "cleanupTitle": "Clip cleanup",
+  "cleanupBody": "Tighten dead air and cut filler sounds while rendering.",
+  "shortenPauses": "Shorten long pauses",
+  "shortenPausesHint": "Trim silences longer than this down to a short breath",
+  "pauseThreshold": "Pause threshold (ms)",
+  "milliseconds": "milliseconds",
+  "removeFillers": "Remove filler words",
+  "removeFillersHint": "“um”, “uh”, “erm” and similar sounds",
+  "extraWords": "Extra words or phrases to cut",
+  "extraWordsPlaceholder": "basically, literally, to be honest",
+  "generate": "Generate clips",
+  "limitNote": "{plan}: YouTube, Twitch, and Kick videos up to {minutes} minutes. Each video uses its length in minutes, checked before we start.",
+  "uploadLimits": "Uploads up to {size}. Videos above 1080p or 60 fps are scaled down automatically, keeping their shape.",
+  "completionEmails": "Completion emails follow your preference in <settings>Settings</settings>.",
+  "recent": "Recent",
+  "viewLibrary": "View library",
+  "recentEmpty": "Your clips will show up here. Paste a link above to make your first batch.",
+  "previewHook": "Your hook title lands here",
+  "previewCaptions": "This is how your captions look",
+  "captionSize": {
+    "size": "Size",
+    "templateDefault": "Template default",
+    "small": "Small",
+    "medium": "Medium",
+    "large": "Large"
+  },
+  "nudge": {
+    "refreshesOn": "Refreshes on {date}.",
+    "refreshesNext": "Refreshes next month.",
+    "startTitle": "Pick a plan to start clipping",
+    "startDescription": "From {price}/mo for {length} of video a month. Feel free to set everything up first.",
+    "seePlans": "See plans",
+    "limitTitle": "You've used all {length} of video this month",
+    "limitWithPlan": "{refreshes} Or keep going with {plan}: {limit} of video a month.",
+    "limitAppStore": "{refreshes} You can change plans in the SupoClip iOS app.",
+    "getPlan": "Get {plan}",
+    "remaining": "{count, plural, one {# minute of video left this month} other {# minutes of video left this month}}",
+    "nearWithPlan": "{refreshes} Need more room? {plan} gives you {limit} of video a month.",
+    "upgrade": "Upgrade",
+    "limitTitleAll": "You've used this month's video minutes"
+  }
+}

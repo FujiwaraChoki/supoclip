@@ -148,7 +148,7 @@ After the stack is up:
 
 1. Load the homepage at `http://localhost:3107`.
 2. Create an account or sign in.
-3. Submit a YouTube URL or upload a video file.
+3. Submit a YouTube, Twitch, or Kick URL, or upload a video file.
 4. Open the task page and confirm progress updates appear.
 5. Wait for clip generation to finish.
 6. Open the clips list and verify playback and download work.
@@ -230,7 +230,7 @@ For anything beyond local experimentation:
 - Decide whether you want self-host mode or monetized hosted mode before launch
 - Verify all callback URLs and origins match your deployed domain
 - If using DataFast, set `NEXT_PUBLIC_DATAFAST_DOMAIN` to the deployed root domain you want tracked
-- For hosted billing, create and verify both Stripe monthly prices before deploy: Pro at `$10/month` and Scale at `$50/month`
+- For hosted billing, create and verify the Stripe prices before deploy: Pro at `$9.99/month` and `$99.90/year`, Creator (`scale`) at `$24.99/month` and `$249.90/year`; keep the earlier Pro price in `STRIPE_PRO_LEGACY_PRICE_IDS`. Add the yearly prices to the customer portal's plan-switching products so subscribers can move between them
 
 ## Useful Commands
 

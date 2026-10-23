@@ -1,0 +1,587 @@
+{
+  "shell": {
+    "home": "首页",
+    "blog": "博客",
+    "blogNav": "博客导航",
+    "allArticles": "全部文章",
+    "startClipping": "开始剪辑",
+    "breadcrumbNav": "面包屑",
+    "byline": "由 SupoClip · 更新于 <date>{when}</date> · {readingTime}",
+    "updated": "更新于 <date>{when}</date>",
+    "inThisArticle": "本文目录",
+    "faqHeading": "常见问题",
+    "faq": "常见问题",
+    "startAria": "从 SupoClip 开始",
+    "ctaTitle": "拿一条你很熟悉的录像试一次。",
+    "ctaBody": "用托管应用，或者在你自己的机器上运行同一套开源代码。",
+    "getSource": "获取源码",
+    "keepReading": "继续阅读"
+  },
+  "index": {
+    "metaTitle": "SupoClip 博客 | AI 视频剪辑指南",
+    "metaDescription": "实用指南、产品对比和创作者流程，用 SupoClip 把长视频做成适合社交平台的短片。",
+    "ogTitle": "SupoClip 博客",
+    "ogDescription": "关于 AI 视频剪辑、自动字幕、竖屏重构图和短视频流程的指南与对比。",
+    "hostedApp": "托管应用",
+    "startClipping": "开始剪辑",
+    "creatorGuides": "创作者指南",
+    "tryHosted": "试用托管的 SupoClip",
+    "heading": "把长视频做成更好短片的实用指南。",
+    "intro": "对比、工作流和剪辑建议，适合想要可重复的剪辑流程、更干净的字幕，以及对视频流水线有更多控制的创作者。",
+    "readArticle": "阅读文章",
+    "openSource": "开源",
+    "openSourceClipping": "开源剪辑",
+    "moreGuides": "更多剪辑指南",
+    "productGuides": "产品指南"
+  },
+  "supoclip-vs-supo-live": {
+    "title": "SupoClip 与 supo.live：为什么开源更合适",
+    "description": "比较 SupoClip 和 supo.live 的 AI 视频剪辑。看看为什么 SupoClip 在开源控制、自托管和可定制视频流程上更合适。",
+    "eyebrow": "supo.live 的替代",
+    "category": "对比",
+    "readingTime": "5 分钟阅读",
+    "summary": "对想掌控剪辑流程的创作者和团队来说，SupoClip 是比 supo.live 更好的开源选择。",
+    "imageAlt": "一幅编辑插图：一段播客录音变成三条竖屏视频短片",
+    "breadcrumb": "SupoClip 与 supo.live",
+    "heroCaption": "一次录像，更多可能。AI 生成的编辑插图，表现从长视频到短片的流程。",
+    "verdict": {
+      "kicker": "简短结论",
+      "heading": "当控制权重要时，选 SupoClip。",
+      "body": "开源。你的部署。你的流程。把录制内容做成带字幕短片的坚实基础。",
+      "points": {
+        "0": "查看并扩展代码",
+        "1": "在你的基础设施上自托管",
+        "2": "打磨每一条成品短片"
+      }
+    },
+    "toc": {
+      "comparison": "比较工具",
+      "workflow": "看流程",
+      "control": "为什么开源",
+      "cost": "理解成本",
+      "faq": "常见问题"
+    },
+    "body": {
+      "p1": "选择 AI 视频剪辑工具，也是在选择你对制作过程保留多少控制。如果你想把播客、访谈、演讲和直播录像做成短视频，SupoClip 的理由很直接：AI 辅助剪辑，源码可以查看，流程可以自己跑。",
+      "p2": "我们的结论：对把开源、自托管和定制放在前面的创作者、机构和开发者来说，SupoClip 是更好的选择。这是 SupoClip 团队基于已写明能力做的对比，不是短片质量或处理速度的基准测试。",
+      "whatSupoclip": "什么是 SupoClip？",
+      "whatSupoclipBody": "SupoClip 是开源的 AI 视频剪辑工具，可通过 supoclip.com 使用，也可以作为自托管应用。它分析长视频，选出有潜力的时刻，并做出以人脸为中心裁切、逐词同步字幕的竖屏短片。钩子标题、短片评分和可选的 B-roll 帮助把原始录像变成可供你最终审看的素材。<repo>SupoClip 仓库</repo>写明了功能和安装。",
+      "whatSupo": "什么是 supo.live？",
+      "whatSupoBody": "supo.live 推广的是面向录像和正在进行的直播的托管剪辑服务。它的首页宣传直播剪辑、样式字幕、人脸跟踪、浏览器编辑器，以及定时发布到 TikTok、YouTube Shorts 和 X。因此直播发布是它最清楚的区别。请看 <site>supo.live 官方功能概览</site>。"
+    },
+    "comparison": {
+      "heading": "SupoClip 与 supo.live 一览",
+      "caption": "SupoClip 与 supo.live 的流程对比",
+      "priority": "优先事项",
+      "note": "supo.live 的细节反映其 <site>首页</site>，核对日期为 2026 年 9 月 21 日。功能和方案可能变化。",
+      "rows": {
+        "deployment": {
+          "label": "部署",
+          "supoclip": "托管应用或自托管部署",
+          "supolive": "托管服务"
+        },
+        "source": {
+          "label": "源码访问",
+          "supoclip": "公开的 AGPL-3.0 仓库",
+          "supolive": "首页没有宣传开源或自托管选项"
+        },
+        "usecase": {
+          "label": "核心用途",
+          "supoclip": "把录好的长视频做成竖屏短片",
+          "supolive": "直播和录好的视频"
+        },
+        "customization": {
+          "label": "定制",
+          "supoclip": "修改代码并配置 LLM 提供方",
+          "supolive": "使用该服务的编辑器和设置"
+        },
+        "usage": {
+          "label": "使用模式",
+          "supoclip": "自托管使用你的算力和提供方预算",
+          "supolive": "带处理额度的订阅方案"
+        }
+      }
+    },
+    "workflow": {
+      "heading": "从一次录像到可重复的流程",
+      "intro": "让 AI 做第一遍，再用你的编辑判断。每条短片都应能独立看懂，保留说话人的语境，并配得上出现在你的信息流里。",
+      "caption": "SupoClip 的录像流程。AI 提议；最终的编辑决定由你来做。",
+      "steps": {
+        "0": {
+          "title": "带上一段录像",
+          "detail": "上传视频，或使用受支持的 YouTube、Twitch 或 Kick 链接。"
+        },
+        "1": {
+          "title": "发现时刻",
+          "detail": "转写和 AI 评分会整理出一份候选清单。"
+        },
+        "2": {
+          "title": "把剪辑变成你的",
+          "detail": "核对时间、竖屏构图和字幕。"
+        },
+        "3": {
+          "title": "导出你的短片",
+          "detail": "为你的社交渠道准备最终短片。"
+        }
+      }
+    },
+    "editor": {
+      "aria": "查看 SupoClip 编辑器截图的完整尺寸",
+      "alt": "SupoClip 编辑器，含短片列表、竖屏预览、字幕样式控件和时间线",
+      "caption": "在 SupoClip 编辑器里：导出前调整字幕、构图和时间。这是使用测试样片的真实产品截图；点击可放大。"
+    },
+    "control": {
+      "heading": "为什么 SupoClip 是更好的开源替代",
+      "h1": "1. 你可以按内容来塑造流程",
+      "p1": "播客工作室和教育频道可能想要很不一样的短片。有了 SupoClip，源码访问让技术团队按编辑需要调整选择逻辑、字幕行为和处理步骤。你可以查看系统如何工作，并在自己的部署里开发改动。这种灵活性是 SupoClip 相对于完全依赖托管产品设置的最大优势。",
+      "h2": "2. 你选择应用跑在哪里",
+      "p2": "自托管让你控制应用的基础设施、存储配置和维护节奏。你可以把剪辑放进已有的生产环境，并保留由你管理的部署。如果使用云端转写或托管 LLM，这些提供方仍会收到它们需要的数据。改用本地 Whisper 和 Ollama，分析也会留在你自己的硬件上。",
+      "h3": "3. 你可以实际选择 AI 提供方",
+      "p3": "SupoClip 支持 Google、OpenAI、Anthropic 和本地 Ollama 模型的 LLM 配置。你可以按自己的内容和预算评估提供方。转写默认使用 AssemblyAI，也可以换成本地 Whisper；对 YouTube 链接，还可以用已有字幕。<guide>自托管指南</guide>会带你完成完全本地的安装。",
+      "h4": "4. 剪辑流程可以长进你自己的工具",
+      "p4": "SupoClip 包含 REST API 和 MCP 服务器。开发者可以把剪辑接到其他应用或兼容的 AI 客户端，而不必把浏览器当作唯一入口。对处理客户反复录像的机构来说，这留出空间，围绕自己的审看过程搭建可重复的流程。<api>API 参考</api>说明了可用的端点。",
+      "figureCaption": "自托管时你控制什么",
+      "figureNote": "云端提供方是可选的：Whisper 和 Ollama 把转写和短片选择留在本地。",
+      "yours": {
+        "heading": "你的部署",
+        "li1": "应用和源代码",
+        "li2": "存储和处理资源",
+        "li3": "编辑上的定制"
+      },
+      "connected": {
+        "heading": "连接的 AI 服务",
+        "li1": "AssemblyAI 或本地 Whisper",
+        "li2": "托管 LLM 或本地 Ollama",
+        "li3": "提供方费用和数据流向"
+      }
+    },
+    "cost": {
+      "heading": "成本：免费源码，真实的运营费用",
+      "p1": "SupoClip 的开源代码可以免费自托管。实际费用取决于算力、存储、转写、付费模型用量，以及维护安装所需的时间。容量跟着你准备的资源和提供方限制走。对已经在跑基础设施的团队，这可能有吸引力，但这并不保证每种工作量都更便宜。",
+      "p2": "托管的 SupoClip 服务是另一条路，有自己的价格和条款。想少做安装时选它；当部署控制是优先事项时，选自托管。"
+    },
+    "choose": {
+      "heading": "你该选哪一个？",
+      "p1": "如果你有一批播客、访谈、网络研讨会或直播回放，想用可定制的流水线再利用，选 SupoClip。它把短片发现、评分、字幕和竖屏构图放在一起，并让你查看和扩展应用。",
+      "p2": "如果你的核心需求是在直播进行中剪辑并自动发布结果，请评估 supo.live 所宣传的直播流程。SupoClip 的录像流程不应被当成这些功能已经核实过的替代。"
+    },
+    "start": {
+      "heading": "开始搭建你能控制的剪辑流程",
+      "p1": "对想今天就用上有用的 AI 剪辑、明天还能改它的团队，我们选 SupoClip。从一条有代表性的录像开始，审看建议的短片，打磨字幕和构图，再导出结果。然后决定托管的便利还是你自己的部署更适合你的流程。",
+      "logoAlt": "SupoClip 标志",
+      "cardTitle": "你的下一段录像值得第二次生命。",
+      "points": {
+        "0": "从一条你很熟悉的录像开始",
+        "1": "审看最强的建议时刻",
+        "2": "打磨字幕并导出"
+      },
+      "try": "试用 SupoClip"
+    },
+    "faqs": {
+      "0": {
+        "question": "supo.live 最好的开源替代是什么？",
+        "answer": "对想把录好的视频做成短片，同时保留源码访问、自托管和对 AI 剪辑流程的控制的创作者和团队，SupoClip 是很强的选择。"
+      },
+      "1": {
+        "question": "自托管 SupoClip 免费吗？",
+        "answer": "SupoClip 以 AGPL-3.0 提供免费源代码。运行它仍然涉及硬件或托管、存储、转写，以及任何付费的 LLM 用量。托管的 SupoClip 有自己的服务条款和价格。"
+      },
+      "2": {
+        "question": "SupoClip 能替代直播剪辑和自动发布吗？",
+        "answer": "这篇对比建议把 SupoClip 用于录好的视频和直播回放。supo.live 宣传在直播进行中剪辑以及定时社交发布；这里不把这些能力说成 SupoClip 的对等功能。"
+      }
+    },
+    "closing": "看看我们的<openSource>开源视频剪辑指南</openSource>，或阅读<comparison>SupoClip 与 OpusClip 的对比</comparison>。"
+  },
+  "supoclip-vs-opusclip": {
+    "title": "SupoClip 与 OpusClip：附来源的对比",
+    "description": "从部署、定价模式、水印、模型选择和工作流对比 SupoClip 与 OpusClip，每条说法都链到来源。",
+    "eyebrow": "OpusClip 对比",
+    "category": "对比",
+    "readingTime": "7 分钟阅读",
+    "summary": "并排看每个产品写了什么、两者差在哪里，以及哪一个适合你的流程。",
+    "breadcrumb": "SupoClip 与 OpusClip",
+    "notCovered": "下面的来源没有写到",
+    "toc": {
+      "verdict": "简短回答",
+      "comparison": "并排对比",
+      "pricing": "定价模式",
+      "choose-supoclip": "什么时候适合 SupoClip",
+      "choose-opusclip": "什么时候适合 OpusClip",
+      "test": "自己做测试",
+      "sources": "来源",
+      "faq": "常见问题"
+    },
+    "faqs": {
+      "0": {
+        "question": "SupoClip 比 OpusClip 更好吗？",
+        "answer": "取决于你需要什么。如果你想要源码访问、自托管或自己选择 AI 模型，SupoClip 更合适。如果你想要带免费档可以试用的托管产品，OpusClip 更合适。我们不声称哪一个做出的短片更好，因为我们没有做过能支持这种说法的对照测试。"
+      },
+      "1": {
+        "question": "SupoClip 会加水印吗？",
+        "answer": "不会。无论托管应用还是自托管安装，SupoClip 的渲染流程都没有水印步骤。OpusClip 的帮助中心写明，免费方案的导出可能带有 OpusClip 水印。"
+      },
+      "2": {
+        "question": "托管的 SupoClip 有免费方案吗？",
+        "answer": "没有。托管应用处理视频需要 Pro 或 Creator 订阅。免费路径是自托管开源代码，没有方案上限；你只为自己的基础设施和所配置的 AI 提供方付费。"
+      },
+      "3": {
+        "question": "哪一个更快，或短片更好？",
+        "answer": "我们没有公布过关于速度或短片质量的对照测试，所以不做这种声称。结果取决于你的视频和设置；本页的公平测试步骤说明如何用你自己的内容来比较。"
+      }
+    },
+    "intro": "OpusClip 帮助定义了 AI 剪辑：上传长视频，拿回竖屏短片。SupoClip 以开源项目做同样的事，你可以托管使用，也可以自己运行。这篇对比只谈每个产品写明的内容。关于 SupoClip 的说法链到我们的源码。关于 OpusClip 的说法链到 OpusClip 自己的帮助中心。来源没写到的地方，表格会标明，而不是猜测。",
+    "introNote": "本页不评价短片质量、字幕准确性或处理速度。要比较这些，请看<test>如何自己做测试</test>。",
+    "verdict": {
+      "heading": "简短回答",
+      "supoclip": "<strong>选 SupoClip</strong>，如果你想自托管、查看或修改代码、自己选择 AI 模型（包括完全本地的），或导出时不要水印。",
+      "opusclip": "<strong>选 OpusClip</strong>，如果你想要一个不用自己部署的托管产品，并且想从免费方案开始。"
+    },
+    "comparison": {
+      "heading": "并排对比",
+      "caption": "附来源的 SupoClip 与 OpusClip 对比",
+      "area": "方面",
+      "footnote": "“下面的来源没有写到”是指所引的 OpusClip 帮助中心文章没有谈到它。这并不表示 OpusClip 没有该功能。这里没列出的内容请查看 <site>opus.pro</site>。"
+    },
+    "rows": {
+      "deployment": {
+        "label": "你怎么运行它",
+        "supoclip": "托管应用、iOS 应用，或用 <compose>Docker Compose</compose> 自托管",
+        "opusclip": "托管服务"
+      },
+      "source": {
+        "label": "源代码",
+        "supoclip": "公开，<license>AGPL-3.0</license>"
+      },
+      "pricing": {
+        "label": "定价模式",
+        "supoclip": "托管：按月方案，视频数量固定。自托管：没有方案上限。",
+        "opusclip": "用额度计算处理分钟的方案，另有免费方案（<plans>帮助中心</plans>）"
+      },
+      "watermark": {
+        "label": "水印",
+        "supoclip": "没有；<pipeline>渲染流程</pipeline>没有水印步骤",
+        "opusclip": "免费方案的导出可能带有水印（<watermark>帮助中心</watermark>）"
+      },
+      "models": {
+        "label": "AI 模型选择",
+        "supoclip": "OpenAI、Google、Anthropic、OpenRouter，或本地 Ollama（<config>配置</config>）"
+      },
+      "transcription": {
+        "label": "转写",
+        "supoclip": "AssemblyAI、本地 Whisper，或 YouTube 字幕"
+      },
+      "automation": {
+        "label": "自动化",
+        "supoclip": "带每用户密钥的 REST API，以及 <mcp>MCP 服务器</mcp>"
+      }
+    },
+    "pricing": {
+      "heading": "定价模式：额度、方案，还是你自己的基础设施",
+      "p1": "OpusClip 的<plans>方案与额度文章</plans>描述了用额度计算处理分钟的付费方案，以及一个免费方案。它的<watermark>水印文章</watermark>写明免费方案的导出可能带有 OpusClip 水印。方案价格和额度数量会变，所以请查看 OpusClip 当前的定价页，不要依赖抄进博客的数字。",
+      "p2": "SupoClip 有两条路。托管应用有 <pro>{proName}</pro>，每月 ${proPrice}，每月 {proLimit} 小时 720p 视频；以及 <scale>{scaleName}</scale>，每月 ${scalePrice}，每月 {scaleLimit} 小时 1080p 视频，按年付费可免费两个月。没有免费的托管方案；处理视频需要订阅。自托管这条路是没有方案上限的免费软件。你为服务器和所配置的 AI API 付费，<guide>自托管指南</guide>展示了一种完全本地、没有按次 AI 费用的安装。"
+    },
+    "chooseSupoclip": {
+      "heading": "什么时候 SupoClip 更合适",
+      "li1": "<strong>你需要控制视频去向。</strong>自托管把应用、数据库和渲染出的短片留在你的基础设施上。用 Whisper 和 Ollama 时，转写和短片选择也在本地运行。",
+      "li2": "<strong>你有大量旧内容。</strong>自托管安装没有每月视频上限。吞吐量取决于你的硬件和提供方限制。",
+      "li3": "<strong>你想改变短片的挑选方式。</strong>选择提示词、评分、字幕模板和渲染都在仓库里。",
+      "li4": "<strong>你在把剪辑接到另一个工具里。</strong>API 密钥、REST API 和 MCP 服务器让脚本和 AI 智能体创建并下载短片。"
+    },
+    "chooseOpusclip": {
+      "heading": "什么时候 OpusClip 更合适",
+      "li1": "<strong>你不想自己运维。</strong>自托管意味着管理 Docker、提供方密钥、更新和备份。",
+      "li2": "<strong>你想先试用再付费。</strong>OpusClip 写明有免费方案（可能带水印）。托管的 SupoClip 没有免费档。",
+      "li3": "<strong>你依赖这里没写到的功能。</strong>如果某个具体的 OpusClip 流程对你很重要，先在 opus.pro 上确认，并在切换前测试 SupoClip 是否覆盖它。"
+    },
+    "test": {
+      "heading": "如何自己做一次公平测试",
+      "intro": "最重要的对比是用你自己的内容做的：",
+      "li1": "选两三条能代表你频道的录像：一条简单的（单人说话），一条难的（多人、屏幕共享）。",
+      "li2": "用默认设置把每条都跑过两个工具，记下从提交到短片完成的时间。",
+      "li3": "把短片打乱，在不知道哪条出自哪个工具的情况下审看。评价每条短片是否脱离上下文也能看懂、钩子是否清楚、说话人构图是否正确、字幕是否准确。",
+      "li4": "数一数每条短片在你愿意发布之前还要改多少。编辑时间是订阅价格里看不到的成本。",
+      "demo": "想先看 SupoClip 的成品？<demo>演示页</demo>把真实短片和原片时间戳链接放在一起。"
+    },
+    "sources": {
+      "heading": "来源",
+      "opus": "OpusClip 帮助中心：<plans>方案与额度</plans>和<watermark>水印</watermark>。方案可能变化；请在 <site>opus.pro</site> 确认当前细节。",
+      "supoclip": "SupoClip：<repo>公开仓库</repo>，包括 <compose>docker-compose.yml</compose>、<config>配置文档</config>和<billing>计费规则</billing>。托管价格来自 supoclip.com 的定价部分。"
+    }
+  },
+  "self-host-supoclip-docker": {
+    "title": "如何用 Docker Compose 自托管 SupoClip",
+    "description": "自托管开源 AI 视频剪辑工具 SupoClip：环境要求、.env 配置、完全本地的 Whisper + Ollama 方案、首次运行检查，以及生产检查清单。",
+    "eyebrow": "自托管指南",
+    "category": "指南",
+    "readingTime": "9 分钟阅读",
+    "summary": "仓库 Docker Compose 栈的实用讲解：每个服务做什么、你需要哪些密钥、如何不靠云端 AI 运行，以及上生产前要加固什么。",
+    "breadcrumb": "自托管 SupoClip",
+    "toc": {
+      "stack": "你运行什么",
+      "requirements": "要求",
+      "install": "安装",
+      "local": "完全本地的 AI",
+      "verify": "验证",
+      "production": "生产检查清单",
+      "upgrade": "升级与备份",
+      "faq": "常见问题"
+    },
+    "faqs": {
+      "0": {
+        "question": "自托管的 SupoClip 免费吗？",
+        "answer": "代码在 AGPL-3.0 下免费，自托管模式没有生成上限，也没有付费墙。你仍然要为自己的硬件或服务器，以及所配置的云端转写或 LLM 用量付费。Whisper + Ollama 可以避免按次 AI 费用，但需要足够的本地算力。"
+      },
+      "1": {
+        "question": "SupoClip 能完全不用云端 AI 服务吗？",
+        "answer": "可以，就短片分析而言。设置 TRANSCRIPTION_PROVIDER=whisper 以本地转写，并用 LLM=ollama:<model> 用本地模型选择短片。下载 YouTube 链接仍然需要联网；上传的文件不需要。可选的 B-roll 使用 Pexels API。"
+      },
+      "2": {
+        "question": "我需要 GPU 吗？",
+        "answer": "不需要。.env.example 模板设置 BACKEND_CPU_ONLY=true，这会安装仅 CPU 的 PyTorch。仅 CPU 的 Whisper 转写比云端 API 慢，所以长视频在一般硬件上会花更长时间。"
+      },
+      "3": {
+        "question": "它能在 Apple Silicon 上运行吗？",
+        "answer": "可以，但有一个限制：backend 和 worker 镜像以 linux/amd64 在模拟下运行。BACKEND_CPU_ONLY=true 会避免下载 NVIDIA 组件，但不会启用 Apple GPU 加速。"
+      },
+      "4": {
+        "question": "怎样让我的实例保持私有？",
+        "answer": "先创建账号，再设置 DISABLE_SIGN_UP=true 并重建 frontend 容器。Compose 把每个端口绑在 127.0.0.1 上，所以在你加上反向代理之前，外面都访问不到。"
+      }
+    },
+    "intro": "SupoClip 是 supoclip.com 托管应用背后的开源 AI 视频剪辑工具。同一个仓库带有一套 Docker Compose 栈，可以跑在笔记本、家用服务器或 VPS 上。本指南严格按照它在<repo>仓库</repo>里的样子来写。某一步取决于你的提供方或硬件时，我们会说出来，而不是猜测。",
+    "introChoice": "不想自己跑基础设施？<hosted>托管应用</hosted>跑的是同一套流程。还在工具之间犹豫？先读我们的<comparison>SupoClip 与 OpusClip 对比</comparison>。",
+    "stack": {
+      "heading": "你正在运行什么",
+      "lead": "<code>docker compose up</code> 会启动这些容器，它们都定义在 <compose>docker-compose.yml</compose> 里：",
+      "caption": "SupoClip Docker Compose 栈中的服务",
+      "service": "服务",
+      "role": "角色",
+      "port": "主机端口",
+      "rows": {
+        "frontend": {
+          "role": "Next.js 网页应用、认证和 API 代理",
+          "port": "FRONTEND_PORT（.env.example 里是 3107；未设置则为 3001）"
+        },
+        "backend": {
+          "role": "FastAPI API；文档在 /docs",
+          "port": "8000"
+        },
+        "worker": {
+          "role": "ARQ worker：下载、转写、分析、渲染",
+          "port": "无"
+        },
+        "postgres": {
+          "role": "PostgreSQL 15：用户、任务、短片",
+          "port": "无"
+        },
+        "redis": {
+          "role": "Redis 7：任务队列和实时进度",
+          "port": "6379"
+        },
+        "mcp": {
+          "role": "给 AI 客户端用的 MCP 服务器（可以不一直开着）",
+          "port": "9100"
+        }
+      },
+      "after": "每个对外端口都绑在 <code>127.0.0.1</code> 上，所以全新安装只能从这台机器本身访问。生成的短片、上传文件、Postgres 和 Redis 存在具名 Docker 卷里，容器重启后还在。如果你不用 MCP，用 <code>docker compose stop mcp</code> 停掉那个容器。"
+    },
+    "requirements": {
+      "heading": "要求",
+      "li1": "<strong>Docker</strong>，带 Compose v2（<code>docker compose</code>）或独立的 <code>docker-compose</code>，外加 Git。",
+      "li2": "<strong>一个转写来源</strong>，用 <code>TRANSCRIPTION_PROVIDER</code> 设置：<code>assemblyai</code>（默认，需要 <code>ASSEMBLY_AI_API_KEY</code>）、<code>whisper</code>（本地，无需密钥）或 <code>youtube_captions</code>（仅 YouTube 链接）。",
+      "li3": "<strong>一个用来选择短片的 LLM</strong>，用 <code>LLM=provider:model</code> 设置：OpenAI、Google、Anthropic、OpenRouter（各自需要 API 密钥），或本地的 <code>ollama:</code> 模型。",
+      "li4": "<strong>可选：</strong>用于 B-roll 叠加的 <code>PEXELS_API_KEY</code>。",
+      "note": "第一次构建镜像会下载 Python 和 Node 依赖。<quickstart>快速开始</quickstart>估计要 5–10 分钟；实际取决于你的网络和 CPU。"
+    },
+    "install": {
+      "heading": "用 Docker Compose 安装",
+      "clone": "1. 克隆并创建环境文件",
+      "labelTerminal": "终端",
+      "providersHeading": "2. 在 <code>.env</code> 里选择提供方",
+      "providersBody": "模板默认是 <code>LLM=openrouter:anthropic/claude-sonnet-5.5</code>。除非你设置 <code>OPENROUTER_API_KEY</code>，或把 <code>LLM</code> 指到一个你有密钥的提供方，否则处理会失败。一套最小的云端配置是这样的：",
+      "labelEnv": ".env",
+      "secrets": "用 <code>openssl rand -base64 32</code> 生成每个密钥。<code>SELF_HOST=true</code>（默认值）会关闭计费，并去掉按账号的生成上限。",
+      "build": "3. 构建并启动",
+      "open": "打开 <code>http://localhost:3107</code>，创建账号，然后粘贴 YouTube、Twitch 或 Kick 链接或上传文件。API 文档在 <code>http://localhost:8000/docs</code>。"
+    },
+    "local": {
+      "heading": "选项：完全本地的转写和短片选择",
+      "intro": "要把转写和分析留在你自己的硬件上，把本地 Whisper 和一个 Ollama 模型结合起来：",
+      "worker": "worker 是在自己的容器里调用 Ollama 的，所以 Ollama 必须从容器里能连上，而不只是从你的 shell。具体做法取决于 Ollama 跑在哪里：",
+      "desktopHeading": "Ollama 在主机上，配合 Docker Desktop（macOS、Windows）",
+      "desktop": "不用额外设置。Docker Desktop 会把 <code>host.docker.internal</code> 转到主机，所以把 <code>OLLAMA_BASE_URL</code> 留空，并用 <code>ollama pull gpt-oss:20b</code> 拉取模型。",
+      "linuxHeading": "Ollama 在主机上，配合 Docker Engine（Linux）",
+      "linux": "Compose 把 <code>host.docker.internal</code> 映射到 Docker 网桥网关，但 Ollama 默认只监听 <code>127.0.0.1</code>，所以 worker 的连接会被拒绝。让 Ollama 监听所有接口：",
+      "expose": "这也会把 11434 端口暴露在你的网络接口上。Ollama 没有身份验证，所以用防火墙挡住机器外部对这个端口的访问。如果防火墙会过滤来自 Docker 网络的流量，还要允许容器访问它。",
+      "containerHeading": "Ollama 放在自己的容器里",
+      "container": "用一份 override 文件把它加进栈里，然后让 SupoClip 指向服务名，而不是主机：",
+      "labelOverride": "docker-compose.override.yml（合并进你已有的 override）",
+      "labelEnvTerminal": ".env 和终端",
+      "whichever": "无论哪种设置，提交视频前都先从 worker 里面测一次。检查寻找的是 <code>gpt-oss:20b</code>，因为那是示例 <code>LLM</code> 值里的模型。如果你选了别的模型，就换成 <code>LLM</code> 设置里 <code>ollama:</code> 后面的准确名称。Ollama 会把没有标签拉取的模型列成 <code>name:latest</code>，检查时也要用这个形式。",
+      "ready": "<code>model ready</code> 表示 worker 能连上 Ollama，而且你查找的模型已经安装。没有任何输出，表示连接失败或模型缺失，所以去掉 <code>grep</code> 再跑一次，看是哪一种。更小的 Whisper 模型用准确度换速度，短片质量取决于 LLM。在把整个旧内容都换过去之前，先在一条你熟悉的录像上比较本地模型和托管模型。"
+    },
+    "verify": {
+      "heading": "验证安装",
+      "li1": "先创建账号并提交一条短视频，这样配置错误会尽快暴露。",
+      "li2": "确认任务页会显示进度。如果一直停在排队，查看 worker 日志。",
+      "li3": "播放并下载一条完成的短片。",
+      "stuck": "卡住的任务通常是缺少提供方密钥，或 worker 连不上 Redis。<guide>故障排查指南</guide>覆盖了常见情况。"
+    },
+    "production": {
+      "heading": "生产检查清单",
+      "intro": "Compose 文件是为起步调好的。放到公开域名之前：",
+      "li1": "<strong>构建生产环境的前端。</strong>Compose 默认使用会热重载的 <code>development</code> 目标，并把 <code>frontend/src</code> 挂进容器。在 <code>.env</code> 里设置 <code>FRONTEND_BUILD_TARGET=runner</code> 和 <code>NODE_ENV=production</code>，再用下面的 override 去掉源码挂载。",
+      "li2": "<strong>在反向代理上终结 HTTPS</strong>（Caddy、nginx、Traefik），放在前端端口前面。",
+      "li3": "<strong>把后端暴露出来以便上传。</strong>设置了 <code>BACKEND_AUTH_SECRET</code> 之后，浏览器会把视频文件直接传到 <code>NEXT_PUBLIC_API_URL</code>。把它指到一个公开的 HTTPS 后端地址，并把前端来源加进 <code>CORS_ORIGINS</code>。",
+      "li4": "<strong>在各处设置你的公开来源：</strong><code>NEXT_PUBLIC_APP_URL</code>、<code>BETTER_AUTH_URL</code> 和 <code>CORS_ORIGINS</code>。<code>NEXT_PUBLIC_*</code> 的值在构建时写死，改完后要重新构建前端。",
+      "li5": "<strong>修改数据库密码。</strong><code>docker-compose.yml</code> 在四处写死了 <code>supoclip_password</code>：<code>postgres</code> 服务里的 <code>POSTGRES_PASSWORD</code>，以及 <code>frontend</code>、<code>backend</code> 和 <code>worker</code> 服务里的 <code>DATABASE_URL</code>。只改 <code>.env</code> 里的 <code>POSTGRES_PASSWORD</code> 一处都不会变。按下面的做法把四处都覆盖掉。",
+      "li6": "<strong>设置 <code>REDIS_PASSWORD</code></strong>；它非空时，Redis 容器会启用 AUTH。",
+      "li7": "<strong>关闭注册</strong>：如果实例只给你的团队用，设置 <code>DISABLE_SIGN_UP=true</code>。",
+      "li8": "<strong>看一下这些上限：</strong><code>MAX_VIDEO_DURATION</code>（默认 5400 秒，90 分钟）和 <code>MAX_VIDEO_UPLOAD_BYTES</code>（默认 4 GB）。",
+      "labelReset": "docker-compose.override.yml（Compose v2.24+）",
+      "passwordIntro": "数据库密码方面，在 <code>.env</code> 的 <code>POSTGRES_PASSWORD</code> 里放一个新值。用 <code>openssl rand -hex 24</code> 生成，因为十六进制放进 URL 不用转义。然后在同一份 override 文件里把四处设置都指到它：",
+      "labelPassword": "docker-compose.override.yml（合并进你已有的 override）",
+      "existing": "Postgres 只在初始化空数据卷时读取 <code>POSTGRES_PASSWORD</code>。对已经有数据库的安装，改这个变量不会改掉实际密码。先在 Postgres 里面轮换密码，用和 <code>.env</code> 相同的值。然后重建服务，让它们使用新的 URL：",
+      "labelExisting": "终端（已有数据库）",
+      "docs": "<config>docs/configuration.md</config> 列出了每个变量，<setup>docs/setup.md</setup> 说明了自定义端口和公开 URL。"
+    },
+    "upgrade": {
+      "heading": "升级与备份",
+      "intro": "<code>init.sql</code> 只在 Postgres 卷第一次初始化时创建表结构。之后没有任何东西会自动更新表结构。如果新版本在 <code>frontend/prisma/migrations</code> 或 <code>backend/migrations</code> 下加了文件，重启应用前要自己应用它们。新代码对着旧表结构跑，会因为缺列和缺表而失败。先备份，并停掉应用服务，避免它们过早用上新代码。开发模式的前端会热重载挂载的源码。",
+      "apply": "读每一个列出的文件，然后在单个事务里应用。Prisma 迁移按时间戳顺序，后端迁移按编号顺序：",
+      "prisma": "由 <code>init.sql</code> 创建的数据库没有 Prisma 迁移历史。不要对它运行 <code>prisma migrate deploy</code>：Prisma 会从第一条迁移重放，并在已经存在的表上失败。如果想从现在起让 Prisma 管理迁移，先用下面的命令做基线",
+      "prismaAfter": "，但只针对改动已经在你表结构里的迁移。你标成已应用的迁移，Prisma 会永久跳过，即使它的改动其实并不在。",
+      "volumes": "如果要保留渲染好的视频，也备份 <code>clips</code> 和 <code>uploads</code> 卷。千万不要在你在意的实例上运行 <code>docker compose down -v</code>：它会删掉每一个卷，包括数据库。",
+      "customize": "想定制输出？把 <code>.ttf</code> 字体放进 <code>backend/fonts/</code>，把 <code>.mp4</code> 转场放进 <code>backend/transitions/</code>。它们会自动出现在应用里。要做自动化，在设置里创建 API 密钥，然后用 <api>REST API</api> 或附带的 MCP 服务器。"
+    }
+  },
+  "best-free-opusclip-alternative": {
+    "title": "最好的免费、可自托管的 OpusClip 替代",
+    "description": "在找免费的 OpusClip 替代？SupoClip 是可以免费自托管的开源 AI 短片工具。它把长视频做成带字幕的竖屏短片。",
+    "eyebrow": "OpusClip 的替代",
+    "category": "对比",
+    "readingTime": "6 分钟阅读",
+    "summary": "SupoClip 面向想在自己的基础设施上做 OpusClip 式 AI 剪辑、而不想再买一套按额度计费订阅的创作者。",
+    "lead": "如果你喜欢 OpusClip 的思路，但想要一条免费、开源的路，SupoClip 提供核心流程：在长视频里找出有力的时刻，做成竖屏，加上字幕，再导出到 Shorts、Reels 和 TikTok。",
+    "bestFor": "适合",
+    "audience": {
+      "0": "把 YouTube 视频剪成短片的创作者",
+      "1": "更想自托管的团队",
+      "2": "想要源码级控制的开发者"
+    },
+    "openHosted": "打开托管版本",
+    "p1": "OpusClip 帮助定义了现代 AI 剪辑这一类：上传长视频，让 AI 找出时刻，更快地发布短片。这个流程有用。当你想要免费路径、更多控制，或一条能自己跑的流水线时，摩擦才开始。",
+    "p2": "对这类创作者，SupoClip 是最好的免费 OpusClip 替代：想要 AI 辅助找短片、竖屏导出、字幕，以及控制底层系统。如果想完全跳过安装，也可以在付费方案上<hosted>使用托管的 SupoClip</hosted>。",
+    "verdict": {
+      "heading": "简短结论",
+      "body": "如果你想要可以自托管的开源 AI 视频剪辑工具，选 SupoClip。如果你想要托管好的产品，并且接受它的方案上限、水印规则和额度模式，选 OpusClip。"
+    },
+    "stats": {
+      "0": {
+        "label": "费用",
+        "value": "免费源代码"
+      },
+      "1": {
+        "label": "流程",
+        "value": "从长视频到短片"
+      },
+      "2": {
+        "label": "控制",
+        "value": "可自托管"
+      }
+    },
+    "why": {
+      "heading": "创作者为什么找 OpusClip 的替代",
+      "p1": "常见原因很简单：想要更低的成本、在免费流程里更干净的导出、对处理有更多控制，以及在批量处理旧 YouTube 视频、播客、网络研讨会或直播时更少的限制。",
+      "p2": "OpusClip 自己的帮助中心写明，免费方案的导出可能带有 OpusClip 水印，其方案用额度来计算处理分钟。随便试试也许没问题。如果反复剪辑，就可能把创作者推向付费的托管流程。"
+    },
+    "different": {
+      "heading": "SupoClip 的不同之处",
+      "p1": "SupoClip 不只是托管编辑器外面的薄包装。它是一套完整的开源剪辑应用，有 FastAPI 后端、Next.js 前端、后台 worker、转写、AI 评分、跟随人脸的竖屏重构图、字幕样式和导出预设。",
+      "p2": "取舍因此很清楚。你承担安装，但获得所有权。你可以查看代码、按自己的流程改它，并决定用哪些托管 AI 提供方或本地模型。<guide>自托管指南</guide>会带你完成安装，包括完全本地的 Whisper + Ollama 方案。"
+    },
+    "compare": {
+      "heading": "SupoClip 与 OpusClip",
+      "body": "下面的摘要覆盖要点。若要逐行对比、并且每条说法都有来源，请读<comparison>SupoClip 与 OpusClip：附来源的对比</comparison>。"
+    },
+    "table": {
+      "feature": "功能",
+      "rows": {
+        "0": {
+          "feature": "免费使用模式",
+          "supoclip": "开源且可自托管，没有方案上限。费用是你自己的算力和 API 密钥。托管应用是付费的。",
+          "opusclip": "有免费方案，但导出可能带有 OpusClip 水印。"
+        },
+        "1": {
+          "feature": "发现短片",
+          "supoclip": "转写长视频，给片段打分，并浮出有潜力的短视频时刻。",
+          "opusclip": "面向从长视频中找出适合社交平台短片的 AI 剪辑流程。"
+        },
+        "2": {
+          "feature": "竖屏格式",
+          "supoclip": "以人脸为中心的 9:16 裁切、字幕，以及可直接发布的导出。",
+          "opusclip": "提供短视频导出，以及面向社交平台的 AI 重构图。"
+        },
+        "3": {
+          "feature": "控制",
+          "supoclip": "完整源码访问、可改的部署，并且不锁定在供应商上。",
+          "opusclip": "托管产品，带有代管流程和订阅档位。"
+        }
+      }
+    },
+    "how": {
+      "heading": "SupoClip 如何工作",
+      "steps": {
+        "0": "粘贴 YouTube、Twitch 或 Kick 链接或上传视频。",
+        "1": "SupoClip 转写源内容并找出候选时刻。",
+        "2": "AI 按钩子强度、互动、价值和可分享性给短片打分。",
+        "3": "编辑器做出带字幕、跟随人脸构图的竖屏短片。",
+        "4": "你把短片导出到 YouTube Shorts、TikTok、Instagram Reels 或其他信息流。"
+      }
+    },
+    "better": {
+      "heading": "什么时候 SupoClip 更合适",
+      "body": "当你想要带开发者控制的免费 OpusClip 替代时，SupoClip 最合适。它对有大量长视频积压的创作者、想定制剪辑流程的机构，或想把 AI 剪辑放进自己技术栈的技术团队尤其有用。"
+    },
+    "opus": {
+      "heading": "什么时候 OpusClip 可能仍然更好",
+      "body": "如果你想要一个打磨好的托管服务的便利，而不想考虑部署、基础设施、模型密钥、队列或维护，OpusClip 可能仍然更合适。"
+    },
+    "cta": {
+      "kicker": "自托管免费，不自托管则用付费方案",
+      "title": "用 SupoClip 开始剪辑。",
+      "selfHost": "自托管指南",
+      "openApp": "打开应用"
+    },
+    "faqs": {
+      "0": {
+        "question": "最好的免费 OpusClip 替代是什么？",
+        "answer": "如果你想要可以自托管、定制，并用自己的视频流程运行的开源 AI 短片工具，SupoClip 是很强的免费 OpusClip 替代。"
+      },
+      "1": {
+        "question": "SupoClip 完全免费吗？",
+        "answer": "SupoClip 的代码免费且开源，自托管安装没有方案上限。你仍然要为自己的基础设施以及所配置的转写或 LLM 提供方付费。托管应用需要付费方案。"
+      },
+      "2": {
+        "question": "SupoClip 会加水印吗？",
+        "answer": "不会。无论你用托管应用还是自托管安装，SupoClip 的渲染流程都没有水印步骤。"
+      }
+    },
+    "relatedHeading": "相关的 SupoClip 指南",
+    "sources": {
+      "heading": "来源",
+      "body": "关于 OpusClip 方案和水印的说明基于 OpusClip 官方帮助中心：<plans>方案与额度</plans>以及<watermark>水印说明</watermark>。"
+    },
+    "toc": {
+      "label": "文章",
+      "verdict": "简短结论",
+      "comparison": "对比",
+      "faq": "常见问题"
+    },
+    "aside": {
+      "title": "开源控制",
+      "body": "当你想要剪辑流程、又不想把每个决定都交给托管平台时，用 SupoClip。"
+    }
+  }
+}

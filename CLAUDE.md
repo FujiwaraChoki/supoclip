@@ -184,6 +184,32 @@ API keys authenticate `/tasks/*`, `/fonts` and `/upload` directly via
 back to the frontend's HMAC-signed session headers). Only the SHA-256 hash is
 stored (`api_keys` table). The frontend manages keys at `/settings/api-keys`.
 
+## Plans & billing
+
+Hosted plans are **Pro** ($9.99/mo, $99.90/yr) and **Creator** ($24.99/mo, $249.90/yr).
+Creator's internal plan id is still `scale` (DB `users.plan`, Stripe metadata,
+RevenueCat `...scale.monthly/annual` product IDs); only the display name changed.
+
+- **Metered in minutes of source video** per month (`PRO_/SCALE_PLAN_MINUTE_LIMIT`,
+  600/1500). `tasks.source_duration_seconds` is recorded at task creation (YouTube
+  preflight, ffprobe for uploads) and `BillingService` sums started minutes.
+  Yearly subscriptions still reset monthly (`_usage_window`).
+- **Resolution:** Pro gets 720p via a final `cap_video_short_side` pass on generated
+  clips and editor renders; Creator gets 1080p. Pro subscribers from before the
+  change have `users.legacy_hd` (backfilled once) and keep 1080p until they cancel.
+  Admins can grant or remove it per user in the `/admin` Users panel (searchable by
+  email/name; `PATCH /api/admin/users/{id}/legacy-hd`).
+  720p plans also *download* YouTube at 720p (`reduced_media_limits` → Apify quality /
+  yt-dlp height cap), and their `processing_cache` key gets a `|q720` suffix so a 1080p
+  request never reuses a 720p source. Full-quality keys are unchanged.
+- **Scheduling** social posts requires Creator (`can_schedule_posts`); publishing
+  immediately works on Pro.
+- **Annual** checkout: `interval: "year"` uses `STRIPE_PRO_/SCALE_ANNUAL_PRICE_ID`.
+- **Stripe prices (2026-10):** new subscribers get new prices (lookup keys `pro_monthly_2026_10`,
+  `pro_yearly_2026_10`, `creator_monthly_2026_10`, `creator_yearly_2026_10`). The earlier Pro price stays
+  for existing subscribers via `STRIPE_PRO_LEGACY_PRICE_IDS`; the webhook maps it to Pro and sets
+  `legacy_hd`, so dropping it from that list would downgrade those subscribers on their next renewal.
+
 ## Creator (affiliate) program
 
 Creators apply at `/settings/creator-program` (public pitch page: `/affiliate`).
@@ -220,6 +246,11 @@ OLLAMA_BASE_URL=http://localhost:11434/v1  # Optional for ollama:* models
 OLLAMA_API_KEY=...                   # Optional; required for Ollama Cloud
 RERANK_LLM=                          # Optional; model for the long-video candidate rerank (default: LLM)
 YOUTUBE_DOWNLOAD_PROVIDER=yt_dlp     # yt_dlp | apify
+YOUTUBE_PROXY_URL=                   # Optional residential proxy template; empty = off
+YOUTUBE_POT_PROVIDER_URL=            # Optional bgutil base URL (http://bgutil:4416)
+YOUTUBE_DOWNLOAD_MAX_BYTES=2000000000
+YOUTUBE_MAX_HEIGHT=1080              # Hard cap; lower values are honored
+APIFY_EXPENSIVE_FALLBACKS=false      # Skip high-cap Apify fallback actors
 
 # Optional
 PEXELS_API_KEY=...                   # B-roll stock footage
@@ -227,7 +258,7 @@ YOUTUBE_OAUTH_CLIENT_ID=...          # Social publishing: Google OAuth client (+
 TIKTOK_CLIENT_KEY=...                # Social publishing: TikTok app (+ TIKTOK_CLIENT_SECRET)
 INSTAGRAM_APP_ID=...                 # Social publishing: Meta app with Instagram Login (+ _SECRET)
 SOCIAL_PERFORMANCE_MIN_POSTS=3       # Measured posts before AI selection is personalized
-SOCIAL_PUBLISHING_ACCESS=all         # Rollout gate: all | admins (admins + allowlist) | off
+SOCIAL_PUBLISHING_ACCESS=off         # Rollout gate: off (default) | admins (admins + allowlist) | all
 SOCIAL_PUBLISHING_ALLOWED_EMAILS=    # Comma-separated beta emails when access=admins
 REDIS_HOST=localhost                 # Default: localhost
 REDIS_PORT=6379                      # Default: 6379
@@ -254,9 +285,11 @@ Personalized analyses skip the shared `processing_cache` analysis entry.
 
 - **Pages:** `/settings/social` (accounts + every scheduled post) and `/analytics` (totals, daily
   views chart, top clips, breakdowns), both in the sidebar. Clips publish from the task page.
-- **Rollout gate:** `SOCIAL_PUBLISHING_ACCESS`. Outside the gate every `/social/*` route returns 403
-  except `GET /social/providers`, which reports `enabled: false` with all platforms unconfigured
-  (so the web and iOS hide publishing) and the disconnect routes (account deletion revokes tokens).
+- **Rollout gate:** `SOCIAL_PUBLISHING_ACCESS` defaults to `off`. Social and Analytics stay out of
+  the nav, command palette, and settings until it is `admins` or `all`. Outside the gate every
+  `/social/*` route returns 403 except `GET /social/providers`, which reports `enabled: false` with
+  all platforms unconfigured (clients hide publishing unless `enabled` is exactly true) and the
+  disconnect routes (account deletion revokes tokens).
 - **iOS app:** `POST .../authorize` with `{"client": "ios"}` prefixes the OAuth state with `m.`; the
   web callback then redirects to `supoclip://social-callback?provider&code&state` and the app
   completes `/callback` with its own session (the state stays bound to the starting user).
@@ -276,6 +309,23 @@ Edit `backend/src/ai.py`: `simplified_system_prompt` controls selection criteria
 - Each segment gets an AI-written `hook_title` (3-9 words) burned into the top safe area for the first ~4s (`build_hook_title_ass` in `video_utils.py`), persisted on `generated_clips.hook_title`
 - Static talking-head crops get a slow ~5% Ken Burns punch-in (`kenburns_zoom_fragment`); tracked pans and split screens keep their own motion
 
+## Observability
+
+Errors and analytics go to PostHog (project "SupoClip", EU, id `314504`); logs go to
+Axiom (dataset `supoclip-prod`). Everything is off unless tokens are set. Details in
+`docs/observability.md`.
+
+- **Backend/worker:** `src/observability.py` sends every log record with a traceback to
+  PostHog (`POSTHOG_PROJECT_TOKEN`) and stamps logs with `service`, `trace_id`, `user_id`.
+  The auth helpers bind the user (`bind_request_user`).
+- **Web:** `posthog-js` in `instrumentation-client.ts` (analytics, replay, exceptions) via the
+  `/ingest` rewrite; `instrumentation.ts` reports server errors. `lib/trace-fetch.ts` tags
+  every `/api/*` call with `x-trace-id`, which the proxies forward to the backend.
+- **Correlation:** an exception's `trace_id` property matches `trace_id` in Axiom logs
+  (worker jobs: `task-<id>`); the PostHog distinct id is the Better Auth user id everywhere.
+- **Logs:** the `vector` service (`observability/vector.yaml`, compose profile `axiom`)
+  ships `supoclip-*` container logs and the host nginx's SupoClip logs.
+
 ## iOS App
 
 A native iOS app ships on the App Store
@@ -293,6 +343,12 @@ the app via `APP_STORE_ID`/`APP_STORE_URL` in `frontend/src/lib/site.ts`
 Apify requires `APIFY_API_TOKEN` and explicit worker configuration. Each provider
 falls back to the other when available. Paid worker identities belong in private
 environment configuration. See `backend/README.md` for setup.
+
+`YOUTUBE_PROXY_URL` (empty by default) puts yt-dlp through a residential proxy
+first: sticky `{session}` per job, IPv4, optional bgutil PO tokens, audio first,
+then only the padded clip ranges at or below 1080p. Cached audio and sections
+are reused by later edits. `APIFY_EXPENSIVE_FALLBACKS` defaults to off so
+high-cap fallback actors are not called. Runbook: `docs/youtube-download.md`.
 
 ## MCP Server
 

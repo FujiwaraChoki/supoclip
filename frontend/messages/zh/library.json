@@ -1,0 +1,91 @@
+{
+  "status": {
+    "completed": "已完成",
+    "processing": "处理中",
+    "queued": "排队中",
+    "failed": "失败",
+    "cancelled": "已取消"
+  },
+  "loading": "正在加载",
+  "loadingEllipsis": "正在加载…",
+  "somethingWrong": "出了点问题",
+  "tryAgain": "重试",
+  "youtube": {
+    "aria": "YouTube 导入状态",
+    "title": "YouTube 导入 · {label}",
+    "degraded": "性能下降",
+    "outage": "中断",
+    "maintenance": "维护中",
+    "viewStatus": "查看状态页"
+  },
+  "card": {
+    "queued": "排队中",
+    "finding": "正在寻找最精彩的片段…",
+    "needsAttention": "需要处理",
+    "youtube": "YouTube",
+    "upload": "上传",
+    "clips": "{count, plural, one {# 个片段} other {# 个片段}}",
+    "select": "选择 {title}",
+    "deselect": "取消选择 {title}"
+  },
+  "title": "资料库",
+  "summary": "{count, plural, one {# 次生成} other {# 次生成}} · 悬停可预览，选中后可批量管理",
+  "searchPlaceholder": "按标题搜索",
+  "searchLabel": "搜索生成记录",
+  "new": "新建",
+  "filterLabel": "筛选生成记录",
+  "filters": {
+    "all": "全部",
+    "ready": "已完成",
+    "active": "进行中",
+    "attention": "需要处理"
+  },
+  "sortLabel": "排序生成记录",
+  "sort": {
+    "newest": "最新",
+    "video": "按视频"
+  },
+  "selectAllGenerations": "选择全部生成记录",
+  "selectedOf": "已选 {selected} / {total}",
+  "selectAll": "全选",
+  "selected": "已选",
+  "signInTitle": "需要登录",
+  "signInBody": "登录后才能查看你的生成记录。",
+  "signIn": "登录",
+  "loadError": "无法加载任务",
+  "refreshError": "批量操作已完成，但列表无法刷新。",
+  "cancel": {
+    "empty": "所选内容里没有可取消的进行中生成。",
+    "fallback": "取消生成失败",
+    "success": "{count, plural, one {已取消 # 次生成。} other {已取消 # 次生成。}}",
+    "partial": "已取消 {success} 个，{failed} 个失败。{error}",
+    "action": "取消",
+    "tooltip": "取消 {count, plural, one {# 个进行中的生成} other {# 个进行中的生成}}"
+  },
+  "resume": {
+    "empty": "所选内容里没有失败或已取消、可以继续的生成。",
+    "fallback": "继续生成失败",
+    "success": "{count, plural, one {已继续 # 次生成。} other {已继续 # 次生成。}}",
+    "partial": "已继续 {success} 个，{failed} 个失败。{error}",
+    "action": "继续",
+    "tooltip": "继续 {count, plural, one {# 个失败或已取消的生成} other {# 个失败或已取消的生成}}"
+  },
+  "delete": {
+    "empty": "请至少选择一次生成再删除。",
+    "fallback": "删除生成失败",
+    "success": "{count, plural, one {已删除 # 次生成。} other {已删除 # 次生成。}}",
+    "partial": "已删除 {success} 个，{failed} 个失败。{error}",
+    "action": "删除",
+    "tooltip": "删除 {count, plural, one {# 次生成} other {# 次生成}}",
+    "title": "{count, plural, one {删除 # 次生成？} other {删除 # 次生成？}}",
+    "description": "{count, plural, one {这将永久删除这次生成及其全部片段，无法撤销。} other {这将永久删除这些生成及其全部片段，无法撤销。}}",
+    "pending": "正在删除..."
+  },
+  "clearSelection": "清除选择",
+  "cancelDialog": "取消",
+  "emptyTitle": "还没有生成记录",
+  "emptyBody": "粘贴 YouTube、Twitch 或 Kick 链接或上传视频，片段会出现在这里。",
+  "create": "新建生成",
+  "noQuery": "没有与“{query}”匹配的内容。",
+  "noFilter": "没有与此筛选匹配的内容。"
+}

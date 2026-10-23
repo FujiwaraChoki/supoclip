@@ -4,9 +4,9 @@ const base = {
   plan: "pro",
   subscription_status: "active",
   subscription_provider: "stripe",
-  usage_count: 10,
-  usage_limit: 50,
-  remaining: 40,
+  usage_count: 3,
+  minute_limit: 600,
+  remaining_minutes: 400,
   period_end: "2026-11-01T00:00:00Z",
   upgrade_required: false,
 };
@@ -19,8 +19,8 @@ describe("getUpgradeState", () => {
     expect(state?.atLimit).toBe(false);
   });
 
-  it("offers Scale to Pro users and flags the last few videos", () => {
-    const state = getUpgradeState({ ...base, usage_count: 45, remaining: 5 });
+  it("offers Creator to Pro users and flags the last 20% of minutes", () => {
+    const state = getUpgradeState({ ...base, remaining_minutes: 120 });
     expect(state?.nextPlan?.id).toBe("scale");
     expect(state?.nearLimit).toBe(true);
     expect(state?.atLimit).toBe(false);
@@ -31,12 +31,12 @@ describe("getUpgradeState", () => {
   });
 
   it("marks a Pro user who used everything as at the limit", () => {
-    const state = getUpgradeState({ ...base, usage_count: 50, remaining: 0, upgrade_required: true });
+    const state = getUpgradeState({ ...base, remaining_minutes: 0, upgrade_required: true });
     expect(state?.atLimit).toBe(true);
     expect(state?.nearLimit).toBe(false);
   });
 
-  it("has nothing above Scale", () => {
+  it("has nothing above Creator", () => {
     expect(getUpgradeState({ ...base, plan: "scale" })?.nextPlan).toBeNull();
   });
 
@@ -52,6 +52,16 @@ describe("upgradeReasonForError", () => {
     expect(
       upgradeReasonForError("SUBSCRIPTION_REQUIRED", { billing: { plan: "pro", subscription_status: "active" } }, undefined),
     ).toEqual({ kind: "limit" });
+  });
+
+  it("says how short the minutes are when a video doesn't fit", () => {
+    expect(
+      upgradeReasonForError(
+        "SUBSCRIPTION_REQUIRED",
+        { billing: { plan: "pro", subscription_status: "active", required_minutes: 45, remaining_minutes: 20 } },
+        undefined,
+      ),
+    ).toEqual({ kind: "limit", requiredMinutes: 45, remainingMinutes: 20 });
   });
 
   it("maps a free user's 402 to the start prompt", () => {

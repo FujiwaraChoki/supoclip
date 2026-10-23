@@ -12,11 +12,21 @@ import uuid
 
 from ..utils.async_helpers import run_in_thread
 from ..youtube_utils import (
-    async_download_youtube_video,
     async_get_youtube_video_info,
     async_get_youtube_video_title,
     cleanup_downloaded_files,
+    download_youtube_video,
     get_youtube_video_id,
+)
+from ..youtube_proxy import ByteBudget, DownloadBudgetExceeded, PartialDownloadUnavailable, proxy_configured
+from ..youtube_source import (
+    cached_full_media,
+    download_audio_for_job,
+    materialize_clip_source,
+    resolve_full_youtube_download,
+    copy_transcript_sidecar,
+    load_time_map,
+    persist_cache_sidecar,
 )
 from ..video_utils import (
     get_video_transcript,
@@ -28,6 +38,7 @@ from ..video_utils import (
     build_keep_ranges_from_source_ranges,
     build_clip_signal_summary,
     apply_segment_hook_teaser,
+    clamp_keep_ranges_to_max_duration,
     extend_keep_ranges_to_sentence_boundary,
     keep_ranges_transcript_text,
     snap_clip_start_to_sentence,
@@ -41,7 +52,17 @@ from ..clip_source_map import (
 )
 from ..ai import get_most_relevant_parts_by_transcript
 from ..config import get_config
+from ..media.source_limits import normalize_source_media
 from ..media_storage import MediaStorage
+from ..media.ffmpeg import cap_video_short_side, ffprobe_duration
+from ..stream_source import (
+    PROCESSING_OPERATION,
+    StreamSourceError,
+    detect_stream_source,
+    download_stream_audio,
+    download_stream_sections,
+    download_stream_video,
+)
 
 logger = logging.getLogger(__name__)
 UPLOAD_URL_PREFIX = "upload://"
@@ -137,19 +158,82 @@ class VideoService:
         raise ValueError("Only upload:// references are allowed for local video sources")
 
     @staticmethod
-    async def download_video(url: str, task_id: Optional[str] = None) -> Optional[Path]:
+    def probe_upload_duration(url: str, user_id: str) -> float:
+        """Read an uploaded video's length without downloading it."""
+        if url.startswith("upload://s3/"):
+            storage = MediaStorage()
+            reference = storage.validate_source(url, user_id)
+            # ffprobe reads only the container headers through ranged requests.
+            return ffprobe_duration(storage.signed_url(reference, "source.mp4", expires_in=300))
+        return ffprobe_duration(VideoService.resolve_local_video_path(url))
+
+    @staticmethod
+    async def download_video(
+        url: str,
+        task_id: Optional[str] = None,
+        quality: Optional[str] = None,
+        ranges: Optional[list] = None,
+        budget: Optional[ByteBudget] = None,
+        skip_proxy: bool = False,
+    ) -> Optional[Path]:
         """
-        Download a YouTube video asynchronously.
+        Download YouTube media for rendering.
+
+        With a proxy configured, ``ranges`` downloads only those padded
+        sections (reusing the cache). Otherwise this returns a full file,
+        stored so later edits do not fetch it again.
         """
         logger.info(f"Starting video download: {url}")
-        video_path = await async_download_youtube_video(url, 3, task_id)
+        video_id = get_youtube_video_id(url)
+
+        def _resolve() -> Optional[Path]:
+            if not video_id:
+                return None
+            job_budget = budget or ByteBudget(get_config().youtube_download_max_bytes)
+            bypass_proxy = skip_proxy
+            if ranges:
+                try:
+                    segments = [
+                        {"start_time": start, "end_time": end}
+                        for start, end in ranges
+                    ]
+                    return materialize_clip_source(
+                        url,
+                        video_id,
+                        segments,
+                        task_id=task_id,
+                        budget=job_budget,
+                    )
+                except DownloadBudgetExceeded:
+                    raise
+                except Exception as exc:
+                    # Only unsupported slicing warrants a full proxy attempt.
+                    bypass_proxy = skip_proxy or not isinstance(exc, PartialDownloadUnavailable)
+                    logger.warning(
+                        "Section download unavailable for %s, using a full file: %s",
+                        video_id,
+                        exc,
+                    )
+            return resolve_full_youtube_download(
+                url,
+                video_id,
+                lambda **kwargs: download_youtube_video(url, 3, task_id, quality, **kwargs),
+                task_id=task_id,
+                budget=job_budget,
+                skip_proxy=bypass_proxy,
+            )
+
+        try:
+            video_path = await run_in_thread(_resolve)
+        except DownloadBudgetExceeded:
+            logger.error("YouTube download exceeded the per-job byte limit: %s", url)
+            raise
 
         if not video_path:
             logger.error(f"Failed to download video: {url}")
             return None
 
         logger.info(f"Video downloaded successfully: {video_path}")
-        video_id = get_youtube_video_id(url)
         if video_id:
             try:
                 await run_in_thread(MediaStorage().restore_youtube_metadata, video_id, Path(video_path))
@@ -157,6 +241,16 @@ class VideoService:
                 await run_in_thread(cleanup_downloaded_files, video_id, source_path=Path(video_path))
                 raise
         return video_path
+
+    @staticmethod
+    async def prepare_source(path: Path) -> Path:
+        """Scale a local source down to at most 1080p and 60 fps.
+
+        Plan-specific output (for example 720p) is applied later, when clips
+        are rendered. This only enforces the absolute ceiling.
+        """
+        prepared = await run_in_thread(normalize_source_media, path)
+        return prepared if isinstance(prepared, Path) else path
 
     @staticmethod
     async def get_video_title(url: str) -> str:
@@ -228,9 +322,11 @@ class VideoService:
         output_format: str = "vertical",
         add_subtitles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        max_short_side: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
         Create standalone video clips from segments with optional subtitles.
+        ``max_short_side`` downscales the finished clips for plans below 1080p.
         Runs in thread pool as video processing is CPU-intensive.
         output_format: 'vertical' (9:16) or 'original' (keep source size, faster).
         add_subtitles: False skips subtitles; with original format uses ffmpeg stream copy (no re-encode).
@@ -253,6 +349,13 @@ class VideoService:
             cleanup_settings,
         )
 
+        if max_short_side:
+            for clip_info in clips_info:
+                try:
+                    await run_in_thread(cap_video_short_side, Path(clip_info["path"]), max_short_side)
+                except Exception as e:
+                    logger.warning(f"Keeping full-size clip {clip_info.get('filename')}: {e}")
+
         logger.info(f"Successfully created {len(clips_info)} clips")
         return clips_info
 
@@ -269,8 +372,12 @@ class VideoService:
         output_format: str = "vertical",
         add_subtitles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        max_short_side: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Render a single clip in the thread pool and return clip_info dict, or None on failure."""
+        """Render a single clip in the thread pool and return clip_info dict, or None on failure.
+
+        ``max_short_side`` downscales the finished clip for plans below 1080p.
+        """
         try:
             provided_keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
             source_ranges = normalize_source_ranges(segment.get("source_ranges"))
@@ -321,6 +428,7 @@ class VideoService:
                 # Snapping, cleanup and the teaser change what is spoken; keep
                 # the stored text word-for-word with the rendered timeline.
                 clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
+            keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges)
 
             success = await run_in_thread(
                 create_optimized_clip,
@@ -336,11 +444,19 @@ class VideoService:
                 output_format,
                 keep_ranges,
                 segment.get("hook_title"),
+                extend_to_sentence=False,
             )
 
             if not success:
                 logger.error(f"Failed to create clip {clip_index + 1}")
                 return None
+
+            if max_short_side:
+                try:
+                    await run_in_thread(cap_video_short_side, clip_path, max_short_side)
+                except Exception as e:
+                    # A higher-resolution clip beats losing the clip entirely.
+                    logger.warning(f"Keeping full-size clip {clip_index + 1}: {e}")
 
             save_clip_source_ranges(clip_path, keep_ranges)
             cleaned_duration = sum(end - start for start, end in keep_ranges)
@@ -389,13 +505,16 @@ class VideoService:
 
     @staticmethod
     def determine_source_type(url: str) -> str:
-        """Determine if source is YouTube or uploaded file."""
+        """Determine and validate the supported source type."""
         video_id = get_youtube_video_id(url)
         if video_id:
             return "youtube"
         if url.startswith(UPLOAD_URL_PREFIX):
             return "video_url"
-        raise ValueError("Only YouTube URLs or upload:// references are supported")
+        if not url.startswith(("http://", "https://")):
+            raise ValueError("Only YouTube URLs or upload:// references are supported")
+        source, _kind, _source_id = detect_stream_source(url)
+        return source
 
     @staticmethod
     async def process_video_complete(
@@ -410,6 +529,7 @@ class VideoService:
         output_format: str = "vertical",
         add_subtitles: bool = True,
         max_video_duration: Optional[int] = None,
+        download_quality: Optional[str] = None,
         cached_transcript: Optional[str] = None,
         cached_analysis_json: Optional[str] = None,
         progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]] = None,
@@ -424,6 +544,7 @@ class VideoService:
                           Signature: async def callback(progress: int, message: str, status: str)
         """
         video_path: Optional[Path] = None
+        audio_first = False
         try:
             runtime_config = get_config()
             duration_limit = (
@@ -449,9 +570,64 @@ class VideoService:
                             f"Maximum allowed duration is {mins} minutes."
                         )
 
-                video_path = await VideoService.download_video(url, task_id=task_id)
+                video_id = get_youtube_video_id(url)
+                job_budget = ByteBudget(
+                    getattr(runtime_config, "youtube_download_max_bytes", 2_000_000_000)
+                )
+                cached_full = (
+                    await run_in_thread(cached_full_media, video_id) if video_id else None
+                )
+                # Audio first only when a proxy is configured and we do not
+                # already have the full source cached. Uploads never reach here.
+                if proxy_configured(runtime_config) and video_id and not cached_full:
+                    try:
+                        video_path = await run_in_thread(
+                            download_audio_for_job,
+                            url,
+                            video_id,
+                            task_id=task_id,
+                            budget=job_budget,
+                        )
+                        audio_first = True
+                    except DownloadBudgetExceeded as exc:
+                        raise Exception(str(exc)) from exc
+                    except Exception as exc:
+                        logger.warning(
+                            "Proxy audio download failed for %s, falling back to a full file: %s",
+                            video_id,
+                            exc,
+                        )
+                        audio_first = False
+                        video_path = await VideoService.download_video(
+                            url, task_id=task_id, quality=download_quality, budget=job_budget, skip_proxy=True,
+                        )
+                else:
+                    audio_first = False
+                    video_path = cached_full or await VideoService.download_video(
+                        url, task_id=task_id, quality=download_quality, budget=job_budget,
+                    )
                 if not video_path:
                     raise Exception("Failed to download video")
+            elif source_type in {"twitch", "kick"}:
+                # The API preflight already measured the source (and the task
+                # seeds that length), so no second metadata request is made here.
+                # Each provider checks the plan cap before downloading media.
+                try:
+                    video_path = await run_in_thread(
+                        download_stream_audio, url, None, task_id,
+                        max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                    )
+                    audio_first = True
+                except StreamSourceError:
+                    # Too long, private, or every provider already failed: a
+                    # full-video retry would only rerun the same chain.
+                    raise
+                except Exception as exc:
+                    logger.warning("Stream audio download unavailable; using full video: %s", exc)
+                    video_path = await run_in_thread(
+                        download_stream_video, url, None, task_id,
+                        max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                    )
             else:
                 video_path = (
                     await run_in_thread(VideoService.resolve_local_video_path, url)
@@ -469,6 +645,12 @@ class VideoService:
                     f"Video is too long ({int(file_duration) // 60} min). "
                     f"Maximum allowed duration is {mins} minutes."
                 )
+
+            if should_cancel and await should_cancel():
+                raise Exception("Task cancelled")
+            if progress_callback:
+                await progress_callback(15, "Preparing video...", "processing")
+            video_path = await VideoService.prepare_source(video_path)
 
             # Step 2: Generate transcript
             if should_cancel and await should_cancel():
@@ -497,6 +679,7 @@ class VideoService:
                 await run_in_thread(MediaStorage().save_source_metadata, video_path)
             except Exception:
                 logger.warning("Source word timings retained locally for upload retry")
+            await run_in_thread(persist_cache_sidecar, video_path)
 
             # Step 3: AI analysis
             if should_cancel and await should_cancel():
@@ -624,6 +807,53 @@ class VideoService:
                         runtime_config.clip_duration,
                     )
                 ]
+
+            if audio_first:
+                audio_path = video_path
+                if progress_callback:
+                    await progress_callback(
+                        65, "Downloading selected segments...", "processing"
+                    )
+                try:
+                    if source_type in {"twitch", "kick"}:
+                        video_path = await run_in_thread(
+                            download_stream_sections, url, segments_json, file_duration, task_id,
+                            max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                        )
+                        # Shift word timings onto the stitched sections' timeline.
+                        await run_in_thread(
+                            copy_transcript_sidecar, audio_path, video_path,
+                            await run_in_thread(load_time_map, video_path),
+                        )
+                    else:
+                        video_path = await run_in_thread(materialize_clip_source, url, video_id, segments_json, task_id=task_id, budget=job_budget, duration=file_duration, audio_path=audio_path)
+                except DownloadBudgetExceeded as exc:
+                    raise Exception(str(exc)) from exc
+                except Exception as exc:
+                    logger.warning(
+                        "Section download failed, falling back to a full download: %s",
+                        exc,
+                    )
+                    if source_type in {"twitch", "kick"}:
+                        if isinstance(exc, StreamSourceError):
+                            raise
+                        video_path = await run_in_thread(
+                            download_stream_video, url, file_duration, task_id,
+                            max_duration=duration_limit, operation=PROCESSING_OPERATION,
+                        )
+                    else:
+                        video_path = await VideoService.download_video(url, task_id=task_id, quality=download_quality, budget=job_budget, skip_proxy=not isinstance(exc, PartialDownloadUnavailable))
+                    if video_path and audio_path:
+                        await run_in_thread(copy_transcript_sidecar, audio_path, video_path)
+                        await run_in_thread(persist_cache_sidecar, video_path)
+                if not video_path:
+                    raise Exception("Failed to download selected segments")
+                # Transcription used the audio download. The picture is only
+                # available now, so the 1080p/60 cap has to run again or a
+                # section download stays at the source resolution.
+                if should_cancel and await should_cancel():
+                    raise Exception("Task cancelled")
+                video_path = await VideoService.prepare_source(video_path)
 
             return {
                 "segments": segments_json,

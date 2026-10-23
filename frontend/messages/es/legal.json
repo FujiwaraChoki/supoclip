@@ -1,0 +1,161 @@
+{
+  "bindingNotice": "La versión en inglés de este documento es la legalmente vinculante. Esta traducción se ofrece solo por conveniencia.",
+  "hostedApp": "App alojada",
+  "lastUpdated": "Última actualización: {date}",
+  "back": "Volver a SupoClip",
+  "terms": {
+    "metaTitle": "Condiciones del servicio | SupoClip",
+    "metaDescription": "Las condiciones que rigen tu uso de las apps de SupoClip y del servicio alojado de recorte de video, incluidas las suscripciones compradas en la web o en el App Store.",
+    "ogTitle": "Condiciones del servicio de SupoClip",
+    "ogDescription": "Las condiciones que rigen tu uso de SupoClip.",
+    "title": "Condiciones del servicio",
+    "privacyLink": "Política de privacidad",
+    "agreement": {
+      "title": "Acuerdo",
+      "p1": "Estas Condiciones del servicio (“Condiciones”) rigen tu uso de las apps de SupoClip y del servicio alojado (el “Servicio”), que convierten videos largos en clips cortos con subtítulos. Al crear una cuenta o usar el Servicio, aceptas estas Condiciones. Si no estás de acuerdo, no uses el Servicio.",
+      "p2": "SupoClip también está disponible como software de código abierto que puedes alojar tú mismo. Estas Condiciones se aplican al servicio alojado operado por SupoClip; las instancias autoalojadas se rigen por la licencia de código abierto aplicable y por las condiciones propias de quien las opera."
+    },
+    "account": {
+      "title": "Tu cuenta",
+      "p1": "Debes dar información correcta al crear una cuenta y mantener tus credenciales seguras. Eres responsable de la actividad que ocurra en tu cuenta. Debes tener al menos 13 años (o la edad mínima exigida en tu jurisdicción) para usar el Servicio."
+    },
+    "content": {
+      "title": "Tu contenido y tus responsabilidades",
+      "p1": "Conservas la propiedad de los videos que envías y de los clips que el Servicio genera a partir de ellos. Nos concedes los derechos limitados necesarios para procesar, almacenar y entregarte ese contenido como parte de la operación del Servicio.",
+      "p2": "Eres el único responsable de contar con los derechos necesarios sobre cualquier contenido que envíes, incluidos los videos indicados por URL. No puedes usar el Servicio para procesar contenido que infrinja derechos de terceros, sea ilegal o viole las condiciones de una plataforma que te obligan."
+    },
+    "billing": {
+      "title": "Suscripciones y facturación",
+      "p1": "Los planes de pago (por ejemplo Pro y Creator) incluyen una asignación mensual de minutos de vídeo de origen y una resolución máxima de salida. Cada vídeo consume su duración completa, redondeada al minuto, cuando empieza el procesamiento; los trabajos que fallan sin generar clips no cuentan. Las asignaciones se renuevan cada mes, también en los planes anuales, y los minutos no usados no se acumulan. El mismo derecho del plan se aplica a tu cuenta independientemente de dónde lo hayas comprado.",
+      "webLabel": "Compras en la web.",
+      "web": "Las suscripciones web las cobra mensualmente nuestro procesador de pagos, Stripe. Se renuevan automáticamente hasta que las canceles. Puedes cancelar cuando quieras desde el portal de facturación en Configuración; el acceso continúa hasta el final del período pagado.",
+      "iosLabel": "Compras en la app de iOS.",
+      "ios": "Las suscripciones compradas en la app de iOS se cobran a tu Apple ID como suscripciones de renovación automática. El pago se carga al confirmar la compra, y la suscripción se renueva automáticamente salvo que la canceles al menos 24 horas antes de que termine el período en curso. Puedes administrar o cancelar las suscripciones del App Store en los ajustes de suscripciones de tu dispositivo; no se pueden administrar desde la web. Los reembolsos de compras del App Store los gestiona Apple.",
+      "p2": "Una suscripción la administra la plataforma donde se compró. Los precios pueden cambiar con aviso previo; los cambios se aplican en la siguiente renovación. Salvo cuando lo exija la ley o la política de reembolsos de la plataforma, las tarifas no son reembolsables."
+    },
+    "acceptable": {
+      "title": "Uso aceptable",
+      "li1": "Nada de contenido que infrinja derechos, sea ilegal o dañino.",
+      "li2": "Nada de intentos de sondear, interrumpir o sobrecargar el Servicio, ni de eludir los límites de uso.",
+      "li3": "Nada de revender ni poner marca blanca al Servicio alojado sin nuestro permiso por escrito.",
+      "li4": "Nada de usar el Servicio para violar condiciones de plataformas de terceros que te apliquen.",
+      "closing": "Podemos suspender o cancelar cuentas que violen estas Condiciones."
+    },
+    "ip": {
+      "title": "Propiedad intelectual",
+      "p1": "El Servicio, incluido su software, diseño y marca, es propiedad de SupoClip o de sus licenciantes. Los componentes de código abierto se licencian bajo sus respectivas licencias. Estas Condiciones no te otorgan ningún derecho sobre nuestras marcas."
+    },
+    "disclaimers": {
+      "title": "Exenciones de responsabilidad",
+      "p1": "El Servicio se proporciona “tal cual” y “según disponibilidad”. El resultado generado por IA (transcripciones, subtítulos, selección de clips, estimaciones de viralidad) puede contener errores y se ofrece sin garantía de exactitud. En la máxima medida permitida por la ley, rechazamos todas las garantías, expresas o implícitas, incluidas la idoneidad para un fin particular y la no infracción."
+    },
+    "liability": {
+      "title": "Limitación de responsabilidad",
+      "p1": "En la máxima medida permitida por la ley, SupoClip no será responsable por daños indirectos, incidentales, especiales, consecuentes o punitivos, ni por lucro cesante, pérdida de datos o de prestigio. Nuestra responsabilidad total por reclamos relacionados con el Servicio se limita al monto que nos pagaste en los doce meses anteriores al reclamo."
+    },
+    "termination": {
+      "title": "Terminación",
+      "p1": "Puedes dejar de usar el Servicio y eliminar tu cuenta en cualquier momento. Podemos suspender o cancelar tu acceso si violas estas Condiciones o cuando la ley lo exija. Las secciones que por su naturaleza deban sobrevivir a la terminación (como propiedad, exenciones y limitación de responsabilidad) siguen vigentes."
+    },
+    "changes": {
+      "title": "Cambios a estas Condiciones",
+      "p1": "Podemos actualizar estas Condiciones de vez en cuando. Cuando lo hagamos, cambiaremos la fecha de “Última actualización” de arriba y, cuando corresponda, daremos un aviso adicional. Si sigues usando el Servicio después de una actualización, aceptas las Condiciones revisadas."
+    },
+    "contact": {
+      "title": "Contáctanos",
+      "body": "¿Preguntas sobre estas Condiciones? Escríbenos a <email>support@supoclip.com</email>."
+    }
+  },
+  "privacy": {
+    "metaTitle": "Política de privacidad | SupoClip",
+    "metaDescription": "Cómo SupoClip recopila, usa, comparte y protege tus datos cuando usas el servicio de recorte de video de SupoClip.",
+    "ogTitle": "Política de privacidad de SupoClip",
+    "ogDescription": "Cómo SupoClip maneja tus datos.",
+    "title": "Política de privacidad",
+    "overview": {
+      "title": "Resumen",
+      "p1": "Esta Política de privacidad explica cómo SupoClip (“SupoClip”, “nosotros”, “nos”) recopila, usa, comparte y protege información cuando usas las apps de SupoClip y el servicio alojado (el “Servicio”), que convierten videos largos en clips cortos con subtítulos.",
+      "p2": "SupoClip también está disponible como software de código abierto que puedes alojar tú mismo. Si usas una instancia autoalojada operada por ti o por un tercero, quien la opera—no SupoClip—es responsable de los datos que esa instancia procesa. Esta política describe el servicio alojado operado por SupoClip."
+    },
+    "collect": {
+      "title": "Información que recopilamos",
+      "accountLabel": "Información de la cuenta.",
+      "account": "Cuando creas una cuenta, recopilamos tu nombre, correo electrónico y una contraseña con hash seguro. La autenticación la maneja nuestro proveedor de autenticación; no guardamos contraseñas en texto plano.",
+      "contentLabel": "Contenido que nos das.",
+      "content": "Para generar clips, procesamos las URL de video que envías (por ejemplo enlaces a videos que tienes derecho a usar) y los archivos de video que subes. Guardamos los clips resultantes, las transcripciones, los subtítulos y los metadatos de procesamiento relacionados para que puedas verlos, editarlos y exportarlos. Eres responsable de tener los derechos sobre cualquier contenido que envíes.",
+      "billingLabel": "Información de facturación.",
+      "billing": "Los planes de pago los procesa nuestro procesador de pagos, Stripe. No guardamos el número completo de tu tarjeta; conservamos el estado de tu suscripción y un identificador de cliente necesario para administrar la facturación.",
+      "usageLabel": "Datos de uso, dispositivo y registros.",
+      "usage": "Recopilamos identificadores de sesión, dirección IP y registros técnicos básicos para operar, proteger y depurar el Servicio. Si las analíticas están activadas en el sitio alojado, usamos un proveedor de analíticas respetuoso con la privacidad que no crea perfiles publicitarios entre sitios. En el sitio alojado también usamos PostHog para entender cómo se usa el producto, reproducir sesiones (con todo lo que escribes en los campos de formulario enmascarado) y recibir informes de errores para poder corregir problemas.",
+      "campaignLabel": "Información de campañas y referidos.",
+      "campaign1": "Cuando visitas nuestro sitio sin haber iniciado sesión, tu navegador guarda un registro de cómo llegaste por primera vez, durante un máximo de 90 días. Lo guarda en el almacenamiento local del navegador, no en una cookie. El registro incluye etiquetas de campaña del enlace que seguiste (como <utmSource>utm_source</utmSource>, <utmCampaign>utm_campaign</utmCampaign> o un código <ref>ref</ref>), el dominio del sitio que te refirió (no la dirección completa), la página en la que llegaste y la hora de esa visita. Las direcciones de página se reducen a su ruta, así que nunca se registran enlaces para compartir ni IDs de proyecto. No se registra nada mientras tienes la sesión iniciada.",
+      "campaign2": "La primera cuenta que inicia sesión en ese navegador se queda con el registro, y después se borra del navegador para que ninguna otra cuenta pueda usarlo. Si esa cuenta es nueva, guardamos el registro en ella una sola vez, poco después del registro. También anotamos cuándo descargas o exportas un clip por primera vez. Usamos esto para saber qué canales traen a personas que encuentran útil SupoClip. Si las analíticas están activadas, los eventos de registro y de exportación de clips que enviamos a nuestro proveedor de analíticas incluyen los mismos campos de campaña. No usamos esta información para publicidad ni la vendemos. Puedes quitar el registro de tu navegador borrando los datos del sitio de supoclip.com."
+    },
+    "use": {
+      "title": "Cómo usamos tu información",
+      "li1": "Prestar el Servicio: procesar tus videos y generar, editar y exportar clips.",
+      "li2": "Autenticarte y mantener tu cuenta segura.",
+      "li3": "Procesar pagos y administrar suscripciones.",
+      "li4": "Enviar correo transaccional (por ejemplo confirmación de registro, avisos de finalización y recibos de facturación).",
+      "li5": "Mantener, depurar, proteger y mejorar el Servicio.",
+      "li6": "Entender qué campañas y sitios de referencia llevan a registros y a la primera exportación de un clip.",
+      "li7": "Si conectas una cuenta social, publicar los clips que elijas y mostrarte cómo les va.",
+      "li8": "Cumplir obligaciones legales y hacer valer nuestras condiciones."
+    },
+    "social": {
+      "title": "Cuentas sociales conectadas",
+      "p1": "Puedes conectar una cuenta de YouTube, TikTok o Instagram para que SupoClip publique clips por ti. Conectar es opcional, ocurre en la página de inicio de sesión de la propia plataforma, y nunca vemos tu contraseña de esa plataforma.",
+      "accessLabel": "A qué accedemos y por qué.",
+      "li1": "<label>Perfil básico</label> (ID de cuenta, nombre visible, nombre de usuario, foto de perfil): para mostrar qué cuenta está conectada.",
+      "li2": "<label>Permiso para subir o publicar</label>: para publicar los clips que elijas, con el título, el texto, la visibilidad y la hora que indiques. Nunca publicamos nada que no nos hayas pedido.",
+      "li3": "<label>Estadísticas de las publicaciones hechas a través de SupoClip</label> (vistas, me gusta, comentarios, compartidos): para mostrarte cómo les va a tus clips y, cuando haya suficientes resultados, ajustar la selección de clips para tus próximos videos.",
+      "tokens": "Guardamos cifrados los tokens de acceso que emite la plataforma y los usamos solo para los fines de arriba. No vendemos estos datos, no los usamos para publicidad, no los compartimos con otros usuarios ni los usamos para entrenar modelos de IA de propósito general.",
+      "disconnectLabel": "Desconectar y eliminar.",
+      "disconnect": "Puedes desconectar una cuenta cuando quieras desde la página Social. Al desconectar, se borran de inmediato los tokens guardados, se cancelan las publicaciones que sigan programadas para esa cuenta y se pide a la plataforma que revoque el acceso de SupoClip cuando ella lo permita. También puedes quitar de la app los registros de publicaciones, incluidas sus estadísticas. Eliminar tu cuenta de SupoClip borra todos estos datos. También puedes revocar el acceso desde la propia plataforma; en Google, en <google>la configuración de seguridad de Google</google>. Para pedirnos que borremos estos datos, escribe a <email>privacy@supoclip.com</email>.",
+      "youtubeLabel": "YouTube y Google.",
+      "youtube": "SupoClip usa YouTube API Services. Al conectar una cuenta de YouTube, aceptas las <youtubeTerms>Condiciones del servicio de YouTube</youtubeTerms>, y el manejo de tus datos por parte de Google se describe en la <googlePrivacy>Política de privacidad de Google</googlePrivacy>. El uso que SupoClip haga de la información recibida de las API de Google, y su transferencia a cualquier otra app, cumplirá la <googleApi>Política de datos de usuario de los servicios de API de Google</googleApi>, incluidos los requisitos de Uso limitado."
+    },
+    "processors": {
+      "title": "Proveedores y subencargados",
+      "intro": "Compartimos datos con proveedores que los procesan en nuestro nombre, solo en la medida necesaria para prestar el Servicio:",
+      "li1": "<label>Transcripción</label>: para transcribir el audio de tus videos.",
+      "li2": "<label>Proveedores de IA/LLM</label>: para analizar transcripciones e identificar segmentos que valen como clips.",
+      "li3": "<label>Stripe</label>: procesamiento de pagos.",
+      "li4": "<label>Envío de correo</label>: correos transaccionales.",
+      "li5": "<label>Alojamiento e infraestructura</label>: para operar el Servicio.",
+      "li6": "<label>Analíticas</label>: cuando están activadas, para medir visitas al sitio, registros y exportaciones de clips.",
+      "li7": "<label>YouTube, TikTok e Instagram (Meta)</label>: solo si conectas una cuenta, para publicar los clips que elijas y leer sus estadísticas (consulta Cuentas sociales conectadas).",
+      "li8": "<label>PostHog</label>: en el sitio alojado, analíticas de producto, reproducciones de sesión con los campos de formulario enmascarados e informes de errores. Alojado en la UE.",
+      "closing": "No vendemos tu información personal ni la usamos para publicidad conductual entre contextos. Podemos revelar información si la ley lo exige o para proteger los derechos, la seguridad y la protección de nuestros usuarios y del Servicio."
+    },
+    "retention": {
+      "title": "Conservación de datos",
+      "p1": "Conservamos la información de tu cuenta, incluida la de campañas y referidos guardada al registrarte, mientras la cuenta esté activa. Tus tareas, videos subidos y clips generados se conservan hasta que los elimines o elimines tu cuenta. Los archivos temporales de procesamiento se borran automáticamente después del procesamiento. Podemos conservar registros limitados cuando haga falta por motivos legales, de seguridad o contables."
+    },
+    "rights": {
+      "title": "Tus derechos y opciones",
+      "p1": "Puedes ver y actualizar la información de tu cuenta en la app. Puedes eliminar tareas y clips individuales cuando quieras. Puedes eliminar tu cuenta—lo que borra tus datos asociados—desde la app, o escribiéndonos a <email>privacy@supoclip.com</email>.",
+      "p2": "Según dónde vivas (por ejemplo bajo el RGPD o la CCPA/CPRA), puedes tener derecho a acceder, corregir, eliminar o portar tus datos personales, y a oponerte a cierto procesamiento o a restringirlo. Para ejercer estos derechos, contáctanos en la dirección de abajo. No te discriminaremos por ejercer tus derechos."
+    },
+    "security": {
+      "title": "Seguridad",
+      "p1": "Usamos protecciones habituales del sector, incluido el cifrado en tránsito (HTTPS). En dispositivos móviles, las credenciales de sesión se guardan en el llavero del sistema operativo. Ningún método de transmisión o almacenamiento es completamente seguro, pero trabajamos para proteger tu información con medidas técnicas y organizativas razonables."
+    },
+    "transfers": {
+      "title": "Transferencias internacionales",
+      "p1": "Podemos procesar y almacenar información en países distintos de donde vives. Cuando haga falta, usamos garantías adecuadas para esas transferencias."
+    },
+    "children": {
+      "title": "Privacidad de menores",
+      "p1": "El Servicio no está dirigido a menores de 13 años (o la edad mínima exigida en tu jurisdicción), y no recopilamos a sabiendas información personal de ellos. Si crees que un menor nos dio información personal, contáctanos y la eliminaremos."
+    },
+    "changes": {
+      "title": "Cambios a esta política",
+      "p1": "Podemos actualizar esta Política de privacidad de vez en cuando. Cuando lo hagamos, cambiaremos la fecha de “Última actualización” de arriba y, cuando corresponda, daremos un aviso adicional. Si sigues usando el Servicio después de una actualización, aceptas la política revisada."
+    },
+    "contact": {
+      "title": "Contáctanos",
+      "body": "¿Preguntas sobre esta política o tus datos? Escríbenos a <email>privacy@supoclip.com</email>."
+    }
+  }
+}

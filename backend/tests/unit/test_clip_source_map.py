@@ -157,6 +157,9 @@ async def test_regenerate_all_clips_reuses_persisted_source_ranges(isolated_clip
         def resolve_local_video_path(self, _url: str) -> Path:
             return source_path
 
+        async def prepare_source(self, path: Path) -> Path:
+            return path
+
         async def create_video_clips(self, _video_path: Path, segments, *_args, **_kwargs):
             captured["segments"] = segments
             return []
@@ -241,6 +244,9 @@ async def test_regenerate_all_clips_recomputes_cleanup_from_source_ranges(isolat
     class _FakeVideoService:
         def resolve_local_video_path(self, _url: str) -> Path:
             return source_path
+
+        async def prepare_source(self, path: Path) -> Path:
+            return path
 
         async def create_video_clips(self, _video_path: Path, segments, *_args, **_kwargs):
             captured["segments"] = segments

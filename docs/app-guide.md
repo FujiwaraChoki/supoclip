@@ -6,7 +6,7 @@ This guide explains the visible parts of SupoClip and the main user flows.
 
 SupoClip turns long-form videos into short clips. Users can:
 
-- Submit a YouTube URL
+- Submit a YouTube, Twitch, or Kick URL
 - Upload a video file
 - Customize subtitles and styling
 - Track processing progress in real time
@@ -23,15 +23,15 @@ The homepage is the main task creation screen.
 
 Core behaviors:
 
-- Accepts either a YouTube URL or an uploaded file
-- Shows a YouTube thumbnail preview when the URL can be parsed
+- Accepts a YouTube, Twitch, or Kick URL, or an uploaded file
+- Shows the matching source icon for a recognised URL, and a YouTube thumbnail preview when a YouTube URL can be parsed
 - Lets users set clip styling defaults before submission
 - Starts the job and transitions the user into task tracking
 
 Available creation options on this screen include:
 
 - Source type
-  - YouTube
+  - YouTube, Twitch, or Kick link
   - Upload
 - Font family
 - Font size
@@ -167,7 +167,7 @@ The app includes feedback submission plumbing via frontend API routes and backen
 
 1. Sign in.
 2. Open `/`.
-3. Choose YouTube or upload mode.
+3. Paste a YouTube, Twitch, or Kick link, or attach a file.
 4. Configure caption and styling preferences.
 5. Submit the task.
 
@@ -228,6 +228,12 @@ The app can accept standard YouTube URLs, including:
 - Embed-style YouTube links
 
 The system attempts to extract the video ID on the frontend for previews and on the backend for downloading.
+
+### Twitch and Kick
+
+The app accepts Twitch VODs (`twitch.tv/videos/...`) and clips (`clips.twitch.tv/...` or `twitch.tv/<channel>/clip/...`), and Kick VODs (`kick.com/<channel>/videos/...` or `kick.com/video/...`) and clips (`kick.com/<channel>/clips/clip_...` or `kick.com/<channel>?clip=clip_...`). Live channel pages are rejected with a hint to use a VOD or clip instead.
+
+The backend tries the proxy, then a direct `yt-dlp` download, then optional Apify fallbacks. See [Twitch and Kick imports](./configuration.md#twitch-and-kick-imports) for the provider settings.
 
 ### File upload
 

@@ -5,6 +5,35 @@ Local self-hosters can also use an eligible ChatGPT plan for clip analysis via
 [ChatGPT setup guide](./chatgpt.md) for local callback requirements, separate
 transcription configuration, credential storage, and usage limits.
 
+## Twitch and Kick imports
+
+Twitch and Kick VOD/clip imports use an ordered, proxy-first provider chain. They reuse
+`YOUTUBE_PROXY_URL`; an unconfigured proxy is skipped. Direct `yt-dlp` is followed only
+by Apify fallbacks, which are skipped when `APIFY_API_TOKEN` is empty. Twitch clips do
+not use the Twitch Apify actor because its clip URLs are not authenticated.
+
+```env
+TWITCH_DOWNLOAD_PROVIDERS=proxy,direct,apify_twitch
+KICK_DOWNLOAD_PROVIDERS=proxy,direct_retry,apify_kick_hls,apify_kick_mp4
+APIFY_STREAM_PROVIDERS=true
+APIFY_TWITCH_ACTOR=abotapi/twitch-scraper
+APIFY_KICK_HLS_ACTOR=hipersoft/kick-downloader
+APIFY_KICK_MP4_ACTOR=parsebird/kick-video-downloader
+APIFY_STREAM_TIMEOUT_SECONDS=300
+APIFY_KICK_MAX_VIDEO_SIZE_MB=2000
+```
+
+The Apify runs use small memory limits and charge caps. The final Kick provider downloads
+a complete 720p file and is therefore intentionally last; its size cap is duration-based,
+at least 100 MB, and never exceeds `APIFY_KICK_MAX_VIDEO_SIZE_MB`.
+
+Task creation runs a metadata preflight with one overall 30-second deadline: `yt-dlp`
+through the proxy, then direct, then (only if both fail) the cheap metadata actor
+(`apify_twitch` or `apify_kick_hls`). The full-video Kick actor never runs during
+preflight. An actor result found there is stored with the task and reused by the worker,
+so each actor runs at most once per task, and a chain that has failed completely is not
+rerun for the same job.
+
 This guide explains the important environment variables used by SupoClip and how they affect behavior.
 
 Most settings are sourced from `.env.example`, `docker-compose.yml`, and the backend configuration code in `backend/src/config.py`.
@@ -82,6 +111,23 @@ SupoClip can send pageviews and custom product events to DataFast from the `fron
   - `preferences_saved`
   - `feedback_submitted`
 
+### PostHog (product analytics, session replay, error tracking)
+
+The web app can also report to PostHog. It stays fully disabled unless `NEXT_PUBLIC_POSTHOG_KEY` is set, so self-hosted installs send nothing by default.
+
+| Variable | Default | Kind | Purpose |
+|---|---|---|---|
+| `NEXT_PUBLIC_POSTHOG_KEY` | unset | build arg | PostHog project token (`phc_...`). Empty disables PostHog entirely |
+| `NEXT_PUBLIC_POSTHOG_HOST` | `https://eu.i.posthog.com` | build arg | Ingest host the `/ingest` proxy and the server client send to |
+| `POSTHOG_PERSONAL_API_KEY` | unset | build arg | Personal API key with error tracking write access; enables source map upload |
+| `POSTHOG_PROJECT_ID` | unset | build arg | PostHog project ID for source map upload |
+| `POSTHOG_RELEASE_VERSION` | unset | build arg | Optional release version (e.g. the git SHA) for uploaded source maps |
+
+- `NEXT_PUBLIC_*` values are inlined at build time, so pass them as Docker build args.
+- Events go through the same-origin `/ingest` reverse proxy (Next.js rewrites). Session replay masks all inputs; only identified users get person profiles, keyed by the Better Auth user id.
+- Browser errors, `error.tsx`/`global-error.tsx`, server request errors (`instrumentation.ts`), and 5xx responses from `/api/*` are reported as exceptions. Each `/api/*` request carries an `x-trace-id` that the route handlers forward to the backend, so an exception's `trace_id` matches the backend logs.
+- Source maps upload only when both `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` are present at build time.
+
 ## Processing Settings
 
 These settings affect clip generation speed, throughput, and defaults.
@@ -90,12 +136,14 @@ These settings affect clip generation speed, throughput, and defaults.
 |---|---|---|
 | `DEFAULT_PROCESSING_MODE` | `fast` | Default mode for new tasks |
 | `FAST_MODE_MAX_CLIPS` | `10` | Clip cap used by fast mode (never above `MAX_CLIPS`) |
-| `FAST_MODE_TRANSCRIPT_MODEL` | `nano` | Lightweight transcript path for fast mode |
+| `FAST_MODE_TRANSCRIPT_MODEL` | `universal-3-5-pro` | Fast mode uses the Pro model too; `universal-2` covers languages Pro doesn't. `nano`/`universal-2` select the cheaper model for self-hosting |
+| `ASSEMBLY_AI_REQUEST_TIMEOUT_SECONDS` | `60` | Per-request upload/submit timeout (5–300). Transient upload failures retry up to 3 times; the paid submission is attempted once |
 | `WHISPER_MODEL_SIZE` | `medium` in `.env.example` | Whisper model size when Whisper is used locally |
 | `QUEUED_TASK_TIMEOUT_SECONDS` | `180` | Marks stale queued tasks as failed instead of leaving them stuck forever |
 | `MAX_VIDEO_DURATION` | `5400` | Maximum accepted upload length and baseline YouTube length in seconds |
+| `MAX_VIDEO_UPLOAD_BYTES` | `4000000000` | Maximum uploaded file size, in bytes (4 GB). Checked in the browser before the upload starts, and again by the API and presigned upload session so it cannot be bypassed. Set `NEXT_PUBLIC_MAX_VIDEO_UPLOAD_BYTES` to the same value so the pre-upload check matches before the billing summary loads. Sources above 1080p or 60 fps are scaled down to that ceiling before transcription and rendering; plans with a lower output resolution still receive that lower resolution |
 | `PRO_YOUTUBE_MAX_VIDEO_DURATION` | `5400` | Maximum YouTube length for active or trialing Pro subscriptions, in seconds |
-| `SCALE_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum YouTube length for active or trialing Scale subscriptions, in seconds |
+| `SCALE_YOUTUBE_MAX_VIDEO_DURATION` | `10800` | Maximum YouTube length for active or trialing Creator (`scale`) subscriptions, in seconds |
 | `MAX_CLIPS` | `10` | Hard cap on clips per task in every processing mode |
 | `CLIP_DURATION` | `30` | Default clip duration target in seconds |
 
@@ -134,13 +182,25 @@ These determine whether the app behaves like an open self-hosted product or a mo
 | `SELF_HOST` | `true` | When `true`, monetization is disabled |
 | `BACKEND_AUTH_SECRET` | unset in practice | Shared secret for trusted frontend-to-backend requests in hosted mode |
 | `AUTH_SIGNATURE_TTL_SECONDS` | `300` | Lifetime of backend request signatures |
-| `FREE_PLAN_TASK_LIMIT` | `10` | Hosted-mode free plan generation allowance |
-| `PRO_PLAN_TASK_LIMIT` | `50` | Hosted-mode Pro generation allowance |
-| `SCALE_PLAN_TASK_LIMIT` | `300` | Hosted-mode Scale generation allowance |
-| `NEXT_PUBLIC_PRO_PRICE_MONTHLY` | `10` | Frontend display price for the Pro plan |
-| `NEXT_PUBLIC_SCALE_PRICE_MONTHLY` | `50` | Frontend display price for the Scale plan |
-| `NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT` | `50` | Frontend display allowance for the Pro plan |
-| `NEXT_PUBLIC_SCALE_PLAN_TASK_LIMIT` | `300` | Frontend display allowance for the Scale plan |
+| `PRO_PLAN_MINUTE_LIMIT` | `600` | Hosted-mode Pro allowance, in minutes of source video per month (`0` = unlimited) |
+| `SCALE_PLAN_MINUTE_LIMIT` | `1500` | Hosted-mode Creator (`scale`) allowance, in minutes of source video per month |
+| `NEXT_PUBLIC_PRO_PRICE_MONTHLY` | `9.99` | Frontend display price for the Pro plan |
+| `NEXT_PUBLIC_SCALE_PRICE_MONTHLY` | `24.99` | Frontend display price for the Creator plan |
+| `NEXT_PUBLIC_PRO_PRICE_ANNUAL` | `99.90` | Frontend display price for a year of Pro |
+| `NEXT_PUBLIC_SCALE_PRICE_ANNUAL` | `249.90` | Frontend display price for a year of Creator |
+| `NEXT_PUBLIC_PRO_PLAN_MINUTE_LIMIT` | `600` | Frontend display allowance for the Pro plan |
+| `NEXT_PUBLIC_SCALE_PLAN_MINUTE_LIMIT` | `1500` | Frontend display allowance for the Creator plan |
+| `NEXT_PUBLIC_SOCIAL_PUBLISHING` | `soon` | How Creator's scheduled posting appears on pricing pages: `soon` ("Coming soon" tag, YouTube and TikTok), `live`, or `off` |
+
+Plans are metered in minutes of source video. A video's full length, rounded up
+to the minute, is charged when the task is created (YouTube length comes from
+the metadata preflight, uploads are probed with ffprobe). Jobs that fail without
+producing clips release their minutes. Allowances reset monthly, also on yearly
+plans. Pro clips are downscaled to 720p after rendering; Creator clips, and Pro
+subscribers who were subscribed before the change (`users.legacy_hd`), get
+1080p. 720p plans also download YouTube sources at 720p (capped below
+`APIFY_YOUTUBE_DEFAULT_QUALITY`, never above it), with a separate processing
+cache entry so a 1080p request never reuses a 720p source. Scheduling posts requires Creator; publishing immediately works on Pro.
 
 ### Stripe settings
 
@@ -151,7 +211,11 @@ Required when `SELF_HOST=false` and you want subscription management:
 | `STRIPE_SECRET_KEY` | Server-side Stripe API access |
 | `STRIPE_WEBHOOK_SECRET` | Verifies Stripe webhook signatures |
 | `STRIPE_PRO_PRICE_ID` | Price identifier for the Pro plan |
-| `STRIPE_SCALE_PRICE_ID` | Price identifier for the Scale plan |
+| `STRIPE_SCALE_PRICE_ID` | Price identifier for the Creator (`scale`) plan |
+| `STRIPE_PRO_ANNUAL_PRICE_ID` | Yearly price identifier for the Pro plan |
+| `STRIPE_SCALE_ANNUAL_PRICE_ID` | Yearly price identifier for the Creator plan |
+| `STRIPE_PRO_LEGACY_PRICE_IDS` | Comma-separated earlier Pro prices existing subscribers still pay; they stay Pro and keep 1080p |
+| `STRIPE_SCALE_LEGACY_PRICE_IDS` | Comma-separated earlier Creator prices that still map to Creator |
 | `STRIPE_PRICE_ID` | Legacy fallback price identifier for the Pro plan |
 | `STRIPE_CHECKOUT_URL` | Optional fallback checkout URL |
 | `STRIPE_CUSTOMER_PORTAL_URL` | Optional fallback billing portal URL |
@@ -195,6 +259,7 @@ that app from **Settings → Social Accounts**; tokens are stored encrypted with
 | `SOCIAL_METRICS_MAX_POST_AGE_DAYS` | Stop refreshing metrics for posts older than this (default `60`) |
 | `SOCIAL_PERFORMANCE_MIN_POSTS` | Measured posts required before clip selection is personalized (default `3`) |
 | `SOCIAL_PUBLISH_MAX_ATTEMPTS` | Retries for transient publish failures (default `3`) |
+| `SOCIAL_PUBLISHING_ACCESS` | `off` (default), `admins`, or `all`. `off` hides Social and Analytics from users. |
 
 Register this redirect URI on every platform, replacing `<provider>` with
 `youtube`, `tiktok` or `instagram`:
@@ -248,15 +313,48 @@ Automated tests cover mocked provider requests, PostgreSQL migrations and
 repository workflows, and the browser experience without keys. They do not
 verify platform app approval or live OAuth, uploads, and metrics.
 
+## YouTube proxy downloads
+
+Plain `yt-dlp` from a datacenter IP is often stopped with "Sign in to confirm you're not a bot". Set `YOUTUBE_PROXY_URL` to put a residential-proxy `yt-dlp` attempt first. Leave it empty and the download chain is unchanged. See [YouTube download runbook](./youtube-download.md) for the proxy template, the bgutil sidecar, and a canary check.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `YOUTUBE_PROXY_URL` | empty | Proxy template. `{session}` becomes a per-job sticky id. `{country}` is optional. |
+| `YOUTUBE_PROXY_COUNTRY` | empty | Two-letter country code substituted into `{country}`. Other values are ignored. |
+| `YOUTUBE_POT_PROVIDER_URL` | empty | bgutil HTTP base URL, for example `http://bgutil:4416`. |
+| `YOUTUBE_DOWNLOAD_MAX_BYTES` | `2000000000` | Per-job byte cap across audio, sections, and a full-file fallback. |
+| `YOUTUBE_SECTION_PADDING_SECONDS` | `10` | Padding around each selected clip before overlapping ranges merge. |
+| `YOUTUBE_MAX_HEIGHT` | `1080` | Video height cap. Values above 1080 are clamped. |
+| `YOUTUBE_SOURCE_CACHE` | `on` | Keep audio and sections so later edits reuse them. `off` deletes sources after each task. |
+| `YOUTUBE_SOURCE_CACHE_TTL_SECONDS` | `604800` | Age after which unused cache directories are removed. |
+
+With a proxy set, a job downloads modest audio first, picks clips, then fetches only the padded ranges at or below 1080p. Section bytes go through yt-dlp's own HTTP client. ffmpeg only trims files that are already local, because ffmpeg does not route SOCKS proxies and mishandles authenticated HTTP proxies.
+
 ## Apify YouTube Downloader
 
-SupoClip uses the actor explicitly configured in the private environment as the primary YouTube download path. Metadata preflight and fallback downloads rely on the local `yt-dlp` stack over a direct connection.
+SupoClip uses the actor explicitly configured in the private environment as the primary YouTube download path. Metadata preflight and fallback downloads rely on the local `yt-dlp` stack over a direct connection. When `YOUTUBE_PROXY_URL` is set, the proxy attempt runs before Apify.
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `APIFY_API_TOKEN` | empty | Enables the primary Apify download flow |
 | `APIFY_YOUTUBE_DEFAULT_QUALITY` | `1080` | Requested Apify download resolution (`360`, `480`, `720`, or `1080`) |
 | `APIFY_RUN_TIMEOUT_SECONDS` | `900` | Maximum Apify actor run time before SupoClip gives up and falls back |
+
+## RapidAPI YouTube Downloader
+
+An optional paid download service. Set `YOUTUBE_DOWNLOAD_PROVIDER=rapidapi` to try it first, then
+the Apify pool, then yt-dlp; with `apify` it runs after the Apify pool. Missing settings skip it.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RAPIDAPI_YOUTUBE_API_KEY` | empty | RapidAPI key for the download service |
+| `RAPIDAPI_YOUTUBE_HOST` | empty | Extraction API host (private configuration) |
+| `RAPIDAPI_YOUTUBE_RELAY_HOST` | empty | Media relay host the API returns (private configuration) |
+| `RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS` | `1200` | Budget for extraction, transfer, muxing and verification (60–1800) |
+
+Each attempt makes one extraction request, downloads video and original audio in parallel
+ranges, muxes them and verifies byte counts, durations, both streams and decode samples before
+accepting the file. Any contract or relay change fails closed.
 
 ## YouTube Metadata Provider
 
@@ -288,6 +386,8 @@ These are especially relevant in Docker and deployments:
 | `NEXT_PUBLIC_DATAFAST_WEBSITE_ID` | Public DataFast website ID |
 | `NEXT_PUBLIC_DATAFAST_DOMAIN` | Domain passed to the DataFast script |
 | `NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST` | Enables local DataFast testing |
+| `NEXT_PUBLIC_POSTHOG_KEY` | PostHog project token; empty disables PostHog |
+| `NEXT_PUBLIC_POSTHOG_HOST` | PostHog ingest host (default EU) |
 | `BACKEND_INTERNAL_URL` | Internal backend URL used by frontend server routes |
 | `BETTER_AUTH_URL` | Auth origin for Better Auth |
 | `NEXT_PUBLIC_SELF_HOST` | Exposes self-host mode to the frontend |
@@ -339,12 +439,16 @@ STRIPE_SECRET_KEY=your_key
 STRIPE_WEBHOOK_SECRET=your_key
 STRIPE_PRO_PRICE_ID=price_xxx
 STRIPE_SCALE_PRICE_ID=price_xxx
-PRO_PLAN_TASK_LIMIT=50
-SCALE_PLAN_TASK_LIMIT=300
-NEXT_PUBLIC_PRO_PRICE_MONTHLY=10
-NEXT_PUBLIC_SCALE_PRICE_MONTHLY=50
-NEXT_PUBLIC_PRO_PLAN_TASK_LIMIT=50
-NEXT_PUBLIC_SCALE_PLAN_TASK_LIMIT=300
+STRIPE_PRO_ANNUAL_PRICE_ID=price_xxx
+STRIPE_SCALE_ANNUAL_PRICE_ID=price_xxx
+PRO_PLAN_MINUTE_LIMIT=600
+SCALE_PLAN_MINUTE_LIMIT=1500
+NEXT_PUBLIC_PRO_PRICE_MONTHLY=9.99
+NEXT_PUBLIC_SCALE_PRICE_MONTHLY=24.99
+NEXT_PUBLIC_PRO_PRICE_ANNUAL=99.90
+NEXT_PUBLIC_SCALE_PRICE_ANNUAL=249.90
+NEXT_PUBLIC_PRO_PLAN_MINUTE_LIMIT=600
+NEXT_PUBLIC_SCALE_PLAN_MINUTE_LIMIT=1500
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your_aws_access_key_id
 AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
@@ -365,7 +469,12 @@ research outside the repository. No paid actor is selected by default.
 Provider identities and pinned builds belong in `APIFY_YOUTUBE_PROVIDERS`, a private
 JSON array of objects with `actor`, `build`, `adapter`, and optional `max_charge_usd` and `run_timeout_seconds` (60–1800).
 Set the primary in `APIFY_YOUTUBE_DOWNLOADER_ACTOR` and ordered fallback IDs in
-`APIFY_YOUTUBE_FALLBACK_ACTORS`. No paid actor is selected automatically. Supported
+`APIFY_YOUTUBE_FALLBACK_ACTORS`. No paid actor is selected automatically. Fallback
+actors after the primary stay unused unless `APIFY_EXPENSIVE_FALLBACKS=true`.
+Those extra actors are the ones that can spend up to their `$6` run cap (leave
+high-cap actors such as marielise.dev, scraper_one, and dami_studio out of the
+list unless that flag is on). A single cheap primary, such as a titan-style
+actor configured in the private environment, is the default. Supported
 adapters are `kv_file`, `url_objects`, `signed_url`, `kv_media`, and `private_s3`. Configure only
 workers whose input/output contract matches the selected adapter. Private provider
 research and production environment files must stay outside the repository.

@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "title": "SupoClip 创作者计划：做视频即可免费获得 Pro",
+    "description": "制作关于 SupoClip 的 Shorts、Reels、TikToks 或视频，即可免费获得 SupoClip Pro。观众用你的代码，前 3 个月可享 20% 折扣。"
+  },
+  "badge": "创作者计划",
+  "nav": {
+    "label": "主导航",
+    "demo": "演示",
+    "apply": "申请"
+  },
+  "hero": {
+    "title": "做关于 SupoClip 的视频。免费获得 Pro。",
+    "body": "在发关于剪辑、播客或创作者工具的 Shorts、Reels 或 TikToks？领取你自己的代码。观众在 SupoClip 上省钱，你在计划期间享有 Pro。",
+    "apply": "立即申请",
+    "noMinimum": "没有粉丝数量要求。"
+  },
+  "video": {
+    "name": "SupoClip 创作者计划如何运作",
+    "description": "申请、选定代码，观众前 3 个月享 20% 折扣。获批的创作者免费获得 SupoClip Pro。",
+    "aria": "创作者计划说明：申请、选定代码，观众前 3 个月享 20% 折扣"
+  },
+  "offer": {
+    "heading": "每个人能得到什么",
+    "youTitle": "你免费获得 SupoClip Pro",
+    "youDetail": "Pro 通常为每月 ${price}，每月包含 {limit} 小时视频。获批的创作者在参与计划期间可免费使用。",
+    "youDetailNoLimit": "Pro 通常为每月 ${price}。获批的创作者在计划期间免费使用。",
+    "audienceTitle": "你的观众享 20% 折扣",
+    "audienceDetail": "任意方案的前 3 个月。通过你的链接，或在结账时输入你的代码即可。"
+  },
+  "how": {
+    "heading": "如何运作"
+  },
+  "steps": {
+    "apply": {
+      "title": "申请",
+      "detail": "告诉我们你在哪里发布，并选定代码，比如 MAYA。两分钟就好。"
+    },
+    "review": {
+      "title": "我们审核",
+      "detail": "每份申请都会人工审核。无论结果如何，你都会收到邮件。"
+    },
+    "share": {
+      "title": "分享",
+      "detail": "把链接放在简介里，或在视频中说出你的代码。你的账号会立刻获得 Pro。"
+    }
+  },
+  "rules": {
+    "heading": "规则",
+    "sponsored": "赞助内容请标明，例如使用 #ad。",
+    "ads": "不要用 SupoClip 的名称投放广告，也不要把代码发到优惠券或折扣网站。",
+    "ownCode": "不要使用你自己的代码。",
+    "end": "我们可以随时结束计划或移除创作者。"
+  },
+  "faq": {
+    "heading": "常见问题",
+    "cash": {
+      "question": "会用现金支付吗？",
+      "answer": "目前不会。获批的创作者在计划期间免费获得 SupoClip Pro（通常为每月 ${price}）。"
+    },
+    "followers": {
+      "question": "有最低粉丝数吗？",
+      "answer": "没有。我们看你发布的内容，而不只是粉丝数量。已经在做 SupoClip 视频的小型创作者非常合适。"
+    },
+    "audience": {
+      "question": "我的观众能得到什么？",
+      "answer": "通过你的链接注册，或在结账时输入你的代码，前 3 个月可享 20% 折扣。在网页上适用于任何方案。在 iPhone 上适用于 Pro：用户在应用里点“有创作者代码吗？”，或打开你的 iPhone 链接。"
+    },
+    "code": {
+      "question": "我可以自己选代码吗？",
+      "answer": "可以。代码为 3 到 20 个字母、数字或连字符，每个代码只能属于一位创作者。表单会立刻告诉你是否可用。"
+    },
+    "declined": {
+      "question": "如果申请被拒绝会怎样？",
+      "answer": "你会收到一封邮件；如果有具体原因，我们会附上说明。30 天后可以再次申请。"
+    },
+    "account": {
+      "question": "需要 SupoClip 账号吗？",
+      "answer": "需要。计划与你的账号绑定，所以申请前要先创建一个免费账号（或登录）。"
+    }
+  },
+  "cta": {
+    "title": "已经在发关于 SupoClip 的内容？",
+    "body": "用你的主页链接申请，并选定代码。如果已经做过关于 SupoClip 的视频，请一并附上。"
+  }
+}

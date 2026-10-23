@@ -6,7 +6,10 @@ from __future__ import annotations
 
 from typing import Any
 
-DEFAULT_PAUSE_THRESHOLD_MS = 700
+# Pauses shorter than this stay in the cut. 700ms was eating ordinary breaths
+# in a conversation (about a fifth of a talking-head clip) and the junctions
+# sounded chopped. 1.2s still removes real dead air.
+DEFAULT_PAUSE_THRESHOLD_MS = 1200
 # New tasks clean up pacing unless the request explicitly opts out. Settings
 # loaded for existing tasks keep treating a missing value as off.
 NEW_TASK_CUT_LONG_PAUSES = True

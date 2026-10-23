@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "title": "SupoClip-Creator-Programm: Hol dir Pro kostenlos, indem du Videos machst",
+    "description": "Mach Shorts, Reels, TikToks oder Videos über SupoClip und hol dir SupoClip Pro kostenlos. Dein Publikum bekommt mit deinem Code 20% auf die ersten 3 Monate."
+  },
+  "badge": "Creator-Programm",
+  "nav": {
+    "label": "Hauptnavigation",
+    "demo": "Demo",
+    "apply": "Bewerben"
+  },
+  "hero": {
+    "title": "Mach Videos über SupoClip. Hol dir Pro kostenlos.",
+    "body": "Postest du Shorts, Reels oder TikToks über Clipping, Podcasts oder Creator-Tools? Hol dir deinen eigenen Code. Dein Publikum spart bei SupoClip, und du hast Pro, solange du im Programm bist.",
+    "apply": "Jetzt bewerben",
+    "noMinimum": "Keine Mindestzahl an Followern."
+  },
+  "video": {
+    "name": "So funktioniert das SupoClip-Creator-Programm",
+    "description": "Bewirb dich, wähl deinen Code, und dein Publikum bekommt 20% auf die ersten 3 Monate. Freigegebene Creator bekommen SupoClip Pro kostenlos.",
+    "aria": "Erklärung zum Creator-Programm: Bewirb dich, wähl deinen Code, und dein Publikum bekommt 20% auf die ersten 3 Monate"
+  },
+  "offer": {
+    "heading": "Was alle bekommen",
+    "youTitle": "Du bekommst SupoClip Pro, kostenlos",
+    "youDetail": "Pro kostet normalerweise ${price}/Monat und enthält {limit} Stunden Video pro Monat. Freigeschaltete Creator erhalten es kostenlos, solange sie im Programm sind.",
+    "youDetailNoLimit": "Pro kostet normalerweise ${price}/Monat. Freigegebene Creator bekommen es kostenlos, solange sie im Programm sind.",
+    "audienceTitle": "Dein Publikum bekommt 20% Rabatt",
+    "audienceDetail": "Für die ersten 3 Monate, auf jedem Tarif. Es funktioniert über deinen Link oder indem jemand deinen Code an der Kasse eingibt."
+  },
+  "how": {
+    "heading": "So funktioniert’s"
+  },
+  "steps": {
+    "apply": {
+      "title": "Bewerben",
+      "detail": "Sag uns, wo du postest, und wähl deinen Code, zum Beispiel MAYA. Das dauert zwei Minuten."
+    },
+    "review": {
+      "title": "Wir prüfen",
+      "detail": "Jede Bewerbung wird von Hand geprüft. Du bekommst so oder so eine E-Mail."
+    },
+    "share": {
+      "title": "Teilen",
+      "detail": "Setz deinen Link in die Bio oder sag deinen Code in deinen Videos. Dein Konto bekommt sofort Pro."
+    }
+  },
+  "rules": {
+    "heading": "Die Regeln",
+    "sponsored": "Kennzeichne gesponserte Posts, zum Beispiel mit #ad.",
+    "ads": "Schalt keine Anzeigen auf den Namen SupoClip und poste deinen Code nicht auf Coupon- oder Deal-Seiten.",
+    "ownCode": "Nutze nicht deinen eigenen Code.",
+    "end": "Wir können das Programm beenden oder einen Creator jederzeit entfernen."
+  },
+  "faq": {
+    "heading": "Fragen",
+    "cash": {
+      "question": "Werde ich in bar bezahlt?",
+      "answer": "Gerade nicht. Freigegebene Creator bekommen SupoClip Pro (normalerweise ${price}/Monat) kostenlos, solange sie im Programm sind."
+    },
+    "followers": {
+      "question": "Gibt es eine Mindestzahl an Followern?",
+      "answer": "Nein. Wir schauen darauf, was du postest, nicht nur darauf, wie viele Leute dir folgen. Kleine Creator, die schon Videos über SupoClip machen, passen sehr gut."
+    },
+    "audience": {
+      "question": "Was bekommt mein Publikum?",
+      "answer": "Wer sich über deinen Link anmeldet oder deinen Code an der Kasse eingibt, bekommt 20% auf die ersten 3 Monate. Im Web gilt das für jeden Tarif. Auf dem iPhone gilt es für Pro: Leute tippen in der App auf „Hast du einen Creator-Code?“ oder öffnen deinen iPhone-Link."
+    },
+    "code": {
+      "question": "Kann ich meinen eigenen Code wählen?",
+      "answer": "Ja. Codes haben 3 bis 20 Buchstaben, Zahlen oder Bindestriche, und jeder gehört nur einem Creator. Das Formular sagt dir sofort, ob deiner frei ist."
+    },
+    "declined": {
+      "question": "Was passiert, wenn meine Bewerbung abgelehnt wird?",
+      "answer": "Du bekommst eine E-Mail, mit einer Notiz von uns, wenn es etwas Konkretes gibt. Du kannst dich nach 30 Tagen erneut bewerben."
+    },
+    "account": {
+      "question": "Brauche ich ein SupoClip-Konto?",
+      "answer": "Ja. Das Programm hängt an deinem Konto, also erstellst du vorher ein kostenloses (oder meldest dich an)."
+    }
+  },
+  "cta": {
+    "title": "Postest du schon über SupoClip?",
+    "body": "Bewirb dich mit einem Link zu deinem Profil und wähl deinen Code. Wenn du schon ein Video über SupoClip gemacht hast, füg es hinzu."
+  }
+}

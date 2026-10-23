@@ -1,5 +1,6 @@
 """Video utils helpers for the video pipeline."""
 
+from .clip_source_map import save_clip_caption_settings
 from .media.common import (
     Any,
     Dict,
@@ -28,6 +29,11 @@ from .media.ffmpeg import (
     run_ffmpeg_command,
     select_audio_stream_index,
 )
+from .media.source_limits import (
+    fit_within_1080p,
+    probe_video_geometry,
+    source_within_output_limits,
+)
 from .media.transcription import (
     get_video_transcript,
 )
@@ -37,6 +43,7 @@ from .media.timeline import (
     build_clip_keep_ranges,
     build_hook_teaser_range,
     build_keep_ranges_from_source_ranges,
+    clamp_keep_ranges_to_max_duration,
     extend_keep_ranges_to_sentence_boundary,
     parse_timestamp_to_seconds,
     keep_ranges_transcript_text,
@@ -261,6 +268,7 @@ def create_optimized_clip(
     keep_ranges: Optional[List[Tuple[float, float]]] = None,
     hook_title: Optional[str] = None,
     extend_to_sentence: bool = True,
+    layout_report: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size)."""
     try:
@@ -282,6 +290,9 @@ def create_optimized_clip(
             effective_keep_ranges = extend_keep_ranges_to_sentence_boundary(
                 video_path, effective_keep_ranges,
             )
+            effective_keep_ranges = clamp_keep_ranges_to_max_duration(
+                video_path, effective_keep_ranges,
+            )
         duration = sum(end - start for start, end in effective_keep_ranges)
         if duration <= 0:
             logger.error(f"Invalid clip duration: {duration:.1f}s")
@@ -293,8 +304,16 @@ def create_optimized_clip(
             f"subtitles={add_subtitles} template '{caption_template}' format={'original' if keep_original else 'vertical'}"
         )
 
-        # Fast path: no subtitles + original = ffmpeg stream copy (no re-encoding)
-        if not add_subtitles and not hook_title and keep_original and len(effective_keep_ranges) == 1 and extend_to_sentence:
+        # Fast path: no subtitles + original = ffmpeg stream copy (no re-encoding).
+        # Oversized or high-frame-rate sources fall through so the render caps them.
+        if (
+            not add_subtitles
+            and not hook_title
+            and keep_original
+            and len(effective_keep_ranges) == 1
+            and extend_to_sentence
+            and source_within_output_limits(video_path)
+        ):
             fast_path_start, fast_path_end = effective_keep_ranges[0]
             result = subprocess.run(
                 [
@@ -339,11 +358,44 @@ def create_optimized_clip(
             # always 1080x1920, "original" keeps the (even) source size. Knowing
             # them lets us build the ASS captions up front and burn them in the
             # SAME pass as reframing — one encode instead of two.
+            src_w, src_h = ffprobe_video_size(source_clip_path)
             if reframe_format == "original":
-                src_w, src_h = ffprobe_video_size(source_clip_path)
-                target_width, target_height = round_to_even(src_w), round_to_even(src_h)
+                # Captions are burned after the 1080p/60 scale, so their play
+                # resolution has to be the capped display size. A 4K or rotated
+                # master would otherwise place them on the unscaled frame.
+                geometry = probe_video_geometry(source_clip_path)
+                if geometry is not None:
+                    target_width, target_height = fit_within_1080p(
+                        geometry.display_width, geometry.display_height
+                    )
+                    target_width, target_height = round_to_even(target_width), round_to_even(target_height)
+                else:
+                    target_width, target_height = round_to_even(src_w), round_to_even(src_h)
             else:
                 target_width, target_height = 1080, 1920
+
+            speaker_turns: List[Dict[str, Any]] = []
+            speaker_words: List[Dict[str, Any]] = []
+            vertical_plan = None
+            caption_y = None
+            if reframe_format == "vertical":
+                if get_config().speaker_framing:
+                    try:
+                        speaker_turns, speaker_words = build_clip_speaker_turns(
+                            video_path, effective_keep_ranges
+                        )
+                    except Exception as exc:
+                        logger.warning("Speaker turn extraction failed: %s", exc)
+                try:
+                    video_filter, mode, caption_y = build_vertical_filter_plan(
+                        source_clip_path, src_w, src_h, speaker_turns, speaker_words
+                    )
+                    vertical_plan = (video_filter, mode)
+                except Exception as exc:
+                    logger.warning("Vertical layout planning failed: %s", exc)
+                    caption_y = None
+            if layout_report is not None and caption_y is not None:
+                layout_report["caption_y"] = caption_y
 
             burn_ass_path: Optional[Path] = None
             fonts_dir: Optional[Path] = None
@@ -361,21 +413,12 @@ def create_optimized_clip(
                 effective_keep_ranges,
                 hook_title=hook_title,
                 include_captions=add_subtitles,
+                position_y_override=caption_y,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
                     font_family or get_template(caption_template)["font_family"]
                 )
-
-            speaker_turns: List[Dict[str, Any]] = []
-            speaker_words: List[Dict[str, Any]] = []
-            if reframe_format == "vertical" and get_config().speaker_framing:
-                try:
-                    speaker_turns, speaker_words = build_clip_speaker_turns(
-                        video_path, effective_keep_ranges
-                    )
-                except Exception as exc:
-                    logger.warning("Speaker turn extraction failed: %s", exc)
 
             framed_ok, _, _ = render_reframed_clip_ffmpeg(
                 source_clip_path,
@@ -385,6 +428,7 @@ def create_optimized_clip(
                 fonts_dir=fonts_dir,
                 speaker_turns=speaker_turns,
                 speaker_words=speaker_words,
+                vertical_plan=vertical_plan,
             )
             if not framed_ok:
                 raise RuntimeError("ffmpeg reframe render failed")
@@ -475,7 +519,12 @@ def create_clips_from_segments(
                 # Snapping, cleanup and the teaser change what is spoken; keep
                 # the stored text word-for-word with the rendered timeline.
                 clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
+            # Rewind and sentence extension happen before this, so the stored
+            # ranges — and the render, which must not extend them again — stay
+            # inside the 60s cap.
+            keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges)
 
+            layout_report: Dict[str, Any] = {}
             success = create_optimized_clip(
                 video_path,
                 start_seconds,
@@ -489,10 +538,16 @@ def create_clips_from_segments(
                 output_format,
                 keep_ranges,
                 hook_title=segment.get("hook_title"),
+                extend_to_sentence=False,
+                layout_report=layout_report,
             )
 
             if success:
                 save_clip_source_ranges(clip_path, keep_ranges)
+                if layout_report.get("caption_y") is not None:
+                    save_clip_caption_settings(
+                        clip_path, {"position_y": layout_report["caption_y"]}
+                    )
                 cleaned_duration = sum(end - start for start, end in keep_ranges)
                 clip_info = {
                     "clip_id": i + 1,

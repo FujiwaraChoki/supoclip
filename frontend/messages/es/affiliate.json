@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "title": "Programa de creadores de SupoClip: obtén Pro gratis por hacer videos",
+    "description": "Haz Shorts, Reels, TikToks o videos sobre SupoClip y obtén SupoClip Pro gratis. Tu audiencia recibe 20% de descuento en sus primeros 3 meses con tu código."
+  },
+  "badge": "Programa de creadores",
+  "nav": {
+    "label": "Navegación principal",
+    "demo": "Demo",
+    "apply": "Aplicar"
+  },
+  "hero": {
+    "title": "Haz videos sobre SupoClip. Obtén Pro gratis.",
+    "body": "¿Publicas Shorts, Reels o TikToks sobre clipping, podcasts o herramientas para creadores? Obtén tu propio código. Tu audiencia ahorra en SupoClip y tú tienes Pro mientras estés en el programa.",
+    "apply": "Aplicar ahora",
+    "noMinimum": "Sin mínimo de seguidores."
+  },
+  "video": {
+    "name": "Cómo funciona el programa de creadores de SupoClip",
+    "description": "Aplica, elige tu código y tu audiencia recibe 20% de descuento en sus primeros 3 meses. Los creadores aprobados obtienen SupoClip Pro gratis.",
+    "aria": "Explicación del programa de creadores: aplica, elige tu código y tu audiencia recibe 20% de descuento en sus primeros 3 meses"
+  },
+  "offer": {
+    "heading": "Lo que todos reciben",
+    "youTitle": "Tú recibes SupoClip Pro, gratis",
+    "youDetail": "Pro cuesta normalmente ${price}/mes e incluye {limit} horas de vídeo al mes. Los creadores aprobados lo tienen gratis mientras estén en el programa.",
+    "youDetailNoLimit": "Pro normalmente cuesta ${price}/mes. Los creadores aprobados lo reciben gratis mientras estén en el programa.",
+    "audienceTitle": "Tu audiencia recibe 20% de descuento",
+    "audienceDetail": "En sus primeros 3 meses, en cualquier plan. Funciona con tu enlace o escribiendo tu código al pagar."
+  },
+  "how": {
+    "heading": "Cómo funciona"
+  },
+  "steps": {
+    "apply": {
+      "title": "Aplica",
+      "detail": "Cuéntanos dónde publicas y elige tu código, como MAYA. Toma dos minutos."
+    },
+    "review": {
+      "title": "Revisamos",
+      "detail": "Cada solicitud se revisa a mano. Recibes un correo de cualquier forma."
+    },
+    "share": {
+      "title": "Comparte",
+      "detail": "Pon tu enlace en la bio o di tu código en tus videos. Tu cuenta recibe Pro de inmediato."
+    }
+  },
+  "rules": {
+    "heading": "Las reglas",
+    "sponsored": "Marca las publicaciones patrocinadas, por ejemplo con #ad.",
+    "ads": "No hagas anuncios con el nombre de SupoClip ni publiques tu código en sitios de cupones o de ofertas.",
+    "ownCode": "No uses tu propio código.",
+    "end": "Podemos terminar el programa o retirar a un creador en cualquier momento."
+  },
+  "faq": {
+    "heading": "Preguntas",
+    "cash": {
+      "question": "¿Me pagan en efectivo?",
+      "answer": "Por ahora no. Los creadores aprobados reciben SupoClip Pro (normalmente ${price}/mes) gratis mientras estén en el programa."
+    },
+    "followers": {
+      "question": "¿Hay un mínimo de seguidores?",
+      "answer": "No. Vemos lo que publicas, no solo cuántas personas te siguen. Los creadores pequeños que ya hacen videos sobre SupoClip encajan muy bien."
+    },
+    "audience": {
+      "question": "¿Qué recibe mi audiencia?",
+      "answer": "Quien se registre con tu enlace o ingrese tu código al pagar recibe 20% de descuento en sus primeros 3 meses. En la web funciona en cualquier plan. En iPhone aplica a Pro: las personas tocan “¿Tienes un código de creador?” en la app o abren tu enlace de iPhone."
+    },
+    "code": {
+      "question": "¿Puedo elegir mi propio código?",
+      "answer": "Sí. Los códigos tienen de 3 a 20 letras, números o guiones, y cada uno solo puede pertenecer a un creador. El formulario te dice al instante si el tuyo está disponible."
+    },
+    "declined": {
+      "question": "¿Qué pasa si rechazan mi solicitud?",
+      "answer": "Recibirás un correo, con una nota nuestra cuando haya algo específico. Puedes volver a aplicar después de 30 días."
+    },
+    "account": {
+      "question": "¿Necesito una cuenta de SupoClip?",
+      "answer": "Sí. El programa está ligado a tu cuenta, así que crearás una gratis (o iniciarás sesión) antes de aplicar."
+    }
+  },
+  "cta": {
+    "title": "¿Ya publicas sobre SupoClip?",
+    "body": "Aplica con un enlace a tu perfil y elige tu código. Si ya hiciste un video sobre SupoClip, inclúyelo."
+  }
+}

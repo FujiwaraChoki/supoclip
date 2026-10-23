@@ -23,6 +23,7 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   globalSetup: "./e2e/global-setup.ts",
   use: {
+    locale: "en-US",
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? frontendBaseUrl,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
@@ -42,6 +43,8 @@ export default defineConfig({
         SELF_HOST: "true",
         BACKEND_AUTH_SECRET: backendAuthSecret,
         TEMP_DIR: process.env.TEMP_DIR ?? "temp",
+        // The product default is off. These tests cover the opted-in UI.
+        SOCIAL_PUBLISHING_ACCESS: "all",
       },
     },
     {

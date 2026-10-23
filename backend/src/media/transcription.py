@@ -90,11 +90,18 @@ def _submit_and_wait_for_assemblyai_transcript(
         try:
             audio_url = transcriber.upload_file(str(media_path))
             break
-        except httpx.TransportError:
-            if attempt == 3:
+        except (httpx.TransportError, aai.AssemblyAIError) as error:
+            status = getattr(error, "status_code", None)
+            retryable = isinstance(error, httpx.TransportError) or status in {408, 429, 500, 502, 503, 504}
+            if not retryable:
                 raise
-            logger.warning("AssemblyAI audio upload failed; retrying upload (%s/3)", attempt)
-            time.sleep(2.0)
+            if attempt == 3:
+                raise RuntimeError(
+                    "AssemblyAI audio upload unavailable after 3 attempts"
+                    + (f" (HTTP {status})." if status else ".")
+                ) from None
+            logger.warning("AssemblyAI audio upload failed (HTTP %s); retrying upload (%s/3)", status, attempt)
+            time.sleep(2.0 ** attempt)
     submitted = transcriber.submit(audio_url, config=config_obj)
     if not submitted.id:
         raise RuntimeError("AssemblyAI did not return a transcript ID")
@@ -102,7 +109,7 @@ def _submit_and_wait_for_assemblyai_transcript(
     logger.info("AssemblyAI transcript submitted: %s", submitted.id)
     deadline = time.monotonic() + timeout_seconds
     next_log_at = 0.0
-    consecutive_timeouts = 0
+    consecutive_failures = 0
 
     while True:
         remaining = deadline - time.monotonic()
@@ -119,13 +126,14 @@ def _submit_and_wait_for_assemblyai_transcript(
             )
             response.raise_for_status()
             response = aai.types.TranscriptResponse(**response.json())
-            consecutive_timeouts = 0
-        except httpx.TimeoutException:
-            consecutive_timeouts += 1
-            if consecutive_timeouts >= 3:
-                raise TimeoutError("AssemblyAI status polling timed out repeatedly") from None
-            logger.warning("AssemblyAI status polling timed out; retrying the existing transcript")
-            time.sleep(min(2.0, max(0.0, deadline - time.monotonic())))
+            consecutive_failures = 0
+        except (httpx.TransportError, httpx.HTTPStatusError) as error:
+            if isinstance(error, httpx.HTTPStatusError) and error.response.status_code not in {408, 429, 500, 502, 503, 504}:
+                raise
+            consecutive_failures += 1
+            logger.warning("AssemblyAI status polling unavailable; retrying the existing transcript")
+            time.sleep(min(30.0, 2.0 ** min(consecutive_failures, 4),
+                           max(0.0, deadline - time.monotonic())))
             continue
         transcript = aai.Transcript.from_response(
             client=submitted._client,  # noqa: SLF001
@@ -156,20 +164,15 @@ def _submit_and_wait_for_assemblyai_transcript(
 
 
 def _assemblyai_speech_models_value(speech_model: str) -> List[str]:
-    """Map a model alias to the AssemblyAI ``speech_models`` list.
+    """Prefer Universal-3.5 Pro; retain Universal-2 for unsupported languages.
 
-    AssemblyAI deprecated the singular ``speech_model`` parameter server-side;
-    requests now require ``speech_models`` (a priority-ordered list) accepting
-    only ``universal-3-pro`` and ``universal-2``. Legacy aliases are mapped
-    onto those: fast/cheap mode prefers ``universal-2``; everything else uses
-    ``universal-3-pro`` with ``universal-2`` as a fallback.
+    Explicit low-cost aliases remain available for self-hosted configurations.
+    Legacy quality aliases upgrade to the current Pro model.
     """
-    normalized = (speech_model or "universal").strip().lower()
+    normalized = (speech_model or "universal-3-5-pro").strip().lower()
     if normalized in {"nano", "universal-2"}:
         return ["universal-2"]
-    # "best", "universal", "universal-3-pro", slam variants, and anything else
-    # default to the highest-quality model with a cheaper fallback.
-    return ["universal-3-pro", "universal-2"]
+    return ["universal-3-5-pro", "universal-2"]
 
 
 _WHISPER_MODEL_LOAD_LOCK = Lock()
@@ -352,9 +355,13 @@ def _get_transcript_with_assemblyai(
     video_path: Path, speech_model: str, runtime_config
 ) -> str:
     """Get transcript using AssemblyAI with word-level timing for precise subtitles."""
-    aai.settings.api_key = runtime_config.assembly_ai_api_key
-    aai.settings.http_timeout = runtime_config.assembly_ai_http_timeout_seconds
-    transcriber = aai.Transcriber()
+    # A job owns its client: concurrent jobs must not mutate shared SDK settings.
+    client = aai.Client(settings=aai.Settings(
+        api_key=runtime_config.assembly_ai_api_key,
+        base_url=aai.settings.base_url,
+        http_timeout=getattr(runtime_config, "assembly_ai_request_timeout_seconds", 60),
+    ))
+    transcriber = aai.Transcriber(client=client)
 
     # AssemblyAI now requires the plural `speech_models` list; the singular
     # `best`/`nano`/`universal` values were deprecated server-side.
@@ -410,6 +417,8 @@ def _get_transcript_with_assemblyai(
     except Exception as e:
         logger.error(f"Error in AssemblyAI transcription: {e}")
         raise
+    finally:
+        client.http_client.close()
 
 
 def _get_transcript_with_whisper(video_path: Path, runtime_config) -> str:

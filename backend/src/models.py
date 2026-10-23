@@ -85,6 +85,10 @@ class User(Base):
     subscription_cancel_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Pro subscribers from before the 720p change keep 1080p while subscribed.
+    legacy_hd: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=sql_text("'false'")
+    )
 
     # Relationships
     tasks: Mapped[List["Task"]] = relationship(
@@ -193,6 +197,10 @@ class Task(Base):
     source_metadata: Mapped[dict] = mapped_column(
         JSONB, nullable=False, server_default=sql_text("'{}'::jsonb")
     )
+    # Source length charged against the monthly minute allowance.
+    source_duration_seconds: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True
+    )
     completion_notification_sent_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
@@ -236,7 +244,10 @@ class Source(Base):
 
     # Add check constraint for type enum
     __table_args__ = (
-        CheckConstraint("type IN ('youtube', 'video_url')", name="check_source_type"),
+        CheckConstraint(
+            "type IN ('youtube', 'video_url', 'twitch', 'kick')",
+            name="check_source_type",
+        ),
     )
 
     # Relationships - Source can have multiple tasks

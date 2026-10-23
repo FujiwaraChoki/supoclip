@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { buildBackendAuthHeaders } from "@/lib/backend-auth";
+import { backendTraceHeaders } from "@/server/backend-api";
 
 export async function POST(request: Request, context: { params: Promise<{ action: string }> }) {
   const { action } = await context.params;
@@ -15,7 +16,7 @@ export async function POST(request: Request, context: { params: Promise<{ action
   const apiUrl = process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const response = await fetch(`${apiUrl.replace(/\/$/, "")}/upload/${action}`, {
     method: "POST",
-    headers: { ...buildBackendAuthHeaders(session.user.id), "Content-Type": "application/json" },
+    headers: { ...buildBackendAuthHeaders(session.user.id), ...(await backendTraceHeaders()), "Content-Type": "application/json" },
     body: await request.text(),
     cache: "no-store",
   });

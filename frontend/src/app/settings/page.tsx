@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,14 +14,25 @@ import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useSession } from "@/lib/auth-client";
-import { formatBillingPlanName, formatMinutes, getPublicBillingPlans, isPaidBillingPlan, type BillingPlanId } from "@/lib/billing-plans";
-import { UpgradeNudge, getUpgradeState } from "@/components/billing/upgrade-prompt";
+import { useSocialAccess } from "@/hooks/use-social-access";
+import {
+  annualMonthlyEquivalent,
+  annualMonthsFree,
+  getPublicBillingPlans,
+  isPaidBillingPlan,
+  planPrice,
+  type BillingInterval,
+  type BillingPlanId,
+} from "@/lib/billing-plans";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { BillingIntervalToggle, ComingSoonTag, UpgradeNudge, getUpgradeState, useBillingPlanText } from "@/components/billing/upgrade-prompt";
+import type { BillingSummary } from "@/hooks/use-billing-summary";
 import { startUpgrade } from "@/lib/start-upgrade";
 import { CreatorCodeField } from "@/components/billing/creator-code-field";
 import { toast } from "sonner";
 import { track } from "@/lib/datafast";
 import Link from "next/link";
-import { AlertCircle, Bot, Check, ChevronRight, CreditCard, Loader2, Mail, Megaphone, Share2, Type } from "lucide-react";
+import { AlertCircle, Bot, Check, ChevronRight, Clock, CreditCard, Languages, Loader2, Mail, Megaphone, Share2, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 
@@ -29,19 +41,6 @@ interface UserPreferences {
   fontSize: number;
   fontColor: string;
   notifyOnCompletion: boolean;
-}
-
-interface BillingSummary {
-  monetization_enabled: boolean;
-  plan: string;
-  subscription_status: string;
-  subscription_provider: string | null;
-  cancel_at?: string | null;
-  period_end?: string | null;
-  usage_count: number;
-  usage_limit: number | null;
-  remaining: number | null;
-  upgrade_required: boolean;
 }
 
 export default function SettingsPage() {
@@ -57,7 +56,13 @@ export default function SettingsPage() {
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(null);
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
   const [isBillingActionLoading, setIsBillingActionLoading] = useState(false);
+  const [billingInterval, setBillingInterval] = useState<BillingInterval>("month");
   const { data: session, isPending } = useSession();
+  const socialAccess = useSocialAccess(Boolean(session?.user));
+  const t = useTranslations("settings");
+  const common = useTranslations("common");
+  const tLang = useTranslations("language");
+  const plans = useBillingPlanText();
 
   const paidPlans = getPublicBillingPlans();
   const upgradeState = getUpgradeState(billingSummary);
@@ -68,22 +73,21 @@ export default function SettingsPage() {
     const params = new URLSearchParams(window.location.search);
     const outcome = params.get("billing");
     if (outcome === "success" || outcome === "upgraded") {
-      toast.success(outcome === "upgraded" ? "Your plan has been upgraded. Enjoy the extra room!" : "You're all set. Time to make some clips!");
+      toast.success(outcome === "upgraded" ? t("toasts.upgraded") : t("toasts.ready"));
     }
     if (outcome) {
       params.delete("billing");
       const query = params.toString();
       window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
     }
-  }, []);
+  }, [t]);
 
-  const handleUpgradeToNextPlan = async () => {
-    if (!upgradeState?.nextPlan) return;
+  const handlePlanChange = async (plan: BillingPlanId, interval: BillingInterval) => {
     setIsBillingActionLoading(true);
     try {
-      await startUpgrade(upgradeState.nextPlan.id, "settings");
+      await startUpgrade(plan, "settings", interval);
     } catch (upgradeError) {
-      toast.error(upgradeError instanceof Error ? upgradeError.message : "We couldn't open checkout. Please try again.");
+      toast.error(upgradeError instanceof Error ? upgradeError.message : plans.t("checkoutError"));
       setIsBillingActionLoading(false);
     }
   };
@@ -189,9 +193,9 @@ export default function SettingsPage() {
       try {
         setIsBillingActionLoading(true);
         track("billing_checkout_started", { plan: billingSummary.plan, selected_plan: selectedPlan });
-        await startUpgrade(selectedPlan ?? "pro", "settings");
+        await startUpgrade(selectedPlan ?? "pro", "settings", billingInterval);
       } catch (billingError) {
-        setError(billingError instanceof Error ? billingError.message : "Billing action failed");
+        setError(billingError instanceof Error ? billingError.message : t("plan.actionFailed"));
         setIsBillingActionLoading(false);
       }
       return;
@@ -211,13 +215,13 @@ export default function SettingsPage() {
       }
 
       if (!response.ok || !data.url) {
-        throw new Error(data.error || "Unable to open billing");
+        throw new Error(data.error || t("plan.actionFailed"));
       }
 
       track("billing_portal_opened", { plan: billingSummary.plan });
       window.location.href = data.url;
     } catch (billingError) {
-      setError(billingError instanceof Error ? billingError.message : "Billing action failed");
+      setError(billingError instanceof Error ? billingError.message : t("plan.actionFailed"));
     } finally {
       setIsBillingActionLoading(false);
     }
@@ -244,7 +248,7 @@ export default function SettingsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save preferences');
+        throw new Error(errorData.error || t("save.failed"));
       }
 
       track("preferences_saved");
@@ -253,7 +257,7 @@ export default function SettingsPage() {
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
       console.error('Error saving preferences:', error);
-      setError(error instanceof Error ? error.message : 'Failed to save preferences');
+      setError(error instanceof Error ? error.message : t("save.failed"));
     } finally {
       setIsLoading(false);
     }
@@ -263,7 +267,7 @@ export default function SettingsPage() {
 
   if (isPending || (session?.user && isFetching)) {
     return (
-      <div role="status" aria-label="Loading" className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8 sm:px-8 md:py-10">
+      <div role="status" aria-label={common("loading")} className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8 sm:px-8 md:py-10">
         <Skeleton className="h-9 w-40" />
         {[0, 1, 2].map((key) => <Skeleton key={key} className="h-40 w-full rounded-2xl" />)}
       </div>
@@ -273,10 +277,10 @@ export default function SettingsPage() {
   if (!session?.user) {
     return (
       <div className="mx-auto max-w-md px-4 py-24 text-center">
-        <h1 className="font-display text-3xl font-bold tracking-tight">Sign In Required</h1>
-        <p className="mb-8 mt-3 text-muted-foreground">You need to sign in to access your settings</p>
+        <h1 className="font-display text-3xl font-bold tracking-tight">{t("signInRequired.title")}</h1>
+        <p className="mb-8 mt-3 text-muted-foreground">{t("signInRequired.body")}</p>
         <Link href="/sign-in">
-          <Button size="lg">Sign In</Button>
+          <Button size="lg">{t("signInRequired.action")}</Button>
         </Link>
       </div>
     );
@@ -285,21 +289,33 @@ export default function SettingsPage() {
   const dirty = savedSnapshot !== null && savedSnapshot !== JSON.stringify([fontFamily, fontSize, fontColor, completionEmails]);
   // The save bar only appears once there's something to save (and briefly to confirm it).
   const showSaveBar = dirty || isLoading || success;
-  const usagePct = billingSummary?.usage_limit ? Math.min(100, (billingSummary.usage_count / billingSummary.usage_limit) * 100) : 0;
+  const minuteLimit = billingSummary?.minute_limit ?? null;
+  const usageMinutes = billingSummary?.usage_minutes ?? 0;
+  const usagePct = minuteLimit ? Math.min(100, (usageMinutes / minuteLimit) * 100) : 0;
+  // Monthly Stripe subscribers can move to yearly billing for the same plan.
+  const canSwitchToYearly =
+    currentPaidPlan &&
+    billingSummary?.subscription_provider === "stripe" &&
+    billingSummary.billing_interval === "month" &&
+    !billingSummary.cancel_at;
 
   return (
     <main className={cn("mx-auto w-full max-w-3xl px-4 pt-8 sm:px-8 md:pt-10", showSaveBar ? "pb-32" : "pb-16")}>
-      <h1 className="font-display text-3xl font-bold tracking-tight">Settings</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Defaults for new generations, notifications and your plan.</p>
+      <h1 className="font-display text-3xl font-bold tracking-tight">{t("title")}</h1>
+      <p className="mt-1 text-sm text-muted-foreground">{t("intro")}</p>
 
       <div className="mt-8 space-y-6">
-        <Section icon={<Type className="size-4" />} title="Caption defaults" description="Applied to every new generation. You can still change them per video.">
+        <Section icon={<Languages className="size-4" />} title={tLang("label")} description={t("languageDescription")}>
+          <LanguageSwitcher />
+        </Section>
+
+        <Section icon={<Type className="size-4" />} title={t("captions.title")} description={t("captions.description")}>
           <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_150px]">
             <div className="space-y-5">
               <div className="space-y-2">
-                <Label className="text-sm">Font</Label>
+                <Label className="text-sm">{t("captions.font")}</Label>
                 <Select value={fontFamily} onValueChange={setFontFamily} disabled={isLoading}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder="Select font" /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder={t("captions.selectFont")} /></SelectTrigger>
                   <SelectContent>
                     {availableFonts.map((font) => (
                       <FontSelectOption key={font.name} font={font} />
@@ -311,14 +327,14 @@ export default function SettingsPage() {
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label className="text-sm">Size</Label>
+                  <Label className="text-sm">{t("captions.size")}</Label>
                   <span className="text-xs tabular-nums text-muted-foreground">{fontSize}px</span>
                 </div>
-                <Slider value={[fontSize]} onValueChange={(value) => setFontSize(value[0])} max={48} min={12} step={2} disabled={isLoading} aria-label="Font size" />
+                <Slider value={[fontSize]} onValueChange={(value) => setFontSize(value[0])} max={48} min={12} step={2} disabled={isLoading} aria-label={t("captions.fontSize")} />
               </div>
 
               <div className="space-y-2">
-                <Label className="text-sm">Color</Label>
+                <Label className="text-sm">{t("captions.color")}</Label>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"].map((color) => (
                     <button
@@ -327,13 +343,13 @@ export default function SettingsPage() {
                       onClick={() => setFontColor(color)}
                       disabled={isLoading}
                       title={color}
-                      aria-label={`Caption color ${color}`}
+                      aria-label={t("captions.captionColor", { color })}
                       className={cn("size-8 rounded-full border-2 transition-transform hover:scale-110 disabled:cursor-not-allowed", fontColor.toUpperCase() === color ? "border-foreground" : "border-border")}
                       style={{ backgroundColor: color }}
                     />
                   ))}
-                  <label className="relative size-8 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-border" title="Custom color">
-                    <input type="color" value={fontColor} onChange={(e) => setFontColor(e.target.value)} disabled={isLoading} className="absolute inset-0 cursor-pointer opacity-0" aria-label="Custom caption color" />
+                  <label className="relative size-8 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-border" title={t("captions.customColor")}>
+                    <input type="color" value={fontColor} onChange={(e) => setFontColor(e.target.value)} disabled={isLoading} className="absolute inset-0 cursor-pointer opacity-0" aria-label={t("captions.customCaptionColor")} />
                     <span className="absolute inset-1 rounded-full bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]" />
                   </label>
                   <Input
@@ -342,7 +358,7 @@ export default function SettingsPage() {
                     onChange={(e) => setFontColor(e.target.value)}
                     disabled={isLoading}
                     placeholder="#FFFFFF"
-                    aria-label="Caption color hex"
+                    aria-label={t("captions.captionColorHex")}
                     className="ml-1 h-8 w-24 font-mono text-xs"
                     pattern="^#[0-9A-Fa-f]{6}$"
                   />
@@ -350,7 +366,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="relative mx-auto aspect-[9/16] w-full max-w-[150px] overflow-hidden rounded-xl bg-[radial-gradient(circle_at_50%_30%,oklch(0.5_0.05_50),oklch(0.2_0.01_50))]" aria-label="Caption preview">
+            <div className="relative mx-auto aspect-[9/16] w-full max-w-[150px] overflow-hidden rounded-xl bg-[radial-gradient(circle_at_50%_30%,oklch(0.5_0.05_50),oklch(0.2_0.01_50))]" aria-label={t("captions.preview")}>
               <p
                 className="absolute inset-x-2 top-[70%] text-center font-bold leading-snug"
                 style={{
@@ -360,47 +376,59 @@ export default function SettingsPage() {
                   textShadow: "0 2px 6px rgba(0,0,0,0.8), 0 0 2px rgba(0,0,0,0.9)",
                 }}
               >
-                Your subtitle will look like this
+                {t("captions.sample")}
               </p>
             </div>
           </div>
         </Section>
 
-        <Section icon={<Mail className="size-4" />} title="Notifications" description="How we let you know your clips are ready.">
+        <Section icon={<Mail className="size-4" />} title={t("notifications.title")} description={t("notifications.description")}>
           <div className="flex items-center justify-between gap-4">
             <Label htmlFor="completion-emails" className="flex-col items-start gap-0.5">
-              <span className="text-sm font-medium">Completion emails</span>
-              <span className="text-xs font-normal text-muted-foreground">Get an email as soon as a generation finishes.</span>
+              <span className="text-sm font-medium">{t("notifications.emails")}</span>
+              <span className="text-xs font-normal text-muted-foreground">{t("notifications.emailsHint")}</span>
             </Label>
             <Switch id="completion-emails" checked={completionEmails} onCheckedChange={setCompletionEmails} disabled={isLoading} />
           </div>
         </Section>
 
         {billingSummary?.monetization_enabled && (
-          <Section id="plan" icon={<CreditCard className="size-4" />} title="Plan & billing" description={isPaidBillingPlan(billingSummary.plan) ? "Manage your subscription and invoices." : "Pick the plan that fits how much you clip."}>
+          <Section id="plan" icon={<CreditCard className="size-4" />} title={t("plan.title")} description={isPaidBillingPlan(billingSummary.plan) ? t("plan.paidDescription") : t("plan.freeDescription")}>
             <div className="space-y-4">
               <div className="rounded-xl bg-muted/50 p-4">
                 <div className="flex items-baseline justify-between gap-3">
                   <p className="font-semibold">
-                    {formatBillingPlanName(billingSummary.plan)}
+                    {plans.planName(billingSummary.plan)}
                     <span className="ml-2 text-xs font-normal capitalize text-muted-foreground">{billingSummary.subscription_status}</span>
                   </p>
                   <p className="text-sm tabular-nums text-muted-foreground">
-                    {billingSummary.usage_limit === null ? `${billingSummary.usage_count} this period` : `${billingSummary.usage_count} / ${billingSummary.usage_limit}`}
+                    {minuteLimit === null ? t("plan.usageMinutes", { used: usageMinutes }) : t("plan.usageMinutesOf", { used: usageMinutes, limit: minuteLimit })}
                   </p>
                 </div>
-                {billingSummary.usage_limit !== null && (
+                {minuteLimit !== null && (
                   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-brand" style={{ width: `${usagePct}%` }} /></div>
                 )}
                 <p className="mt-2 text-xs text-muted-foreground">
                   {!upgradeState?.isPaid
-                    ? "No videos included yet. Choose a plan below to start clipping."
-                    : billingSummary.usage_limit === null
-                    ? `${billingSummary.usage_count} videos clipped this period`
+                    ? t("plan.noneYet")
+                    : minuteLimit === null
+                    ? t("plan.minutesThisMonth", { used: usageMinutes })
                     : upgradeState.atLimit
-                    ? `All ${billingSummary.usage_limit} videos used${upgradeState.resetsOn ? `, refreshes on ${upgradeState.resetsOn}` : " this period"}`
-                    : `${billingSummary.usage_count} of ${billingSummary.usage_limit} videos used${upgradeState.resetsOn ? ` · refreshes on ${upgradeState.resetsOn}` : " this period"}`}
+                    ? (upgradeState.resetsOn
+                      ? t("plan.allUsedRefresh", { limit: plans.formatMinutes(minuteLimit), date: upgradeState.resetsOn })
+                      : t("plan.allUsedPeriod", { limit: plans.formatMinutes(minuteLimit) }))
+                    : (upgradeState.resetsOn
+                      ? t("plan.leftRefresh", { left: plans.formatMinutes(Math.max(minuteLimit - usageMinutes, 0)), date: upgradeState.resetsOn })
+                      : t("plan.leftPeriod", { left: plans.formatMinutes(Math.max(minuteLimit - usageMinutes, 0)) }))}
                 </p>
+                {upgradeState?.isPaid && billingSummary.output_short_side && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {billingSummary.legacy_hd
+                      ? t("plan.clipsResolutionLegacy", { resolution: `${billingSummary.output_short_side}p` })
+                      : t("plan.clipsResolution", { resolution: `${billingSummary.output_short_side}p` })}
+                    {billingSummary.billing_interval === "year" ? ` · ${t("plan.billedYearly")}` : ""}
+                  </p>
+                )}
               </div>
 
               {billingSummary.cancel_at && billingSummary.subscription_provider === "stripe" && (
@@ -412,33 +440,65 @@ export default function SettingsPage() {
 
               {isPaidBillingPlan(billingSummary.plan) ? (
                 billingSummary.subscription_provider === "apple" ? (
-                  <p className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">Managed through the App Store</p>
+                  <p className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">{t("plan.appStore")}</p>
                 ) : (
                   <div className="space-y-3">
                     {upgradeState?.nextPlan && (
                       <UpgradeNudge
                         title={
                           currentPaidPlan
-                            ? `Get ${Math.max(2, Math.round(upgradeState.nextPlan.generationLimit / currentPaidPlan.generationLimit))}× more videos with ${upgradeState.nextPlan.name}`
-                            : `Do more with ${upgradeState.nextPlan.name}`
+                            ? t(
+                                upgradeState.nextPlan.resolution !== currentPaidPlan.resolution && !billingSummary.legacy_hd
+                                  ? "plan.upgradeMultiplierHd"
+                                  : "plan.upgradeMultiplier",
+                                {
+                                  multiplier: formatRatio(upgradeState.nextPlan.minuteLimit / currentPaidPlan.minuteLimit),
+                                  resolution: upgradeState.nextPlan.resolution,
+                                  plan: plans.planName(upgradeState.nextPlan.id),
+                                },
+                              )
+                            : t("plan.upgradeMore", { plan: plans.planName(upgradeState.nextPlan.id) })
                         }
-                        description={`$${upgradeState.nextPlan.priceMonthly}/mo · ${upgradeState.nextPlan.generationLimit} videos · YouTube up to ${formatMinutes(upgradeState.nextPlan.youtubeMaxMinutes)}`}
-                        action="Upgrade"
-                        onAction={handleUpgradeToNextPlan}
+                        description={t("plan.upgradeDescription", {
+                          price: upgradeState.nextPlan.priceMonthly,
+                          minutes: plans.formatMinutes(upgradeState.nextPlan.minuteLimit),
+                          resolution: upgradeState.nextPlan.resolution,
+                          length: plans.formatMinutes(upgradeState.nextPlan.youtubeMaxMinutes),
+                        })}
+                        action={t("plan.upgrade")}
+                        onAction={() => handlePlanChange(upgradeState.nextPlan!.id, billingSummary.billing_interval ?? "month")}
+                        loading={isBillingActionLoading}
+                      />
+                    )}
+                    {canSwitchToYearly && annualMonthsFree(currentPaidPlan) > 0 && (
+                      <UpgradeNudge
+                        title={t("plan.switchYearlyTitle", { count: annualMonthsFree(currentPaidPlan) })}
+                        description={t("plan.switchYearlyDescription", {
+                          price: currentPaidPlan.priceAnnual,
+                          monthly: annualMonthlyEquivalent(currentPaidPlan),
+                        })}
+                        action={t("plan.switch")}
+                        onAction={() => handlePlanChange(currentPaidPlan.id, "year")}
                         loading={isBillingActionLoading}
                       />
                     )}
                     {billingSummary.subscription_provider === "affiliate" ? (
-                      <p className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">Free through the creator program</p>
+                      <p className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">{t("plan.affiliate")}</p>
                     ) : (
                       <Button type="button" variant="outline" onClick={() => handleBillingAction()} disabled={isBillingActionLoading}>
-                        {isBillingActionLoading ? "Loading..." : "Manage Billing"}
+                        {isBillingActionLoading ? t("plan.loading") : t("plan.manage")}
                       </Button>
                     )}
                   </div>
                 )
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <BillingIntervalToggle
+                    className="justify-self-start sm:col-span-2"
+                    value={billingInterval}
+                    onChange={setBillingInterval}
+                    plan={paidPlans[0]}
+                  />
                   {paidPlans.map((plan) => (
                     <button
                       key={plan.id}
@@ -451,19 +511,35 @@ export default function SettingsPage() {
                       )}
                     >
                       <span className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-semibold">{plan.name}</span>
-                        {plan.highlighted && <span className="text-xs text-muted-foreground">Most popular</span>}
+                        <span className="text-sm font-semibold">{plans.planName(plan.id)}</span>
+                        {plan.highlighted && <span className="text-xs text-muted-foreground">{plans.t("mostPopular")}</span>}
                       </span>
-                      <span className="mt-1 block text-2xl font-bold tracking-tight">${plan.priceMonthly}<span className="text-xs font-normal text-muted-foreground">/mo</span></span>
+                      <span className="mt-1 block text-2xl font-bold tracking-tight">
+                        ${planPrice(plan, billingInterval)}
+                        <span className="text-xs font-normal text-muted-foreground">
+                          {billingInterval === "year" ? plans.t("perYear") : plans.t("perMonth")}
+                        </span>
+                      </span>
+                      {billingInterval === "year" && (
+                        <span className="block text-xs text-muted-foreground">
+                          {t("plan.monthlyEquivalentYearly", { price: annualMonthlyEquivalent(plan) })}
+                        </span>
+                      )}
                       <span className="mt-3 block space-y-1.5">
-                        {plan.highlights.map((highlight) => (
+                        {plans.highlights(plan).map((highlight) => (
                           <span key={highlight} className="flex items-start gap-1.5 text-xs text-muted-foreground">
                             <Check className="mt-0.5 size-3 shrink-0" />{highlight}
                           </span>
                         ))}
+                        {plans.comingSoon(plan) && (
+                          <span className="flex items-start gap-1.5 text-xs text-muted-foreground/80">
+                            <Clock className="mt-0.5 size-3 shrink-0" />
+                            <span>{plans.comingSoon(plan)} <ComingSoonTag /></span>
+                          </span>
+                        )}
                       </span>
                       <span className={cn("mt-4 flex h-9 items-center justify-center rounded-lg text-sm font-medium", plan.highlighted ? "bg-primary text-primary-foreground" : "bg-muted")}>
-                        {isBillingActionLoading ? "Opening checkout…" : `Choose ${plan.name}`}
+                        {isBillingActionLoading ? t("plan.openingCheckout") : t("plan.choose", { name: plans.planName(plan.id) })}
                       </span>
                     </button>
                   ))}
@@ -486,26 +562,28 @@ export default function SettingsPage() {
         <Link href="/settings/api-keys" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
           <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Bot className="size-4" /></span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">Agents &amp; API</span>
-            <span className="block text-xs text-muted-foreground">API keys for AI agents (MCP) and the REST API</span>
+            <span className="block text-sm font-semibold">{t("links.agentsTitle")}</span>
+            <span className="block text-xs text-muted-foreground">{t("links.agentsDescription")}</span>
           </span>
           <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
         </Link>
 
-        <Link href="/settings/social" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Share2 className="size-4" /></span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">Social accounts</span>
-            <span className="block text-xs text-muted-foreground">Connect YouTube, TikTok and Instagram to publish clips and track performance</span>
-          </span>
-          <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-        </Link>
+        {socialAccess === true && (
+          <Link href="/settings/social" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Share2 className="size-4" /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold">{t("links.socialTitle")}</span>
+              <span className="block text-xs text-muted-foreground">{t("links.socialDescription")}</span>
+            </span>
+            <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        )}
 
         <Link href="/settings/creator-program" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
           <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Megaphone className="size-4" /></span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">Creator program</span>
-            <span className="block text-xs text-muted-foreground">Make videos about SupoClip, get Pro free and a code for your audience</span>
+            <span className="block text-sm font-semibold">{t("links.creatorTitle")}</span>
+            <span className="block text-xs text-muted-foreground">{t("links.creatorDescription")}</span>
           </span>
           <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
         </Link>
@@ -530,11 +608,11 @@ export default function SettingsPage() {
         <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-4 pb-4 pointer-events-none md:bottom-0 md:pb-6 md:pl-64">
           <div className="pointer-events-auto flex w-full max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-200 items-center justify-between gap-4 rounded-2xl border bg-background/95 px-4 py-3 shadow-lg backdrop-blur max-md:mr-14">
             <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
-              {success ? <><Check className="size-4 text-emerald-600" />Preferences saved successfully!</>
-                : <><span className="size-2 rounded-full bg-brand" />Unsaved changes</>}
+              {success ? <><Check className="size-4 text-emerald-600" />{t("save.saved")}</>
+                : <><span className="size-2 rounded-full bg-brand" />{t("save.unsaved")}</>}
             </p>
             <Button onClick={handleSavePreferences} disabled={isLoading}>
-              {isLoading ? <><Loader2 className="size-4 animate-spin" />Saving...</> : "Save Preferences"}
+              {isLoading ? <><Loader2 className="size-4 animate-spin" />{t("save.saving")}</> : t("save.button")}
             </Button>
           </div>
         </div>
@@ -556,4 +634,10 @@ function Section({ id, icon, title, description, children }: { id?: string; icon
       <div className="p-5">{children}</div>
     </section>
   );
+}
+
+/** 2.5 → "2.5", 3 → "3". */
+function formatRatio(ratio: number) {
+  const rounded = Math.round(ratio * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }

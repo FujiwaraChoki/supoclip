@@ -1,0 +1,275 @@
+{
+  "metadata": {
+    "title": "SupoClip – 面向 Shorts 的开源 AI 视频剪辑工具",
+    "description": "用开源 AI 剪辑、传播潜力评分和人脸感知的 9:16 裁切，把长视频和 Twitch、Kick 回放变成带字幕的 YouTube Shorts、TikTok 和 Reels。",
+    "openGraphDescription": "用开源 AI 剪辑，把长视频和 Twitch、Kick 回放变成带字幕的 YouTube Shorts、TikTok 和 Reels。",
+    "twitterDescription": "开源 AI 剪辑、传播潜力评分、字幕，以及人脸感知的竖屏裁切。",
+    "keywords": {
+      "clipper": "AI 视频剪辑工具",
+      "openSource": "开源视频剪辑工具",
+      "shorts": "YouTube Shorts 剪辑工具",
+      "longToShorts": "长视频转短视频",
+      "maker": "AI 短片制作"
+    },
+    "structured": {
+      "software": "一款开源 AI 视频剪辑工具，用于找出高光、制作竖屏裁切、添加逐词同步字幕并导出短视频。",
+      "featureDiscovery": "AI 辅助的片段发现与传播潜力评分",
+      "featureCrop": "人脸感知的 9:16 竖屏裁切",
+      "featureCaptions": "逐词同步的动画字幕",
+      "featureExports": "导出到 YouTube Shorts、TikTok 和 Instagram Reels",
+      "featureSelfHost": "开源自托管",
+      "offerCategory": "自托管开源版本",
+      "ios": "SupoClip iOS 应用：在 iPhone 上把长视频剪成带字幕的竖屏短片。",
+      "website": "面向短视频内容的开源 AI 视频剪辑。"
+    }
+  },
+  "footer": {
+    "tagline": "开源 AI 视频剪辑工具。使用托管应用，或在你自己的基础设施上运行。",
+    "github": "GitHub",
+    "ios": "iOS 应用",
+    "columns": {
+      "guides": "指南",
+      "compare": "对比",
+      "product": "产品"
+    },
+    "columnLinks": "{heading}链接"
+  },
+  "creator": {
+    "codeLead": "优惠码",
+    "codeTail": "已生效：前 3 个月享 8 折。",
+    "start": "开始剪辑",
+    "dismiss": "关闭"
+  },
+  "related": {
+    "continueExploring": "继续探索",
+    "keepReading": "继续阅读",
+    "relatedGuides": "相关 SupoClip 指南",
+    "read": "阅读"
+  },
+  "links": {
+    "demo": {
+      "label": "演示",
+      "eyebrow": "演示",
+      "title": "看看 SupoClip 从一条长视频里剪出的真实短片",
+      "description": "先看成品，再跳回原视频里的每一个瞬间。"
+    },
+    "ai_video_clipper": {
+      "label": "AI 视频剪辑",
+      "eyebrow": "AI 视频剪辑",
+      "title": "面向 Shorts、Reels 和 TikTok 的 AI 视频剪辑工具",
+      "description": "SupoClip 如何找出片段、给候选打分、重新构图人脸并加上字幕。"
+    },
+    "youtube_shorts_clipper": {
+      "label": "YouTube Shorts 剪辑",
+      "eyebrow": "YouTube 转 Shorts",
+      "title": "把长 YouTube 视频改成 Shorts",
+      "description": "一套挑选、加字幕、重新构图和复查短片的实用流程。"
+    },
+    "open_source_video_clipper": {
+      "label": "开源剪辑工具",
+      "eyebrow": "开源",
+      "title": "你可以自己掌控的开源视频剪辑工具",
+      "description": "自托管会怎样改变控制权、模型服务商和基础设施。"
+    },
+    "blog_self_host_supoclip_docker": {
+      "label": "自托管指南",
+      "eyebrow": "自托管指南",
+      "title": "用 Docker Compose 自托管 SupoClip",
+      "description": "环境要求、环境变量、首次启动、完全本地的安装方式，以及上线前检查。"
+    },
+    "blog_supoclip_vs_opusclip": {
+      "label": "SupoClip vs OpusClip",
+      "eyebrow": "对比",
+      "title": "SupoClip vs OpusClip：有出处的对比",
+      "description": "定价方式、部署、水印和工作流，每条说法都链到出处。"
+    },
+    "blog_best_free_opusclip_alternative": {
+      "label": "自托管的 OpusClip 替代",
+      "eyebrow": "对比",
+      "title": "最好的免费自托管 OpusClip 替代方案",
+      "description": "什么时候自托管的开源剪辑工具比按额度计费的工具更合适。"
+    },
+    "blog_supoclip_vs_supo_live": {
+      "label": "SupoClip vs supo.live",
+      "eyebrow": "对比",
+      "title": "SupoClip vs supo.live：开源掌控",
+      "description": "在选定视频工具之前，比较自托管、AI 剪辑和编辑流程。"
+    },
+    "sign_up": {
+      "label": "开始剪辑"
+    },
+    "pricing": {
+      "label": "价格"
+    },
+    "affiliate": {
+      "label": "联盟计划"
+    },
+    "status": {
+      "label": "服务状态"
+    },
+    "privacy": {
+      "label": "隐私"
+    },
+    "terms": {
+      "label": "条款"
+    },
+    "blog": {
+      "label": "全部文章"
+    }
+  },
+  "nav": {
+    "howItWorks": "使用方法",
+    "features": "功能",
+    "pricing": "价格",
+    "openSource": "开源",
+    "blog": "博客",
+    "affiliate": "联盟计划",
+    "signIn": "登录",
+    "getStarted": "开始使用",
+    "openHosted": "打开托管应用",
+    "toggleMenu": "打开或关闭菜单"
+  },
+  "hero": {
+    "badge": "开源，可自托管",
+    "titleLine1": "开源 AI 视频剪辑工具",
+    "titleLine2": "做出更好的短视频",
+    "body": "借助 AI 高光检测、传播潜力评分和人脸感知的竖屏裁切，把 YouTube 视频、Twitch 和 Kick 回放或你自己上传的文件变成带字幕的 Shorts、TikTok 和 Reels。",
+    "startClipping": "开始剪辑",
+    "useHosted": "使用托管应用",
+    "viewSource": "查看源码",
+    "appStoreAria": "在 App Store 下载 SupoClip",
+    "appStoreAlt": "在 App Store 下载",
+    "chips": {
+      "crop": "9:16 自动裁切",
+      "captions": "逐词同步字幕",
+      "virality": "传播潜力评分"
+    },
+    "productHuntAlt": "SupoClip - 开源 AI 剪辑工具：把长视频变成会传播的短片 | Product Hunt",
+    "player": {
+      "source": "youtube.com · 长视频源",
+      "clipsFound": "找到 {count} 个短片",
+      "pause": "暂停短片",
+      "play": "播放短片",
+      "unmute": "取消静音",
+      "mute": "静音",
+      "howMade": "这些短片是怎么做出来的"
+    },
+    "sources": {
+      "label": "支持",
+      "upload": "你自己的文件"
+    }
+  },
+  "steps": {
+    "title": "三步。零负担。",
+    "items": {
+      "drop": {
+        "title": "丢入链接或文件",
+        "description": "粘贴 YouTube、Twitch 或 Kick 链接（回放或剪辑），或拖放你自己的视频文件。"
+      },
+      "gold": {
+        "title": "AI 找出精华",
+        "description": "转录、传播潜力评分和片段检测会找出最精彩的时刻。"
+      },
+      "export": {
+        "title": "导出并发布",
+        "description": "获得竖屏、带字幕、已追踪人脸的短片，可直接发到各个平台。"
+      }
+    }
+  },
+  "features": {
+    "title": "走红所需要的一切",
+    "body": "专业级视频剪辑，流水线的每一步都有 AI。",
+    "items": {
+      "faceCrop": {
+        "title": "人脸居中裁切",
+        "description": "MediaPipe + OpenCV 检测并跟踪人脸，做出准确的 9:16 竖屏构图。"
+      },
+      "subtitles": {
+        "title": "逐词同步字幕",
+        "description": "逐词时间戳让每条短片上的动画字幕都卡在点上。"
+      },
+      "virality": {
+        "title": "传播潜力评分",
+        "description": "AI 为开头钩子、互动、价值和分享意愿打分 — 0 到 100。"
+      },
+      "broll": {
+        "title": "B-roll 叠加",
+        "description": "自动从 Pexels 找来相关素材并叠到画面上。"
+      },
+      "templates": {
+        "title": "字幕模板",
+        "description": "多种动画样式和字体预设，贴合你的品牌。"
+      },
+      "export": {
+        "title": "平台导出",
+        "description": "一键套用 TikTok、Reels 和 Shorts 预设，编码也已优化。"
+      }
+    }
+  },
+  "pricing": {
+    "title": "价格简单，没有意外",
+    "body": "自托管免费。托管套餐每月 ${price} 起，处理和托管都帮你做好。随时更改或取消。",
+    "popular": "最受欢迎",
+    "period": {
+      "forever": "永久",
+      "month": "/月",
+      "year": "/年"
+    },
+    "generationsPerMonth": "每月 {count} 次生成",
+    "selfHost": {
+      "description": "在你自己的电脑上运行。没有订阅，也没有每月视频上限。",
+      "features": {
+        "crop": "人脸居中裁切",
+        "subtitles": "逐词同步字幕",
+        "virality": "传播潜力评分",
+        "exports": "全部导出预设",
+        "source": "完整源代码访问"
+      },
+      "cta": "在 GitHub 上查看",
+      "setup": "需要自行配置。硬件和你选用的付费 AI 服务由你提供。"
+    },
+    "pro": {
+      "description": "适合每个月都会稳定剪辑的创作者。",
+      "cta": "升级到 Pro"
+    },
+    "scale": {
+      "description": "适合每天发布内容的创作者。",
+      "cta": "升级到 Creator"
+    },
+    "hosted": {
+      "tracking": "人脸跟踪、字幕和传播潜力评分",
+      "broll": "B-roll 叠加",
+      "templates": "字幕模板",
+      "exports": "平台导出预设",
+      "youtube3h": "最长 3 小时的 YouTube 视频",
+      "priority": "优先处理",
+      "earlyAccess": "抢先体验新功能"
+    },
+    "selfHostNote": "自托管？全部功能免费且不限量。",
+    "selfHostGuide": "查看自托管指南",
+    "billedYearly": "${price}/月，按年计费",
+    "usageExample": {
+      "videos": "每月约可处理 {count} 个 {minutes} 分钟的原视频",
+      "clips": "示例：每个原视频生成 {perVideo} 个短片，共 {count} 个。实际数量因内容而异；额度按原视频分钟数计算。"
+    }
+  },
+  "openSource": {
+    "badge": "AGPL-3.0 许可",
+    "title": "公开构建",
+    "body": "完全开源。在你的基础设施上自托管，贡献功能，或者 fork 之后改成你自己的。",
+    "commandLabel": "用 Docker Compose 自托管：",
+    "comment": "# 在 .env 中添加转录和 LLM 服务商",
+    "tryHosted": "试用托管版本",
+    "openHosted": "打开托管版本"
+  },
+  "guides": {
+    "eyebrow": "指南与对比",
+    "title": "学会完整的剪辑流程",
+    "body": "这些页面有出处、能照着做：怎么选视频剪辑工具、怎么自托管 SupoClip，以及怎么把长录制变成短视频。",
+    "read": "阅读指南"
+  },
+  "cta": {
+    "title": "准备好剪辑了吗？",
+    "body": "把下一条视频做成让人停下来的短片。使用托管应用，或免费自托管开源版本。"
+  }
+}

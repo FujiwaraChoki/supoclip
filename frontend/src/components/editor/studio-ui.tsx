@@ -187,3 +187,50 @@ export function ToolButton({
     </Tooltip>
   );
 }
+
+type Translate = (key: string) => string;
+
+/** English strings produced outside these components, shown through `error.message` or editor status. */
+const EDITOR_STATUS_KEYS: Record<string, string> = {
+  "Preparing preview…": "status.preparing",
+  "All changes saved": "status.saved",
+  "Unsaved changes": "status.unsaved",
+  "Saving…": "status.saving",
+  "Save failed · draft kept locally": "status.saveFailed",
+  "Recovered local draft": "status.recovered",
+};
+
+const EDITOR_ERROR_KEYS: Record<string, string> = {
+  "Could not save draft": "errors.saveDraft",
+  "Preview preparation failed": "errors.previewFailed",
+  "A newer draft exists on the server. Your local changes are retained. Download a draft backup, then reload the saved version to resolve the conflict.":
+    "errors.conflict",
+  "Could not load editor": "errors.load",
+  "Preview is not ready": "errors.notReady",
+  "Combine cancelled": "errors.combineCancelled",
+  "The combine is still running in the export queue. Refresh your clips when it completes.":
+    "errors.combineTimeout",
+  "Source preparation is taking longer than expected. Reopen the editor to check its status.":
+    "errors.prepareTimeout",
+  "Could not prepare clip": "errors.prepareFailed",
+  "Export failed": "errors.exportFailed",
+  "Edit this long transcript one word at a time.": "errors.transcriptTooLong",
+  "This browser cannot encode this video. Choose background export to render it on the server.":
+    "errors.cannotEncode",
+  "Could not load the source video.": "errors.cannotLoadSource",
+  "Canvas is unavailable. Use background export.": "errors.canvasUnavailable",
+  "This browser cannot decode the source. Use background export.": "errors.cannotDecode",
+  "Audio encoding is unavailable. Use background export.":
+    "errors.audioEncodeUnavailable",
+  "Export produced no video.": "errors.noVideo",
+};
+
+export function editorStatus(t: Translate, status: string) {
+  const key = EDITOR_STATUS_KEYS[status];
+  return key ? t(key) : status;
+}
+
+export function editorMessage(t: Translate, message: string) {
+  const key = EDITOR_ERROR_KEYS[message];
+  return key ? t(key) : message;
+}

@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "title": "Servicestatus",
+    "description": "Aktueller Servicestatus und Störungsmeldungen für SupoClip."
+  },
+  "title": "Servicestatus",
+  "intro": "Updates zum gehosteten SupoClip-Dienst.",
+  "unavailable": "Der Servicestatus ist gerade nicht verfügbar. Schau später noch einmal vorbei.",
+  "states": {
+    "operational": "Betriebsbereit",
+    "degraded": "Beeinträchtigt",
+    "outage": "Ausfall",
+    "maintenance": "Wartung",
+    "unknown": "Unbekannt"
+  },
+  "lastUpdated": "Zuletzt aktualisiert:",
+  "timezone": "(Zürich)",
+  "back": "Zurück zu SupoClip"
+}

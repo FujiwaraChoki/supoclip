@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { AlertCircle, Check, Copy, Loader2 } from "lucide-react";
 
@@ -18,27 +19,18 @@ import { appStoreRedeemUrl } from "@/lib/site";
 
 const APPLY_PATH = "/settings/creator-program";
 
-const PLATFORMS = [
-  { value: "tiktok", label: "TikTok" },
-  { value: "youtube", label: "YouTube" },
-  { value: "instagram", label: "Instagram" },
-  { value: "x", label: "X" },
-  { value: "other", label: "Other" },
-];
+const PLATFORMS = ["tiktok", "youtube", "instagram", "x", "other"] as const;
 
-const AUDIENCE_SIZES = [
-  { value: "under-1k", label: "Under 1,000" },
-  { value: "1k-10k", label: "1,000 – 10,000" },
-  { value: "10k-100k", label: "10,000 – 100,000" },
-  { value: "100k-plus", label: "100,000+" },
-];
+const AUDIENCE_SIZES = ["under-1k", "1k-10k", "10k-100k", "100k-plus"] as const;
 
-const TERMS = [
-  "Mark sponsored posts as such (for example #ad).",
-  "Don't run ads on the SupoClip name or post your code on coupon or deal sites.",
-  "Don't use your own code.",
-  "We can end the program or remove a creator at any time.",
-];
+const TERM_KEYS = ["termSponsored", "termAds", "termOwn", "termEnd"] as const;
+
+const AUDIENCE_KEYS = {
+  "under-1k": "under1k",
+  "1k-10k": "from1k",
+  "10k-100k": "from10k",
+  "100k-plus": "from100k",
+} as const;
 
 interface Application {
   slug: string | null;
@@ -49,7 +41,7 @@ interface Application {
 
 type SlugState = { state: "idle" | "checking" } | { state: "available" } | { state: "unavailable"; reason: string };
 
-function CopyField({ label, value }: { label: string; value: string }) {
+function CopyField({ label, value, copyLabel }: { label: string; value: string; copyLabel: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     await navigator.clipboard.writeText(value);
@@ -61,7 +53,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
       <p className="mb-1.5 text-xs font-medium text-muted-foreground">{label}</p>
       <div className="flex items-center gap-2">
         <code className="min-w-0 flex-1 truncate rounded-lg border bg-muted/40 px-3 py-2 text-sm">{value}</code>
-        <Button size="sm" variant="outline" onClick={copy} aria-label={`Copy ${label.toLowerCase()}`}>
+        <Button size="sm" variant="outline" onClick={copy} aria-label={copyLabel}>
           {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
         </Button>
       </div>
@@ -70,6 +62,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
 }
 
 export default function CreatorProgramPage() {
+  const t = useTranslations("settings");
   const { data: session, isPending } = useSession();
   const [application, setApplication] = useState<Application | null>(null);
   const [canApplyAt, setCanApplyAt] = useState<string | null>(null);
@@ -90,14 +83,14 @@ export default function CreatorProgramPage() {
     if (!session?.user?.id) return;
     fetch("/api/affiliates", { cache: "no-store" })
       .then(async (response) => {
-        if (!response.ok) throw new Error("Failed to load your application");
+        if (!response.ok) throw new Error(t("creator.loadFailed"));
         const data = await response.json();
         setApplication(data.application);
         setCanApplyAt(data.can_apply_at);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load your application"))
+      .catch((err) => setError(err instanceof Error ? err.message : t("creator.loadFailed")))
       .finally(() => setIsLoading(false));
-  }, [session?.user?.id]);
+  }, [session?.user?.id, t]);
 
   useEffect(() => {
     const value = slug.trim();
@@ -111,7 +104,7 @@ export default function CreatorProgramPage() {
       try {
         const response = await fetch(`/api/affiliates/slug?slug=${encodeURIComponent(value)}`, { signal: controller.signal });
         const data = await response.json();
-        setSlugState(data.available ? { state: "available" } : { state: "unavailable", reason: data.reason || "Not available" });
+        setSlugState(data.available ? { state: "available" } : { state: "unavailable", reason: data.reason || t("creator.notAvailable") });
       } catch {
         if (!controller.signal.aborted) setSlugState({ state: "idle" });
       }
@@ -120,7 +113,7 @@ export default function CreatorProgramPage() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [slug]);
+  }, [slug, t]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -141,11 +134,11 @@ export default function CreatorProgramPage() {
         }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Failed to submit your application");
+      if (!response.ok) throw new Error(data.error || t("creator.submitFailed"));
       setApplication(data.application);
       setCanApplyAt(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit your application");
+      setError(err instanceof Error ? err.message : t("creator.submitFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -162,10 +155,10 @@ export default function CreatorProgramPage() {
   if (!session?.user) {
     return (
       <main className="mx-auto max-w-md px-4 py-24 text-center">
-        <p className="mb-4 text-muted-foreground">Create a free account or sign in to apply to the creator program.</p>
+        <p className="mb-4 text-muted-foreground">{t("creator.signIn")}</p>
         <div className="flex justify-center gap-2">
-          <Link href={`/sign-up?next=${encodeURIComponent(APPLY_PATH)}`}><Button>Create account</Button></Link>
-          <Link href={`/sign-in?next=${encodeURIComponent(APPLY_PATH)}`}><Button variant="outline">Sign in</Button></Link>
+          <Link href={`/sign-up?next=${encodeURIComponent(APPLY_PATH)}`}><Button>{t("creator.createAccount")}</Button></Link>
+          <Link href={`/sign-in?next=${encodeURIComponent(APPLY_PATH)}`}><Button variant="outline">{t("creator.signInAction")}</Button></Link>
         </div>
       </main>
     );
@@ -178,11 +171,12 @@ export default function CreatorProgramPage() {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 md:py-10">
       <div className="mb-8">
-        <h1 className="font-display text-3xl font-bold tracking-tight">Creator program</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight">{t("creator.title")}</h1>
         <p className="mt-2 text-muted-foreground">
-          Making videos about SupoClip? Get your own code: your audience gets{" "}
-          <span className="font-medium text-foreground">20% off their first 3 months</span>, and you get SupoClip Pro for free.{" "}
-          <Link href="/affiliate" className="underline underline-offset-4 hover:text-foreground">How it works</Link>
+          {t.rich("creator.intro", {
+            em: (chunks) => <span className="font-medium text-foreground">{chunks}</span>,
+          })}{" "}
+          <Link href="/affiliate" className="underline underline-offset-4 hover:text-foreground">{t("creator.howItWorks")}</Link>
         </p>
       </div>
 
@@ -196,16 +190,16 @@ export default function CreatorProgramPage() {
       {application?.status === "approved" && application.slug && (
         <section className="space-y-4 rounded-2xl border bg-background p-5">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold">You&apos;re in</h2>
-            <Badge variant="outline">Approved</Badge>
+            <h2 className="text-sm font-semibold">{t("creator.approvedTitle")}</h2>
+            <Badge variant="outline">{t("creator.approvedBadge")}</Badge>
           </div>
-          <p className="text-sm text-muted-foreground">Share your link or code. Your account has Pro for free while you&apos;re in the program.</p>
-          <CopyField label="Your link" value={`${origin}/?ref=${application.slug}`} />
-          <CopyField label="Your code" value={application.slug.toUpperCase()} />
+          <p className="text-sm text-muted-foreground">{t("creator.approvedBody")}</p>
+          <CopyField label={t("creator.yourLink")} copyLabel={t("creator.copyLink")} value={`${origin}/?ref=${application.slug}`} />
+          <CopyField label={t("creator.yourCode")} copyLabel={t("creator.copyCode")} value={application.slug.toUpperCase()} />
           {application.app_store_code_added_at ? (
-            <CopyField label="Your iPhone link" value={appStoreRedeemUrl(application.slug)} />
+            <CopyField label={t("creator.iphoneLink")} copyLabel={t("creator.copyIphone")} value={appStoreRedeemUrl(application.slug)} />
           ) : (
-            <p className="text-xs text-muted-foreground">Your iPhone link will show up here once your code is live on the App Store.</p>
+            <p className="text-xs text-muted-foreground">{t("creator.iphonePending")}</p>
           )}
         </section>
       )}
@@ -213,28 +207,31 @@ export default function CreatorProgramPage() {
       {application?.status === "pending" && (
         <section className="rounded-2xl border bg-background p-5">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold">Application received</h2>
-            <Badge>Under review</Badge>
+            <h2 className="text-sm font-semibold">{t("creator.pendingTitle")}</h2>
+            <Badge>{t("creator.pendingBadge")}</Badge>
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            We&apos;re reviewing your application for the code <span className="font-mono text-foreground">{application.slug?.toUpperCase()}</span>. You&apos;ll get an email either way.
+            {t.rich("creator.pendingBody", {
+              code: application.slug?.toUpperCase() ?? "",
+              mono: (chunks) => <span className="font-mono text-foreground">{chunks}</span>,
+            })}
           </p>
         </section>
       )}
 
       {application?.status === "revoked" && (
         <section className="rounded-2xl border bg-background p-5">
-          <h2 className="text-sm font-semibold">Your creator code is no longer active</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Contact us if you think this is a mistake.</p>
+          <h2 className="text-sm font-semibold">{t("creator.revokedTitle")}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{t("creator.revokedBody")}</p>
         </section>
       )}
 
       {application?.status === "declined" && !canApply && (
         <section className="rounded-2xl border bg-background p-5">
-          <h2 className="text-sm font-semibold">We couldn&apos;t approve your application this time</h2>
+          <h2 className="text-sm font-semibold">{t("creator.declinedTitle")}</h2>
           {application.decline_reason && <p className="mt-2 text-sm text-muted-foreground">{application.decline_reason}</p>}
           {canApplyAt && (
-            <p className="mt-2 text-sm text-muted-foreground">You can apply again on {new Date(canApplyAt).toLocaleDateString()}.</p>
+            <p className="mt-2 text-sm text-muted-foreground">{t("creator.applyAgain", { date: new Date(canApplyAt).toLocaleDateString() })}</p>
           )}
         </section>
       )}
@@ -242,77 +239,77 @@ export default function CreatorProgramPage() {
       {canApply && (
         <form onSubmit={submit} className="space-y-5 rounded-2xl border bg-background p-5">
           <div>
-            <Label htmlFor="slug">Your code</Label>
+            <Label htmlFor="slug">{t("creator.codeLabel")}</Label>
             <Input
               id="slug"
               value={slug}
               onChange={(event) => setSlug(event.target.value.replace(/\s+/g, ""))}
-              placeholder="maya"
+              placeholder={t("creator.codePlaceholder")}
               maxLength={20}
               autoComplete="off"
               className="mt-1.5 font-mono"
             />
             <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-              {slugState.state === "checking" && <><Loader2 className="size-3 animate-spin" /> Checking…</>}
+              {slugState.state === "checking" && <><Loader2 className="size-3 animate-spin" /> {t("creator.checking")}</>}
               {slugState.state === "available" && (
                 <span className="text-green-700">
-                  Available. Your link will be {origin}/?ref={slug.trim().toLowerCase()} and your code {slug.trim().toUpperCase()}.
+                  {t("creator.available", { origin, slug: slug.trim().toLowerCase(), code: slug.trim().toUpperCase() })}
                 </span>
               )}
               {slugState.state === "unavailable" && <span className="text-red-600">{slugState.reason}</span>}
-              {slugState.state === "idle" && "3–20 letters, numbers or hyphens."}
+              {slugState.state === "idle" && t("creator.codeHint")}
             </p>
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <Label>Where you post</Label>
+              <Label>{t("creator.platformLabel")}</Label>
               <Select value={platform} onValueChange={setPlatform}>
-                <SelectTrigger className="mt-1.5 w-full"><SelectValue placeholder="Pick a platform" /></SelectTrigger>
+                <SelectTrigger className="mt-1.5 w-full"><SelectValue placeholder={t("creator.platformPlaceholder")} /></SelectTrigger>
                 <SelectContent>
-                  {PLATFORMS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                  {PLATFORMS.map((value) => <SelectItem key={value} value={value}>{t(`creator.platforms.${value}`)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Followers</Label>
+              <Label>{t("creator.followersLabel")}</Label>
               <Select value={audienceSize} onValueChange={setAudienceSize}>
-                <SelectTrigger className="mt-1.5 w-full"><SelectValue placeholder="Pick a range" /></SelectTrigger>
+                <SelectTrigger className="mt-1.5 w-full"><SelectValue placeholder={t("creator.followersPlaceholder")} /></SelectTrigger>
                 <SelectContent>
-                  {AUDIENCE_SIZES.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                  {AUDIENCE_SIZES.map((value) => <SelectItem key={value} value={value}>{t(`creator.audience.${AUDIENCE_KEYS[value]}`)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <div>
-            <Label htmlFor="profile-url">Profile link</Label>
-            <Input id="profile-url" type="url" value={profileUrl} onChange={(event) => setProfileUrl(event.target.value)} placeholder="https://www.tiktok.com/@you" className="mt-1.5" />
+            <Label htmlFor="profile-url">{t("creator.profileLabel")}</Label>
+            <Input id="profile-url" type="url" value={profileUrl} onChange={(event) => setProfileUrl(event.target.value)} placeholder={t("creator.profilePlaceholder")} className="mt-1.5" />
           </div>
 
           <div>
-            <Label htmlFor="video-url">A video you made about SupoClip <span className="font-normal text-muted-foreground">(optional)</span></Label>
-            <Input id="video-url" type="url" value={videoUrl} onChange={(event) => setVideoUrl(event.target.value)} placeholder="https://" className="mt-1.5" />
+            <Label htmlFor="video-url">{t("creator.videoLabel")} <span className="font-normal text-muted-foreground">{t("creator.optional")}</span></Label>
+            <Input id="video-url" type="url" value={videoUrl} onChange={(event) => setVideoUrl(event.target.value)} placeholder={t("creator.videoPlaceholder")} className="mt-1.5" />
           </div>
 
           <div>
-            <Label htmlFor="plan">How will you promote SupoClip? <span className="font-normal text-muted-foreground">(optional)</span></Label>
+            <Label htmlFor="plan">{t("creator.planLabel")} <span className="font-normal text-muted-foreground">{t("creator.optional")}</span></Label>
             <Textarea id="plan" value={promotionPlan} onChange={(event) => setPromotionPlan(event.target.value)} maxLength={1000} rows={3} className="mt-1.5" />
           </div>
 
           <div className="rounded-xl bg-muted/40 p-4">
-            <p className="text-xs font-medium">Program terms</p>
+            <p className="text-xs font-medium">{t("creator.termsTitle")}</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
-              {TERMS.map((term) => <li key={term}>{term}</li>)}
+              {TERM_KEYS.map((key) => <li key={key}>{t(`creator.${key}`)}</li>)}
             </ul>
             <label className="mt-3 flex items-center gap-2 text-sm">
               <Checkbox checked={acceptTerms} onCheckedChange={(checked) => setAcceptTerms(checked === true)} />
-              I agree to the program terms
+              {t("creator.agree")}
             </label>
           </div>
 
           <Button type="submit" disabled={!canSubmit}>
-            {isSubmitting ? "Submitting…" : "Apply"}
+            {isSubmitting ? t("creator.submitting") : t("creator.submit")}
           </Button>
         </form>
       )}

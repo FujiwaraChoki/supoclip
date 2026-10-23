@@ -8,5 +8,5 @@ export default defineConfig(base, {
   timeout: 180_000,
   expect: { timeout: 15_000 },
   workers: 1,
-  use: { video: "off" },
+  use: { locale: "en-US", video: "off" },
 });

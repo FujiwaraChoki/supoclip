@@ -1,0 +1,112 @@
+{
+  "plans": {
+    "pro": {
+      "description": "Para criadores que fazem cortes com constância todo mês.",
+      "cta": "Fazer upgrade para Pro"
+    },
+    "scale": {
+      "description": "Para criadores que publicam todos os dias.",
+      "cta": "Fazer upgrade para Creator"
+    }
+  },
+  "highlights": {
+    "videos": "{count} vídeos cortados por mês",
+    "youtube": "Vídeos do YouTube de até {length}",
+    "fonts": "Fontes personalizadas, B-roll e modelos de legenda",
+    "priority": "Processamento prioritário",
+    "minutes": "{length} de vídeo por mês",
+    "hd": "Clipes em 720p",
+    "fullHd": "Clipes em Full HD 1080p",
+    "scheduling": "Publique e agende clipes no YouTube e no TikTok automaticamente"
+  },
+  "runtime": {
+    "minutes": "{count} min",
+    "hours": "{count} h",
+    "hoursMinutes": "{hours} h {minutes} min"
+  },
+  "perMonth": "/mês",
+  "videosEach": "{count} vídeos/mês · até {length} cada",
+  "mostPopular": "Mais popular",
+  "currentPlan": "Plano atual",
+  "plansLabel": "Planos",
+  "continueWith": "Continuar com {name}",
+  "openingCheckout": "Abrindo o checkout seguro…",
+  "checkoutError": "Não foi possível abrir o checkout. Tente de novo.",
+  "maybeLater": "Talvez depois",
+  "prorated": "Você confirma a mudança no Stripe e paga só a diferença proporcional.",
+  "cancelAnytime": "Cancele quando quiser · Checkout seguro com Stripe",
+  "appStore": "Sua assinatura é gerenciada pela App Store. Você pode mudar de plano no app SupoClip para iOS.",
+  "selfHosted": {
+    "title": "Auto-hospedado",
+    "body": "Rode o SupoClip no seu computador, sem assinatura nem limite mensal de vídeos. É preciso configurar; você fornece o hardware e os serviços de IA pagos que escolher.",
+    "guide": "Guia de auto-hospedagem"
+  },
+  "upgrade": {
+    "start": {
+      "eyebrow": "Quando você quiser",
+      "title": "Transforme vídeos longos em clipes prontos para publicar",
+      "body": "Escolha um plano hospedado e a gente processa, ou auto-hospede o app de código aberto no seu computador, de graça."
+    },
+    "limit": {
+      "eyebrow": "Que mês",
+      "titleCount": "Você já cortou os {count} vídeos do {plan}",
+      "titleAll": "Você já usou tudo do {plan}",
+      "bodyRefreshKeep": "Seus minutos renovam em {date}. Continue com o {plan}: {length} de vídeo por mês. Esta tentativa não usou minutos.",
+      "bodyPeriodKeep": "Seus minutos renovam no próximo mês. Continue com o {plan}: {length} de vídeo por mês. Esta tentativa não usou minutos.",
+      "bodyRefresh": "Seus minutos renovam em {date}. Esta tentativa não usou minutos.",
+      "bodyPeriod": "Seus minutos renovam no próximo mês. Esta tentativa não usou minutos.",
+      "titleShort": "Este vídeo precisa de {required} minutos e você tem {remaining}",
+      "titleMinutes": "Você usou todos os {length} do {plan} este mês"
+    },
+    "long": {
+      "eyebrow": "Um longo",
+      "title": "{plan} aceita este vídeo de {runtime}",
+      "fallbackPlan": "Um plano maior",
+      "body": "O {plan} aceita vídeos do YouTube de até {length}. O {next} aceita até {nextLength}, então este passa direto. Esta tentativa não usou minutos.",
+      "bodyNoNext": "O {plan} aceita vídeos do YouTube de até {length}. Esta tentativa não usou minutos."
+    },
+    "fonts": {
+      "eyebrow": "Deixe com a sua cara",
+      "title": "Legendas na fonte da sua marca",
+      "body": "Envie qualquer .ttf ou .otf e use em todos os clipes, para os seus shorts parecerem seus."
+    },
+    "explore": {
+      "eyebrow": "Mais espaço para criar",
+      "title": "Faça mais com {plan}",
+      "titleFallback": "Planos para cada criador",
+      "body": "Mais vídeo por mês, clipes em Full HD, fontes mais longas e processamento prioritário."
+    }
+  },
+  "illustration": {
+    "fitsIn": "cabe em {plan}",
+    "yourVideo": "Seu vídeo",
+    "today": "Hoje",
+    "videosUpFrom": "vídeos por mês, a partir de {count}",
+    "videosWith": "vídeos por mês com {plan}",
+    "sample": "e é por isso",
+    "ownFont": "ou a sua própria .ttf",
+    "serif": "Serif",
+    "display": "Display",
+    "mono": "Mono",
+    "hoursUpFrom": "horas de vídeo por mês, antes {count}",
+    "hoursWith": "horas de vídeo por mês com {plan}"
+  },
+  "creatorCode": {
+    "applied": "Código de criador <mono>{code}</mono>: 20% de desconto nos 3 primeiros meses.",
+    "remove": "Remover",
+    "prompt": "Tem um código de criador?",
+    "placeholder": "Código de criador",
+    "apply": "Aplicar",
+    "invalid": "Esse código não é válido."
+  },
+  "minutesEach": "{minutes}/mês · {resolution} · até {length} cada",
+  "perYear": "/ano",
+  "monthlyEquivalent": "${price}/mês",
+  "interval": {
+    "label": "Período de cobrança",
+    "monthly": "Mensal",
+    "yearly": "Anual",
+    "monthsFree": "{count, plural, one {# mês grátis} other {# meses grátis}}"
+  },
+  "comingSoon": "Em breve"
+}
