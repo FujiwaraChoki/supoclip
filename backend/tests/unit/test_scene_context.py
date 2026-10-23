@@ -26,12 +26,15 @@ def subject(time=0.0, **kwargs):
     (subject(face_count=4, face_span=0.8), "subjects_spread_across_frame"),
     (subject(face_count=2, face_span=0.7, face_area=0.02), "interaction_exceeds_crop"),
     (subject(face_count=2, face_span=0.7, motion=0.12), "interaction_exceeds_crop"),
+    # Calm faces larger than 2.5% of the frame still do not fit a 9:16 crop.
+    (subject(face_count=2, face_span=0.7, face_area=0.03), "interaction_exceeds_crop"),
+    (subject(face_count=2, face_span=0.2, face_area=0.03), None),
     (subject(face_area=0.03, text_rows=8), "screen_content_outside_crop"),
+    (subject(face_area=0.08, face_center=0.9, text_rows=6), "screen_content_outside_crop"),
     (subject(motion=0.12, outside_motion=0.8, motion_spread=1), "distributed_action"),
     (subject(), None),
     (subject(camera_motion=0.2), None),
     (subject(motion=0.2, outside_motion=0.1, motion_spread=0.2), None),
-    (subject(face_count=2, face_span=0.7, face_area=0.03), None),
     (subject(text_rows=8, face_area=0.15), None),
 ])
 def test_context_decisions(sample, expected):
@@ -176,8 +179,7 @@ def test_context_overrides_faces_and_speaker_turns():
     track = [(s.time, 960, s.face_area) for s in evidence]
     with patch.object(reframing, "ffprobe_duration", return_value=10), \
          patch.object(reframing, "analyze_vertical_clip", return_value=(track, [], [], evidence)), \
-         patch("src.media.speaker_framing.build_speaker_filter_plan", side_effect=AssertionError("unsafe crop")), \
-         patch("src.media.reaction_layout.choose_reaction_layout", side_effect=AssertionError("unsafe reaction crop")):
+         patch("src.media.speaker_framing.build_speaker_filter_plan", side_effect=AssertionError("unsafe crop")):
         graph, mode, _ = reframing.build_vertical_filter_plan(
             Path("sports.mp4"), 1920, 1080, [{"speaker": "A"}], [{"text": "shoots"}])
     assert mode == "complex" and "[crsrc]" not in graph
@@ -214,4 +216,134 @@ def test_crop_safe_context_keeps_reaction_layout_and_detail_pass():
         result = reframing.build_vertical_filter_plan(Path("reaction.mp4"), 1920, 1080)
     assert result == ("reaction-filter", "complex", 1 / 3)
     assert analyze.call_count == 2
-    assert analyze.call_args.kwargs == {"proc_width": 960}
+    assert analyze.call_args.kwargs == {"proc_width": 960, "analyze_context": False}
+
+
+def _wide_pair(count=30, start=0.0):
+    """Calm two-shot whose faces are wider than a 9:16 crop (face_area=0.03, span=0.7)."""
+    return [
+        subject(start + i / 3, face_count=2, face_span=0.7, face_area=0.03)
+        for i in range(count)
+    ]
+
+
+def _high_pair_boxes(evidence):
+    # High podcast faces: not a webcam stack, and too large to be a reaction inset.
+    return [(s.time, [(200, 60, 300, 280), (1100, 70, 300, 280)]) for s in evidence]
+
+
+def test_all_fit_context_with_corner_reactor_uses_reaction_layout():
+    evidence = [SceneEvidence(i / 3) for i in range(30)]
+    track = [(s.time, None, 0.0) for s in evidence]
+    faces = [(s.time, []) for s in evidence]
+    reaction = {"video_filter": "reaction-filter", "caption_y": 1 / 3,
+                "inset": (0, 0, 100, 100), "source_runs": [1]}
+    with patch.object(reframing, "ffprobe_duration", return_value=10), \
+         patch.object(reframing, "analyze_vertical_clip", return_value=(track, [], faces, evidence)) as analyze, \
+         patch("src.media.reaction_layout.find_reactor_face", return_value=(1500, 20, 40, 50)), \
+         patch("src.media.reaction_layout.choose_reaction_layout", return_value=reaction):
+        graph, mode, caption_y = reframing.build_vertical_filter_plan(Path("reaction.mp4"), 1920, 1080)
+    assert (graph, mode, caption_y) == ("reaction-filter", "complex", 1 / 3)
+    assert graph != reframing.build_full_frame_filter()
+    assert analyze.call_args.kwargs == {"proc_width": 960, "analyze_context": False}
+
+
+def test_calm_wide_two_shot_is_full_frame_when_speaker_framing_declines():
+    evidence = _wide_pair()
+    assert context_reason(evidence[0], 0.316) == "interaction_exceeds_crop"
+    track = [(s.time, 400.0, s.face_area) for s in evidence]
+    faces = _high_pair_boxes(evidence)
+    words = [{"text": "hello", "start": 0.2, "end": 0.6, "speaker": "A"}]
+    turns = [{"speaker": "A", "start": 0, "end": 5}, {"speaker": "B", "start": 5, "end": 10}]
+    with patch.object(reframing, "ffprobe_duration", return_value=10), \
+         patch.object(reframing, "analyze_vertical_clip", return_value=(track, [], faces, evidence)), \
+         patch("src.media.speaker_framing.build_speaker_filter_plan", return_value=None):
+        graph, mode, caption_y = reframing.build_vertical_filter_plan(
+            Path("two-shot.mp4"), 1920, 1080, turns, words)
+    assert (graph, mode, caption_y) == (reframing.build_full_frame_filter(), "complex", 0.80)
+    assert "crop=606:" not in graph
+
+
+def test_calm_wide_two_shot_keeps_a_speaker_plan():
+    evidence = _wide_pair()
+    track = [(s.time, 400.0, s.face_area) for s in evidence]
+    faces = _high_pair_boxes(evidence)
+    words = [{"text": "hello", "start": 0.2, "end": 0.6, "speaker": "A"}]
+    turns = [{"speaker": "A", "start": 0, "end": 5}, {"speaker": "B", "start": 5, "end": 10}]
+    speaker = ("crop=606:1080:x='100':y=0,scale=1080:1920", "vf")
+    with patch.object(reframing, "ffprobe_duration", return_value=10), \
+         patch.object(reframing, "analyze_vertical_clip", return_value=(track, [], faces, evidence)), \
+         patch("src.media.speaker_framing.build_speaker_filter_plan", return_value=speaker):
+        graph, mode, _ = reframing.build_vertical_filter_plan(
+            Path("two-shot.mp4"), 1920, 1080, turns, words)
+    assert (graph, mode) == speaker
+
+
+def test_wide_two_shot_interval_stays_full_frame_beside_a_closeup():
+    close = [subject(i / 3) for i in range(15)]
+    wide = _wide_pair(count=15, start=5)
+    evidence = close + wide
+    track = [(s.time, 960.0, 0.05) for s in evidence]
+    faces = [(s.time, [(700, 80, 400, 360)]) for s in close] + _high_pair_boxes(wide)
+    words = [{"text": "hello", "start": 0.2, "end": 0.6, "speaker": "A"}]
+    with patch.object(reframing, "ffprobe_duration", return_value=10), \
+         patch.object(reframing, "analyze_vertical_clip", return_value=(track, [5.0], faces, evidence)), \
+         patch("src.media.speaker_framing.build_speaker_filter_plan", return_value=None):
+        graph, mode, _ = reframing.build_vertical_filter_plan(
+            Path("mixed.mp4"), 1920, 1080, [{"speaker": "A"}], words)
+    assert mode == "complex"
+    assert "[crsrc]" in graph
+    assert "between(t\\,0.000\\,5.000)" in graph
+    assert "between(t\\,5.000\\,10.000)" in graph
+    assert "force_original_aspect_ratio=decrease" in graph
+
+
+def test_analyze_context_false_skips_flow_text_and_histograms():
+    width, height = 32, 18
+    frame = bytes(width * height * 3)
+
+    class Decoder:
+        def __init__(self):
+            self.stdout = BytesIO(frame)
+            self.returncode = None
+
+        def wait(self):
+            self.returncode = 0
+
+    decoder = Decoder()
+    with patch.object(reframing, "ffprobe_video_size", return_value=(width, height)), \
+         patch.object(reframing.subprocess, "Popen", return_value=decoder), \
+         patch.object(reframing, "_open_face_detectors", return_value=(None, None)), \
+         patch.object(reframing, "ContextAnalyzer", side_effect=AssertionError("context analysis")):
+        track, cuts, faces, context = reframing.analyze_vertical_clip(
+            Path("clip.mp4"), proc_width=width, analyze_context=False)
+    assert context == [] and cuts == []
+    assert len(track) == 1 and len(faces) == 1
+    assert decoder.stdout.closed
+
+
+def test_analyze_context_true_still_records_scene_evidence():
+    width, height = 32, 18
+    frame = bytes(width * height * 3)
+
+    class Decoder:
+        def __init__(self):
+            self.stdout = BytesIO(frame)
+            self.returncode = None
+
+        def wait(self):
+            self.returncode = 0
+
+    decoder = Decoder()
+    evidence = SceneEvidence(0.0)
+    with patch.object(reframing, "ffprobe_video_size", return_value=(width, height)), \
+         patch.object(reframing.subprocess, "Popen", return_value=decoder), \
+         patch.object(reframing, "_open_face_detectors", return_value=(None, None)), \
+         patch.object(reframing, "ContextAnalyzer") as analyzer:
+        analyzer.return_value.measure.return_value = evidence
+        track, cuts, faces, context = reframing.analyze_vertical_clip(
+            Path("clip.mp4"), proc_width=width, analyze_context=True)
+    assert context == [evidence]
+    analyzer.return_value.measure.assert_called_once()
+    assert len(track) == 1 and len(faces) == 1 and cuts == []
+    assert decoder.stdout.closed

@@ -163,12 +163,16 @@ def context_reason(sample: SceneEvidence, crop_fraction: float) -> Optional[str]
         return "subject_exceeds_crop"
     if sample.face_count >= 3 and sample.face_span > crop_fraction:
         return "subjects_spread_across_frame"
+    # Two people wider than the 9:16 window cannot share a dominant-face crop,
+    # even when the larger face is calm and bigger than 2.5% of the frame.
+    # Speaker framing may still cut between them; otherwise the shot stays full frame.
     if sample.face_count >= 2 and sample.face_span > crop_fraction * 1.05:
-        if sample.face_area < 0.025 or sample.motion > 0.06:
-            return "interaction_exceeds_crop"
-    if sample.text_rows >= 4 and sample.face_area < 0.045:
+        return "interaction_exceeds_crop"
+    peripheral = sample.face_center < 0.18 or sample.face_center > 0.82
+    # A large corner webcam does not make the slide underneath disposable.
+    if sample.text_rows >= 4 and (sample.face_area < 0.045 or peripheral):
         return "screen_content_outside_crop"
-    if sample.face_area < 0.045 and (sample.face_center < 0.18 or sample.face_center > 0.82):
+    if sample.face_area < 0.045 and peripheral:
         return "peripheral_presenter"
     if sample.motion > 0.065 and sample.outside_motion > 0.45 and sample.motion_spread >= 0.5:
         return "distributed_action"
