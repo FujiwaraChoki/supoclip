@@ -85,6 +85,8 @@
     "transcript": "Transcript",
     "wordCount": "{count} words",
     "transcriptDescription": "Correct a word without moving its timing. Click play to hear it in context.",
+    "timingWarning": "These captions are spaced evenly across the clip because speech timings were unavailable. They may not match the audio.",
+    "timingRepairing": "Matching captions to the spoken words…",
     "editScript": "Edit script",
     "closeScript": "Close script",
     "scriptAria": "Subtitle text",

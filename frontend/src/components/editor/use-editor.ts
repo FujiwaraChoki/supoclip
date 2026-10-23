@@ -163,18 +163,20 @@ export function useEditor(endpoint: string) {
     mounted.current = true;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
-    async function load() {
+    let polls = 0;
+    let preparePosted = false;
+    async function load(refresh = false) {
       try {
         const state = await editorRequest<EditorState>(endpoint);
         if (stopped) return;
         setAsset(state);
         if (state.status === "unprepared") {
           await editorRequest(`${endpoint}/prepare`, "POST");
-          if (!stopped) timer = setTimeout(load, 1500);
+          if (!stopped) timer = setTimeout(() => void load(), 1500);
           return;
         }
         if (state.status === "preparing") {
-          timer = setTimeout(load, 1500);
+          timer = setTimeout(() => void load(), 1500);
           return;
         }
         if (state.status === "failed") {
@@ -182,42 +184,77 @@ export function useEditor(endpoint: string) {
           return;
         }
         assetRef.current = state;
-        revision.current = state.draft.revision;
-        saved.current = JSON.stringify(state.draft.document);
-        let h: History = {
-          past: [],
-          present: state.draft.document,
-          future: [],
-        };
-        try {
-          const local = JSON.parse(localStorage.getItem(cacheKey) || "null");
-          if (
-            local?.basis === state.basis &&
-            local.history?.present?.version === 1
-          ) {
-            if (
-              local.revision === state.draft.revision ||
-              JSON.stringify(local.history.present) === saved.current
-            )
-              h = local.history;
-            else if (JSON.stringify(local.history.present) !== local.saved) {
-              h = local.history;
-              revision.current = local.revision;
-              setError(
-                "A newer draft exists on the server. Your local changes are retained. Download a draft backup, then reload the saved version to resolve the conflict.",
-              );
-            }
+        if (refresh) {
+          const current = historyRef.current;
+          const untouched =
+            !!current && JSON.stringify(current.present) === saved.current;
+          if (untouched && state.draft.revision !== revision.current) {
+            revision.current = state.draft.revision;
+            saved.current = JSON.stringify(state.draft.document);
+            const next: History = {
+              past: [],
+              present: state.draft.document,
+              future: [],
+            };
+            historyRef.current = next;
+            setHistory(next);
+            cache(next);
+            setStatus("All changes saved");
+            setError(null);
           }
-        } catch {
-          /* An unreadable local cache never prevents server recovery. */
+        } else {
+          revision.current = state.draft.revision;
+          saved.current = JSON.stringify(state.draft.document);
+          let h: History = {
+            past: [],
+            present: state.draft.document,
+            future: [],
+          };
+          try {
+            const local = JSON.parse(localStorage.getItem(cacheKey) || "null");
+            if (
+              local?.basis === state.basis &&
+              local.history?.present?.version === 1
+            ) {
+              if (
+                local.revision === state.draft.revision ||
+                JSON.stringify(local.history.present) === saved.current
+              )
+                h = local.history;
+              else if (JSON.stringify(local.history.present) !== local.saved) {
+                h = local.history;
+                revision.current = local.revision;
+                setError(
+                  "A newer draft exists on the server. Your local changes are retained. Download a draft backup, then reload the saved version to resolve the conflict.",
+                );
+              }
+            }
+          } catch {
+            /* An unreadable local cache never prevents server recovery. */
+          }
+          historyRef.current = h;
+          setHistory(h);
+          setStatus(
+            JSON.stringify(h.present) === saved.current
+              ? "All changes saved"
+              : "Recovered local draft",
+          );
         }
-        historyRef.current = h;
-        setHistory(h);
-        setStatus(
-          JSON.stringify(h.present) === saved.current
-            ? "All changes saved"
-            : "Recovered local draft",
-        );
+        if (state.captionTimingRepair === "running" && polls < 40) {
+          polls += 1;
+          timer = setTimeout(() => void load(true), 1500);
+          return;
+        }
+        if (
+          state.captionTiming === "estimated" &&
+          state.captionTimingRepair !== "done" &&
+          state.captionTimingRepair !== "running" &&
+          !preparePosted
+        ) {
+          preparePosted = true;
+          await editorRequest(`${endpoint}/prepare`, "POST");
+          if (!stopped) timer = setTimeout(() => void load(true), 1500);
+        }
       } catch (e) {
         if (!stopped)
           setError(e instanceof Error ? e.message : "Could not load editor");
@@ -229,7 +266,7 @@ export function useEditor(endpoint: string) {
       mounted.current = false;
       clearTimeout(timer);
     };
-  }, [cacheKey, endpoint]);
+  }, [cache, cacheKey, endpoint]);
   useEffect(() => {
     if (!history || error) return;
     const timer = setTimeout(() => void save().catch(() => {}), 700);

@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import subprocess
+import time
 import uuid
 from typing import get_args
 
@@ -245,17 +246,201 @@ def caption_looks() -> dict:
     return looks
 
 
+def ready_editor_draft(directory: Path):
+    asset_path = directory / "asset.json"
+    draft_path = directory / "draft.json"
+    if not asset_path.is_file() or not draft_path.is_file():
+        return None
+    try:
+        asset = json.loads(asset_path.read_text())
+        draft = json.loads(draft_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    if asset.get("status") != "ready" or not isinstance(draft.get("document"), dict):
+        return None
+    return asset, draft
+
+
+def persist_editor_mutation(storage: MediaStorage, directory: Path, mutate) -> None:
+    """Rewrite editor JSON and upload it before a restore can fetch the old copy."""
+    with editor_lock(directory):
+        with storage.editor_sync(directory):
+            mutate()
+            storage.write_editor_snapshot(directory)
+
+
+def should_schedule_caption_repair(state: dict) -> bool:
+    from ..clip_editor import is_synthetic_caption_timing
+
+    if state.get("status") != "ready":
+        return False
+    words = ((state.get("draft") or {}).get("document") or {}).get("words") or []
+    if not is_synthetic_caption_timing(words, state.get("duration")):
+        return False
+    now = time.time()
+    repair = state.get("captionTimingRepair")
+    started = float(state.get("captionTimingRepairStartedAt") or 0)
+    if repair == "running" and now - started < 900:
+        return False
+    checked = float(state.get("captionTimingCheckedAt") or 0)
+    if (
+        repair == "done"
+        and state.get("captionTiming") == "estimated"
+        and now - checked < 60
+    ):
+        return False
+    return True
+
+
+def mark_caption_repair_running(storage: MediaStorage, directory: Path) -> bool:
+    decision = {"enqueue": False}
+
+    def mutate():
+        asset_path = directory / "asset.json"
+        if not asset_path.exists():
+            return
+        asset = json.loads(asset_path.read_text())
+        if asset.get("status") != "ready":
+            return
+        now = time.time()
+        started = float(asset.get("captionTimingRepairStartedAt") or 0)
+        if asset.get("captionTimingRepair") == "running" and now - started < 900:
+            return
+        asset["captionTiming"] = "estimated"
+        asset["captionTimingRepair"] = "running"
+        asset["captionTimingRepairStartedAt"] = now
+        atomic_json(asset_path, asset)
+        decision["enqueue"] = True
+
+    persist_editor_mutation(storage, directory, mutate)
+    return decision["enqueue"]
+
+
+def finish_caption_timing(storage: MediaStorage, directory: Path, timing: str) -> None:
+    def mutate():
+        asset_path = directory / "asset.json"
+        if not asset_path.exists():
+            return
+        asset = json.loads(asset_path.read_text())
+        if asset.get("status") != "ready":
+            return
+        asset["captionTiming"] = timing
+        asset["captionTimingRepair"] = "done"
+        asset["captionTimingCheckedAt"] = time.time()
+        atomic_json(asset_path, asset)
+
+    persist_editor_mutation(storage, directory, mutate)
+
+
+def apply_saved_caption_repair(storage, directory: Path, timed_words, duration: float) -> str:
+    """Retime captions on a saved draft and upload the result. Returns speech or estimated."""
+    from ..clip_editor import apply_repaired_words, is_synthetic_caption_timing
+
+    outcome = {"timing": "estimated"}
+
+    def mutate():
+        draft_path = directory / "draft.json"
+        original_path = directory / "original.json"
+        asset_path = directory / "asset.json"
+        if not draft_path.exists() or not asset_path.exists():
+            return
+        draft = json.loads(draft_path.read_text())
+        document = draft.get("document") or {}
+        words = document.get("words") or []
+        if is_synthetic_caption_timing(words, duration):
+            repaired = apply_repaired_words(document, timed_words, duration)
+            if repaired is not None:
+                draft["revision"] = int(draft.get("revision") or 0) + 1
+                draft["document"] = repaired
+                atomic_json(draft_path, draft)
+                outcome["timing"] = (
+                    "estimated"
+                    if is_synthetic_caption_timing(repaired.get("words") or [], duration)
+                    else "speech"
+                )
+        else:
+            outcome["timing"] = "speech"
+        if original_path.exists():
+            original = json.loads(original_path.read_text())
+            repaired_original = apply_repaired_words(original, timed_words, duration)
+            if repaired_original is not None:
+                atomic_json(original_path, repaired_original)
+        asset = json.loads(asset_path.read_text())
+        asset["captionTiming"] = outcome["timing"]
+        asset["captionTimingRepair"] = "done"
+        asset["captionTimingCheckedAt"] = time.time()
+        atomic_json(asset_path, asset)
+
+    persist_editor_mutation(storage, directory, mutate)
+    return outcome["timing"]
+
+
+async def repair_saved_captions(
+    storage: MediaStorage,
+    directory: Path,
+    *,
+    source_url: str | None,
+    source_type: str | None,
+    original_ranges,
+    cached_video_path: str | None,
+) -> str:
+    """Repair an existing editor draft. Returns done, download, or prepare."""
+    from ..clip_editor import is_synthetic_caption_timing, resolve_speech_words
+
+    saved = ready_editor_draft(directory)
+    if saved is None:
+        return "prepare"
+    asset, draft = saved
+    duration = float(asset.get("duration") or 0)
+    words = (draft.get("document") or {}).get("words") or []
+    if not is_synthetic_caption_timing(words, duration):
+        # A repaired S3 draft can land on a machine whose asset still says the
+        # timings are estimated or a repair is in progress.
+        if asset.get("captionTiming") == "estimated" or asset.get("captionTimingRepair") == "running":
+            finish_caption_timing(storage, directory, "speech")
+        return "done"
+    clean = directory / "clean.mp4"
+
+    def lookup(*, allow_transcribe: bool, segment: Path | None):
+        return resolve_speech_words(
+            source=None,
+            original_ranges=original_ranges,
+            source_url=source_url,
+            source_type=source_type,
+            cached_video_path=cached_video_path,
+            segment_path=segment,
+            allow_transcribe=allow_transcribe,
+            duration=duration,
+        )
+
+    speech, missing = await run_in_thread(lookup, allow_transcribe=False, segment=clean if clean.exists() else None)
+    if not missing:
+        apply_saved_caption_repair(storage, directory, speech, duration)
+        return "done"
+    already = (
+        asset.get("captionTimingRepair") == "done" and asset.get("captionTiming") == "estimated"
+    )
+    if not clean.exists():
+        await run_in_thread(storage.restore_editor, directory, media=True)
+    if clean.exists() and not already:
+        speech, missing = await run_in_thread(lookup, allow_transcribe=True, segment=clean)
+        apply_saved_caption_repair(storage, directory, [] if missing else speech, duration)
+        return "done"
+    if clean.exists():
+        # Transcription already ran and the caches are still empty. Refresh the
+        # cooldown without downloading the source again.
+        apply_saved_caption_repair(storage, directory, [], duration)
+        return "done"
+    return "download"
+
+
 @media_work
 async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     from ..database import AsyncSessionLocal
     from .task_service import TaskService
     from ..config import get_config
-    from ..video_utils import (
-        create_optimized_clip,
-        load_cached_transcript_data,
-        get_words_for_keep_ranges,
-    )
-    from ..clip_editor import _caption_words_with_timings
+    from ..video_utils import create_optimized_clip
+    from ..clip_editor import _caption_words_with_timings, resolve_speech_words
     from ..clip_source_map import load_clip_caption_settings
     from ..youtube_source import local_ranges_for
 
@@ -264,8 +449,11 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     downloaded_source = None
     source_url = None
     source = None
+    ready_before = False
     try:
         await run_in_thread(storage.restore_editor, directory)
+        await run_in_thread(storage.adopt_remote_caption_repair, directory)
+        ready_before = ready_editor_draft(directory) is not None
         async with AsyncSessionLocal() as db:
             service = TaskService(db)
             clip = await service.clip_repo.get_clip_by_id(db, clip_id)
@@ -285,13 +473,24 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             cache = await service.cache_repo.get_cache(
                 db, service._build_cache_key(source_url, source_type, mode, download_quality)
             )
-            source = (
-                await run_in_thread(storage.local_path, cache["video_path"]) if cache and cache.get("video_path") else None
-            )
+            cached_video = cache.get("video_path") if cache else None
             source_settings = await service._load_task_source_settings(task_id)
             caption_path = await run_in_thread(storage.local_path, clip["file_path"], metadata_only=True)
             caption_settings = load_clip_caption_settings(caption_path) or {}
             await db.close()
+            repair = await repair_saved_captions(
+                storage,
+                directory,
+                source_url=source_url,
+                source_type=source_type,
+                original_ranges=ranges,
+                cached_video_path=cached_video,
+            )
+            if repair == "done":
+                return
+            source = (
+                await run_in_thread(storage.local_path, cached_video) if cached_video else None
+            )
             if not source or not source.exists():
                 if source_type == "youtube":
                     downloaded = await service.video_service.download_video(
@@ -330,65 +529,93 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             if not rendered:
                 raise ValueError("Could not prepare the original video")
             metadata = await run_in_thread(make_assets, directory)
-            transcript = load_cached_transcript_data(source)
-            timed = get_words_for_keep_ranges(transcript, local_ranges) if transcript else []
-            words = _caption_words_with_timings(
-                (clip.get("text") or "").split(), timed, metadata["duration"]
-            )
             duration = metadata["duration"]
-            emphasis = generated_emphasis(words, task)
-            original_format = source_settings.get("output_format") == "original"
-            # Vertical clips are generated at 1080x1920; "original" keeps the source size.
-            clip_width, clip_height = (
-                (metadata["width"], metadata["height"]) if original_format else (1080, 1920)
+            repairing = ready_editor_draft(directory) is not None
+            speech, missing = await run_in_thread(
+                resolve_speech_words,
+                source=source,
+                original_ranges=ranges,
+                local_ranges=local_ranges,
+                source_url=source_url,
+                source_type=source_type,
+                cached_video_path=cached_video,
+                segment_path=clean,
+                allow_transcribe=True,
+                duration=duration,
             )
-            initial = (
-                EditDocument.model_validate(
-                    {
-                        "segments": [{"id": "original", "start": 0, "end": duration}],
-                        "framing": {"aspect": "original" if original_format else "vertical"},
-                        "captions": initial_caption_style(
-                            task,
-                            caption_settings,
-                            source_settings.get("add_subtitles", True),
-                            clip_width,
-                            clip_height,
-                        ),
-                        "hookTitle": (clip.get("hook_title") or "")[:200],
-                        "words": [
-                            {
-                                "id": f"word-{i}",
-                                "start": max(0, min(w["start"], duration - 0.01)),
-                                "end": max(0.01, min(w["end"], duration)),
-                                "text": w["text"][:120],
-                                "highlight": i in emphasis,
-                            }
-                            for i, w in enumerate(words)
-                            if w["start"] < duration and w["end"] > 0
-                        ],
-                    }
+            if repairing:
+                timing = apply_saved_caption_repair(
+                    storage, directory, [] if missing else speech, duration
                 )
-                .validate_duration(duration)
-                .model_dump()
-            )
+                initial = None
+            else:
+                caption_words = _caption_words_with_timings(
+                    (clip.get("text") or "").split(), [] if missing else speech, duration
+                )
+                timing = "estimated" if caption_words.estimated else "speech"
+                words = caption_words.words
+                emphasis = generated_emphasis(words, task)
+                original_format = source_settings.get("output_format") == "original"
+                # Vertical clips are generated at 1080x1920; "original" keeps the source size.
+                clip_width, clip_height = (
+                    (metadata["width"], metadata["height"]) if original_format else (1080, 1920)
+                )
+                initial = (
+                    EditDocument.model_validate(
+                        {
+                            "segments": [{"id": "original", "start": 0, "end": duration}],
+                            "framing": {"aspect": "original" if original_format else "vertical"},
+                            "captions": initial_caption_style(
+                                task,
+                                caption_settings,
+                                source_settings.get("add_subtitles", True),
+                                clip_width,
+                                clip_height,
+                            ),
+                            "hookTitle": (clip.get("hook_title") or "")[:200],
+                            "words": [
+                                {
+                                    "id": f"word-{i}",
+                                    "start": max(0, min(w["start"], duration - 0.01)),
+                                    "end": max(0.01, min(w["end"], duration)),
+                                    "text": w["text"][:120],
+                                    "highlight": i in emphasis,
+                                }
+                                for i, w in enumerate(words)
+                                if w["start"] < duration and w["end"] > 0
+                            ],
+                        }
+                    )
+                    .validate_duration(duration)
+                    .model_dump()
+                )
+            metadata["captionTiming"] = timing
+            metadata["captionTimingRepair"] = "done"
+            metadata["captionTimingCheckedAt"] = time.time()
             with editor_lock(directory):
-                if not (directory / "draft.json").exists():
+                if not repairing and not (directory / "draft.json").exists():
                     atomic_json(
                         directory / "draft.json", {"revision": 0, "document": initial}
                     )
                     atomic_json(directory / "original.json", initial)
                 atomic_json(directory / "asset.json", metadata)
     except Exception:
-        import logging
-
         logging.getLogger(__name__).exception("Editor preparation failed")
-        atomic_json(
-            directory / "asset.json",
-            {
-                "status": "failed",
-                "error": "Could not prepare the source video. Check that the source is available, then retry.",
-            },
-        )
+        if ready_before and ready_editor_draft(directory) is not None:
+            try:
+                finish_caption_timing(storage, directory, "estimated")
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "Could not keep the existing editor draft after caption repair failed"
+                )
+        else:
+            atomic_json(
+                directory / "asset.json",
+                {
+                    "status": "failed",
+                    "error": "Could not prepare the source video. Check that the source is available, then retry.",
+                },
+            )
     finally:
         if downloaded_source is not None:
             service._cleanup_source_video(downloaded_source, source_type, source_url)

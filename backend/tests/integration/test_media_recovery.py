@@ -157,6 +157,7 @@ async def test_failed_combine_queues_staged_objects_and_uploads_outside_edit_loc
     for number in range(2):
         clip_id = await ClipRepository.create_clip(db_session, task['id'], f'clip-{number}.mp4', str(source_path), '00:00', '00:01', 1, 'hello', 0, '', number)
         await db_session.commit()
+        monkeypatch.setattr("src.clip_editor.transcribe_clip_segment", lambda *_args, **_kwargs: [])
         await prepare_editor({}, task['id'], clip_id, f'clip-{number}.mp4')
         state = read_state(editor_dir(storage.config.temp_dir, task['id'], clip_id, f'clip-{number}.mp4'))
         assert state['status'] == 'ready'

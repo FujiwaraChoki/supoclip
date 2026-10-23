@@ -168,6 +168,8 @@ def _edit_download(stream_config, calls):
 
 @pytest.mark.parametrize("render_succeeds", [True, False])
 async def test_editor_prepares_stream_source_and_cleans_only_its_download(stream_config, monkeypatch, tmp_path, render_succeeds):
+    stream_config.media_storage = "local"
+    monkeypatch.setattr("src.media_storage.get_config", lambda: stream_config)
     other_edit = _op_file(stream_config, "task", "edit-other", "selected-segments.mkv")
     calls = []
     monkeypatch.setattr(editor_service, "download_stream_sections", _edit_download(stream_config, calls))
@@ -202,6 +204,7 @@ async def test_editor_prepares_stream_source_and_cleans_only_its_download(stream
         "status": "ready", "width": 320, "height": 180, "fps": 30, "duration": 1.0, "hasAudio": False, "waveform": [],
     })
     monkeypatch.setattr("src.video_utils.load_cached_transcript_data", lambda _: None)
+    monkeypatch.setattr("src.clip_editor.transcribe_clip_segment", lambda *_args, **_kwargs: [])
 
     await editor_service.prepare_editor({}, "task", "clip", "clip.mp4")
 

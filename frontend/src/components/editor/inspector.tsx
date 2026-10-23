@@ -154,6 +154,16 @@ export function Inspector({
         </div>
         <div className="md:max-h-[calc(100dvh-250px)] md:overflow-y-auto">
           <TabsContent value="captions" className="space-y-6 p-4">
+            {asset.captionTiming === "estimated" && (
+              <Alert>
+                <Info />
+                <AlertDescription>
+                  {asset.captionTimingRepair === "running"
+                    ? t("captions.timingRepairing")
+                    : t("captions.timingWarning")}
+                </AlertDescription>
+              </Alert>
+            )}
             <Section
               title={t("captions.styleTitle")}
               description={t("captions.styleDescription")}
