@@ -44,6 +44,7 @@ import {
   Clapperboard,
   Clock,
   Edit2,
+  ExternalLink,
   Link2Off,
   Loader2,
   PauseCircle,
@@ -98,6 +99,7 @@ interface TaskDetails {
   source_id: string;
   source_title: string;
   source_type: string;
+  source_url?: string | null;
   status: string;
   progress?: number;
   progress_message?: string;
@@ -117,6 +119,17 @@ interface TaskDetails {
 
 function sourceLabel(source: VideoSourceKind, uploadLabel: string) {
   return source === "upload" ? uploadLabel : VIDEO_SOURCE_LABELS[source];
+}
+
+/** Link back to the YouTube/Twitch/Kick video a task was cut from, when its URL is stored. */
+function originalVideoUrl(task: Pick<TaskDetails, "source_type" | "source_url">): string | null {
+  if (videoSourceKind(task.source_type) === "upload" || !task.source_url) return null;
+  try {
+    const url = new URL(task.source_url);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function TaskPage() {
@@ -618,6 +631,7 @@ export default function TaskPage() {
   if (error) return <PageError message={error} retry={() => void fetchTaskStatus()} />;
 
   const readOnly = Boolean(session?.user?.id && task?.user_id && session.user.id !== task.user_id);
+  const sourceVideoUrl = task ? originalVideoUrl(task) : null;
   const isActive = task?.status === "processing" || task?.status === "queued";
   const sortedClips = sortBy === "score"
     ? [...clips].sort((a, b) => (b.virality_score ?? 0) - (a.virality_score ?? 0) || a.clip_order - b.clip_order)
@@ -691,6 +705,13 @@ export default function TaskPage() {
 
           {!readOnly && (
           <div className="flex flex-wrap items-center gap-2">
+            {sourceVideoUrl && (
+              <Button size="sm" variant="outline" asChild>
+                <a href={sourceVideoUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="size-4" />{t("originalVideo")}
+                </a>
+              </Button>
+            )}
             {isActive && (
               <Button size="sm" variant="outline" disabled={pendingAction !== null}
                 onClick={() => void runAction("cancel", async () => {
