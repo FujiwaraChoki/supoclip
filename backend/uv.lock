@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14' and extra != 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda'",
@@ -13,10 +13,10 @@ resolution-markers = [
     "python_full_version == '3.12.*' and sys_platform == 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda'",
     "python_full_version == '3.12.*' and sys_platform == 'emscripten' and extra == 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda'",
     "python_full_version == '3.12.*' and sys_platform == 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda'",
-    "(python_full_version < '3.13' and sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda') or (python_full_version < '3.12' and sys_platform == 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')",
+    "(python_full_version == '3.12.*' and sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda') or (python_full_version < '3.12' and extra != 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')",
     "python_full_version < '3.13' and sys_platform == 'linux' and extra == 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda'",
     "(python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'linux' and extra == 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda') or (python_full_version < '3.12' and sys_platform == 'emscripten' and extra == 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda')",
-    "(python_full_version < '3.13' and sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda') or (python_full_version < '3.12' and sys_platform == 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda')",
+    "(python_full_version == '3.12.*' and sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda') or (python_full_version < '3.12' and extra != 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda')",
 ]
 conflicts = [[
     { package = "supoclip-backend", extra = "cpu" },
@@ -94,7 +94,7 @@ dependencies = [
     { name = "frozenlist" },
     { name = "multidict" },
     { name = "propcache" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
     { name = "yarl" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/93/2f/6a91adaa2dc26877d6ed2f54c0370c8910f019db7d77c5c6a194611e93ea/aiohttp-3.14.4.tar.gz", hash = "sha256:831fc5bd39ec2517851e348f613ddb5447a47cf4b71cb09845af7ad7ed45d8f9", size = 8077839, upload-time = "2026-10-05T17:43:48.309Z" }
@@ -249,7 +249,7 @@ version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "frozenlist" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/61/62/06741b579156360248d1ec624842ad0edf697050bbaf7c3e46394e106ad1/aiosignal-1.4.0.tar.gz", hash = "sha256:f47eecd9468083c2029cc99945502cb7708b082c232f9aca65da147157b251c7", size = 25007, upload-time = "2025-07-03T22:54:43.528Z" }
 wheels = [
@@ -313,7 +313,7 @@ version = "4.14.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "idna" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/61/cc/a381afa6efea9f496eff839d4a6a1aed3bfafc7b3ab4b0d1b243a12573dd/anyio-4.14.2.tar.gz", hash = "sha256:cfa139f3ed1a23ee8f88a145ddb5ac7605b8bbfd8592baacd7ce3d8bb4313c7f", size = 260176, upload-time = "2026-07-12T20:29:07.082Z" }
 wheels = [
@@ -373,7 +373,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
-    { name = "pydantic-settings", marker = "python_full_version >= '3.14' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "pydantic-settings", marker = "python_full_version >= '3.14'" },
     { name = "typing-extensions" },
     { name = "websockets" },
 ]
@@ -681,7 +681,7 @@ name = "cffi"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "pycparser", marker = "implementation_name != 'PyPy'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/eb/56/b1ba7935a17738ae8453301356628e8147c79dbb825bcbc73dc7401f9846/cffi-2.0.0.tar.gz", hash = "sha256:44d1b5909021139fe36001ae048dbdde8214afa20200eda0f64c068cac5d5529", size = 523588, upload-time = "2025-09-08T23:24:04.541Z" }
 wheels = [
@@ -840,7 +840,7 @@ name = "click"
 version = "8.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/bb/63/f9e1ea081ce35720d8b92acde70daaedace594dc93b693c869e0d5910718/click-8.3.3.tar.gz", hash = "sha256:398329ad4837b2ff7cbe1dd166a4c0f8900c3ca3a218de04466f38f6497f18a2", size = 328061, upload-time = "2026-04-22T15:11:27.506Z" }
 wheels = [
@@ -852,14 +852,14 @@ name = "cohere"
 version = "5.21.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "fastavro", marker = "python_full_version != '3.12.*' or sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "httpx", marker = "python_full_version != '3.12.*' or sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "pydantic", marker = "python_full_version != '3.12.*' or sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "pydantic-core", marker = "python_full_version != '3.12.*' or sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "requests", marker = "python_full_version != '3.12.*' or sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "tokenizers", marker = "python_full_version != '3.12.*' or sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "types-requests", marker = "python_full_version != '3.12.*' or sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "typing-extensions", marker = "python_full_version != '3.12.*' or sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "fastavro" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "pydantic-core" },
+    { name = "requests" },
+    { name = "tokenizers" },
+    { name = "types-requests" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d2/75/4c346f6e2322e545f8452692304bd4eca15a2a0209ab9af6a0d1a7810b67/cohere-5.21.1.tar.gz", hash = "sha256:e5ade4423b928b01ff2038980e1b62b2a5bb412c8ab83e30882753b810a5509f", size = 191272, upload-time = "2026-03-26T15:09:27.857Z" }
 wheels = [
@@ -976,7 +976,7 @@ wheels = [
 
 [package.optional-dependencies]
 toml = [
-    { name = "tomli", marker = "python_full_version <= '3.11' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "tomli", marker = "python_full_version <= '3.11'" },
 ]
 
 [[package]]
@@ -984,7 +984,7 @@ name = "cryptography"
 version = "50.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi", marker = "platform_python_implementation != 'PyPy' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "cffi", marker = "platform_python_implementation != 'PyPy'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/de/41/6cbdcf9142d00fe82836fbb51e503e58088575cf7a0fe1dbff6695bf0840/cryptography-50.0.0.tar.gz", hash = "sha256:eeac2acb5a20ed25e0ad6d1df9891a520b78b404266b6d11778f25d5d691a6c9", size = 880201, upload-time = "2026-07-31T14:25:10.11Z" }
 wheels = [
@@ -1040,7 +1040,7 @@ name = "cuda-bindings"
 version = "13.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cuda-pathfinder", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra == 'extra-16-supoclip-backend-cuda') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "cuda-pathfinder", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e0/a9/3a8241c6e19483ac1f1dcf5c10238205dcb8a6e9d0d4d4709240dff28ff4/cuda_bindings-13.2.0-cp311-cp311-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:721104c603f059780d287969be3d194a18d0cc3b713ed9049065a1107706759d", size = 5730273, upload-time = "2026-03-11T00:12:37.18Z" },
@@ -1189,7 +1189,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -1785,8 +1785,8 @@ name = "httpcore2"
 version = "2.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11", marker = "python_full_version != '3.12.*' or sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "truststore", marker = "python_full_version != '3.12.*' or sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "h11" },
+    { name = "truststore" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c0/61/afa9d6b7452f9eca73f73d45324eb0bb52f098fd5e6049bf6b8263be9b4e/httpcore2-2.16.0.tar.gz", hash = "sha256:c72cd0413563b17e1cd8354677dff887466f8ec2551679759e93126534428643", size = 69886, upload-time = "2026-10-21T07:09:45.31Z" }
 wheels = [
@@ -1822,12 +1822,12 @@ name = "httpx2"
 version = "2.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio", marker = "sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "httpcore2", marker = "sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "httpx2-jsfetch", marker = "(python_full_version >= '3.12' and sys_platform == 'emscripten') or (python_full_version < '3.12' and extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda') or (sys_platform != 'emscripten' and extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "anyio", marker = "sys_platform != 'emscripten'" },
+    { name = "httpcore2", marker = "sys_platform != 'emscripten'" },
+    { name = "httpx2-jsfetch", marker = "python_full_version >= '3.12' and sys_platform == 'emscripten'" },
     { name = "idna" },
-    { name = "truststore", marker = "sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "truststore", marker = "sys_platform != 'emscripten'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/43/73/5ca2cedf5e4e50423d1c258877865a6b62793633b561c58499f8aeb33b7e/httpx2-2.16.0.tar.gz", hash = "sha256:0d54c98128e8f2ff7fbbde0fca8c359e5f032edeaaaac443cdb7f31f685bcd7f", size = 103116, upload-time = "2026-10-21T07:09:46.348Z" }
 wheels = [
@@ -1850,7 +1850,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
     { name = "fsspec" },
-    { name = "hf-xet", marker = "platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "hf-xet", marker = "platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'" },
     { name = "httpx" },
     { name = "packaging" },
     { name = "pyyaml" },
@@ -1958,7 +1958,7 @@ name = "jaraco-context"
 version = "6.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "backports-tarfile", marker = "python_full_version < '3.12' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "backports-tarfile", marker = "python_full_version < '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cb/9c/a788f5bb29c61e456b8ee52ce76dbdd32fd72cd73dd67bc95f42c7a8d13c/jaraco_context-6.1.0.tar.gz", hash = "sha256:129a341b0a85a7db7879e22acd66902fda67882db771754574338898b2d5d86f", size = 15850, upload-time = "2026-01-13T02:53:53.847Z" }
 wheels = [
@@ -2173,13 +2173,13 @@ name = "keyring"
 version = "25.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "importlib-metadata", marker = "python_full_version < '3.12' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "importlib-metadata", marker = "python_full_version < '3.12'" },
     { name = "jaraco-classes" },
     { name = "jaraco-context" },
     { name = "jaraco-functools" },
-    { name = "jeepney", marker = "sys_platform == 'linux' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "pywin32-ctypes", marker = "sys_platform == 'win32' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "secretstorage", marker = "sys_platform == 'linux' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "jeepney", marker = "sys_platform == 'linux'" },
+    { name = "pywin32-ctypes", marker = "sys_platform == 'win32'" },
+    { name = "secretstorage", marker = "sys_platform == 'linux'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/43/4b/674af6ef2f97d56f0ab5153bf0bfa28ccb6c3ed4d1babf4305449668807b/keyring-25.7.0.tar.gz", hash = "sha256:fe01bd85eb3f8fb3dd0405defdeac9a5b4f6f0439edbb3149577f244a2e8245b", size = 63516, upload-time = "2025-11-16T16:26:09.482Z" }
 wheels = [
@@ -2357,12 +2357,12 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyjwt", extra = ["crypto"] },
     { name = "python-multipart" },
-    { name = "pywin32", marker = "sys_platform == 'win32' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "pywin32", marker = "sys_platform == 'win32'" },
     { name = "sse-starlette" },
     { name = "starlette" },
     { name = "typing-extensions" },
     { name = "typing-inspection" },
-    { name = "uvicorn", marker = "sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "uvicorn", marker = "sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/6e/77/9450b8f251a13affb6281997d0523c4615f8a8b35d0b21ff30db3a5aac9d/mcp-1.28.1.tar.gz", hash = "sha256:d51e36a5f5644faea4f85ea649bfffa6bc6c26770d42798ad6a3de3d2ba69683", size = 638501, upload-time = "2026-06-26T12:57:29.093Z" }
 wheels = [
@@ -2718,7 +2718,7 @@ name = "nvidia-cudnn-cu13"
 version = "9.19.0.56"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra == 'extra-16-supoclip-backend-cuda') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "nvidia-cublas", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f1/84/26025437c1e6b61a707442184fa0c03d083b661adf3a3eecfd6d21677740/nvidia_cudnn_cu13-9.19.0.56-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:6ed29ffaee1176c612daf442e4dd6cfeb6a0caa43ddcbeb59da94953030b1be4", size = 433781201, upload-time = "2026-02-03T20:40:53.805Z" },
@@ -2731,7 +2731,7 @@ name = "nvidia-cufft"
 version = "12.0.0.61"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra == 'extra-16-supoclip-backend-cuda') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "nvidia-nvjitlink", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/ae/f417a75c0259e85c1d2f83ca4e960289a5f814ed0cea74d18c353d3e989d/nvidia_cufft-12.0.0.61-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:2708c852ef8cd89d1d2068bdbece0aa188813a0c934db3779b9b1faa8442e5f5", size = 214053554, upload-time = "2025-09-04T08:31:38.196Z" },
@@ -2763,9 +2763,9 @@ name = "nvidia-cusolver"
 version = "12.0.4.66"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra == 'extra-16-supoclip-backend-cuda') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "nvidia-cusparse", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra == 'extra-16-supoclip-backend-cuda') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "nvidia-nvjitlink", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra == 'extra-16-supoclip-backend-cuda') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "nvidia-cublas", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "nvidia-cusparse", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "nvidia-nvjitlink", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/c3/b30c9e935fc01e3da443ec0116ed1b2a009bb867f5324d3f2d7e533e776b/nvidia_cusolver-12.0.4.66-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:02c2457eaa9e39de20f880f4bd8820e6a1cfb9f9a34f820eb12a155aa5bc92d2", size = 223467760, upload-time = "2025-09-04T08:33:04.222Z" },
@@ -2778,7 +2778,7 @@ name = "nvidia-cusparse"
 version = "12.6.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra == 'extra-16-supoclip-backend-cuda') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "nvidia-nvjitlink", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f8/94/5c26f33738ae35276672f12615a64bd008ed5be6d1ebcb23579285d960a9/nvidia_cusparse-12.6.3.3-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:80bcc4662f23f1054ee334a15c72b8940402975e0eab63178fc7e670aa59472c", size = 162155568, upload-time = "2025-09-04T08:33:42.864Z" },
@@ -2862,10 +2862,10 @@ dependencies = [
     { name = "numba" },
     { name = "numpy" },
     { name = "tiktoken" },
-    { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or extra == 'extra-16-supoclip-backend-cuda'" },
     { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform == 'linux' and extra == 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
     { name = "tqdm" },
-    { name = "triton", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine != 'x86_64' and extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda') or sys_platform == 'linux2' or (sys_platform != 'linux' and extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "triton", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'linux2'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/35/8e/d36f8880bcf18ec026a55807d02fe4c7357da9f25aebd92f85178000c0dc/openai_whisper-20250625.tar.gz", hash = "sha256:37a91a3921809d9f44748ffc73c0a55c9f366c85a3ef5c2ae0cc09540432eb96", size = 803191, upload-time = "2025-06-26T01:06:13.34Z" }
 
@@ -3352,7 +3352,7 @@ cli = [
     { name = "rich" },
 ]
 cohere = [
-    { name = "cohere", marker = "sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "cohere", marker = "sys_platform != 'emscripten'" },
 ]
 evals = [
     { name = "pydantic-evals" },
@@ -3367,7 +3367,7 @@ groq = [
     { name = "groq" },
 ]
 huggingface = [
-    { name = "hf-xet", marker = "platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "hf-xet", marker = "platform_machine == 'AMD64' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'arm64' or platform_machine == 'x86_64'" },
     { name = "huggingface-hub" },
 ]
 logfire = [
@@ -3601,7 +3601,7 @@ name = "pytest"
 version = "9.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
     { name = "iniconfig" },
     { name = "packaging" },
     { name = "pluggy" },
@@ -3618,7 +3618,7 @@ version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pytest" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/90/2c/8af215c0f776415f3590cac4f9086ccefd6fd463befeae41cd4d3f193e5a/pytest_asyncio-1.3.0.tar.gz", hash = "sha256:d7f52f36d231b80ee124cd216ffb19369aa168fc10095013c6b014a34d3ee9e5", size = 50087, upload-time = "2025-11-10T16:07:47.256Z" }
 wheels = [
@@ -3757,7 +3757,7 @@ name = "redis"
 version = "5.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "async-timeout", marker = "python_full_version < '3.11.3' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "async-timeout", marker = "python_full_version < '3.11.3'" },
     { name = "pyjwt" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/6a/cf/128b1b6d7086200c9f387bd4be9b2572a30b90745ef078bd8b235042dc9f/redis-5.3.1.tar.gz", hash = "sha256:ca49577a531ea64039b5a36db3d6cd1a0c7a60c34124d46924a45b956e8cf14c", size = 4626200, upload-time = "2025-07-25T08:06:27.778Z" }
@@ -3777,7 +3777,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
     { name = "rpds-py" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/22/f5/df4e9027acead3ecc63e50fe1e36aca1523e1719559c499951bb4b53188f/referencing-0.37.0.tar.gz", hash = "sha256:44aefc3142c5b842538163acb373e24cce6632bd54bdb01b21ad5863489f50d8", size = 78036, upload-time = "2025-10-13T15:30:48.871Z" }
 wheels = [
@@ -4054,8 +4054,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or sys_platform == 'linux' or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "jeepney", marker = "(python_full_version != '3.12.*' and extra != 'extra-16-supoclip-backend-cpu') or sys_platform == 'linux' or (sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "cryptography" },
+    { name = "jeepney" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
@@ -4125,7 +4125,7 @@ name = "sqlalchemy"
 version = "2.0.49"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "greenlet", marker = "platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "greenlet", marker = "platform_machine == 'AMD64' or platform_machine == 'WIN32' or platform_machine == 'aarch64' or platform_machine == 'amd64' or platform_machine == 'ppc64le' or platform_machine == 'win32' or platform_machine == 'x86_64'" },
     { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/09/45/461788f35e0364a8da7bda51a1fe1b09762d0c32f12f63727998d85a873b/sqlalchemy-2.0.49.tar.gz", hash = "sha256:d15950a57a210e36dd4cec1aac22787e2a4d57ba9318233e2ef8b2daf9ff2d5f", size = 9898221, upload-time = "2026-04-03T16:38:11.704Z" }
@@ -4210,7 +4210,7 @@ version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
-    { name = "typing-extensions", marker = "python_full_version < '3.13' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/eb/e3/7c1dc7381d9f8ab7d854328ebfa884e62cb3f3d8549ddfd37c7814f42afa/starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0", size = 2703240, upload-time = "2026-06-12T09:23:11.602Z" }
 wheels = [
@@ -4299,7 +4299,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'cuda'", specifier = "==2.11.0", index = "https://pypi.org/simple", conflict = { package = "supoclip-backend", extra = "cuda" } },
     { name = "uvicorn", specifier = ">=0.27.0" },
     { name = "whisper", specifier = ">=1.1.10" },
-    { name = "yt-dlp", extras = ["default"], specifier = ">=2026.8.19" },
+    { name = "yt-dlp", extras = ["default"], specifier = ">=2026.10.21" },
 ]
 provides-extras = ["cpu", "cuda"]
 
@@ -4410,7 +4410,7 @@ name = "tokenizers"
 version = "0.23.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "huggingface-hub", marker = "python_full_version != '3.12.*' or sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "huggingface-hub" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/c1/60/21f715d9faba5f5407ff759472ade058ec4a507ad62bcea47cb847239a73/tokenizers-0.23.1.tar.gz", hash = "sha256:1feeeadf865a7915adc25445dea30e9933e593c31bb96c277cee36de227c8bfa", size = 365748, upload-time = "2026-04-27T14:43:25.606Z" }
 wheels = [
@@ -4500,25 +4500,25 @@ resolution-markers = [
     "python_full_version == '3.12.*' and sys_platform == 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda'",
     "python_full_version == '3.12.*' and sys_platform == 'emscripten' and extra == 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda'",
     "python_full_version == '3.12.*' and sys_platform == 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda'",
-    "(python_full_version < '3.13' and sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda') or (python_full_version < '3.12' and sys_platform == 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')",
+    "(python_full_version == '3.12.*' and sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda') or (python_full_version < '3.12' and extra != 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')",
     "(python_full_version < '3.13' and sys_platform != 'emscripten' and sys_platform != 'linux' and extra == 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda') or (python_full_version < '3.12' and sys_platform == 'emscripten' and extra == 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda')",
-    "(python_full_version < '3.13' and sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda') or (python_full_version < '3.12' and sys_platform == 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda')",
+    "(python_full_version == '3.12.*' and sys_platform != 'emscripten' and extra != 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda') or (python_full_version < '3.12' and extra != 'extra-16-supoclip-backend-cpu' and extra != 'extra-16-supoclip-backend-cuda')",
 ]
 dependencies = [
     { name = "cuda-bindings", marker = "(sys_platform == 'linux' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
     { name = "cuda-toolkit", extra = ["cublas", "cudart", "cufft", "cufile", "cupti", "curand", "cusolver", "cusparse", "nvjitlink", "nvrtc", "nvtx"], marker = "(sys_platform == 'linux' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "filelock", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "fsspec", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "jinja2", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "networkx", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "filelock", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or extra == 'extra-16-supoclip-backend-cuda'" },
+    { name = "fsspec", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or extra == 'extra-16-supoclip-backend-cuda'" },
+    { name = "jinja2", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or extra == 'extra-16-supoclip-backend-cuda'" },
+    { name = "networkx", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or extra == 'extra-16-supoclip-backend-cuda'" },
     { name = "nvidia-cudnn-cu13", marker = "(sys_platform == 'linux' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
     { name = "nvidia-cusparselt-cu13", marker = "(sys_platform == 'linux' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
     { name = "nvidia-nccl-cu13", marker = "(sys_platform == 'linux' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
     { name = "nvidia-nvshmem-cu13", marker = "(sys_platform == 'linux' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "setuptools", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "sympy", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "setuptools", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or extra == 'extra-16-supoclip-backend-cuda'" },
+    { name = "sympy", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or extra == 'extra-16-supoclip-backend-cuda'" },
     { name = "triton", marker = "(sys_platform == 'linux' and extra != 'extra-16-supoclip-backend-cpu') or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "typing-extensions", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "typing-extensions", marker = "sys_platform != 'linux' or extra != 'extra-16-supoclip-backend-cpu' or extra == 'extra-16-supoclip-backend-cuda'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ae/0d/98b410492609e34a155fa8b121b55c7dca229f39636851c3a9ec20edea21/torch-2.11.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:7b6a60d48062809f58595509c524b88e6ddec3ebe25833d6462eeab81e5f2ce4", size = 80529712, upload-time = "2026-03-23T18:12:02.608Z" },
@@ -4597,7 +4597,7 @@ name = "tqdm"
 version = "4.67.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/09/a9/6ba95a270c6f1fbcd8dac228323f2777d886cb206987444e4bce66338dd4/tqdm-4.67.3.tar.gz", hash = "sha256:7d825f03f89244ef73f1d4ce193cb1774a8179fd96f31d7e1dcde62092b960bb", size = 169598, upload-time = "2026-02-03T17:35:53.048Z" }
 wheels = [
@@ -4661,7 +4661,7 @@ name = "types-requests"
 version = "2.33.0.20260503"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "urllib3", marker = "python_full_version != '3.12.*' or sys_platform != 'emscripten' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "urllib3" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a1/b8/57e94268c0d82ac3eaa2fc35aa8ca7bbc2542f726b67dcf90b0b00a3b14d/types_requests-2.33.0.20260503.tar.gz", hash = "sha256:9721b2d9dbee7131f2fb39f20f0ebb1999c18cef4b512c9a7932f3722de7c5f4", size = 23931, upload-time = "2026-05-03T05:20:08.882Z" }
 wheels = [
@@ -5098,17 +5098,17 @@ wheels = [
 
 [[package]]
 name = "yt-dlp"
-version = "2026.8.19"
+version = "2026.10.21"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/1e/e0/832fa4ca334b766a06933a196066edc3dba37cdb6f14cd98d59bcc69a4b4/yt_dlp-2026.8.19.tar.gz", hash = "sha256:9e213e48cea35c66b378e4447903f118f6392a5fa380a2b6d7070ec86f4e0af1", size = 3052025, upload-time = "2026-08-19T23:48:59.291Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/06/13/d2ea252871826205dc4965cb70e6037ab93697fcabf4feda49fe981f6da0/yt_dlp-2026.10.21.tar.gz", hash = "sha256:cbf748d7d17cd37647c4b9f07b6c25f24384bfd4361407ee5ec519e753d22539", size = 3057326, upload-time = "2026-10-21T21:54:53.563Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/69/b2/8cd1613f56eed7ceb64fbd4df3f1c01246bfb098e6f398228bafda22b80b/yt_dlp-2026.8.19-py3-none-any.whl", hash = "sha256:1d57897e94c6665a0a6f9bc54b34e584284e32c034ffab3a7df25d8f7b24eedf", size = 3185533, upload-time = "2026-08-19T23:48:56.925Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/75/ae700ddc7e0b1095fd06cf7e251627dcf4cafcaff460cce92cdc08023b13/yt_dlp-2026.10.21-py3-none-any.whl", hash = "sha256:94a3a3e2c423129d0bbd2f1be000c4171fa1226c29e251c84aff868f2851c247", size = 3188012, upload-time = "2026-10-21T21:54:50.808Z" },
 ]
 
 [package.optional-dependencies]
 default = [
-    { name = "brotli", marker = "(implementation_name == 'cpython' and sys_platform != 'ios') or (implementation_name != 'cpython' and extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda') or (sys_platform == 'ios' and extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
-    { name = "brotlicffi", marker = "implementation_name != 'cpython' or (extra == 'extra-16-supoclip-backend-cpu' and extra == 'extra-16-supoclip-backend-cuda')" },
+    { name = "brotli", marker = "implementation_name == 'cpython' and sys_platform != 'ios'" },
+    { name = "brotlicffi", marker = "implementation_name != 'cpython'" },
     { name = "certifi" },
     { name = "mutagen" },
     { name = "pycryptodomex" },
