@@ -193,18 +193,17 @@ function SocialSettingsContent() {
         {isFetching ? (
           <Skeleton className="h-20 w-full" />
         ) : (
-          <div className="divide-y overflow-hidden rounded-xl border bg-background">
+          <div className="space-y-2">
             {providers.map((provider) => (
               <div
                 key={provider.provider}
-                className={`relative flex items-center gap-3 px-4 py-2 sm:gap-4 sm:px-5 ${provider.configured ? "" : "bg-muted/40 text-muted-foreground"}`}
+                className={`flex items-center gap-3 rounded-xl px-4 py-2 sm:gap-4 sm:px-5 ${provider.configured ? "border bg-background" : "border-2 border-transparent text-muted-foreground"}`}
+                style={provider.configured ? undefined : {
+                  backgroundImage: "linear-gradient(var(--muted), var(--muted)), repeating-linear-gradient(135deg, #fbbf24 0px, #fbbf24 4px, #27272a 4px, #27272a 8px)",
+                  backgroundOrigin: "border-box",
+                  backgroundClip: "padding-box, border-box",
+                }}
               >
-                {!provider.configured && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-y-0 left-0 w-1 bg-[repeating-linear-gradient(135deg,#fbbf24_0px,#fbbf24_4px,#27272a_4px,#27272a_8px)]"
-                  />
-                )}
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/30">
                   <SocialProviderIcon provider={provider.provider} className="size-5" />
                 </span>
