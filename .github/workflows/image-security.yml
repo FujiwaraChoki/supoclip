@@ -21,10 +21,13 @@ jobs:
       matrix:
         include:
           - service: frontend
+            context: .
             options: --target runner
           - service: backend
+            context: ./backend
             options: --build-arg BACKEND_CPU_ONLY=true
           - service: mcp
+            context: ./mcp
             options: ""
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +35,7 @@ jobs:
         run: >-
           docker build --pull ${{ matrix.options }}
           --tag supoclip-security:${{ matrix.service }}
-          ./${{ matrix.service }}
+          --file ${{ matrix.service }}/Dockerfile ${{ matrix.context }}
       - name: Reject fixable critical vulnerabilities in the final image
         run: >-
           docker run --rm
