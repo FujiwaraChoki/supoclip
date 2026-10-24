@@ -253,8 +253,7 @@
     "selfHostGuide": "查看自托管指南",
     "billedYearly": "${price}/月，按年计费",
     "usageExample": {
-      "videos": "每月约可处理 {count} 个 {minutes} 分钟的原视频",
-      "clips": "示例：每个原视频生成 {perVideo} 个短片，共 {count} 个。实际数量因内容而异；额度按原视频分钟数计算。"
+      "videos": "每月约可处理 {count} 个 {minutes} 分钟的原视频"
     }
   },
   "openSource": {

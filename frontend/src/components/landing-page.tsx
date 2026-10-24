@@ -114,7 +114,6 @@ const FEATURES = [
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 const PRICING_EXAMPLE_VIDEO_MINUTES = 30;
-const PRICING_EXAMPLE_CLIPS_PER_VIDEO = 6;
 
 function getPlans(
   t: Translate,
@@ -131,7 +130,7 @@ function getPlans(
       period: t("pricing.period.forever"),
       note: null as string | null,
       soon: null as string | null,
-      usageExample: null as { videos: string; clips: string } | null,
+      usageExample: null as { videos: string } | null,
       description: t("pricing.selfHost.description"),
       features: [
         t("pricing.selfHost.features.crop"),
@@ -158,10 +157,6 @@ function getPlans(
           videos: t("pricing.usageExample.videos", {
             count: exampleVideos,
             minutes: PRICING_EXAMPLE_VIDEO_MINUTES,
-          }),
-          clips: t("pricing.usageExample.clips", {
-            count: exampleVideos * PRICING_EXAMPLE_CLIPS_PER_VIDEO,
-            perVideo: PRICING_EXAMPLE_CLIPS_PER_VIDEO,
           }),
         } : null,
         description: t(`pricing.${plan.id}.description`),
@@ -828,7 +823,6 @@ export default function LandingPage() {
                         plan.highlighted ? "text-primary-foreground/75" : "text-muted-foreground"
                       }`}>
                         <p className="font-medium">{plan.usageExample.videos}</p>
-                        <p>{plan.usageExample.clips}</p>
                       </div>
                     )}
 

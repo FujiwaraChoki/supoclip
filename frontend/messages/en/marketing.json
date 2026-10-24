@@ -253,8 +253,7 @@
     "selfHostGuide": "See the self-hosting guide",
     "billedYearly": "${price}/mo, billed yearly",
     "usageExample": {
-      "videos": "About {count} × {minutes}-minute source videos per month",
-      "clips": "Example: {count} short clips at {perVideo} per video. Output varies; your allowance counts source minutes."
+      "videos": "About {count} × {minutes}-minute source videos per month"
     }
   },
   "openSource": {

@@ -253,8 +253,7 @@
     "selfHostGuide": "Zum Self-Hosting-Guide",
     "billedYearly": "${price}/Monat, jährlich abgerechnet",
     "usageExample": {
-      "videos": "Etwa {count} Ausgangsvideos à {minutes} Minuten pro Monat",
-      "clips": "Beispiel: {count} kurze Clips bei {perVideo} pro Video. Die Anzahl variiert; dein Kontingent zählt Minuten des Ausgangsvideos."
+      "videos": "Etwa {count} Ausgangsvideos à {minutes} Minuten pro Monat"
     }
   },
   "openSource": {
