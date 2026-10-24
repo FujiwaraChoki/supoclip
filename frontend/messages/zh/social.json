@@ -99,6 +99,7 @@
     "instagramNote": "Instagram 需要专业账号（企业或创作者）。在 TikTok 审核此应用之前，帖子会保持私密。未验证应用上传到 YouTube 的视频在 Google 审核完成前是私密的。",
     "connectedHeading": "已连接的账号",
     "none": "还没有连接账号。",
+    "connectionDetails": "连接详情",
     "connectedOn": "连接于 {date}",
     "tokenRenews": " · 令牌会在 {date} 之前续期",
     "reconnect": "重新连接",

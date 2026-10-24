@@ -8,6 +8,7 @@ import {
   AlertCircle,
   CheckCircle,
   ChevronRight,
+  Info,
   RefreshCw,
   Trash2,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ScheduledPosts } from "@/components/scheduled-posts";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
 import { isSocialPublishingEnabled } from "@/hooks/use-social-access";
@@ -261,11 +263,22 @@ function SocialSettingsContent() {
                         {PROVIDER_LABELS[connection.provider]}
                       </Badge>
                       <ConnectionStatusBadge status={connection.status} />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={t("page.connectionDetails")}
+                            className="inline-flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <Info className="size-3.5" aria-hidden="true" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs" sideOffset={6}>
+                          {t("page.connectedOn", { date: formatDateTime(connection.created_at) })}
+                          {connection.token_expires_at ? t("page.tokenRenews", { date: formatDateTime(connection.token_expires_at) }) : ""}
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {t("page.connectedOn", { date: formatDateTime(connection.created_at) })}
-                      {connection.token_expires_at ? t("page.tokenRenews", { date: formatDateTime(connection.token_expires_at) }) : ""}
-                    </p>
                     {connection.status === "reauth_required" && connection.last_error && (
                       <p className="text-xs text-destructive mt-1">{connection.last_error}</p>
                     )}

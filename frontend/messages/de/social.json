@@ -99,6 +99,7 @@
     "instagramNote": "Instagram braucht ein professionelles Konto (Business oder Creator). TikTok-Beiträge bleiben privat, bis TikTok diese App geprüft hat. YouTube-Uploads aus einer ungeprüften App sind privat, bis die Prüfung von Google fertig ist.",
     "connectedHeading": "Verbundene Konten",
     "none": "Noch keine Konten verbunden.",
+    "connectionDetails": "Verbindungsdetails",
     "connectedOn": "Verbunden am {date}",
     "tokenRenews": " · Token erneuert sich vor {date}",
     "reconnect": "Erneut verbinden",

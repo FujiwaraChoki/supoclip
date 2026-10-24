@@ -99,6 +99,7 @@
     "instagramNote": "Instagram needs a professional (Business or Creator) account. TikTok posts stay private until TikTok has audited this app. YouTube uploads from an unverified app are private until Google's review completes.",
     "connectedHeading": "Connected accounts",
     "none": "No accounts connected yet.",
+    "connectionDetails": "Connection details",
     "connectedOn": "Connected {date}",
     "tokenRenews": " · Token renews before {date}",
     "reconnect": "Reconnect",
