@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+import math
 import os
 
 from .runtime_settings import get_cached_setting, setting_prefers_admin
@@ -51,6 +52,14 @@ class Config:
         )
         self.youtube_metadata_provider = self._normalize_youtube_metadata_provider(
             os.getenv("YOUTUBE_METADATA_PROVIDER", "yt_dlp")
+        )
+        # Task creation waits this long for YouTube length metadata. 30s matches
+        # the Twitch/Kick preflight deadline and covers yt-dlp's deno step when
+        # the backend runs under amd64 emulation.
+        self.youtube_preflight_timeout_seconds = self._get_positive_float_env(
+            "YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS",
+            30.0,
+            maximum=180.0,
         )
         # Empty disables the residential-proxy yt-dlp path. Nothing in the
         # download chain changes until this template is set.
@@ -295,6 +304,23 @@ class Config:
             return float(os.getenv(name, str(default)))
         except (TypeError, ValueError):
             return default
+
+    @classmethod
+    def _get_positive_float_env(cls, name: str, default: float, *, maximum: float) -> float:
+        """Parse a positive float. Blank or invalid values use ``default``.
+
+        Values above ``maximum`` are capped so a typo cannot hold a request open.
+        """
+        raw = os.getenv(name)
+        if raw is None or not raw.strip():
+            return default
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(value) or value <= 0:
+            return default
+        return min(value, maximum)
 
     @staticmethod
     def _get_bool_env(name: str, default: bool) -> bool:

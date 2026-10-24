@@ -101,7 +101,10 @@ services:
       args:
         BACKEND_CPU_ONLY: ${BACKEND_CPU_ONLY:-false}
     container_name: supoclip-backend
-    platform: linux/amd64
+    # linux/amd64 by default, including on Apple Silicon (emulated). Set
+    # BACKEND_PLATFORM=linux/arm64 with BACKEND_CPU_ONLY=true for a native
+    # arm64 image. CUDA wheels are amd64-only.
+    platform: "${BACKEND_PLATFORM:-linux/amd64}"
     command: [".venv/bin/uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "127.0.0.1:8000:8000"
@@ -161,6 +164,7 @@ services:
       - APIFY_RUN_TIMEOUT_SECONDS=${APIFY_RUN_TIMEOUT_SECONDS:-3600}
       - YOUTUBE_DATA_API_KEY=${YOUTUBE_DATA_API_KEY}
       - YOUTUBE_METADATA_PROVIDER=${YOUTUBE_METADATA_PROVIDER:-yt_dlp}
+      - YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS=${YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS:-30}
       - YOUTUBE_DOWNLOAD_PROVIDER=${YOUTUBE_DOWNLOAD_PROVIDER:-yt_dlp}
       - YOUTUBE_PROXY_URL=${YOUTUBE_PROXY_URL:-}
       - YOUTUBE_PROXY_TIMEOUT_SECONDS=${YOUTUBE_PROXY_TIMEOUT_SECONDS:-300}
@@ -275,7 +279,8 @@ services:
       args:
         BACKEND_CPU_ONLY: ${BACKEND_CPU_ONLY:-false}
     container_name: supoclip-worker
-    platform: linux/amd64
+    # Same platform override as the backend service.
+    platform: "${BACKEND_PLATFORM:-linux/amd64}"
     command: [".venv/bin/arq", "src.workers.tasks.WorkerSettings"]
     volumes:
       - ./backend/src:/app/src
@@ -333,6 +338,7 @@ services:
       - APIFY_RUN_TIMEOUT_SECONDS=${APIFY_RUN_TIMEOUT_SECONDS:-3600}
       - YOUTUBE_DATA_API_KEY=${YOUTUBE_DATA_API_KEY}
       - YOUTUBE_METADATA_PROVIDER=${YOUTUBE_METADATA_PROVIDER:-yt_dlp}
+      - YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS=${YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS:-30}
       - YOUTUBE_DOWNLOAD_PROVIDER=${YOUTUBE_DOWNLOAD_PROVIDER:-yt_dlp}
       - YOUTUBE_PROXY_URL=${YOUTUBE_PROXY_URL:-}
       - YOUTUBE_PROXY_TIMEOUT_SECONDS=${YOUTUBE_PROXY_TIMEOUT_SECONDS:-300}

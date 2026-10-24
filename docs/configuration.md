@@ -359,10 +359,13 @@ YouTube metadata lookup is configurable independently from the download provider
 |---|---|---|
 | `YOUTUBE_METADATA_PROVIDER` | `yt_dlp` | Primary metadata provider: `yt_dlp` or `youtube_data_api` |
 | `YOUTUBE_DATA_API_KEY` | empty | Preferred credential for the YouTube Data API metadata path |
+| `YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS` | `30` | How long task creation waits for YouTube length metadata. Blank or invalid values use 30. Values above 180 are capped at 180. |
 
 Behavior notes:
 
 - `yt_dlp` preserves the current metadata preflight behavior.
+- Task creation gives that lookup `YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS` (default 30, the same budget Twitch and Kick already use). A timeout returns HTTP 503 `VIDEO_METADATA_TIMEOUT` and does not create a task or use minutes. Other metadata failures still return `VIDEO_METADATA_UNAVAILABLE`.
+- On Apple Silicon, the default `BACKEND_PLATFORM=linux/amd64` runs this lookup under emulation, and yt-dlp's deno step can use most of the 30 seconds. Raise the timeout (for example to 60) or set `BACKEND_PLATFORM=linux/arm64` with `BACKEND_CPU_ONLY=true` and rebuild the backend and worker. See [setup](./setup.md).
 - `youtube_data_api` uses YouTube Data API v3 `videos.list` as the primary metadata source.
 - If `YOUTUBE_DATA_API_KEY` is empty, the backend tries `GOOGLE_API_KEY` for YouTube Data API requests.
 - The configured provider is the primary path only; the backend automatically falls back to the alternate provider on misconfiguration, HTTP errors, empty API results, or parsing failures.

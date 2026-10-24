@@ -170,6 +170,37 @@ Verify:
 - `LLM=anthropic:...` requires `ANTHROPIC_API_KEY`
 - `LLM=ollama:...` requires a reachable Ollama endpoint
 
+## YouTube length check times out
+
+### Symptom
+
+Submitting a public YouTube URL fails before a task exists. The message is
+"Checking this YouTube video's length timed out." The API returns HTTP 503
+with code `VIDEO_METADATA_TIMEOUT`. No minutes are used.
+
+### Common causes
+
+- The metadata lookup exceeded `YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS` (default 30).
+- On Apple Silicon, `BACKEND_PLATFORM=linux/amd64` runs the backend under
+  emulation. yt-dlp's deno step alone can take about 15 seconds, so the check
+  passes or fails depending on the run.
+- A timed-out lookup can keep running in the background until yt-dlp exits.
+  The next attempt still starts its own check.
+
+### Fixes
+
+- Set `YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS` higher (for example `60`) and restart
+  the backend. Values above 180 are capped. Blank or invalid values use 30.
+- On an arm64 host, set `BACKEND_PLATFORM=linux/arm64` and
+  `BACKEND_CPU_ONLY=true`, then rebuild:
+
+```bash
+docker compose up -d --build backend worker
+```
+
+GPU hosts should keep `BACKEND_PLATFORM=linux/amd64`. A native arm64 image is
+optional and does not enable Apple GPU acceleration.
+
 ## YouTube Downloads Fail
 
 ### Symptom
