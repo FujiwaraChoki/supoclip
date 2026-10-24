@@ -283,11 +283,15 @@ def bake_editor_layout(
     ranges: list,
 ) -> bool:
     """Compose a split or stacked layout into ``clean`` when the clip has one."""
+    from ..config import get_config
     from ..media.speaker_framing import build_clip_speaker_turns
 
     turns: list = []
     words: list = []
-    if output_format == "vertical":
+    # Clip generation only supplies diarized speakers when SPEAKER_FRAMING is
+    # on. Loading them here unconditionally can bake an overlap layout the
+    # generated clip never had, just by opening the editor.
+    if output_format == "vertical" and get_config().speaker_framing:
         try:
             turns, words = build_clip_speaker_turns(source, ranges)
         except Exception:

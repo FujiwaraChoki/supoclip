@@ -192,6 +192,99 @@ def test_describe_labels_overlapping_speakers(monkeypatch, tmp_path):
     assert "vstack=inputs=2" in described["video_filter"]
 
 
+def _overlap_samples(duration=2.4):
+    return [
+        (i / 10, [(80.0, 30.0, 40.0, 40.0), (520.0, 30.0, 40.0, 40.0)])
+        for i in range(round(duration * 10))
+    ]
+
+
+def _patch_overlap_analysis(monkeypatch, duration, samples):
+    from src.media import speaker_framing
+
+    monkeypatch.setattr(
+        speaker_framing,
+        "analyze_speaker_clip",
+        lambda *_args, **_kwargs: {
+            "face_samples": samples,
+            "scene_cuts": [],
+            "motion": np.zeros((len(samples), 36, 64)),
+            "motion_fps": 10.0,
+            "motion_cell": 10.0,
+        },
+    )
+    monkeypatch.setattr(
+        "src.media.reframing.analyze_vertical_clip",
+        lambda *_args, **_kwargs: ([(t, 100.0, 0.02) for t, _ in samples], [], samples),
+    )
+    monkeypatch.setattr("src.media.reframing.ffprobe_duration", lambda _path: duration)
+    monkeypatch.setattr("src.media.reframing.ffprobe_video_size", lambda _path: (640, 360))
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_editor_overlap_follows_speaker_framing_flag(monkeypatch, tmp_path, enabled):
+    """Opening the editor reproduces the layout clip generation would bake.
+
+    SPEAKER_FRAMING=false omits diarized speakers during generation, so the
+    editor must not invent an overlap layout from that same data.
+    """
+    from src.config import Config
+    from src.media import speaker_framing
+    from src.media.reframing import describe_vertical_layout as real_describe
+    from src.services.editor_service import PRESERVED_LAYOUT_KINDS, bake_editor_layout
+
+    config = Config()
+    config.speaker_framing = enabled
+    monkeypatch.setattr("src.config.get_config", lambda: config)
+
+    duration = 2.4
+    samples = _overlap_samples(duration)
+    _patch_overlap_analysis(monkeypatch, duration, samples)
+    fetched = []
+
+    def turns(_source, _ranges):
+        fetched.append(True)
+        return ([], [word(0, duration, "A"), word(0, duration, "B")])
+
+    monkeypatch.setattr(speaker_framing, "build_clip_speaker_turns", turns)
+    supplied_words = []
+    described = []
+
+    def spy_describe(path, width, height, speaker_turns=None, speaker_words=None):
+        supplied_words.append(list(speaker_words or []))
+        result = real_describe(path, width, height, speaker_turns, speaker_words)
+        described.append(result)
+        return result
+
+    monkeypatch.setattr("src.media.reframing.describe_vertical_layout", spy_describe)
+    applied = []
+    monkeypatch.setattr(
+        "src.services.editor_service.apply_editor_layout",
+        lambda _source, layout: applied.append(layout["kind"]) or True,
+    )
+    clean = tmp_path / "clean.mp4"
+    source = tmp_path / "source.mp4"
+    clean.write_bytes(b"clean")
+    source.write_bytes(b"source")
+
+    bake_editor_layout(clean, "vertical", source, [(0.0, duration)])
+
+    overlap_words = [word(0, duration, "A"), word(0, duration, "B")]
+    if enabled:
+        assert fetched
+        assert supplied_words == [overlap_words]
+        assert described[0]["kind"] == "overlap"
+        assert applied == ["overlap"]
+    else:
+        assert fetched == []
+        assert supplied_words == [[]]
+        assert described[0]["kind"] != "overlap"
+        if described[0]["kind"] in PRESERVED_LAYOUT_KINDS:
+            assert applied == [described[0]["kind"]]
+        else:
+            assert applied == []
+
+
 def test_describe_labels_a_speaker_crop_as_not_stacked(monkeypatch, tmp_path):
     from src.media.reframing import describe_vertical_layout
 
