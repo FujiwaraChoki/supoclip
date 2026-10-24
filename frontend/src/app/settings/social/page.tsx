@@ -193,8 +193,11 @@ function SocialSettingsContent() {
         ) : (
           <div className="divide-y overflow-hidden rounded-xl border bg-background">
             {providers.map((provider) => (
-              <div key={provider.provider} className="flex items-start gap-3 p-4 sm:gap-4 sm:p-5">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-muted/30">
+              <div
+                key={provider.provider}
+                className={`flex items-start gap-3 px-4 sm:gap-4 sm:px-5 ${provider.configured ? "py-2" : "py-4"}`}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/30">
                   <SocialProviderIcon provider={provider.provider} className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1 self-center">
