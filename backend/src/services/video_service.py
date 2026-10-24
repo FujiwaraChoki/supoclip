@@ -21,7 +21,7 @@ from ..youtube_utils import (
 from ..youtube_proxy import ByteBudget, DownloadBudgetExceeded, PartialDownloadUnavailable, proxy_configured
 from ..youtube_source import (
     cached_full_media,
-    download_audio_for_job,
+    download_analysis_source,
     materialize_clip_source,
     resolve_full_youtube_download,
     copy_transcript_sidecar,
@@ -561,8 +561,10 @@ class VideoService:
 
             if source_type == "youtube":
                 video_info = await async_get_youtube_video_info(url, task_id=task_id)
+                source_duration = None
                 if video_info:
                     duration = video_info.get("duration", 0)
+                    source_duration = duration or None
                     if duration and duration > duration_limit:
                         mins = duration_limit // 60
                         raise Exception(
@@ -580,27 +582,32 @@ class VideoService:
                 # Audio first only when a proxy is configured and we do not
                 # already have the full source cached. Uploads never reach here.
                 if proxy_configured(runtime_config) and video_id and not cached_full:
-                    try:
-                        video_path = await run_in_thread(
-                            download_audio_for_job,
+                    def _resolve_analysis():
+                        def _download_full():
+                            return resolve_full_youtube_download(
+                                url,
+                                video_id,
+                                lambda **kwargs: download_youtube_video(
+                                    url, 3, task_id, download_quality, **kwargs
+                                ),
+                                task_id=task_id,
+                                budget=job_budget,
+                                skip_proxy=True,
+                            )
+
+                        return download_analysis_source(
                             url,
                             video_id,
                             task_id=task_id,
                             budget=job_budget,
+                            duration=float(source_duration) if source_duration else None,
+                            download_full=_download_full,
                         )
-                        audio_first = True
+
+                    try:
+                        video_path, audio_first = await run_in_thread(_resolve_analysis)
                     except DownloadBudgetExceeded as exc:
                         raise Exception(str(exc)) from exc
-                    except Exception as exc:
-                        logger.warning(
-                            "Proxy audio download failed for %s, falling back to a full file: %s",
-                            video_id,
-                            exc,
-                        )
-                        audio_first = False
-                        video_path = await VideoService.download_video(
-                            url, task_id=task_id, quality=download_quality, budget=job_budget, skip_proxy=True,
-                        )
                 else:
                     audio_first = False
                     video_path = cached_full or await VideoService.download_video(

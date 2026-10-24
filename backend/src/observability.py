@@ -137,6 +137,7 @@ class JsonLogFormatter(logging.Formatter):
             "youtube_download_kind",
             "youtube_outcome",
             "youtube_bytes",
+            "youtube_fallback",
             "task_id",
             # Task-creation source submissions. Values are sanitized; the raw
             # query string, fragment, and credentials are never attached.
