@@ -1,0 +1,19 @@
+{
+  "metaTitle": "SupoClip 更新日志",
+  "metaDescription": "SupoClip 的新功能、改进和修复，涵盖 Twitch 与 Kick 剪辑、托管价格和编辑器。",
+  "ogTitle": "SupoClip 更新日志",
+  "ogDescription": "SupoClip 面向使用者的变化，最新的在最前面。",
+  "eyebrow": "产品更新",
+  "title": "更新日志",
+  "intro": "这里记录 SupoClip 对使用者可见的变化，最新的在最前面。",
+  "hostedApp": "托管应用",
+  "startClipping": "开始剪辑",
+  "relatedChange": "相关改动 {label}",
+  "viewOnGitHub": "在 GitHub 上查看更新日志",
+  "categories": {
+    "new": "新功能",
+    "improved": "改进",
+    "fixed": "修复",
+    "underTheHood": "内部改进"
+  }
+}

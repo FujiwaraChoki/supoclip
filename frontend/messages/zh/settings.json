@@ -196,6 +196,12 @@
     "password": "密码",
     "failed": "无法删除账号"
   },
+  "paymentFailed": {
+    "message": "你的上次付款失败了。请更新付款方式以保留你的方案。",
+    "action": "更新付款方式",
+    "failed": "无法打开账单门户",
+    "paused": "在这笔付款完成之前，剪辑会暂停。"
+  },
   "cancel": {
     "scheduled": "你的订阅将于 <strong>{date}</strong> 取消。",
     "why": "告诉我们原因",

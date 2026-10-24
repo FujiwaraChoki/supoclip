@@ -163,18 +163,33 @@ def test_monthly_period_is_used_as_is():
 
 
 @pytest.mark.asyncio
-async def test_inactive_paid_plan_requires_upgrade():
+@pytest.mark.parametrize(
+    "status,provider,can_create",
+    [
+        ("past_due", "stripe", True),
+        ("past_due", "apple", False),
+        ("past_due", None, False),
+        ("unpaid", "stripe", False),
+        ("incomplete", "stripe", False),
+    ],
+)
+async def test_payment_failure_access(status, provider, can_create):
     service = BillingService(  # type: ignore[arg-type]
-        _FakeSession([_billing_row("scale", "past_due"), _usage_row(1)])
+        _FakeSession([_billing_row("scale", status, provider=provider), _usage_row(1, 10)])
     )
     service.config.self_host = False
     service.config.monetization_enabled = True
+    service.config.scale_plan_minute_limit = 1500
 
     summary = await service.get_usage_summary("user-1")
 
     assert summary["plan"] == "scale"
-    assert summary["can_create_task"] is False
-    assert summary["upgrade_required"] is True
+    assert summary["subscription_status"] == status
+    assert summary["can_create_task"] is can_create
+    assert summary["upgrade_required"] is (not can_create)
+    if can_create:
+        assert summary["minute_limit"] == 1500
+        assert summary["remaining_minutes"] == 1490
 
 
 @pytest.mark.asyncio
@@ -194,9 +209,19 @@ async def test_billing_summary_exposes_scheduled_cancellation():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("plan,status,expected", [("pro", "active", 5400), ("scale", "trialing", 10800), ("scale", "inactive", 5400)])
-async def test_billing_summary_exposes_enforced_duration_limit(plan, status, expected):
-    service = BillingService(_FakeSession([_billing_row(plan, status), _usage_row(0)]))
+@pytest.mark.parametrize(
+    "plan,status,provider,expected",
+    [
+        ("pro", "active", None, 5400),
+        ("scale", "trialing", None, 10800),
+        ("scale", "inactive", None, 5400),
+        ("scale", "past_due", "stripe", 10800),
+        ("scale", "past_due", "apple", 5400),
+        ("scale", "unpaid", "stripe", 5400),
+    ],
+)
+async def test_billing_summary_exposes_enforced_duration_limit(plan, status, provider, expected):
+    service = BillingService(_FakeSession([_billing_row(plan, status, provider=provider), _usage_row(0)]))
     service.config.monetization_enabled = True
     service.config.max_video_duration = 5400
     service.config.pro_youtube_max_video_duration = 5400

@@ -95,7 +95,31 @@ describe("/api/billing/webhook", () => {
 
   it("keeps grandfathered 1080p through a failed payment", async () => {
     const data = await sendSubscriptionEvent("past_due", "price_pro");
+    expect(data.plan).toBe("pro");
+    expect(data.subscription_status).toBe("past_due");
     expect(data).not.toHaveProperty("legacy_hd");
+  });
+
+  it("keeps the paid plan and 1080p while Stripe retries a grandfathered Pro invoice", async () => {
+    const data = await sendSubscriptionEvent("past_due", "price_pro_2026_03");
+    expect(data.plan).toBe("pro");
+    expect(data.subscription_status).toBe("past_due");
+    expect(data.subscription_provider).toBe("stripe");
+    expect(data.legacy_hd).toBe(true);
+  });
+
+  it("drops the paid plan once Stripe stops retrying", async () => {
+    const data = await sendSubscriptionEvent("unpaid", "price_scale");
+    expect(data.plan).toBe("free");
+    expect(data.subscription_status).toBe("unpaid");
+    expect(data.subscription_provider).toBe("stripe");
+    expect(data).not.toHaveProperty("legacy_hd");
+  });
+
+  it("does not grant a plan before the first invoice is paid", async () => {
+    const data = await sendSubscriptionEvent("incomplete", "price_pro");
+    expect(data.plan).toBe("free");
+    expect(data.subscription_status).toBe("incomplete");
   });
 
   afterAll(() => {

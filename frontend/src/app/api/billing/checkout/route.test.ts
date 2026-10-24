@@ -72,6 +72,7 @@ describe("/api/billing/checkout", () => {
           create: vi.fn().mockResolvedValue({ url: "https://checkout.example/scale" }),
         },
       },
+      subscriptions: { list: vi.fn().mockResolvedValue({ data: [] }) },
     };
     vi.mocked(getStripeClient).mockReturnValue(stripe as never);
 
@@ -97,6 +98,7 @@ describe("/api/billing/checkout", () => {
       checkout: {
         sessions: { create: vi.fn().mockResolvedValue({ url: "https://checkout.example/annual" }) },
       },
+      subscriptions: { list: vi.fn().mockResolvedValue({ data: [] }) },
     };
     vi.mocked(getStripeClient).mockReturnValue(stripe as never);
 
@@ -152,6 +154,7 @@ describe("/api/billing/checkout", () => {
           sessions: { create: vi.fn().mockResolvedValue({ url: "https://checkout.example/creator" }) },
         },
         promotionCodes: { list: vi.fn().mockResolvedValue({ data: promotionCodes }) },
+        subscriptions: { list: vi.fn().mockResolvedValue({ data: [] }) },
       };
     }
 
@@ -332,6 +335,107 @@ describe("/api/billing/checkout", () => {
     );
 
     expect(response.status).toBe(500);
+  });
+
+  describe("when the Stripe customer already has a subscription", () => {
+    function stripeListing(
+      byStatus: Record<string, { id: string; status: string }[]>,
+      extras: Record<string, unknown> = {},
+    ) {
+      return {
+        checkout: { sessions: { create: vi.fn() } },
+        subscriptions: {
+          list: vi.fn().mockImplementation(async ({ status }: { status: string }) => ({
+            data: byStatus[status] ?? [],
+          })),
+          retrieve: vi.fn().mockResolvedValue({
+            items: { data: [{ id: "si_1", price: { id: "price_pro" } }] },
+          }),
+        },
+        billingPortal: {
+          sessions: { create: vi.fn().mockResolvedValue({ url: "https://portal.example/change" }) },
+        },
+        ...extras,
+      };
+    }
+
+    function checkout() {
+      return POST(
+        new Request("http://localhost/api/billing/checkout", {
+          method: "POST",
+          body: JSON.stringify({ plan: "scale" }),
+        }),
+      );
+    }
+
+    it.each(["past_due", "unpaid", "incomplete"])(
+      "refuses a second checkout when Stripe has a %s subscription",
+      async (status) => {
+        const stripe = stripeListing({ [status]: [{ id: "sub_open", status }] });
+        vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+        const response = await checkout();
+
+        expect(response.status).toBe(409);
+        await expect(response.json()).resolves.toEqual({
+          error: "Your last payment failed. Update your payment method to keep your plan.",
+          code: "existing_subscription_needs_payment",
+        });
+        expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+        expect(stripe.billingPortal.sessions.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it("asks for payment before changing plans when a failed subscription exists beside an active one", async () => {
+      const stripe = stripeListing({
+        past_due: [{ id: "sub_due", status: "past_due" }],
+        active: [{ id: "sub_live", status: "active" }],
+      });
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout();
+
+      expect(response.status).toBe(409);
+      expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+      expect(stripe.subscriptions.retrieve).not.toHaveBeenCalled();
+    });
+
+    it("updates the live subscription in the portal when the database still says free", async () => {
+      const stripe = stripeListing({ active: [{ id: "sub_live", status: "active" }] });
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout();
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ url: "https://portal.example/change" });
+      expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+      expect(stripe.billingPortal.sessions.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer: "cus_123",
+          flow_data: expect.objectContaining({
+            subscription_update_confirm: expect.objectContaining({ subscription: "sub_live" }),
+          }),
+        }),
+      );
+    });
+
+    it("checks out when every blocking status is empty", async () => {
+      const stripe = stripeListing({});
+      stripe.checkout.sessions.create.mockResolvedValue({ url: "https://checkout.example/new" });
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout();
+
+      expect(response.status).toBe(200);
+      expect(stripe.subscriptions.list.mock.calls.map((call) => call[0].status)).toEqual([
+        "past_due",
+        "unpaid",
+        "incomplete",
+        "active",
+        "trialing",
+      ]);
+      expect(stripe.checkout.sessions.create).toHaveBeenCalled();
+    });
   });
 
   describe("for an active Stripe subscriber", () => {

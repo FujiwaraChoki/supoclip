@@ -385,7 +385,9 @@ class TaskService(ClipEditingMixin):
             max_video_duration = self.config.max_video_duration
             if source_type in {"youtube", "twitch", "kick"} and user_id:
                 max_video_duration = self.config.max_youtube_video_duration_for_plan(
-                    billing.get("plan"), billing.get("subscription_status")
+                    billing.get("plan"),
+                    billing.get("subscription_status"),
+                    billing.get("subscription_provider"),
                 )
 
             if source_type in {"twitch", "kick"}:

@@ -24,6 +24,7 @@ export const NAMESPACES = [
   "marketing",
   "seo",
   "blog",
+  "changelog",
   "admin",
   "affiliate",
   "status",

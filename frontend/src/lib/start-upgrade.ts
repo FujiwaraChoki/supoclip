@@ -3,6 +3,7 @@
 import type { BillingInterval, BillingPlanId } from "@/lib/billing-plans";
 import { clearCreatorCode, getStoredCreatorCode } from "@/lib/creator-code";
 import { track } from "@/lib/datafast";
+import { EXISTING_SUBSCRIPTION_NEEDS_PAYMENT } from "@/lib/subscription-status";
 
 async function requestCheckout(plan: BillingPlanId, interval: BillingInterval, code: string | null) {
   const response = await fetch("/api/billing/checkout", {
@@ -27,6 +28,15 @@ export async function startUpgrade(
 ): Promise<void> {
   const code = getStoredCreatorCode();
   let { response, data } = await requestCheckout(plan, interval, code);
+  if (data.code === EXISTING_SUBSCRIPTION_NEEDS_PAYMENT) {
+    const portal = await fetch("/api/billing/portal", { method: "POST" });
+    const portalData: { url?: string; error?: string } = await portal.json().catch(() => ({}));
+    if (!portal.ok || !portalData.url) {
+      throw new Error(portalData.error || data.error || "We couldn't open checkout. Please try again.");
+    }
+    window.location.href = portalData.url;
+    return;
+  }
   // Must match INVALID_CREATOR_CODE in server/affiliates.ts (server-only module).
   if (code && data.code === "invalid_creator_code") {
     clearCreatorCode();

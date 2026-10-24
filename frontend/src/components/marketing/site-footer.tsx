@@ -32,6 +32,7 @@ export function SiteFooter() {
         "/sign-up",
         "/#pricing",
         "/affiliate",
+        "/changelog",
         "/status",
         "/privacy",
         "/terms",
