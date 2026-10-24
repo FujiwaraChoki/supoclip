@@ -1,0 +1,91 @@
+{
+  "status": {
+    "completed": "Selesai",
+    "processing": "Memproses",
+    "queued": "Dalam antrean",
+    "failed": "Gagal",
+    "cancelled": "Dibatalkan"
+  },
+  "loading": "Memuat",
+  "loadingEllipsis": "Memuat…",
+  "somethingWrong": "Ada yang tidak beres",
+  "tryAgain": "Coba lagi",
+  "youtube": {
+    "aria": "Status impor YouTube",
+    "title": "Impor YouTube · {label}",
+    "degraded": "Terganggu",
+    "outage": "Gangguan",
+    "maintenance": "Pemeliharaan",
+    "viewStatus": "Lihat halaman status"
+  },
+  "card": {
+    "queued": "Dalam antrean",
+    "finding": "Mencari momen terbaik…",
+    "needsAttention": "Perlu perhatian",
+    "youtube": "YouTube",
+    "upload": "Unggahan",
+    "clips": "{count, plural, one {# clip} other {# clip}}",
+    "select": "Pilih {title}",
+    "deselect": "Batalkan pilihan {title}"
+  },
+  "title": "Pustaka",
+  "summary": "{count, plural, one {# generasi} other {# generasi}} · arahkan untuk pratinjau, pilih untuk kelola sekaligus",
+  "searchPlaceholder": "Cari menurut judul",
+  "searchLabel": "Cari generasi",
+  "new": "Baru",
+  "filterLabel": "Filter generasi",
+  "filters": {
+    "all": "Semua",
+    "ready": "Siap",
+    "active": "Berjalan",
+    "attention": "Perlu perhatian"
+  },
+  "sortLabel": "Urutkan generasi",
+  "sort": {
+    "newest": "Terbaru",
+    "video": "Menurut video"
+  },
+  "selectAllGenerations": "Pilih semua generasi",
+  "selectedOf": "{selected} dari {total} dipilih",
+  "selectAll": "Pilih semua",
+  "selected": "dipilih",
+  "signInTitle": "Perlu masuk",
+  "signInBody": "Kamu perlu masuk untuk melihat generasimu.",
+  "signIn": "Masuk",
+  "loadError": "Gagal memuat tugas",
+  "refreshError": "Aksi massal selesai, tapi daftar tidak bisa disegarkan.",
+  "cancel": {
+    "empty": "Tidak ada generasi yang sedang berjalan di pilihan untuk dibatalkan.",
+    "fallback": "Gagal membatalkan generasi",
+    "success": "{count, plural, one {# generasi dibatalkan.} other {# generasi dibatalkan.}}",
+    "partial": "{success} dibatalkan, {failed} gagal. {error}",
+    "action": "Batal",
+    "tooltip": "Batalkan {count, plural, one {# generasi yang berjalan} other {# generasi yang berjalan}}"
+  },
+  "resume": {
+    "empty": "Tidak ada generasi gagal atau dibatalkan di pilihan untuk dilanjutkan.",
+    "fallback": "Gagal melanjutkan generasi",
+    "success": "{count, plural, one {# generasi dilanjutkan.} other {# generasi dilanjutkan.}}",
+    "partial": "{success} dilanjutkan, {failed} gagal. {error}",
+    "action": "Lanjutkan",
+    "tooltip": "Lanjutkan {count, plural, one {# generasi gagal/dibatalkan} other {# generasi gagal/dibatalkan}}"
+  },
+  "delete": {
+    "empty": "Pilih minimal satu generasi untuk dihapus.",
+    "fallback": "Gagal menghapus generasi",
+    "success": "{count, plural, one {# generasi dihapus.} other {# generasi dihapus.}}",
+    "partial": "{success} dihapus, {failed} gagal. {error}",
+    "action": "Hapus",
+    "tooltip": "Hapus {count, plural, one {# generasi} other {# generasi}}",
+    "title": "{count, plural, one {Hapus # generasi?} other {Hapus # generasi?}}",
+    "description": "{count, plural, one {Ini akan menghapus generasi ini dan semua clip terkait secara permanen. Tidak bisa dibatalkan.} other {Ini akan menghapus generasi ini dan semua clip terkait secara permanen. Tidak bisa dibatalkan.}}",
+    "pending": "Menghapus..."
+  },
+  "clearSelection": "Hapus pilihan",
+  "cancelDialog": "Batal",
+  "emptyTitle": "Belum ada generasi",
+  "emptyBody": "Tempel tautan YouTube, Twitch, atau Kick, atau unggah video, dan clip-mu akan mendarat di sini.",
+  "create": "Buat generasi baru",
+  "noQuery": "Tidak ada yang cocok dengan “{query}”.",
+  "noFilter": "Tidak ada yang cocok dengan filter ini."
+}

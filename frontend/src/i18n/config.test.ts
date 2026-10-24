@@ -13,6 +13,7 @@ describe("negotiateLocale", () => {
     expect(negotiateLocale("de-CH,de;q=0.9,en;q=0.8")).toBe("de");
     expect(negotiateLocale("pt-BR,pt;q=0.9")).toBe("pt");
     expect(negotiateLocale("zh-Hant-TW,zh;q=0.9,en;q=0.8")).toBe("zh");
+    expect(negotiateLocale("id-ID,id;q=0.9,en;q=0.8")).toBe("id");
     expect(negotiateLocale("en-US,en;q=0.9")).toBe("en");
   });
 });
@@ -22,6 +23,7 @@ describe("locale helpers", () => {
     expect(intlLocale("zh")).toBe("zh-Hans");
     expect(intlLocale("pt")).toBe("pt-BR");
     expect(intlLocale("de")).toBe("de");
+    expect(intlLocale("id")).toBe("id");
   });
 
   it("builds flat catalog keys from paths", () => {

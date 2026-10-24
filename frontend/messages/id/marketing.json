@@ -1,0 +1,279 @@
+{
+  "metadata": {
+    "title": "SupoClip – AI Video Clipper Open Source untuk Shorts",
+    "description": "Ubah video panjang serta VOD Twitch atau Kick jadi YouTube Shorts, TikTok, dan Reels ber-caption dengan AI clipping open source, skor viral, dan crop 9:16 yang mengikuti wajah.",
+    "openGraphDescription": "Ubah video panjang serta VOD Twitch atau Kick jadi YouTube Shorts, TikTok, dan Reels ber-caption dengan AI clipping open source.",
+    "twitterDescription": "AI clipping open source, skor viral, caption, dan crop vertikal yang mengikuti wajah.",
+    "keywords": {
+      "clipper": "alat clip video AI",
+      "openSource": "video clipper open source",
+      "shorts": "clipper YouTube Shorts",
+      "longToShorts": "video panjang jadi shorts",
+      "maker": "pembuat clip AI"
+    },
+    "structured": {
+      "software": "AI video clipper open source untuk menemukan highlight, membuat crop vertikal, menambahkan caption yang sinkron per kata, dan mengekspor video pendek.",
+      "featureDiscovery": "Penemuan clip berbantuan AI dan skor viral",
+      "featureCrop": "Crop vertikal 9:16 yang mengikuti wajah",
+      "featureCaptions": "Caption animasi yang sinkron per kata",
+      "featureExports": "Ekspor YouTube Shorts, TikTok, dan Instagram Reels",
+      "featureSelfHost": "Self-hosting open source",
+      "offerCategory": "Edisi open source yang di-host sendiri",
+      "ios": "Aplikasi iOS SupoClip: ubah video panjang jadi short vertikal ber-caption dari iPhone.",
+      "website": "AI video clipping open source untuk konten pendek."
+    }
+  },
+  "footer": {
+    "tagline": "AI video clipper open source. Pakai aplikasi yang di-host atau jalankan di infrastrukturmu sendiri.",
+    "github": "GitHub",
+    "ios": "Aplikasi iOS",
+    "columns": {
+      "guides": "Panduan",
+      "compare": "Bandingkan",
+      "product": "Produk"
+    },
+    "columnLinks": "Tautan {heading}"
+  },
+  "creator": {
+    "codeLead": "Kode",
+    "codeTail": "diterapkan: diskon 20% untuk 3 bulan pertama.",
+    "start": "Mulai buat clip",
+    "dismiss": "Tutup"
+  },
+  "related": {
+    "continueExploring": "Lanjut jelajahi",
+    "keepReading": "Lanjut baca",
+    "relatedGuides": "Panduan SupoClip terkait",
+    "read": "Baca"
+  },
+  "links": {
+    "demo": {
+      "label": "Demo",
+      "eyebrow": "Demo",
+      "title": "Lihat clip sungguhan yang dibuat SupoClip dari video panjang",
+      "description": "Tonton hasilnya, lalu lompat ke tiap momen di video sumber asli."
+    },
+    "ai_video_clipper": {
+      "label": "Alat clip video AI",
+      "eyebrow": "Clipping video dengan AI",
+      "title": "AI video clipper untuk Shorts, Reels, dan TikTok",
+      "description": "Bagaimana SupoClip menemukan momen, menilai kandidat, membingkai wajah, dan menambahkan caption."
+    },
+    "youtube_shorts_clipper": {
+      "label": "Clipper YouTube Shorts",
+      "eyebrow": "YouTube ke Shorts",
+      "title": "Ubah video YouTube panjang jadi Shorts",
+      "description": "Alur praktis untuk memilih, memberi caption, membingkai ulang, dan meninjau clip."
+    },
+    "open_source_video_clipper": {
+      "label": "Clipper open source",
+      "eyebrow": "Open Source",
+      "title": "Video clipper open source yang bisa kamu kendalikan",
+      "description": "Apa yang berubah saat host sendiri: kendali, penyedia model, dan infrastruktur."
+    },
+    "blog_self_host_supoclip_docker": {
+      "label": "Panduan host sendiri",
+      "eyebrow": "Panduan Host Sendiri",
+      "title": "Host sendiri SupoClip dengan Docker Compose",
+      "description": "Kebutuhan, variabel environment, boot pertama, penyiapan yang sepenuhnya lokal, dan pemeriksaan produksi."
+    },
+    "blog_supoclip_vs_opusclip": {
+      "label": "SupoClip vs OpusClip",
+      "eyebrow": "Perbandingan",
+      "title": "SupoClip vs OpusClip: perbandingan bersumber",
+      "description": "Model harga, deployment, watermark, dan alur kerja, dengan setiap klaim tertaut ke sumber."
+    },
+    "blog_best_free_opusclip_alternative": {
+      "label": "Alternatif OpusClip yang di-host sendiri",
+      "eyebrow": "Perbandingan",
+      "title": "Alternatif OpusClip gratis terbaik yang di-host sendiri",
+      "description": "Kapan clipper open source yang di-host sendiri lebih tepat daripada alat berbasis kredit."
+    },
+    "blog_supoclip_vs_supo_live": {
+      "label": "SupoClip vs supo.live",
+      "eyebrow": "Perbandingan",
+      "title": "SupoClip vs supo.live: kendali open source",
+      "description": "Bandingkan host sendiri, AI clipping, dan alur edit sebelum memilih alat video."
+    },
+    "sign_up": {
+      "label": "Mulai buat clip"
+    },
+    "pricing": {
+      "label": "Harga"
+    },
+    "affiliate": {
+      "label": "Afiliasi"
+    },
+    "status": {
+      "label": "Status layanan"
+    },
+    "privacy": {
+      "label": "Privasi"
+    },
+    "terms": {
+      "label": "Ketentuan"
+    },
+    "blog": {
+      "label": "Semua artikel"
+    },
+    "changelog": {
+      "label": "Catatan perubahan"
+    }
+  },
+  "nav": {
+    "howItWorks": "Cara kerja",
+    "features": "Fitur",
+    "pricing": "Harga",
+    "openSource": "Open Source",
+    "blog": "Blog",
+    "changelog": "Catatan perubahan",
+    "affiliate": "Afiliasi",
+    "signIn": "Masuk",
+    "getStarted": "Mulai",
+    "openHosted": "Buka aplikasi yang di-host",
+    "toggleMenu": "Buka atau tutup menu"
+  },
+  "hero": {
+    "badge": "Open source & bisa di-host sendiri",
+    "titleLine1": "AI video clipper open source",
+    "titleLine2": "untuk short yang lebih baik",
+    "body": "Ubah video YouTube, VOD Twitch dan Kick, atau unggahanmu sendiri jadi Shorts, TikTok, dan Reels ber-caption dengan deteksi highlight berbantuan AI, skor viral, dan crop vertikal yang mengikuti wajah.",
+    "startClipping": "Mulai buat clip",
+    "useHosted": "Pakai aplikasi yang di-host",
+    "viewSource": "Lihat sumber",
+    "appStoreAria": "Unduh SupoClip di App Store",
+    "appStoreAlt": "Unduh di App Store",
+    "chips": {
+      "crop": "Auto-crop 9:16",
+      "captions": "Caption sinkron per kata",
+      "virality": "Skor viral"
+    },
+    "productHuntAlt": "SupoClip - AI clipper open source: video panjang jadi short viral | Product Hunt",
+    "player": {
+      "source": "youtube.com · sumber bentuk panjang",
+      "clipsFound": "{count} clip ditemukan",
+      "pause": "Jeda clip",
+      "play": "Putar clip",
+      "unmute": "Nyalakan suara clip",
+      "mute": "Bisukan clip",
+      "howMade": "Bagaimana clip ini dibuat"
+    },
+    "sources": {
+      "label": "Bekerja dengan",
+      "upload": "File milikmu"
+    }
+  },
+  "steps": {
+    "title": "Tiga langkah. Nyaris tanpa usaha.",
+    "items": {
+      "drop": {
+        "title": "Lempar tautan atau file",
+        "description": "Tempel tautan YouTube, Twitch, atau Kick (VOD atau clip), atau seret dan lepas file videomu."
+      },
+      "gold": {
+        "title": "AI menemukan bagian emasnya",
+        "description": "Transkripsi, skor viral, dan deteksi segmen memunculkan momen terbaik."
+      },
+      "export": {
+        "title": "Ekspor & publikasikan",
+        "description": "Dapatkan clip vertikal, ber-caption, dengan pelacakan wajah, siap untuk setiap platform."
+      }
+    }
+  },
+  "features": {
+    "title": "Semua yang kamu butuhkan untuk viral",
+    "body": "Clipping video kelas profesional dengan kecerdasan AI di setiap langkah pipeline.",
+    "items": {
+      "faceCrop": {
+        "title": "Crop yang berpusat pada wajah",
+        "description": "MediaPipe + OpenCV mendeteksi dan melacak wajah untuk framing vertikal 9:16 yang pas."
+      },
+      "subtitles": {
+        "title": "Subtitle sinkron per kata",
+        "description": "Stempel waktu tingkat kata menggerakkan caption animasi yang tepat waktunya di setiap clip."
+      },
+      "virality": {
+        "title": "Skor viral",
+        "description": "AI menilai hook, engagement, nilai, dan kelayakan dibagikan — skor 0 sampai 100."
+      },
+      "broll": {
+        "title": "Overlay B-roll",
+        "description": "Ambil dan tumpuk footage stok yang relevan dari Pexels secara otomatis."
+      },
+      "templates": {
+        "title": "Template caption",
+        "description": "Beberapa gaya animasi dan preset font agar sesuai dengan brand-mu."
+      },
+      "export": {
+        "title": "Ekspor platform",
+        "description": "Preset sekali klik untuk TikTok, Reels, dan Shorts dengan encoding yang dioptimalkan."
+      }
+    }
+  },
+  "pricing": {
+    "title": "Harga sederhana, tanpa kejutan",
+    "body": "Gratis untuk di-host sendiri. Paket yang di-host mulai ${price}/bulan, dengan pemrosesan dan hosting yang kami urus. Ubah atau batalkan kapan saja.",
+    "popular": "Paling populer",
+    "period": {
+      "forever": "selamanya",
+      "month": "/bulan",
+      "year": "/tahun"
+    },
+    "generationsPerMonth": "{count} generasi per bulan",
+    "selfHost": {
+      "description": "Jalankan di komputermu sendiri. Tanpa langganan atau batas video bulanan.",
+      "features": {
+        "crop": "Crop yang berpusat pada wajah",
+        "subtitles": "Subtitle sinkron per kata",
+        "virality": "Skor viral",
+        "exports": "Semua preset ekspor",
+        "source": "Akses kode sumber penuh"
+      },
+      "cta": "Lihat di GitHub",
+      "setup": "Perlu penyiapan. Kamu menyediakan perangkat dan layanan AI berbayar yang kamu pilih."
+    },
+    "pro": {
+      "description": "Untuk kreator yang membuat clip secara konsisten tiap bulan.",
+      "cta": "Upgrade ke Pro"
+    },
+    "scale": {
+      "description": "Untuk kreator yang memublikasikan setiap hari.",
+      "cta": "Upgrade ke Creator"
+    },
+    "hosted": {
+      "tracking": "Pelacakan wajah, caption, dan skor viral",
+      "broll": "Overlay B-roll",
+      "templates": "Template caption",
+      "exports": "Preset ekspor platform",
+      "youtube3h": "Video YouTube sampai 3 jam",
+      "priority": "Pemrosesan prioritas",
+      "earlyAccess": "Akses awal ke fitur baru"
+    },
+    "selfHostNote": "Host sendiri? Semua fitur gratis dan tanpa batas.",
+    "selfHostGuide": "Lihat panduan host sendiri",
+    "billedYearly": "${price}/bln, ditagih tahunan",
+    "usageExample": {
+      "videos": "Sekitar {count} × video sumber {minutes} menit per bulan",
+      "clips": "Contoh: {count} clip pendek dengan {perVideo} per video. Hasil bervariasi; jatahmu menghitung menit sumber."
+    }
+  },
+  "openSource": {
+    "badge": "Berlisensi AGPL-3.0",
+    "title": "Dibangun secara terbuka",
+    "body": "Sepenuhnya open source. Host sendiri di infrastrukturmu, sumbang fitur, atau fork dan jadikan milikmu.",
+    "commandLabel": "Host sendiri dengan Docker Compose:",
+    "comment": "# tambahkan penyedia transkripsi + LLM ke .env",
+    "tryHosted": "Coba versi yang di-host",
+    "openHosted": "Buka versi yang di-host"
+  },
+  "guides": {
+    "eyebrow": "Panduan & perbandingan",
+    "title": "Pelajari alur clipping yang lengkap",
+    "body": "Halaman praktis dan bersumber untuk memilih video clipper, host sendiri SupoClip, dan mengubah rekaman panjang jadi konten pendek.",
+    "read": "Baca panduan"
+  },
+  "cta": {
+    "title": "Siap buat clip?",
+    "body": "Ubah video berikutnya jadi short yang bikin orang berhenti scroll. Pakai aplikasi yang di-host, atau host sendiri versi open source secara gratis."
+  }
+}

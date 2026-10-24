@@ -1,0 +1,161 @@
+{
+  "bindingNotice": "Versi bahasa Inggris dokumen ini yang mengikat secara hukum. Terjemahan ini disediakan untuk memudahkan.",
+  "hostedApp": "Aplikasi yang di-host",
+  "lastUpdated": "Terakhir diperbarui: {date}",
+  "back": "Kembali ke SupoClip",
+  "terms": {
+    "metaTitle": "Ketentuan Layanan | SupoClip",
+    "metaDescription": "Ketentuan yang mengatur penggunaan aplikasi SupoClip dan layanan clipping video yang di-host, termasuk langganan yang dibeli di web atau lewat App Store.",
+    "ogTitle": "Ketentuan Layanan SupoClip",
+    "ogDescription": "Ketentuan yang mengatur penggunaan SupoClip.",
+    "title": "Ketentuan Layanan",
+    "privacyLink": "Kebijakan Privasi",
+    "agreement": {
+      "title": "Perjanjian",
+      "p1": "Ketentuan Layanan ini (“Ketentuan”) mengatur penggunaanmu atas aplikasi SupoClip dan layanan yang di-host (“Layanan”), yang mengubah video bentuk panjang jadi clip pendek ber-caption. Dengan membuat akun atau memakai Layanan, kamu menyetujui Ketentuan ini. Jika kamu tidak setuju, jangan pakai Layanan.",
+      "p2": "SupoClip juga tersedia sebagai perangkat lunak open source yang bisa kamu host sendiri. Ketentuan ini berlaku untuk layanan yang di-host dan dioperasikan SupoClip; instans yang di-host sendiri diatur oleh lisensi open source yang berlaku dan ketentuan operatornya sendiri."
+    },
+    "account": {
+      "title": "Akunmu",
+      "p1": "Kamu harus memberikan informasi yang akurat saat membuat akun dan menjaga kredensialmu tetap aman. Kamu bertanggung jawab atas aktivitas yang terjadi di bawah akunmu. Kamu harus berusia minimal 13 tahun (atau usia minimum yang diwajibkan di yurisdiksimu) untuk memakai Layanan."
+    },
+    "content": {
+      "title": "Kontenmu & tanggung jawab",
+      "p1": "Kamu tetap memiliki video yang kamu kirim dan clip yang dihasilkan Layanan darinya. Kamu memberi kami hak terbatas yang diperlukan untuk memproses, menyimpan, dan mengirimkan konten itu kepadamu sebagai bagian dari pengoperasian Layanan.",
+      "p2": "Kamu sendiri yang bertanggung jawab memiliki hak yang diperlukan atas konten yang kamu kirim, termasuk video yang dirujuk lewat URL. Kamu tidak boleh memakai Layanan untuk memproses konten yang melanggar hak orang lain, melanggar hukum, atau melanggar ketentuan platform yang mengikatmu."
+    },
+    "billing": {
+      "title": "Langganan & tagihan",
+      "p1": "Paket berbayar (misalnya Pro dan Creator) mencakup jatah bulanan menit video sumber dan resolusi keluaran maksimum. Setiap video memakai durasi penuhnya, dibulatkan ke atas ke menit, saat pemrosesan dimulai; pekerjaan yang gagal tanpa menghasilkan clip tidak dihitung. Jatah direset tiap bulan, termasuk pada paket tahunan, dan menit yang tidak terpakai tidak berpindah. Hak paket yang sama berlaku untuk akunmu, di mana pun kamu membelinya.",
+      "webLabel": "Pembelian di web.",
+      "web": "Langganan web ditagih oleh pemroses pembayaran kami, Stripe, secara bulanan. Langganan diperpanjang otomatis sampai dibatalkan. Kamu bisa membatalkan kapan saja lewat portal tagihan di Pengaturan; akses berlanjut sampai akhir periode yang sudah dibayar.",
+      "iosLabel": "Pembelian di aplikasi iOS.",
+      "ios": "Langganan yang dibeli di aplikasi iOS ditagihkan ke Apple ID-mu sebagai langganan yang diperpanjang otomatis. Pembayaran ditagih saat pembelian dikonfirmasi, dan langganan diperpanjang otomatis kecuali dibatalkan setidaknya 24 jam sebelum akhir periode berjalan. Kamu bisa mengelola atau membatalkan langganan App Store di pengaturan langganan perangkatmu; langganan itu tidak bisa dikelola dari web. Pengembalian dana untuk pembelian App Store ditangani oleh Apple.",
+      "p2": "Langganan dikelola oleh platform tempat langganan itu dibeli. Harga dapat berubah dengan pemberitahuan; perubahan berlaku pada perpanjangan berikutnya. Kecuali diwajibkan oleh hukum atau kebijakan pengembalian dana platform, biaya tidak dapat dikembalikan."
+    },
+    "acceptable": {
+      "title": "Penggunaan yang dapat diterima",
+      "li1": "Tidak ada konten yang melanggar, melanggar hukum, atau berbahaya.",
+      "li2": "Tidak ada upaya untuk menyelidiki, mengganggu, atau membebani Layanan secara berlebihan, atau mengakali batas penggunaan.",
+      "li3": "Tidak menjual kembali atau white-label Layanan yang di-host tanpa izin tertulis kami.",
+      "li4": "Tidak memakai Layanan untuk melanggar ketentuan platform pihak ketiga yang berlaku untukmu.",
+      "closing": "Kami dapat menangguhkan atau mengakhiri akun yang melanggar Ketentuan ini."
+    },
+    "ip": {
+      "title": "Kekayaan intelektual",
+      "p1": "Layanan, termasuk perangkat lunak, desain, dan branding-nya, dimiliki oleh SupoClip atau pemberi lisensinya. Komponen open source dilisensikan di bawah lisensi masing-masing. Ketentuan ini tidak memberimu hak apa pun atas merek dagang kami."
+    },
+    "disclaimers": {
+      "title": "Penyangkalan",
+      "p1": "Layanan disediakan “apa adanya” dan “sebagaimana tersedia.” Keluaran yang dihasilkan AI (transkrip, caption, pilihan clip, perkiraan viral) dapat mengandung kesalahan dan disediakan tanpa jaminan akurasi. Sejauh diizinkan hukum, kami menyangkal semua jaminan, tersurat atau tersirat, termasuk kelayakan untuk tujuan tertentu dan tidak adanya pelanggaran."
+    },
+    "liability": {
+      "title": "Batasan tanggung jawab",
+      "p1": "Sejauh diizinkan hukum, SupoClip tidak bertanggung jawab atas kerugian tidak langsung, insidental, khusus, konsekuensial, atau punitif, atau atas hilangnya laba, data, atau reputasi. Tanggung jawab agregat kami untuk klaim yang berkaitan dengan Layanan dibatasi pada jumlah yang kamu bayarkan kepada kami dalam dua belas bulan sebelum klaim muncul."
+    },
+    "termination": {
+      "title": "Pengakhiran",
+      "p1": "Kamu boleh berhenti memakai Layanan dan menghapus akunmu kapan saja. Kami dapat menangguhkan atau mengakhiri aksesmu karena pelanggaran Ketentuan ini atau jika diwajibkan hukum. Bagian yang secara sifatnya harus tetap berlaku setelah pengakhiran (seperti kepemilikan, penyangkalan, dan batasan tanggung jawab) tetap berlaku."
+    },
+    "changes": {
+      "title": "Perubahan pada Ketentuan ini",
+      "p1": "Kami dapat memperbarui Ketentuan ini dari waktu ke waktu. Saat kami melakukannya, kami akan merevisi tanggal “Terakhir diperbarui” di atas dan, bila sesuai, memberi pemberitahuan tambahan. Penggunaan Layanan yang berlanjut setelah pembaruan berarti kamu menerima Ketentuan yang direvisi."
+    },
+    "contact": {
+      "title": "Hubungi kami",
+      "body": "Pertanyaan tentang Ketentuan ini? Email kami di <email>support@supoclip.com</email>."
+    }
+  },
+  "privacy": {
+    "metaTitle": "Kebijakan Privasi | SupoClip",
+    "metaDescription": "Bagaimana SupoClip mengumpulkan, memakai, membagikan, dan melindungi datamu saat kamu memakai layanan clipping video SupoClip.",
+    "ogTitle": "Kebijakan Privasi SupoClip",
+    "ogDescription": "Bagaimana SupoClip menangani datamu.",
+    "title": "Kebijakan Privasi",
+    "overview": {
+      "title": "Ringkasan",
+      "p1": "Kebijakan Privasi ini menjelaskan bagaimana SupoClip (“SupoClip,” “kami”) mengumpulkan, memakai, membagikan, dan melindungi informasi saat kamu memakai aplikasi SupoClip dan layanan yang di-host (“Layanan”), yang mengubah video bentuk panjang jadi clip pendek ber-caption.",
+      "p2": "SupoClip juga tersedia sebagai perangkat lunak open source yang bisa kamu host sendiri. Jika kamu memakai instans yang di-host sendiri dan dioperasikan olehmu atau pihak ketiga, operator itu—bukan SupoClip—yang bertanggung jawab atas data yang diproses instans tersebut. Kebijakan ini menjelaskan layanan yang di-host dan dioperasikan SupoClip."
+    },
+    "collect": {
+      "title": "Informasi yang kami kumpulkan",
+      "accountLabel": "Informasi akun.",
+      "account": "Saat kamu membuat akun, kami mengumpulkan namamu, alamat email, dan kata sandi yang di-hash dengan aman. Autentikasi ditangani oleh penyedia autentikasi kami; kami tidak menyimpan kata sandi dalam teks biasa.",
+      "contentLabel": "Konten yang kamu berikan.",
+      "content": "Untuk menghasilkan clip, kami memproses URL video yang kamu kirim (misalnya tautan ke video yang boleh kamu pakai) dan file video yang kamu unggah. Kami menyimpan clip, transkrip, caption, dan metadata pemrosesan terkait agar kamu bisa melihat, mengedit, dan mengekspornya. Kamu bertanggung jawab memiliki hak atas konten yang kamu kirim.",
+      "billingLabel": "Informasi tagihan.",
+      "billing": "Paket berbayar diproses oleh pemroses pembayaran kami, Stripe. Kami tidak menyimpan nomor kartu lengkapmu; kami menyimpan status langganan dan pengenal pelanggan yang diperlukan untuk mengelola tagihan.",
+      "usageLabel": "Data penggunaan, perangkat, dan log.",
+      "usage": "Kami mengumpulkan pengenal sesi, alamat IP, dan log teknis dasar untuk mengoperasikan, mengamankan, dan men-debug Layanan. Jika analitik diaktifkan untuk situs yang di-host, kami memakai penyedia analitik yang ramah privasi dan tidak membangun profil iklan lintas situs. Kami juga memakai PostHog di situs yang di-host untuk memahami cara produk dipakai, memutar ulang sesi (dengan semua yang diketik di kolom formulir disamarkan), dan menerima laporan error agar kami bisa memperbaiki masalah.",
+      "campaignLabel": "Informasi kampanye dan rujukan.",
+      "campaign1": "Saat kamu mengunjungi situs kami dalam keadaan keluar, browser-mu menyimpan catatan cara kamu pertama kali tiba, sampai 90 hari. Catatan ini disimpan di local storage browser, bukan di cookie. Catatan mencakup tag kampanye di tautan yang kamu ikuti (seperti <utmSource>utm_source</utmSource>, <utmCampaign>utm_campaign</utmCampaign>, atau kode <ref>ref</ref>), domain situs perujuk (bukan alamat lengkap), halaman tempat kamu mendarat, dan waktu kunjungan itu. Alamat halaman dipangkas menjadi rutenya, jadi tautan berbagi dan ID proyek tidak pernah dicatat. Tidak ada yang dicatat saat kamu masuk.",
+      "campaign2": "Akun pertama yang masuk di browser itu mengklaim catatan tersebut, lalu catatan dihapus dari browser agar akun lain tidak bisa memakainya. Jika akun itu baru, kami menyimpan catatan ke akun itu sekali, tidak lama setelah pendaftaran. Kami juga mencatat kapan kamu pertama kali mengunduh atau mengekspor clip. Kami memakai ini untuk mempelajari kanal mana yang membawa orang yang merasa SupoClip berguna. Jika analitik diaktifkan, peristiwa pendaftaran dan ekspor clip yang kami kirim ke penyedia analitik menyertakan kolom kampanye yang sama. Kami tidak memakai informasi ini untuk iklan atau menjualnya. Kamu bisa menghapus catatan dari browser dengan membersihkan data situs untuk supoclip.com."
+    },
+    "use": {
+      "title": "Bagaimana kami memakai informasimu",
+      "li1": "Menyediakan Layanan—memproses videomu serta menghasilkan, mengedit, dan mengekspor clip.",
+      "li2": "Mengautentikasi kamu dan menjaga akunmu tetap aman.",
+      "li3": "Memproses pembayaran dan mengelola langganan.",
+      "li4": "Mengirim email transaksional (misalnya konfirmasi pendaftaran, pemberitahuan selesai, dan tanda terima tagihan).",
+      "li5": "Memelihara, men-debug, mengamankan, dan meningkatkan Layanan.",
+      "li6": "Memahami kampanye dan situs perujuk mana yang mengarah ke pendaftaran dan ekspor clip pertama.",
+      "li7": "Jika kamu menghubungkan akun sosial, memublikasikan clip yang kamu pilih dan menunjukkan performanya.",
+      "li8": "Mematuhi kewajiban hukum dan menegakkan ketentuan kami."
+    },
+    "social": {
+      "title": "Akun sosial yang terhubung",
+      "p1": "Kamu bisa menghubungkan akun YouTube, TikTok, atau Instagram agar SupoClip bisa memublikasikan clip untukmu. Menghubungkan bersifat opsional, terjadi lewat halaman masuk platform itu sendiri, dan kami tidak pernah melihat kata sandimu untuk platform itu.",
+      "accessLabel": "Apa yang kami akses dan kenapa.",
+      "li1": "<label>Profil dasar</label> (ID akun, nama tampilan, nama pengguna, foto profil) — untuk menunjukkan akun mana yang terhubung.",
+      "li2": "<label>Izin untuk mengunggah atau memublikasikan</label> — untuk memposting clip yang kamu pilih, dengan judul, caption, visibilitas, dan waktu yang kamu atur. Kami tidak pernah memposting apa pun yang tidak kamu minta.",
+      "li3": "<label>Statistik untuk postingan yang dibuat lewat SupoClip</label> (penayangan, suka, komentar, dibagikan) — untuk menunjukkan performa clip-mu dan, setelah hasilnya cukup, menyesuaikan pemilihan clip untuk videomu berikutnya.",
+      "tokens": "Kami menyimpan token akses yang diterbitkan platform dalam bentuk terenkripsi dan memakainya hanya untuk tujuan di atas. Kami tidak menjual data ini, memakainya untuk iklan, membagikannya dengan pengguna lain, atau memakainya untuk melatih model AI serbaguna.",
+      "disconnectLabel": "Pemutusan dan penghapusan.",
+      "disconnect": "Kamu bisa memutus akun kapan saja dari halaman Sosial. Memutus menghapus token yang tersimpan segera, membatalkan postingan yang masih terjadwal untuk akun itu, dan meminta platform mencabut akses SupoClip jika platform mendukungnya. Kamu juga bisa menghapus catatan postingan yang sudah dipublikasikan, termasuk statistiknya, dari aplikasi. Menghapus akun SupoClip menghapus semua data ini. Kamu juga bisa mencabut akses dari platform itu sendiri, untuk Google di <google>pengaturan keamanan Google</google>. Untuk meminta kami menghapus data ini, email <email>privacy@supoclip.com</email>.",
+      "youtubeLabel": "YouTube dan Google.",
+      "youtube": "SupoClip memakai Layanan API YouTube. Dengan menghubungkan akun YouTube, kamu menyetujui <youtubeTerms>Ketentuan Layanan YouTube</youtubeTerms>, dan penanganan data oleh Google dijelaskan di <googlePrivacy>Kebijakan Privasi Google</googlePrivacy>. Penggunaan dan pemindahan SupoClip ke aplikasi lain atas informasi yang diterima dari API Google akan mematuhi <googleApi>Kebijakan Data Pengguna Layanan API Google</googleApi>, termasuk persyaratan Limited Use."
+    },
+    "processors": {
+      "title": "Penyedia layanan & subpemroses",
+      "intro": "Kami membagikan data dengan vendor yang memprosesnya atas nama kami, hanya sejauh diperlukan untuk menyediakan Layanan:",
+      "li1": "<label>Transkripsi</label> — untuk mentranskripsi audio dari videomu.",
+      "li2": "<label>Penyedia AI/LLM</label> — untuk menganalisis transkrip dan mengidentifikasi segmen yang layak jadi clip.",
+      "li3": "<label>Stripe</label> — pemrosesan pembayaran.",
+      "li4": "<label>Pengiriman email</label> — email transaksional.",
+      "li5": "<label>Hosting & infrastruktur</label> — untuk menjalankan Layanan.",
+      "li6": "<label>Analitik</label> — bila diaktifkan, untuk mengukur kunjungan situs, pendaftaran, dan ekspor clip.",
+      "li7": "<label>YouTube, TikTok, dan Instagram (Meta)</label> — hanya jika kamu menghubungkan akun, untuk memublikasikan clip yang kamu pilih dan membaca statistiknya (lihat Akun sosial yang terhubung).",
+      "li8": "<label>PostHog</label> — di situs yang di-host, analitik produk, pemutaran ulang sesi dengan input formulir yang disamarkan, dan laporan error. Di-host di UE.",
+      "closing": "Kami tidak menjual informasi pribadimu, dan kami tidak memakainya untuk iklan perilaku lintas konteks. Kami dapat mengungkapkan informasi jika diwajibkan hukum atau untuk melindungi hak, keselamatan, dan keamanan pengguna kami serta Layanan."
+    },
+    "retention": {
+      "title": "Penyimpanan data",
+      "p1": "Kami menyimpan informasi akunmu, termasuk informasi kampanye dan rujukan yang disimpan saat pendaftaran, selama akunmu aktif. Tugas, video yang diunggah, dan clip yang dihasilkan disimpan sampai kamu menghapusnya atau menghapus akunmu. File pemrosesan sementara dihapus otomatis setelah pemrosesan. Kami dapat menyimpan catatan terbatas sebagaimana diwajibkan untuk tujuan hukum, keamanan, atau akuntansi."
+    },
+    "rights": {
+      "title": "Hak & pilihanmu",
+      "p1": "Kamu bisa mengakses dan memperbarui informasi akun di aplikasi. Kamu bisa menghapus tugas dan clip satu per satu kapan saja. Kamu bisa menghapus akunmu—yang menghapus data terkait—dari aplikasi, atau dengan menghubungi kami di <email>privacy@supoclip.com</email>.",
+      "p2": "Bergantung pada tempat tinggalmu (misalnya di bawah GDPR atau CCPA/CPRA), kamu mungkin memiliki hak untuk mengakses, memperbaiki, menghapus, atau memindahkan data pribadimu, serta menolak atau membatasi pemrosesan tertentu. Untuk menggunakan hak ini, hubungi kami di alamat di bawah. Kami tidak akan mendiskriminasi kamu karena menggunakan hakmu."
+    },
+    "security": {
+      "title": "Keamanan",
+      "p1": "Kami memakai pengamanan yang lazim di industri, termasuk enkripsi saat transit (HTTPS). Di perangkat seluler, kredensial sesi disimpan di keychain sistem operasi. Tidak ada metode transmisi atau penyimpanan yang sepenuhnya aman, tapi kami berupaya melindungi informasimu dengan langkah teknis dan organisasi yang wajar."
+    },
+    "transfers": {
+      "title": "Transfer internasional",
+      "p1": "Kami dapat memproses dan menyimpan informasi di negara selain tempat kamu tinggal. Bila diwajibkan, kami memakai pengamanan yang sesuai untuk transfer tersebut."
+    },
+    "children": {
+      "title": "Privasi anak",
+      "p1": "Layanan tidak ditujukan untuk anak di bawah 13 tahun (atau usia minimum yang diwajibkan di yurisdiksimu), dan kami tidak dengan sengaja mengumpulkan informasi pribadi dari mereka. Jika kamu yakin seorang anak telah memberi kami informasi pribadi, hubungi kami dan kami akan menghapusnya."
+    },
+    "changes": {
+      "title": "Perubahan pada kebijakan ini",
+      "p1": "Kami dapat memperbarui Kebijakan Privasi ini dari waktu ke waktu. Saat kami melakukannya, kami akan merevisi tanggal “Terakhir diperbarui” di atas dan, bila sesuai, memberi pemberitahuan tambahan. Penggunaan Layanan yang berlanjut setelah pembaruan berarti kamu menerima kebijakan yang direvisi."
+    },
+    "contact": {
+      "title": "Hubungi kami",
+      "body": "Pertanyaan tentang kebijakan ini atau datamu? Email kami di <email>privacy@supoclip.com</email>."
+    }
+  }
+}

@@ -1,0 +1,280 @@
+{
+  "chrome": {
+    "primaryNav": "Navigasi utama",
+    "blog": "Blog",
+    "selfHost": "Host sendiri",
+    "startClipping": "Mulai buat clip",
+    "breadcrumbNav": "Jejak",
+    "team": "Tim SupoClip",
+    "updated": "Diperbarui <date>{when}</date>",
+    "trySupoclip": "Coba SupoClip",
+    "viewSource": "Lihat sumber",
+    "capabilityOverview": "Ringkasan kemampuan",
+    "verified": "Data produk pihak pertama dari repositori SupoClip dan aplikasi yang di-host, diverifikasi {date}.",
+    "faqHeading": "Pertanyaan yang sering diajukan",
+    "sourcesTitle": "Sumber dan kebijakan peninjauan",
+    "sourcesBody": "Kemampuan produk dikelola oleh Tim SupoClip dan dicek terhadap repositori publik. Tinjau <source>kode sumber</source> untuk detail implementasi. Halaman ini diperbarui saat alur kerja atau konfigurasi yang didukung berubah."
+  },
+  "demo": {
+    "metaTitle": "Demo SupoClip: Clip AI sungguhan dari video panjang",
+    "metaDescription": "Tonton clip vertikal ber-caption yang dihasilkan SupoClip dari episode podcast bentuk panjang, lengkap dengan stempel waktu asli, judul hook, dan penjelasan tiap langkah pipeline.",
+    "badge": "Demo",
+    "heading": "Satu episode podcast panjang masuk, clip vertikal siap diposting keluar",
+    "intro": "Clip ini dihasilkan SupoClip dari video publik bentuk panjang. Tonton, lalu lompat ke momen yang sama di video asli untuk melihat apa yang dipilih AI dan bagaimana ia membingkainya ulang.",
+    "sourceLabel": "Video sumber di YouTube",
+    "clipsHeading": "Clip-nya",
+    "seconds": "{count} dtk",
+    "videoDescription": "Clip vertikal yang dihasilkan SupoClip dari \"{title}\" ({range}). Pratinjau web dari clip {duration}.",
+    "clipAria": "Clip SupoClip: {hook}",
+    "clipMeta": "Sumber {range} · clip penuh {duration}",
+    "watchOriginal": "Tonton momen ini di video asli",
+    "previewNote": "<strong>Tentang pratinjau ini.</strong> Agar halaman ini tetap cepat, file di atas dipendekkan ({lengths}) dan diturunkan ke 540×960. SupoClip merender clip penuh di 1080×1920. Kami tidak menampilkan skor viral atau angka kecepatan di sini karena satu demo tidak cukup untuk mendukung klaim itu. Tes terbaik adalah rekaman milikmu sendiri.",
+    "pipelineHeading": "Yang dilakukan SupoClip",
+    "pipeline": {
+      "0": {
+        "title": "Transkripsi",
+        "detail": "Audio sumber ditranskripsi dengan stempel waktu tingkat kata."
+      },
+      "1": {
+        "title": "Pilih momen",
+        "detail": "LLM membaca transkrip dalam jendela yang saling tumpang tindih, mengusulkan segmen yang berdiri sendiri, lalu memeringkatnya satu sama lain berdasarkan hook, engagement, nilai, dan kelayakan dibagikan."
+      },
+      "2": {
+        "title": "Tulis hook",
+        "detail": "Setiap clip mendapat judul hook pendek, yang dibakar di bagian atas frame selama beberapa detik pertama."
+      },
+      "3": {
+        "title": "Bingkai ulang ke 9:16",
+        "detail": "Setiap shot diklasifikasi. Shot bicara mendapat crop yang mengikuti wajah pembicara. Grafik, slide, dan layar, seperti grafik pendengar di bagian akhir clip pertama, menampilkan frame penuh di atas latar yang di-blur. Perpindahan sejajar dengan potongan adegan sumber."
+      }
+    },
+    "pipelineNote": "Caption diatur waktunya kata per kata, dan kata yang aktif disorot. Pipeline yang sama berjalan di aplikasi yang di-host dan di <selfHost>instalasi yang di-host sendiri</selfHost>; <guide>panduan AI video clipper</guide> membahas tiap tahap.",
+    "ctaTitle": "Jalankan di videomu sendiri",
+    "ctaBody": "Tempel tautan YouTube, Twitch, atau Kick, atau unggah file. Tinjau clip yang disarankan, sesuaikan caption, dan ekspor untuk Shorts, Reels, atau TikTok.",
+    "startClipping": "Mulai buat clip",
+    "selfHostGithub": "Host sendiri dari GitHub"
+  },
+  "ai-video-clipper": {
+    "metaTitle": "AI Video Clipper untuk Shorts, Reels & TikTok",
+    "metaDescription": "Pakai SupoClip untuk menemukan highlight di video panjang, menilai momen yang menjanjikan, membuat crop vertikal yang mengikuti wajah, menambahkan caption, dan mengekspor clip yang siap untuk sosial.",
+    "eyebrow": "Clipping video dengan AI",
+    "heading": "AI video clipper untuk mengubah video panjang jadi short yang lebih baik",
+    "summary": "SupoClip menggabungkan transkripsi, deteksi highlight berbantuan AI, skor viral, reframing yang mengikuti wajah, caption sinkron per kata, dan preset ekspor dalam satu alur open source.",
+    "tableCaption": "Matriks kemampuan AI clipping SupoClip",
+    "tableHeaders": {
+      "0": "Tahap alur kerja",
+      "1": "Cara manual",
+      "2": "Cara SupoClip"
+    },
+    "tableRows": {
+      "0": {
+        "0": "Temukan momen",
+        "1": "Tinjau seluruh rekaman",
+        "2": "Transkripsi dan nilai segmen kandidat"
+      },
+      "1": {
+        "0": "Bingkai ulang",
+        "1": "Crop tiap shot dengan tangan",
+        "2": "Lacak wajah untuk framing vertikal 9:16"
+      },
+      "2": {
+        "0": "Beri caption",
+        "1": "Atur waktu caption secara manual",
+        "2": "Hasilkan subtitle animasi yang sinkron per kata"
+      },
+      "3": {
+        "0": "Ekspor",
+        "1": "Atur setiap platform secara terpisah",
+        "2": "Pakai preset untuk Shorts, Reels, dan TikTok"
+      }
+    },
+    "sections": {
+      "0": {
+        "heading": "Apa yang sebaiknya diotomatiskan AI video clipper",
+        "p1": "Bagian yang memakan waktu dalam produksi konten pendek bukan satu edit. Yang berulang adalah meninjau, membingkai ulang, memberi caption, dan mengekspor setiap video sumber. AI clipper yang berguna mengurangi pengulangan itu sambil tetap memberi kreator kendali atas potongan akhir.",
+        "p2": "SupoClip mulai dari transkrip sumber, mengidentifikasi segmen kandidat, dan menilainya untuk kualitas seperti kekuatan hook, engagement, nilai, dan kelayakan dibagikan. Skor itu adalah alat tinjauan, bukan janji bahwa sebuah clip akan viral.",
+        "bullet1": "Tautan YouTube, Twitch, dan Kick, plus file video yang diunggah",
+        "bullet2": "Pemilihan kandidat berbantuan AI",
+        "bullet3": "Crop vertikal yang berpusat pada wajah",
+        "bullet4": "Gaya caption yang bisa diedit dan format ekspor"
+      },
+      "1": {
+        "heading": "Bagaimana alur kerja SupoClip berjalan",
+        "p1": "Tempel tautan YouTube, Twitch, atau Kick, atau unggah file sumber. SupoClip mentranskripsi rekaman, mengusulkan batas clip, dan menampilkan kandidat terkuat untuk ditinjau. Momen yang dipilih lalu bisa dirender sebagai video vertikal ber-caption untuk platform pendek.",
+        "p2": "Karena SupoClip open source, tim bisa memeriksa pipeline, memilih model bahasa yang di-host atau lokal yang didukung, dan menyesuaikan pemrosesan dengan infrastruktur mereka. Versi yang di-host juga tersedia untuk kreator yang tidak ingin mengelola deployment.",
+        "link1": "Langkah demi langkah: ubah video YouTube jadi Shorts",
+        "link2": "Jalankan pipeline sendiri dengan Docker"
+      },
+      "2": {
+        "heading": "Untuk siapa ini dibuat",
+        "p1": "Alur ini cocok untuk podcaster, pengajar, founder, agensi, dan tim video yang sudah memproduksi rekaman bentuk panjang dan butuh cara yang bisa diulang untuk memublikasikan lebih banyak clip pendek.",
+        "p2": "Ini sangat berguna saat kepemilikan penting: yang host sendiri tetap mengendalikan aplikasi dan bisa mengubah sumbernya, alih-alih bergantung sepenuhnya pada platform edit yang tertutup.",
+        "link1": "Bagaimana SupoClip dibanding OpusClip",
+        "link2": "Kenapa tim memilih clipper open source"
+      }
+    },
+    "faqs": {
+      "0": {
+        "question": "Apa itu AI video clipper?",
+        "answer": "AI video clipper menganalisis rekaman yang lebih panjang dan membantu menemukan segmen pendek, membingkai ulangnya, menambahkan caption, dan menyiapkan ekspor untuk platform konten pendek."
+      },
+      "1": {
+        "question": "Bisakah SupoClip mengubah video YouTube jadi Shorts?",
+        "answer": "Ya. SupoClip menerima URL YouTube, mengidentifikasi momen kandidat, dan bisa merender clip vertikal ber-caption yang cocok untuk YouTube Shorts."
+      },
+      "2": {
+        "question": "Apakah SupoClip open source?",
+        "answer": "Ya. Basis kode SupoClip tersedia di bawah lisensi AGPL-3.0 dan bisa di-host sendiri atau diubah."
+      },
+      "3": {
+        "question": "Sumber video apa yang diterima SupoClip?",
+        "answer": "Video YouTube, VOD dan clip Twitch, VOD dan clip Kick, serta file video yang kamu unggah. Siaran langsung tidak didukung, jadi clip VOD-nya setelah siaran berakhir."
+      }
+    }
+  },
+  "open-source-video-clipper": {
+    "metaTitle": "Video Clipper Open Source yang Bisa Kamu Host Sendiri",
+    "metaDescription": "SupoClip adalah AI video clipper open source untuk deteksi highlight yang di-host sendiri, crop vertikal yang mengikuti wajah, caption, dan ekspor konten pendek.",
+    "eyebrow": "Open Source & Host Sendiri",
+    "heading": "Video clipper open source dengan kendali penuh atas alur kerja",
+    "summary": "Jalankan video clipping berbantuan AI di infrastrukturmu sendiri, periksa sumbernya, pilih penyedia model, dan sesuaikan cara clip dinilai, diberi caption, dibingkai, dan diekspor.",
+    "tableCaption": "Alur clipping yang hanya di-host dan yang open source",
+    "tableHeaders": {
+      "0": "Keputusan",
+      "1": "Alat yang hanya di-host",
+      "2": "SupoClip yang di-host sendiri"
+    },
+    "tableRows": {
+      "0": {
+        "0": "Akses sumber",
+        "1": "Tidak tersedia",
+        "2": "Repositori AGPL-3.0 penuh"
+      },
+      "1": {
+        "0": "Infrastruktur",
+        "1": "Dikendalikan vendor",
+        "2": "Server atau lingkungan lokalmu"
+      },
+      "2": {
+        "0": "Pilihan model",
+        "1": "Dipilih vendor",
+        "2": "Penyedia yang di-host yang didukung atau Ollama"
+      },
+      "3": {
+        "0": "Kustomisasi",
+        "1": "Pengaturan produk",
+        "2": "Kode sumber aplikasi dan pipeline"
+      }
+    },
+    "sections": {
+      "0": {
+        "heading": "Kenapa host sendiri pipeline video clipping",
+        "p1": "Host sendiri berguna saat tim butuh kendali atas deployment, pilihan penyedia, batas pemrosesan, atau kustomisasi produk. Alih-alih mengirim setiap keputusan alur kerja lewat platform tertutup, aplikasinya bisa berjalan di samping infrastruktur tim yang lain.",
+        "p2": "SupoClip mencakup frontend Next.js, backend FastAPI, worker latar belakang, PostgreSQL, dan Redis. Repositorinya menyertakan penyiapan Docker Compose agar aplikasi lengkap bisa di-deploy sebagai satu stack."
+      },
+      "1": {
+        "heading": "Apa yang tetap menjadi tanggung jawabmu",
+        "p1": "Open source tidak berarti setiap dependensi gratis. Yang host sendiri menyediakan komputasi, penyimpanan, layanan transkripsi, dan konfigurasi model bahasa mereka sendiri. Imbangannya adalah tanggung jawab operasional sebagai ganti kendali di tingkat sumber.",
+        "p2": "Tim juga sebaiknya meninjau lisensi AGPL-3.0, mengamankan variabel environment, menjaga dependensi tetap mutakhir, dan memantau lapisan worker serta penyimpanan di produksi.",
+        "bullet1": "Sediakan komputasi dan penyimpanan persisten",
+        "bullet2": "Konfigurasi penyedia transkripsi dan model",
+        "bullet3": "Lindungi rahasia dan rute yang diautentikasi",
+        "bullet4": "Pantau pekerjaan pemrosesan dan media yang dihasilkan",
+        "link1": "Daftar periksa produksi di panduan host sendiri"
+      },
+      "2": {
+        "heading": "Mulai dengan Docker, sesuaikan saat perlu",
+        "p1": "Penyiapan tercepat adalah mengkloning repositori, menyalin template environment, menambahkan kredensial penyedia yang diperlukan, dan menjalankan stack dengan Docker Compose. Developer lalu bisa mengubah logika penilaian, preset caption, antarmuka, atau model deployment seiring alur kerja berkembang.",
+        "p2": "Kreator yang tidak ingin mengoperasikan infrastruktur bisa memakai aplikasi SupoClip yang di-host, sambil tetap menyediakan repositori open source sebagai jalur migrasi.",
+        "link1": "Host sendiri SupoClip dengan Docker Compose",
+        "link2": "SupoClip yang di-host sendiri vs OpusClip yang di-host"
+      }
+    },
+    "faqs": {
+      "0": {
+        "question": "Apakah SupoClip gratis untuk di-host sendiri?",
+        "answer": "Kode sumbernya gratis di bawah lisensi AGPL-3.0. Kamu tetap bertanggung jawab atas infrastruktur dan pemakaian transkripsi atau penyedia AI yang berbayar."
+      },
+      "1": {
+        "question": "Bisakah SupoClip memakai model bahasa lokal?",
+        "answer": "Ya. SupoClip mendukung Ollama untuk pemilihan clip, dan TRANSCRIPTION_PROVIDER=whisper mentranskripsi secara lokal alih-alih memanggil AssemblyAI."
+      },
+      "2": {
+        "question": "Apakah SupoClip membutuhkan Docker?",
+        "answer": "Docker Compose adalah jalur full-stack yang didokumentasikan. Developer bisa menjalankan frontend Next.js, API FastAPI, worker, PostgreSQL, dan Redis secara terpisah saat lingkungan mereka memerlukannya."
+      }
+    }
+  },
+  "youtube-shorts-clipper": {
+    "metaTitle": "Clipper YouTube Shorts untuk Video Panjang",
+    "metaDescription": "Ubah video YouTube panjang jadi Shorts vertikal ber-caption dengan deteksi highlight berbantuan AI, skor viral, dan crop 9:16 yang mengikuti wajah.",
+    "eyebrow": "YouTube ke Shorts",
+    "heading": "Clipper YouTube Shorts untuk memanfaatkan ulang video panjang",
+    "summary": "Tempel URL YouTube, tinjau momen yang dipilih AI, dan buat clip vertikal ber-caption tanpa memindai dan membingkai ulang seluruh rekaman secara manual.",
+    "tableCaption": "Alur dari video panjang ke YouTube Shorts",
+    "tableHeaders": {
+      "0": "Langkah",
+      "1": "Masukan",
+      "2": "Keluaran"
+    },
+    "tableRows": {
+      "0": {
+        "0": "1. Impor",
+        "1": "URL YouTube",
+        "2": "Metadata dan video sumber"
+      },
+      "1": {
+        "0": "2. Analisis",
+        "1": "Transkrip",
+        "2": "Segmen kandidat dan skor"
+      },
+      "2": {
+        "0": "3. Formatkan",
+        "1": "Momen yang dipilih",
+        "2": "Clip 9:16 yang mengikuti wajah"
+      },
+      "3": {
+        "0": "4. Selesai",
+        "1": "Pengaturan caption dan ekspor",
+        "2": "Video pendek yang siap platform"
+      }
+    },
+    "sections": {
+      "0": {
+        "heading": "Cara mengubah video YouTube jadi Shorts",
+        "p1": "Mulai dengan video yang kamu miliki atau yang boleh kamu manfaatkan ulang. Tempel URL YouTube-nya ke SupoClip, pilih opsi keluaran dan caption, lalu mulai pemrosesan. Aplikasi mentranskripsi sumber dan mengusulkan segmen pendek untuk ditinjau.",
+        "p2": "Pilih momen yang tetap masuk akal tanpa episode di sekelilingnya. Short yang kuat biasanya membangun konteks dengan cepat, menyampaikan satu ide yang jelas, dan berakhir tanpa bergantung pada footage yang dihapus dari clip.",
+        "bullet1": "Pakai hook lisan yang jelas di dekat awal",
+        "bullet2": "Satu ide per clip pendek",
+        "bullet3": "Tinjau nama, angka, dan waktu caption",
+        "bullet4": "Pastikan framing vertikal mengikuti pembicara yang aktif"
+      },
+      "1": {
+        "heading": "Caption dan reframing vertikal",
+        "p1": "SupoClip memakai waktu tingkat kata untuk membuat caption yang sinkron dan bisa melacak wajah saat mengubah footage lanskap jadi frame vertikal. Template caption memberi titik awal yang konsisten, sementara font, warna, dan pengaturan keluaran bisa disesuaikan sebelum render.",
+        "p2": "Crop otomatis tetap perlu ditinjau secara visual, terutama saat banyak orang muncul, berbagi layar penting, atau pembicara bergerak cepat di dalam frame.",
+        "link1": "Apa yang diotomatiskan AI clipper, tahap demi tahap"
+      },
+      "2": {
+        "heading": "Bangun alur pemanfaatan ulang yang bisa diulang",
+        "p1": "Perlakukan setiap video panjang sebagai pustaka sumber, bukan unggahan sekali pakai. Proses rekamannya, kelompokkan clip menurut tema, dan hubungkan tiap Short kembali ke video yang lebih panjang atau halaman produk yang relevan.",
+        "p2": "Lacak topik mana yang mendapat waktu tonton dan engagement, lalu pakai hasil itu untuk mengarahkan rekaman berikutnya. Skor SupoClip membantu memprioritaskan kandidat; data publikasi yang menentukan apa yang benar-benar dihargai audiens.",
+        "link1": "Memilih antara SupoClip dan OpusClip"
+      }
+    },
+    "faqs": {
+      "0": {
+        "question": "Bisakah saya menempel URL YouTube ke SupoClip?",
+        "answer": "Ya. SupoClip mendukung URL YouTube sebagai sumber untuk transkripsi, pemilihan kandidat, dan pembuatan clip."
+      },
+      "1": {
+        "question": "Apakah SupoClip menambahkan caption ke Shorts?",
+        "answer": "Ya. SupoClip mendukung subtitle yang sinkron per kata dan template caption yang bisa dikonfigurasi untuk clip yang dihasilkan."
+      },
+      "2": {
+        "question": "Apakah setiap clip yang dipilih AI berkinerja baik?",
+        "answer": "Tidak. Skor AI membantu memprioritaskan kandidat, tapi kreator sebaiknya meninjau konteks, akurasi, framing, dan kecocokan dengan audiens sebelum memublikasikan."
+      }
+    }
+  }
+}
