@@ -163,9 +163,6 @@ function SocialSettingsContent() {
     );
   }
 
-  const configuredProviders = providers.filter((provider) => provider.configured);
-  const unconfiguredProviders = providers.filter((provider) => !provider.configured);
-
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 md:py-10">
       <div className="mb-8">
@@ -194,31 +191,35 @@ function SocialSettingsContent() {
         {isFetching ? (
           <Skeleton className="h-20 w-full" />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-3">
-            {configuredProviders.map((provider) => (
-              <a
-                key={provider.provider}
-                href={`/api/social/connect/${provider.provider}`}
-                className="flex items-center justify-between gap-2 rounded-xl border bg-background p-4 transition-colors hover:border-foreground/25"
-              >
-                <span className="flex items-center gap-2.5 text-sm font-medium">
+          <div className="divide-y overflow-hidden rounded-xl border bg-background">
+            {providers.map((provider) => (
+              <div key={provider.provider} className="flex items-start gap-3 p-4 sm:gap-4 sm:p-5">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border bg-muted/30">
                   <SocialProviderIcon provider={provider.provider} className="size-5" />
-                  {provider.display_name}
                 </span>
-                <span className="text-xs text-muted-foreground">{t("page.connect")}</span>
-              </a>
-            ))}
-            {unconfiguredProviders.map((provider) => (
-              <div
-                key={provider.provider}
-                className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground"
-              >
-                <p className="flex items-center gap-2 font-medium text-foreground">
-                  <SocialProviderIcon provider={provider.provider} className="size-4 text-muted-foreground" />
-                  {provider.display_name}
-                </p>
-                <p className="text-xs mt-1">{t("page.comingSoon")}</p>
-                <p className="text-xs mt-1">{t("page.verificationNote")}</p>
+                <div className="min-w-0 flex-1 self-center">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <p className="text-sm font-medium">{provider.display_name}</p>
+                    {!provider.configured && (
+                      <Badge variant="secondary" className="font-normal text-muted-foreground">
+                        {t("page.comingSoon")}
+                      </Badge>
+                    )}
+                  </div>
+                  {!provider.configured && (
+                    <p className="mt-1.5 max-w-md text-xs leading-relaxed text-muted-foreground">
+                      {t("page.verificationNote")}
+                    </p>
+                  )}
+                </div>
+                {provider.configured && (
+                  <Button asChild size="sm" variant="outline" className="shrink-0 self-center">
+                    <a href={`/api/social/connect/${provider.provider}`}>
+                      {t("page.connect")}
+                      <ChevronRight className="size-4" />
+                    </a>
+                  </Button>
+                )}
               </div>
             ))}
           </div>
