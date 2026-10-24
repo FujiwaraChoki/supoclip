@@ -21,6 +21,7 @@ from typing import Callable, Iterable, Optional
 
 from .config import get_config
 from .youtube_proxy import (
+    AudioDownloadForbidden,
     ByteBudget,
     DownloadBudgetExceeded,
     PartialDownloadUnavailable,
@@ -30,6 +31,7 @@ from .youtube_proxy import (
     download_section_file,
     log_youtube_attempt,
     proxy_configured,
+    public_download_error,
     redact_secrets,
 )
 
@@ -603,6 +605,119 @@ def adopt_full_download(video_id: str, source: Path, *, task_id: Optional[str] =
         task_id=task_id,
     )
     return dest
+
+
+def _positive_duration(value) -> Optional[float]:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number <= 0:
+        return None
+    return number
+
+
+def _full_timeline_via_sections(
+    url: str,
+    video_id: str,
+    duration: Optional[float],
+    *,
+    task_id: Optional[str] = None,
+    budget: Optional[ByteBudget] = None,
+) -> Path:
+    """Download the whole source with the section path when HLS slicing applies.
+
+    The section downloader prefers timed HLS fragments and refuses an ffmpeg
+    network cut. A missing duration, or formats that cannot be sliced, raise
+    ``PartialDownloadUnavailable`` so the caller can continue to the paid chain.
+    """
+    length = _positive_duration(duration)
+    if length is None:
+        raise PartialDownloadUnavailable("Section fallback needs a known duration")
+    from .youtube_proxy import sticky_session_id
+
+    name = sticky_session_id(task_id, video_id)
+    work = Path(get_config().temp_dir) / WORK_DIRNAME / f"audio-fallback-{video_id}-{name}"
+    if work.exists():
+        shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True, exist_ok=True)
+    target = work / "timeline.mp4"
+    try:
+        path, media_start, _media_end = download_section_file(
+            url,
+            video_id,
+            0.0,
+            length,
+            target,
+            task_id=task_id,
+            budget=budget,
+            fallback="section",
+        )
+        if media_start > 1.0:
+            raise PartialDownloadUnavailable(
+                "Section fallback does not start on the source timeline"
+            )
+        runtime = get_config()
+        if not getattr(runtime, "youtube_source_cache", True):
+            kept = Path(runtime.temp_dir) / f"{video_id}-section-fallback{path.suffix or '.mp4'}"
+            if kept.exists():
+                kept.unlink()
+            shutil.move(str(path), kept)
+            return kept
+        return adopt_full_download(video_id, path, task_id=task_id)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def download_analysis_source(
+    url: str,
+    video_id: str,
+    *,
+    task_id: Optional[str] = None,
+    budget: Optional[ByteBudget] = None,
+    duration: Optional[float] = None,
+    download_full: Callable[[], Optional[Path]],
+) -> tuple[Optional[Path], bool]:
+    """Return ``(path, audio_first)`` for a proxied YouTube job.
+
+    Healthy jobs still take the modest https audio pass. When that pass fails
+    with HTTP 403 (the HLS retry lives inside ``download_audio``), the full
+    timeline is fetched through the section downloader when a duration is
+    known and the formats can be sliced. Anything else uses ``download_full``,
+    the existing full-file / API Router / Apify chain.
+    """
+    try:
+        return download_audio_for_job(url, video_id, task_id=task_id, budget=budget), True
+    except DownloadBudgetExceeded:
+        raise
+    except AudioDownloadForbidden as exc:
+        if _positive_duration(duration) is None:
+            logger.warning(
+                "Proxy audio download failed for %s, falling back to a full file: %s",
+                video_id,
+                public_download_error(exc),
+            )
+            return download_full(), False
+        try:
+            return _full_timeline_via_sections(
+                url, video_id, duration, task_id=task_id, budget=budget,
+            ), False
+        except DownloadBudgetExceeded:
+            raise
+        except Exception as section_exc:
+            logger.warning(
+                "Proxy audio download failed for %s, falling back to a full file: %s",
+                video_id,
+                public_download_error(section_exc),
+            )
+            return download_full(), False
+    except Exception as exc:
+        logger.warning(
+            "Proxy audio download failed for %s, falling back to a full file: %s",
+            video_id,
+            public_download_error(exc),
+        )
+        return download_full(), False
 
 
 def download_audio_for_job(

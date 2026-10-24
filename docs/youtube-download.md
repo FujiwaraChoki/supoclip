@@ -8,7 +8,11 @@ SupoClip can download YouTube media with `yt-dlp` through a residential proxy, t
 2. Modest audio only (about 128 kbps m4a) for the duration check, transcription, audio peaks, and clip selection.
 3. After clips are chosen, only those time ranges, padded (default ±10 seconds) with overlaps merged, at or below 1080p.
 4. Audio and sections land in `{TEMP_DIR}/youtube-cache/{video_id}/`. Regenerating clips, editing captions, and opening the editor reuse that cache. A new section is fetched only when an edit extends past the cached ranges.
-5. Each attempt logs `youtube_provider`, `youtube_video_id`, `youtube_download_kind`, `youtube_outcome`, `youtube_bytes`, and `task_id`. Axiom can sum bytes per provider. Proxy URLs are redacted.
+5. Each attempt logs `youtube_provider`, `youtube_video_id`, `youtube_download_kind`, `youtube_outcome`, `youtube_bytes`, and `task_id`. A successful HLS or full-timeline section retry also sets `youtube_fallback` to `hls_audio` or `section`. Axiom can sum bytes per provider. Proxy URLs and signed media URLs are redacted.
+
+When the modest https audio download fails with HTTP 403 or yt-dlp's "unable to download video data" error, the job retries once with an HLS audio format already present in that info response: audio-only `m3u8` / `m3u8_native`, or the lowest muxed HLS rendition at or below the height cap when no audio-only HLS exists. If that also fails and the duration is known, it asks the section downloader for the full timeline (that path prefers timed HLS). Only then does it use the existing chain. With a proxy configured, this audio failure still skips a second full-file proxy attempt and continues to API Router, then Apify, then direct yt-dlp. A byte-budget failure stops the job. Other audio errors, including a bot-check, go straight to that chain. The first audio attempt is unchanged when https audio works.
+
+The HLS retry does not pass a format string such as `bestaudio[protocol^=m3u8]`. A format string can make yt-dlp hand the playlist to ffmpeg, which would leave from the server IP. The retry selects one format and downloads it with the native client. Player clients stay at yt-dlp defaults, so an info response that listed no HLS formats cannot be repaired here. `--download-sections` is still not used.
 
 Uploads and non-YouTube sources are unchanged. Without a proxy, YouTube jobs still download a full file, now capped at 1080p, and that file is cached too.
 

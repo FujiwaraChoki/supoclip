@@ -52,6 +52,10 @@ class DownloadDeadlineExceeded(YouTubeDownloadError):
     """One proxy attempt expired; independent providers may still be tried."""
 
 
+class AudioDownloadForbidden(YouTubeDownloadError):
+    """Direct audio was forbidden and the HLS audio retry did not produce a file."""
+
+
 def _check_deadline(options: dict) -> float:
     deadline = options.get("_youtube_deadline")
     remaining = deadline - time.monotonic() if deadline is not None else 20.0
@@ -178,6 +182,37 @@ def redact_secrets(text: str) -> str:
     return re.sub(r"//[^/\s:@]+:[^/\s@]+@", "//***:***@", text or "")
 
 
+_URL_IN_LOG = re.compile(r"https?://\S+")
+
+
+def public_download_error(exc: BaseException | str) -> str:
+    """Error text safe for logs: no proxy userinfo and no signed media URLs."""
+    text = exc if isinstance(exc, str) else str(exc)
+    text = _URL_IN_LOG.sub("[url]", redact_secrets(text))
+    return text[:500]
+
+
+def is_forbidden_media_error(exc: BaseException) -> bool:
+    """True for HTTP 403 and yt-dlp's ``unable to download video data`` failures.
+
+    Budget and deadline errors are not retried as forbidden media. A capped
+    job must not start another, larger download.
+    """
+    if isinstance(exc, (DownloadBudgetExceeded, DownloadDeadlineExceeded, AudioDownloadForbidden)):
+        return False
+    text = str(exc).lower()
+    if (
+        "http error 403" in text
+        or "403: forbidden" in text
+        or "unable to download video data" in text
+    ):
+        return True
+    cause = exc.__cause__
+    if isinstance(cause, BaseException) and cause is not exc:
+        return is_forbidden_media_error(cause)
+    return False
+
+
 def log_youtube_attempt(
     *,
     provider: str,
@@ -187,8 +222,13 @@ def log_youtube_attempt(
     nbytes: int,
     task_id: Optional[str] = None,
     error: Optional[str] = None,
+    fallback: Optional[str] = None,
 ) -> None:
-    """One structured line per attempt so Axiom can sum bytes and cost."""
+    """One structured line per attempt so Axiom can sum bytes and cost.
+
+    ``fallback`` is set only when that retry produced the file (``hls_audio``
+    or ``section``). Failure lines stay free of proxy credentials and media URLs.
+    """
     message = (
         "youtube_download provider=%s video_id=%s kind=%s outcome=%s bytes=%s task_id=%s"
     )
@@ -200,10 +240,17 @@ def log_youtube_attempt(
         "youtube_bytes": int(nbytes),
         "task_id": task_id or "",
     }
+    args: list[Any] = [provider, video_id, kind, outcome, int(nbytes), task_id or "-"]
+    if fallback:
+        extra["youtube_fallback"] = fallback
+        message += " fallback=%s"
+        args.append(fallback)
     if error:
-        logger.warning(message + " error=%s", provider, video_id, kind, outcome, int(nbytes), task_id or "-", redact_secrets(error), extra=extra)
+        message += " error=%s"
+        args.append(public_download_error(error))
+        logger.warning(message, *args, extra=extra)
         return
-    logger.info(message, provider, video_id, kind, outcome, int(nbytes), task_id or "-", extra=extra)
+    logger.info(message, *args, extra=extra)
 
 
 def base_proxy_params(task_id: Optional[str] = None, video_id: Optional[str] = None, config=None) -> dict[str, Any]:
@@ -343,18 +390,20 @@ def pick_video_format(formats: list[dict], height: int | None = None) -> Optiona
     return max(candidates, key=score)
 
 
-def pick_audio_format(formats: list[dict], *, modest: bool = True) -> Optional[dict]:
-    candidates = [fmt for fmt in formats if _is_audio_only(fmt)]
-    if not candidates:
-        return None
+def _prefer_original_audio(candidates: list[dict]) -> list[dict]:
     originals = [fmt for fmt in candidates
                  if (fmt.get("language_preference") or 0) > 0
                  or re.search(r"\boriginal\b", fmt.get("format_note") or "", re.IGNORECASE)]
     if originals:
-        candidates = originals
-    else:
-        candidates = [fmt for fmt in candidates
-                      if "dubbed" not in (fmt.get("format_note") or "").lower()]
+        return originals
+    return [fmt for fmt in candidates if "dubbed" not in (fmt.get("format_note") or "").lower()]
+
+
+def pick_audio_format(formats: list[dict], *, modest: bool = True) -> Optional[dict]:
+    candidates = [fmt for fmt in formats if _is_audio_only(fmt)]
+    if not candidates:
+        return None
+    candidates = _prefer_original_audio(candidates)
     if not candidates:
         return None
     if modest:
@@ -380,6 +429,57 @@ def pick_audio_format(formats: list[dict], *, modest: bool = True) -> Optional[d
                 int("high" in (fmt.get("format_note") or "").lower()))
 
     return max(candidates, key=score)
+
+
+def pick_hls_audio_format(
+    formats: list[dict],
+    *,
+    exclude_ids: Optional[set[str]] = None,
+) -> Optional[dict]:
+    """Modest audio-only HLS, or the lowest muxed HLS rendition under the height cap.
+
+    The choice stays in-process. A yt-dlp format string such as
+    ``bestaudio[protocol^=m3u8]`` can hand the playlist to ffmpeg, and ffmpeg
+    does not use this job's proxy. ``m3u8`` matches yt-dlp's ``m3u8_native``
+    protocol as well (the same rule as ``protocol^=m3u8``).
+    """
+    excluded = {str(item) for item in (exclude_ids or set()) if item not in (None, "")}
+
+    def allowed(fmt: dict) -> bool:
+        return "m3u8" in (fmt.get("protocol") or "") and str(fmt.get("format_id") or "") not in excluded
+
+    hls_audio = [fmt for fmt in formats if allowed(fmt) and _is_audio_only(fmt)]
+    if hls_audio:
+        pool = _prefer_original_audio(hls_audio)
+        if pool:
+            return min(
+                pool,
+                key=lambda fmt: (
+                    fmt.get("abr") or fmt.get("tbr") or 10**6,
+                    0 if "low" in (fmt.get("format_note") or "").lower() else 1,
+                    fmt.get("filesize") or 0,
+                    str(fmt.get("format_id") or ""),
+                ),
+            )
+    limit = capped_height()
+    muxed = [
+        fmt for fmt in formats
+        if allowed(fmt)
+        and _is_video_format(fmt)
+        and fmt.get("acodec") not in (None, "none")
+        and 0 < (fmt.get("height") or 0) <= limit
+    ]
+    muxed = _prefer_original_audio(muxed)
+    if not muxed:
+        return None
+    return min(
+        muxed,
+        key=lambda fmt: (
+            fmt.get("height") or limit,
+            fmt.get("tbr") or fmt.get("abr") or 10**9,
+            str(fmt.get("format_id") or ""),
+        ),
+    )
 
 
 def resolve_fragments(fmt: dict) -> Optional[list]:
@@ -580,6 +680,16 @@ def select_window(fmt: dict, start: float, end: float) -> Optional[tuple[list, f
     return select_fragments_for_window(fragments, start, end)
 
 
+def _discard_output(dest_stem: Path) -> None:
+    """Remove a failed attempt so the next retry cannot reuse a partial file."""
+    parent = dest_stem.parent
+    if not parent.exists():
+        return
+    for path in parent.glob(dest_stem.name + ".*"):
+        if path.is_file():
+            path.unlink(missing_ok=True)
+
+
 def _find_download(dest_stem: Path) -> Path:
     matches = [
         path for path in dest_stem.parent.glob(dest_stem.name + ".*")
@@ -671,38 +781,89 @@ def download_audio(
     task_id: Optional[str] = None,
     budget: Optional[ByteBudget] = None,
 ) -> Path:
-    """Download modest full-duration audio. ``dest_stem`` has no suffix."""
+    """Download modest full-duration audio. ``dest_stem`` has no suffix.
+
+    The first attempt is unchanged: the modest https/m4a format (typically
+    itag 140) through the native downloader. A 403 or yt-dlp's "unable to
+    download video data" error retries once with an HLS audio format from
+    that same info response. The format dict is passed to ``process_info``
+    so ffmpeg is not asked to fetch a remote playlist.
+    """
     runtime = get_config()
     counter = budget or ByteBudget(runtime.youtube_download_max_bytes)
     seen: dict[str, int] = {}
     options = download_options(task_id, video_id, counter, seen=seen)
-    before = counter.snapshot()
-    try:
-        info = extract_video_info(url, options)
-        fmt = pick_audio_format(info.get("formats") or [], modest=True)
-        if not fmt:
-            raise YouTubeDownloadError("No audio format is available")
-        path = native_download_format(options, url, video_id, fmt, dest_stem)
-        nbytes = _account_file(path, counter, before)
+    started = counter.snapshot()
+    logged_failure = False
+    hls_retry = False
+
+    def _fail(kind: str, exc: BaseException, attempt_started: int) -> None:
+        nonlocal logged_failure
+        logged_failure = True
         log_youtube_attempt(
             provider=YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
             video_id=video_id,
-            kind="audio",
-            outcome="success",
-            nbytes=nbytes,
-            task_id=task_id,
-        )
-        return path
-    except Exception as exc:
-        log_youtube_attempt(
-            provider=YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
-            video_id=video_id,
-            kind="audio",
+            kind=kind,
             outcome="failure",
-            nbytes=max(0, counter.snapshot() - before),
+            nbytes=max(0, counter.snapshot() - attempt_started),
             task_id=task_id,
             error=str(exc),
         )
+
+    try:
+        info = extract_video_info(url, options)
+        formats = info.get("formats") or []
+        fmt = pick_audio_format(formats, modest=True)
+        if not fmt:
+            raise YouTubeDownloadError("No audio format is available")
+        attempt_started = counter.snapshot()
+        try:
+            path = native_download_format(options, url, video_id, fmt, dest_stem)
+        except (DownloadBudgetExceeded, DownloadDeadlineExceeded):
+            raise
+        except Exception as exc:
+            if not is_forbidden_media_error(exc):
+                raise
+            _fail("audio", exc, attempt_started)
+            excluded: set[str] = set()
+            if "m3u8" in (fmt.get("protocol") or ""):
+                excluded.add(str(fmt.get("format_id") or ""))
+            hls = pick_hls_audio_format(formats, exclude_ids=excluded)
+            if hls is None:
+                raise AudioDownloadForbidden("No HLS audio format is available") from exc
+            hls_retry = True
+            logger.info(
+                "youtube_audio_fallback retrying via=hls_audio video_id=%s format_id=%s protocol=%s task_id=%s",
+                video_id,
+                hls.get("format_id") or "-",
+                hls.get("protocol") or "-",
+                task_id or "-",
+            )
+            _discard_output(dest_stem)
+            attempt_started = counter.snapshot()
+            try:
+                path = native_download_format(options, url, video_id, hls, dest_stem)
+            except DownloadBudgetExceeded as budget_exc:
+                _fail("audio_hls", budget_exc, attempt_started)
+                raise
+            except Exception as hls_exc:
+                _discard_output(dest_stem)
+                _fail("audio_hls", hls_exc, attempt_started)
+                raise AudioDownloadForbidden("HLS audio download failed") from hls_exc
+        nbytes = _account_file(path, counter, started if not hls_retry else attempt_started)
+        log_youtube_attempt(
+            provider=YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
+            video_id=video_id,
+            kind="audio_hls" if hls_retry else "audio",
+            outcome="success",
+            nbytes=nbytes,
+            task_id=task_id,
+            fallback="hls_audio" if hls_retry else None,
+        )
+        return path
+    except Exception as exc:
+        if not logged_failure:
+            _fail("audio_hls" if hls_retry else "audio", exc, started)
         raise
 
 
@@ -715,6 +876,7 @@ def download_section_file(
     *,
     task_id: Optional[str] = None,
     budget: Optional[ByteBudget] = None,
+    fallback: Optional[str] = None,
 ) -> tuple[Path, float, float]:
     """Download one time window. Returns the file and its original-timeline bounds.
 
@@ -775,6 +937,7 @@ def download_section_file(
             outcome="success",
             nbytes=nbytes,
             task_id=task_id,
+            fallback=fallback,
         )
         return dest, media_start, media_end
     except Exception as exc:
