@@ -85,6 +85,7 @@
     "transcript": "Transcripción",
     "wordCount": "{count} palabras",
     "transcriptDescription": "Corrige una palabra sin mover su tiempo. Pulsa reproducir para escucharla en contexto.",
+    "timingWarning": "Estos subtítulos están repartidos de forma uniforme en el clip porque no había tiempos de voz. Puede que no coincidan con el audio.",
     "editScript": "Editar guion",
     "closeScript": "Cerrar guion",
     "scriptAria": "Texto de los subtítulos",

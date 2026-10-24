@@ -5,8 +5,9 @@ Clip editing helpers for trim/split/merge/caption/export workflows.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from logging import getLogger
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Sequence
 import subprocess
 import tempfile
 import uuid
@@ -21,6 +22,8 @@ from .video_utils import (
     get_words_in_range,
     load_cached_transcript_data,
 )
+
+logger = getLogger(__name__)
 
 
 @dataclass
@@ -283,7 +286,7 @@ def overlay_custom_captions(
         else:
             timed_words = get_words_in_range(transcript_data, 0.0, duration)
 
-    caption_words = _caption_words_with_timings(words, timed_words, duration)
+    caption_words = _caption_words_with_timings(words, timed_words, duration).words
     if not build_assemblyai_ass_subtitles(
         input_path,
         clip_start=0.0,
@@ -327,51 +330,259 @@ def overlay_custom_captions(
     return output_path
 
 
+class TimedCaptions(NamedTuple):
+    words: List[Dict[str, Any]]
+    # True only when no speech transcript was available and words were spaced
+    # evenly. Callers must surface this; it is not a successful timing.
+    estimated: bool
+
+
 def _caption_words_with_timings(
     words: List[str],
     timed_words: List[Dict[str, Any]],
     duration: float,
-) -> List[Dict[str, Any]]:
-    """Apply edited text to source timings, or evenly split when none exist."""
+) -> TimedCaptions:
+    """Apply edited text to speech timings.
+
+    An even split across the whole clip is a last resort. ``estimated`` is
+    True in that case so the editor can warn instead of pretending the words
+    follow the audio.
+    """
+    if not words:
+        return TimedCaptions([], False)
     if timed_words:
         source_count = len(timed_words)
         edited_count = len(words)
         if edited_count == source_count:
-            return [
-                {
-                    "text": word,
-                    "start": float(timed["start"]),
-                    "end": float(timed["end"]),
-                    "confidence": timed.get("confidence", 1.0),
-                }
-                for word, timed in zip(words, timed_words)
-            ]
+            return TimedCaptions(
+                [
+                    {
+                        "text": word,
+                        "start": float(timed["start"]),
+                        "end": float(timed["end"]),
+                        "confidence": timed.get("confidence", 1.0),
+                    }
+                    for word, timed in zip(words, timed_words)
+                ],
+                False,
+            )
 
         # Word counts differ: spread the edited words proportionally across the
         # spoken span so timings stay strictly increasing (no stacked words).
         span_start = float(timed_words[0]["start"])
         span_end = max(float(timed_words[-1]["end"]), span_start + 0.05 * edited_count)
         step = (span_end - span_start) / edited_count
-        return [
+        return TimedCaptions(
+            [
+                {
+                    "text": word,
+                    "start": span_start + index * step,
+                    "end": span_start + (index + 1) * step,
+                    "confidence": 1.0,
+                }
+                for index, word in enumerate(words)
+            ],
+            False,
+        )
+
+    word_duration = max(duration / max(len(words), 1), 0.1)
+    logger.warning(
+        "Spacing %d caption words evenly across %.2fs; no speech transcript",
+        len(words),
+        duration,
+    )
+    return TimedCaptions(
+        [
             {
                 "text": word,
-                "start": span_start + index * step,
-                "end": span_start + (index + 1) * step,
+                "start": index * word_duration,
+                "end": min(duration, (index + 1) * word_duration),
                 "confidence": 1.0,
             }
             for index, word in enumerate(words)
-        ]
+        ],
+        True,
+    )
 
-    word_duration = max(duration / max(len(words), 1), 0.1)
-    return [
-        {
-            "text": word,
-            "start": index * word_duration,
-            "end": min(duration, (index + 1) * word_duration),
-            "confidence": 1.0,
-        }
-        for index, word in enumerate(words)
-    ]
+
+def _timeline_kind(payload: Dict[str, Any], time_map) -> str:
+    """'local' when word times already match a section file, else 'original'."""
+    if time_map is None or not getattr(time_map, "spans", None):
+        return "original"
+    words = [word for word in (payload.get("words") or []) if isinstance(word, dict)][:40]
+    if not words:
+        return "original"
+    local_end = time_map.spans[-1].local_end
+    in_local = 0
+    in_original = 0
+    for word in words:
+        start = float(word.get("start") or 0) / 1000.0
+        end = float(word.get("end") or start) / 1000.0
+        midpoint = (start + end) / 2.0
+        if -0.5 <= midpoint <= local_end + 0.5:
+            in_local += 1
+        if time_map.contains(midpoint):
+            in_original += 1
+    if in_original > in_local:
+        return "original"
+    return "local"
+
+
+def _metadata_media_path(reference: Optional[str]) -> Optional[Path]:
+    """Local path for a stored source, downloading transcript sidecars only."""
+    if not reference:
+        return None
+    from .media_storage import MediaStorage, is_s3
+
+    storage = MediaStorage()
+    try:
+        if reference.startswith("upload://s3/"):
+            return storage.local_path(storage.source_reference(reference), metadata_only=True)
+        if is_s3(reference):
+            return storage.local_path(reference, metadata_only=True)
+    except Exception:
+        logger.warning("Could not read stored transcript metadata", exc_info=True)
+        return None
+    if reference.startswith("upload://"):
+        from .services.video_service import VideoService
+
+        try:
+            return VideoService.resolve_local_video_path(reference)
+        except ValueError:
+            return None
+    return Path(reference)
+
+
+def _words_on_ranges(payload: Dict[str, Any], ranges: Sequence[tuple[float, float]]) -> List[Dict[str, Any]]:
+    if not ranges:
+        return []
+    return get_words_for_keep_ranges(payload, list(ranges))
+
+
+def resolve_speech_words(
+    *,
+    source: Optional[Path],
+    original_ranges: Sequence[tuple[float, float]],
+    local_ranges: Optional[Sequence[tuple[float, float]]] = None,
+    source_url: Optional[str] = None,
+    source_type: Optional[str] = None,
+    cached_video_path: Optional[str] = None,
+    segment_path: Optional[Path] = None,
+    allow_transcribe: bool = False,
+    duration: float = 0.0,
+) -> tuple[List[Dict[str, Any]], bool]:
+    """Speech-timed words on the clip timeline, and whether none could be found.
+
+    Section downloads often have no transcript beside the file. The canonical
+    ``transcripts/<id>`` object and the full-video or upload transcript still
+    use source timestamps, so those words are offset to the clip start and
+    clamped to the clip end. The clip itself is transcribed only when every
+    cache misses.
+    """
+    from .youtube_source import load_cached_youtube_transcript, load_time_map, local_ranges_for
+    from .youtube_utils import get_youtube_video_id
+
+    original = [(float(start), float(end)) for start, end in original_ranges]
+    if local_ranges is not None:
+        local = [(float(start), float(end)) for start, end in local_ranges]
+    elif source is not None:
+        local = local_ranges_for(source, original)
+    else:
+        local = list(original)
+
+    candidates: List[tuple[str, Dict[str, Any]]] = []
+    seen: set[str] = set()
+
+    def add_media(path: Optional[Path]) -> None:
+        if path is None:
+            return
+        key = str(path)
+        if key in seen:
+            return
+        seen.add(key)
+        payload = load_cached_transcript_data(path)
+        if not payload or not payload.get("words"):
+            return
+        candidates.append((_timeline_kind(payload, load_time_map(path)), payload))
+
+    add_media(source)
+    add_media(_metadata_media_path(cached_video_path))
+    if source_url and source_url.startswith("upload://"):
+        add_media(_metadata_media_path(source_url))
+    if source_type == "youtube" and source_url:
+        video_id = get_youtube_video_id(source_url)
+        if video_id:
+            cached = load_cached_youtube_transcript(video_id)
+            if cached and cached.get("words"):
+                candidates.append(("original", cached))
+
+    for kind, payload in candidates:
+        primary = local if kind == "local" else original
+        secondary = original if kind == "local" else local
+        words = _words_on_ranges(payload, primary)
+        if not words and secondary != primary:
+            words = _words_on_ranges(payload, secondary)
+        if words:
+            return words, False
+
+    if segment_path is not None:
+        segment_payload = load_cached_transcript_data(segment_path)
+        span = duration if duration and duration > 0 else 0.0
+        if segment_payload and segment_payload.get("words"):
+            if span <= 0:
+                last = max(float(word.get("end") or 0) for word in segment_payload["words"]) / 1000.0
+                span = last
+            segment_words = get_words_in_range(segment_payload, 0.0, span)
+            if segment_words:
+                return segment_words, False
+        if allow_transcribe and segment_path.exists():
+            transcribed = transcribe_clip_segment(segment_path, span or duration)
+            if transcribed:
+                return transcribed, False
+    return [], True
+
+
+def transcribe_clip_segment(video_path: Path, duration: float) -> List[Dict[str, Any]]:
+    """Word timings for one clip, cached beside that file. Empty on failure."""
+    from .config import get_config
+    from .media.transcription import (
+        _get_transcript_with_assemblyai,
+        _get_transcript_with_whisper,
+        get_video_transcript,
+    )
+
+    existing = load_cached_transcript_data(video_path)
+    span = duration if duration and duration > 0 else 0.0
+    if existing and existing.get("words"):
+        if span <= 0:
+            span = max(float(word.get("end") or 0) for word in existing["words"]) / 1000.0
+        return get_words_in_range(existing, 0.0, span or 0.01)
+
+    runtime = get_config()
+    provider = runtime.transcription_provider
+    has_assembly_key = bool((runtime.assembly_ai_api_key or "").strip())
+    try:
+        # YouTube captions have no word timings, so a clip file uses a timed provider.
+        if provider == "youtube_captions":
+            if has_assembly_key:
+                _get_transcript_with_assemblyai(video_path, "universal", runtime)
+            else:
+                _get_transcript_with_whisper(video_path, runtime)
+        elif provider == "whisper":
+            _get_transcript_with_whisper(video_path, runtime)
+        elif has_assembly_key:
+            get_video_transcript(video_path, "universal", None)
+        else:
+            return []
+    except Exception:
+        logger.warning("Clip segment transcription failed for %s", video_path.name, exc_info=True)
+        return []
+    payload = load_cached_transcript_data(video_path)
+    if not payload or not payload.get("words"):
+        return []
+    if span <= 0:
+        span = max(float(word.get("end") or 0) for word in payload["words"]) / 1000.0
+    return get_words_in_range(payload, 0.0, span or 0.01)
 
 
 def export_with_preset(input_path: Path, output_dir: Path, preset_name: str) -> Path:

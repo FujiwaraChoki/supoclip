@@ -85,6 +85,7 @@
     "transcript": "Transcrição",
     "wordCount": "{count} palavras",
     "transcriptDescription": "Corrija uma palavra sem mudar o tempo. Toque em reproduzir para ouvi-la no contexto.",
+    "timingWarning": "Estas legendas estão distribuídas uniformemente no clipe porque os tempos da fala não estavam disponíveis. Elas podem não acompanhar o áudio.",
     "editScript": "Editar roteiro",
     "closeScript": "Fechar roteiro",
     "scriptAria": "Texto das legendas",

@@ -355,12 +355,8 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     from ..database import AsyncSessionLocal
     from .task_service import TaskService
     from ..config import get_config
-    from ..video_utils import (
-        create_optimized_clip,
-        load_cached_transcript_data,
-        get_words_for_keep_ranges,
-    )
-    from ..clip_editor import _caption_words_with_timings
+    from ..video_utils import create_optimized_clip
+    from ..clip_editor import _caption_words_with_timings, resolve_speech_words
     from ..clip_source_map import load_clip_caption_settings
     from ..youtube_source import local_ranges_for
 
@@ -369,6 +365,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
     downloaded_source = None
     source_url = None
     source = None
+    cached_video = None
     try:
         await run_in_thread(storage.restore_editor, directory)
         async with AsyncSessionLocal() as db:
@@ -390,8 +387,9 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             cache = await service.cache_repo.get_cache(
                 db, service._build_cache_key(source_url, source_type, mode, download_quality)
             )
+            cached_video = cache.get("video_path") if cache else None
             source = (
-                await run_in_thread(storage.local_path, cache["video_path"]) if cache and cache.get("video_path") else None
+                await run_in_thread(storage.local_path, cached_video) if cached_video else None
             )
             source_settings = await service._load_task_source_settings(task_id)
             caption_path = await run_in_thread(storage.local_path, clip["file_path"], metadata_only=True)
@@ -449,51 +447,71 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                     bake_editor_layout, clean, output_format, source, local_ranges
                 )
             metadata = await run_in_thread(make_assets, directory)
-            transcript = load_cached_transcript_data(source)
-            timed = get_words_for_keep_ranges(transcript, local_ranges) if transcript else []
-            words = _caption_words_with_timings(
-                (clip.get("text") or "").split(), timed, metadata["duration"]
-            )
             duration = metadata["duration"]
-            emphasis = generated_emphasis(words, task)
-            original_format = output_format == "original"
-            # Vertical clips are generated at 1080x1920; "original" keeps the source size.
-            # A baked split or stack is already 1080x1920, so this vertical cover
-            # shows that frame in full instead of cropping the source again.
-            clip_width, clip_height = (
-                (metadata["width"], metadata["height"]) if original_format else (1080, 1920)
-            )
-            initial = (
-                EditDocument.model_validate(
-                    {
-                        "segments": [{"id": "original", "start": 0, "end": duration}],
-                        "framing": {"aspect": "original" if original_format else "vertical"},
-                        "captions": initial_caption_style(
-                            task,
-                            caption_settings,
-                            source_settings.get("add_subtitles", True),
-                            clip_width,
-                            clip_height,
-                        ),
-                        "hookTitle": (clip.get("hook_title") or "")[:200],
-                        "words": [
-                            {
-                                "id": f"word-{i}",
-                                "start": max(0, min(w["start"], duration - 0.01)),
-                                "end": max(0.01, min(w["end"], duration)),
-                                "text": w["text"][:120],
-                                "highlight": i in emphasis,
-                            }
-                            for i, w in enumerate(words)
-                            if w["start"] < duration and w["end"] > 0
-                        ],
-                    }
+            # An existing draft keeps its word timings. Only a new editor
+            # document is built from the transcript.
+            initial = None
+            timing = None
+            if not (directory / "draft.json").exists():
+                speech, missing = await run_in_thread(
+                    resolve_speech_words,
+                    source=source,
+                    original_ranges=ranges,
+                    local_ranges=local_ranges,
+                    source_url=source_url,
+                    source_type=source_type,
+                    cached_video_path=cached_video,
+                    segment_path=clean,
+                    allow_transcribe=True,
+                    duration=duration,
                 )
-                .validate_duration(duration)
-                .model_dump()
-            )
+                caption_words = _caption_words_with_timings(
+                    (clip.get("text") or "").split(),
+                    [] if missing else speech,
+                    duration,
+                )
+                timing = "estimated" if caption_words.estimated else "speech"
+                words = caption_words.words
+                emphasis = generated_emphasis(words, task)
+                original_format = output_format == "original"
+                # Vertical clips are generated at 1080x1920; "original" keeps the source size.
+                # A baked split or stack is already 1080x1920, so this vertical cover
+                # shows that frame in full instead of cropping the source again.
+                clip_width, clip_height = (
+                    (metadata["width"], metadata["height"]) if original_format else (1080, 1920)
+                )
+                initial = (
+                    EditDocument.model_validate(
+                        {
+                            "segments": [{"id": "original", "start": 0, "end": duration}],
+                            "framing": {"aspect": "original" if original_format else "vertical"},
+                            "captions": initial_caption_style(
+                                task,
+                                caption_settings,
+                                source_settings.get("add_subtitles", True),
+                                clip_width,
+                                clip_height,
+                            ),
+                            "hookTitle": (clip.get("hook_title") or "")[:200],
+                            "words": [
+                                {
+                                    "id": f"word-{i}",
+                                    "start": max(0, min(w["start"], duration - 0.01)),
+                                    "end": max(0.01, min(w["end"], duration)),
+                                    "text": w["text"][:120],
+                                    "highlight": i in emphasis,
+                                }
+                                for i, w in enumerate(words)
+                                if w["start"] < duration and w["end"] > 0
+                            ],
+                        }
+                    )
+                    .validate_duration(duration)
+                    .model_dump()
+                )
             with editor_lock(directory):
-                if not (directory / "draft.json").exists():
+                if initial is not None and not (directory / "draft.json").exists():
+                    metadata["captionTiming"] = timing
                     atomic_json(
                         directory / "draft.json", {"revision": 0, "document": initial}
                     )
