@@ -414,6 +414,102 @@ def transcript_source_for(video_id: str, media_path: Path) -> Path:
     return media_path
 
 
+def _restore_transcript_sidecars(video_id: str, directory: Path) -> None:
+    """Bring transcript JSON back without downloading the video files."""
+    storage = _storage()
+    manifest_path = directory / MANIFEST_NAME
+    if storage is not None and not manifest_path.exists():
+        try:
+            storage._download(
+                storage.key(CACHE_DIRNAME, video_id, MANIFEST_NAME),
+                manifest_path,
+                optional=True,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Could not restore YouTube transcript manifest for %s: %s",
+                video_id,
+                redact_secrets(str(exc)),
+            )
+    names: list[str] = []
+    if manifest_path.exists():
+        manifest = _load_manifest(directory, video_id)
+        for key in ("audio", "full"):
+            name = manifest.get(key)
+            if name:
+                names.append(str(Path(str(name)).with_suffix(".transcript_cache.json").name))
+    if storage is not None:
+        for name in names:
+            dest = directory / name
+            if dest.exists():
+                continue
+            try:
+                storage._download(
+                    storage.key(CACHE_DIRNAME, video_id, name), dest, optional=True
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Could not restore YouTube transcript %s for %s: %s",
+                    name,
+                    video_id,
+                    redact_secrets(str(exc)),
+                )
+    try:
+        from .media_storage import MediaStorage
+
+        MediaStorage().restore_youtube_metadata(video_id, directory / f"{video_id}.mp4")
+    except Exception as exc:
+        logger.warning(
+            "Could not restore stored YouTube transcript for %s: %s",
+            video_id,
+            redact_secrets(str(exc)),
+        )
+
+
+def load_cached_youtube_transcript(video_id: str) -> Optional[dict]:
+    """Original-timeline transcript for a YouTube video, if any cache still has it.
+
+    The full file may have been deleted. Sidecars next to the cached audio or
+    full download, and the stored ``transcripts/<id>`` object, keep source
+    timestamps.
+    """
+    # Resolved at call time so this lookup follows the active config.
+    from .config import get_config
+    from .media.transcription import load_cached_transcript_data
+
+    if not video_id:
+        return None
+    runtime = get_config()
+    directory = cache_dir_for(video_id, runtime)
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return None
+    with _cache_lock(directory):
+        _restore_transcript_sidecars(video_id, directory)
+        manifest = _load_manifest(directory, video_id)
+        media_paths: list[Path] = []
+        for key in ("audio", "full"):
+            name = manifest.get(key)
+            if name:
+                media_paths.append(directory / str(name))
+        for json_path in sorted(directory.glob("*.transcript_cache.json")):
+            stem = json_path.name.removesuffix(".transcript_cache.json")
+            media_paths.append(directory / f"{stem}.mp4")
+        seen: set[Path] = set()
+        for media in media_paths:
+            if media in seen:
+                continue
+            seen.add(media)
+            payload = load_cached_transcript_data(media)
+            if payload and payload.get("words"):
+                return payload
+    legacy = load_cached_transcript_data(Path(runtime.temp_dir) / f"{video_id}.mp4")
+    if legacy and legacy.get("words"):
+        return legacy
+    return None
+
+
 @contextmanager
 def _cache_lock(directory: Path):
     directory.mkdir(parents=True, exist_ok=True)

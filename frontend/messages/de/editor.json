@@ -85,6 +85,7 @@
     "transcript": "Transkript",
     "wordCount": "{count} Wörter",
     "transcriptDescription": "Korrigiere ein Wort, ohne sein Timing zu verschieben. Tippe auf Wiedergabe, um es im Zusammenhang zu hören.",
+    "timingWarning": "Diese Untertitel sind gleichmäßig über den Clip verteilt, weil keine Sprachzeiten vorliegen. Sie können vom Ton abweichen.",
     "editScript": "Skript bearbeiten",
     "closeScript": "Skript schließen",
     "scriptAria": "Untertiteltext",
