@@ -165,6 +165,11 @@ function SocialSettingsContent() {
     );
   }
 
+  const providerGroups = [
+    providers.filter((provider) => provider.configured),
+    providers.filter((provider) => !provider.configured),
+  ].filter((group) => group.length > 0);
+
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 md:py-10">
       <div className="mb-8">
@@ -193,55 +198,68 @@ function SocialSettingsContent() {
         {isFetching ? (
           <Skeleton className="h-20 w-full" />
         ) : (
-          <div className="space-y-2">
-            {providers.map((provider) => (
+          <div className="overflow-hidden rounded-xl border bg-background">
+            {providerGroups.map((group) => (
               <div
-                key={provider.provider}
-                className={`flex items-center gap-3 rounded-xl px-4 py-2 sm:gap-4 sm:px-5 ${provider.configured ? "border bg-background" : "border-2 border-transparent text-muted-foreground"}`}
-                style={provider.configured ? undefined : {
-                  backgroundImage: "linear-gradient(var(--muted), var(--muted)), repeating-linear-gradient(135deg, #fbbf24 0px, #fbbf24 4px, #27272a 4px, #27272a 8px)",
-                  backgroundOrigin: "border-box",
-                  backgroundClip: "padding-box, border-box",
-                }}
+                key={group[0].configured ? "available" : "upcoming"}
+                className={`relative first:rounded-t-[11px] last:rounded-b-[11px] [&>div+div]:shadow-[inset_0_1px_0_var(--border)] ${group[0].configured ? "" : "bg-muted"}`}
               >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/30">
-                  <SocialProviderIcon provider={provider.provider} className="size-5" />
-                </span>
-                <div className="min-w-0 flex-1 self-center">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-                    <p className="text-sm font-medium">{provider.display_name}</p>
-                    {!provider.configured && (
-                      <Badge variant="secondary" className="font-normal text-muted-foreground">
-                        {t("page.comingSoon")}
-                      </Badge>
-                    )}
+                {!group[0].configured && (
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 z-10 rounded-[inherit] p-0.5"
+                    style={{
+                      background: "repeating-linear-gradient(135deg, #fbbf24 0px, #fbbf24 4px, #27272a 4px, #27272a 8px)",
+                      mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                      maskComposite: "exclude",
+                    }}
+                  />
+                )}
+                {group.map((provider) => (
+                  <div
+                    key={provider.provider}
+                    className={`flex items-center gap-3 p-3 ${provider.configured ? "" : "text-muted-foreground"}`}
+                  >
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/30">
+                      <SocialProviderIcon provider={provider.provider} className="size-5" />
+                    </span>
+                    <div className="min-w-0 flex-1 self-center">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                        <p className="text-sm font-medium">{provider.display_name}</p>
+                        {!provider.configured && (
+                          <Badge variant="secondary" className="font-normal text-muted-foreground">
+                            {t("page.comingSoon")}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={t("page.platformDetails", { platform: provider.display_name })}
+                            className="inline-flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <Info className="size-3.5" aria-hidden="true" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs space-y-2" sideOffset={6}>
+                          {!provider.configured && <p>{t("page.verificationNote")}</p>}
+                          <p>{t(`page.${provider.provider}Note`)}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      {provider.configured && (
+                        <Button asChild size="sm" variant="outline">
+                          <a href={`/api/social/connect/${provider.provider}`}>
+                            {t("page.connect")}
+                            <ChevronRight className="size-4" />
+                          </a>
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label={t("page.platformDetails", { platform: provider.display_name })}
-                        className="inline-flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        <Info className="size-3.5" aria-hidden="true" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs space-y-2" sideOffset={6}>
-                      {!provider.configured && <p>{t("page.verificationNote")}</p>}
-                      <p>{t(`page.${provider.provider}Note`)}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  {provider.configured && (
-                    <Button asChild size="sm" variant="outline">
-                      <a href={`/api/social/connect/${provider.provider}`}>
-                        {t("page.connect")}
-                        <ChevronRight className="size-4" />
-                      </a>
-                    </Button>
-                  )}
-                </div>
+                ))}
               </div>
             ))}
           </div>
