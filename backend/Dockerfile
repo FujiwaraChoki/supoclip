@@ -38,13 +38,7 @@ RUN uv venv .venv && \
       uv sync --frozen --extra cuda; \
     fi
 
-# Force update yt-dlp to the absolute latest version to handle YouTube API changes
-# Also install from git to get the very latest commits
-RUN uv pip install --upgrade --force-reinstall yt-dlp
-RUN uv pip install --upgrade --force-reinstall "yt-dlp[default]"
-# PO-token plugin for the optional bgutil sidecar. Installed here so the
-# lockfile stays unchanged until a proxy deployment opts in.
-RUN uv pip install --upgrade bgutil-ytdlp-pot-provider
+# yt-dlp and its PO-token plugin are installed from uv.lock above.
 
 # Copy source code
 COPY src/ ./src/

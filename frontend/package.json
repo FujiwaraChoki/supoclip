@@ -37,15 +37,15 @@
     "lucide-react": "^0.532.0",
     "mediabunny": "^1.35.1",
     "motion": "^14.0.0",
-    "next": "15.4.8",
+    "next": "15.5.28",
     "next-intl": "^4.14.9",
     "next-themes": "^0.4.6",
     "posthog-js": "^1.438.13",
     "posthog-node": "^5.56.2",
     "prisma": "^6.19.2",
     "radix-ui": "^1.4.3",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
+    "react": "19.1.10",
+    "react-dom": "19.1.10",
     "sonner": "^2.0.7",
     "stripe": "^20.4.0",
     "tailwind-merge": "^3.5.0",
@@ -65,7 +65,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^9.39.3",
-    "eslint-config-next": "15.4.4",
+    "eslint-config-next": "15.5.28",
     "jsdom": "^27.0.0",
     "msw": "^2.11.2",
     "tailwindcss": "^4.2.1",
@@ -74,5 +74,21 @@
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.2.4",
     "wait-on": "^8.0.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "sharp": "0.35.5",
+      "postcss": "8.5.18",
+      "brace-expansion@>=1 <2": "1.1.20",
+      "brace-expansion@>=2 <3": "2.1.6",
+      "brace-expansion@>=3 <4": "3.0.8",
+      "brace-expansion@>=5 <6": "5.0.11",
+      "browserslist": "4.28.7",
+      "ip-address": "10.3.1",
+      "nanoid@>=3 <4": "3.3.18",
+      "picomatch@>=4 <5": "4.0.4",
+      "picomatch@>=2 <3": "2.3.2",
+      "source-map-js": "1.2.2"
+    }
   }
 }
