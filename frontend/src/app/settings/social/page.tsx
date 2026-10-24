@@ -197,8 +197,14 @@ function SocialSettingsContent() {
             {providers.map((provider) => (
               <div
                 key={provider.provider}
-                className={`flex items-start gap-3 px-4 sm:gap-4 sm:px-5 ${provider.configured ? "py-2" : "py-4"}`}
+                className={`relative flex items-center gap-3 px-4 py-2 sm:gap-4 sm:px-5 ${provider.configured ? "" : "bg-muted/40 text-muted-foreground"}`}
               >
+                {!provider.configured && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-y-0 left-0 w-1 bg-[repeating-linear-gradient(135deg,#fbbf24_0px,#fbbf24_4px,#27272a_4px,#27272a_8px)]"
+                  />
+                )}
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/30">
                   <SocialProviderIcon provider={provider.provider} className="size-5" />
                 </span>
@@ -211,27 +217,36 @@ function SocialSettingsContent() {
                       </Badge>
                     )}
                   </div>
-                  {!provider.configured && (
-                    <p className="mt-1.5 max-w-md text-xs leading-relaxed text-muted-foreground">
-                      {t("page.verificationNote")}
-                    </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={t("page.platformDetails", { platform: provider.display_name })}
+                        className="inline-flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <Info className="size-3.5" aria-hidden="true" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs space-y-2" sideOffset={6}>
+                      {!provider.configured && <p>{t("page.verificationNote")}</p>}
+                      <p>{t(`page.${provider.provider}Note`)}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  {provider.configured && (
+                    <Button asChild size="sm" variant="outline">
+                      <a href={`/api/social/connect/${provider.provider}`}>
+                        {t("page.connect")}
+                        <ChevronRight className="size-4" />
+                      </a>
+                    </Button>
                   )}
                 </div>
-                {provider.configured && (
-                  <Button asChild size="sm" variant="outline" className="shrink-0 self-center">
-                    <a href={`/api/social/connect/${provider.provider}`}>
-                      {t("page.connect")}
-                      <ChevronRight className="size-4" />
-                    </a>
-                  </Button>
-                )}
               </div>
             ))}
           </div>
         )}
-        <p className="text-xs text-muted-foreground mt-3">
-          {t("page.instagramNote")}
-        </p>
       </section>
 
       {/* Connected */}
@@ -275,7 +290,6 @@ function SocialSettingsContent() {
                         </TooltipTrigger>
                         <TooltipContent className="max-w-xs" sideOffset={6}>
                           {t("page.connectedOn", { date: formatDateTime(connection.created_at) })}
-                          {connection.token_expires_at ? t("page.tokenRenews", { date: formatDateTime(connection.token_expires_at) }) : ""}
                         </TooltipContent>
                       </Tooltip>
                     </div>
