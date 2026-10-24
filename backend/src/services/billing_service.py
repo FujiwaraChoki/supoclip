@@ -24,6 +24,25 @@ SCHEDULING_PLANS = {"scale"}
 MAX_MONTHLY_PERIOD_DAYS = 32
 
 
+def grants_paid_access(
+    plan: str | None, status: str | None, provider: str | None = None
+) -> bool:
+    """Whether this row may spend its plan allowance.
+
+    Stripe leaves a subscription `past_due` while it retries the invoice.
+    Access continues for that window so a failed charge is not a downgrade.
+    `unpaid` means retries are finished. App Store `past_due` is set only
+    after the grace period and does not keep access.
+    """
+    normalized_plan = (plan or "").lower()
+    normalized_status = (status or "").lower()
+    if normalized_plan not in PAID_PLAN_MINUTE_LIMIT_CONFIG:
+        return False
+    if normalized_status in PAID_PLAN_STATUSES:
+        return True
+    return normalized_status == "past_due" and (provider or "").lower() == "stripe"
+
+
 def source_minutes(duration_seconds: float | None) -> int:
     """Minutes charged for a source video: every started minute counts."""
     if not duration_seconds or duration_seconds <= 0:
@@ -226,13 +245,14 @@ class BillingService:
 
         plan = row["plan"]
         status = row["subscription_status"]
-        is_paid = plan in PAID_PLAN_MINUTE_LIMIT_CONFIG and status in PAID_PLAN_STATUSES
+        provider = row.get("subscription_provider")
+        is_paid = grants_paid_access(plan, status, provider)
 
         common = {
             "monetization_enabled": True,
             "plan": plan,
             "max_youtube_duration_seconds": self.config.max_youtube_video_duration_for_plan(
-                plan, status
+                plan, status, provider
             ),
             "max_upload_duration_seconds": self.config.max_video_duration,
             "max_upload_bytes": self.config.max_video_upload_bytes,
@@ -326,9 +346,10 @@ class BillingService:
         if summary.get("can_create_task"):
             return summary
 
-        if (
-            summary.get("plan") in PAID_PLAN_MINUTE_LIMIT_CONFIG
-            and summary.get("subscription_status") in PAID_PLAN_STATUSES
+        if grants_paid_access(
+            summary.get("plan"),
+            summary.get("subscription_status"),
+            summary.get("subscription_provider"),
         ):
             # A partially delivered task already occupies a current-period slot.
             # It can resume even at the cap, but unrelated/historical output

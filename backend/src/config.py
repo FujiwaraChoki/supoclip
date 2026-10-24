@@ -238,10 +238,19 @@ class Config:
         self.speaker_framing = self._get_bool_env("SPEAKER_FRAMING", True)
 
     def max_youtube_video_duration_for_plan(
-        self, plan: str | None, subscription_status: str | None
+        self,
+        plan: str | None,
+        subscription_status: str | None,
+        subscription_provider: str | None = None,
     ) -> int:
         """Return the YouTube duration cap granted by an active entitlement."""
-        if (subscription_status or "").lower() not in {"active", "trialing"}:
+        status = (subscription_status or "").lower()
+        provider = (subscription_provider or "").lower()
+        # past_due keeps the cap only while Stripe is still retrying the invoice.
+        entitled = status in {"active", "trialing"} or (
+            status == "past_due" and provider == "stripe"
+        )
+        if not entitled:
             return self.max_video_duration
 
         if (plan or "").lower() == "scale":

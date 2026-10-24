@@ -40,6 +40,32 @@ describe("getUpgradeState", () => {
     expect(getUpgradeState({ ...base, plan: "scale" })?.nextPlan).toBeNull();
   });
 
+  it("keeps a past-due Stripe plan and does not offer another checkout", () => {
+    const state = getUpgradeState({ ...base, subscription_status: "past_due", subscription_provider: "stripe" });
+    expect(state?.isPaid).toBe(true);
+    expect(state?.needsPayment).toBe(true);
+    expect(state?.nextPlan).toBeNull();
+  });
+
+  it("treats an unpaid Stripe subscription as a payment problem, not a free account", () => {
+    const state = getUpgradeState({
+      ...base,
+      plan: "free",
+      subscription_status: "unpaid",
+      subscription_provider: "stripe",
+      upgrade_required: true,
+    });
+    expect(state?.isPaid).toBe(false);
+    expect(state?.needsPayment).toBe(true);
+    expect(state?.nextPlan).toBeNull();
+  });
+
+  it("does not treat an App Store billing issue as a Stripe payment failure", () => {
+    const state = getUpgradeState({ ...base, subscription_status: "past_due", subscription_provider: "apple" });
+    expect(state?.needsPayment).toBe(false);
+    expect(state?.isPaid).toBe(false);
+  });
+
   it("never offers Stripe upgrades to App Store subscribers", () => {
     const state = getUpgradeState({ ...base, subscription_provider: "apple" });
     expect(state?.managedByAppStore).toBe(true);
@@ -62,6 +88,16 @@ describe("upgradeReasonForError", () => {
         undefined,
       ),
     ).toEqual({ kind: "limit", requiredMinutes: 45, remainingMinutes: 20 });
+  });
+
+  it("maps a past-due Stripe user's 402 to the limit prompt", () => {
+    expect(
+      upgradeReasonForError(
+        "SUBSCRIPTION_REQUIRED",
+        { billing: { plan: "pro", subscription_status: "past_due", subscription_provider: "stripe" } },
+        undefined,
+      ),
+    ).toEqual({ kind: "limit" });
   });
 
   it("maps a free user's 402 to the start prompt", () => {

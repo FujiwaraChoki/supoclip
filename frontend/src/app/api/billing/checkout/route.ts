@@ -7,6 +7,12 @@ import { getStripeClient } from "@/lib/stripe";
 import { getServerBillingPlan } from "@/server/billing-plans";
 import { isBillingInterval, type BillingInterval } from "@/lib/billing-plans";
 import { findCreatorOffer, INVALID_CREATOR_CODE, type CreatorOffer } from "@/server/affiliates";
+import {
+  CHECKOUT_BLOCKING_STATUSES,
+  EXISTING_SUBSCRIPTION_NEEDS_PAYMENT,
+  EXISTING_SUBSCRIPTION_NEEDS_PAYMENT_MESSAGE,
+  subscriptionNeedsPayment,
+} from "@/lib/subscription-status";
 import type Stripe from "stripe";
 
 const APP_STORE_MANAGED_MESSAGE = "Your subscription is managed through the App Store";
@@ -111,6 +117,27 @@ export async function POST(request: Request) {
       where: { id: session.user.id },
       data: { stripe_customer_id: customerId },
     });
+  } else {
+    // The DB plan can already say Free while Stripe is still retrying. A second
+    // Checkout subscription on this customer would bill them twice if the old one recovers.
+    const existing = await findBlockingSubscription(stripe, customerId);
+    if (existing) {
+      if (subscriptionNeedsPayment(existing.status)) {
+        return NextResponse.json(
+          {
+            error: EXISTING_SUBSCRIPTION_NEEDS_PAYMENT_MESSAGE,
+            code: EXISTING_SUBSCRIPTION_NEEDS_PAYMENT,
+          },
+          { status: 409 },
+        );
+      }
+      return createPlanChangeSession(stripe, {
+        customerId,
+        subscriptionId: existing.id,
+        priceId,
+        appUrl,
+      });
+    }
   }
 
   // A typed code must be valid; a code from the signup ?ref= link is applied when it matches one.
@@ -154,6 +181,20 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ url: checkoutSession.url });
+}
+
+async function findBlockingSubscription(stripe: Stripe, customerId: string) {
+  // Payment problems win over an active sub so we never open a second checkout
+  // or a plan change while an invoice is still unpaid.
+  const pages = await Promise.all(
+    CHECKOUT_BLOCKING_STATUSES.map((status) =>
+      stripe.subscriptions.list({ customer: customerId, status, limit: 1 }),
+    ),
+  );
+  for (const page of pages) {
+    if (page.data[0]) return page.data[0];
+  }
+  return null;
 }
 
 async function createPlanChangeSession(

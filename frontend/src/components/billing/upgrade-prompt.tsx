@@ -17,7 +17,6 @@ import {
   billingPlanMessageKey,
   getNextBillingPlan,
   getPublicBillingPlans,
-  isPaidBillingPlan,
   planPrice,
   socialPublishingStage,
   type BillingInterval,
@@ -25,7 +24,9 @@ import {
   type PublicBillingPlan,
 } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
+import { PaymentFailedBanner } from "@/components/payment-failed-banner";
 import { startUpgrade } from "@/lib/start-upgrade";
+import { hasPaidAccess, stripePaymentNeedsUpdate } from "@/lib/subscription-status";
 import { cn } from "@/lib/utils";
 
 export type UpgradeReason =
@@ -58,9 +59,15 @@ export function upgradeReasonForError(
 ): UpgradeReason | null {
   if (code === "SUBSCRIPTION_REQUIRED") {
     const billing = detail?.billing as
-      | { plan?: string; subscription_status?: string; required_minutes?: number; remaining_minutes?: number | null }
+      | {
+          plan?: string;
+          subscription_status?: string;
+          subscription_provider?: string | null;
+          required_minutes?: number;
+          remaining_minutes?: number | null;
+        }
       | undefined;
-    const isPaid = isPaidBillingPlan(billing?.plan) && ["active", "trialing"].includes(billing?.subscription_status ?? "");
+    const isPaid = hasPaidAccess(billing?.plan, billing?.subscription_status, billing?.subscription_provider);
     if (!isPaid) return { kind: "start" };
     // The video is longer than the minutes left this month.
     if (typeof billing?.required_minutes === "number" && typeof billing.remaining_minutes === "number") {
@@ -81,8 +88,10 @@ export function upgradeReasonForError(
 /** Everything the prompts need to decide what (if anything) to offer. */
 export function getUpgradeState(billing: UpgradeBilling | null | undefined) {
   if (!billing) return null;
-  const isPaid = isPaidBillingPlan(billing.plan) && ["active", "trialing"].includes(billing.subscription_status);
-  const nextPlan = getNextBillingPlan(isPaid ? billing.plan : "free");
+  const isPaid = hasPaidAccess(billing.plan, billing.subscription_status, billing.subscription_provider);
+  // A failed Stripe invoice still owns the customer. Don't sell them another subscription.
+  const needsPayment = stripePaymentNeedsUpdate(billing);
+  const nextPlan = needsPayment ? null : getNextBillingPlan(isPaid ? billing.plan : "free");
   // App Store subscriptions can only change plans inside the iOS app.
   const managedByAppStore = isPaid && billing.subscription_provider === "apple";
   // Allowances are minutes of source video per month.
@@ -100,6 +109,7 @@ export function getUpgradeState(billing: UpgradeBilling | null | undefined) {
     nearLimit,
     remaining,
     limit,
+    needsPayment,
     resetsOn: billing.period_end ? formatDate(billing.period_end) : null,
   };
 }
@@ -219,6 +229,7 @@ interface UpgradeDialogProps {
 
 export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: UpgradeDialogProps) {
   const text = useBillingPlanText();
+  const settings = useTranslations("settings");
   const state = getUpgradeState(billing);
   const allPlans = getPublicBillingPlans();
   // Free users choose between every plan; subscribers see their plan next to the step up.
@@ -254,17 +265,28 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="max-h-[calc(100dvh-2rem)] max-w-3xl gap-0 overflow-x-hidden overflow-y-auto p-0 sm:grid-cols-[1.1fr_1fr]">
+      <DialogContent showCloseButton={false} className={cn("max-h-[calc(100dvh-2rem)] gap-0 overflow-x-hidden overflow-y-auto p-0", state?.needsPayment ? "max-w-lg" : "max-w-3xl sm:grid-cols-[1.1fr_1fr]")}>
         <DialogClose className="absolute right-4 top-4 z-10 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <X className="size-4" />
           <span className="sr-only">{text.common("close")}</span>
         </DialogClose>
         <div className="flex flex-col p-6 sm:p-8">
-          <p className="text-xs font-medium text-muted-foreground">{copy.eyebrow}</p>
-          <DialogTitle className="mt-2 font-display text-2xl font-bold leading-tight tracking-tight">{copy.title}</DialogTitle>
-          <DialogDescription className="mt-2 text-sm leading-relaxed text-muted-foreground">{copy.body}</DialogDescription>
+          {state?.needsPayment ? (
+            <>
+              <DialogTitle className="sr-only">{settings("paymentFailed.message")}</DialogTitle>
+              <DialogDescription className="sr-only">{settings("paymentFailed.paused")}</DialogDescription>
+            </>
+          ) : (
+            <>
+              <p className="text-xs font-medium text-muted-foreground">{copy.eyebrow}</p>
+              <DialogTitle className="mt-2 font-display text-2xl font-bold leading-tight tracking-tight">{copy.title}</DialogTitle>
+              <DialogDescription className="mt-2 text-sm leading-relaxed text-muted-foreground">{copy.body}</DialogDescription>
+            </>
+          )}
 
-          {state?.managedByAppStore ? (
+          {state?.needsPayment ? (
+            <PaymentFailedBanner className="mt-6" />
+          ) : state?.managedByAppStore ? (
             <p className="mt-6 rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
               {text.t("appStore")}
             </p>
@@ -289,7 +311,7 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
             </>
           )}
 
-          {!state?.isPaid && (
+          {!state?.isPaid && !state?.needsPayment && (
             <div className="mt-3 rounded-lg border bg-muted/30 px-4 py-3">
               <div className="flex items-center gap-3">
                 <Server className="size-4 shrink-0 text-muted-foreground" />
@@ -306,10 +328,10 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
             </div>
           )}
 
-          {target && !state?.isPaid && <CreatorCodeField className="mt-4 self-start" />}
+          {target && !state?.isPaid && !state?.needsPayment && <CreatorCodeField className="mt-4 self-start" />}
 
           <div className="mt-6 flex flex-col gap-2">
-            {target && !state?.managedByAppStore && (
+            {target && !state?.managedByAppStore && !state?.needsPayment && (
               <Button size="lg" onClick={handleContinue} disabled={isRedirecting}>
                 {isRedirecting ? <Loader2 className="size-4 animate-spin" /> : null}
                 {isRedirecting ? text.t("openingCheckout") : text.t("continueWith", { name: text.planName(target.id) })}
@@ -320,14 +342,14 @@ export function UpgradeDialog({ open, onOpenChange, reason, billing, source }: U
               {text.t("maybeLater")}
             </Button>
           </div>
-          {target && !state?.managedByAppStore && (
+          {target && !state?.managedByAppStore && !state?.needsPayment && (
             <p className="mt-3 text-center text-[11px] text-muted-foreground">
               {state?.isPaid ? text.t("prorated") : text.t("cancelAnytime")}
             </p>
           )}
         </div>
 
-        <PlanShowcase reason={reason} plan={target ?? currentPlan} currentPlan={currentPlan} />
+        {!state?.needsPayment && <PlanShowcase reason={reason} plan={target ?? currentPlan} currentPlan={currentPlan} />}
       </DialogContent>
     </Dialog>
   );
