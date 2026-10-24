@@ -16,6 +16,7 @@ import { VideoDownloadStatus } from "@/components/app/video-download-status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PaymentFailedBanner } from "@/components/payment-failed-banner";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
 import { UpgradeDialog, UpgradeNudge, getUpgradeState, upgradeReasonForError, useBillingPlanText, type UpgradeReason } from "@/components/billing/upgrade-prompt";
 import { getPublicBillingPlans } from "@/lib/billing-plans";
@@ -26,7 +27,8 @@ import { Switch } from "@/components/ui/switch";
 import { Kbd } from "@/components/ui/kbd";
 import { useSession } from "@/lib/auth-client";
 import { useBillingSummary } from "@/hooks/use-billing-summary";
-import { billingPlanMessageKey, isPaidBillingPlan } from "@/lib/billing-plans";
+import { billingPlanMessageKey } from "@/lib/billing-plans";
+import { hasPaidAccess } from "@/lib/subscription-status";
 import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
@@ -211,7 +213,7 @@ export default function HomeApp() {
 
   const canUploadCustomFonts =
     !billingSummary?.monetization_enabled ||
-    (isPaidBillingPlan(billingSummary.plan) && ["active", "trialing"].includes(billingSummary.subscription_status));
+    hasPaidAccess(billingSummary.plan, billingSummary.subscription_status, billingSummary.subscription_provider);
 
   // Effective values for the live preview only — the submitted payload keeps nulls.
   const selectedTemplate = availableTemplates.find((template) => template.id === captionTemplate);
@@ -335,6 +337,7 @@ export default function HomeApp() {
             className="mb-8"
           />
         )}
+        {upgradeState?.needsPayment && <PaymentFailedBanner className="mb-8" />}
 
         <div className="mx-auto max-w-3xl animate-rise">
           <h1 className="text-center font-display text-3xl font-bold tracking-tight sm:text-[2.6rem] sm:leading-tight">
@@ -742,6 +745,8 @@ function PlanStatusNudge({
   const { nextPlan, resetsOn } = state;
   const refreshes = resetsOn ? t("nudge.refreshesOn", { date: resetsOn }) : t("nudge.refreshesNext");
   const nextPlanName = nextPlan ? tCommon(`plans.${billingPlanMessageKey(nextPlan.id)}`) : "";
+
+  if (state.needsPayment) return null;
 
   if (!state.isPaid) {
     const entry = getPublicBillingPlans()[0];

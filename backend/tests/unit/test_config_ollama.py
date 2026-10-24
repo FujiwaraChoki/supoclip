@@ -26,6 +26,9 @@ def test_youtube_duration_limit_uses_active_subscription_plan(monkeypatch):
     assert config.max_youtube_video_duration_for_plan("pro", "active") == 7200
     assert config.max_youtube_video_duration_for_plan("scale", "trialing") == 10800
     assert config.max_youtube_video_duration_for_plan("scale", "inactive") == 5400
+    assert config.max_youtube_video_duration_for_plan("scale", "past_due", "stripe") == 10800
+    assert config.max_youtube_video_duration_for_plan("scale", "past_due") == 5400
+    assert config.max_youtube_video_duration_for_plan("scale", "unpaid", "stripe") == 5400
 
 
 @pytest.mark.parametrize(

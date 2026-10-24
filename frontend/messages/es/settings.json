@@ -196,6 +196,12 @@
     "password": "Contraseña",
     "failed": "No se pudo eliminar la cuenta"
   },
+  "paymentFailed": {
+    "message": "Tu último pago falló. Actualiza tu método de pago para conservar tu plan.",
+    "action": "Actualizar método de pago",
+    "failed": "No se pudo abrir el portal de facturación",
+    "paused": "Los clips están en pausa hasta que se complete este pago."
+  },
   "cancel": {
     "scheduled": "Tu suscripción está programada para cancelarse el <strong>{date}</strong>.",
     "why": "Cuéntanos por qué",

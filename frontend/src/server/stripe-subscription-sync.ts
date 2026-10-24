@@ -1,8 +1,11 @@
 import { getPlanIdForStripePrice, isGrandfatheredProPrice } from "@/server/billing-plans";
 import { getPrismaClient } from "@/server/prisma";
+import { getServerStripeClient } from "@/server/stripe";
 import Stripe from "stripe";
 
-const PAID_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
+// past_due stays entitled: Stripe is still retrying the invoice. unpaid and
+// incomplete are not — retries are over, or the first invoice was never paid.
+const ENTITLED_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past_due"]);
 
 function toDate(unixSeconds: number | null | undefined): Date | null {
   if (!unixSeconds) {
@@ -12,7 +15,7 @@ function toDate(unixSeconds: number | null | undefined): Date | null {
 }
 
 export function getPaidSubscriptionPlan(subscription: Stripe.Subscription): "pro" | "scale" | null {
-  if (!PAID_SUBSCRIPTION_STATUSES.has(subscription.status)) {
+  if (!ENTITLED_SUBSCRIPTION_STATUSES.has(subscription.status)) {
     return null;
   }
 
@@ -86,4 +89,37 @@ export async function upsertSubscriptionState(subscription: Stripe.Subscription)
           : {}),
     },
   });
+}
+
+/**
+ * Rows written before past_due kept its plan still say `free`. The next
+ * subscription webhook would fix them; this applies the same sync on read so
+ * a customer already inside the retry window is not stuck on Free.
+ * Returns true when the stored subscription was rewritten and the caller
+ * should reload billing.
+ */
+export async function restorePastDueEntitlement(userId: string): Promise<boolean> {
+  const prisma = getPrismaClient();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      plan: true,
+      subscription_status: true,
+      subscription_provider: true,
+      stripe_subscription_id: true,
+    },
+  });
+  if (
+    !user?.stripe_subscription_id ||
+    user.subscription_provider !== "stripe" ||
+    user.subscription_status !== "past_due" ||
+    user.plan === "pro" ||
+    user.plan === "scale"
+  ) {
+    return false;
+  }
+
+  const subscription = await getServerStripeClient().subscriptions.retrieve(user.stripe_subscription_id);
+  await upsertSubscriptionState(subscription);
+  return true;
 }

@@ -58,6 +58,23 @@ describe("startUpgrade", () => {
     expect(getStoredCreatorCode()).toBe("MAYA");
   });
 
+  it("opens the billing portal when a subscription still needs payment", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        json(409, {
+          error: "Your last payment failed. Update your payment method to keep your plan.",
+          code: "existing_subscription_needs_payment",
+        }),
+      )
+      .mockResolvedValueOnce(json(200, { url: "https://billing.stripe.test/session" }));
+
+    await startUpgrade("pro", "test");
+
+    expect(fetch).toHaveBeenNthCalledWith(2, "/api/billing/portal", { method: "POST" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("surfaces checkout errors without a code", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(json(400, { error: "Unknown billing plan" }));
 

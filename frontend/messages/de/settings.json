@@ -196,6 +196,12 @@
     "password": "Passwort",
     "failed": "Konto konnte nicht gelöscht werden"
   },
+  "paymentFailed": {
+    "message": "Deine letzte Zahlung ist fehlgeschlagen. Aktualisiere deine Zahlungsmethode, damit dein Plan erhalten bleibt.",
+    "action": "Zahlungsmethode aktualisieren",
+    "failed": "Das Abrechnungsportal konnte nicht geöffnet werden",
+    "paused": "Das Clipping pausiert, bis diese Zahlung durch ist."
+  },
   "cancel": {
     "scheduled": "Dein Abo endet am <strong>{date}</strong>.",
     "why": "Sag uns warum",

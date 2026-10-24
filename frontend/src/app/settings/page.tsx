@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PaymentFailedBanner } from "@/components/payment-failed-banner";
 import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banner";
 import { DeleteAccountSection } from "@/components/delete-account-section";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -66,6 +67,7 @@ export default function SettingsPage() {
 
   const paidPlans = getPublicBillingPlans();
   const upgradeState = getUpgradeState(billingSummary);
+  const paymentNeedsUpdate = upgradeState?.needsPayment ?? false;
   const currentPaidPlan = paidPlans.find((plan) => plan.id === billingSummary?.plan);
 
   // Stripe sends people back here after checkout or a plan change.
@@ -393,7 +395,7 @@ export default function SettingsPage() {
         </Section>
 
         {billingSummary?.monetization_enabled && (
-          <Section id="plan" icon={<CreditCard className="size-4" />} title={t("plan.title")} description={isPaidBillingPlan(billingSummary.plan) ? t("plan.paidDescription") : t("plan.freeDescription")}>
+          <Section id="plan" icon={<CreditCard className="size-4" />} title={t("plan.title")} description={paymentNeedsUpdate || isPaidBillingPlan(billingSummary.plan) ? t("plan.paidDescription") : t("plan.freeDescription")}>
             <div className="space-y-4">
               <div className="rounded-xl bg-muted/50 p-4">
                 <div className="flex items-baseline justify-between gap-3">
@@ -409,7 +411,9 @@ export default function SettingsPage() {
                   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-background"><div className="h-full rounded-full bg-brand" style={{ width: `${usagePct}%` }} /></div>
                 )}
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {!upgradeState?.isPaid
+                  {paymentNeedsUpdate && !upgradeState?.isPaid
+                    ? t("paymentFailed.paused")
+                    : !upgradeState?.isPaid
                     ? t("plan.noneYet")
                     : minuteLimit === null
                     ? t("plan.minutesThisMonth", { used: usageMinutes })
@@ -438,12 +442,14 @@ export default function SettingsPage() {
                 />
               )}
 
+              {paymentNeedsUpdate && <PaymentFailedBanner />}
+
               {isPaidBillingPlan(billingSummary.plan) ? (
                 billingSummary.subscription_provider === "apple" ? (
                   <p className="rounded-lg border px-3 py-2 text-sm text-muted-foreground">{t("plan.appStore")}</p>
                 ) : (
                   <div className="space-y-3">
-                    {upgradeState?.nextPlan && (
+                    {!paymentNeedsUpdate && upgradeState?.nextPlan && (
                       <UpgradeNudge
                         title={
                           currentPaidPlan
@@ -470,7 +476,7 @@ export default function SettingsPage() {
                         loading={isBillingActionLoading}
                       />
                     )}
-                    {canSwitchToYearly && annualMonthsFree(currentPaidPlan) > 0 && (
+                    {!paymentNeedsUpdate && canSwitchToYearly && annualMonthsFree(currentPaidPlan) > 0 && (
                       <UpgradeNudge
                         title={t("plan.switchYearlyTitle", { count: annualMonthsFree(currentPaidPlan) })}
                         description={t("plan.switchYearlyDescription", {
@@ -491,7 +497,7 @@ export default function SettingsPage() {
                     )}
                   </div>
                 )
-              ) : (
+              ) : paymentNeedsUpdate ? null : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <BillingIntervalToggle
                     className="justify-self-start sm:col-span-2"

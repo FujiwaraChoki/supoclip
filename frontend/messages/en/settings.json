@@ -196,6 +196,12 @@
     "password": "Password",
     "failed": "Failed to delete account"
   },
+  "paymentFailed": {
+    "message": "Your last payment failed. Update your payment method to keep your plan.",
+    "action": "Update payment method",
+    "failed": "Unable to open the billing portal",
+    "paused": "Clipping is paused until this payment goes through."
+  },
   "cancel": {
     "scheduled": "Your subscription is scheduled to cancel on <strong>{date}</strong>.",
     "why": "Let us know why",

@@ -196,6 +196,12 @@
     "password": "Senha",
     "failed": "Não foi possível excluir a conta"
   },
+  "paymentFailed": {
+    "message": "Seu último pagamento falhou. Atualize a forma de pagamento para manter seu plano.",
+    "action": "Atualizar forma de pagamento",
+    "failed": "Não foi possível abrir o portal de cobrança",
+    "paused": "Os clipes ficam pausados até este pagamento ser concluído."
+  },
   "cancel": {
     "scheduled": "Sua assinatura está programada para cancelar em <strong>{date}</strong>.",
     "why": "Conta pra gente o motivo",
