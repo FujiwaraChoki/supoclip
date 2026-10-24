@@ -21,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const url = `${getSiteUrl()}/terms`;
 
   return {
-    title: t("terms.metaTitle"),
+    title: { absolute: `SupoClip ${t("terms.title")}` },
     description: t("terms.metaDescription"),
     alternates: { canonical: url },
     openGraph: {
@@ -81,7 +81,7 @@ export default async function TermsOfServicePage() {
             className="text-4xl font-extrabold tracking-tight sm:text-5xl"
             style={{ fontFamily: "var(--font-syne), var(--font-geist-sans), system-ui" }}
           >
-            {t("terms.title")}
+            SupoClip {t("terms.title")}
           </h1>
           <p className="text-sm text-muted-foreground">{t("lastUpdated", { date: updated })}</p>
           <p className="rounded-lg border bg-muted/40 px-4 py-3 text-sm leading-6 text-muted-foreground">
