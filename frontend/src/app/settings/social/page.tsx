@@ -212,14 +212,13 @@ function SocialSettingsContent() {
               <div
                 key={provider.provider}
                 className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground"
-                title={provider.setup_hint ?? undefined}
               >
                 <p className="flex items-center gap-2 font-medium text-foreground">
                   <SocialProviderIcon provider={provider.provider} className="size-4 text-muted-foreground" />
                   {provider.display_name}
                 </p>
-                <p className="text-xs mt-1">{t("page.notConfigured")}</p>
-                {provider.setup_hint && <p className="text-xs mt-1">{provider.setup_hint}</p>}
+                <p className="text-xs mt-1">{t("page.comingSoon")}</p>
+                <p className="text-xs mt-1">{t("page.verificationNote")}</p>
               </div>
             ))}
           </div>
