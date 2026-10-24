@@ -255,6 +255,26 @@ that app from **Settings → Social Accounts**; tokens are stored encrypted with
 | `SOCIAL_PERFORMANCE_MIN_POSTS` | Measured posts required before clip selection is personalized (default `3`) |
 | `SOCIAL_PUBLISH_MAX_ATTEMPTS` | Retries for transient publish failures (default `3`) |
 | `SOCIAL_PUBLISHING_ACCESS` | `off` (default), `admins`, or `all`. `off` hides Social and Analytics from users. |
+| `SOCIAL_PUBLISHING_PROVIDERS` | Comma-separated platform allowlist; defaults to `youtube,tiktok,instagram`. An explicitly empty value disables all platforms, even when credentials exist. |
+| `SOCIAL_PUBLISHING_ALLOWED_EMAILS` | Additional users admitted by email when access is `admins`; empty means admins only. |
+
+For an admin-only YouTube scheduling trial, set the following on **both the API
+and worker** and restart them using the coordinated deployment procedure:
+
+```dotenv
+SOCIAL_PUBLISHING_ACCESS=admins
+SOCIAL_PUBLISHING_PROVIDERS=youtube
+SOCIAL_PUBLISHING_ALLOWED_EMAILS=
+```
+
+Admins can schedule during this restricted trial without a Creator subscription.
+Allowlisted non-admins retain their normal plan requirements. TikTok and Instagram
+remain unavailable even if their credentials or old connections exist. The API
+rejects new connections, posts, and retries for disabled providers; the worker
+rechecks platform and user access before each new upload, including jobs queued
+before the rollout changed. Already accepted uploads may still be polled and
+accounts can still be disconnected. This gate does not change pricing-page
+availability labels or publish any clips automatically.
 
 Register this redirect URI on every platform, replacing `<provider>` with
 `youtube`, `tiktok` or `instagram`:
