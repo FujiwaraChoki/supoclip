@@ -115,6 +115,9 @@
     },
     "blog": {
       "label": "Semua artikel"
+    },
+    "changelog": {
+      "label": "Catatan perubahan"
     }
   },
   "nav": {
@@ -123,6 +126,7 @@
     "pricing": "Harga",
     "openSource": "Open Source",
     "blog": "Blog",
+    "changelog": "Catatan perubahan",
     "affiliate": "Afiliasi",
     "signIn": "Masuk",
     "getStarted": "Mulai",

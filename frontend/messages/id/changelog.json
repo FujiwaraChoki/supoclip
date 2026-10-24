@@ -1,0 +1,19 @@
+{
+  "metaTitle": "Catatan perubahan SupoClip",
+  "metaDescription": "Fitur baru, peningkatan, dan perbaikan di SupoClip, dari clipping Twitch dan Kick sampai harga yang di-host dan editor.",
+  "ogTitle": "Catatan perubahan SupoClip",
+  "ogDescription": "Apa yang berubah di SupoClip untuk orang yang memakai produknya. Pembaruan terbaru di atas.",
+  "eyebrow": "Pembaruan produk",
+  "title": "Catatan perubahan",
+  "intro": "Apa yang berubah untuk orang yang memakai SupoClip. Pembaruan terbaru di atas.",
+  "hostedApp": "Aplikasi yang di-host",
+  "startClipping": "Mulai buat clip",
+  "relatedChange": "Perubahan terkait {label}",
+  "viewOnGitHub": "Lihat catatan perubahan di GitHub",
+  "categories": {
+    "new": "Baru",
+    "improved": "Ditingkatkan",
+    "fixed": "Diperbaiki",
+    "underTheHood": "Di balik layar"
+  }
+}

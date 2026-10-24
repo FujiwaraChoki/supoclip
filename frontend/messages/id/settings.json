@@ -196,6 +196,12 @@
     "password": "Kata sandi",
     "failed": "Gagal menghapus akun"
   },
+  "paymentFailed": {
+    "message": "Pembayaran terakhirmu gagal. Perbarui metode pembayaran agar paketmu tetap aktif.",
+    "action": "Perbarui metode pembayaran",
+    "failed": "Portal tagihan tidak bisa dibuka",
+    "paused": "Pembuatan clip dijeda sampai pembayaran ini berhasil."
+  },
   "cancel": {
     "scheduled": "Langgananmu dijadwalkan batal pada <strong>{date}</strong>.",
     "why": "Beri tahu kami alasannya",
