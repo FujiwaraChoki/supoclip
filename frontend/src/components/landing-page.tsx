@@ -247,7 +247,7 @@ export default function LandingPage() {
             </span>
           </Link>
 
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden items-center gap-x-3 md:flex lg:gap-x-5 xl:gap-x-8 [&_a]:shrink-0 [&_a]:whitespace-nowrap">
             <a
               href="#how-it-works"
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -277,6 +277,12 @@ export default function LandingPage() {
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               {t("nav.blog")}
+            </Link>
+            <Link
+              href="/changelog"
+              className="hidden text-sm text-muted-foreground hover:text-foreground transition-colors lg:inline"
+            >
+              {t("nav.changelog")}
             </Link>
             <Link
               href="/affiliate"
@@ -359,6 +365,13 @@ export default function LandingPage() {
                 className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
               >
                 {t("nav.blog")}
+              </Link>
+              <Link
+                href="/changelog"
+                onClick={() => setMobileNavOpen(false)}
+                className="block rounded-lg px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                {t("nav.changelog")}
               </Link>
               <Link
                 href="/affiliate"

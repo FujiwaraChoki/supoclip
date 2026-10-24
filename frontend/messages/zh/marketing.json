@@ -115,6 +115,9 @@
     },
     "blog": {
       "label": "全部文章"
+    },
+    "changelog": {
+      "label": "更新日志"
     }
   },
   "nav": {
@@ -123,6 +126,7 @@
     "pricing": "价格",
     "openSource": "开源",
     "blog": "博客",
+    "changelog": "更新日志",
     "affiliate": "联盟计划",
     "signIn": "登录",
     "getStarted": "开始使用",

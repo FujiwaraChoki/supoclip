@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
+# Build context is the repository root (docker-compose.yml) so CHANGELOG.md
+# can be copied in from outside frontend/. Paths below are relative to that root.
+
 # Use Node.js with pnpm as the package manager
 FROM node:22-bookworm-slim AS base
 
@@ -16,7 +19,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency manifests only so app/schema changes don't invalidate deps
-COPY package.json pnpm-lock.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts --store-dir /pnpm/store
 
@@ -29,10 +32,11 @@ RUN apt-get update && apt-get install -y openssl curl && rm -rf /var/lib/apt/lis
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
-COPY package.json pnpm-lock.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
 
-# Copy application code (will be overridden by volume mounts in dev)
-COPY . .
+# Application code is overridden by volume mounts in dev.
+COPY frontend/ .
+COPY CHANGELOG.md ./CHANGELOG.md
 
 # Generate Prisma client
 RUN pnpm exec prisma generate
@@ -56,7 +60,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY frontend/ .
+COPY CHANGELOG.md ./CHANGELOG.md
 
 # Generate Prisma client before building
 RUN pnpm exec prisma generate
@@ -126,6 +131,7 @@ RUN useradd --system --uid 1001 --gid nodejs nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/CHANGELOG.md ./CHANGELOG.md
 
 # Copy Prisma generated client and schema
 COPY --from=builder --chown=nextjs:nodejs /app/src/generated/prisma ./src/generated/prisma

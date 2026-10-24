@@ -1,0 +1,19 @@
+{
+  "metaTitle": "Novidades do SupoClip",
+  "metaDescription": "Novos recursos, melhorias e correções do SupoClip, do recorte na Twitch e na Kick aos preços e ao editor.",
+  "ogTitle": "Novidades do SupoClip",
+  "ogDescription": "O que mudou no SupoClip para quem usa o produto. As atualizações mais recentes vêm primeiro.",
+  "eyebrow": "Atualizações",
+  "title": "Novidades",
+  "intro": "O que mudou para quem usa o SupoClip. As atualizações mais recentes vêm primeiro.",
+  "hostedApp": "App hospedado",
+  "startClipping": "Comece a criar clipes",
+  "relatedChange": "Alteração relacionada {label}",
+  "viewOnGitHub": "Ver o changelog no GitHub",
+  "categories": {
+    "new": "Novo",
+    "improved": "Melhorado",
+    "fixed": "Corrigido",
+    "underTheHood": "Nos bastidores"
+  }
+}
