@@ -70,7 +70,7 @@ SupoClip gives you the same core pipeline without the leash:
 
 ## Quick Start
 
-You need Docker, an [AssemblyAI](https://www.assemblyai.com/) API key for transcription, and one LLM provider key (Google, OpenAI, Anthropic, or a local Ollama).
+You need Docker, transcription through [AssemblyAI](https://www.assemblyai.com/) or local Whisper, and an AI provider: an LLM API key, local Ollama, or an [eligible ChatGPT plan for local self-hosting](docs/chatgpt.md).
 
 ```bash
 git clone https://github.com/FujiwaraChoki/supoclip.git

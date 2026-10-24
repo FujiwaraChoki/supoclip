@@ -25,6 +25,10 @@ If you are new to the project, start here:
   - YouTube auth rotation settings
   - Twitch and Kick import providers
   - Feedback and email configuration
+- [Use your ChatGPT plan](./chatgpt.md)
+  - Local sign-in, model selection, usage and sign-out
+  - Callback and encrypted credential setup
+  - Separate transcription requirements
 - [App Guide](./app-guide.md)
   - Main screens and routes
   - Core user workflows

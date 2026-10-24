@@ -4,6 +4,9 @@ Local self-hosters can connect an eligible ChatGPT account instead of providing
 an LLM API key. This connects an AI provider to your existing SupoClip account;
 it does not replace SupoClip's email/password login.
 
+The connection controls follow the selected SupoClip interface language: English,
+Spanish, Portuguese, German or Chinese.
+
 ## Setup
 
 1. Run the normal local Docker stack, or the API, frontend, PostgreSQL and worker.
@@ -72,6 +75,14 @@ website login integration is not part of this feature.
   cannot be confirmed, the UI directs you to disconnect SupoClip in ChatGPT.
   Future jobs return to your configured provider after you explicitly sign out.
   An already-running inference request may finish before sign-out takes effect.
+
+## Interface preview
+
+Example account and model from the browser test fixtures:
+
+![ChatGPT connection settings on desktop](./screenshots/chatgpt-desktop.png)
+
+![ChatGPT connection settings on mobile](./screenshots/chatgpt-mobile.png)
 
 ## Validation
 
