@@ -35,6 +35,22 @@ class Config:
         # Optional separate model for the cross-window candidate rerank pass.
         self.rerank_llm = self._get_optional_env("RERANK_LLM") or self.llm
         self.assembly_ai_api_key = self._get_runtime_setting("ASSEMBLY_AI_API_KEY")
+        # Khaya AI ASR (Ghanaian/African languages, e.g. Twi) when
+        # TRANSCRIPTION_PROVIDER=khaya. Language codes are ISO 639-3.
+        self.khaya_api_key = self._get_runtime_setting("KHAYA_API_KEY")
+        self.khaya_base_url = (
+            os.getenv("KHAYA_BASE_URL") or "https://developer-api.khaya.ai/asr/v3"
+        ).rstrip("/")
+        self.khaya_language = (os.getenv("KHAYA_LANGUAGE") or "twi").strip().lower()
+        self.khaya_chunk_seconds = max(10, int(os.getenv("KHAYA_CHUNK_SECONDS", "600")))
+        self.khaya_concurrency = max(1, int(os.getenv("KHAYA_CONCURRENCY", "3")))
+        # The free developer tier allows 10 requests per minute.
+        self.khaya_requests_per_minute = max(
+            1, int(os.getenv("KHAYA_REQUESTS_PER_MINUTE", "10"))
+        )
+        self.khaya_request_timeout_seconds = max(
+            10, int(os.getenv("KHAYA_REQUEST_TIMEOUT_SECONDS", "600"))
+        )
         self.assembly_ai_http_timeout_seconds = int(
             os.getenv("ASSEMBLY_AI_HTTP_TIMEOUT_SECONDS", "900")
         )
@@ -360,7 +376,7 @@ class Config:
     @staticmethod
     def _normalize_transcription_provider(value: str | None) -> str:
         normalized = (value or "").strip().lower().replace("-", "_")
-        if normalized in ("whisper", "youtube_captions"):
+        if normalized in ("whisper", "youtube_captions", "khaya"):
             return normalized
         return "assemblyai"
 
