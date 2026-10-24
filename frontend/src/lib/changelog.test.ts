@@ -66,6 +66,7 @@ describe("repository changelog", () => {
     expect(text).toMatch(/Kick/);
     expect(text).toMatch(/4 GB/);
     expect(text).toMatch(/split-screen/);
+    expect(text).toMatch(/Phone videos recorded in portrait/);
     expect(text).toMatch(/\$9\.99/);
     expect(text).toMatch(/Sonnet/);
     expect(markdown).not.toMatch(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
