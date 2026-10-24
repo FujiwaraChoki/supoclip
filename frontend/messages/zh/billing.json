@@ -25,6 +25,7 @@
     "hoursMinutes": "{hours} 小时 {minutes} 分钟"
   },
   "perMonth": "/月",
+  "plusTax": "+ 适用税费",
   "videosEach": "每月 {count} 个视频 · 每个最长 {length}",
   "mostPopular": "最受欢迎",
   "currentPlan": "当前方案",

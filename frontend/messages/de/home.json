@@ -104,7 +104,7 @@
     "refreshesOn": "Erneuert sich am {date}.",
     "refreshesNext": "Erneuert sich nächsten Monat.",
     "startTitle": "Wähl einen Plan, um mit dem Schneiden zu starten",
-    "startDescription": "Ab {price}/Monat für {length} Video pro Monat. Du kannst vorher alles einrichten.",
+    "startDescription": "Ab {price}/Monat{taxNote} für {length} Video pro Monat. Du kannst vorher alles einrichten.",
     "seePlans": "Pläne ansehen",
     "limitTitle": "Du hast diesen Monat alle {length} Video genutzt",
     "limitWithPlan": "{refreshes} Oder mach weiter mit {plan}: {limit} Video pro Monat.",

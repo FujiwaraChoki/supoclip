@@ -176,6 +176,10 @@ export async function POST(request: Request) {
     }
 
     if (event.type === "customer.subscription.updated") {
+      // Entitlement sync keys off the price id and status. Managed Payments
+      // invoices include tax in amount_paid / amount_total; this path does not
+      // read those totals. A pre-tax figure would be amount_subtotal (Checkout)
+      // or subtotal / total_excluding_tax (Invoice).
       await upsertSubscriptionState(event.data.object as Stripe.Subscription);
     }
 

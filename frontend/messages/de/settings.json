@@ -47,7 +47,7 @@
     "upgrade": "Upgraden",
     "upgradeMultiplier": "{multiplier}× mehr Video mit {plan}",
     "upgradeMore": "Mehr mit {plan}",
-    "upgradeDescription": "${price}/Monat · {minutes} pro Monat · {resolution} · YouTube bis {length}",
+    "upgradeDescription": "${price}/Monat{taxNote} · {minutes} pro Monat · {resolution} · YouTube bis {length}",
     "choose": "{name} wählen",
     "actionFailed": "Die Abrechnung konnte nicht geöffnet werden",
     "usageMinutesOf": "{used} / {limit} Min.",
@@ -60,7 +60,7 @@
     "billedYearly": "jährliche Abrechnung",
     "upgradeMultiplierHd": "{multiplier}× mehr Video in {resolution} mit {plan}",
     "switchYearlyTitle": "Wechsle zur jährlichen Abrechnung und erhalte {count, plural, one {# Monat} other {# Monate}} gratis",
-    "switchYearlyDescription": "${price}/Jahr, etwa ${monthly}/Monat. Gleicher Plan, einmal im Jahr abgerechnet.",
+    "switchYearlyDescription": "${price}/Jahr{taxNote}, etwa ${monthly}/Monat. Gleicher Plan, einmal im Jahr abgerechnet.",
     "switch": "Wechseln",
     "monthlyEquivalentYearly": "${price}/Monat, jährlich abgerechnet"
   },

@@ -25,6 +25,7 @@ import {
   type PublicBillingPlan,
 } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
+import { formatPriceTaxNote, managedPaymentsPriceCopyEnabled } from "@/lib/managed-payments";
 import { startUpgrade } from "@/lib/start-upgrade";
 import { cn } from "@/lib/utils";
 
@@ -135,7 +136,14 @@ export function useBillingPlanText() {
   // Shown apart from the highlights with a "Coming soon" tag until publishing launches.
   const comingSoon = (plan: PublicBillingPlan) =>
     plan.scheduling && socialPublishingStage() === "soon" ? t("highlights.scheduling") : null;
-  return { t, common, formatMinutes, formatRuntime, planName, highlights, comingSoon };
+  return { t, common, formatMinutes, formatRuntime, planName, highlights, comingSoon, taxNote: formatPriceTaxNote(t("plusTax")) };
+}
+
+/** Shown beside a catalog price when new checkouts collect tax on top. */
+export function PriceTaxNote({ className }: { className?: string }) {
+  const t = useTranslations("billing");
+  if (!managedPaymentsPriceCopyEnabled()) return null;
+  return <span className={cn("font-normal", className)}>{t("plusTax")}</span>;
 }
 
 function copyFor(
@@ -438,6 +446,7 @@ function PlanOption({
       <span className="text-right text-sm font-semibold tabular-nums">
         ${planPrice(plan, interval)}
         <span className="text-xs font-normal text-muted-foreground">{interval === "year" ? text.t("perYear") : text.t("perMonth")}</span>
+        <PriceTaxNote className="block text-[11px] text-muted-foreground" />
         {interval === "year" && (
           <span className="block text-[11px] font-normal text-muted-foreground">
             {text.t("monthlyEquivalent", { price: annualMonthlyEquivalent(plan) })}

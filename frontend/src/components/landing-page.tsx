@@ -45,7 +45,7 @@ import {
   planPrice,
   type BillingInterval,
 } from "@/lib/billing-plans";
-import { BillingIntervalToggle, ComingSoonTag, useBillingPlanText } from "@/components/billing/upgrade-prompt";
+import { BillingIntervalToggle, ComingSoonTag, PriceTaxNote, useBillingPlanText } from "@/components/billing/upgrade-prompt";
 import { catalogKey } from "@/i18n/config";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import {
@@ -194,6 +194,7 @@ export default function LandingPage() {
   const t = useTranslations("marketing");
   const tCommon = useTranslations("common");
   const planText = useBillingPlanText();
+  const taxNote = planText.taxNote;
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("month");
   const plans = getPlans(t, tCommon, billingInterval, planText);
   const features = FEATURES.map((feature) => ({
@@ -685,7 +686,7 @@ export default function LandingPage() {
               {t("pricing.title")}
             </h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              {t("pricing.body", { price: getPublicBillingPlans()[0]?.priceMonthly ?? "9.99" })}
+              {t("pricing.body", { price: getPublicBillingPlans()[0]?.priceMonthly ?? "9.99", taxNote })}
             </p>
             <BillingIntervalToggle
               className="mt-6 bg-background"
@@ -750,6 +751,13 @@ export default function LandingPage() {
                         >
                           {plan.period}
                         </span>
+                        {plan.id !== "selfHost" && (
+                          <PriceTaxNote
+                            className={`basis-full text-xs ${
+                              plan.highlighted ? "text-primary-foreground/60" : "text-muted-foreground"
+                            }`}
+                          />
+                        )}
                       </div>
                       {plan.note && (
                         <p

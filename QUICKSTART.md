@@ -125,6 +125,7 @@ If you enable hosted monetization with `SELF_HOST=false`, set these as well:
 | `STRIPE_PRO_ANNUAL_PRICE_ID` | Stripe price ID for the $99.90/year Pro subscription |
 | `STRIPE_SCALE_ANNUAL_PRICE_ID` | Stripe price ID for the $249.90/year Creator subscription |
 | `STRIPE_PRICE_ID` | Legacy fallback Stripe price ID for the Pro subscription |
+| `STRIPE_MANAGED_PAYMENTS_ENABLED` | `false` until Stripe approves Managed Payments. Then `true` so new checkouts add tax on top of the price. Set `NEXT_PUBLIC_STRIPE_MANAGED_PAYMENTS_ENABLED` to the same value (or leave it empty to follow this flag at build time) and rebuild the frontend. Existing subscriptions are unchanged |
 | `PRO_PLAN_MINUTE_LIMIT` | Pro monthly allowance in minutes of source video, usually `600` |
 | `SCALE_PLAN_MINUTE_LIMIT` | Creator monthly allowance in minutes of source video, usually `1500` |
 | `AWS_REGION` | AWS region used for Amazon SES, default `us-east-1` |

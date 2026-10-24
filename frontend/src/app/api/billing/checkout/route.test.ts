@@ -51,6 +51,8 @@ describe("/api/billing/checkout", () => {
       STRIPE_SCALE_ANNUAL_PRICE_ID: "price_scale_annual",
       NEXT_PUBLIC_APP_URL: "http://localhost:3107",
     };
+    delete process.env.STRIPE_MANAGED_PAYMENTS_ENABLED;
+    delete process.env.NEXT_PUBLIC_STRIPE_MANAGED_PAYMENTS_ENABLED;
     vi.mocked(auth.api.getSession).mockResolvedValue({
       user: { id: "user-1", email: "user@example.com", name: "User" },
     } as never);
@@ -89,6 +91,7 @@ describe("/api/billing/checkout", () => {
         metadata: { userId: "user-1", plan: "scale", interval: "month" },
       }),
     );
+    expect(stripe.checkout.sessions.create.mock.calls[0][0].managed_payments).toBeUndefined();
     await expect(response.json()).resolves.toEqual({ url: "https://checkout.example/scale" });
   });
 
@@ -415,6 +418,126 @@ describe("/api/billing/checkout", () => {
 
       expect(response.status).toBe(200);
       await expect(response.json()).resolves.toEqual({ url: "https://portal.example/home" });
+    });
+
+    it("keeps plan changes on the billing portal when managed payments is on", async () => {
+      process.env.STRIPE_MANAGED_PAYMENTS_ENABLED = "true";
+      const stripe = stripeWithSubscription("price_pro");
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await POST(
+        new Request("http://localhost/api/billing/checkout", {
+          method: "POST",
+          body: JSON.stringify({ plan: "scale" }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+      expect(stripe.billingPortal.sessions.create).toHaveBeenCalled();
+    });
+  });
+
+  describe("managed payments", () => {
+    const incompatibleKeys = [
+      "automatic_tax",
+      "tax_id_collection",
+      "customer_update",
+      "payment_method_types",
+      "payment_method_configuration",
+      "adaptive_pricing",
+      "shipping_address_collection",
+      "shipping_options",
+      "invoice_creation",
+    ] as const;
+
+    function stripeForCheckout() {
+      return {
+        checkout: {
+          sessions: { create: vi.fn().mockResolvedValue({ url: "https://checkout.example/managed" }) },
+        },
+        promotionCodes: { list: vi.fn().mockResolvedValue({ data: [] }) },
+      };
+    }
+
+    function checkout(body: Record<string, unknown>) {
+      return POST(
+        new Request("http://localhost/api/billing/checkout", {
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+    }
+
+    it("leaves the session on standard Checkout when the flag is off", async () => {
+      const stripe = stripeForCheckout();
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout({ plan: "pro" });
+
+      expect(response.status).toBe(200);
+      const params = stripe.checkout.sessions.create.mock.calls[0][0];
+      expect(params.managed_payments).toBeUndefined();
+      expect(params.mode).toBe("subscription");
+      for (const key of incompatibleKeys) {
+        expect(params[key]).toBeUndefined();
+      }
+      expect(params.subscription_data).toBeUndefined();
+    });
+
+    it.each(["true", "1", "on"])("enables managed payments for new subscriptions when the flag is %s", async (flag) => {
+      process.env.STRIPE_MANAGED_PAYMENTS_ENABLED = flag;
+      const stripe = stripeForCheckout();
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout({ plan: "pro", interval: "year" });
+
+      expect(response.status).toBe(200);
+      const params = stripe.checkout.sessions.create.mock.calls[0][0];
+      expect(params).toMatchObject({
+        mode: "subscription",
+        customer: "cus_123",
+        line_items: [{ price: "price_pro_annual", quantity: 1 }],
+        managed_payments: { enabled: true },
+        success_url: "http://localhost:3107/settings?billing=success",
+        cancel_url: "http://localhost:3107/settings?billing=cancelled",
+      });
+      for (const key of incompatibleKeys) {
+        expect(params[key]).toBeUndefined();
+      }
+      expect(params.subscription_data).toBeUndefined();
+      expect(params.discounts).toBeUndefined();
+    });
+
+    it("keeps a creator promotion code on the managed session", async () => {
+      process.env.STRIPE_MANAGED_PAYMENTS_ENABLED = "true";
+      vi.mocked(prisma.affiliate.findUnique).mockResolvedValue({
+        user_id: "creator-1",
+        status: "approved",
+        stripe_promotion_code_id: "promo_maya",
+      } as never);
+      const stripe = stripeForCheckout();
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout({ plan: "pro", code: "MAYA" });
+
+      expect(response.status).toBe(200);
+      expect(stripe.checkout.sessions.create.mock.calls[0][0]).toMatchObject({
+        managed_payments: { enabled: true },
+        discounts: [{ promotion_code: "promo_maya" }],
+        metadata: { creator_code: "MAYA" },
+      });
+    });
+
+    it("follows the public flag when the server flag is unset", async () => {
+      process.env.NEXT_PUBLIC_STRIPE_MANAGED_PAYMENTS_ENABLED = "yes";
+      const stripe = stripeForCheckout();
+      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
+
+      const response = await checkout({ plan: "scale" });
+
+      expect(response.status).toBe(200);
+      expect(stripe.checkout.sessions.create.mock.calls[0][0].managed_payments).toEqual({ enabled: true });
     });
   });
 });

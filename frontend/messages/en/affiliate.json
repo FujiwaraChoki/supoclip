@@ -23,8 +23,8 @@
   "offer": {
     "heading": "What everyone gets",
     "youTitle": "You get SupoClip Pro, free",
-    "youDetail": "Pro is normally ${price}/month and includes {limit} hours of video a month. Approved creators get it for free for as long as they're in the program.",
-    "youDetailNoLimit": "Pro is normally ${price}/month. Approved creators get it for free for as long as they're in the program.",
+    "youDetail": "Pro is normally ${price}/month{taxNote} and includes {limit} hours of video a month. Approved creators get it for free for as long as they're in the program.",
+    "youDetailNoLimit": "Pro is normally ${price}/month{taxNote}. Approved creators get it for free for as long as they're in the program.",
     "audienceTitle": "Your audience gets 20% off",
     "audienceDetail": "For their first 3 months on any plan. It works through your link or by typing your code at checkout."
   },
@@ -56,7 +56,7 @@
     "heading": "Questions",
     "cash": {
       "question": "Do I get paid in cash?",
-      "answer": "Not right now. Approved creators get SupoClip Pro (normally ${price}/month) for free while they're in the program."
+      "answer": "Not right now. Approved creators get SupoClip Pro (normally ${price}/month{taxNote}) for free while they're in the program."
     },
     "followers": {
       "question": "Is there a minimum number of followers?",

@@ -25,6 +25,7 @@
     "hoursMinutes": "{hours} h {minutes} min"
   },
   "perMonth": "/mo",
+  "plusTax": "+ applicable tax",
   "videosEach": "{count} videos/mo · up to {length} each",
   "mostPopular": "Most popular",
   "currentPlan": "Current plan",

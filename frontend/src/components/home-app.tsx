@@ -738,7 +738,7 @@ function PlanStatusNudge({
 }) {
   const t = useTranslations("home");
   const tCommon = useTranslations("common");
-  const { formatMinutes } = useBillingPlanText();
+  const { formatMinutes, taxNote } = useBillingPlanText();
   const { nextPlan, resetsOn } = state;
   const refreshes = resetsOn ? t("nudge.refreshesOn", { date: resetsOn }) : t("nudge.refreshesNext");
   const nextPlanName = nextPlan ? tCommon(`plans.${billingPlanMessageKey(nextPlan.id)}`) : "";
@@ -749,7 +749,7 @@ function PlanStatusNudge({
       <UpgradeNudge
         className="mt-6"
         title={t("nudge.startTitle")}
-        description={entry ? t("nudge.startDescription", { price: `$${entry.priceMonthly}`, length: formatMinutes(entry.minuteLimit) }) : undefined}
+        description={entry ? t("nudge.startDescription", { price: `$${entry.priceMonthly}`, length: formatMinutes(entry.minuteLimit), taxNote }) : undefined}
         action={t("nudge.seePlans")}
         onAction={() => onUpgrade({ kind: "start" })}
       />

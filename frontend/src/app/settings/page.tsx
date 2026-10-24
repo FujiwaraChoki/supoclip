@@ -25,7 +25,7 @@ import {
   type BillingPlanId,
 } from "@/lib/billing-plans";
 import { LanguageSwitcher } from "@/components/language-switcher";
-import { BillingIntervalToggle, ComingSoonTag, UpgradeNudge, getUpgradeState, useBillingPlanText } from "@/components/billing/upgrade-prompt";
+import { BillingIntervalToggle, ComingSoonTag, PriceTaxNote, UpgradeNudge, getUpgradeState, useBillingPlanText } from "@/components/billing/upgrade-prompt";
 import type { BillingSummary } from "@/hooks/use-billing-summary";
 import { startUpgrade } from "@/lib/start-upgrade";
 import { CreatorCodeField } from "@/components/billing/creator-code-field";
@@ -464,6 +464,7 @@ export default function SettingsPage() {
                           minutes: plans.formatMinutes(upgradeState.nextPlan.minuteLimit),
                           resolution: upgradeState.nextPlan.resolution,
                           length: plans.formatMinutes(upgradeState.nextPlan.youtubeMaxMinutes),
+                          taxNote: plans.taxNote,
                         })}
                         action={t("plan.upgrade")}
                         onAction={() => handlePlanChange(upgradeState.nextPlan!.id, billingSummary.billing_interval ?? "month")}
@@ -476,6 +477,7 @@ export default function SettingsPage() {
                         description={t("plan.switchYearlyDescription", {
                           price: currentPaidPlan.priceAnnual,
                           monthly: annualMonthlyEquivalent(currentPaidPlan),
+                          taxNote: plans.taxNote,
                         })}
                         action={t("plan.switch")}
                         onAction={() => handlePlanChange(currentPaidPlan.id, "year")}
@@ -519,6 +521,7 @@ export default function SettingsPage() {
                         <span className="text-xs font-normal text-muted-foreground">
                           {billingInterval === "year" ? plans.t("perYear") : plans.t("perMonth")}
                         </span>
+                        <PriceTaxNote className="mt-1 block text-xs text-muted-foreground" />
                       </span>
                       {billingInterval === "year" && (
                         <span className="block text-xs text-muted-foreground">
