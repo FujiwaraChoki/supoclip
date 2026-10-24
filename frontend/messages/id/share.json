@@ -1,0 +1,13 @@
+{
+  "brand": "SupoClip",
+  "makeYourOwn": "Buat versimu",
+  "unavailableTitle": "Tautan ini tidak tersedia",
+  "unavailable": "Tautan berbagi ini tidak tersedia",
+  "createOwn": "Buat clip-mu sendiri",
+  "eyebrow": "Hasil yang dibagikan",
+  "summary": "{count, plural, one {# clip} other {# clip}} · {duration} highlight",
+  "topVirality": "skor viral tertinggi",
+  "ctaTitle": "Ubah video panjangmu jadi clip seperti ini.",
+  "ctaBody": "SupoClip menemukan momen terbaik, membingkai pembicara, dan menulis caption. Open source dan gratis kalau di-host sendiri.",
+  "try": "Coba SupoClip"
+}

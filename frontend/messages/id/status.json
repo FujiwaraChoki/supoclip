@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "title": "Status layanan",
+    "description": "Status layanan terkini dan pembaruan insiden SupoClip."
+  },
+  "title": "Status layanan",
+  "intro": "Pembaruan untuk layanan SupoClip yang di-host.",
+  "unavailable": "Status layanan sedang tidak tersedia. Coba lagi nanti, ya.",
+  "states": {
+    "operational": "Normal",
+    "degraded": "Terganggu",
+    "outage": "Gangguan",
+    "maintenance": "Pemeliharaan",
+    "unknown": "Tidak diketahui"
+  },
+  "lastUpdated": "Terakhir diperbarui:",
+  "timezone": "(Zurich)",
+  "back": "Kembali ke SupoClip"
+}

@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 // A concise warning for widely used languages; the supported list below includes
 // every orthography reported by Fontconfig, not just this comparison set.
 const COMMON_LANGUAGES = [
-  "en", "es", "pt", "fr", "de", "it", "pl", "tr", "vi", "el", "ru", "uk",
+  "en", "es", "pt", "id", "fr", "de", "it", "pl", "tr", "vi", "el", "ru", "uk",
   "ar", "fa", "he", "hi", "bn", "ta", "te", "th", "zh-cn", "zh-tw", "ja", "ko",
 ];
 function describeLanguages(codes: string[], languageNames: Intl.DisplayNames): string {

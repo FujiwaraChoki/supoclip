@@ -1,0 +1,19 @@
+{
+  "close": "Tutup",
+  "cancel": "Batal",
+  "save": "Simpan",
+  "saving": "Menyimpan…",
+  "loading": "Memuat",
+  "tryAgain": "Coba lagi, ya.",
+  "justNow": "baru saja",
+  "plans": {
+    "free": "Gratis",
+    "pro": "Pro",
+    "scale": "Creator",
+    "selfHost": "Host sendiri"
+  },
+  "duration": {
+    "hours": "{count, plural, one {# jam} other {# jam}}",
+    "minutes": "{count, plural, one {# menit} other {# menit}}"
+  }
+}

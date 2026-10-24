@@ -1,0 +1,118 @@
+{
+  "greeting": {
+    "upLate": "Masih begadang",
+    "goodMorning": "Selamat pagi",
+    "goodAfternoon": "Selamat siang",
+    "goodEvening": "Selamat malam",
+    "named": "{greeting}, {name}"
+  },
+  "subtitle": "Masukkan video panjang. Dapatkan clip ber-caption, siap diposting.",
+  "errors": {
+    "fonts": "Font tidak bisa dimuat sekarang.",
+    "notVideo": "Ini tidak terlihat seperti file video. Coba MP4, MOV, MKV, atau WebM.",
+    "fontType": "Font kustom hanya mendukung file .ttf dan .otf.",
+    "uploadFont": "Gagal mengunggah font",
+    "uploadFontRetry": "Gagal mengunggah font. Coba lagi, ya.",
+    "processVideo": "Gagal memproses video. Coba lagi, ya.",
+    "fileTooLarge": "File ini {size}, melebihi batas unggah {limit}. Coba ekspor yang lebih pendek atau file yang lebih kecil.",
+    "api": "Error API: {status}"
+  },
+  "status": {
+    "uploading": "Mengunggah video…",
+    "checkingLength": "Memeriksa durasi video…",
+    "starting": "Memulai generasi…",
+    "working": "Sedang bekerja…",
+    "uploadingFont": "Mengunggah…"
+  },
+  "drop": "Lepas untuk mengunggah videomu",
+  "readyToUpload": "{size} · siap diunggah",
+  "removeFile": "Hapus file",
+  "youtubeUrl": "URL YouTube, Twitch, atau Kick",
+  "urlPlaceholder": "Tempel tautan VOD/clip YouTube, Twitch, atau Kick",
+  "uploadFile": "Unggah file video",
+  "upload": "Unggah",
+  "defaultTemplate": "Bawaan",
+  "defaultTemplateDescription": "Caption kata per kata",
+  "captionStyle": "Gaya caption",
+  "customize": "Sesuaikan",
+  "resetTemplate": "Kembalikan ke template",
+  "font": "Font",
+  "uploadFont": "Unggah font",
+  "customFontsPaid": "Pakai font sendiri dengan paket berbayar",
+  "searchFonts": "Cari font",
+  "templateDefault": "Bawaan template",
+  "noFontMatch": "Tidak ada font yang cocok dengan pencarianmu",
+  "color": "Warna",
+  "template": "Template",
+  "captionColor": "Warna caption {color}",
+  "customColor": "Warna kustom",
+  "customCaptionColor": "Warna caption kustom",
+  "livePreview": "Pratinjau langsung",
+  "framing": "Framing",
+  "framingOptions": {
+    "vertical": {
+      "label": "Auto 9:16",
+      "hint": "Menyesuaikan subjek dan konteks adegan"
+    },
+    "vertical_fit": {
+      "label": "Frame penuh 9:16",
+      "hint": "Tampilkan semuanya di kanvas vertikal"
+    },
+    "vertical_pan": {
+      "label": "Pan pembicara",
+      "hint": "Mengikuti siapa yang sedang bicara"
+    },
+    "vertical_split": {
+      "label": "Split-screen",
+      "hint": "Dua pembicara bertumpuk"
+    },
+    "original": {
+      "label": "Asli",
+      "hint": "Pertahankan rasio aspek sumber"
+    }
+  },
+  "captions": "Caption",
+  "noCaptions": "Tanpa caption",
+  "cleanup": "Pembersihan",
+  "cleanupTitle": "Pembersihan clip",
+  "cleanupBody": "Rapatkan jeda kosong dan potong suara pengisi saat render.",
+  "shortenPauses": "Perpendek jeda panjang",
+  "shortenPausesHint": "Potong keheningan yang lebih lama dari ini jadi napas pendek",
+  "pauseThreshold": "Ambang jeda (md)",
+  "milliseconds": "milidetik",
+  "removeFillers": "Hapus kata pengisi",
+  "removeFillersHint": "“um”, “uh”, “erm”, dan suara serupa",
+  "extraWords": "Kata atau frasa tambahan untuk dipotong",
+  "extraWordsPlaceholder": "intinya, jujur saja, sebenarnya",
+  "generate": "Buat clip",
+  "limitNote": "{plan}: video YouTube, Twitch, dan Kick sampai {minutes} menit. Setiap video memakai durasinya dalam menit, dicek sebelum kami mulai.",
+  "uploadLimits": "Unggahan sampai {size}. Video di atas 1080p atau 60 fps diturunkan otomatis, bentuknya tetap.",
+  "completionEmails": "Email selesai mengikuti preferensimu di <settings>Pengaturan</settings>.",
+  "recent": "Terbaru",
+  "viewLibrary": "Lihat pustaka",
+  "recentEmpty": "Clip-mu akan muncul di sini. Tempel tautan di atas untuk batch pertama.",
+  "previewHook": "Judul hook-mu mendarat di sini",
+  "previewCaptions": "Begini tampilan caption-mu",
+  "captionSize": {
+    "size": "Ukuran",
+    "templateDefault": "Bawaan template",
+    "small": "Kecil",
+    "medium": "Sedang",
+    "large": "Besar"
+  },
+  "nudge": {
+    "refreshesOn": "Diperbarui pada {date}.",
+    "refreshesNext": "Diperbarui bulan depan.",
+    "startTitle": "Pilih paket untuk mulai buat clip",
+    "startDescription": "Mulai {price}/bln untuk {length} video sebulan. Silakan atur semuanya dulu.",
+    "seePlans": "Lihat paket",
+    "limitTitle": "Kamu sudah memakai semua {length} video bulan ini",
+    "limitWithPlan": "{refreshes} Atau lanjut dengan {plan}: {limit} video sebulan.",
+    "limitAppStore": "{refreshes} Kamu bisa ganti paket di aplikasi iOS SupoClip.",
+    "getPlan": "Ambil {plan}",
+    "remaining": "{count, plural, one {# menit video tersisa bulan ini} other {# menit video tersisa bulan ini}}",
+    "nearWithPlan": "{refreshes} Butuh ruang lebih? {plan} memberi {limit} video sebulan.",
+    "upgrade": "Upgrade",
+    "limitTitleAll": "Kamu sudah memakai menit video bulan ini"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "nav": {
+    "create": "Buat",
+    "library": "Pustaka",
+    "social": "Sosial",
+    "analytics": "Analitik",
+    "agents": "Agen & API",
+    "settings": "Pengaturan",
+    "admin": "Admin",
+    "newGeneration": "Generasi baru"
+  },
+  "search": {
+    "generations": "Cari generasi",
+    "label": "Cari",
+    "mainNav": "Navigasi utama",
+    "mobileNav": "Navigasi seluler",
+    "dialog": "Cari",
+    "placeholder": "Cari generasi atau lompat ke…",
+    "inputLabel": "Cari generasi atau lompat ke halaman",
+    "empty": "Tidak ada yang cocok dengan “{query}”."
+  },
+  "palette": {
+    "newHint": "Tempel tautan atau unggah",
+    "library": "Buka pustaka",
+    "social": "Akun sosial",
+    "socialHint": "Hubungkan YouTube, TikTok & Instagram",
+    "analyticsHint": "Performa clip yang sudah kamu publikasikan",
+    "agentsHint": "Kunci API & MCP"
+  },
+  "usage": {
+    "pickPlan": "Pilih paket untuk mulai buat clip",
+    "moreWith": "Dapatkan lebih banyak dengan {name}",
+    "left": "{count} tersisa periode ini",
+    "videosThisPeriod": "video periode ini",
+    "minutesOf": "{used} / {limit} mnt",
+    "minutes": "{used} mnt",
+    "minutesLeft": "{count} mnt tersisa bulan ini",
+    "minutesThisMonth": "menit video bulan ini"
+  },
+  "user": {
+    "creator": "Kreator",
+    "signOut": "Keluar",
+    "signingOut": "Sedang keluar…",
+    "signOutError": "Tidak bisa keluar. Coba lagi, ya."
+  },
+  "announcements": {
+    "whatsNew": "Yang baru",
+    "whatsNewUnread": "Yang baru, {count, plural, one {# pengumuman belum dibaca} other {# pengumuman belum dibaca}}",
+    "title": "Yang baru di SupoClip",
+    "close": "Tutup pengumuman",
+    "popover": "Pengumuman",
+    "new": "Baru"
+  },
+  "feedback": {
+    "title": "Kirim masukan",
+    "category": "Kategori",
+    "bug": "Laporan bug",
+    "feature": "Usulan fitur",
+    "general": "Masukan umum",
+    "sales": "Pertanyaan penjualan",
+    "placeholder": "Ceritakan apa yang ada di pikiranmu...",
+    "submit": "Kirim",
+    "success": "Masukan terkirim — terima kasih!",
+    "failed": "Masukan gagal dikirim",
+    "error": "Ada yang tidak beres"
+  }
+}

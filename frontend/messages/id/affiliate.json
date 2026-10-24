@@ -1,0 +1,86 @@
+{
+  "meta": {
+    "title": "Program Kreator SupoClip: Dapatkan Pro Gratis karena Membuat Video",
+    "description": "Buat Shorts, Reels, TikTok, atau video tentang SupoClip dan dapatkan SupoClip Pro gratis. Audiensmu mendapat diskon 20% untuk 3 bulan pertama dengan kodemu."
+  },
+  "badge": "Program kreator",
+  "nav": {
+    "label": "Navigasi utama",
+    "demo": "Demo",
+    "apply": "Daftar"
+  },
+  "hero": {
+    "title": "Buat video tentang SupoClip. Dapatkan Pro gratis.",
+    "body": "Sering posting Shorts, Reels, atau TikTok tentang clipping, podcast, atau alat kreator? Dapatkan kodemu sendiri. Audiensmu hemat di SupoClip, dan kamu dapat Pro selama ikut program.",
+    "apply": "Daftar sekarang",
+    "noMinimum": "Tanpa minimum pengikut."
+  },
+  "video": {
+    "name": "Cara kerja program kreator SupoClip",
+    "description": "Daftar, pilih kodemu, dan audiensmu mendapat diskon 20% untuk 3 bulan pertama. Kreator yang disetujui mendapat SupoClip Pro gratis.",
+    "aria": "Penjelasan program kreator: daftar, pilih kodemu, dan audiensmu mendapat diskon 20% untuk 3 bulan pertama"
+  },
+  "offer": {
+    "heading": "Yang didapat semua orang",
+    "youTitle": "Kamu dapat SupoClip Pro, gratis",
+    "youDetail": "Pro biasanya ${price}/bulan dan mencakup {limit} jam video sebulan. Kreator yang disetujui mendapatkannya gratis selama mereka ada di program.",
+    "youDetailNoLimit": "Pro biasanya ${price}/bulan. Kreator yang disetujui mendapatkannya gratis selama mereka ada di program.",
+    "audienceTitle": "Audiensmu mendapat diskon 20%",
+    "audienceDetail": "Untuk 3 bulan pertama di paket apa pun. Berlaku lewat tautanmu atau dengan mengetik kodemu saat checkout."
+  },
+  "how": {
+    "heading": "Cara kerjanya"
+  },
+  "steps": {
+    "apply": {
+      "title": "Daftar",
+      "detail": "Ceritakan di mana kamu posting dan pilih kodemu, misalnya MAYA. Dua menit saja."
+    },
+    "review": {
+      "title": "Kami meninjau",
+      "detail": "Setiap pendaftaran ditinjau manual. Kamu mendapat email, apa pun hasilnya."
+    },
+    "share": {
+      "title": "Bagikan",
+      "detail": "Taruh tautanmu di bio atau sebut kodemu di video. Akunmu langsung dapat Pro."
+    }
+  },
+  "rules": {
+    "heading": "Aturannya",
+    "sponsored": "Tandai postingan bersponsor sebagaimana mestinya, misalnya dengan #ad.",
+    "ads": "Jangan pasang iklan atas nama SupoClip atau posting kodemu di situs kupon atau diskon.",
+    "ownCode": "Jangan pakai kodemu sendiri.",
+    "end": "Kami bisa mengakhiri program atau mengeluarkan kreator kapan saja."
+  },
+  "faq": {
+    "heading": "Pertanyaan",
+    "cash": {
+      "question": "Apakah saya dibayar tunai?",
+      "answer": "Belum. Kreator yang disetujui mendapat SupoClip Pro (biasanya ${price}/bulan) gratis selama mereka ada di program."
+    },
+    "followers": {
+      "question": "Apakah ada jumlah minimum pengikut?",
+      "answer": "Tidak. Kami melihat apa yang kamu posting, bukan hanya berapa orang yang mengikuti. Kreator kecil yang sudah membuat video tentang SupoClip sangat cocok."
+    },
+    "audience": {
+      "question": "Apa yang didapat audiens saya?",
+      "answer": "Siapa pun yang mendaftar lewat tautanmu atau memasukkan kodemu saat checkout mendapat diskon 20% untuk 3 bulan pertama. Di web berlaku untuk paket apa pun. Di iPhone berlaku untuk Pro: orang mengetuk “Punya kode kreator?” di aplikasi atau membuka tautan iPhone-mu."
+    },
+    "code": {
+      "question": "Bolehkah saya memilih kode sendiri?",
+      "answer": "Ya. Kode berisi 3 sampai 20 huruf, angka, atau tanda hubung, dan masing-masing hanya bisa dimiliki satu kreator. Formulir langsung memberi tahu apakah kodemu tersedia."
+    },
+    "declined": {
+      "question": "Apa yang terjadi jika pendaftaran saya ditolak?",
+      "answer": "Kamu akan mendapat email, dengan catatan dari kami kalau ada hal yang spesifik. Kamu bisa mendaftar lagi setelah 30 hari."
+    },
+    "account": {
+      "question": "Apakah saya perlu akun SupoClip?",
+      "answer": "Ya. Program ini terikat ke akunmu, jadi kamu membuat akun gratis (atau masuk) sebelum mendaftar."
+    }
+  },
+  "cta": {
+    "title": "Sudah posting tentang SupoClip?",
+    "body": "Daftar dengan tautan profilmu dan pilih kodemu. Kalau kamu sudah membuat video tentang SupoClip, sertakan."
+  }
+}
