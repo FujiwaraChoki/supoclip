@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 
+// Cold route compilation and desktop/mobile reloads share one workflow budget.
+test.setTimeout(60_000);
+
 const id = "11111111-1111-4111-8111-111111111111";
 const saved = { id, email: "creator@example.com", connected: true, plan_usage: true, model: null as string | null, enabled: false, welcome_seen: false };
 
