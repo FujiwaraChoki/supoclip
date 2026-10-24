@@ -199,6 +199,111 @@ def generated_emphasis(words: list[dict], task: dict) -> set[int]:
     return emphasis
 
 
+# Layouts that are a composed frame, not a crop the editor can rebuild.
+PRESERVED_LAYOUT_KINDS = frozenset({"split", "stack", "reaction", "overlap"})
+
+
+def editor_preserved_layout(
+    clip_path: Path,
+    output_format: str,
+    speaker_turns: list | None = None,
+    speaker_words: list | None = None,
+) -> dict | None:
+    """Split-screen or stacked plan to bake into the editor source.
+
+    Returns None for original, speaker-pan, and any vertical clip whose plan
+    is a plain crop. Those keep the editor's existing vertical or original crop.
+    """
+    from ..media.reframing import (
+        describe_vertical_layout,
+        detect_speaker_reframe_plan,
+        ffprobe_video_size,
+    )
+
+    try:
+        if output_format == "vertical_split":
+            plan = detect_speaker_reframe_plan(clip_path, "vertical_split")
+            if not plan or plan.get("mode") != "split":
+                return None
+            return {
+                "kind": "split",
+                "output_format": "vertical_split",
+                "speaker_plan": plan,
+            }
+        if output_format != "vertical":
+            return None
+        width, height = ffprobe_video_size(clip_path)
+        described = describe_vertical_layout(
+            clip_path, width, height, speaker_turns, speaker_words
+        )
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "Could not read an editor reframing plan", exc_info=True
+        )
+        return None
+    if described["kind"] not in PRESERVED_LAYOUT_KINDS:
+        return None
+    return {
+        "kind": described["kind"],
+        "output_format": "vertical",
+        "vertical_plan": (described["video_filter"], described["mode"]),
+    }
+
+
+def apply_editor_layout(source: Path, layout: dict) -> bool:
+    """Replace ``source`` with the composed layout. False leaves it untouched."""
+    from ..media.reframing import render_reframed_clip_ffmpeg
+
+    dest = source.with_name(f".layout-{uuid.uuid4().hex}.mp4")
+    try:
+        ok, _, _ = render_reframed_clip_ffmpeg(
+            source,
+            dest,
+            layout["output_format"],
+            speaker_plan=layout.get("speaker_plan"),
+            vertical_plan=layout.get("vertical_plan"),
+        )
+        if not ok or not dest.is_file() or dest.stat().st_size == 0:
+            return False
+        dest.replace(source)
+        return True
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "Could not apply the editor reframing layout", exc_info=True
+        )
+        return False
+    finally:
+        dest.unlink(missing_ok=True)
+
+
+def bake_editor_layout(
+    clean: Path,
+    output_format: str,
+    source: Path,
+    ranges: list,
+) -> bool:
+    """Compose a split or stacked layout into ``clean`` when the clip has one."""
+    from ..config import get_config
+    from ..media.speaker_framing import build_clip_speaker_turns
+
+    turns: list = []
+    words: list = []
+    # Clip generation only supplies diarized speakers when SPEAKER_FRAMING is
+    # on. Loading them here unconditionally can bake an overlap layout the
+    # generated clip never had, just by opening the editor.
+    if output_format == "vertical" and get_config().speaker_framing:
+        try:
+            turns, words = build_clip_speaker_turns(source, ranges)
+        except Exception:
+            logging.getLogger(__name__).warning(
+                "Speaker turns unavailable for the editor layout", exc_info=True
+            )
+    layout = editor_preserved_layout(clean, output_format, turns, words)
+    if not layout:
+        return False
+    return apply_editor_layout(clean, layout)
+
+
 def upgrade_document(document: dict, clip: dict, task: dict) -> dict:
     """Fill fields that drafts saved by older editor versions don't have.
 
@@ -330,6 +435,19 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             )
             if not rendered:
                 raise ValueError("Could not prepare the original video")
+            from ..media.common import VALID_OUTPUT_FORMATS
+
+            output_format = source_settings.get("output_format") or "vertical"
+            if output_format not in VALID_OUTPUT_FORMATS:
+                output_format = "vertical"
+            # Split-screen and stacked layouts are a composed frame, not a
+            # vertical or original crop. Bake that frame into the editor
+            # source so preview and export show it. Other clips keep this
+            # uncropped trim and the crop chosen below.
+            if output_format in {"vertical", "vertical_split"}:
+                await run_in_thread(
+                    bake_editor_layout, clean, output_format, source, local_ranges
+                )
             metadata = await run_in_thread(make_assets, directory)
             transcript = load_cached_transcript_data(source)
             timed = get_words_for_keep_ranges(transcript, local_ranges) if transcript else []
@@ -338,8 +456,10 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             )
             duration = metadata["duration"]
             emphasis = generated_emphasis(words, task)
-            original_format = source_settings.get("output_format") == "original"
+            original_format = output_format == "original"
             # Vertical clips are generated at 1080x1920; "original" keeps the source size.
+            # A baked split or stack is already 1080x1920, so this vertical cover
+            # shows that frame in full instead of cropping the source again.
             clip_width, clip_height = (
                 (metadata["width"], metadata["height"]) if original_format else (1080, 1920)
             )

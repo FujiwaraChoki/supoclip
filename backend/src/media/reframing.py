@@ -1211,6 +1211,17 @@ def build_vertical_compositor_filter(
     )
 
 
+def _described(
+    kind: str, video_filter: str, mode: str, caption_y: Optional[float]
+) -> Dict[str, Any]:
+    return {
+        "kind": kind,
+        "video_filter": video_filter,
+        "mode": mode,
+        "caption_y": caption_y,
+    }
+
+
 def build_vertical_filter_plan(
     input_path: Path,
     width: int,
@@ -1224,6 +1235,26 @@ def build_vertical_filter_plan(
     'complex' is a filter_complex producing [vout]. caption_y is a 0-1 output
     fraction that keeps captions off the detected face, or None to keep the
     template default.
+    """
+    described = describe_vertical_layout(
+        input_path, width, height, speaker_turns, speaker_words
+    )
+    return described["video_filter"], described["mode"], described["caption_y"]
+
+
+def describe_vertical_layout(
+    input_path: Path,
+    width: int,
+    height: int,
+    speaker_turns: Optional[List[Dict[str, Any]]] = None,
+    speaker_words: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Same plan as ``build_vertical_filter_plan``, plus a layout ``kind``.
+
+    Kinds the editor keeps whole are ``reaction`` (reactor above the source),
+    ``stack`` (side-by-side call tiles) and ``overlap`` (two speakers at once).
+    ``crop``, ``speaker``, ``stage``, ``fit`` and ``compositor`` stay on the
+    editor's vertical or original crop.
 
     All-face clips use a face-aware layout when the subject would otherwise
     sit low in a full-height crop (stacked call tiles, a wider stage for one
@@ -1253,7 +1284,7 @@ def build_vertical_filter_plan(
     if crop_w >= width:
         sx, sy, sw, sh = detect_optimal_crop_region(input_path, 0, min(duration, 12.0))
         tail = kenburns_zoom_fragment(duration) or VERTICAL_SCALE_CHAIN
-        return (f"crop={sw}:{sh}:{sx}:{sy},{tail}", "vf", None)
+        return _described("crop", f"crop={sw}:{sh}:{sx}:{sy},{tail}", "vf", None)
 
     # One fast decode pass yields the face track, face boxes, and scene cuts.
     try:
@@ -1309,10 +1340,10 @@ def build_vertical_filter_plan(
     )
     if reaction:
         logger.info("Reaction layout: inset %s, %d source sections", reaction['inset'], len(reaction['source_runs']))
-        return reaction['video_filter'], 'complex', reaction['caption_y']
+        return _described("reaction", reaction["video_filter"], "complex", reaction["caption_y"])
 
     if all(s["kind"] == "fit" for s in plan) and content_fits:
-        return build_full_frame_filter(), "complex", 0.80
+        return _described("fit", build_full_frame_filter(), "complex", 0.80)
 
     # choose_talking_head_layout already refuses cut-heavy clips (more than
     # four cuts). One jump cut must not drop stage, stack, or gallery layouts.
@@ -1340,15 +1371,18 @@ def build_vertical_filter_plan(
                 # Overlap gets full-bleed panels even if the wide shot looks
                 # like a call. Put captions between the two faces.
                 caption_y = 0.5 if speaker_mode == "complex" else bleed_caption(face_samples)
-                return speaker_filter, speaker_mode, caption_y
+                kind = "overlap" if speaker_mode == "complex" else "speaker"
+                return _described(kind, speaker_filter, speaker_mode, caption_y)
     if talking:
         logger.info(
             "Face-aware vertical layout: %s (upscale %.2fx, caption_y %.2f)",
             talking["kind"], talking["upscale"], talking["caption_y"],
         )
-        return (talking["video_filter"], "complex", talking["caption_y"])
+        return _described(
+            talking["kind"], talking["video_filter"], "complex", talking["caption_y"]
+        )
     if all(s["kind"] == "fit" for s in plan):
-        return build_full_frame_filter(), "complex", 0.80
+        return _described("fit", build_full_frame_filter(), "complex", 0.80)
 
     keys = build_crop_trajectory(track, width, crop_w) if track else []
     # A cut by itself is not camera motion. Ken Burns stays available unless
@@ -1378,19 +1412,21 @@ def build_vertical_filter_plan(
         if not moving:
             zoom = kenburns_zoom_fragment(duration)
             if zoom:
-                return (
+                return _described(
+                    "crop",
                     f"crop={crop_w}:{crop_h}:{static_x}:0,{zoom}",
                     "vf",
                     bleed_caption(face_samples),
                 )
-        return (crop_chain, "vf", bleed_caption(face_samples))
+        return _described("crop", crop_chain, "vf", bleed_caption(face_samples))
 
     face_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "face"]
     logger.info(
         "Scene-aware vertical layout: %d face shot(s), %d content shot(s)",
         len(face_intervals), len(fit_intervals),
     )
-    return (
+    return _described(
+        "compositor",
         build_vertical_compositor_filter(crop_chain, face_intervals, fit_intervals),
         "complex",
         bleed_caption(face_samples),
@@ -1406,6 +1442,7 @@ def render_reframed_clip_ffmpeg(
     speaker_turns: Optional[List[Dict[str, Any]]] = None,
     speaker_words: Optional[List[Dict[str, Any]]] = None,
     vertical_plan: Optional[Tuple[str, str]] = None,
+    speaker_plan: Optional[Dict[str, Any]] = None,
 ) -> Tuple[bool, int, int]:
     """Render the final framed clip and (optionally) burn subtitles in one pass.
 
@@ -1466,11 +1503,16 @@ def render_reframed_clip_ffmpeg(
         ]
         return run_ffmpeg_command(command).returncode == 0, out_w, out_h
 
-    plan = (
-        detect_speaker_reframe_plan(input_path, output_format)
-        if output_format in {"vertical_pan", "vertical_split"}
-        else None
-    )
+    # A caller that already built the split or pan plan (the editor) skips a
+    # second face pass and renders that exact layout.
+    if speaker_plan is not None:
+        plan = speaker_plan
+    else:
+        plan = (
+            detect_speaker_reframe_plan(input_path, output_format)
+            if output_format in {"vertical_pan", "vertical_split"}
+            else None
+        )
 
     if plan and plan["mode"] == "split":
         left = plan["regions"]["left"]
