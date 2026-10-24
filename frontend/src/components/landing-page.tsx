@@ -39,7 +39,9 @@ import {
 } from "lucide-react";
 import { isLandingOnlyModeEnabled } from "@/lib/app-flags";
 import {
+  annualFullPrice,
   annualMonthlyEquivalent,
+  annualMonthsFree,
   billingPlanMessageKey,
   getPublicBillingPlans,
   planPrice,
@@ -125,6 +127,7 @@ function getPlans(
       id: "selfHost",
       name: tCommon("plans.selfHost"),
       price: "$0",
+      originalPrice: null as string | null,
       period: t("pricing.period.forever"),
       note: null as string | null,
       soon: null as string | null,
@@ -147,6 +150,7 @@ function getPlans(
         id: plan.id,
         name: tCommon(`plans.${billingPlanMessageKey(plan.id)}`),
         price: `$${planPrice(plan, interval)}`,
+        originalPrice: interval === "year" && annualMonthsFree(plan) > 0 ? `$${annualFullPrice(plan)}` : null,
         period: interval === "year" ? t("pricing.period.year") : t("pricing.period.month"),
         note: interval === "year" ? t("pricing.billedYearly", { price: annualMonthlyEquivalent(plan) }) : null,
         soon: planText.comingSoon(plan),
@@ -748,6 +752,15 @@ export default function LandingPage() {
 
                     <div className="mb-8 w-full @container">
                       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        {plan.originalPrice && (
+                          <span
+                            className={`text-lg line-through ${
+                              plan.highlighted ? "text-primary-foreground/50" : "text-muted-foreground"
+                            }`}
+                          >
+                            {plan.originalPrice}
+                          </span>
+                        )}
                         <span
                           className="max-w-full whitespace-nowrap text-[clamp(1.5rem,15cqi,3rem)] font-extrabold tracking-tight"
                           style={{ fontFamily: "var(--font-syne), system-ui" }}

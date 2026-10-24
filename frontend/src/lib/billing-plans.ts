@@ -121,6 +121,12 @@ export function planPrice(plan: PublicBillingPlan, interval: BillingInterval): s
   return interval === "year" ? plan.priceAnnual : plan.priceMonthly;
 }
 
+/** What twelve months would cost at the monthly price, e.g. "119.88"; shown struck through next to the annual price. */
+export function annualFullPrice(plan: PublicBillingPlan): string {
+  const full = Number(plan.priceMonthly) * 12;
+  return Number.isInteger(full) ? String(full) : full.toFixed(2);
+}
+
 /** What an annual plan works out to per month, e.g. "8.33". */
 export function annualMonthlyEquivalent(plan: PublicBillingPlan): string {
   const monthly = Number(plan.priceAnnual) / 12;

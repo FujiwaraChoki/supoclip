@@ -12,6 +12,7 @@ import { CapacityIllustration, FontIllustration, LengthIllustration } from "@/co
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { BillingSummary } from "@/hooks/use-billing-summary";
 import {
+  annualFullPrice,
   annualMonthlyEquivalent,
   annualMonthsFree,
   billingPlanMessageKey,
@@ -458,6 +459,9 @@ function PlanOption({
         </span>
       </span>
       <span className="text-right text-sm font-semibold tabular-nums">
+        {interval === "year" && annualMonthsFree(plan) > 0 && (
+          <span className="mr-1.5 text-xs font-normal text-muted-foreground line-through">${annualFullPrice(plan)}</span>
+        )}
         ${planPrice(plan, interval)}
         <span className="text-xs font-normal text-muted-foreground">{interval === "year" ? text.t("perYear") : text.t("perMonth")}</span>
         {interval === "year" && (
