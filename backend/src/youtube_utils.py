@@ -7,7 +7,6 @@ import asyncio
 from datetime import datetime
 import logging
 import re
-import subprocess
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -18,6 +17,7 @@ import yt_dlp
 
 from .apify_youtube_downloader import ApifyDownloadError, download_video_via_apify
 from .config import get_config
+from .media.ffmpeg import ffprobe_video_size
 from .youtube_proxy import (
     YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
     ByteBudget,
@@ -198,26 +198,13 @@ def _parse_optional_int(value: Any) -> Optional[int]:
 
 
 def _get_local_video_dimensions(path: Path) -> tuple[int, int]:
-    """Return local video width/height using ffprobe."""
+    """Displayed width/height of a local file, or (0, 0) if it cannot be read.
+
+    Download ranking only uses this to compare candidates. A probe failure
+    leaves the file eligible by size instead of failing the download.
+    """
     try:
-        command = [
-            "ffprobe",
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-show_entries",
-            "stream=width,height",
-            "-of",
-            "csv=s=x:p=0",
-            str(path),
-        ]
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-        output = result.stdout.strip()
-        if not output or "x" not in output:
-            return (0, 0)
-        width_str, height_str = output.split("x", 1)
-        return (int(width_str), int(height_str))
+        return ffprobe_video_size(path)
     except Exception:
         return (0, 0)
 

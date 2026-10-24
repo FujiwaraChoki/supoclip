@@ -147,7 +147,90 @@ def audio_stream_map_args(audio_stream: Optional[int]) -> List[str]:
     return args
 
 
+def stream_rotation_degrees(stream: dict) -> int:
+    """Display rotation in degrees from a stream's rotate tag or display matrix.
+
+    ``tags.rotate`` wins when it parses. Otherwise the first side-data
+    ``rotation`` is used (ffprobe's display-matrix angle). ``0`` means the
+    coded frame is already the displayed orientation.
+    """
+    tags = stream.get("tags") or {}
+    raw = tags.get("rotate")
+    if raw is not None:
+        try:
+            return int(round(float(raw)))
+        except (TypeError, ValueError):
+            pass
+    for side in stream.get("side_data_list") or []:
+        if not isinstance(side, dict) or "rotation" not in side:
+            continue
+        try:
+            return int(round(float(side["rotation"])))
+        except (TypeError, ValueError):
+            continue
+    return 0
+
+
+def displayed_video_size(width: int, height: int, rotation: int) -> Tuple[int, int]:
+    """Pixel size after a 90° or 270° display rotation.
+
+    Matches ``VideoGeometry.display_width`` / ``display_height`` for square
+    pixels. Sample aspect ratio is not applied: crop and scale filters address
+    stored pixels, and anamorphic sources are squared only by normalization.
+    """
+    if abs(rotation) % 180 == 90:
+        return height, width
+    return width, height
+
+
+def parse_ffprobe_video_size(payload: object) -> Tuple[int, int]:
+    """Displayed size of the first video stream in an ffprobe JSON document.
+
+    Extra streams and side-data entries are ignored. A display-matrix rotation
+    of 90° or 270° swaps the coded width and height, because ffmpeg autorotates
+    before user filters unless ``-noautorotate`` is set.
+    """
+    if not isinstance(payload, dict):
+        raise ValueError("ffprobe size payload is not an object")
+    streams = payload.get("streams")
+    if not isinstance(streams, list):
+        raise ValueError("ffprobe returned no video stream")
+    stream = None
+    for candidate in streams:
+        if not isinstance(candidate, dict):
+            continue
+        codec_type = candidate.get("codec_type")
+        if codec_type not in (None, "video"):
+            continue
+        if "width" not in candidate or "height" not in candidate:
+            continue
+        stream = candidate
+        break
+    if stream is None:
+        raise ValueError("ffprobe returned no video stream")
+    try:
+        width = int(stream["width"])
+        height = int(stream["height"])
+    except (TypeError, ValueError) as exc:
+        raise ValueError("ffprobe returned invalid video dimensions") from exc
+    if width <= 0 or height <= 0:
+        raise ValueError("ffprobe returned invalid video dimensions")
+    return displayed_video_size(width, height, stream_rotation_degrees(stream))
+
+
 def ffprobe_video_size(video_path: Path) -> Tuple[int, int]:
+    """Displayed pixel size of the first video stream.
+
+    The probe is JSON, not ``csv=s=x``. A stream with side data (a display
+    matrix, HDR metadata, SEI) makes that csv writer emit a trailing separator,
+    so ``1920x1080`` becomes ``1920x1080x`` and ``split("x", 1)`` leaves the
+    height as ``1080x``.
+
+    The returned size is the one ffmpeg filters see. Autorotate is on by
+    default and this pipeline never passes ``-noautorotate``, so a phone file
+    stored as 1920×1080 with rotation -90 is 1080×1920 inside crop, scale, and
+    rawvideo analysis.
+    """
     result = run_ffmpeg_command(
         [
             "ffprobe",
@@ -156,17 +239,25 @@ def ffprobe_video_size(video_path: Path) -> Tuple[int, int]:
             "-select_streams",
             "v:0",
             "-show_entries",
-            "stream=width,height",
+            "stream=width,height,codec_type:stream_tags=rotate:stream_side_data=rotation",
             "-of",
-            "csv=s=x:p=0",
+            "json",
             str(video_path),
         ],
         timeout=60,
     )
-    if result.returncode != 0 or "x" not in result.stdout:
+    if result.returncode != 0:
         raise RuntimeError(f"Unable to read video size for {video_path}")
-    width, height = result.stdout.strip().split("x", 1)
-    return int(width), int(height)
+    try:
+        payload = json.loads(result.stdout or "")
+    except ValueError as exc:
+        raise RuntimeError(
+            f"Unable to read video size for {video_path}: probe output was not JSON"
+        ) from exc
+    try:
+        return parse_ffprobe_video_size(payload)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"Unable to read video size for {video_path}: {exc}") from exc
 
 
 def ffprobe_duration(video_path: Path) -> float:

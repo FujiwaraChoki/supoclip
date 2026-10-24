@@ -12,7 +12,7 @@ import tempfile
 import uuid
 
 from .caption_templates import get_template
-from .media.ffmpeg import ffmpeg_escape_filter_path
+from .media.ffmpeg import ffmpeg_escape_filter_path, ffprobe_video_size
 from .media.source_limits import FPS_EPSILON, MAX_OUTPUT_FPS, probe_video_geometry
 from .video_utils import (
     ass_fonts_dir,
@@ -67,25 +67,12 @@ def _ffprobe_duration(path: Path) -> float:
 
 
 def _ffprobe_size(path: Path) -> tuple[int, int]:
-    result = subprocess.run(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-select_streams",
-            "v:0",
-            "-show_entries",
-            "stream=width,height",
-            "-of",
-            "csv=s=x:p=0",
-            str(path),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    width, height = result.stdout.strip().split("x", 1)
-    return int(width), int(height)
+    """Displayed pixel size of the first video stream.
+
+    Caption play resolution and editor scale filters run after ffmpeg's
+    default autorotate, so this is the same size ``ffprobe_video_size`` returns.
+    """
+    return ffprobe_video_size(path)
 
 
 def _double_bitrate(value: str) -> str:

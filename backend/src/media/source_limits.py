@@ -143,21 +143,11 @@ def exceeds_output_limits(width: int, height: int, fps: float | None) -> bool:
 
 
 def _rotation_degrees(stream: dict) -> int:
-    tags = stream.get("tags") or {}
-    raw = tags.get("rotate")
-    if raw is not None:
-        try:
-            return int(round(float(raw)))
-        except (TypeError, ValueError):
-            pass
-    for side in stream.get("side_data_list") or []:
-        if not isinstance(side, dict) or "rotation" not in side:
-            continue
-        try:
-            return int(round(float(side["rotation"])))
-        except (TypeError, ValueError):
-            continue
-    return 0
+    # Same rotate-tag / display-matrix rule as ffprobe_video_size. The 1080p
+    # cap still squares sample aspect ratio after this; crop sizes do not.
+    from .ffmpeg import stream_rotation_degrees
+
+    return stream_rotation_degrees(stream)
 
 
 def _sample_aspect(value: str | None) -> float:
