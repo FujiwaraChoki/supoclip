@@ -4,7 +4,7 @@
 # can be copied in from outside frontend/. Paths below are relative to that root.
 
 # Use Node.js with pnpm as the package manager
-FROM node:22-bookworm-slim AS base
+FROM node:22.23.4-bookworm-slim AS base
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -114,7 +114,7 @@ RUN pnpm run build
 
 # Runner stage (for production)
 # Next's standalone output is a Node server, so production only needs Node.
-FROM node:22-bookworm-slim AS runner
+FROM node:22.23.4-bookworm-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production

@@ -1,0 +1,46 @@
+name: Image security
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: frontend
+            context: .
+            options: --target runner
+          - service: backend
+            context: ./backend
+            options: --build-arg BACKEND_CPU_ONLY=true
+          - service: mcp
+            context: ./mcp
+            options: ""
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the deployable image with refreshed base layers
+        run: >-
+          docker build --pull ${{ matrix.options }}
+          --tag supoclip-security:${{ matrix.service }}
+          --file ${{ matrix.service }}/Dockerfile ${{ matrix.context }}
+      - name: Reject fixable critical vulnerabilities in the final image
+        run: >-
+          docker run --rm
+          --volume /var/run/docker.sock:/var/run/docker.sock
+          aquasec/trivy:0.76.1 image
+          --scanners vuln --severity CRITICAL --ignore-unfixed
+          --exit-code 1 --timeout 15m
+          supoclip-security:${{ matrix.service }}

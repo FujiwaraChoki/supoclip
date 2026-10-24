@@ -6,7 +6,7 @@ FRONTEND_TEST_ENV = DATABASE_URL=$${TEST_DATABASE_URL:-$${DATABASE_URL:-postgres
 test: test-backend test-frontend
 
 test-backend:
-	cd backend && uv sync --all-groups
+	cd backend && uv sync --frozen --all-groups
 	cd backend && $(BACKEND_TEST_ENV) .venv/bin/pytest
 
 test-frontend:

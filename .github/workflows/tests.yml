@@ -55,7 +55,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends ffmpeg
       - name: Install backend dependencies
-        run: cd backend && uv sync --all-groups
+        run: cd backend && uv sync --frozen --all-groups
       - name: Run backend tests
         run: cd backend && .venv/bin/pytest
 
@@ -72,7 +72,7 @@ jobs:
           package_json_file: frontend/package.json
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22.23.4"
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install frontend dependencies
@@ -130,11 +130,11 @@ jobs:
           package_json_file: frontend/package.json
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22.23.4"
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - name: Install backend dependencies
-        run: cd backend && uv sync --all-groups
+        run: cd backend && uv sync --frozen --all-groups
       - name: Install frontend dependencies
         run: cd frontend && pnpm install --frozen-lockfile
       - name: Install Playwright browsers

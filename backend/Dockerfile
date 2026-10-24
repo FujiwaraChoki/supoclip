@@ -1,5 +1,5 @@
 # Use Python 3.11 slim image
-FROM python:3.11-slim
+FROM python:3.11.17-slim-trixie
 
 # Install system dependencies including ffmpeg and unzip (for deno).
 # Noto provides fallback glyphs for multilingual captions (including Hindi)
