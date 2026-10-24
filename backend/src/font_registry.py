@@ -253,6 +253,93 @@ def get_font_family_name(font_path: Path) -> str | None:
     return None
 
 
+def _parse_cmap_codepoints(data: bytes) -> frozenset[int] | None:
+    num_tables = struct.unpack_from(">H", data, 4)[0]
+    cmap_offset = None
+    for table_index in range(num_tables):
+        tag, _checksum, table_offset, _length = struct.unpack_from(
+            ">4sIII", data, 12 + table_index * 16
+        )
+        if tag == b"cmap":
+            cmap_offset = table_offset
+            break
+    if cmap_offset is None:
+        return None
+
+    subtables: dict[int, int] = {}
+    _version, subtable_count = struct.unpack_from(">HH", data, cmap_offset)
+    for index in range(subtable_count):
+        platform_id, encoding_id, offset = struct.unpack_from(
+            ">HHI", data, cmap_offset + 4 + index * 8
+        )
+        # Only Unicode subtables: Windows BMP/full or the Unicode platform.
+        if platform_id == 0 or (platform_id == 3 and encoding_id in {1, 10}):
+            fmt = struct.unpack_from(">H", data, cmap_offset + offset)[0]
+            subtables.setdefault(fmt, cmap_offset + offset)
+
+    codepoints: set[int] = set()
+    if 12 in subtables:
+        start = subtables[12]
+        group_count = struct.unpack_from(">I", data, start + 12)[0]
+        for group in range(group_count):
+            first, last, first_glyph = struct.unpack_from(
+                ">III", data, start + 16 + group * 12
+            )
+            if first_glyph:
+                codepoints.update(range(first, last + 1))
+        return frozenset(codepoints)
+
+    if 4 not in subtables:
+        return None
+    start = subtables[4]
+    seg_count = struct.unpack_from(">H", data, start + 6)[0] // 2
+    ends_at = start + 14
+    starts_at = ends_at + seg_count * 2 + 2
+    deltas_at = starts_at + seg_count * 2
+    range_offsets_at = deltas_at + seg_count * 2
+    for seg in range(seg_count):
+        end_code = struct.unpack_from(">H", data, ends_at + seg * 2)[0]
+        start_code = struct.unpack_from(">H", data, starts_at + seg * 2)[0]
+        delta = struct.unpack_from(">h", data, deltas_at + seg * 2)[0]
+        range_offset = struct.unpack_from(">H", data, range_offsets_at + seg * 2)[0]
+        for code in range(start_code, min(end_code, 0xFFFE) + 1):
+            if range_offset == 0:
+                glyph = (code + delta) & 0xFFFF
+            else:
+                glyph_at = (
+                    range_offsets_at + seg * 2 + range_offset + (code - start_code) * 2
+                )
+                glyph = struct.unpack_from(">H", data, glyph_at)[0]
+                if glyph:
+                    glyph = (glyph + delta) & 0xFFFF
+            if glyph:
+                codepoints.add(code)
+    return frozenset(codepoints)
+
+
+@lru_cache(maxsize=128)
+def _cached_font_codepoints(
+    path: str, modified_ns: int, size: int
+) -> frozenset[int] | None:
+    try:
+        return _parse_cmap_codepoints(Path(path).read_bytes())
+    except Exception:
+        return None
+
+
+def get_font_codepoints(font_path: Path) -> frozenset[int] | None:
+    """Unicode codepoints the font actually has glyphs for (None if unreadable).
+
+    Renderers silently substitute another font for missing glyphs, so callers
+    check coverage before committing to a font for a given text.
+    """
+    try:
+        stat = Path(font_path).stat()
+    except OSError:
+        return None
+    return _cached_font_codepoints(str(font_path), stat.st_mtime_ns, stat.st_size)
+
+
 def sanitize_font_stem(file_name: str) -> str:
     raw_stem = Path(file_name).stem
     safe_stem = re.sub(r"[^A-Za-z0-9_-]", "-", raw_stem).strip("-")

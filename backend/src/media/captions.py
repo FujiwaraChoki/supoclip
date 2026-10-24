@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Tuple
 from ..emoji_captions import annotate_caption_words
 from ..font_registry import find_font_path
+from ..font_registry import get_font_codepoints
 from ..font_registry import get_font_family_name
 from ..caption_templates import get_template
 from ..clip_source_map import normalize_source_ranges
@@ -185,6 +186,50 @@ def ass_fonts_dir(font_family: Optional[str]) -> Optional[Path]:
     return FONTS_DIR if FONTS_DIR.exists() else None
 
 
+# Bundled font used when the chosen one lacks glyphs for the clip's text. Its
+# width is close to THEBOLDFONT's, so hook-title line wrapping still fits.
+GLYPH_FALLBACK_FONT = "TikTokSans-Bold"
+# These draw lowercase letters as capitals; their fallback is uppercased so the
+# clip keeps the same all-caps look.
+CAPS_ONLY_FONTS = frozenset({"THEBOLDFONT"})
+
+
+def ensure_glyph_coverage(
+    font_family: str, template: Dict[str, Any], texts: Iterable[str]
+) -> Tuple[str, Dict[str, Any]]:
+    """Swap to GLYPH_FALLBACK_FONT when ``font_family`` cannot draw ``texts``.
+
+    libass silently renders missing glyphs from another font, so the free
+    THEBOLDFONT (no accented letters) printed "ACTúA" with a lowercase ú taken
+    from a system font. One covering font for the whole clip looks consistent.
+    """
+    font_path = find_font_path(font_family, allow_all_user_fonts=True)
+    fallback_path = find_font_path(GLYPH_FALLBACK_FONT)
+    # ass_fonts_dir() points libass at the original font's folder only.
+    if not font_path or not fallback_path or font_path.parent != fallback_path.parent:
+        return font_family, template
+    covered = get_font_codepoints(font_path)
+    fallback_covered = get_font_codepoints(fallback_path)
+    if not covered or not fallback_covered:
+        return font_family, template
+
+    missing = {
+        ch for text in texts for ch in text if ch.isalpha() and ord(ch) not in covered
+    }
+    if not missing or any(ord(ch) not in fallback_covered for ch in missing):
+        return font_family, template
+
+    logger.info(
+        "Font %s has no glyphs for %s; rendering captions with %s",
+        font_family,
+        "".join(sorted(missing)),
+        GLYPH_FALLBACK_FONT,
+    )
+    if font_path.stem in CAPS_ONLY_FONTS:
+        template = {**template, "uppercase": True}
+    return GLYPH_FALLBACK_FONT, template
+
+
 def _balance_title_lines(words: List[str], max_chars: int) -> List[str]:
     """Split title words into one line, or two lines balanced around the middle."""
     text = " ".join(words)
@@ -350,6 +395,12 @@ def build_assemblyai_ass_subtitles(
     if not relevant_words and not hook_title:
         logger.warning("No words or hook title available for ASS subtitles")
         return False
+
+    effective_font_family, template = ensure_glyph_coverage(
+        effective_font_family,
+        template,
+        [hook_title or ""] + [str(word.get("text", "")) for word in relevant_words],
+    )
 
     # --- styling knobs (new template fields, all optional) ---
     uppercase = bool(template.get("uppercase"))
