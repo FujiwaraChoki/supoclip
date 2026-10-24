@@ -327,7 +327,7 @@ With a proxy set, a job downloads modest audio first, picks clips, then fetches 
 
 ## Apify YouTube Downloader
 
-SupoClip uses the actor explicitly configured in the private environment as the primary YouTube download path. Metadata preflight and fallback downloads rely on the local `yt-dlp` stack over a direct connection. When `YOUTUBE_PROXY_URL` is set, the proxy attempt runs before Apify.
+SupoClip uses the actor explicitly configured in the private environment as the primary YouTube download path. Metadata preflight and fallback downloads rely on the local `yt-dlp` stack over a direct connection. When `YOUTUBE_PROXY_URL` is set, the proxy attempt runs before Apify. API Router runs after the Apify pool.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -337,8 +337,11 @@ SupoClip uses the actor explicitly configured in the private environment as the 
 
 ## RapidAPI YouTube Downloader
 
-An optional paid download service. Set `YOUTUBE_DOWNLOAD_PROVIDER=rapidapi` to try it first, then
-the Apify pool, then yt-dlp; with `apify` it runs after the Apify pool. Missing settings skip it.
+An optional paid download service. It runs after the Apify pool, including when
+`YOUTUBE_DOWNLOAD_PROVIDER=rapidapi`. With a proxy configured, or when that
+provider is `apify` or `rapidapi`, direct yt-dlp runs only after both paid
+backups. With the default `yt_dlp` provider and no proxy, direct yt-dlp still
+runs first, then Apify, then this service. Missing settings skip it.
 
 | Variable | Default | Purpose |
 |---|---|---|

@@ -787,7 +787,9 @@ def download_audio(
     itag 140) through the native downloader. A 403 or yt-dlp's "unable to
     download video data" error retries once with an HLS audio format from
     that same info response. The format dict is passed to ``process_info``
-    so ffmpeg is not asked to fetch a remote playlist.
+    so ffmpeg is not asked to fetch a remote playlist. A remaining failure
+    is the caller's signal to try the section downloader, then Apify, then
+    API Router. This function does not call those later steps.
     """
     runtime = get_config()
     counter = budget or ByteBudget(runtime.youtube_download_max_bytes)
