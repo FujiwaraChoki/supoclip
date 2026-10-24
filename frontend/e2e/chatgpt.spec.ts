@@ -61,3 +61,11 @@ test("keeps plan usage disabled when consent was not granted", async ({ page }) 
   await expect(page.getByText(/ChatGPT plan usage is not enabled/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Use ChatGPT for clip analysis" })).toHaveCount(0);
 });
+
+test("uses the selected interface language for ChatGPT controls", async ({ page, baseURL }) => {
+  await page.context().addCookies([{ name: "NEXT_LOCALE", value: "de", url: baseURL! }]);
+  await page.route("**/api/chatgpt/status", (route) => route.fulfill({ json: { accounts: [] } }));
+  await page.goto("/settings/chatgpt");
+  await expect(page.getByRole("heading", { name: "Deinen ChatGPT-Tarif verwenden" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mit ChatGPT fortfahren" })).toBeVisible();
+});

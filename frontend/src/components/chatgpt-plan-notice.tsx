@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 
 export function ChatGPTPlanNotice({ userId }: { userId?: string }) {
+  const t = useTranslations("settings.chatgpt");
   const [active, setActive] = useState(false);
   useEffect(() => {
     if (!userId || process.env.NEXT_PUBLIC_SELF_HOST === "false") return;
@@ -16,7 +18,7 @@ export function ChatGPTPlanNotice({ userId }: { userId?: string }) {
   }, [userId]);
   if (!active) return null;
   return <p className="mt-3 text-center text-xs text-muted-foreground">
-    Using ChatGPT plan for clip analysis · <Link className="underline" href="/settings/chatgpt">Change model</Link>
-    {" · "}<a className="underline" href="https://chatgpt.com/settings/usage" target="_blank" rel="noopener noreferrer">Manage usage</a>
+    {t("notice")} · <Link className="underline" href="/settings/chatgpt">{t("changeModel")}</Link>
+    {" · "}<a className="underline" href="https://chatgpt.com/settings/usage" target="_blank" rel="noopener noreferrer">{t("manageUsage")}</a>
   </p>;
 }

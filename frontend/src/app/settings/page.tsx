@@ -553,8 +553,8 @@ export default function SettingsPage() {
         {process.env.NEXT_PUBLIC_SELF_HOST !== "false" && <Link href="/settings/chatgpt" className="group flex items-center gap-4 rounded-2xl border bg-background p-5 transition-colors hover:border-foreground/25">
           <span className="flex size-9 items-center justify-center rounded-lg bg-muted"><Bot className="size-4" /></span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold">Use your ChatGPT plan</span>
-            <span className="block text-xs text-muted-foreground">Connect ChatGPT for clip analysis on your local installation</span>
+            <span className="block text-sm font-semibold">{t("chatgpt.title")}</span>
+            <span className="block text-xs text-muted-foreground">{t("chatgpt.linkDescription")}</span>
           </span>
           <ChevronRight className="size-4 text-muted-foreground" />
         </Link>}
