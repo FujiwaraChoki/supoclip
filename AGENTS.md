@@ -52,4 +52,6 @@ PRs should include:
 
 ## Security & Configuration Tips
 - Never commit real secrets; use `.env.example` as the template.
+- Preserve the committed dependency lockfiles and patched base-image versions when deploying. Run the `Image security` checks against freshly built final images; do not bypass a failing critical-vulnerability check with a server-only tag or an unpinned package install.
+- Before a production restart, check both SupoClip task records and the worker queue, let active clips finish, and recheck after stopping new submissions. Follow `docs/security-updates.md` for the deployment and rollback checks.
 - Required runtime keys include `ASSEMBLY_AI_API_KEY` and either one hosted LLM provider key (`OPENAI_API_KEY`, `GOOGLE_API_KEY`, or `ANTHROPIC_API_KEY`) or an Ollama model configuration (`LLM=ollama:*`, optional `OLLAMA_BASE_URL`).
