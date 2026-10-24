@@ -32,6 +32,7 @@ from ..youtube_utils import cleanup_downloaded_files, extract_video_id
 from ..youtube_source import load_time_map, localize_segment, restore_clip_timeline, transcript_source_for
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
+from ..chatgpt_analysis import chatgpt_account
 from ..clip_source_map import load_clip_caption_settings
 from ..media_storage import MediaStorage, media_work
 from ..utils.async_helpers import run_in_thread
@@ -314,6 +315,8 @@ class TaskService(ClipEditingMixin):
         video_path: Optional[Path] = None
         pending_clip_path: Optional[Path] = None
         clips_output_dir = Path(self.config.temp_dir) / "clips"
+        chatgpt_context_token = chatgpt_account.set(None)
+        using_chatgpt = False
 
         async def check_cancelled():
             if should_cancel and await should_cancel():
@@ -321,6 +324,11 @@ class TaskService(ClipEditingMixin):
 
         try:
             await check_cancelled()
+            if self.config.self_host and user_id:
+                from .chatgpt_service import active_chatgpt_account
+                if binding := await active_chatgpt_account(user_id):
+                    chatgpt_account.set(binding)
+                    using_chatgpt = True
             logger.info(f"Starting processing for task {task_id}")
             started_at = datetime.utcnow()
             stage_timings: Dict[str, float] = {}
@@ -347,7 +355,7 @@ class TaskService(ClipEditingMixin):
             # clip selection. Personalized analyses bypass the shared analysis
             # cache so one creator's history never shapes another's clips.
             performance_context = await self._load_performance_context(user_id)
-            if performance_context:
+            if performance_context or using_chatgpt:
                 cached_analysis_json = None
             cache_hit = bool(cached_transcript and cached_analysis_json)
 
@@ -443,7 +451,7 @@ class TaskService(ClipEditingMixin):
                 source_type=source_type,
                 video_path=MediaStorage().source_reference(url) if url.startswith("upload://s3/") else result.get("video_path"),
                 transcript_text=result.get("transcript"),
-                analysis_json=None if performance_context else result.get("analysis_json"),
+                analysis_json=None if performance_context or using_chatgpt else result.get("analysis_json"),
             )
 
             video_path = Path(result["video_path"])
@@ -638,6 +646,7 @@ class TaskService(ClipEditingMixin):
                     logger.exception("Could not publish task failure for %s", task_id)
             raise
         finally:
+            chatgpt_account.reset(chatgpt_context_token)
             await run_in_thread(self._cleanup_source_video, video_path, source_type, url)
             if source_type in {"twitch", "kick"}:
                 # Also handles failures before process_video_complete returns a

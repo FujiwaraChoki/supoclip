@@ -1,5 +1,10 @@
 # Configuration
 
+Local self-hosters can also use an eligible ChatGPT plan for clip analysis via
+**Settings → Use your ChatGPT plan**, without an LLM API key. See the
+[ChatGPT setup guide](./chatgpt.md) for local callback requirements, separate
+transcription configuration, credential storage, and usage limits.
+
 ## Twitch and Kick imports
 
 Twitch and Kick VOD/clip imports use an ordered, proxy-first provider chain. They reuse

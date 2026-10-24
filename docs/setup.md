@@ -120,6 +120,8 @@ Then run `docker compose up -d --build backend worker`. Changing
 `TRANSCRIPTION_PROVIDER` alone does not change the installed Torch variant.
 The backend and worker still use `linux/amd64` on Apple Silicon via emulation;
 this option avoids NVIDIA downloads but does not enable Apple GPU acceleration.
+CPU builds also omit Whisper's unused Triton GPU kernels. Package downloads are
+not retained in backend image layers, reducing disk usage during installation.
 GPU deployments should retain `BACKEND_CPU_ONLY=false` and their existing
 GPU runtime configuration. Local Python users can select `uv sync --extra cpu`
 or `uv sync --extra cuda`; these extras are mutually exclusive.
