@@ -47,7 +47,7 @@
     "upgrade": "升级",
     "upgradeMultiplier": "使用 {plan} 获得 {multiplier} 倍视频额度",
     "upgradeMore": "用 {plan} 做更多",
-    "upgradeDescription": "${price}/月 · 每月 {minutes} · {resolution} · YouTube 最长 {length}",
+    "upgradeDescription": "${price}/月{taxNote} · 每月 {minutes} · {resolution} · YouTube 最长 {length}",
     "choose": "选择 {name}",
     "actionFailed": "账单操作失败",
     "usageMinutesOf": "{used} / {limit} 分钟",
@@ -60,7 +60,7 @@
     "billedYearly": "按年计费",
     "upgradeMultiplierHd": "使用 {plan} 获得 {multiplier} 倍 {resolution} 视频额度",
     "switchYearlyTitle": "切换为按年付费，免费 {count} 个月",
-    "switchYearlyDescription": "${price}/年，约 ${monthly}/月。同一方案，每年计费一次。",
+    "switchYearlyDescription": "${price}/年{taxNote}，约 ${monthly}/月。同一方案，每年计费一次。",
     "switch": "切换",
     "monthlyEquivalentYearly": "${price}/月，按年计费"
   },

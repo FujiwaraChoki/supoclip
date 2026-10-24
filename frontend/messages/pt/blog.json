@@ -279,7 +279,7 @@
     "pricing": {
       "heading": "Modelo de preço: créditos versus planos versus a sua própria infraestrutura",
       "p1": "O <plans>artigo de planos e créditos</plans> do OpusClip descreve planos pagos que usam créditos por minutos de processamento, mais um plano grátis. O <watermark>artigo de marca d'água</watermark> diz que exportações do plano grátis podem levar uma marca d'água do OpusClip. Preços e quantidades de crédito mudam, então confira a página de preços atual do OpusClip em vez de confiar em números copiados num post.",
-      "p2": "O SupoClip oferece dois caminhos. O app hospedado tem <pro>{proName}</pro> a ${proPrice}/mês por {proLimit} horas de vídeo em 720p e <scale>{scaleName}</scale> a ${scalePrice}/mês por {scaleLimit} horas em 1080p, com cobrança anual e dois meses grátis. Não há plano hospedado grátis; processar exige uma assinatura. O caminho auto-hospedado é software grátis sem limites de plano. Você paga o servidor e as APIs de IA que configurar, e o <guide>guia de auto-hospedagem</guide> mostra uma instalação totalmente local sem taxas de IA por pedido."
+      "p2": "O SupoClip oferece dois caminhos. O app hospedado tem <pro>{proName}</pro> a ${proPrice}/mês{taxNote} por {proLimit} horas de vídeo em 720p e <scale>{scaleName}</scale> a ${scalePrice}/mês{taxNote} por {scaleLimit} horas em 1080p, com cobrança anual e dois meses grátis. Não há plano hospedado grátis; processar exige uma assinatura. O caminho auto-hospedado é software grátis sem limites de plano. Você paga o servidor e as APIs de IA que configurar, e o <guide>guia de auto-hospedagem</guide> mostra uma instalação totalmente local sem taxas de IA por pedido."
     },
     "chooseSupoclip": {
       "heading": "Quando o SupoClip encaixa melhor",

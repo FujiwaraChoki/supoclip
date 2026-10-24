@@ -104,7 +104,7 @@
     "refreshesOn": "Refreshes on {date}.",
     "refreshesNext": "Refreshes next month.",
     "startTitle": "Pick a plan to start clipping",
-    "startDescription": "From {price}/mo for {length} of video a month. Feel free to set everything up first.",
+    "startDescription": "From {price}/mo{taxNote} for {length} of video a month. Feel free to set everything up first.",
     "seePlans": "See plans",
     "limitTitle": "You've used all {length} of video this month",
     "limitWithPlan": "{refreshes} Or keep going with {plan}: {limit} of video a month.",

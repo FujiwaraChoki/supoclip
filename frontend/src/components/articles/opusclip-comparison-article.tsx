@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { ArticleShell, type ArticleFaq } from "@/components/articles/article-shell";
 import type { BlogPost } from "@/lib/blog-posts";
 import { getPublicBillingPlans } from "@/lib/billing-plans";
+import { formatPriceTaxNote } from "@/lib/managed-payments";
 import { SELF_HOSTING_GUIDE_HREF } from "@/lib/marketing-links";
 import { GITHUB_URL } from "@/lib/site";
 
@@ -18,6 +19,8 @@ const tocIds = ["verdict", "comparison", "pricing", "choose-supoclip", "choose-o
 
 export async function OpusClipComparisonArticle({ post }: { post: BlogPost }) {
   const t = await getTranslations("blog");
+  const billing = await getTranslations("billing");
+  const taxNote = formatPriceTaxNote(billing("plusTax"));
   const [pro, scale] = getPublicBillingPlans();
   const slug = "supoclip-vs-opusclip";
   const link = (href: string) => function ArticleLink(chunks: React.ReactNode) {
@@ -120,6 +123,7 @@ export async function OpusClipComparisonArticle({ post }: { post: BlogPost }) {
           scaleName: scale.name,
           scalePrice: scale.priceMonthly,
           scaleLimit: scale.minuteLimit / 60,
+          taxNote,
           pro: (chunks) => <strong>{chunks}</strong>,
           scale: (chunks) => <strong>{chunks}</strong>,
           guide: (chunks) => <Link href={SELF_HOSTING_GUIDE_HREF}>{chunks}</Link>,

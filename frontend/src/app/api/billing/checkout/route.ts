@@ -7,6 +7,7 @@ import { getStripeClient } from "@/lib/stripe";
 import { getServerBillingPlan } from "@/server/billing-plans";
 import { isBillingInterval, type BillingInterval } from "@/lib/billing-plans";
 import { findCreatorOffer, INVALID_CREATOR_CODE, type CreatorOffer } from "@/server/affiliates";
+import { stripeManagedPaymentsEnabled } from "@/lib/managed-payments";
 import type Stripe from "stripe";
 
 const APP_STORE_MANAGED_MESSAGE = "Your subscription is managed through the App Store";
@@ -134,6 +135,11 @@ export async function POST(request: Request) {
     }
   }
 
+  // New subscriptions only. Stripe's Managed Payments docs reject these on the
+  // same session, and this call never sets them: automatic_tax, tax_id_collection,
+  // customer_update[name/address], payment_method_types, subscription_data
+  // (including invoice_settings). `discounts` is not on that list, so a creator
+  // promotion code stays on the managed session.
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
@@ -145,6 +151,7 @@ export async function POST(request: Request) {
     },
     line_items: [{ price: priceId, quantity: 1 }],
     ...(offer ? { discounts: [{ promotion_code: offer.promotionCodeId }] } : {}),
+    ...(stripeManagedPaymentsEnabled() ? { managed_payments: { enabled: true } } : {}),
     success_url: `${appUrl}/settings?billing=success`,
     cancel_url: `${appUrl}/settings?billing=cancelled`,
   });

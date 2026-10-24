@@ -47,7 +47,7 @@
     "upgrade": "Fazer upgrade",
     "upgradeMultiplier": "Tenha {multiplier}× mais vídeo com o {plan}",
     "upgradeMore": "Faça mais com {plan}",
-    "upgradeDescription": "${price}/mês · {minutes} por mês · {resolution} · YouTube até {length}",
+    "upgradeDescription": "${price}/mês{taxNote} · {minutes} por mês · {resolution} · YouTube até {length}",
     "choose": "Escolher {name}",
     "actionFailed": "A ação de cobrança falhou",
     "usageMinutesOf": "{used} / {limit} min",
@@ -60,7 +60,7 @@
     "billedYearly": "cobrança anual",
     "upgradeMultiplierHd": "Tenha {multiplier}× mais vídeo em {resolution} com o {plan}",
     "switchYearlyTitle": "Mude para anual e ganhe {count, plural, one {# mês} other {# meses}} grátis",
-    "switchYearlyDescription": "${price}/ano, cerca de ${monthly}/mês. Mesmo plano, cobrado uma vez por ano.",
+    "switchYearlyDescription": "${price}/ano{taxNote}, cerca de ${monthly}/mês. Mesmo plano, cobrado uma vez por ano.",
     "switch": "Mudar",
     "monthlyEquivalentYearly": "${price}/mês, cobrado anualmente"
   },

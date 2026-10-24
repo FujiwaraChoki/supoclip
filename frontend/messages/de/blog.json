@@ -279,7 +279,7 @@
     "pricing": {
       "heading": "Preismodell: Credits, Pläne oder deine eigene Infrastruktur",
       "p1": "Der <plans>Artikel zu Plänen und Credits</plans> von OpusClip beschreibt bezahlte Pläne, die Credits für Verarbeitungsminuten nutzen, plus einen Gratisplan. Der <watermark>Wasserzeichen-Artikel</watermark> sagt, dass Exporte im Gratisplan ein OpusClip-Wasserzeichen tragen können. Planpreise und Credit-Mengen ändern sich, also schau auf die aktuelle Preisseite von OpusClip, statt Zahlen aus einem Blogpost zu übernehmen.",
-      "p2": "SupoClip hat zwei Wege. Die gehostete App hat <pro>{proName}</pro> für ${proPrice}/Monat und {proLimit} Stunden Video in 720p sowie <scale>{scaleName}</scale> für ${scalePrice}/Monat und {scaleLimit} Stunden in 1080p, jährlich mit zwei Gratismonaten. Es gibt keinen gehosteten Gratisplan; Verarbeitung braucht ein Abo. Der selbst gehostete Weg ist kostenlose Software ohne Planlimits. Du zahlst den Server und die KI-APIs, die du einrichtest, und die <guide>Self-Hosting-Anleitung</guide> zeigt ein vollständig lokales Setup ohne KI-Gebühren pro Anfrage."
+      "p2": "SupoClip hat zwei Wege. Die gehostete App hat <pro>{proName}</pro> für ${proPrice}/Monat{taxNote} und {proLimit} Stunden Video in 720p sowie <scale>{scaleName}</scale> für ${scalePrice}/Monat{taxNote} und {scaleLimit} Stunden in 1080p, jährlich mit zwei Gratismonaten. Es gibt keinen gehosteten Gratisplan; Verarbeitung braucht ein Abo. Der selbst gehostete Weg ist kostenlose Software ohne Planlimits. Du zahlst den Server und die KI-APIs, die du einrichtest, und die <guide>Self-Hosting-Anleitung</guide> zeigt ein vollständig lokales Setup ohne KI-Gebühren pro Anfrage."
     },
     "chooseSupoclip": {
       "heading": "Wann SupoClip besser passt",

@@ -208,7 +208,7 @@
   },
   "pricing": {
     "title": "Simple pricing, no surprises",
-    "body": "Free to self-host. Hosted plans start at ${price}/month, with processing and hosting handled for you. Change or cancel anytime.",
+    "body": "Free to self-host. Hosted plans start at ${price}/month{taxNote}, with processing and hosting handled for you. Change or cancel anytime.",
     "popular": "Most Popular",
     "period": {
       "forever": "forever",

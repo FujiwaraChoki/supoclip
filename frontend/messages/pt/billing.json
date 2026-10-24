@@ -25,6 +25,7 @@
     "hoursMinutes": "{hours} h {minutes} min"
   },
   "perMonth": "/mês",
+  "plusTax": "+ impostos aplicáveis",
   "videosEach": "{count} vídeos/mês · até {length} cada",
   "mostPopular": "Mais popular",
   "currentPlan": "Plano atual",

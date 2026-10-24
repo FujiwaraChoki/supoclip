@@ -208,7 +208,7 @@
   },
   "pricing": {
     "title": "Precios simples, sin sorpresas",
-    "body": "Gratis para autoalojar. Los planes alojados empiezan en ${price} al mes, con el procesamiento y el alojamiento resueltos. Cambia o cancela cuando quieras.",
+    "body": "Gratis para autoalojar. Los planes alojados empiezan en ${price} al mes{taxNote}, con el procesamiento y el alojamiento resueltos. Cambia o cancela cuando quieras.",
     "popular": "Más popular",
     "period": {
       "forever": "para siempre",

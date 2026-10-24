@@ -214,6 +214,8 @@ Required when `SELF_HOST=false` and you want subscription management:
 | `STRIPE_PRICE_ID` | Legacy fallback price identifier for the Pro plan |
 | `STRIPE_CHECKOUT_URL` | Optional fallback checkout URL |
 | `STRIPE_CUSTOMER_PORTAL_URL` | Optional fallback billing portal URL |
+| `STRIPE_MANAGED_PAYMENTS_ENABLED` | `false` | When `true`, `1`, `on`, or `yes`, new Checkout sessions set `managed_payments.enabled` so Stripe is merchant of record and adds tax on top of the price. Existing subscriptions keep the billing-portal plan-change flow. Leave off until Managed Payments is approved in the Dashboard, and give each product a tax code eligible for Managed Payments before turning it on |
+| `NEXT_PUBLIC_STRIPE_MANAGED_PAYMENTS_ENABLED` | Falls back to `STRIPE_MANAGED_PAYMENTS_ENABLED` at build time | Shows prices as "+ applicable tax" in the pricing page, checkout, and billing UI. Set it to the same value as the server flag and rebuild the frontend |
 
 ## Email and Feedback Settings
 
@@ -444,6 +446,7 @@ NEXT_PUBLIC_PRO_PRICE_ANNUAL=99.90
 NEXT_PUBLIC_SCALE_PRICE_ANNUAL=249.90
 NEXT_PUBLIC_PRO_PLAN_MINUTE_LIMIT=600
 NEXT_PUBLIC_SCALE_PLAN_MINUTE_LIMIT=1500
+STRIPE_MANAGED_PAYMENTS_ENABLED=false
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your_aws_access_key_id
 AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key

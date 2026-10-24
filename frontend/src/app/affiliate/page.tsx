@@ -8,6 +8,7 @@ import { SiteFooter } from "@/components/marketing/site-footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getPublicBillingPlans } from "@/lib/billing-plans";
+import { formatPriceTaxNote } from "@/lib/managed-payments";
 import { getSiteUrl } from "@/lib/site";
 
 const APPLY_HREF = "/settings/creator-program";
@@ -42,9 +43,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function AffiliatePage() {
   const t = await getTranslations("affiliate");
+  const billing = await getTranslations("billing");
   const siteUrl = getSiteUrl();
   const pro = getPublicBillingPlans().find((plan) => plan.id === "pro");
   const proPrice = pro?.priceMonthly ?? "9.99";
+  const taxNote = formatPriceTaxNote(billing("plusTax"));
   const steps = [
     { icon: Send, title: t("steps.apply.title"), detail: t("steps.apply.detail") },
     { icon: Search, title: t("steps.review.title"), detail: t("steps.review.detail") },
@@ -52,7 +55,7 @@ export default async function AffiliatePage() {
   ];
   const rules = ["sponsored", "ads", "ownCode", "end"].map((id) => t(`rules.${id}`));
   const faqs = [
-    { question: t("faq.cash.question"), answer: t("faq.cash.answer", { price: proPrice }) },
+    { question: t("faq.cash.question"), answer: t("faq.cash.answer", { price: proPrice, taxNote }) },
     { question: t("faq.followers.question"), answer: t("faq.followers.answer") },
     { question: t("faq.audience.question"), answer: t("faq.audience.answer") },
     { question: t("faq.code.question"), answer: t("faq.code.answer") },
@@ -144,8 +147,8 @@ export default async function AffiliatePage() {
               <h3 className="mt-4 text-lg font-semibold">{t("offer.youTitle")}</h3>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 {pro
-                  ? t("offer.youDetail", { price: proPrice, limit: pro.minuteLimit / 60 })
-                  : t("offer.youDetailNoLimit", { price: proPrice })}
+                  ? t("offer.youDetail", { price: proPrice, limit: pro.minuteLimit / 60, taxNote })
+                  : t("offer.youDetailNoLimit", { price: proPrice, taxNote })}
               </p>
             </div>
             <div className="rounded-2xl border p-6">

@@ -104,7 +104,7 @@
     "refreshesOn": "将于 {date} 重置。",
     "refreshesNext": "下个月重置。",
     "startTitle": "选一个方案，开始剪辑",
-    "startDescription": "每月 {price} 起，每月 {length} 视频。你可以先完成所有设置。",
+    "startDescription": "每月 {price}{taxNote} 起，每月 {length} 视频。你可以先完成所有设置。",
     "seePlans": "查看方案",
     "limitTitle": "你本月已用完 {length} 视频",
     "limitWithPlan": "{refreshes} 或者继续使用 {plan}：每月 {limit} 视频。",

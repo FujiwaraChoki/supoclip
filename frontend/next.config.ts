@@ -18,7 +18,17 @@ const posthogRewrites = isPostHogEnabled
     ]
   : [];
 
+// Price copy reads the public name. When it is unset, reuse the server flag so
+// a single build-time value turns checkout and the "+ applicable tax" copy on together.
+const managedPaymentsFlag =
+  process.env.NEXT_PUBLIC_STRIPE_MANAGED_PAYMENTS_ENABLED?.trim() ||
+  process.env.STRIPE_MANAGED_PAYMENTS_ENABLED?.trim() ||
+  "";
+
 const nextConfig: NextConfig = {
+  env: {
+    NEXT_PUBLIC_STRIPE_MANAGED_PAYMENTS_ENABLED: managedPaymentsFlag,
+  },
   distDir: process.env.NEXT_BUILD_DIR || ".next",
   output: 'standalone',
   // PostHog's API paths end in a slash (e.g. /e/); don't redirect them.

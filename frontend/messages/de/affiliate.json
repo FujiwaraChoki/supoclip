@@ -23,8 +23,8 @@
   "offer": {
     "heading": "Was alle bekommen",
     "youTitle": "Du bekommst SupoClip Pro, kostenlos",
-    "youDetail": "Pro kostet normalerweise ${price}/Monat und enthält {limit} Stunden Video pro Monat. Freigeschaltete Creator erhalten es kostenlos, solange sie im Programm sind.",
-    "youDetailNoLimit": "Pro kostet normalerweise ${price}/Monat. Freigegebene Creator bekommen es kostenlos, solange sie im Programm sind.",
+    "youDetail": "Pro kostet normalerweise ${price}/Monat{taxNote} und enthält {limit} Stunden Video pro Monat. Freigeschaltete Creator erhalten es kostenlos, solange sie im Programm sind.",
+    "youDetailNoLimit": "Pro kostet normalerweise ${price}/Monat{taxNote}. Freigegebene Creator bekommen es kostenlos, solange sie im Programm sind.",
     "audienceTitle": "Dein Publikum bekommt 20% Rabatt",
     "audienceDetail": "Für die ersten 3 Monate, auf jedem Tarif. Es funktioniert über deinen Link oder indem jemand deinen Code an der Kasse eingibt."
   },
@@ -56,7 +56,7 @@
     "heading": "Fragen",
     "cash": {
       "question": "Werde ich in bar bezahlt?",
-      "answer": "Gerade nicht. Freigegebene Creator bekommen SupoClip Pro (normalerweise ${price}/Monat) kostenlos, solange sie im Programm sind."
+      "answer": "Gerade nicht. Freigegebene Creator bekommen SupoClip Pro (normalerweise ${price}/Monat{taxNote}) kostenlos, solange sie im Programm sind."
     },
     "followers": {
       "question": "Gibt es eine Mindestzahl an Followern?",
