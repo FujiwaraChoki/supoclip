@@ -115,6 +115,9 @@
     },
     "blog": {
       "label": "Alle Artikel"
+    },
+    "changelog": {
+      "label": "Änderungen"
     }
   },
   "nav": {
@@ -123,6 +126,7 @@
     "pricing": "Preise",
     "openSource": "Open Source",
     "blog": "Blog",
+    "changelog": "Änderungen",
     "affiliate": "Partnerprogramm",
     "signIn": "Anmelden",
     "getStarted": "Loslegen",

@@ -1,0 +1,25 @@
+# Used when the frontend image is built with the repository root as context.
+# Backend and MCP images keep their own context directories and ignore files.
+
+.git
+.github
+.cursor
+backend
+mcp
+docs
+observability
+scripts
+assets
+**/node_modules
+**/.next
+**/coverage
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.env
+**/.env.*
+!**/.env.example
+**/.DS_Store
+**/dist
+**/*.tsbuildinfo

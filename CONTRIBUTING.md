@@ -31,3 +31,13 @@ applies to the repository.
 
 See [README.md](README.md) and [CLAUDE.md](CLAUDE.md) for local development
 instructions.
+
+## Changelog
+
+If a pull request changes something a person using SupoClip can see, add a line
+to [CHANGELOG.md](CHANGELOG.md) at the repository root. Put it under today's
+date (`## YYYY-MM-DD`, newest dates first). Write what changed for users, tag
+it **New**, **Improved**, **Fixed**, or **Under the hood**, and link the pull
+request. Skip internal-only or CI-only changes, or fold several of them into
+one **Under the hood** line. Do not include customer names, email addresses,
+user IDs, or other private details. This repository is public.
