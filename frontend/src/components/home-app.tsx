@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
   AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Crop, FileVideo,
-  Loader2, Timer, Paintbrush, Paperclip, Upload, Link2, Wand2, X,
+  Loader2, Timer, Paperclip, Upload, Link2, Wand2, X,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 import { VideoSourceIcon } from "@/components/video-source-icon";
@@ -471,7 +471,7 @@ export default function HomeApp() {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 px-3 pb-3 sm:px-4">
+            <div className="flex flex-wrap items-center gap-1 px-3 pb-3 sm:px-4">
               {!file && (
                 <Chip onClick={() => fileInputRef.current?.click()} disabled={controlsDisabled} aria-label={t("uploadFile")} aria-describedby="source-limits">
                   <Paperclip className="size-3.5" /><span className="hidden sm:inline">{t("upload")}</span>
@@ -501,14 +501,19 @@ export default function HomeApp() {
 
               <Popover>
                 <PopoverTrigger asChild>
-                  <Chip disabled={controlsDisabled || !addSubtitles} active={customized}>
-                    <Paintbrush className="size-3.5" />{selectedTemplate?.name || t("defaultTemplate")}<ChevronDown className="size-3 opacity-60" />
+                  <Chip disabled={controlsDisabled} active={customized || !addSubtitles}>
+                    {addSubtitles ? <Captions className="size-3.5" /> : <CaptionsOff className="size-3.5" />}
+                    {addSubtitles ? selectedTemplate?.name || t("defaultTemplate") : t("noCaptions")}<ChevronDown className="size-3 opacity-60" />
                   </Chip>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-[min(92vw,560px)] rounded-2xl p-0">
                   <div className="grid gap-0 sm:grid-cols-[minmax(0,1fr)_180px]">
                     <div className="max-h-[420px] min-w-0 space-y-4 overflow-y-auto p-4">
-                      <div>
+                      <div className="flex items-center justify-between gap-4 border-b pb-4">
+                        <label htmlFor="add-captions" className="text-sm font-medium">{t("captions")}</label>
+                        <Switch id="add-captions" checked={addSubtitles} onCheckedChange={setAddSubtitles} disabled={controlsDisabled} />
+                      </div>
+                      <div className={cn(!addSubtitles && "pointer-events-none opacity-50")} inert={!addSubtitles}>
                         <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("captionStyle")}</p>
                         <div className="flex flex-col gap-1" role="radiogroup" aria-label={t("captionStyle")}>
                           {(availableTemplates.length ? availableTemplates : [{ id: "default", name: t("defaultTemplate"), description: t("defaultTemplateDescription"), animation: "" } as CaptionTemplate]).map((template) => (
@@ -531,7 +536,7 @@ export default function HomeApp() {
                         </div>
                       </div>
 
-                      <div className="space-y-3 border-t pt-4">
+                      <div className={cn("space-y-3 border-t pt-4", !addSubtitles && "pointer-events-none opacity-50")} inert={!addSubtitles}>
                         <div className="flex items-center justify-between">
                           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("customize")}</p>
                           {customized && (
@@ -626,11 +631,6 @@ export default function HomeApp() {
                   </div>
                 </PopoverContent>
               </Popover>
-
-              <Chip onClick={() => setAddSubtitles((value) => !value)} disabled={controlsDisabled} aria-pressed={addSubtitles} active={!addSubtitles}>
-                {addSubtitles ? <Captions className="size-3.5" /> : <CaptionsOff className="size-3.5" />}
-                {addSubtitles ? t("captions") : t("noCaptions")}
-              </Chip>
 
               <Popover>
                 <PopoverTrigger asChild>
@@ -746,7 +746,7 @@ function Chip({ active, className, children, ...props }: React.ComponentProps<"b
     <button
       type="button"
       className={cn(
-        "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-[state=open]:bg-accent",
+        "inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50 data-[state=open]:bg-accent",
         active && "border-foreground/30 bg-accent text-foreground",
         className,
       )}

@@ -253,3 +253,67 @@ for (const width of [390, 1280]) {
     expect(submitted?.clip_length).toBe("long");
   });
 }
+
+for (const clipLength of ["auto", "long"]) {
+  test(`desktop composer fits one row and mobile wraps with ${clipLength} clip length`, async ({ page }) => {
+    await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
+    await page.route(/\/api\/tasks\/?(\?.*)?$/, route => route.fulfill({ json: { tasks: [] } }));
+    await page.route("**/api/announcements**", route => route.fulfill({ json: { announcements: [] } }));
+    await page.route("**/api/service-status/video-downloads", route => route.fulfill({ json: { component: { status: "operational" } } }));
+    await page.route("**/api/preferences", route => route.fulfill({ json: { clipLength } }));
+    await page.goto("/");
+    const submit = page.getByRole("button", { name: "Generate clips", exact: true });
+    const upload = page.getByRole("button", { name: "Upload a video file", exact: true });
+    await expect(page.getByRole("button", { name: "Clip length", exact: true })).toContainText(clipLength === "auto" ? "Auto length" : "Long (1–2 min)");
+    for (const width of [320, 390, 768, 1280, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const url of ["", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]) {
+        await page.getByLabel("YouTube, Twitch, or Kick URL", { exact: true }).fill(url);
+        const buttonBox = await submit.boundingBox();
+        const uploadBox = await upload.boundingBox();
+        expect(buttonBox).not.toBeNull();
+        expect(uploadBox).not.toBeNull();
+        if (width >= 1280) {
+          const cleanupBox = await page.getByRole("button", { name: /Cleanup/ }).boundingBox();
+          expect(Math.abs(buttonBox!.y - uploadBox!.y)).toBeLessThanOrEqual(4);
+          expect(Math.abs(cleanupBox!.y - uploadBox!.y)).toBeLessThanOrEqual(4);
+          expect(buttonBox!.x).toBeGreaterThan(cleanupBox!.x + cleanupBox!.width);
+        } else if (width <= 390) {
+          const cleanupBox = await page.getByRole("button", { name: /Cleanup/ }).boundingBox();
+          expect(cleanupBox!.y).toBeGreaterThan(uploadBox!.y);
+        }
+        await expect(submit).toBeVisible();
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      }
+      if (width === 390 || width === 1280) {
+        await page.screenshot({ path: `test-results/submit-layout-${clipLength}-${width}.png`, fullPage: true });
+      }
+    }
+  });
+}
+
+test("captions turn off from the caption style menu and the composer stays on one row", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
+  await page.route(/\/api\/tasks\/?(\?.*)?$/, route => route.fulfill({ json: { tasks: [] } }));
+  await page.route("**/api/announcements**", route => route.fulfill({ json: { announcements: [] } }));
+  await page.route("**/api/service-status/video-downloads", route => route.fulfill({ json: { component: { status: "operational" } } }));
+  await page.route("**/api/preferences", route => route.fulfill({ json: { clipLength: "long" } }));
+  let submitted: Record<string, unknown> | undefined;
+  await page.route("**/api/tasks/create", async route => {
+    submitted = route.request().postDataJSON();
+    await route.fulfill({ json: { task_id: "one" } });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Default", exact: true }).click();
+  await page.getByRole("switch", { name: "Captions", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "No captions", exact: true })).toBeVisible();
+  await page.getByLabel("YouTube, Twitch, or Kick URL", { exact: true }).fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+  const submit = page.getByRole("button", { name: "Generate clips", exact: true });
+  const uploadBox = await page.getByRole("button", { name: "Upload a video file", exact: true }).boundingBox();
+  expect(Math.abs((await submit.boundingBox())!.y - uploadBox!.y)).toBeLessThanOrEqual(4);
+  await submit.click();
+  await expect(page).toHaveURL(/\/tasks\/one$/);
+  expect(submitted?.add_subtitles).toBe(false);
+});
