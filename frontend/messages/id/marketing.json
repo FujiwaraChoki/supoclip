@@ -253,8 +253,7 @@
     "selfHostGuide": "Lihat panduan host sendiri",
     "billedYearly": "${price}/bln, ditagih tahunan",
     "usageExample": {
-      "videos": "Sekitar {count} × video sumber {minutes} menit per bulan",
-      "clips": "Contoh: {count} clip pendek dengan {perVideo} per video. Hasil bervariasi; jatahmu menghitung menit sumber."
+      "videos": "Sekitar {count} × video sumber {minutes} menit per bulan"
     }
   },
   "openSource": {
