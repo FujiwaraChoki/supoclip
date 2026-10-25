@@ -103,6 +103,7 @@
     "verified": "Ich habe meine E-Mail bestätigt",
     "invalidLink": "Dieser Bestätigungslink ist ungültig oder abgelaufen. Fordere unten eine neue E-Mail an.",
     "reveal": "Kopier deinen neuen Schlüssel jetzt — er wird nicht noch einmal angezeigt.",
+    "copy": "API-Schlüssel kopieren",
     "createLabel": "Neuen Schlüssel erstellen",
     "namePlaceholder": "z. B. MCP auf meinem Laptop",
     "create": "Erstellen",
