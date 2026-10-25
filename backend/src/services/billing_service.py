@@ -9,6 +9,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import Config, get_config
+from ..repositories.minute_usage_repository import charged_duration, record_minute_usage, reactivate_minute_usage
+from ..repositories.edit_transaction import TaskCancelled
 
 PAID_PLAN_STATUSES = {"active", "trialing"}
 PAID_PLAN_MINUTE_LIMIT_CONFIG = {
@@ -167,33 +169,16 @@ class BillingService:
     async def _count_usage(
         self, user_id: str, period_start: datetime, period_end: datetime
     ) -> tuple[int, int]:
-        """Return (tasks, source minutes) charged in the window.
-
-        Active jobs reserve their minutes. A job that ends unsuccessfully without
-        any saved clips releases them, including historical failures. EXISTS
-        keeps partially successful jobs counted once, regardless of how many
-        clips were delivered. Jobs without a recorded duration (uploads still
-        downloading, or tasks from before minute metering) count as 0 minutes.
-        """
+        """Return durable task charges and minutes in the allowance window."""
         result = await self.db.execute(
             text(
                 """
-                SELECT
-                    COUNT(*) AS total,
-                    -- Whole-second integers: (s + 59) / 60 rounds up portably.
-                    COALESCE(
-                        SUM((COALESCE(t.source_duration_seconds, 0) + 59) / 60), 0
-                    ) AS minutes
-                FROM tasks t
-                WHERE t.user_id = :user_id
-                  AND t.created_at >= :period_start
-                  AND t.created_at <= :period_end
-                  AND (
-                      COALESCE(t.status, '') NOT IN ('error', 'failed', 'cancelled', 'canceled')
-                      OR EXISTS (
-                          SELECT 1 FROM generated_clips c WHERE c.task_id = t.id
-                      )
-                  )
+                SELECT COUNT(*) AS total, COALESCE(SUM(minutes), 0) AS minutes
+                FROM minute_usage_events
+                WHERE user_id = :user_id
+                  AND created_at >= :period_start
+                  AND created_at <= :period_end
+                  AND refunded_at IS NULL
                 """
             ),
             {
@@ -339,42 +324,83 @@ class BillingService:
         return summary
 
     async def assert_can_resume_task(
-        self, user_id: str, task_id: str
+        self, user_id: str, task_id: str, *, require_active_plan: bool = True
     ) -> dict[str, Any]:
-        """Require a slot for a refunded failure, without charging partial output twice."""
-        summary = await self.get_usage_summary(user_id)
-        if summary.get("can_create_task"):
-            return summary
+        """Reuse an active charge or re-charge a refunded retry after checking room.
 
-        if grants_paid_access(
-            summary.get("plan"),
-            summary.get("subscription_status"),
+        The caller holds the user's allowance lock through this check and commit.
+        Workers may run an already-paid queued job after its plan lapses. Explicit
+        resumes and all new/reinstated charges still require paid access.
+        """
+        summary = await self.get_usage_summary(user_id)
+        if not self.config.monetization_enabled:
+            return summary
+        paid_access = grants_paid_access(
+            summary.get("plan"), summary.get("subscription_status"),
             summary.get("subscription_provider"),
-        ):
-            # A partially delivered task already occupies a current-period slot.
-            # It can resume even at the cap, but unrelated/historical output
-            # must not allow an uncounted task to bypass the cap.
+        )
+        result = await self.db.execute(
+            text("""
+                SELECT refunded_at, source_duration_seconds FROM minute_usage_events
+                WHERE task_id = :task_id AND user_id = :user_id
+            """),
+            {"task_id": task_id, "user_id": user_id},
+        )
+        event = result.fetchone()
+        if event is not None and event.refunded_at is None:
+            if require_active_plan and not paid_access:
+                raise BillingLimitExceeded(summary)
+            return summary
+        if not paid_access:
+            raise BillingLimitExceeded(summary)
+
+        result = await self.db.execute(
+            text("""
+                SELECT t.source_duration_seconds, s.url AS source_url, t.source_metadata
+                FROM tasks t LEFT JOIN sources s ON s.id = t.source_id
+                WHERE t.id = :task_id AND t.user_id = :user_id
+            """),
+            {"task_id": task_id, "user_id": user_id},
+        )
+        task = result.fetchone()
+        if task is None:
+            raise ValueError("Task not found")
+        try:
+            seconds = charged_duration(
+                event.source_duration_seconds if event is not None else task.source_duration_seconds
+            )
+        except ValueError:
+            from .video_service import VideoService
+
+            url = task.source_url or (task.source_metadata or {}).get("url")
+            if not url:
+                raise ValueError("Task source URL is missing")
+            seconds = await VideoService().measure_source_duration(url, user_id)
+
+        # Refunded rows do not contribute usage, so the entire retry must fit.
+        await self.assert_can_create_task(user_id, seconds)
+        try:
             result = await self.db.execute(
-                text(
-                    """
-                    SELECT 1
-                    FROM tasks t
-                    WHERE t.id = :task_id
-                      AND t.user_id = :user_id
-                      AND t.created_at >= :period_start
-                      AND t.created_at <= :period_end
-                      AND EXISTS (
-                          SELECT 1 FROM generated_clips c WHERE c.task_id = t.id
-                      )
-                    """
-                ),
+                text("""
+                    UPDATE tasks SET source_duration_seconds = :seconds
+                    WHERE id = :task_id AND user_id = :user_id
+                      AND (:explicit_resume OR status IN ('queued', 'processing'))
+                """),
                 {
-                    "task_id": task_id,
-                    "user_id": user_id,
-                    "period_start": summary["period_start"],
-                    "period_end": summary["period_end"],
+                    "seconds": seconds, "task_id": task_id, "user_id": user_id,
+                    "explicit_resume": require_active_plan,
                 },
             )
-            if result.fetchone() is not None:
-                return summary
-        raise BillingLimitExceeded(summary)
+            if result.rowcount == 0:
+                # Cancellation may win while a legacy worker measures duration.
+                # Do not re-charge a task that has already stopped.
+                raise TaskCancelled()
+            if event is not None:
+                await reactivate_minute_usage(self.db, user_id, task_id)
+            else:
+                await record_minute_usage(self.db, user_id, task_id, seconds)
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
+        return summary

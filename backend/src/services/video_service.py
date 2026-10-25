@@ -11,6 +11,7 @@ import subprocess
 import uuid
 
 from ..utils.async_helpers import run_in_thread
+from ..repositories.minute_usage_repository import charged_duration
 from ..youtube_utils import (
     async_get_youtube_video_info,
     async_get_youtube_video_title,
@@ -70,6 +71,27 @@ UPLOAD_URL_PREFIX = "upload://"
 
 class VideoService:
     """Service for video processing operations."""
+
+    async def measure_source_duration(self, url: str, user_id: str) -> int:
+        """Resolve the full source length for older/unmetered task entry paths."""
+        source_type = self.determine_source_type(url)
+        if source_type == "youtube":
+            metadata = await asyncio.wait_for(
+                async_get_youtube_video_info(url),
+                timeout=get_config().youtube_preflight_timeout_seconds,
+            )
+            duration = (metadata or {}).get("duration")
+        elif source_type in {"twitch", "kick"}:
+            from ..stream_source import fetch_stream_info, PREFLIGHT_DEADLINE_SECONDS
+
+            metadata = await asyncio.wait_for(
+                run_in_thread(fetch_stream_info, url, deadline_seconds=PREFLIGHT_DEADLINE_SECONDS),
+                timeout=PREFLIGHT_DEADLINE_SECONDS + 5,
+            )
+            duration = (metadata or {}).get("duration")
+        else:
+            duration = await run_in_thread(self.probe_upload_duration, url, user_id)
+        return charged_duration(duration)
 
     @staticmethod
     def _ground_segment_text(
