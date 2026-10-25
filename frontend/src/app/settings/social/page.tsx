@@ -198,11 +198,11 @@ function SocialSettingsContent() {
         {isFetching ? (
           <Skeleton className="h-20 w-full" />
         ) : (
-          <div className="overflow-hidden rounded-xl border bg-background">
+          <div className="rounded-xl bg-background">
             {providerGroups.map((group) => (
               <div
                 key={group[0].configured ? "available" : "upcoming"}
-                className={`relative first:rounded-t-[11px] last:rounded-b-[11px] [&>div+div]:shadow-[inset_0_1px_0_var(--border)] ${group[0].configured ? "" : "bg-muted"}`}
+                className={`relative first:rounded-t-xl last:rounded-b-xl [&>div+div]:shadow-[inset_0_1px_0_var(--border)] ${group[0].configured ? "shadow-[inset_0_0_0_1px_var(--border)]" : "bg-muted"}`}
               >
                 {!group[0].configured && (
                   <span
