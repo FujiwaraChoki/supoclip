@@ -145,7 +145,15 @@ Source file:
 - `POST /{task_id}/clips/{clip_id}/regenerate`
   - Re-render a clip
 - `GET /{task_id}/clips/{clip_id}/export`
-  - Export using a platform preset
+  - Export using a platform preset. The response waits until ffmpeg finishes. Older clients, including current iOS builds, keep using this route.
+- `POST /{task_id}/clips/{clip_id}/exports`
+  - Queue the same preset export and return immediately. Body `{"preset": "tiktok"|"reels"|"shorts"}` or query `preset` (default `tiktok`). Same clip, preset, and source file reuses a queued, running, or succeeded job.
+- `GET /{task_id}/clips/{clip_id}/exports/{export_id}`
+  - Job state: `queued`, `running`, `succeeded`, or `failed`, plus `progress`, `error`, and `download_url` when the file is ready.
+- `GET /{task_id}/clips/{clip_id}/exports/{export_id}/file`
+  - Download a finished export. Redirects to a presigned S3 URL when object storage is on.
+
+The queued export routes need the `clip_exports` table (created when the API process runs its startup migrations) and a worker restarted afterwards so it registers `export_clip_preset`. Ship the worker with the API, then the frontend. The synchronous GET route does not need the new table.
 
 ### Task-wide settings and diagnostics
 

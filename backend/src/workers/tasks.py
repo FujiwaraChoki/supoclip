@@ -194,6 +194,10 @@ async def refresh_social_metrics(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 
 from ..services.editor_service import prepare_editor, export_editor, combine_editor
+from ..services.clip_export_service import (
+    CLIP_EXPORT_JOB_TIMEOUT_SECONDS,
+    export_clip_preset,
+)
 from ..services.social_service import PUBLISH_JOB_TIMEOUT_SECONDS
 
 # Worker configuration for arq
@@ -211,6 +215,13 @@ class WorkerSettings:
         prepare_editor,
         export_editor,
         combine_editor,
+        # One try: a lost worker is failed by the stale-export sweep, and a
+        # retry would start a second encode for the same row.
+        func(
+            export_clip_preset,
+            timeout=CLIP_EXPORT_JOB_TIMEOUT_SECONDS,
+            max_tries=1,
+        ),
         # Results are not kept so a finished job's id ("social:{post}:{attempt}")
         # frees up; a dead job's post is failed by the stale-publishing sweep.
         func(publish_social_post, timeout=PUBLISH_JOB_TIMEOUT_SECONDS, keep_result=0),

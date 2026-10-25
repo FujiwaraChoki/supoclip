@@ -52,6 +52,7 @@ async def test_database_health_returns_503_when_the_database_is_unavailable(
         "/tasks/shared/{share_token}/clips/{clip_id}/file",
         "/tasks/{task_id}/clips/{clip_id}/file",
         "/tasks/{task_id}/clips/{clip_id}/export",
+        "/tasks/{task_id}/clips/{clip_id}/exports/{export_id}/file",
         "/fonts/{font_name}",
     ],
 )
