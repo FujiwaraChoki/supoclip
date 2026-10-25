@@ -25,6 +25,7 @@ async def test_create_task_with_source_creates_queued_task(monkeypatch):
         lambda _url: "youtube",
     )
     service.video_service.get_video_title = AsyncMock(return_value="Seeded title")
+    service.video_service.measure_source_duration = AsyncMock(return_value=61)
 
     task_id = await service.create_task_with_source(
         user_id="user-1",
@@ -33,6 +34,8 @@ async def test_create_task_with_source_creates_queued_task(monkeypatch):
 
     assert task_id == "task-1"
     service.task_repo.create_task.assert_awaited_once()
+    service.video_service.measure_source_duration.assert_awaited_once()
+    assert service.task_repo.create_task.await_args.kwargs["source_duration_seconds"] == 61
 
 @pytest.mark.asyncio
 async def test_create_task_with_source_requires_existing_user():
@@ -727,3 +730,32 @@ async def test_personalized_run_is_not_reported_as_a_cache_hit():
     )
     await service.process_task(task_id="task-1", url="upload://test.mp4", source_type="upload", user_id="user-1")
     assert service.task_repo.update_task_runtime_metadata.await_args_list[0].kwargs["cache_hit"] is True
+
+
+@pytest.mark.asyncio
+async def test_worker_checks_legacy_charge_before_processing(monkeypatch):
+    service = build_task_service()
+    service.config.monetization_enabled = True
+    charge = AsyncMock(return_value={})
+    monkeypatch.setattr(task_service_module, "generation_allowance_guard", lambda *_args, **_kwargs: nullcontext())
+    monkeypatch.setattr(task_service_module.BillingService, "assert_can_resume_task", charge)
+    monkeypatch.setattr(task_service_module.BillingService, "get_usage_summary", AsyncMock(return_value={}))
+    events = []
+    charge.side_effect = lambda *_args, **_kwargs: events.append("charge")
+    service.video_service.process_video_complete.side_effect = lambda **_kwargs: events.append("process") or service.video_service.process_video_complete.return_value
+    await service.process_task(task_id="task-1", url="upload://source.mp4", source_type="video_url", user_id="user-1")
+    assert events == ["charge", "process"]
+    charge.assert_awaited_once_with("user-1", "task-1", require_active_plan=False)
+
+
+@pytest.mark.asyncio
+async def test_worker_does_not_process_uncharged_over_limit_task(monkeypatch):
+    from src.services.billing_service import BillingLimitExceeded
+
+    service = build_task_service()
+    service.config.monetization_enabled = True
+    monkeypatch.setattr(task_service_module, "generation_allowance_guard", lambda *_args, **_kwargs: nullcontext())
+    monkeypatch.setattr(task_service_module.BillingService, "assert_can_resume_task", AsyncMock(side_effect=BillingLimitExceeded({})))
+    with pytest.raises(BillingLimitExceeded):
+        await service.process_task(task_id="task-1", url="upload://source.mp4", source_type="video_url", user_id="user-1")
+    service.video_service.process_video_complete.assert_not_awaited()

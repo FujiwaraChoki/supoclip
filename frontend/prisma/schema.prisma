@@ -171,6 +171,21 @@ model AppSetting {
   @@map("app_settings")
 }
 
+// Durable billing charges with failure refunds. No task/user relation: deletion must retain usage
+// and the original task idempotency key. The backend owns all writes.
+model MinuteUsageEvent {
+  id                      String   @id @db.VarChar(36)
+  user_id                 String
+  task_id                 String?  @unique
+  minutes                 Int
+  source_duration_seconds Int
+  created_at              DateTime @default(now()) @db.Timestamptz
+  refunded_at             DateTime? @db.Timestamptz
+
+  @@index([user_id, created_at], map: "ix_minute_usage_events_user_created")
+  @@map("minute_usage_events")
+}
+
 model Task {
   id                   String    @id @default(uuid())
   user_id              String

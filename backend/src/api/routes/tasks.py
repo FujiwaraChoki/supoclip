@@ -1331,31 +1331,31 @@ async def resume_task(
             ):
                 await BillingService(db).assert_can_resume_task(task["user_id"], task_id)
 
-                runtime_config = get_config()
-                redis_client = redis.Redis(
-                    host=runtime_config.redis_host,
-                    port=runtime_config.redis_port,
-                    password=runtime_config.redis_password,
-                    decode_responses=True,
-                )
                 try:
-                    await redis_client.delete(f"task_cancel:{task_id}")
-                finally:
-                    await redis_client.aclose()
+                    runtime_config = get_config()
+                    redis_client = redis.Redis(
+                        host=runtime_config.redis_host,
+                        port=runtime_config.redis_port,
+                        password=runtime_config.redis_password,
+                        decode_responses=True,
+                    )
+                    try:
+                        await redis_client.delete(f"task_cancel:{task_id}")
+                    finally:
+                        await redis_client.aclose()
 
-                await task_service.task_repo.update_task_status(
-                    db,
-                    task_id,
-                    "queued",
-                    progress=0,
-                    progress_message="Re-queued by user",
-                )
+                    await task_service.task_repo.update_task_status(
+                        db,
+                        task_id,
+                        "queued",
+                        progress=0,
+                        progress_message="Re-queued by user",
+                    )
 
-                processing_mode = (
-                    task.get("processing_mode") or runtime_config.default_processing_mode
-                )
+                    processing_mode = (
+                        task.get("processing_mode") or runtime_config.default_processing_mode
+                    )
 
-                try:
                     processing_job_id = f"{task_id}:{secrets.token_hex(16)}"
                     metadata["processing_job_id"] = processing_job_id
                     await _save_task_source_metadata(task_id, metadata, db=db)
@@ -1380,7 +1380,7 @@ async def resume_task(
                     await task_service.task_repo.update_task_status(
                         db, task_id, task["status"],
                         progress_message="Could not enqueue resume. Please retry.",
-                        expected_statuses=["queued"],
+                        expected_statuses=["queued", task["status"]],
                     )
                     raise
 

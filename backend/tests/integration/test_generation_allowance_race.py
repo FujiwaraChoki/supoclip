@@ -1,6 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
@@ -36,12 +37,14 @@ async def wait_for_admission_waiter(engine):
 async def test_concurrent_admissions_cannot_claim_the_same_allowance_slot(
     initialized_database, app, db_session, monkeypatch, first_action, second_action, limit
 ):
+    # Ledger rows survive deletion, so each case needs its own billing owner.
+    user_id = str(uuid4())
     app.state.config.monetization_enabled = True
     app.state.config.pro_plan_minute_limit = limit
     await create_user(
-        db_session, user_id="user-1", plan="pro", subscription_status="active"
+        db_session, user_id=user_id, plan="pro", subscription_status="active"
     )
-    monkeypatch.setattr(tasks, "_get_user_id_from_headers", AsyncMock(return_value="user-1"))
+    monkeypatch.setattr(tasks, "_get_user_id_from_headers", AsyncMock(return_value=user_id))
     monkeypatch.setattr(tasks, "_save_task_source_metadata", AsyncMock())
     request = SimpleNamespace(
         json=AsyncMock(return_value={"source": {"url": "upload://source.mp4"}}),
@@ -52,7 +55,7 @@ async def test_concurrent_admissions_cannot_claim_the_same_allowance_slot(
     source = await create_source(db_session, source_type="video_url", url="upload://source.mp4")
     # Every source is one minute long, so each admission claims one minute.
     retry_tasks = [await create_task(
-        db_session, user_id="user-1", source_id=source["id"], status="error",
+        db_session, user_id=user_id, source_id=source["id"], status="error",
         source_duration_seconds=60,
     ) for _ in range(2)]
     monkeypatch.setattr(tasks.JobQueue, "enqueue_processing_job", AsyncMock(return_value="job-1"))
@@ -103,7 +106,7 @@ async def test_concurrent_admissions_cannot_claim_the_same_allowance_slot(
         assert rejected[0].status_code == 402
     else:
         assert rejected == []
-    summary = await BillingService(db_session, app.state.config).get_usage_summary("user-1")
+    summary = await BillingService(db_session, app.state.config).get_usage_summary(user_id)
     assert summary["usage_count"] == expected_successes
     if limit == 1:
         async with sessions() as db:
