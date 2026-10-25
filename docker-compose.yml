@@ -34,6 +34,7 @@ services:
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
+      - ./frontend/messages:/app/messages
       - ./frontend/prisma:/app/prisma
       - ./CHANGELOG.md:/app/CHANGELOG.md:ro
     environment:
