@@ -104,8 +104,12 @@ or cancellation. Word timings are backed up before transcript analysis; if S3 is
 unavailable, eviction preserves the small timing sidecars for the worker to retry.
 A cache sweeper reclaims leftovers after the cache expiry period.
 Generated local outputs are queued for deletion after their durable database
-reference commits. Preset exports returned directly by the API are removed after
-the response finishes.
+reference commits. Preset exports returned directly by the synchronous
+`GET .../export` route are removed after the response finishes. Queued preset
+exports (`POST .../exports`) are stored under `media/exports/{export_id}.mp4`
+in the same bucket, or under `TEMP_DIR/clip-exports/{export_id}/` when object
+storage is off. Those files are deleted after 7 days, and sooner when the clip
+or task is deleted. The worker's existing media cleanup cron does that deletion.
 
 Editor assets and changed draft/job documents are copied to S3. Unchanged media is
 not uploaded on every draft save. Missing local editor assets can be restored from

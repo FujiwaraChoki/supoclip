@@ -187,6 +187,10 @@ async def cleanup_media(ctx):
     async with AsyncSessionLocal() as db:
         await drain_deletions(db, storage)
         await cleanup_upload_sessions(db, storage)
+        from ..services.clip_export_service import expire_clip_exports
+
+        await expire_clip_exports(db, storage)
+        await drain_deletions(db, storage)
     await run_in_thread(storage.sweep_cache)
     await run_in_thread(storage.sync_source_metadata)
     await run_in_thread(storage.sync_editor_drafts)

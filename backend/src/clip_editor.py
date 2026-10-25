@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Callable, Dict, Iterable, List, Optional
 import subprocess
 import tempfile
+import threading
 import uuid
 
 from .caption_templates import get_template
@@ -361,13 +362,114 @@ def _caption_words_with_timings(
     ]
 
 
-def export_with_preset(input_path: Path, output_dir: Path, preset_name: str) -> Path:
+class ExportCancelled(RuntimeError):
+    """The caller asked an in-progress preset export to stop."""
+
+
+def _ffmpeg_clock_seconds(value: str) -> Optional[float]:
+    pieces = value.strip().split(":")
+    if len(pieces) != 3:
+        return None
+    try:
+        hours = int(pieces[0])
+        minutes = int(pieces[1])
+        seconds = float(pieces[2])
+    except ValueError:
+        return None
+    if minutes < 0 or seconds < 0:
+        return None
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def _export_with_progress(
+    command: list[str],
+    input_path: Path,
+    on_progress: Optional[Callable[[int], None]],
+    should_stop: Optional[Callable[[], bool]],
+) -> None:
+    """Run ffmpeg and report encode percent from its progress clock.
+
+    The synchronous download route keeps the original command. This path is
+    only used by the queued export, which needs a percentage for clients.
+    """
+    try:
+        duration = _ffprobe_duration(input_path)
+    except (subprocess.CalledProcessError, ValueError, OSError):
+        duration = 0.0
+    progress_command = [*command[:-1], "-progress", "pipe:1", "-nostats", command[-1]]
+    process = subprocess.Popen(
+        progress_command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    stderr_parts: list[str] = []
+
+    def _drain_stderr() -> None:
+        if process.stderr is not None:
+            stderr_parts.append(process.stderr.read())
+
+    drain = threading.Thread(target=_drain_stderr, daemon=True)
+    drain.start()
+    last_percent = -1
+    cancelled = False
+    try:
+        assert process.stdout is not None
+        for line in process.stdout:
+            if should_stop is not None and should_stop():
+                cancelled = True
+                break
+            if on_progress is None or duration <= 0 or not line.startswith("out_time="):
+                continue
+            clock = _ffmpeg_clock_seconds(line.split("=", 1)[1])
+            if clock is None:
+                continue
+            percent = min(99, int(clock / duration * 100))
+            if percent != last_percent:
+                last_percent = percent
+                on_progress(percent)
+    finally:
+        if process.poll() is None:
+            if not cancelled:
+                try:
+                    process.wait(timeout=30)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+        drain.join(timeout=5)
+    if cancelled:
+        raise ExportCancelled("Export was cancelled.")
+    if process.returncode != 0:
+        raise subprocess.CalledProcessError(
+            process.returncode or 1,
+            progress_command,
+            stderr="".join(stderr_parts)[-4000:],
+        )
+
+
+def export_with_preset(
+    input_path: Path,
+    output_dir: Path,
+    preset_name: str,
+    *,
+    output_path: Optional[Path] = None,
+    on_progress: Optional[Callable[[int], None]] = None,
+    should_stop: Optional[Callable[[], bool]] = None,
+) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     preset = EXPORT_PRESETS.get(preset_name)
     if not preset:
         raise ValueError(f"Unknown export preset: {preset_name}")
 
-    output_path = output_dir / _safe_name(preset.name)
+    destination = output_path or (output_dir / _safe_name(preset.name))
+    destination.parent.mkdir(parents=True, exist_ok=True)
     scale_filter = (
         f"scale={preset.width}:{preset.height}:"
         "force_original_aspect_ratio=decrease:flags=lanczos,"
@@ -406,7 +508,10 @@ def export_with_preset(input_path: Path, output_dir: Path, preset_name: str) -> 
         "48000",
         "-movflags",
         "+faststart",
-        str(output_path),
+        str(destination),
     ]
-    _run(command)
-    return output_path
+    if on_progress is None and should_stop is None:
+        _run(command)
+    else:
+        _export_with_progress(command, input_path, on_progress, should_stop)
+    return destination

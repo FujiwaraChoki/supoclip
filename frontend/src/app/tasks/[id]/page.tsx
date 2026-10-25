@@ -7,7 +7,8 @@ import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useTaskProgress } from "@/hooks/use-task-progress";
 import { StatusBadge, ACTIVE_TASK_STATUSES } from "@/components/app/status-badge";
-import { getClipUrl, requestAction, downloadBlob, EXPORT_PRESETS } from "@/lib/clip-actions";
+import { getClipUrl, requestAction, EXPORT_PRESETS } from "@/lib/clip-actions";
+import { clipExportFilePath, pollClipExport, triggerFileDownload } from "@/lib/clip-export";
 import { trackClipExport } from "@/lib/clip-export-tracking";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -542,17 +543,25 @@ export default function TaskPage() {
   const handleExportClip = async (clipId: string, fallbackFilename: string) => {
     if (!session?.user?.id || !task?.id) return;
 
-    const response = await fetch(`${taskApiUrl}/${task.id}/clips/${clipId}/export?preset=${exportPreset}`, {
-      cache: "no-store",
+    const taskId = task.id;
+    const job = await pollClipExport({
+      start: () => fetch(`${taskApiUrl}/${taskId}/clips/${clipId}/exports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preset: exportPreset }),
+        cache: "no-store",
+      }),
+      status: (exportId) => fetch(`${taskApiUrl}/${taskId}/clips/${clipId}/exports/${exportId}`, {
+        cache: "no-store",
+      }),
+      readError: (response) => buildSupportError(response, t("errors.exportClip")),
+      fallbackMessage: t("errors.exportClip"),
+      timeoutMessage: t("errors.exportClip"),
     });
-
-    if (!response.ok) {
-      toast.error(await buildSupportError(response, t("errors.exportClip")));
-      return;
-    }
-
-    const blob = await response.blob();
-    downloadBlob(blob, `${fallbackFilename.replace(/\.mp4$/i, "")}_${exportPreset}.mp4`);
+    triggerFileDownload(
+      clipExportFilePath(taskApiUrl, taskId, clipId, job.id),
+      `${fallbackFilename.replace(/\.mp4$/i, "")}_${exportPreset}.mp4`,
+    );
     void trackClipExport({ userId: session.user.id, surface: "task", format: exportPreset });
   };
 
