@@ -43,7 +43,7 @@ async def test_process_video_complete_uses_fallback_when_ai_selects_no_segments(
     ):
         return "[00:00 - 00:01] hello"
 
-    async def fake_analyze_transcript(_transcript, clip_signals=None, performance_context=None):
+    async def fake_analyze_transcript(_transcript, clip_signals=None, performance_context=None, clip_length="auto"):
         return _EmptyAnalysis()
 
     async def fake_run_in_thread(_func, *_args, **_kwargs):

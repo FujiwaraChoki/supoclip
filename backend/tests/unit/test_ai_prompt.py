@@ -15,11 +15,12 @@ from src.ai import (
     _parse_transcript_spans,
     _parse_transcript_timestamp_seconds,
     build_transcript_analysis_prompt,
-    transcript_analysis_system_prompt,
+    build_transcript_system_prompt,
 )
 
 
 def test_system_prompt_enforces_grounding_rules():
+    transcript_analysis_system_prompt = build_transcript_system_prompt()
     assert "extraction and ranking, not creative rewriting" in (
         transcript_analysis_system_prompt
     )

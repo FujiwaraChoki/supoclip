@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
   AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Crop, FileVideo,
-  Loader2, Paintbrush, Paperclip, Upload, Link2, Wand2, X,
+  Loader2, Timer, Paintbrush, Paperclip, Upload, Link2, Wand2, X,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 import { VideoSourceIcon } from "@/components/video-source-icon";
@@ -33,6 +33,7 @@ import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
 import { fetchGenerations, type GenerationSummary } from "@/lib/generations";
+import { CLIP_LENGTHS, isClipLength, type ClipLength } from "@/lib/clip-duration";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 
@@ -92,6 +93,11 @@ export default function HomeApp() {
   const [captionTemplate, setCaptionTemplate] = useState("default");
   const [availableTemplates, setAvailableTemplates] = useState<CaptionTemplate[]>([]);
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("vertical");
+  const [clipLength, setClipLength] = useState<ClipLength>("auto");
+  const [clipLengthSaveError, setClipLengthSaveError] = useState(false);
+  const [isClipLengthLoading, setIsClipLengthLoading] = useState(false);
+  const clipLengthEdited = useRef(false);
+  const clipLengthSave = useRef<Promise<unknown>>(Promise.resolve());
   const [addSubtitles, setAddSubtitles] = useState(true);
   const [cutLongPauses, setCutLongPauses] = useState(true);
   const [pauseThresholdMs, setPauseThresholdMs] = useState("1200");
@@ -112,6 +118,47 @@ export default function HomeApp() {
   const uploadLimitBytes = billingSummary?.max_upload_bytes && billingSummary.max_upload_bytes > 0
     ? billingSummary.max_upload_bytes
     : maxVideoUploadBytes();
+
+  useEffect(() => {
+    let cancelled = false;
+    clipLengthEdited.current = false;
+    setClipLength("auto");
+    if (session?.user?.id) {
+      setIsClipLengthLoading(true);
+      void fetch("/api/preferences")
+        .then((response) => response.ok ? response.json() : null)
+        .then((preferences) => {
+          if (!cancelled && !clipLengthEdited.current && isClipLength(preferences?.clipLength)) {
+            setClipLength(preferences.clipLength);
+          }
+        })
+        .catch(() => {})
+        .finally(() => { if (!cancelled) setIsClipLengthLoading(false); });
+    } else {
+      setIsClipLengthLoading(false);
+    }
+    return () => { cancelled = true; };
+  }, [session?.user?.id]);
+
+  function chooseClipLength(value: ClipLength) {
+    clipLengthEdited.current = true;
+    setClipLength(value);
+    setIsClipLengthLoading(false);
+    setClipLengthSaveError(false);
+    // Serialize changes so a slow previous save cannot overwrite the latest choice.
+    clipLengthSave.current = clipLengthSave.current.then(async () => {
+      try {
+        const response = await fetch("/api/preferences", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clipLength: value }),
+        });
+        setClipLengthSaveError(!response.ok);
+      } catch {
+        setClipLengthSaveError(true);
+      }
+    });
+  }
 
   const refreshFonts = useCallback(async () => {
     try {
@@ -230,7 +277,7 @@ export default function HomeApp() {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!hasSource || isLoading || !session?.user?.id) return;
+    if (!hasSource || isLoading || isClipLengthLoading || !session?.user?.id) return;
     if (generationRequiresUpgrade) {
       openUpgrade({ kind: upgradeState?.isPaid ? "limit" : "start" });
       return;
@@ -268,6 +315,7 @@ export default function HomeApp() {
           caption_template: captionTemplate,
           processing_mode: "fast",
           output_format: outputFormat,
+          clip_length: clipLength,
           add_subtitles: addSubtitles,
           cut_long_pauses: cutLongPauses,
           pause_threshold_ms: normalizedPauseThreshold,
@@ -429,6 +477,27 @@ export default function HomeApp() {
                   <Paperclip className="size-3.5" /><span className="hidden sm:inline">{t("upload")}</span>
                 </Chip>
               )}
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Chip disabled={controlsDisabled} active={clipLength !== "auto"} aria-label={t("clipLength.picker")}>
+                    <Timer className="size-3.5" />{t(`clipLength.${clipLength}`)}<ChevronDown className="size-3 opacity-60" />
+                  </Chip>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 rounded-2xl p-3">
+                  <p className="mb-2 text-sm font-medium">{t("clipLength.title")}</p>
+                  <div role="radiogroup" aria-label={t("clipLength.title")} className="grid gap-1">
+                    {CLIP_LENGTHS.map((length) => (
+                      <button type="button" role="radio" aria-checked={clipLength === length} disabled={controlsDisabled} key={length} onClick={() => chooseClipLength(length)} className={cn("flex items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-muted disabled:opacity-50", clipLength === length && "bg-muted")}>
+                        <span>{t(`clipLength.${length}`)}</span>
+                        {clipLength === length && <Check className="size-4" />}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{t("clipLength.hint")}</p>
+                  {clipLengthSaveError && <p role="status" className="mt-2 text-xs text-destructive">{t("clipLength.saveError")}</p>}
+                </PopoverContent>
+              </Popover>
 
               <Popover>
                 <PopoverTrigger asChild>
@@ -608,7 +677,7 @@ export default function HomeApp() {
                   type="submit"
                   size="icon"
                   aria-label={t("generate")}
-                  disabled={!hasSource || isLoading}
+                  disabled={!hasSource || isLoading || isClipLengthLoading}
                   className="size-9 rounded-full bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
                 >
                   {isLoading ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}

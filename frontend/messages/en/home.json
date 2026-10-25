@@ -114,5 +114,15 @@
     "nearWithPlan": "{refreshes} Need more room? {plan} gives you {limit} of video a month.",
     "upgrade": "Upgrade",
     "limitTitleAll": "You've used this month's video minutes"
+  },
+  "clipLength": {
+    "picker": "Clip length",
+    "title": "Clip length",
+    "auto": "Auto length",
+    "short": "Short (15–30s)",
+    "medium": "Medium (30–60s)",
+    "long": "Long (1–2 min)",
+    "hint": "Target length before pause and filler removal. Your choice is saved as your default.",
+    "saveError": "Could not save your default. This video will still use your choice."
   }
 }

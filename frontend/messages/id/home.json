@@ -114,5 +114,15 @@
     "nearWithPlan": "{refreshes} Butuh ruang lebih? {plan} memberi {limit} video sebulan.",
     "upgrade": "Upgrade",
     "limitTitleAll": "Kamu sudah memakai menit video bulan ini"
+  },
+  "clipLength": {
+    "picker": "Durasi klip",
+    "title": "Durasi klip",
+    "auto": "Durasi otomatis",
+    "short": "Pendek (15–30 dtk)",
+    "medium": "Sedang (30–60 dtk)",
+    "long": "Panjang (1–2 menit)",
+    "hint": "Target durasi sebelum jeda dan kata pengisi dihapus. Pilihan Anda disimpan sebagai default.",
+    "saveError": "Gagal menyimpan default. Video ini tetap menggunakan pilihan Anda."
   }
 }

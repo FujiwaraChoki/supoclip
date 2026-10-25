@@ -759,3 +759,17 @@ async def test_worker_does_not_process_uncharged_over_limit_task(monkeypatch):
     with pytest.raises(BillingLimitExceeded):
         await service.process_task(task_id="task-1", url="upload://source.mp4", source_type="video_url", user_id="user-1")
     service.video_service.process_video_complete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("preset,cap", [("short", 30), ("medium", 60), ("long", 120)])
+async def test_task_applies_the_same_length_to_selection_cache_and_render(preset, cap):
+    service = build_task_service()
+    await service.process_task(
+        task_id="task-1", url="upload://source.mp4", source_type="upload", clip_length=preset,
+    )
+    assert service.video_service.process_video_complete.await_args.kwargs["clip_length"] == preset
+    assert service.video_service.create_single_clip.await_args.kwargs["max_clip_seconds"] == cap
+    assert service.cache_repo.get_cache.await_args.args[1] == TaskService._build_cache_key(
+        "upload://source.mp4", "upload", "fast", clip_length=preset,
+    )

@@ -70,7 +70,7 @@ These routes generally attach session context and then proxy or orchestrate back
 ### User preferences and feedback
 
 - `GET/PATCH /api/preferences`
-  - Read and update default subtitle styling preferences
+  - Read and update default subtitle styling and clip length preferences (`clipLength`: `auto`, `short`, `medium`, `long`)
 - `POST /api/feedback`
   - Submit product feedback
 
@@ -127,6 +127,24 @@ Source file:
   - Cancel an active task
 - `POST /{task_id}/resume`
   - Resume a cancelled or errored task
+
+Task creation accepts an optional `clip_length`: `auto` (default, 15–60 seconds),
+`short` (15–30), `medium` (30–60), or `long` (60–120). Invalid values return 422
+before a task is created or minutes are charged. Example body:
+
+```json
+{"source": {"url": "https://www.youtube.com/watch?v=VIDEO_ID"}, "clip_length": "long"}
+```
+
+The preset controls AI selection and the render cap, and is kept for resume and
+styling regeneration. Pause and filler removal may shorten the result; a source
+shorter than the requested duration can only produce a shorter clip. Existing
+clients that omit the field keep Auto behavior. The web app passes the account's
+saved default explicitly; API and MCP callers should set their preferred preset.
+
+Deploy the `default_clip_length` user migration (through either migration runner)
+before the frontend. Ship the API and worker together so the worker accepts the
+new optional job argument. No new environment variables are required.
 
 ### Clip operations
 

@@ -141,3 +141,10 @@ claude mcp add supoclip -e SUPOCLIP_API_KEY=sk_your_key_here \
 ## License
 
 AGPL-3.0-or-later, matching the SupoClip project.
+
+### Clip length
+
+`supoclip_create_clip_task` accepts `clip_length`: `auto` (default, 15–60s),
+`short` (15–30s), `medium` (30–60s), or `long` (1–2 min). This controls the
+selection range and rendering limit. Removing pauses and filler words can
+shorten the finished clips.

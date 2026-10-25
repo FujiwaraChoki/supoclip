@@ -217,3 +217,39 @@ test("API keys require verification while existing keys remain manageable", asyn
   await expect(page.getByText("sk_once-only", { exact: true })).toBeVisible();
   expect(created).toBe(true);
 });
+
+for (const width of [390, 1280]) {
+  test(`clip length is remembered and sent with generation at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
+    await page.route(/\/api\/tasks\/?(\?.*)?$/, route => route.fulfill({ json: { tasks: [] } }));
+    await page.route("**/api/announcements**", route => route.fulfill({ json: { announcements: [] } }));
+    await page.route("**/api/service-status/video-downloads", route => route.fulfill({ json: { component: { status: "operational" } } }));
+    let preference = "medium";
+    await page.route("**/api/preferences", async route => {
+      if (route.request().method() === "PATCH") preference = route.request().postDataJSON().clipLength;
+      await route.fulfill({ json: { clipLength: preference } });
+    });
+    let submitted: Record<string, unknown> | undefined;
+    await page.route("**/api/tasks/create", async route => {
+      submitted = route.request().postDataJSON();
+      await route.fulfill({ json: { task_id: "one" } });
+    });
+    await page.goto("/");
+    const picker = page.getByRole("button", { name: "Clip length", exact: true });
+    await expect(picker).toContainText("Medium (30–60s)");
+    await picker.click();
+    await page.getByRole("radio", { name: "Long (1–2 min)", exact: true }).click();
+    await expect(page.getByRole("radio", { name: "Long (1–2 min)", exact: true })).toHaveAttribute("aria-checked", "true");
+    await expect.poll(() => preference).toBe("long");
+    await page.screenshot({ path: `test-results/clip-length-${width}.png` });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.keyboard.press("Escape");
+    await page.reload();
+    await expect(picker).toContainText("Long (1–2 min)");
+    await page.getByPlaceholder("Paste a YouTube, Twitch, or Kick VOD/clip link").fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    await page.getByRole("button", { name: "Generate clips", exact: true }).click();
+    await expect(page).toHaveURL(/\/tasks\/one$/);
+    expect(submitted?.clip_length).toBe("long");
+  });
+}

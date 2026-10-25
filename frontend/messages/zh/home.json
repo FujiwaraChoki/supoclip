@@ -114,5 +114,15 @@
     "nearWithPlan": "{refreshes} 需要更多额度？{plan} 每月提供 {limit} 视频。",
     "upgrade": "升级",
     "limitTitleAll": "你本月的视频分钟数已用完"
+  },
+  "clipLength": {
+    "picker": "片段时长",
+    "title": "片段时长",
+    "auto": "自动时长",
+    "short": "短（15–30秒）",
+    "medium": "中（30–60秒）",
+    "long": "长（1–2分钟）",
+    "hint": "目标时长为移除停顿和语气词之前的时长。您的选择将保存为默认值。",
+    "saveError": "无法保存默认值。此视频仍会使用您的选择。"
   }
 }

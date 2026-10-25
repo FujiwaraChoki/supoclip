@@ -145,3 +145,11 @@ async def test_resume_setup_failure_restores_refundable_terminal_state(resume_co
     repo.update_task_status.assert_awaited_once()
     assert repo.update_task_status.await_args.args[2] == "error"
     assert "error" in repo.update_task_status.await_args.kwargs["expected_statuses"]
+
+
+@pytest.mark.asyncio
+async def test_resume_preserves_original_clip_length(resume_context):
+    _, _, _, queue, _ = resume_context
+    tasks._load_task_source_metadata.return_value = {"clip_length": "long"}
+    await tasks.resume_task("task-1", SimpleNamespace(), db=None)
+    assert queue.await_args.args[-1] == "long"

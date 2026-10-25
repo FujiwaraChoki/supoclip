@@ -33,6 +33,7 @@ from ..config import Config, get_config
 from ..youtube_utils import cleanup_downloaded_files, extract_video_id
 from ..youtube_source import load_time_map, localize_segment, restore_clip_timeline, transcript_source_for
 from ..clip_cleanup import normalize_clip_cleanup_settings
+from ..clip_duration import clip_duration, validate_clip_length
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..clip_source_map import load_clip_caption_settings
 from ..media_storage import MediaStorage, media_work
@@ -58,7 +59,8 @@ class TaskService(ClipEditingMixin):
 
     @staticmethod
     def _build_cache_key(
-        url: str, source_type: str, processing_mode: str, quality: Optional[str] = None
+        url: str, source_type: str, processing_mode: str, quality: Optional[str] = None,
+        clip_length: str = "auto",
     ) -> str:
         payload = (
             f"{source_type}|{processing_mode}|"
@@ -68,6 +70,9 @@ class TaskService(ClipEditingMixin):
         # request never reuses a 720p source. Full quality keeps the old key.
         if quality and source_type == "youtube":
             payload += f"|q{quality}"
+        validate_clip_length(clip_length)
+        if clip_length != "auto":
+            payload += f"|length:{clip_length}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     async def _media_limits(self, user_id: Optional[str]) -> tuple[Optional[str], Optional[int]]:
@@ -313,6 +318,7 @@ class TaskService(ClipEditingMixin):
         should_cancel: Optional[Callable] = None,
         clip_ready_callback: Optional[Callable] = None,
         cleanup_settings: Optional[Dict[str, Any]] = None,
+        clip_length: str = "auto",
     ) -> Dict[str, Any]:
         """
         Process a task: download video, analyze, create clips.
@@ -350,7 +356,7 @@ class TaskService(ClipEditingMixin):
             # a final downscale; 1080p plans keep the renderer's output.
             download_quality, output_short_side = reduced_media_limits(billing)
             cache_key = self._build_cache_key(
-                url, source_type, processing_mode, download_quality
+                url, source_type, processing_mode, download_quality, clip_length
             )
 
             cache_entry = await self.cache_repo.get_cache(self.db, cache_key)
@@ -429,6 +435,7 @@ class TaskService(ClipEditingMixin):
                 progress_callback=update_progress,
                 should_cancel=should_cancel,
                 performance_context=performance_context,
+                clip_length=clip_length,
             )
             stage_timings["pipeline_seconds"] = round(
                 perf_counter() - pipeline_start, 3
@@ -510,6 +517,7 @@ class TaskService(ClipEditingMixin):
                     add_subtitles,
                     normalized_cleanup_settings,
                     max_short_side=output_short_side,
+                    max_clip_seconds=clip_duration(clip_length).maximum,
                 )
                 pending_clip_path = Path(clip_info["path"]) if clip_info else None
                 await check_cancelled()

@@ -92,6 +92,7 @@ async def test_retry_preserves_source_options_when_redis_metadata_is_unavailable
         json={
             "source": {"url": "upload://source.mp4"},
             "output_format": "original", "add_subtitles": False,
+            "clip_length": "long",
             "cut_long_pauses": True, "pause_threshold_ms": 1200,
             "remove_filler_words": True, "filtered_words": ["basically"],
         },
@@ -106,6 +107,7 @@ async def test_retry_preserves_source_options_when_redis_metadata_is_unavailable
     settings = await TaskService(db_session, app.state.config)._load_task_source_settings(task.id)
     assert settings["output_format"] == "original"
     assert settings["add_subtitles"] is False
+    assert settings["clip_length"] == "long"
     assert settings["cut_long_pauses"] is True
     assert settings["filtered_words"] == ["basically"]
 
@@ -118,6 +120,7 @@ async def test_retry_preserves_source_options_when_redis_metadata_is_unavailable
     saved = await tasks.TaskRepository.load_source_metadata(db_session, task.id)
     assert saved["output_format"] == "original"
     assert saved["add_subtitles"] is False
+    assert saved["clip_length"] == "long"
     assert saved["pause_threshold_ms"] == 1200
     assert saved["filtered_words"] == ["basically"]
     assert saved["url"] == "upload://source.mp4"
@@ -126,10 +129,11 @@ async def test_retry_preserves_source_options_when_redis_metadata_is_unavailable
     monkeypatch.setattr(tasks.JobQueue, "enqueue_processing_job", enqueue)
     resumed = await client.post(f"/tasks/{task.id}/resume", headers=auth_headers)
     assert resumed.status_code == 200
-    assert enqueue.await_args.args[-3] == "original"
-    assert enqueue.await_args.args[-2] is False
-    assert enqueue.await_args.args[-1]["pause_threshold_ms"] == 1200
-    assert enqueue.await_args.args[-1]["filtered_words"] == ["basically"]
+    assert enqueue.await_args.args[-4] == "original"
+    assert enqueue.await_args.args[-3] is False
+    assert enqueue.await_args.args[-2]["pause_threshold_ms"] == 1200
+    assert enqueue.await_args.args[-2]["filtered_words"] == ["basically"]
+    assert enqueue.await_args.args[-1] == "long"
     failed_redis.get.assert_not_awaited()
     retried = await tasks.TaskRepository.load_source_metadata(db_session, task.id)
     assert retried["processing_job_id"] == enqueue.await_args.kwargs["_job_id"]

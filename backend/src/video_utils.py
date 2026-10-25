@@ -453,6 +453,7 @@ def create_clips_from_segments(
     output_format: str = "vertical",
     add_subtitles: bool = True,
     cleanup_settings: Optional[Dict[str, Any]] = None,
+    max_clip_seconds: float = 60.0,
 ) -> List[Dict[str, Any]]:
     """Create optimized video clips from segments with template support."""
     logger.info(
@@ -516,13 +517,11 @@ def create_clips_from_segments(
             clip_text = segment["text"]
             if not provided_keep_ranges and not provided_source_ranges:
                 keep_ranges = apply_segment_hook_teaser(video_path, keep_ranges, segment)
-                # Snapping, cleanup and the teaser change what is spoken; keep
-                # the stored text word-for-word with the rendered timeline.
-                clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
             # Rewind and sentence extension happen before this, so the stored
             # ranges — and the render, which must not extend them again — stay
-            # inside the 60s cap.
-            keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges)
+            # inside the selected duration cap.
+            keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges, max_clip_seconds)
+            clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
 
             layout_report: Dict[str, Any] = {}
             success = create_optimized_clip(
@@ -696,6 +695,7 @@ def create_clips_with_transitions(
     output_format: str = "vertical",
     add_subtitles: bool = True,
     cleanup_settings: Optional[Dict[str, Any]] = None,
+    max_clip_seconds: float = 60.0,
 ) -> List[Dict[str, Any]]:
     """Create standalone video clips without inter-clip transitions.
 
@@ -718,6 +718,7 @@ def create_clips_with_transitions(
         output_format,
         add_subtitles,
         cleanup_settings,
+        max_clip_seconds=max_clip_seconds,
     )
 
 
