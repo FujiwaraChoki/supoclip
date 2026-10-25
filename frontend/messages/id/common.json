@@ -6,6 +6,10 @@
   "loading": "Memuat",
   "tryAgain": "Coba lagi, ya.",
   "justNow": "baru saja",
+  "copy": {
+    "copied": "Disalin ke papan klip",
+    "manual": "Papan klip diblokir. Teksnya sudah dipilih supaya kamu bisa menyalinnya secara manual."
+  },
   "plans": {
     "free": "Gratis",
     "pro": "Pro",

@@ -103,6 +103,7 @@
     "verified": "Ya verifiqué mi correo",
     "invalidLink": "Este enlace de verificación no es válido o venció. Pide otro correo abajo.",
     "reveal": "Copia tu clave nueva ahora — no se volverá a mostrar.",
+    "copy": "Copiar clave de API",
     "createLabel": "Crear una clave nueva",
     "namePlaceholder": "p. ej. MCP de mi laptop",
     "create": "Crear",

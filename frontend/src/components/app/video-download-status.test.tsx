@@ -41,6 +41,28 @@ it("never claims service is healthy when the status request fails", async () => 
   expect(container).toBeEmptyDOMElement();
 });
 
+it("keeps the last incident when a refresh is a gateway or network failure", async () => {
+  const fetch = vi.fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify({ component: {
+      status: "outage", headline: "Investigating YouTube import failures",
+      description: "New imports may fail before processing starts.",
+    } })))
+    .mockResolvedValueOnce(new Response("bad gateway", { status: 502 }))
+    .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+  vi.stubGlobal("fetch", fetch);
+  render(<VideoDownloadStatus />);
+  expect(await screen.findByText("YouTube imports · Outage")).toBeInTheDocument();
+
+  Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+  act(() => document.dispatchEvent(new Event("visibilitychange")));
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+  expect(screen.getByText("YouTube imports · Outage")).toBeInTheDocument();
+
+  act(() => document.dispatchEvent(new Event("visibilitychange")));
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+  expect(screen.getByText("New imports may fail before processing starts.")).toBeInTheDocument();
+});
+
 it("removes an incident banner when a refresh reports recovery", async () => {
   const fetch = vi.fn()
     .mockResolvedValueOnce(new Response(JSON.stringify({ component: {

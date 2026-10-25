@@ -6,6 +6,10 @@
   "loading": "加载中",
   "tryAgain": "请重试。",
   "justNow": "刚刚",
+  "copy": {
+    "copied": "已复制到剪贴板",
+    "manual": "剪贴板被阻止。文本已选中，请手动复制。"
+  },
   "plans": {
     "free": "免费",
     "pro": "Pro",

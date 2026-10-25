@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/sheet";
 import { useSession } from "@/lib/auth-client";
 import { ApiRequestError, formatSupportMessage, parseApiError } from "@/lib/api-error";
+import { useCopyText } from "@/lib/copy-text";
 import { useBillingSummary } from "@/hooks/use-billing-summary";
 import { UpgradeDialog, upgradeReasonForError, type UpgradeReason } from "@/components/billing/upgrade-prompt";
 import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
@@ -136,6 +137,7 @@ function originalVideoUrl(task: Pick<TaskDetails, "source_type" | "source_url">)
 export default function TaskPage() {
   const t = useTranslations("task");
   const tLibrary = useTranslations("library");
+  const copyText = useCopyText();
   const locale = useLocale();
   const params = useParams();
   const router = useRouter();
@@ -592,21 +594,14 @@ export default function TaskPage() {
 
       const data = (await response.json()) as { share_path: string };
       const shareUrl = new URL(data.share_path, window.location.origin).toString();
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareUrl);
-      } else {
-        const input = document.createElement("input");
-        input.value = shareUrl;
-        input.style.position = "fixed";
-        input.style.opacity = "0";
-        document.body.appendChild(input);
-        input.select();
-        document.execCommand("copy");
-        input.remove();
-      }
       setTask((currentTask) =>
         currentTask ? { ...currentTask, share_enabled: true } : currentTask,
       );
+      const outcome = await copyText(shareUrl);
+      if (outcome !== "copied") {
+        setShareState("idle");
+        return;
+      }
       setShareState("copied");
       window.setTimeout(() => setShareState("idle"), 2500);
     } catch (shareError) {

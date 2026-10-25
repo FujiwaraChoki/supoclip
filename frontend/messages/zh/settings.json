@@ -103,6 +103,7 @@
     "verified": "我已经验证了邮箱",
     "invalidLink": "这个验证链接无效或已过期。请在下面重新请求邮件。",
     "reveal": "请马上复制新密钥 — 之后不会再显示。",
+    "copy": "复制 API 密钥",
     "createLabel": "创建新密钥",
     "namePlaceholder": "例如：我的笔记本电脑 MCP",
     "create": "创建",

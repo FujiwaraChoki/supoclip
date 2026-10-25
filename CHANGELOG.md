@@ -7,6 +7,8 @@ Add a line here when a pull request changes something a user can see. Use **New*
 ## 2026-10-25
 
 - **Fixed:** Downloading a clip in a social format no longer waits on the whole re-encode, so a long export can finish instead of timing out. ([#258](https://github.com/FujiwaraChoki/supoclip/pull/258))
+- **Fixed:** Copying an API key, a creator code, or a share link still works when the browser blocks the clipboard. If it cannot copy, the text is selected and a message tells you to copy it yourself. ([#257](https://github.com/FujiwaraChoki/supoclip/pull/257))
+- **Under the hood:** A brief server error no longer clears the YouTube download notice or the What's new list, and those checks are not reported as crashes. ([#257](https://github.com/FujiwaraChoki/supoclip/pull/257))
 
 ## 2026-10-24
 

@@ -6,6 +6,10 @@
   "loading": "Carregando",
   "tryAgain": "Tente novamente.",
   "justNow": "agora mesmo",
+  "copy": {
+    "copied": "Copiado para a área de transferência",
+    "manual": "A área de transferência está bloqueada. O texto está selecionado para você copiar manualmente."
+  },
   "plans": {
     "free": "Grátis",
     "pro": "Pro",

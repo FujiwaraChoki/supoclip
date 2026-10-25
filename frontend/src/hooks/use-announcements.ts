@@ -6,8 +6,14 @@ import { ANNOUNCEMENTS_UPDATED_EVENT, type Announcement } from "@/lib/announceme
 let pending: Promise<Announcement[] | null> | null = null;
 
 function loadAnnouncements() {
+  // A 502/503/504 or a network error resolves to null. Callers keep the last
+  // list and the hook retries on the next interval, focus, or visibility change.
   pending ??= fetch("/api/announcements", { cache: "no-store" })
-    .then(async response => response.ok ? ((await response.json()) as { announcements: Announcement[] }).announcements : null)
+    .then(async response => {
+      if (!response.ok) return null;
+      const data = (await response.json()) as { announcements?: Announcement[] };
+      return Array.isArray(data.announcements) ? data.announcements : null;
+    })
     .catch(() => null)
     .finally(() => { pending = null; });
   return pending;

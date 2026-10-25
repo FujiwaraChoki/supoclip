@@ -6,6 +6,10 @@
   "loading": "Loading",
   "tryAgain": "Please try again.",
   "justNow": "just now",
+  "copy": {
+    "copied": "Copied to clipboard",
+    "manual": "Clipboard is blocked. The text is selected so you can copy it manually."
+  },
   "plans": {
     "free": "Free",
     "pro": "Pro",
