@@ -316,7 +316,7 @@ describe("paid upgrades", () => {
   it("grants the pending tier when the paid invoice id matches and lines omit the price", async () => {
     const rows = store({ plan: "pro", pending_plan: "scale", pending_plan_invoice_id: "in_upgrade" });
     const paid = invoice("paid", 1500);
-    paid.lines = { data: [] } as Stripe.Invoice["lines"];
+    paid.lines = { data: [] } as unknown as Stripe.Invoice["lines"];
 
     await applyPaidUpgradeInvoice(paid);
 
