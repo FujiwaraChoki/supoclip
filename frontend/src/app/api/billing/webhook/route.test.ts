@@ -57,7 +57,7 @@ describe("/api/billing/webhook", () => {
     } as never);
     vi.mocked(getPrismaClient).mockReturnValue({
       stripeWebhookEvent: { create: vi.fn().mockResolvedValue({}), delete: vi.fn().mockResolvedValue({}) },
-      user: { updateMany },
+      user: { updateMany, findFirst: vi.fn().mockResolvedValue(null) },
     } as never);
     const response = await POST(
       new Request("http://localhost/api/billing/webhook", {
@@ -380,6 +380,7 @@ describe("/api/billing/webhook", () => {
       },
       user: {
         updateMany,
+        findFirst: vi.fn().mockResolvedValue(null),
       },
     } as never);
 
@@ -442,6 +443,7 @@ describe("/api/billing/webhook", () => {
       },
       user: {
         updateMany,
+        findFirst: vi.fn().mockResolvedValue(null),
       },
     } as never);
 
@@ -492,6 +494,7 @@ describe("/api/billing/webhook", () => {
       },
       user: {
         updateMany,
+        findFirst: vi.fn().mockResolvedValue(null),
       },
     } as never);
 
@@ -550,6 +553,7 @@ describe("/api/billing/webhook", () => {
       },
       user: {
         updateMany,
+        findFirst: vi.fn().mockResolvedValue(null),
       },
     } as never);
 
@@ -575,5 +579,243 @@ describe("/api/billing/webhook", () => {
         }),
       }),
     );
+  });
+});
+
+describe("/api/billing/webhook upgrade payment", () => {
+  const env = process.env;
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    process.env = {
+      ...env,
+      STRIPE_WEBHOOK_SECRET: "whsec_test",
+      STRIPE_PRO_PRICE_ID: "price_pro",
+      STRIPE_SCALE_PRICE_ID: "price_scale",
+      STRIPE_PRO_ANNUAL_PRICE_ID: "price_pro_annual",
+      STRIPE_SCALE_ANNUAL_PRICE_ID: "price_scale_annual",
+    };
+  });
+
+  afterAll(() => {
+    process.env = env;
+  });
+
+  type BillingRow = {
+    plan: string;
+    subscription_status: string;
+    subscription_provider: string | null;
+    pending_plan: string | null;
+    pending_plan_invoice_id: string | null;
+    stripe_subscription_id: string | null;
+  };
+
+  function billingRow(plan: string): BillingRow {
+    return {
+      plan,
+      subscription_status: "active",
+      subscription_provider: "stripe",
+      pending_plan: null,
+      pending_plan_invoice_id: null,
+      stripe_subscription_id: "sub_123",
+    };
+  }
+
+  function harness(initial: BillingRow) {
+    let row: BillingRow = { ...initial };
+    let sequence = 0;
+    const findFirst = vi.fn(async () => ({ ...row }));
+    const updateMany = vi.fn(async ({ where, data }: { where?: Record<string, unknown>; data: Partial<BillingRow> }) => {
+      if (typeof where?.plan === "string" && where.plan !== row.plan) return { count: 0 };
+      const planIn = (where?.plan as { in?: string[] } | undefined)?.in;
+      if (planIn && !planIn.includes(row.plan)) return { count: 0 };
+      if (
+        typeof where?.pending_plan_invoice_id === "string" &&
+        where.pending_plan_invoice_id !== row.pending_plan_invoice_id
+      ) {
+        return { count: 0 };
+      }
+      const providers = where?.OR as Array<{ subscription_provider: string | null }> | undefined;
+      if (providers && !providers.some((entry) => entry.subscription_provider === row.subscription_provider)) {
+        return { count: 0 };
+      }
+      row = { ...row, ...data };
+      return { count: 1 };
+    });
+
+    async function post(type: string, object: Record<string, unknown>) {
+      sequence += 1;
+      vi.mocked(getServerStripeClient).mockReturnValue({
+        webhooks: {
+          constructEvent: vi.fn().mockReturnValue({
+            id: `evt_upgrade_${sequence}`,
+            type,
+            data: { object },
+          }),
+        },
+        invoices: { retrieve: vi.fn() },
+      } as never);
+      vi.mocked(getPrismaClient).mockReturnValue({
+        stripeWebhookEvent: {
+          create: vi.fn().mockResolvedValue({}),
+          delete: vi.fn().mockResolvedValue({}),
+        },
+        user: { findFirst, updateMany },
+      } as never);
+      const response = await POST(
+        new Request("http://localhost/api/billing/webhook", {
+          method: "POST",
+          headers: { "stripe-signature": "sig" },
+          body: "{}",
+        }),
+      );
+      expect(response.status).toBe(200);
+      return { ...row };
+    }
+
+    return { post, read: () => ({ ...row }) };
+  }
+
+  function subscription(priceId: string, status: string, invoice: Record<string, unknown> | null) {
+    return {
+      id: "sub_123",
+      customer: "cus_123",
+      status,
+      trial_end: null,
+      cancel_at: null,
+      cancel_at_period_end: false,
+      latest_invoice: invoice,
+      items: {
+        data: [
+          {
+            price: { id: priceId },
+            current_period_start: 1770000000,
+            current_period_end: 1772592000,
+          },
+        ],
+      },
+    };
+  }
+
+  function upgradeInvoice(status: string, amountDue: number, id = "in_upgrade") {
+    return {
+      id,
+      customer: "cus_123",
+      status,
+      amount_due: amountDue,
+      parent: {
+        type: "subscription_details",
+        quote_details: null,
+        subscription_details: { subscription: "sub_123", metadata: null },
+      },
+      lines: {
+        data: [
+          {
+            amount: -400,
+            pricing: { type: "price_details", unit_amount_decimal: "999", price_details: { price: "price_pro", product: "prod_pro" } },
+          },
+          {
+            amount: amountDue,
+            pricing: { type: "price_details", unit_amount_decimal: "2499", price_details: { price: "price_scale", product: "prod_scale" } },
+          },
+        ],
+      },
+    };
+  }
+
+  it("grants the higher tier when the upgrade invoice is already paid", async () => {
+    const { post } = harness(billingRow("pro"));
+    const paid = upgradeInvoice("paid", 1500);
+
+    const row = await post(
+      "customer.subscription.updated",
+      subscription("price_scale", "active", paid),
+    );
+
+    expect(row.plan).toBe("scale");
+    expect(row.pending_plan).toBeNull();
+    expect(row.subscription_status).toBe("active");
+  });
+
+  it("keeps the paid tier until invoice.paid when the upgrade invoice is open", async () => {
+    const { post } = harness(billingRow("pro"));
+    const open = upgradeInvoice("open", 1500);
+
+    const held = await post(
+      "customer.subscription.updated",
+      subscription("price_scale", "active", open),
+    );
+    expect(held.plan).toBe("pro");
+    expect(held.pending_plan).toBe("scale");
+    expect(held.pending_plan_invoice_id).toBe("in_upgrade");
+
+    const granted = await post("invoice.paid", { ...open, status: "paid", amount_due: 0 });
+    expect(granted.plan).toBe("scale");
+    expect(granted.pending_plan).toBeNull();
+    expect(granted.pending_plan_invoice_id).toBeNull();
+    expect(granted.subscription_status).toBe("active");
+  });
+
+  it("keeps the paid tier when the upgrade payment fails", async () => {
+    const { post } = harness(billingRow("pro"));
+    const open = upgradeInvoice("open", 1500);
+
+    await post("customer.subscription.updated", subscription("price_scale", "active", open));
+    const failed = await post("invoice.payment_failed", open);
+    expect(failed.plan).toBe("pro");
+    expect(failed.pending_plan).toBe("scale");
+
+    const pastDue = await post(
+      "customer.subscription.updated",
+      subscription("price_scale", "past_due", open),
+    );
+    expect(pastDue.plan).toBe("pro");
+    expect(pastDue.subscription_status).toBe("past_due");
+
+    const unpaid = await post(
+      "customer.subscription.updated",
+      subscription("price_scale", "unpaid", open),
+    );
+    expect(unpaid.plan).toBe("pro");
+    expect(unpaid.plan).not.toBe("scale");
+    expect(unpaid.subscription_status).toBe("past_due");
+  });
+
+  it("applies a downgrade on subscription.updated", async () => {
+    const { post } = harness(billingRow("scale"));
+
+    const row = await post(
+      "customer.subscription.updated",
+      subscription("price_pro", "active", null),
+    );
+
+    expect(row.plan).toBe("pro");
+    expect(row.pending_plan).toBeNull();
+    expect(row.subscription_status).toBe("active");
+  });
+
+  it("grants a higher tier when the paid invoice arrives first and ignores duplicate events", async () => {
+    const { post } = harness(billingRow("pro"));
+    const paid = upgradeInvoice("paid", 0, "in_upgrade");
+
+    const granted = await post("invoice.payment_succeeded", paid);
+    expect(granted.plan).toBe("scale");
+
+    const duplicatePaid = await post("invoice.paid", paid);
+    expect(duplicatePaid.plan).toBe("scale");
+    expect(duplicatePaid.pending_plan).toBeNull();
+
+    const staleUpdate = await post(
+      "customer.subscription.updated",
+      subscription("price_scale", "active", upgradeInvoice("open", 1500)),
+    );
+    expect(staleUpdate.plan).toBe("scale");
+    expect(staleUpdate.pending_plan).toBeNull();
+
+    const duplicateUpdate = await post(
+      "customer.subscription.updated",
+      subscription("price_scale", "active", upgradeInvoice("open", 1500)),
+    );
+    expect(duplicateUpdate.plan).toBe("scale");
   });
 });

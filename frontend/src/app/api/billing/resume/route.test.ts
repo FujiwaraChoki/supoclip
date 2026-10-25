@@ -2,7 +2,7 @@ import { POST } from "./route";
 import { auth } from "@/lib/auth";
 import { getPrismaClient } from "@/server/prisma";
 import { getServerStripeClient } from "@/server/stripe";
-import { upsertSubscriptionState } from "@/server/stripe-subscription-sync";
+import { syncSubscriptionUpdate } from "@/server/stripe-subscription-sync";
 
 vi.mock("next/headers", () => ({
   headers: vi.fn().mockResolvedValue(new Headers()),
@@ -29,7 +29,7 @@ vi.mock("@/server/stripe", () => ({
 }));
 
 vi.mock("@/server/stripe-subscription-sync", () => ({
-  upsertSubscriptionState: vi.fn(),
+  syncSubscriptionUpdate: vi.fn(),
 }));
 
 function mockUser(user: Record<string, unknown> | null) {
@@ -66,7 +66,7 @@ describe("/api/billing/resume", () => {
 
     expect(response.status).toBe(200);
     expect(update).toHaveBeenCalledWith("sub_123", { cancel_at_period_end: false });
-    expect(upsertSubscriptionState).toHaveBeenCalledWith(resumed);
+    expect(syncSubscriptionUpdate).toHaveBeenCalledWith(resumed);
   });
 
   it("unsets an explicit cancel_at date", async () => {
