@@ -255,7 +255,7 @@ for (const width of [390, 1280]) {
 }
 
 for (const clipLength of ["auto", "long"]) {
-  test(`submit stays beside the first options row with ${clipLength} clip length`, async ({ page }) => {
+  test(`desktop composer fits one row and mobile wraps with ${clipLength} clip length`, async ({ page }) => {
     await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
     await page.route(/\/api\/tasks\/?(\?.*)?$/, route => route.fulfill({ json: { tasks: [] } }));
     await page.route("**/api/announcements**", route => route.fulfill({ json: { announcements: [] } }));
@@ -265,7 +265,7 @@ for (const clipLength of ["auto", "long"]) {
     const submit = page.getByRole("button", { name: "Generate clips", exact: true });
     const upload = page.getByRole("button", { name: "Upload a video file", exact: true });
     await expect(page.getByRole("button", { name: "Clip length", exact: true })).toContainText(clipLength === "auto" ? "Auto length" : "Long (1–2 min)");
-    for (const width of [320, 390, 768, 1024, 1280]) {
+    for (const width of [320, 390, 768, 1280, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       for (const url of ["", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]) {
         await page.getByLabel("YouTube, Twitch, or Kick URL", { exact: true }).fill(url);
@@ -273,8 +273,16 @@ for (const clipLength of ["auto", "long"]) {
         const uploadBox = await upload.boundingBox();
         expect(buttonBox).not.toBeNull();
         expect(uploadBox).not.toBeNull();
-        expect(Math.abs(buttonBox!.y - uploadBox!.y)).toBeLessThanOrEqual(4);
-        expect(buttonBox!.x).toBeGreaterThan(uploadBox!.x + uploadBox!.width);
+        if (width >= 1280) {
+          const cleanupBox = await page.getByRole("button", { name: /Cleanup/ }).boundingBox();
+          expect(Math.abs(buttonBox!.y - uploadBox!.y)).toBeLessThanOrEqual(4);
+          expect(Math.abs(cleanupBox!.y - uploadBox!.y)).toBeLessThanOrEqual(4);
+          expect(buttonBox!.x).toBeGreaterThan(cleanupBox!.x + cleanupBox!.width);
+        } else if (width <= 390) {
+          const cleanupBox = await page.getByRole("button", { name: /Cleanup/ }).boundingBox();
+          expect(cleanupBox!.y).toBeGreaterThan(uploadBox!.y);
+        }
+        await expect(submit).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       }
       if (width === 390 || width === 1280) {
