@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-10-25
 
-- **New:** Download every clip from a generation at once as a single ZIP file. ([#PR_NUMBER](https://github.com/FujiwaraChoki/supoclip/pull/PR_NUMBER))
+- **New:** Download every clip from a generation at once as a single ZIP file. ([#256](https://github.com/FujiwaraChoki/supoclip/pull/256))
 
 ## 2026-10-24
 
