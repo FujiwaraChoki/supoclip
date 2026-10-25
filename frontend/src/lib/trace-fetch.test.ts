@@ -56,4 +56,27 @@ describe("installTraceFetch", () => {
     await window.fetch("/api/tasks/missing");
     expect(captureApiFailure).not.toHaveBeenCalled();
   });
+
+  it.each([502, 503, 504])("does not report transient gateway errors for background polls (%s)", async (status) => {
+    fetchMock.mockResolvedValue(new Response("{}", { status }));
+    await window.fetch("/api/announcements");
+    await window.fetch("/api/service-status/video-downloads/");
+    expect(captureApiFailure).not.toHaveBeenCalled();
+  });
+
+  it("still reports other server errors for those polls", async () => {
+    fetchMock.mockResolvedValue(new Response("{}", { status: 500 }));
+    await window.fetch("/api/announcements");
+    expect(captureApiFailure).toHaveBeenCalledWith(expect.objectContaining({
+      path: "/api/announcements",
+      status: 500,
+    }));
+  });
+
+  it("does not report network errors for background polls", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(window.fetch("/api/announcements")).rejects.toThrow("Failed to fetch");
+    await expect(window.fetch("/api/service-status/video-downloads")).rejects.toThrow("Failed to fetch");
+    expect(captureApiFailure).not.toHaveBeenCalled();
+  });
 });

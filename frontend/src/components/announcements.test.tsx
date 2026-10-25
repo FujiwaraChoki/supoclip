@@ -34,6 +34,31 @@ it("keeps the update accessible after reading and remembers it on another surfac
   expect(screen.queryByRole("button", { name: /unread announcement/ })).not.toBeInTheDocument();
 });
 
+it("keeps the last announcements when the feed is briefly unavailable", async () => {
+  let calls = 0;
+  server.use(http.get("/api/announcements", () => {
+    calls += 1;
+    if (calls === 1) return HttpResponse.json({ announcements: [{
+      id: "creator-program-2026-10", title: "The creator program is open", description: "Free hosted Pro for approved creators.",
+      publishedAt: "2026-10-09T00:00:00Z", href: "/affiliate", action: "Explore the creator program",
+    }] });
+    if (calls === 2) return new HttpResponse("bad gateway", { status: 502 });
+    return HttpResponse.error();
+  }));
+  Object.defineProperty(document, "hidden", { configurable: true, value: false });
+  render(<Announcements />);
+  expect(await screen.findByRole("button", { name: "What's new, 1 unread announcement" })).toBeVisible();
+  await waitFor(() => expect(calls).toBe(1));
+
+  window.dispatchEvent(new Event("focus"));
+  await waitFor(() => expect(calls).toBe(2));
+  await waitFor(() => expect(screen.getByRole("button", { name: "What's new, 1 unread announcement" })).toBeVisible());
+
+  window.dispatchEvent(new Event("focus"));
+  await waitFor(() => expect(calls).toBe(3));
+  expect(screen.getByRole("button", { name: "What's new, 1 unread announcement" })).toBeVisible();
+});
+
 it("shows new announcements even when an older update has been read", async () => {
   window.localStorage.setItem("supoclip:announcements-read:visitor", '["older-update"]');
   render(<Announcements landing />);
