@@ -261,7 +261,10 @@ for (const clipLength of ["auto", "long"]) {
     await page.route("**/api/announcements**", route => route.fulfill({ json: { announcements: [] } }));
     await page.route("**/api/service-status/video-downloads", route => route.fulfill({ json: { component: { status: "operational" } } }));
     await page.route("**/api/preferences", route => route.fulfill({ json: { clipLength } }));
+    // Widest composer: the server offers B-roll and it is switched on.
+    await page.route("**/api/broll/status", route => route.fulfill({ json: { configured: true, provider: "pexels" } }));
     await page.goto("/");
+    await page.getByRole("button", { name: "B-roll", exact: true }).click();
     const submit = page.getByRole("button", { name: "Generate clips", exact: true });
     const upload = page.getByRole("button", { name: "Upload a video file", exact: true });
     await expect(page.getByRole("button", { name: "Clip length", exact: true })).toContainText(clipLength === "auto" ? "Auto length" : "Long (1–2 min)");

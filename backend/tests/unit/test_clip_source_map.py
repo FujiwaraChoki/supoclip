@@ -154,6 +154,9 @@ async def test_regenerate_all_clips_reuses_persisted_source_ranges(isolated_clip
         async def delete_clips_by_task(self, _db, _task_id: str):
             return None
 
+        async def create_clip(self, _db, **_kwargs):
+            return "new-clip"
+
     class _FakeVideoService:
         def resolve_local_video_path(self, _url: str) -> Path:
             return source_path
@@ -164,7 +167,7 @@ async def test_regenerate_all_clips_reuses_persisted_source_ranges(isolated_clip
         async def create_video_clips(self, _video_path: Path, segments, *_args, **kwargs):
             captured["segments"] = segments
             captured["max_clip_seconds"] = kwargs["max_clip_seconds"]
-            return []
+            return [{"clip_id": 1, "filename": "new.mp4", "path": "new.mp4", "start_time": "00:10", "end_time": "00:15", "duration": 3.0}]
 
     service = TaskService(db=None)
     async def fake_load_task_source_settings(_task_id: str):
@@ -246,6 +249,9 @@ async def test_regenerate_all_clips_recomputes_cleanup_from_source_ranges(isolat
         async def delete_clips_by_task(self, _db, _task_id: str):
             return None
 
+        async def create_clip(self, _db, **_kwargs):
+            return "new-clip"
+
     class _FakeVideoService:
         def resolve_local_video_path(self, _url: str) -> Path:
             return source_path
@@ -255,7 +261,7 @@ async def test_regenerate_all_clips_recomputes_cleanup_from_source_ranges(isolat
 
         async def create_video_clips(self, _video_path: Path, segments, *_args, **_kwargs):
             captured["segments"] = segments
-            return []
+            return [{"clip_id": 1, "filename": "new.mp4", "path": "new.mp4", "start_time": "00:10", "end_time": "00:15", "duration": 3.0}]
 
     service = TaskService(db=None)
 

@@ -73,6 +73,8 @@
   },
   "captions": "Captions",
   "noCaptions": "No captions",
+  "broll": "B-roll",
+  "brollHint": "Adds stock footage from Pexels where the speaker names something you can show",
   "cleanup": "Cleanup",
   "cleanupTitle": "Clip cleanup",
   "cleanupBody": "Tighten dead air and cut filler sounds while rendering.",

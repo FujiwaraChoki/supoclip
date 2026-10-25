@@ -260,7 +260,7 @@ async def test_regenerate_all_clips_uses_stream_sections(isolated_clip_edits, st
     service.clip_repo.create_clip = AsyncMock(return_value="clip")
     service._load_task_source_settings = AsyncMock(return_value={"output_format": "vertical", "add_subtitles": True})
     service.video_service.download_video = AsyncMock(side_effect=AssertionError("YouTube path"))
-    service.video_service.create_video_clips = AsyncMock(return_value=[])
+    service.video_service.create_video_clips = AsyncMock(return_value=[{"clip_id": 1, "filename": "new.mp4", "path": "new.mp4", "start_time": "00:10", "end_time": "00:15", "duration": 3.0}])
 
     await service.regenerate_all_clips_for_task("task", None, None, None, "default")
 

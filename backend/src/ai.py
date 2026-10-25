@@ -270,53 +270,15 @@ class TranscriptSegment(BaseModel):
         return value
 
 
-class BRollOpportunity(BaseModel):
-    """Identifies an opportunity to insert B-roll footage."""
-
-    timestamp: str = Field(
-        default="00:00",
-        validation_alias=AliasChoices("timestamp", "segment_start_time", "start_time"),
-        description="When to insert B-roll (MM:SS format)",
-    )
-    duration: float = Field(
-        default=3.0,
-        description="How long to show B-roll (2-5 seconds)",
-        ge=2.0,
-        le=5.0,
-    )
-    search_term: str = Field(
-        default="related visual",
-        validation_alias=AliasChoices("search_term", "broll", "visual", "query"),
-        description="Keyword to search for B-roll footage",
-    )
-    context: str = Field(
-        default="Suggested B-roll opportunity from the model.",
-        validation_alias=AliasChoices("context", "description"),
-        description="What's being discussed at this point",
-    )
-
-    @field_validator("search_term", "context", mode="before")
-    @classmethod
-    def _coerce_textish_value(cls, value: Any) -> str:
-        if value is None:
-            return ""
-        if isinstance(value, list):
-            return ", ".join(str(item) for item in value if item is not None)
-        return str(value)
-
-
 class TranscriptAnalysis(BaseModel):
-    """Analysis result for transcript segments with virality and B-roll opportunities."""
+    """Analysis result for transcript segments with virality scores."""
 
     most_relevant_segments: List[TranscriptSegment]
     summary: str = Field(description="Brief summary of the video content")
     key_topics: List[str] = Field(description="List of main topics discussed")
-    broll_opportunities: Optional[List[BRollOpportunity]] = Field(
-        default=None, description="Opportunities to insert B-roll footage"
-    )
 
 
-# Enhanced system prompt with virality scoring and B-roll detection
+# Enhanced system prompt with virality scoring
 transcript_analysis_system_prompt = """You are an expert transcript analyst for short-form video editing.
 
 Your job is extraction and ranking, not creative rewriting. You must stay fully grounded in the transcript and choose the best clip candidates that already exist in the source material.
@@ -324,7 +286,6 @@ Your job is extraction and ranking, not creative rewriting. You must stay fully 
 OUTPUT CONTRACT:
 - Return valid JSON only. Do not output Markdown, headings, bullets, prose, code fences, explanations, or commentary outside the JSON object.
 - The top-level JSON object must include: "most_relevant_segments", "summary", and "key_topics".
-- Set "broll_opportunities" to null when B-roll was not requested.
 - Each item in "most_relevant_segments" must include: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", and "hook_title".
 - Do not use "segment" as an output field. Use "text".
 - "virality" must include: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", and "virality_reasoning".
@@ -426,13 +387,6 @@ HOOK TYPES to identify:
 - "story": Starts with narrative/anecdote
 - "contrast": Before/after or problem/solution framing
 - "none": No clear hook pattern
-
-B-ROLL OPPORTUNITIES:
-Identify 2-4 moments in each segment where B-roll footage could enhance the video:
-- When specific objects, places, or concepts are mentioned
-- During explanations that could benefit from visual illustration
-- At emotional peaks that could use supporting imagery
-- Use simple, searchable keywords (e.g., "coffee shop", "laptop coding", "money stack")
 
 TIMING GUIDELINES:
 - Target {ideal_minimum}-{ideal_maximum} seconds for most clips
@@ -708,6 +662,104 @@ def get_rerank_agent() -> Agent[None, CandidateRanking]:
     return _rerank_agent
 
 
+class BRollCue(BaseModel):
+    """One stock-footage cutaway inside a finished clip."""
+
+    start: float = Field(
+        description="Clip second where the cutaway starts: the timestamp of the line that names the subject"
+    )
+    duration: float = Field(description="Seconds to show the footage, 2 to 4")
+    query: str = Field(
+        description="2-4 word English stock-footage search describing what the footage shows"
+    )
+    fallback_query: str = Field(
+        default="",
+        description="Broader 1-2 word English search used when the first finds nothing",
+    )
+
+
+class BRollPlan(BaseModel):
+    """Stock-footage cutaways for one clip, in play order."""
+
+    cues: List[BRollCue] = Field(description="Cutaways in play order; empty when nothing fits")
+
+
+broll_plan_system_prompt = """You are a short-form video editor adding stock-footage cutaways (B-roll) to a vertical talking-head clip.
+
+The footage plays full screen for a few seconds while the speaker keeps talking and the captions stay on screen. Good B-roll shows exactly the thing being said at that moment. Loose or generic footage makes a clip feel cheap, so leave a moment uncovered rather than force a weak match.
+
+Choose a moment only when the speaker names something concrete and filmable: an object, a place, an activity, or a scene (for example "biking to work", "Mount Kilimanjaro", "a stack of cash", "writing a novel").
+Skip abstract ideas, opinions, feelings without a scene, jokes, and anything about the speaker themselves on camera.
+Never cover a moment where the speaker points at something the viewer is meant to see ("like this", "look at this", "here's what it looked like", "this slide"): the original picture is the payoff there.
+
+Rules:
+- "start" is the timestamp of the line that names the subject, so the footage appears as the word is spoken.
+- "duration" is 2 to 4 seconds and must end before the next cutaway starts.
+- "query" is a 2-4 word English description of what the footage shows ("man cycling city street", "mountain summit hikers", "hands typing laptop"), even when the clip is in another language. No people's names, brands, logos, text, charts or screenshots: stock libraries do not have them.
+- "fallback_query" is a broader 1-2 word English search ("cycling", "mountain").
+- Never place a cutaway in the opening seconds or the final second: the viewer needs to see the speaker.
+- Return valid JSON only, with a "cues" list. Return an empty list when no moment has a concrete, filmable subject."""
+
+_broll_agent: Optional[Agent[None, BRollPlan]] = None
+_broll_agent_signature: Optional[tuple[str | None, ...]] = None
+BROLL_PLAN_TIMEOUT_SECONDS = 60
+
+
+def get_broll_agent() -> Agent[None, BRollPlan]:
+    """Get or create the B-roll planning agent (lazy initialization)."""
+    global _broll_agent, _broll_agent_signature
+    runtime_config = get_config()
+    model_name = runtime_config.llm
+    signature = (
+        model_name,
+        runtime_config.openai_api_key,
+        runtime_config.openrouter_api_key,
+        runtime_config.openrouter_fallback_model,
+        runtime_config.google_api_key,
+        runtime_config.anthropic_api_key,
+        runtime_config.ollama_base_url,
+        runtime_config.ollama_api_key,
+    )
+    if _broll_agent is None or _broll_agent_signature != signature:
+        apply_settings_to_process_env(runtime_config.as_runtime_settings())
+        config_error = _get_missing_llm_key_error(model_name, runtime_config)
+        if config_error:
+            raise RuntimeError(config_error)
+        _broll_agent = Agent[None, BRollPlan](
+            model=_build_transcript_model(runtime_config, model_name),
+            output_type=NativeOutput(BRollPlan, strict=True) if _uses_native_output(model_name) else BRollPlan,
+            system_prompt=broll_plan_system_prompt,
+            output_retries=2,
+        )
+        _broll_agent_signature = signature
+    return _broll_agent
+
+
+def build_broll_plan_prompt(
+    timed_lines: str, clip_duration: float, max_cues: int, earliest_start: float
+) -> str:
+    """Ask for cutaways over one clip's transcript (timestamps in clip seconds)."""
+    return (
+        f"Clip length: {clip_duration:.1f} seconds.\n"
+        f"Return at most {max_cues} cutaways. None may start before second "
+        f"{earliest_start:.1f} or run past second {max(0.0, clip_duration - 1):.1f}.\n\n"
+        "Transcript, one line per phrase, prefixed with the clip second it starts at:\n"
+        f"{timed_lines}"
+    )
+
+
+async def plan_broll_cues(
+    timed_lines: str, clip_duration: float, max_cues: int, earliest_start: float
+) -> List[BRollCue]:
+    """Pick stock-footage moments for one clip. Raises when the model is unavailable."""
+    result = await _run_transcript_analysis(
+        get_broll_agent(),
+        build_broll_plan_prompt(timed_lines, clip_duration, max_cues, earliest_start),
+        timeout_seconds=BROLL_PLAN_TIMEOUT_SECONDS,
+    )
+    return list(result.output.cues)
+
+
 def _performance_history_section(performance_context: str | None) -> str:
     """The creator's measured audience history, framed as a tie-breaker only."""
     if not performance_context:
@@ -746,7 +798,6 @@ def build_candidate_rerank_prompt(
 
 def build_transcript_analysis_prompt(
     transcript: str,
-    include_broll: bool = False,
     clip_signals: str | None = None,
     window: tuple[int, int] | None = None,
     performance_context: str | None = None,
@@ -767,11 +818,6 @@ def build_transcript_analysis_prompt(
             "analysed separately, so pick the best clips that exist inside this window only.\n"
         )
     performance_section = _performance_history_section(performance_context)
-    broll_instruction = ""
-    if include_broll:
-        broll_instruction = (
-            "\n6. Also identify B-roll opportunities for each chosen segment where stock footage could enhance the visual appeal."
-        )
     signal_section = ""
     if clip_signals:
         signal_section = (
@@ -792,7 +838,7 @@ Follow this workflow:
 2. Select only contiguous ranges that already exist in the transcript.
 3. Prefer moments with a strong hook, clear payoff, emotional charge, or concrete value.
 4. For each chosen segment, use the earliest timestamp in the selected range as start_time and the latest timestamp in the selected range as end_time.
-5. start_time must be the first word of a self-contained sentence: never a mid-thought fragment, a filler, a bare agreement, or a reference to something this clip does not contain. end_time must finish that thought's last sentence and must not include the next thought's opening words.{broll_instruction}
+5. start_time must be the first word of a self-contained sentence: never a mid-thought fragment, a filler, a bare agreement, or a reference to something this clip does not contain. end_time must finish that thought's last sentence and must not include the next thought's opening words.
 
 Selection target:
 - Choose {segment_target} segments total.
@@ -815,7 +861,7 @@ Critical accuracy requirements:
 JSON-only output requirements:
 - Return one valid JSON object and nothing else.
 - No Markdown, headings, bullets, code fences, or explanatory text outside JSON.
-- Top-level keys: "most_relevant_segments", "summary", "key_topics", "broll_opportunities".{' Set "broll_opportunities" to null.' if not include_broll else ''}
+- Top-level keys: "most_relevant_segments", "summary", "key_topics".
 - Segment keys: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", "hook_title".
 - Optional segment keys "hook_start_time"/"hook_end_time": null unless a later 2-5 second line stands alone and the real opening is already a complete setup. The clip is not replayed from that line by default.
 - "hook_title" is a 3-9 word plain-text headline for the clip, in the transcript's language, grounded in the segment (no hashtags, emojis, or quotes).
@@ -1355,7 +1401,6 @@ async def rerank_candidates(
 async def _analyze_transcript_windows(
     agent: Agent,
     windows: List[Dict[str, Any]],
-    include_broll: bool,
     clip_signals: Optional[str],
     performance_context: Optional[str] = None,
     clip_length: str = "auto",
@@ -1370,7 +1415,6 @@ async def _analyze_transcript_windows(
         async with semaphore:
             prompt = build_transcript_analysis_prompt(
                 transcript=window["transcript"],
-                include_broll=include_broll,
                 clip_signals=_filter_clip_signals_for_window(
                     clip_signals, window["start"], window["end"]
                 ),
@@ -1590,19 +1634,18 @@ def _merge_key_topics(analyses: List[TranscriptAnalysis], limit: int = 12) -> Li
 
 async def get_most_relevant_parts_by_transcript(
     transcript: str,
-    include_broll: bool = False,
     clip_signals: str | None = None,
     performance_context: str | None = None,
     clip_length: str = "auto",
 ) -> TranscriptAnalysis:
-    """Get the most relevant parts of a transcript with virality scoring and optional B-roll detection.
+    """Get the most relevant parts of a transcript with virality scoring.
 
     Short transcripts are analysed in one call. Long ones are split into
     overlapping windows analysed concurrently, then deduplicated and reranked
     in one comparative call so scores are comparable across windows.
     """
     logger.info(
-        f"Starting AI analysis of transcript ({len(transcript)} chars), include_broll={include_broll}"
+        f"Starting AI analysis of transcript ({len(transcript)} chars)"
     )
 
     try:
@@ -1616,7 +1659,6 @@ async def get_most_relevant_parts_by_transcript(
                 agent,
                 build_transcript_analysis_prompt(
                     transcript=transcript,
-                    include_broll=include_broll,
                     clip_signals=clip_signals,
                     performance_context=performance_context,
                     clip_length=clip_length,
@@ -1626,7 +1668,7 @@ async def get_most_relevant_parts_by_transcript(
         else:
             logger.info("Analysing transcript in %d overlapping windows", len(windows))
             analyses = await _analyze_transcript_windows(
-                agent, windows, include_broll, clip_signals, performance_context, clip_length
+                agent, windows, clip_signals, performance_context, clip_length
             )
 
         candidates: List[TranscriptSegment] = []
@@ -1653,21 +1695,12 @@ async def get_most_relevant_parts_by_transcript(
             : max_final_clips_for_duration(source_seconds, get_config().max_clips)
         ]
 
-        broll_opportunities = None
-        if include_broll:
-            broll_opportunities = [
-                opportunity
-                for analysis in analyses
-                for opportunity in (analysis.broll_opportunities or [])
-            ] or None
-
         final_analysis = TranscriptAnalysis(
             most_relevant_segments=validated_segments,
             summary=" ".join(
                 analysis.summary.strip() for analysis in analyses if analysis.summary
             ),
             key_topics=_merge_key_topics(analyses),
-            broll_opportunities=broll_opportunities,
         )
 
         logger.info(f"Selected {len(validated_segments)} segments for processing")

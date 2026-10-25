@@ -451,7 +451,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     font_size = _normalize_font_size(font_options.get("font_size"))
     font_color = _normalize_font_color(font_options.get("font_color"))
     caption_template = data.get("caption_template", "default")
-    include_broll = data.get("include_broll", False)
+    include_broll = data.get("include_broll") is True
     runtime_config = get_config()
     processing_mode = data.get(
         "processing_mode", runtime_config.default_processing_mode
@@ -1120,7 +1120,6 @@ async def apply_task_settings(
         font_size = _normalize_font_size(payload.get("font_size"))
         font_color = _normalize_font_color(payload.get("font_color"))
         caption_template = payload.get("caption_template", "default")
-        include_broll = bool(payload.get("include_broll", False))
         apply_to_existing = bool(payload.get("apply_to_existing", False))
 
         task_service = TaskService(db)
@@ -1128,6 +1127,13 @@ async def apply_task_settings(
         task_record = await task_service.task_repo.get_task_by_id(db, task_id)
         if not task_record:
             raise HTTPException(status_code=404, detail="Task not found")
+        # Like cleanup below: an omitted flag keeps the task's B-roll setting,
+        # so a styling-only update doesn't strip B-roll from every clip.
+        include_broll = (
+            payload["include_broll"] is True
+            if "include_broll" in payload
+            else bool(task_record.get("include_broll"))
+        )
 
         # Cleanup fields the request omits keep the task's stored values, so a
         # styling-only update can't silently switch pause/filler cleanup off.

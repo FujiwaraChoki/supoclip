@@ -23,8 +23,11 @@ from ..utils.async_helpers import run_in_thread
 from ..clip_duration import clip_duration, normalize_clip_length
 from ..media.common import MAX_RENDERED_CLIP_SECONDS
 from ..clip_cleanup import normalize_clip_cleanup_settings
+from ..broll import broll_overlays_for, shift_broll_placements
 from ..clip_source_map import (
+    load_clip_broll,
     load_clip_source_ranges,
+    save_clip_broll,
     save_clip_source_ranges,
     save_clip_caption_settings,
     load_clip_caption_settings,
@@ -42,7 +45,7 @@ from ..youtube_source import (
     ranges_from_segments,
     restore_clip_timeline,
 )
-from ..media.ffmpeg import cap_video_short_side
+from ..media.ffmpeg import cap_video_short_side, ffprobe_duration
 from ..stream_source import download_stream_sections
 
 logger = logging.getLogger(__name__)
@@ -144,9 +147,17 @@ class ClipEditingMixin:
             return
 
         download_quality, output_short_side = await self._media_limits(task.get("user_id"))
+        include_broll = bool(task.get("include_broll"))
         segments = []
         for clip in clips:
             source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
+            # Same timeline, same cutaways. Recomputed cleanup moves the words,
+            # so those clips get a fresh plan instead.
+            broll = (
+                await run_in_thread(self._get_clip_broll, clip)
+                if include_broll and not should_recompute_cleanup
+                else []
+            )
             bounds = source_range_bounds(source_ranges)
             if bounds:
                 start_time = self._seconds_to_mmss(bounds[0])
@@ -175,6 +186,7 @@ class ClipEditingMixin:
                     "shareability_score": clip.get("shareability_score", 0),
                     "hook_type": clip.get("hook_type"),
                     "hook_title": clip.get("hook_title"),
+                    "broll": broll,
                 }
             )
 
@@ -227,6 +239,7 @@ class ClipEditingMixin:
                     clip_duration(normalize_clip_length(metadata.get("clip_length"))).maximum,
                     MAX_RENDERED_CLIP_SECONDS,
                 ),
+                include_broll=include_broll,
             )
             if time_map:
                 for clip_info in clips_info:
@@ -238,6 +251,10 @@ class ClipEditingMixin:
         finally:
             if source_type in {"youtube", "twitch", "kick"}:
                 self._cleanup_source_video(video_path, source_type, source_url)
+
+        if not clips_info:
+            # Replacing the rows with nothing would delete every clip.
+            raise ValueError("Could not regenerate the clips. Your existing clips are unchanged.")
 
         await self.clip_repo.delete_clips_by_task(self.db, task_id)
 
@@ -298,6 +315,8 @@ class ClipEditingMixin:
         save_clip_source_ranges(output_path, trimmed_ranges)
         if settings := load_clip_caption_settings(input_path):
             save_clip_caption_settings(output_path, settings)
+        if broll := load_clip_broll(input_path):
+            await self._carry_broll(broll, [(output_path, max(0.0, start_offset))])
 
         new_start = self._seconds_to_mmss(start_seconds)
         new_end = self._seconds_to_mmss(end_seconds)
@@ -343,6 +362,8 @@ class ClipEditingMixin:
         if settings := load_clip_caption_settings(input_path):
             save_clip_caption_settings(first_path, settings)
             save_clip_caption_settings(second_path, settings)
+        if broll := load_clip_broll(input_path):
+            await self._carry_broll(broll, [(first_path, 0.0), (second_path, clamped_split)])
         first_duration = max(0.1, total_source_duration(first_ranges))
         second_duration = max(0.1, total_source_duration(second_ranges))
 
@@ -418,6 +439,19 @@ class ClipEditingMixin:
             start_time = ordered[0]["start_time"]
             end_time = ordered[-1]["end_time"]
             duration = sum(float(c.get("duration", 0.0)) for c in ordered)
+        clip_broll = [load_clip_broll(path) for path in input_paths]
+        if any(clip_broll):
+            merged_broll = []
+            offset = 0.0
+            try:
+                for path, placements in zip(input_paths, clip_broll):
+                    length = await run_in_thread(ffprobe_duration, path)
+                    merged_broll += shift_broll_placements(placements, -offset, offset + length)
+                    offset += length
+                save_clip_broll(merged_path, merged_broll)
+            except Exception:
+                # The merged file already has the footage; only later re-renders lose it.
+                logger.warning("Could not carry B-roll placements into merged clip", exc_info=True)
         text = " ".join((c.get("text") or "").strip() for c in ordered if c.get("text"))
 
         first = ordered[0]
@@ -523,6 +557,10 @@ class ClipEditingMixin:
                 raise ValueError("Clip source timing is unavailable")
             output_dir = Path(self.config.temp_dir) / "clips"
             output_dir.mkdir(parents=True, exist_ok=True)
+            # The clip timeline is unchanged, so its cutaways go back on as they were.
+            broll = load_clip_broll(input_path)
+            broll_overlays = await broll_overlays_for(broll)
+            render_report: Dict[str, Any] = {}
             with tempfile.TemporaryDirectory(prefix="caption_edit_", dir=output_dir) as temporary:
                 clean_path = Path(temporary) / "clean.mp4"
                 rendered = await run_in_thread(
@@ -536,9 +574,13 @@ class ClipEditingMixin:
                     font_color=task.get("font_color") or None,
                     caption_template=task.get("caption_template") or "default",
                     extend_to_sentence=False,
+                    layout_report=render_report,
+                    broll_overlays=broll_overlays,
                 )
                 if not rendered:
                     raise ValueError("Could not prepare the clip for caption editing")
+                if not render_report.get("broll_applied"):
+                    broll = []
                 output_path = await run_in_thread(
                     overlay_custom_captions,
                     clean_path, output_dir, caption_text, position, highlight_words,
@@ -565,6 +607,7 @@ class ClipEditingMixin:
             "position_y": position_y if position_y is not None else {"top": 0.18, "middle": 0.52, "bottom": 0.78}[position],
             "highlight_words": highlight_words,
         })
+        save_clip_broll(output_path, broll)
 
         await self.clip_repo.update_clip(
             self.db,
@@ -586,6 +629,27 @@ class ClipEditingMixin:
         secs = total % 60
         return f"{minutes:02d}:{secs:02d}"
 
+
+    @staticmethod
+    async def _carry_broll(broll: list[dict], cuts: list[tuple[Path, float]]) -> None:
+        """Store B-roll for clips cut from a longer one (path, start offset).
+
+        The cut files already contain the footage; losing the placements only
+        means a later re-render from source drops it, so never fail the edit.
+        """
+        try:
+            for path, offset in cuts:
+                length = await run_in_thread(ffprobe_duration, path)
+                save_clip_broll(path, shift_broll_placements(broll, offset, length))
+        except Exception:
+            logger.warning("Could not carry B-roll placements into edited clip", exc_info=True)
+
+    @staticmethod
+    def _get_clip_broll(clip: Dict[str, Any]) -> list[dict]:
+        file_path = clip.get("file_path")
+        if not isinstance(file_path, str) or not file_path:
+            return []
+        return load_clip_broll(MediaStorage().local_path(file_path, metadata_only=True))
 
     @staticmethod
     def _get_clip_source_ranges(clip: Dict[str, Any]) -> list[tuple[float, float]]:

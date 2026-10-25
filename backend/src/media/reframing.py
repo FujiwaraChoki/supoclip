@@ -46,6 +46,11 @@ from .ffmpeg import (
     run_ffmpeg_command,
     subtitles_filter_fragment,
 )
+from .broll_overlay import (
+    broll_input_args,
+    broll_overlay_graph,
+    normalize_broll_overlays,
+)
 from .source_limits import (
     FPS_EPSILON,
     MAX_OUTPUT_FPS,
@@ -1443,12 +1448,15 @@ def render_reframed_clip_ffmpeg(
     speaker_words: Optional[List[Dict[str, Any]]] = None,
     vertical_plan: Optional[Tuple[str, str]] = None,
     speaker_plan: Optional[Dict[str, Any]] = None,
+    broll_overlays: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[bool, int, int]:
     """Render the final framed clip and (optionally) burn subtitles in one pass.
 
     Collapsing reframing + subtitle burn into a single encode avoids a whole
     generation of re-encode loss. The pass uses the high-quality profile, CFR
-    output and loudness-normalised audio.
+    output and loudness-normalised audio. ``broll_overlays`` (path, start and
+    duration on the clip timeline) are composited over the framed picture and
+    under the captions.
     """
     width, height = ffprobe_video_size(input_path)
     has_audio = ffprobe_has_audio(input_path)
@@ -1458,6 +1466,29 @@ def render_reframed_clip_ffmpeg(
         else None
     )
     audio_args = build_audio_output_args(has_audio)
+    overlays = (
+        normalize_broll_overlays(broll_overlays, ffprobe_duration(input_path))
+        if broll_overlays
+        else []
+    )
+
+    def composited(head: str, head_label: str, out_w: int, out_h: int, tail: str = "", **encode) -> bool:
+        graph, label = broll_overlay_graph(head_label, overlays, out_w, out_h)
+        post = ",".join(part for part in (subs, tail) if part)
+        if post:
+            graph = f"{graph};{label}{post}[v]"
+            label = "[v]"
+        command = [
+            "ffmpeg", "-y", "-i", str(input_path),
+            *broll_input_args(overlays),
+            "-filter_complex", f"{head};{graph}",
+            "-map", label, "-map", "0:a?",
+            *build_final_video_encode_args(**encode),
+            *audio_args,
+            "-movflags", "+faststart",
+            str(output_path),
+        ]
+        return run_ffmpeg_command(command).returncode == 0
 
     if output_format == "original":
         geometry = probe_video_geometry(input_path)
@@ -1468,6 +1499,14 @@ def render_reframed_clip_ffmpeg(
         needs_scale = (capped_width, capped_height) != (display_width, display_height)
         needs_fps = source_fps is not None and source_fps > MAX_OUTPUT_FPS + FPS_EPSILON
         out_w, out_h = round_to_even(capped_width), round_to_even(capped_height)
+        if overlays:
+            # Always scale to the display size: on a non-square-pixel source
+            # the coded frame is not the size the overlay is built for.
+            ok = composited(
+                f"[0:v]scale={out_w}:{out_h}:flags=lanczos,setsar=1[base]", "[base]", out_w, out_h,
+                tail="setsar=1",
+            )
+            return ok, out_w, out_h
         # A source already within 1080p/60 can be copied. Anything above that is
         # re-encoded so original-format output cannot exceed the cap.
         if not subs and not needs_scale and not needs_fps:
@@ -1518,14 +1557,17 @@ def render_reframed_clip_ffmpeg(
         left = plan["regions"]["left"]
         right = plan["regions"]["right"]
         vstack_tail = f",{subs}" if subs else ""
-        video_filter = (
+        stacked = (
             f"[0:v]split=2[l][r];"
             f"[l]crop={left['tile_w']}:{left['tile_h']}:{left['tile_x']}:{left['tile_y']},"
             f"scale=1080:960:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[lv];"
             f"[r]crop={right['tile_w']}:{right['tile_h']}:{right['tile_x']}:{right['tile_y']},"
             f"scale=1080:960:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[rv];"
-            f"[lv][rv]vstack,setsar=1{vstack_tail}[v]"
+            f"[lv][rv]vstack,setsar=1"
         )
+        if overlays:
+            return composited(f"{stacked}[base]", "[base]", 1080, 1920), 1080, 1920
+        video_filter = f"{stacked}{vstack_tail}[v]"
         command = [
             "ffmpeg", "-y", "-i", str(input_path),
             "-filter_complex", video_filter,
@@ -1542,6 +1584,8 @@ def render_reframed_clip_ffmpeg(
             f"crop={plan['crop_w']}:{plan['crop_h']}:x='{plan['x_expression']}':y=0,"
             f"{VERTICAL_SCALE_CHAIN}"
         )
+        if overlays:
+            return composited(f"[0:v]{video_filter}[base]", "[base]", 1080, 1920), 1080, 1920
         if subs:
             video_filter = f"{video_filter},{subs}"
         command = [
@@ -1564,6 +1608,10 @@ def render_reframed_clip_ffmpeg(
         video_filter, mode, _caption_y = build_vertical_filter_plan(
             input_path, width, height, speaker_turns, speaker_words
         )
+    if overlays:
+        if mode == "complex":
+            return composited(video_filter, "[vout]", 1080, 1920), 1080, 1920
+        return composited(f"[0:v]{video_filter}[base]", "[base]", 1080, 1920), 1080, 1920
     if mode == "complex":
         if subs:
             graph = f"{video_filter};[vout]{subs}[v]"

@@ -46,8 +46,10 @@ from ..video_utils import (
     seconds_to_mmss,
     get_transcript_text_in_range,
 )
+from ..broll import BRollSession, broll_configured, broll_overlays_for, plan_clip_broll
 from ..clip_source_map import (
     normalize_source_ranges,
+    save_clip_broll,
     save_clip_source_ranges,
     source_range_bounds,
 )
@@ -56,7 +58,13 @@ from ..clip_duration import clip_duration
 from ..config import get_config
 from ..media.source_limits import normalize_source_media
 from ..media_storage import MediaStorage
-from ..media.ffmpeg import cap_video_short_side, ffprobe_duration
+from ..media.ffmpeg import (
+    cap_video_short_side,
+    crossfade_fade_for_ranges,
+    ffprobe_duration,
+    ffprobe_video_size,
+)
+from ..media.timeline import get_words_for_keep_ranges
 from ..stream_source import (
     PROCESSING_OPERATION,
     StreamSourceError,
@@ -337,6 +345,39 @@ class VideoService:
         return relevant_parts
 
     @staticmethod
+    async def plan_broll(
+        video_path: Path,
+        keep_ranges: List[tuple],
+        output_format: str = "vertical",
+        max_short_side: Optional[int] = None,
+        session: Optional[BRollSession] = None,
+    ) -> List[Dict[str, Any]]:
+        """Plan and fetch stock cutaways for a clip rendered from ``keep_ranges``."""
+        if not broll_configured() or not keep_ranges:
+            return []
+        try:
+            transcript = await run_in_thread(load_cached_transcript_data, video_path)
+            words = get_words_for_keep_ranges(transcript, keep_ranges) if transcript else []
+            # The renderer crossfades between kept ranges, which shortens the clip.
+            fade = crossfade_fade_for_ranges(keep_ranges)
+            clip_seconds = sum(end - start for start, end in keep_ranges) - fade * (len(keep_ranges) - 1)
+            orientation = "portrait"
+            target_short_side = 1080
+            if output_format == "original":
+                width, height = await run_in_thread(ffprobe_video_size, video_path)
+                if width > height:
+                    orientation = "landscape"
+                target_short_side = min(target_short_side, min(width, height) or target_short_side)
+            if max_short_side:
+                target_short_side = min(target_short_side, max_short_side)
+            return await plan_clip_broll(
+                words, clip_seconds, orientation, target_short_side, session
+            )
+        except Exception as exc:
+            logger.warning("B-roll unavailable for this clip: %s", exc)
+            return []
+
+    @staticmethod
     async def create_video_clips(
         video_path: Path,
         segments: List[Dict[str, Any]],
@@ -349,10 +390,13 @@ class VideoService:
         cleanup_settings: Optional[Dict[str, Any]] = None,
         max_short_side: Optional[int] = None,
         max_clip_seconds: float = 60.0,
+        include_broll: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Create standalone video clips from segments with optional subtitles.
         ``max_short_side`` downscales the finished clips for plans below 1080p.
+        With ``include_broll``, a segment's stored ``broll`` placements are
+        reused; segments without them get a fresh plan.
         Runs in thread pool as video processing is CPU-intensive.
         output_format: 'vertical' (9:16) or 'original' (keep source size, faster).
         add_subtitles: False skips subtitles; with original format uses ffmpeg stream copy (no re-encode).
@@ -360,6 +404,28 @@ class VideoService:
         logger.info(f"Creating {len(segments)} video clips subtitles={add_subtitles}")
         clips_output_dir = Path(get_config().temp_dir) / "clips"
         clips_output_dir.mkdir(parents=True, exist_ok=True)
+
+        if include_broll:
+            session = BRollSession()
+            segments = [dict(segment) for segment in segments]
+            for segment in segments:
+                placements = segment.get("broll") or []
+                if not placements:
+                    keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
+                    if not keep_ranges and segment.get("source_ranges"):
+                        keep_ranges = await run_in_thread(
+                            build_keep_ranges_from_source_ranges,
+                            video_path,
+                            normalize_source_ranges(segment.get("source_ranges")),
+                            cleanup_settings,
+                        )
+                    placements = await VideoService.plan_broll(
+                        video_path, keep_ranges, output_format, max_short_side, session
+                    )
+                segment["broll"] = placements
+                segment["broll_overlays"] = await broll_overlays_for(placements)
+        else:
+            segments = [{**segment, "broll": [], "broll_overlays": []} for segment in segments]
 
         clips_info = await run_in_thread(
             create_clips_with_transitions,
@@ -401,10 +467,14 @@ class VideoService:
         cleanup_settings: Optional[Dict[str, Any]] = None,
         max_short_side: Optional[int] = None,
         max_clip_seconds: float = 60.0,
+        include_broll: bool = False,
+        broll_session: Optional[BRollSession] = None,
     ) -> Optional[Dict[str, Any]]:
         """Render a single clip in the thread pool and return clip_info dict, or None on failure.
 
         ``max_short_side`` downscales the finished clip for plans below 1080p.
+        ``include_broll`` adds stock cutaways; ``broll_session`` keeps one
+        task's clips from reusing the same footage.
         """
         try:
             provided_keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
@@ -459,6 +529,14 @@ class VideoService:
                 # spoken; keep the stored text word-for-word with the timeline.
                 clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
 
+            broll_placements: List[Dict[str, Any]] = []
+            if include_broll:
+                broll_placements = await VideoService.plan_broll(
+                    video_path, keep_ranges, output_format, max_short_side, broll_session
+                )
+            broll_overlays = await broll_overlays_for(broll_placements)
+            render_report: Dict[str, Any] = {}
+
             success = await run_in_thread(
                 create_optimized_clip,
                 video_path,
@@ -474,11 +552,15 @@ class VideoService:
                 keep_ranges,
                 segment.get("hook_title"),
                 extend_to_sentence=False,
+                layout_report=render_report,
+                broll_overlays=broll_overlays,
             )
 
             if not success:
                 logger.error(f"Failed to create clip {clip_index + 1}")
                 return None
+            if not render_report.get("broll_applied"):
+                broll_placements = []
 
             if max_short_side:
                 try:
@@ -488,9 +570,11 @@ class VideoService:
                     logger.warning(f"Keeping full-size clip {clip_index + 1}: {e}")
 
             save_clip_source_ranges(clip_path, keep_ranges)
+            save_clip_broll(clip_path, broll_placements)
             cleaned_duration = sum(end - start for start, end in keep_ranges)
             logger.info(
                 f"Created clip {clip_index + 1}: {cleaned_duration:.1f}s"
+                + (f" with {len(broll_placements)} B-roll cutaways" if broll_placements else "")
             )
             return {
                 "clip_id": clip_index + 1,
