@@ -6,12 +6,16 @@ before each SES send. An opted-out user returns
 `{"skipped": true, "reason": "unsubscribed"}` without contacting SES. Do not send
 product announcements through the transactional `SesEmailService` directly or
 upload a static recipient list to SES: those paths do not check this preference.
+Rendered product updates carry `category="product_update"`, and `SesEmailService`
+refuses that category without the one-click unsubscribe headers.
 
-The service fills `{{first_name}}` and `{{unsubscribe_url}}` in HTML and plain
-text, or appends an unsubscribe footer when none is provided. The selected email
-draft can be supplied as `EmailContent(subject, html, text)` after filling its
-sender-address field. Other unresolved template fields fail before delivery.
-No campaign is sent or scheduled by this change.
+The service fills `{{first_name}}` in the subject, HTML and plain text, and
+`{{unsubscribe_url}}` in HTML and plain text (spaces inside the braces are fine),
+or appends an unsubscribe footer when no link is provided. Fields are filled in a
+single pass, so a name that itself contains braces is sent as written. The
+selected email draft can be supplied as `EmailContent(subject, html, text)` after
+filling its sender-address field. Any other template field fails before the
+recipient is looked up. No campaign is sent or scheduled by this change.
 
 Each recipient gets a signed link at
 `/email/product-updates/unsubscribe?token=...`. The page works without signing in.
@@ -38,7 +42,8 @@ No new environment variables are required. Sending product emails requires an
 HTTPS `NEXT_PUBLIC_APP_URL` (the backend’s `app_base_url`), configured SES
 credentials, and the existing `BACKEND_AUTH_SECRET`. Links are purpose-bound and
 signed with that secret, are not time-limited, and become invalid if the user’s
-email address or signing secret changes. Deleted users cannot be targeted.
+email address or signing secret changes. Without the secret the page answers 503
+rather than treating the link as invalid. Deleted users cannot be targeted.
 
 Account verification, password resets, security notices, subscription/billing,
 and clip-completion email paths are unchanged. This preference does not cancel

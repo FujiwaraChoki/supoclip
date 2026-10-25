@@ -1,3 +1,4 @@
+from copy import copy
 from unittest.mock import AsyncMock
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -15,8 +16,10 @@ async def test_public_link_is_safe_to_prefetch_and_post_persists_only_product_op
     user_id = str(uuid4())
     user = await create_user(db_session, user_id=user_id, email=f"{user_id}@example.com",
                              plan="pro", subscription_status="active")
-    service = ProductUpdateEmailService(db_session, get_config())
-    service.config.app_base_url = "https://app.example.com"
+    # A copy: get_config() may return the shared test override.
+    config = copy(get_config())
+    config.app_base_url = "https://app.example.com"
+    service = ProductUpdateEmailService(db_session, config)
     url = urlsplit(service.unsubscribe_url(user_id, user["email"]))
     path = url.path + "?" + url.query
     service.email_service.send_email = AsyncMock(return_value={"MessageId": "mock-only"})

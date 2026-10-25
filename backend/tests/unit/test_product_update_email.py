@@ -119,3 +119,53 @@ def test_ses_receives_one_click_headers_only_for_product_mail(service, monkeypat
     }
     sender._send("owner@example.com", EmailContent("Reset password", "Reset", "Reset"))
     assert "Headers" not in client.send_email.call_args.kwargs["Content"]["Simple"]
+
+
+async def test_fills_subject_and_spaced_fields_without_reparsing_the_name(service):
+    service._recipient.return_value["first_name"] = "{{x}}"
+    await service.send_product_update("user-1", EmailContent(
+        "{{ first_name }}, meet the editor", "<p>Hi {{ first_name }}</p>{{ unsubscribe_url }}",
+        "Hi {{first_name}}\n{{ unsubscribe_url }}",
+    ))
+    content = service.email_service.send_email.call_args.args[1]
+    assert content.subject == "{{x}}, meet the editor"
+    assert "Hi {{x}}" in content.html and "Hi {{x}}" in content.text
+    assert "Unsubscribe from product updates" not in content.html + content.text
+    assert content.category == email_service.PRODUCT_UPDATE
+
+
+async def test_refuses_unresolved_subject_fields(service):
+    for subject in ["{{sender_address}} news", "News {{unsubscribe_url}}"]:
+        with pytest.raises(ValueError, match="unresolved"):
+            await service.send_product_update("user-1", EmailContent(subject, "News", "News"))
+    service.email_service.send_email.assert_not_awaited()
+
+
+async def test_ses_refuses_product_updates_without_unsubscribe_headers(service, monkeypatch):
+    created = []
+    monkeypatch.setattr(email_service.boto3, "client", lambda *a, **kw: created.append(MagicMock()) or created[-1])
+    sender = SesEmailService(service.config)
+    with pytest.raises(ValueError, match="ProductUpdateEmailService"):
+        await sender.send_email("owner@example.com", EmailContent(
+            "News", "News", "News", category=email_service.PRODUCT_UPDATE,
+        ))
+    assert created == []
+    sender._send("a@example.com", EmailContent("One", "One", "One"))
+    sender._send("b@example.com", EmailContent("Two", "Two", "Two"))
+    assert len(created) == 1 and created[0].send_email.call_count == 2
+
+
+async def test_public_pages_report_missing_signing_secret_as_unavailable(service, monkeypatch):
+    from src.api.routes import email_preferences
+    from src.repositories.email_preference_repository import EmailPreferenceRepository
+
+    token = token_for(service)
+    service.config.backend_auth_secret = None
+    monkeypatch.setattr(email_preferences, "ProductUpdateEmailService",
+                        lambda db: ProductUpdateEmailService(db, service.config))
+    monkeypatch.setattr(EmailPreferenceRepository, "get_product_update_recipient",
+                        AsyncMock(return_value=service._recipient.return_value))
+    for route in (email_preferences.confirm_unsubscribe, email_preferences.unsubscribe):
+        response = await route(token=token, db=service.db)
+        assert response.status_code == 503
+        assert response.headers["cache-control"] == "no-store"

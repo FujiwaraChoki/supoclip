@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...database import get_db
 from ...services.product_update_email_service import (
-    InvalidUnsubscribeToken, ProductUpdateEmailService, UNSUBSCRIBE_PATH,
+    InvalidUnsubscribeToken, ProductUpdateEmailService, ProductUpdateEmailsNotConfigured, UNSUBSCRIBE_PATH,
 )
 
 router = APIRouter(tags=["email preferences"])
@@ -38,6 +38,10 @@ def _invalid() -> HTMLResponse:
     return _page("This link isn’t valid", "<p>Open the unsubscribe link in your latest SupoClip product email, or contact support@supoclip.com for help.</p>", 400)
 
 
+def _unavailable() -> HTMLResponse:
+    return _page("We couldn’t update your preference", "<p>Please try again later, or contact support@supoclip.com.</p>", 503)
+
+
 @router.get(UNSUBSCRIBE_PATH, response_class=HTMLResponse)
 async def confirm_unsubscribe(token: str = "", db: AsyncSession = Depends(get_db)):
     service = ProductUpdateEmailService(db)
@@ -45,6 +49,8 @@ async def confirm_unsubscribe(token: str = "", db: AsyncSession = Depends(get_db
         recipient = await service.validate_token(token)
     except InvalidUnsubscribeToken:
         return _invalid()
+    except ProductUpdateEmailsNotConfigured:
+        return _unavailable()
     if recipient["product_updates_unsubscribed_at"] is not None:
         return _success()
     action = escape(f"{UNSUBSCRIBE_PATH}?{urlencode({'token': token})}", quote=True)
@@ -65,4 +71,6 @@ async def unsubscribe(token: str = "", db: AsyncSession = Depends(get_db)):
         await ProductUpdateEmailService(db).unsubscribe(token)
     except InvalidUnsubscribeToken:
         return _invalid()
+    except ProductUpdateEmailsNotConfigured:
+        return _unavailable()
     return _success()

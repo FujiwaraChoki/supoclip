@@ -3,12 +3,24 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { fetchBackend } from "@/server/backend-api";
 import { GET, POST } from "./route";
 
-vi.mock("@/server/backend-api", () => ({ fetchBackend: vi.fn() }));
+vi.mock("@/server/backend-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/backend-api")>()),
+  fetchBackend: vi.fn(),
+}));
+
+// The headers the backend's unsubscribe page sets.
+const page = (body: string, status = 200) => new Response(body, {
+  status,
+  headers: {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": "default-src 'none'",
+  },
+});
 
 beforeEach(() => {
-  vi.mocked(fetchBackend).mockResolvedValue(new Response("<h1>Confirm unsubscribe</h1>", {
-    headers: { "Content-Security-Policy": "default-src 'none'" },
-  }));
+  vi.mocked(fetchBackend).mockResolvedValue(page("<h1>Confirm unsubscribe</h1>"));
 });
 afterEach(() => vi.resetAllMocks());
 
@@ -33,7 +45,7 @@ it("forwards a mailbox one-click POST without requiring its body or cookies", as
 });
 
 it("keeps invalid-token responses and handles backend outages without caching", async () => {
-  vi.mocked(fetchBackend).mockResolvedValueOnce(new Response("Invalid link", { status: 400 }));
+  vi.mocked(fetchBackend).mockResolvedValueOnce(page("Invalid link", 400));
   const request = new Request("https://app.example.com/email/product-updates/unsubscribe?token=wrong");
   expect((await GET(request)).status).toBe(400);
   vi.mocked(fetchBackend).mockRejectedValueOnce(new Error("offline"));
@@ -46,4 +58,17 @@ it("rejects oversized tokens before contacting the backend", async () => {
   const response = await GET(new Request(`https://app.example.com/email/product-updates/unsubscribe?token=${"x".repeat(257)}`));
   expect(response.status).toBe(400);
   expect(fetchBackend).not.toHaveBeenCalled();
+});
+
+it("sends link-scanner HEAD requests to the backend as GET", async () => {
+  await GET(new Request("https://app.example.com/email/product-updates/unsubscribe?token=v1.signed", { method: "HEAD" }));
+  expect(fetchBackend).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ method: "GET" }));
+});
+
+it("shows the outage message instead of relabelling a non-HTML backend error", async () => {
+  vi.mocked(fetchBackend).mockResolvedValueOnce(Response.json({ detail: "Internal Server Error" }, { status: 500 }));
+  const response = await POST(new Request("https://app.example.com/email/product-updates/unsubscribe?token=v1.signed", { method: "POST" }));
+  expect(response.status).toBe(503);
+  expect(response.headers.get("content-type")).toContain("text/plain");
+  expect(await response.text()).not.toContain("detail");
 });

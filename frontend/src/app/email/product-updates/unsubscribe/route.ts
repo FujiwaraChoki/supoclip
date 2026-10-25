@@ -1,6 +1,23 @@
-import { fetchBackend } from "@/server/backend-api";
+import { createProxyResponse, fetchBackend } from "@/server/backend-api";
 
 export const dynamic = "force-dynamic";
+
+// The backend page sets all of these; relay them unchanged.
+const FORWARDED_HEADERS = [
+  "content-type",
+  "cache-control",
+  "referrer-policy",
+  "x-robots-tag",
+  "x-content-type-options",
+  "content-security-policy",
+] as const;
+
+function unavailable() {
+  return new Response("We couldn’t update your email preference. Please try again, or contact support@supoclip.com.", {
+    status: 503,
+    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" },
+  });
+}
 
 // Intentionally public: an email link or mailbox one-click POST has no session.
 // Token verification and preference writes belong to the backend.
@@ -11,25 +28,18 @@ async function unsubscribe(request: Request) {
   }
   try {
     const upstream = await fetchBackend(`/email/product-updates/unsubscribe?${new URLSearchParams({ token })}`, {
-      method: request.method,
+      // Next serves HEAD (link scanners) through GET; the backend only routes GET and POST.
+      method: request.method === "POST" ? "POST" : "GET",
       cache: "no-store",
       signal: AbortSignal.timeout(15_000),
     });
-    const headers = new Headers({
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store",
-      "Referrer-Policy": "no-referrer",
-      "X-Robots-Tag": "noindex, nofollow",
-      "X-Content-Type-Options": "nosniff",
-    });
-    const csp = upstream.headers.get("content-security-policy");
-    if (csp) headers.set("Content-Security-Policy", csp);
-    return new Response(await upstream.text(), { status: upstream.status, headers });
+    // Anything but the backend's own page (e.g. a JSON 500) is an outage, not content to show.
+    if (!upstream.headers.get("content-type")?.startsWith("text/html")) {
+      return unavailable();
+    }
+    return createProxyResponse(upstream, FORWARDED_HEADERS);
   } catch {
-    return new Response("We couldn’t update your email preference. Please try again, or contact support@supoclip.com.", {
-      status: 503,
-      headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" },
-    });
+    return unavailable();
   }
 }
 
