@@ -191,6 +191,7 @@ def create_app(
     from .api.routes.api_keys import router as api_keys_router
     from .api.routes.account import router as account_router
     from .api.routes.social import router as social_router
+    from .api.routes.email_preferences import router as email_preferences_router
 
     app.include_router(media_router)
     app.include_router(feedback_router)
@@ -198,6 +199,7 @@ def create_app(
     app.include_router(api_keys_router)
     app.include_router(account_router)
     app.include_router(social_router)
+    app.include_router(email_preferences_router)
 
     @app.get("/")
     def read_root():

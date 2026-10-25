@@ -59,6 +59,9 @@ class User(Base):
     notify_on_completion: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sql_text("'true'")
     )
+    product_updates_unsubscribed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     is_admin: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sql_text("'false'")
     )

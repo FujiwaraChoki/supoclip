@@ -13,12 +13,19 @@ from ..models import EmailDelivery
 
 logger = logging.getLogger(__name__)
 
+TRANSACTIONAL = "transactional"
+# Product announcements must honour the opt-out: send them only through
+# ProductUpdateEmailService, which checks it and adds the unsubscribe headers.
+PRODUCT_UPDATE = "product_update"
+
 
 @dataclass(frozen=True)
 class EmailContent:
     subject: str
     html: str
     text: str
+    headers: tuple[tuple[str, str], ...] = ()
+    category: str = TRANSACTIONAL
 
 
 class SesEmailService:
@@ -28,6 +35,7 @@ class SesEmailService:
         self.access_key_id = self.config.aws_access_key_id
         self.secret_access_key = self.config.aws_secret_access_key
         self.from_email = self.config.ses_from_email
+        self._client = None
 
     @property
     def is_configured(self) -> bool:
@@ -39,17 +47,21 @@ class SesEmailService:
         )
 
     def _send(self, recipient: str, content: EmailContent) -> dict:
-        client = boto3.client(
-            "sesv2",
-            region_name=self.region,
-            aws_access_key_id=self.access_key_id,
-            aws_secret_access_key=self.secret_access_key,
-        )
-        return client.send_email(
+        headers = [{"Name": name, "Value": value} for name, value in content.headers]
+        # boto3 clients are thread-safe; reuse one across a campaign's sends.
+        if self._client is None:
+            self._client = boto3.client(
+                "sesv2",
+                region_name=self.region,
+                aws_access_key_id=self.access_key_id,
+                aws_secret_access_key=self.secret_access_key,
+            )
+        return self._client.send_email(
             FromEmailAddress=self.from_email,
             Destination={"ToAddresses": [recipient]},
             Content={
                 "Simple": {
+                    **({"Headers": headers} if headers else {}),
                     "Subject": {"Data": content.subject, "Charset": "UTF-8"},
                     "Body": {
                         "Html": {"Data": content.html, "Charset": "UTF-8"},
@@ -65,6 +77,10 @@ class SesEmailService:
                 "Amazon SES is not configured. Set AWS_REGION, AWS_ACCESS_KEY_ID, "
                 "AWS_SECRET_ACCESS_KEY and SES_FROM_EMAIL."
             )
+        if content.category == PRODUCT_UPDATE and not any(
+            name.lower() == "list-unsubscribe-post" for name, _ in content.headers
+        ):
+            raise ValueError("Send product updates through ProductUpdateEmailService")
 
         response = await asyncio.to_thread(self._send, recipient, content)
         # This is acceptance by SES, not proof of inbox delivery. Record only
