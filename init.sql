@@ -33,7 +33,10 @@ CREATE TABLE users (
     trial_ends_at TIMESTAMP WITH TIME ZONE,
     subscription_cancel_at TIMESTAMP WITH TIME ZONE,
     -- Pro subscribers from before the 720p change keep 1080p while subscribed
-    legacy_hd BOOLEAN NOT NULL DEFAULT false
+    legacy_hd BOOLEAN NOT NULL DEFAULT false,
+    -- Higher tier chosen in the billing portal, granted only after its invoice is paid.
+    pending_plan VARCHAR(20),
+    pending_plan_invoice_id VARCHAR(255)
 );
 
 -- Source table (created before tasks since tasks reference sources)

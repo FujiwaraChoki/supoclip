@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { monetizationEnabled } from "@/lib/monetization";
 import { getPrismaClient } from "@/server/prisma";
 import { getServerStripeClient } from "@/server/stripe";
-import { upsertSubscriptionState } from "@/server/stripe-subscription-sync";
+import { syncSubscriptionUpdate } from "@/server/stripe-subscription-sync";
 
 // Undo a scheduled cancellation so the subscription renews as normal.
 export async function POST() {
@@ -44,8 +44,9 @@ export async function POST() {
       subscription = await stripe.subscriptions.update(subscription.id, { cancel_at: "" });
     }
 
-    // Sync immediately instead of waiting for the webhook.
-    await upsertSubscriptionState(subscription);
+    // Sync immediately instead of waiting for the webhook. An unpaid upgrade
+    // still waits for its invoice, the same as customer.subscription.updated.
+    await syncSubscriptionUpdate(subscription);
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Failed to restart Stripe subscription", error);

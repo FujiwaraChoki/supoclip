@@ -89,6 +89,11 @@ class User(Base):
     legacy_hd: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sql_text("'false'")
     )
+    # Higher tier chosen in the billing portal, granted only after its invoice is paid.
+    pending_plan: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    pending_plan_invoice_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
 
     # Relationships
     tasks: Mapped[List["Task"]] = relationship(

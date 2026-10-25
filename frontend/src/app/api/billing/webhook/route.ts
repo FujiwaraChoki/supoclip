@@ -7,7 +7,10 @@ import { hasAnyConfiguredStripePrice } from "@/server/billing-plans";
 import { getPrismaClient } from "@/server/prisma";
 import { getServerStripeClient } from "@/server/stripe";
 import {
+  applyPaidUpgradeInvoice,
   getPaidSubscriptionPlan,
+  noteUpgradePaymentFailed,
+  syncSubscriptionUpdate,
   upsertSubscriptionState,
 } from "@/server/stripe-subscription-sync";
 import Stripe from "stripe";
@@ -176,7 +179,18 @@ export async function POST(request: Request) {
     }
 
     if (event.type === "customer.subscription.updated") {
-      await upsertSubscriptionState(event.data.object as Stripe.Subscription);
+      await syncSubscriptionUpdate(event.data.object as Stripe.Subscription);
+    }
+
+    // Enable these on the Stripe webhook endpoint. invoice.paid covers
+    // out-of-band payments; invoice.payment_succeeded covers a successful charge.
+    // Both grant a higher tier that subscription.updated left pending.
+    if (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") {
+      await applyPaidUpgradeInvoice(event.data.object as Stripe.Invoice);
+    }
+
+    if (event.type === "invoice.payment_failed") {
+      await noteUpgradePaymentFailed(event.data.object as Stripe.Invoice);
     }
 
     if (event.type === "customer.subscription.deleted") {

@@ -88,6 +88,9 @@ model User {
   subscription_cancel_at DateTime? @db.Timestamptz
   // Pro subscribers from before the 720p change keep 1080p while subscribed
   legacy_hd            Boolean   @default(false)
+  // Higher tier chosen in the billing portal, granted only after its invoice is paid.
+  pending_plan            String? @db.VarChar(20)
+  pending_plan_invoice_id String? @db.VarChar(255)
 
   // Relationships
   tasks         Task[]
