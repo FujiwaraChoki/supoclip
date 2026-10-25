@@ -366,7 +366,7 @@
     "selfHostGuide": "Ver la guía de autoalojamiento",
     "billedYearly": "${price}/mes, facturado anualmente",
     "usageExample": {
-      "videos": "Unos {count} videos"
+      "videos": "Unos {count} videos originales al mes. Cada uno se convierte en varios clips."
     },
     "publishYoutube": "Publica clips en YouTube Shorts",
     "schedulingYoutube": "Programa clips en YouTube Shorts",

@@ -366,7 +366,7 @@
     "selfHostGuide": "Lihat panduan host sendiri",
     "billedYearly": "${price}/bln, ditagih tahunan",
     "usageExample": {
-      "videos": "Sekitar {count} video"
+      "videos": "Sekitar {count} video sumber per bulan. Masing-masing menjadi beberapa klip."
     },
     "publishYoutube": "Posting klip ke YouTube Shorts",
     "schedulingYoutube": "Jadwalkan klip ke YouTube Shorts",

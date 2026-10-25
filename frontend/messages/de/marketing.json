@@ -366,7 +366,7 @@
     "selfHostGuide": "Zum Self-Hosting-Guide",
     "billedYearly": "${price}/Monat, jährlich abgerechnet",
     "usageExample": {
-      "videos": "Etwa {count} Videos"
+      "videos": "Etwa {count} Quellvideos im Monat. Aus jedem werden mehrere Clips."
     },
     "publishYoutube": "Clips auf YouTube Shorts posten",
     "schedulingYoutube": "Clips für YouTube Shorts planen",

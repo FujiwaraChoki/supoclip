@@ -366,7 +366,7 @@
     "selfHostGuide": "See the self-hosting guide",
     "billedYearly": "${price}/mo, billed yearly",
     "usageExample": {
-      "videos": "About {count} videos"
+      "videos": "About {count} source videos a month. Each one becomes several clips."
     },
     "publishYoutube": "Post clips to YouTube Shorts",
     "schedulingYoutube": "Schedule clips to YouTube Shorts",

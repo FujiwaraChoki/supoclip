@@ -366,7 +366,7 @@
     "selfHostGuide": "查看自托管指南",
     "billedYearly": "${price}/月，按年计费",
     "usageExample": {
-      "videos": "约 {count} 个视频"
+      "videos": "每月约 {count} 个原视频，每个都能剪出多个片段。"
     },
     "publishYoutube": "将片段发布到 YouTube Shorts",
     "schedulingYoutube": "排期发布到 YouTube Shorts",
