@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-10-25
+
+- **Fixed:** Downloading a clip in a social format no longer waits on the whole re-encode, so a long export can finish instead of timing out. ([#258](https://github.com/FujiwaraChoki/supoclip/pull/258))
+
 ## 2026-10-24
 
 - **Fixed:** A YouTube video whose direct audio link is blocked is retried over HLS before a paid download. ([#250](https://github.com/FujiwaraChoki/supoclip/pull/250))
