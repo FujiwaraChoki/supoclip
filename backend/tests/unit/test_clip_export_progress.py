@@ -5,8 +5,12 @@ import pytest
 
 from src.clip_editor import ExportCancelled, _ffmpeg_clock_seconds, export_with_preset
 from src.services.clip_export_service import (
+    CLIP_EXPORT_QUEUE_MAX_SECONDS,
+    CLIP_EXPORT_QUEUE_MISSING_GRACE_SECONDS,
+    CLIP_EXPORT_STALE_SECONDS,
     export_download_filename,
     export_options_hash,
+    queued_export_should_fail,
     serialize_export,
 )
 from src.workers.tasks import WorkerSettings
@@ -42,6 +46,15 @@ def test_serialize_hides_the_download_url_until_the_job_succeeds():
     assert queued["error"] is None
     assert failed["error"] == "Export failed. Try again."
     assert failed["download_url"] is None
+
+
+def test_queued_export_survives_a_long_wait_unless_the_job_is_gone_or_capped():
+    waiting = CLIP_EXPORT_STALE_SECONDS + 60
+    assert queued_export_should_fail(age_seconds=waiting, job_alive=True) is False
+    assert queued_export_should_fail(age_seconds=waiting, job_alive=None) is False
+    assert queued_export_should_fail(age_seconds=CLIP_EXPORT_QUEUE_MISSING_GRACE_SECONDS - 1, job_alive=False) is False
+    assert queued_export_should_fail(age_seconds=waiting, job_alive=False) is True
+    assert queued_export_should_fail(age_seconds=CLIP_EXPORT_QUEUE_MAX_SECONDS, job_alive=True) is True
 
 
 def test_worker_registers_preset_export_with_a_single_try():

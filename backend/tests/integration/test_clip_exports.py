@@ -99,22 +99,104 @@ async def test_stale_and_failed_jobs_can_be_started_again(
     failed = await client.post(url, headers=auth_headers, json={"preset": "shorts"})
     assert failed.status_code == 503
 
-    record_jobs(monkeypatch, app)
+    jobs = record_jobs(monkeypatch, app)
     retry = await client.post(url, headers=auth_headers, json={"preset": "shorts"})
     assert retry.status_code == 202
     assert retry.json()["status"] == "queued"
+    assert len(jobs) == 1
 
+
+def pretend_arq_jobs(monkeypatch, *, alive: bool):
+    async def check(export_ids):
+        return {export_id: alive for export_id in export_ids}
+
+    monkeypatch.setattr("src.services.clip_export_service.arq_jobs_alive", check)
+
+
+async def age_export(db_session, export_id: str, *, minutes: int, status: str | None = None):
+    assignments = [
+        "created_at = NOW() - make_interval(mins => :minutes)",
+        "updated_at = NOW() - make_interval(mins => :minutes)",
+    ]
+    params: dict = {"id": export_id, "minutes": minutes}
+    if status is not None:
+        assignments.append("status = :status")
+        params["status"] = status
     await db_session.execute(
-        text("UPDATE clip_exports SET updated_at = NOW() - INTERVAL '10 minutes' WHERE id = :id"),
-        {"id": retry.json()["id"]},
+        text(f"UPDATE clip_exports SET {', '.join(assignments)} WHERE id = :id"),
+        params,
     )
     await db_session.commit()
-    replacement = await client.post(url, headers=auth_headers, json={"preset": "shorts"})
+
+
+async def test_queued_export_waiting_past_three_minutes_is_not_failed(
+    client, app, db_session, auth_headers, tmp_path, monkeypatch
+):
+    jobs = record_jobs(monkeypatch, app)
+    pretend_arq_jobs(monkeypatch, alive=True)
+    task_id, clip_id = await seed_clip(db_session, file_path=str(tmp_path / "waiting.mp4"))
+    url = exports_url(task_id, clip_id)
+    started = await client.post(url, headers=auth_headers, json={"preset": "tiktok"})
+    export_id = started.json()["id"]
+    await age_export(db_session, export_id, minutes=10)
+
+    status = await client.get(f"{url}/{export_id}", headers=auth_headers)
+    assert status.status_code == 200
+    assert status.json()["status"] == "queued"
+    assert status.json()["error"] is None
+
+    again = await client.post(url, headers=auth_headers, json={"preset": "tiktok"})
+    assert again.status_code == 202
+    assert again.json()["id"] == export_id
+    assert len(jobs) == 1
+
+
+async def test_running_export_with_a_stale_heartbeat_is_failed(
+    client, app, db_session, auth_headers, tmp_path, monkeypatch
+):
+    jobs = record_jobs(monkeypatch, app)
+    task_id, clip_id = await seed_clip(db_session, file_path=str(tmp_path / "running.mp4"))
+    url = exports_url(task_id, clip_id)
+    started = await client.post(url, headers=auth_headers, json={"preset": "reels"})
+    export_id = started.json()["id"]
+    await age_export(db_session, export_id, minutes=10, status="running")
+
+    status = await client.get(f"{url}/{export_id}", headers=auth_headers)
+    assert status.json()["status"] == "failed"
+    assert status.json()["error"] == "Export timed out before it finished."
+
+    replacement = await client.post(url, headers=auth_headers, json={"preset": "reels"})
     assert replacement.status_code == 202
-    assert replacement.json()["id"] != retry.json()["id"]
-    stale = await client.get(f"{url}/{retry.json()['id']}", headers=auth_headers)
-    assert stale.json()["status"] == "failed"
-    assert stale.json()["error"]
+    assert replacement.json()["id"] != export_id
+    assert replacement.json()["status"] == "queued"
+    assert len(jobs) == 2
+
+
+async def test_lost_queue_job_and_the_hour_cap_free_the_idempotency_key(
+    client, app, db_session, auth_headers, tmp_path, monkeypatch
+):
+    jobs = record_jobs(monkeypatch, app)
+    pretend_arq_jobs(monkeypatch, alive=False)
+    task_id, clip_id = await seed_clip(db_session, file_path=str(tmp_path / "lost.mp4"))
+    url = exports_url(task_id, clip_id)
+    started = await client.post(url, headers=auth_headers, json={"preset": "shorts"})
+    export_id = started.json()["id"]
+    await age_export(db_session, export_id, minutes=10)
+
+    replacement = await client.post(url, headers=auth_headers, json={"preset": "shorts"})
+    assert replacement.json()["id"] != export_id
+    lost = await client.get(f"{url}/{export_id}", headers=auth_headers)
+    assert lost.json()["status"] == "failed"
+    assert lost.json()["error"] == "The export worker is unavailable."
+
+    pretend_arq_jobs(monkeypatch, alive=True)
+    await age_export(db_session, replacement.json()["id"], minutes=61)
+    capped = await client.post(url, headers=auth_headers, json={"preset": "shorts"})
+    assert capped.json()["id"] != replacement.json()["id"]
+    waiting = await client.get(f"{url}/{replacement.json()['id']}", headers=auth_headers)
+    assert waiting.json()["status"] == "failed"
+    assert waiting.json()["error"] == "Export timed out before it finished."
+    assert len(jobs) == 3
 
 
 async def test_worker_stores_a_local_file_and_the_download_requires_the_owner(

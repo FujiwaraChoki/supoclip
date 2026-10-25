@@ -114,7 +114,37 @@ class ClipExportRepository:
         return row
 
     @staticmethod
-    async def fail_matching(
+    async def list_queued(
+        db: AsyncSession,
+        *,
+        export_id: Optional[str] = None,
+        clip_id: Optional[str] = None,
+        options_hash: Optional[str] = None,
+    ) -> list[Dict[str, Any]]:
+        clauses = ["status = 'queued'"]
+        params: Dict[str, Any] = {}
+        if export_id is not None:
+            clauses.append("id = :id")
+            params["id"] = export_id
+        if clip_id is not None:
+            clauses.append("clip_id = :clip_id")
+            params["clip_id"] = clip_id
+        if options_hash is not None:
+            clauses.append("options_hash = :options_hash")
+            params["options_hash"] = options_hash
+        result = await db.execute(
+            text(
+                f"""
+                SELECT id, created_at FROM clip_exports
+                WHERE {' AND '.join(clauses)}
+                """
+            ),
+            params,
+        )
+        return [dict(row) for row in result.mappings()]
+
+    @staticmethod
+    async def fail_stale_running(
         db: AsyncSession,
         *,
         message: str,
@@ -123,8 +153,13 @@ class ClipExportRepository:
         clip_id: Optional[str] = None,
         options_hash: Optional[str] = None,
     ) -> int:
+        """Fail a running encode whose worker stopped heartbeating.
+
+        Queued rows are not included. They sit on the shared worker queue
+        behind generation jobs and are not touched until a worker starts them.
+        """
         clauses = [
-            "status IN ('queued', 'running')",
+            "status = 'running'",
             "updated_at < NOW() - make_interval(secs => :stale_seconds)",
         ]
         params: Dict[str, Any] = {"message": message[:500], "stale_seconds": stale_seconds}

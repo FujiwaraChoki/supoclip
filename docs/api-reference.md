@@ -147,7 +147,7 @@ Source file:
 - `GET /{task_id}/clips/{clip_id}/export`
   - Export using a platform preset. The response waits until ffmpeg finishes. Older clients, including current iOS builds, keep using this route.
 - `POST /{task_id}/clips/{clip_id}/exports`
-  - Queue the same preset export and return immediately. Body `{"preset": "tiktok"|"reels"|"shorts"}` or query `preset` (default `tiktok`). Same clip, preset, and source file reuses a queued, running, or succeeded job.
+  - Queue the same preset export and return immediately. Body `{"preset": "tiktok"|"reels"|"shorts"}` or query `preset` (default `tiktok`). Same clip, preset, and source file reuses a queued, running, or succeeded job. A queued job stays queued while it waits behind other work. It is failed if its worker job disappears, or after 60 minutes. A running job is failed when the worker stops heartbeating for 3 minutes.
 - `GET /{task_id}/clips/{clip_id}/exports/{export_id}`
   - Job state: `queued`, `running`, `succeeded`, or `failed`, plus `progress`, `error`, and `download_url` when the file is ready.
 - `GET /{task_id}/clips/{clip_id}/exports/{export_id}/file`

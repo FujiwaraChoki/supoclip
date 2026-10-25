@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
+from arq.constants import in_progress_key_prefix, job_key_prefix
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..clip_editor import ExportCancelled, export_with_preset
@@ -27,16 +28,22 @@ from ..repositories.clip_export_repository import ClipExportRepository
 from ..repositories.clip_repository import ClipRepository
 from ..repositories.media_repository import queue_delete
 from ..utils.async_helpers import run_in_thread
-from ..workers.job_queue import DuplicateJobError
+from ..workers.job_queue import DuplicateJobError, JobQueue
 
 logger = logging.getLogger(__name__)
 
 CLIP_EXPORT_JOB_NAME = "export_clip_preset"
 CLIP_EXPORT_TTL = timedelta(days=7)
 CLIP_EXPORT_TTL_SECONDS = int(CLIP_EXPORT_TTL.total_seconds())
-# A live worker touches the row every couple of seconds. A few minutes without
-# a touch means the worker that owned the job is gone.
+# A running worker touches the row every couple of seconds. A few minutes
+# without a touch means that worker is gone. Queued rows do not heartbeat:
+# they share supoclip_tasks with generation jobs that can run much longer.
 CLIP_EXPORT_STALE_SECONDS = 180
+# Backstop for a queued export whose worker job never starts.
+CLIP_EXPORT_QUEUE_MAX_SECONDS = 60 * 60
+# Ignore a missing ARQ job for a moment so enqueue can finish and a Redis
+# blip right after insert does not free the idempotency key.
+CLIP_EXPORT_QUEUE_MISSING_GRACE_SECONDS = 60
 CLIP_EXPORT_JOB_TIMEOUT_SECONDS = 30 * 60
 STALE_MESSAGE = "Export timed out before it finished."
 FAILED_MESSAGE = "Export failed. Try again."
@@ -73,6 +80,94 @@ def export_download_filename(clip_filename: str, preset: str) -> str:
 
 def job_id_for(export_id: str) -> str:
     return f"clip-export:{export_id}"
+
+
+def queued_export_should_fail(*, age_seconds: float, job_alive: bool | None) -> bool:
+    """Whether a queued export should free its idempotency key.
+
+    Waiting in line is not a failure. ``job_alive`` is True when the ARQ job
+    or its in-progress key still exists, False when both are gone, and None
+    when Redis could not be checked.
+    """
+    if age_seconds >= CLIP_EXPORT_QUEUE_MAX_SECONDS:
+        return True
+    if age_seconds < CLIP_EXPORT_QUEUE_MISSING_GRACE_SECONDS or job_alive is None:
+        return False
+    return not job_alive
+
+
+def _age_seconds(value: datetime | None) -> float:
+    if value is None:
+        return 0.0
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - value).total_seconds()
+
+
+async def arq_jobs_alive(export_ids: list[str]) -> dict[str, bool] | None:
+    """True when the ARQ job key or in-progress key still exists.
+
+    None means Redis could not be checked. Callers keep the queued row then,
+    the same way a generation reservation survives a Redis outage.
+    """
+    if not export_ids:
+        return {}
+    try:
+        pool = await JobQueue.get_pool()
+        pipe = pool.pipeline()
+        for export_id in export_ids:
+            job_id = job_id_for(export_id)
+            pipe.exists(job_key_prefix + job_id, in_progress_key_prefix + job_id)
+        found = await pipe.execute()
+    except Exception:
+        logger.exception("Could not verify queued clip exports")
+        return None
+    return {export_id: bool(count) for export_id, count in zip(export_ids, found)}
+
+
+async def reap_stale_exports(
+    db: AsyncSession,
+    *,
+    export_id: str | None = None,
+    clip_id: str | None = None,
+    options_hash: str | None = None,
+) -> int:
+    """Fail dead running encodes, lost queued jobs, and queued jobs past the cap."""
+    failed = await ClipExportRepository.fail_stale_running(
+        db,
+        message=STALE_MESSAGE,
+        stale_seconds=CLIP_EXPORT_STALE_SECONDS,
+        export_id=export_id,
+        clip_id=clip_id,
+        options_hash=options_hash,
+    )
+    queued = await ClipExportRepository.list_queued(
+        db, export_id=export_id, clip_id=clip_id, options_hash=options_hash
+    )
+    overdue: list[str] = []
+    checkable: list[str] = []
+    ages: dict[str, float] = {}
+    for row in queued:
+        age = _age_seconds(row.get("created_at"))
+        ages[row["id"]] = age
+        if age >= CLIP_EXPORT_QUEUE_MAX_SECONDS:
+            overdue.append(row["id"])
+        elif age >= CLIP_EXPORT_QUEUE_MISSING_GRACE_SECONDS:
+            checkable.append(row["id"])
+    alive = await arq_jobs_alive(checkable) if checkable else {}
+    for queued_id in overdue:
+        if await ClipExportRepository.mark_failed(db, queued_id, STALE_MESSAGE, statuses=("queued",)):
+            failed += 1
+    if alive is None:
+        return failed
+    for queued_id in checkable:
+        if not queued_export_should_fail(age_seconds=ages[queued_id], job_alive=alive.get(queued_id)):
+            continue
+        if await ClipExportRepository.mark_failed(
+            db, queued_id, WORKER_UNAVAILABLE_MESSAGE, statuses=("queued",)
+        ):
+            failed += 1
+    return failed
 
 
 def api_download_path(row: dict) -> str:
@@ -162,12 +257,7 @@ async def resolve_download_url(storage: MediaStorage, row: dict) -> str | None:
 
 async def present_export(db: AsyncSession, row: dict) -> dict:
     """Reclaim a dead job or a missing file, then attach a download URL."""
-    failed = await ClipExportRepository.fail_matching(
-        db,
-        message=STALE_MESSAGE,
-        stale_seconds=CLIP_EXPORT_STALE_SECONDS,
-        export_id=row["id"],
-    )
+    failed = await reap_stale_exports(db, export_id=row["id"])
     if failed:
         await db.commit()
         refreshed = await ClipExportRepository.get(db, row["id"])
@@ -200,13 +290,7 @@ async def start_export(
 ) -> dict:
     options_hash = export_options_hash(preset, clip["file_path"])
     await ClipExportRepository.lock_options(db, clip["id"], options_hash)
-    await ClipExportRepository.fail_matching(
-        db,
-        message=STALE_MESSAGE,
-        stale_seconds=CLIP_EXPORT_STALE_SECONDS,
-        clip_id=clip["id"],
-        options_hash=options_hash,
-    )
+    await reap_stale_exports(db, clip_id=clip["id"], options_hash=options_hash)
     existing = await ClipExportRepository.get_live(
         db, clip["id"], options_hash, for_update=True
     )
@@ -242,6 +326,10 @@ async def start_export(
     )
     await db.commit()
     try:
+        # Stay on supoclip_tasks. ARQ has no priority argument, and deferring
+        # to the past expires the job key immediately (expiry is score minus
+        # enqueue time). supoclip_fast has no worker. A shared max_jobs pool
+        # also cannot reserve a slot without a custom poll loop.
         await queue.enqueue_job(
             CLIP_EXPORT_JOB_NAME,
             export_id,
@@ -267,11 +355,7 @@ def _expired(row: dict) -> bool:
 
 
 async def expire_clip_exports(db: AsyncSession, storage: MediaStorage, *, limit: int = 50) -> dict:
-    stale = await ClipExportRepository.fail_matching(
-        db,
-        message=STALE_MESSAGE,
-        stale_seconds=CLIP_EXPORT_STALE_SECONDS,
-    )
+    stale = await reap_stale_exports(db)
     await db.commit()
     removed = 0
     for row in await ClipExportRepository.lock_expired(db, limit=limit):

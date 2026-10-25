@@ -215,7 +215,7 @@ class WorkerSettings:
         prepare_editor,
         export_editor,
         combine_editor,
-        # One try: a lost worker is failed by the stale-export sweep, and a
+        # One try: a lost running export is failed by the heartbeat sweep, and a
         # retry would start a second encode for the same row.
         func(
             export_clip_preset,
