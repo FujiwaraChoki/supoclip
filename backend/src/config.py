@@ -229,6 +229,20 @@ class Config:
         )
         if self.social_publishing_access not in {"all", "admins", "off"}:
             raise ValueError("SOCIAL_PUBLISHING_ACCESS must be all, admins or off")
+        # Platform rollout is separate from credentials and user access. An
+        # explicitly empty list disables every platform; existing self-hosted
+        # installations retain all platforms unless they set this variable.
+        self.social_publishing_providers = frozenset(
+            provider.strip().lower()
+            for provider in os.getenv(
+                "SOCIAL_PUBLISHING_PROVIDERS", "youtube,tiktok,instagram"
+            ).split(",")
+            if provider.strip()
+        )
+        if self.social_publishing_providers - {"youtube", "tiktok", "instagram"}:
+            raise ValueError(
+                "SOCIAL_PUBLISHING_PROVIDERS may only include youtube, tiktok, instagram"
+            )
         self.social_publishing_allowed_emails = frozenset(
             email.strip().lower()
             for email in os.getenv("SOCIAL_PUBLISHING_ALLOWED_EMAILS", "").split(",")

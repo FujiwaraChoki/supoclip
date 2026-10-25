@@ -83,6 +83,64 @@ async def test_schedule_publish_and_metrics_with_real_repository(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("is_admin", [True, False])
+async def test_youtube_admin_trial_enforces_api_and_worker_gates(
+    social_setup, app, client, db_session, auth_headers, monkeypatch, is_admin,
+):
+    provider, payload = social_setup
+    config = app.state.config
+    monkeypatch.setattr(config, "social_publishing_access", "admins")
+    monkeypatch.setattr(config, "social_publishing_allowed_emails", frozenset())
+    monkeypatch.setattr(config, "social_publishing_providers", frozenset({"youtube"}))
+    # Configured credentials must not accidentally enable pending platforms.
+    for field in ("youtube_oauth_client_id", "youtube_oauth_client_secret",
+                  "tiktok_client_key", "tiktok_client_secret",
+                  "instagram_app_id", "instagram_app_secret"):
+        monkeypatch.setattr(config, field, "test-credential")
+    monkeypatch.setattr(config, "monetization_enabled", True)
+    await db_session.execute(
+        text("UPDATE users SET is_admin = :admin WHERE id = 'user-1'"), {"admin": is_admin},
+    )
+    await db_session.commit()
+    response = await client.get("/social/providers", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["enabled"] is is_admin
+    assert data["can_schedule"] is is_admin
+    statuses = {row["provider"]: row["configured"] for row in data["providers"]}
+    assert statuses == {"youtube": is_admin, "tiktok": False, "instagram": False}
+
+    payload["scheduled_for"] = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    response = await client.post("/social/posts", headers=auth_headers, json=payload)
+    if not is_admin:
+        assert response.status_code == 403
+        assert (await client.get("/social/connections", headers=auth_headers)).status_code == 403
+        assert (await client.post("/social/connections/youtube/authorize", headers=auth_headers)).status_code == 403
+        assert provider.publish_calls == []
+        return
+
+    assert response.status_code == 200
+    post = response.json()["post"]
+    assert post["status"] == "scheduled"
+    for platform in ("tiktok", "instagram"):
+        assert (await client.post(f"/social/connections/{platform}/authorize", headers=auth_headers)).status_code == 503
+        assert (await client.post(
+            f"/social/connections/{platform}/callback", headers=auth_headers,
+            json={"code": "good-code", "state": "old-state"},
+        )).status_code == 503
+
+    await db_session.execute(
+        text("UPDATE social_posts SET scheduled_for = NOW() - INTERVAL '1 minute' WHERE id = :id"),
+        {"id": post["id"]},
+    )
+    await db_session.commit()
+    service = SocialService(db_session, config=config, queue_adapter=FakeQueue())
+    assert await service.dispatch_scheduled_posts() == [post["id"]]
+    assert (await service.publish_post(post["id"]))["status"] == "published"
+    assert len(provider.publish_calls) == 1
+
+
+@pytest.mark.asyncio
 async def test_pending_private_publish_survives_transient_status_failure(
     social_setup, client, db_session, auth_headers,
 ):

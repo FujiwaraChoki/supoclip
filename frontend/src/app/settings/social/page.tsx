@@ -8,6 +8,7 @@ import {
   AlertCircle,
   CheckCircle,
   ChevronRight,
+  Info,
   RefreshCw,
   Trash2,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ScheduledPosts } from "@/components/scheduled-posts";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
 import { isSocialPublishingEnabled } from "@/hooks/use-social-access";
@@ -163,8 +165,10 @@ function SocialSettingsContent() {
     );
   }
 
-  const configuredProviders = providers.filter((provider) => provider.configured);
-  const unconfiguredProviders = providers.filter((provider) => !provider.configured);
+  const providerGroups = [
+    providers.filter((provider) => provider.configured),
+    providers.filter((provider) => !provider.configured),
+  ].filter((group) => group.length > 0);
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-8 md:py-10">
@@ -194,39 +198,72 @@ function SocialSettingsContent() {
         {isFetching ? (
           <Skeleton className="h-20 w-full" />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-3">
-            {configuredProviders.map((provider) => (
-              <a
-                key={provider.provider}
-                href={`/api/social/connect/${provider.provider}`}
-                className="flex items-center justify-between gap-2 rounded-xl border bg-background p-4 transition-colors hover:border-foreground/25"
-              >
-                <span className="flex items-center gap-2.5 text-sm font-medium">
-                  <SocialProviderIcon provider={provider.provider} className="size-5" />
-                  {provider.display_name}
-                </span>
-                <span className="text-xs text-muted-foreground">{t("page.connect")}</span>
-              </a>
-            ))}
-            {unconfiguredProviders.map((provider) => (
+          <div className="rounded-xl bg-background">
+            {providerGroups.map((group) => (
               <div
-                key={provider.provider}
-                className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground"
-                title={provider.setup_hint ?? undefined}
+                key={group[0].configured ? "available" : "upcoming"}
+                className={`relative first:rounded-t-xl last:rounded-b-xl [&>div+div]:shadow-[inset_0_1px_0_var(--border)] ${group[0].configured ? "shadow-[inset_0_0_0_1px_var(--border)]" : "bg-muted"}`}
               >
-                <p className="flex items-center gap-2 font-medium text-foreground">
-                  <SocialProviderIcon provider={provider.provider} className="size-4 text-muted-foreground" />
-                  {provider.display_name}
-                </p>
-                <p className="text-xs mt-1">{t("page.notConfigured")}</p>
-                {provider.setup_hint && <p className="text-xs mt-1">{provider.setup_hint}</p>}
+                {!group[0].configured && (
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 z-10 rounded-[inherit] p-0.5"
+                    style={{
+                      background: "repeating-linear-gradient(135deg, #fbbf24 0px, #fbbf24 4px, #27272a 4px, #27272a 8px)",
+                      mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
+                      maskComposite: "exclude",
+                    }}
+                  />
+                )}
+                {group.map((provider) => (
+                  <div
+                    key={provider.provider}
+                    className={`flex items-center gap-3 p-3 ${provider.configured ? "" : "text-muted-foreground"}`}
+                  >
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border bg-muted/30">
+                      <SocialProviderIcon provider={provider.provider} className="size-5" />
+                    </span>
+                    <div className="min-w-0 flex-1 self-center">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                        <p className="text-sm font-medium">{provider.display_name}</p>
+                        {!provider.configured && (
+                          <Badge variant="secondary" className="font-normal text-muted-foreground">
+                            {t("page.comingSoon")}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={t("page.platformDetails", { platform: provider.display_name })}
+                            className="inline-flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <Info className="size-3.5" aria-hidden="true" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs space-y-2" sideOffset={6}>
+                          {!provider.configured && <p>{t("page.verificationNote")}</p>}
+                          <p>{t(`page.${provider.provider}Note`)}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      {provider.configured && (
+                        <Button asChild size="sm" variant="outline">
+                          <a href={`/api/social/connect/${provider.provider}`}>
+                            {t("page.connect")}
+                            <ChevronRight className="size-4" />
+                          </a>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
         )}
-        <p className="text-xs text-muted-foreground mt-3">
-          {t("page.instagramNote")}
-        </p>
       </section>
 
       {/* Connected */}
@@ -258,11 +295,21 @@ function SocialSettingsContent() {
                         {PROVIDER_LABELS[connection.provider]}
                       </Badge>
                       <ConnectionStatusBadge status={connection.status} />
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label={t("page.connectionDetails")}
+                            className="inline-flex size-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <Info className="size-3.5" aria-hidden="true" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs" sideOffset={6}>
+                          {t("page.connectedOn", { date: formatDateTime(connection.created_at) })}
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {t("page.connectedOn", { date: formatDateTime(connection.created_at) })}
-                      {connection.token_expires_at ? t("page.tokenRenews", { date: formatDateTime(connection.token_expires_at) }) : ""}
-                    </p>
                     {connection.status === "reauth_required" && connection.last_error && (
                       <p className="text-xs text-destructive mt-1">{connection.last_error}</p>
                     )}

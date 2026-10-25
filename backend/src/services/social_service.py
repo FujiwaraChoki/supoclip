@@ -135,7 +135,16 @@ class SocialService:
         return bool(row.is_admin) or email in self.config.social_publishing_allowed_emails
 
     async def can_schedule(self, user_id: str) -> bool:
-        """Whether the user's plan includes scheduled publishing."""
+        """Plan entitlement, plus admin testing during the restricted rollout."""
+        if self.config.social_publishing_access == "admins":
+            row = (
+                await self.db.execute(
+                    text("SELECT is_admin FROM users WHERE id = :user_id"),
+                    {"user_id": user_id},
+                )
+            ).fetchone()
+            if row and row.is_admin:
+                return True
         summary = await BillingService(self.db, self.config).get_usage_summary(user_id)
         return bool(summary.get("can_schedule_posts"))
 
@@ -143,6 +152,10 @@ class SocialService:
         normalized = (name or "").strip().lower()
         if normalized not in SUPPORTED_PROVIDERS:
             raise SocialNotFound(f"Unknown provider '{name}'")
+        if normalized not in self.config.social_publishing_providers:
+            raise SocialProviderUnavailable(
+                f"{normalized.capitalize()} publishing is disabled on this server."
+            )
         provider = get_provider(normalized, self.config)
         if not provider.is_configured:
             raise SocialProviderUnavailable(
@@ -495,6 +508,7 @@ class SocialService:
             raise SocialValidationError("Only failed or cancelled posts can be retried.")
         if not post.get("social_account_id"):
             raise SocialValidationError("The account for this post was disconnected.")
+        self._provider(post["provider"])
         attempts = await self.repo.requeue_post(
             self.db, user_id, post_id, media_token=secrets.token_urlsafe(32)
         )
@@ -640,8 +654,24 @@ class SocialService:
             )
             return await self.repo.get_post(self.db, post_id) or post
 
+        # Recheck the current rollout after claiming, before refreshing tokens
+        # or sending any media. Jobs queued before a platform/user was disabled
+        # must not publish through an old connection. Already accepted uploads
+        # above can still have their status resolved without uploading again.
         try:
-            provider = get_provider(post["provider"], self.config)
+            provider = self._provider(post["provider"])
+            if not await self.has_access(post["user_id"]):
+                raise SocialProviderUnavailable(
+                    "Social publishing isn't available on your account yet."
+                )
+        except SocialProviderUnavailable as exc:
+            await self.repo.update_post(
+                self.db, post_id, status="failed", error_message=str(exc),
+                media_token_expires_at=None,
+            )
+            return await self.repo.get_post(self.db, post_id) or post
+
+        try:
             file_path, public_url = await self._resolve_publish_media(post, provider)
             access_token = await self._get_valid_access_token(account)
             request = PublishRequest(

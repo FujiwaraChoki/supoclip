@@ -318,8 +318,12 @@ export function ClipPublishButton({
   const [error, setError] = useState<string | null>(null);
 
   const activeConnections = useMemo(
-    () => connections.filter((connection) => connection.status !== "revoked"),
-    [connections],
+    () => connections.filter(
+      (connection) => connection.status !== "revoked" && providers.some(
+        (provider) => provider.provider === connection.provider && provider.configured,
+      ),
+    ),
+    [connections, providers],
   );
   const providerForAccount = (id: string) =>
     providers.find(
