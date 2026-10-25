@@ -55,7 +55,7 @@
     },
     "ai_video_clipper": {
       "label": "AI video clipper",
-      "eyebrow": "AI Video Clipping",
+      "eyebrow": "AI video clipping",
       "title": "AI video clipper for Shorts, Reels, and TikTok",
       "description": "How SupoClip finds moments, scores candidates, reframes faces, and adds captions."
     },
@@ -67,13 +67,13 @@
     },
     "open_source_video_clipper": {
       "label": "Open-source clipper",
-      "eyebrow": "Open Source",
+      "eyebrow": "Open source",
       "title": "Open-source video clipper you can control",
       "description": "What self-hosting changes about control, model providers, and infrastructure."
     },
     "blog_self_host_supoclip_docker": {
       "label": "Self-hosting guide",
-      "eyebrow": "Self-Hosting Guide",
+      "eyebrow": "Self-hosting guide",
       "title": "Self-host SupoClip with Docker Compose",
       "description": "Requirements, environment variables, first boot, a fully local setup, and production checks."
     },
@@ -123,6 +123,7 @@
   "nav": {
     "howItWorks": "How It Works",
     "features": "Features",
+    "editor": "Editor",
     "pricing": "Pricing",
     "openSource": "Open Source",
     "blog": "Blog",
@@ -131,83 +132,194 @@
     "signIn": "Sign In",
     "getStarted": "Get Started",
     "openHosted": "Open Hosted App",
-    "toggleMenu": "Toggle menu"
+    "toggleMenu": "Toggle menu",
+    "publishing": "Publishing"
   },
   "hero": {
-    "badge": "Open Source & Self-Hostable",
-    "titleLine1": "Open-source AI video clipper",
-    "titleLine2": "for better shorts",
-    "body": "Turn YouTube videos, Twitch and Kick VODs, or your own uploads into captioned Shorts, TikToks, and Reels with AI-assisted highlight detection, virality scoring, and face-aware vertical crops.",
-    "startClipping": "Start Clipping",
+    "badge": "Open source and self-hostable. Also on iPhone.",
+    "titleLine1": "One long video.",
+    "titleLine2": "A week of shorts.",
+    "body": "SupoClip finds the moments worth posting in your videos, VODs, and uploads, reframes them to 9:16 with word-synced captions, and schedules them to YouTube Shorts.",
+    "startClipping": "Start clipping",
     "useHosted": "Use Hosted App",
     "viewSource": "View Source",
     "appStoreAria": "Download SupoClip on the App Store",
     "appStoreAlt": "Download on the App Store",
-    "chips": {
-      "crop": "9:16 Auto-Crop",
-      "captions": "Word-Synced Captions",
-      "virality": "Virality Scoring"
-    },
     "productHuntAlt": "SupoClip - Open-source AI clipper: long videos into viral shorts | Product Hunt",
-    "player": {
-      "source": "youtube.com · long-form source",
-      "clipsFound": "{count} clips found",
+    "sources": {
+      "upload": "Your own files",
+      "label": "Clip from"
+    },
+    "newLabel": "New",
+    "announcement": "Schedule clips straight to YouTube",
+    "publishTo": "Post to",
+    "stage": {
+      "howMade": "How these clips were made",
       "pause": "Pause clip",
       "play": "Play clip",
       "unmute": "Unmute clip",
       "mute": "Mute clip",
-      "howMade": "How these clips were made"
-    },
-    "sources": {
-      "label": "Works with",
-      "upload": "Your own files"
+      "youtubeShorts": "YouTube Shorts",
+      "scheduled": "Scheduled",
+      "steps": {
+        "source": "Your long video",
+        "clip": "The clip SupoClip found",
+        "post": "Scheduled to YouTube"
+      },
+      "longForm": "Long video",
+      "captions": "Word-synced captions",
+      "queued": "{count, plural, one {# clip queued} other {# clips queued}}"
     }
   },
   "steps": {
-    "title": "Three steps. Zero effort.",
+    "eyebrow": "How it works",
+    "title": "From raw recording to posted, in three steps",
     "items": {
       "drop": {
         "title": "Drop a link or file",
-        "description": "Paste a YouTube, Twitch, or Kick link (VOD or clip), or drag-and-drop your own video file."
+        "description": "Paste a YouTube, Twitch, or Kick link, or drag in your own recording."
       },
       "gold": {
-        "title": "AI finds the gold",
-        "description": "Transcription, virality scoring, and segment detection surface the best moments."
+        "title": "AI finds the moments",
+        "description": "Word-level transcription and virality scoring surface the stretches that stand on their own."
       },
       "export": {
-        "title": "Export & publish",
-        "description": "Get vertical, captioned, face-tracked clips ready for every platform."
+        "title": "Post or schedule",
+        "description": "Tweak anything in the editor, then download, publish now, or schedule to YouTube Shorts."
       }
     }
   },
+  "film": {
+    "play": "Play walkthrough",
+    "pause": "Pause walkthrough",
+    "channel": "Your channel",
+    "caption": "Consistency beat everything else. Publishing every Monday grew this podcast's listeners 10x.",
+    "hashtags": "podcast, creators, growth",
+    "progress": {
+      "downloading": "Downloading video…",
+      "transcribing": "Transcribing audio…",
+      "finding": "Finding the best moments…",
+      "rendering": "Rendering clip {current} of {total}…"
+    }
+  },
   "features": {
-    "title": "Everything you need to go viral",
-    "body": "Professional-grade video clipping with AI intelligence at every step of the pipeline.",
+    "title": "An editor's eye, on autopilot",
+    "body": "Everything between the raw recording and a clip worth posting is handled for you, and still yours to tweak.",
+    "eyebrow": "Features",
+    "captionSample": "Captions that land on every single word",
+    "ownFonts": "Your fonts",
+    "scores": {
+      "hook": "Hook",
+      "engagement": "Engagement",
+      "value": "Value",
+      "shareability": "Shareability"
+    },
+    "presets": {
+      "shorts": "YouTube Shorts",
+      "tiktok": "TikTok",
+      "reels": "Instagram Reels",
+      "broll": "Optional B-roll from Pexels"
+    },
     "items": {
-      "faceCrop": {
-        "title": "Face-Centered Cropping",
-        "description": "MediaPipe + OpenCV detects and tracks faces for perfect 9:16 vertical framing."
+      "reframe": {
+        "title": "Face-aware reframing",
+        "description": "Faces are tracked through every shot, so the vertical crop follows the speaker instead of cutting them off."
       },
-      "subtitles": {
-        "title": "Word-Synced Subtitles",
-        "description": "Word-level timestamps power perfectly timed, animated captions on every clip."
+      "captions": {
+        "title": "Captions on every word",
+        "description": "Word-level timestamps keep animated captions in lockstep with the voice."
       },
       "virality": {
-        "title": "Virality Scoring",
-        "description": "AI rates hook, engagement, value, and shareability — scored 0 to 100."
+        "title": "Virality scoring",
+        "description": "Every moment is rated for hook, engagement, value, and shareability, out of 100."
       },
-      "broll": {
-        "title": "B-Roll Overlays",
-        "description": "Automatically source and overlay relevant stock footage from Pexels."
+      "hooks": {
+        "title": "Hook titles",
+        "description": "A short AI-written title sits at the top for the first seconds to stop the scroll."
       },
       "templates": {
-        "title": "Caption Templates",
-        "description": "Multiple animation styles and font presets to match your brand."
+        "title": "Caption templates",
+        "description": "Animation styles, font presets, and your own fonts keep every clip on brand."
       },
       "export": {
-        "title": "Platform Export",
-        "description": "One-click presets for TikTok, Reels, and Shorts with optimized encoding."
+        "title": "Export presets",
+        "description": "One-click encodes for Shorts, TikTok, and Reels, with stock B-roll when a clip needs it."
       }
+    }
+  },
+  "editor": {
+    "eyebrow": "Editor",
+    "title": "A whole editor, built in",
+    "body": "Every clip opens in a studio made for short-form. Cut, fix a word, restyle captions, reframe, and export without leaving SupoClip.",
+    "tryIt": "This preview works. Click the tabs, switch the framing, drag the sliders.",
+    "points": {
+      "timeline": {
+        "title": "Timeline cuts",
+        "description": "Trim on a thumbnail and waveform timeline, split at the playhead, then reorder, duplicate, or drop segments. Every cut stays reversible."
+      },
+      "transcript": {
+        "title": "Word-level transcript",
+        "description": "Fix a misheard word without touching its timing, or rewrite the script and keep the rest in sync."
+      },
+      "captions": {
+        "title": "Caption styling",
+        "description": "Fonts, colors, size, position, and the active-word highlight. Save a style and apply it to every clip."
+      },
+      "framing": {
+        "title": "Framing",
+        "description": "Drag to keep the subject in frame, zoom in, and switch between vertical, square, or the original format."
+      },
+      "audio": {
+        "title": "Audio and effects",
+        "description": "Set the volume or mute, and adjust brightness, contrast, saturation, blur, and hue while captions stay crisp."
+      },
+      "combine": {
+        "title": "Combine clips",
+        "description": "Pick two or more clips and merge them into a new one. The originals stay as they are."
+      },
+      "drafts": {
+        "title": "Drafts that save themselves",
+        "description": "Autosave, undo and redo, and keyboard shortcuts. Generated clips are never overwritten."
+      },
+      "export": {
+        "title": "Export for each platform",
+        "description": "TikTok, Reels, and Shorts presets. Render in your browser or in the background, one clip or all of them."
+      }
+    }
+  },
+  "publish": {
+    "eyebrow": "New: publishing",
+    "title": "Clip it once. Post it all week.",
+    "body": "Connect your YouTube channel and every clip can go out on its own schedule. Pick a time, review the AI-drafted title, and SupoClip posts it for you.",
+    "platforms": {
+      "youtube": "YouTube Shorts",
+      "tiktok": "TikTok",
+      "instagram": "Instagram Reels",
+      "tiktokShort": "TikTok",
+      "instagramShort": "Instagram",
+      "live": "Live",
+      "soon": "Coming soon"
+    },
+    "points": {
+      "schedule": {
+        "title": "Post now or pick a slot",
+        "description": "Line up a week of clips in one sitting. Each one goes out on time, even with your laptop closed."
+      },
+      "drafts": {
+        "title": "Titles and captions drafted for you",
+        "description": "AI writes a first draft from the transcript. Edit it, or post it as is."
+      },
+      "learn": {
+        "title": "Learns what your audience watches",
+        "description": "Views flow back into SupoClip, so future picks lean toward what performs on your channel."
+      }
+    },
+    "plan": "Scheduling is included in Creator. Publishing right away works on Pro.",
+    "calendar": {
+      "week": "This week",
+      "published": "Published",
+      "scheduled": "Scheduled",
+      "soon": "Soon"
     }
   },
   "pricing": {
@@ -249,30 +361,77 @@
       "priority": "Priority processing",
       "earlyAccess": "Early access to new features"
     },
+    "clipsNote": "Each video becomes as many clips as it has good moments.",
     "selfHostNote": "Self-hosting? All features are free and unlimited.",
     "selfHostGuide": "See the self-hosting guide",
     "billedYearly": "${price}/mo, billed yearly",
     "usageExample": {
-      "videos": "About {count} × {minutes}-minute source videos per month"
+      "videos": "About {count} videos"
+    },
+    "publishYoutube": "Post clips to YouTube Shorts",
+    "schedulingYoutube": "Schedule clips to YouTube Shorts",
+    "schedulingSoon": "Scheduling to TikTok and Instagram"
+  },
+  "faq": {
+    "eyebrow": "FAQ",
+    "title": "Questions, answered",
+    "body": "The short version of what people ask before they start clipping.",
+    "items": {
+      "sources": {
+        "question": "What videos can I clip?",
+        "answer": "YouTube videos, Twitch and Kick VODs or clips, and files you upload yourself. Paste a link or drag in a recording, and SupoClip takes it from there."
+      },
+      "selection": {
+        "question": "How does SupoClip choose the clips?",
+        "answer": "It transcribes the video word by word, then an AI model reads the whole transcript and picks moments that stand on their own. Each one is scored for hook, engagement, value, and shareability, and you can trim, split, or merge any clip afterwards."
+      },
+      "minutes": {
+        "question": "How are minutes counted?",
+        "answer": "Plans are measured in minutes of source video, not in clips. Pro includes {proHours} hours a month and Creator {creatorHours} hours. A 30-minute video uses 30 minutes, however many clips come out of it. Allowances reset every month, on yearly plans too."
+      },
+      "publishing": {
+        "question": "Can SupoClip post to TikTok and Instagram?",
+        "answer": "Today you can publish straight to YouTube Shorts: right away on Pro, or on a schedule with Creator. TikTok and Instagram are coming soon. Until then, download clips with the TikTok and Reels export presets and upload them yourself."
+      },
+      "watermark": {
+        "question": "Do clips have a watermark?",
+        "answer": "No. SupoClip never adds a watermark, on hosted plans or when you self-host."
+      },
+      "languages": {
+        "question": "Does it work in other languages?",
+        "answer": "Yes. The spoken language is detected automatically, so transcripts, captions, and clip picks follow the language of the video."
+      },
+      "selfHost": {
+        "question": "Is it really free to self-host?",
+        "answer": "Yes. SupoClip is open source under AGPL-3.0 and runs with Docker Compose on your own machine. You only pay for the transcription and AI providers you choose, if any."
+      },
+      "cancel": {
+        "question": "Can I cancel anytime?",
+        "answer": "Yes. Change or cancel your plan from settings whenever you like. If you subscribed in the iPhone app, manage it through the App Store."
+      }
     }
   },
   "openSource": {
-    "badge": "AGPL-3.0 Licensed",
+    "badge": "AGPL-3.0 licensed",
     "title": "Built in the open",
     "body": "Fully open source. Self-host on your infrastructure, contribute features, or fork it and make it yours.",
-    "commandLabel": "Self-host with Docker Compose:",
+    "commandLabel": "self-host",
     "comment": "# add a transcription + LLM provider to .env",
-    "tryHosted": "Try the hosted version",
-    "openHosted": "Open hosted version"
+    "facts": {
+      "license": "AGPL-3.0, with every line on GitHub",
+      "docker": "One Docker Compose command to run it yourself",
+      "models": "Bring your own models: Gemini, OpenAI, Anthropic, or Ollama"
+    },
+    "ready": "SupoClip is running on localhost:3107"
   },
   "guides": {
-    "eyebrow": "Guides & Comparisons",
+    "eyebrow": "Guides and comparisons",
     "title": "Learn the complete clipping workflow",
     "body": "Practical, source-backed pages for choosing a video clipper, self-hosting SupoClip, and turning long recordings into short-form content.",
     "read": "Read guide"
   },
   "cta": {
-    "title": "Ready to clip?",
-    "body": "Turn your next video into scroll-stopping shorts. Use the hosted app, or self-host the open-source version for free."
+    "title": "Your next video is already a week of content.",
+    "body": "Paste a link and see what SupoClip finds. Use the hosted app, or self-host the open-source version for free."
   }
 }

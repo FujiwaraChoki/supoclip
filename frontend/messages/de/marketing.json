@@ -123,6 +123,7 @@
   "nav": {
     "howItWorks": "So funktioniert's",
     "features": "Funktionen",
+    "editor": "Editor",
     "pricing": "Preise",
     "openSource": "Open Source",
     "blog": "Blog",
@@ -131,83 +132,194 @@
     "signIn": "Anmelden",
     "getStarted": "Loslegen",
     "openHosted": "Gehostete App öffnen",
-    "toggleMenu": "Menü umschalten"
+    "toggleMenu": "Menü umschalten",
+    "publishing": "Veröffentlichen"
   },
   "hero": {
-    "badge": "Open Source & selbst hostbar",
-    "titleLine1": "Open-Source-KI-Videoclipper",
-    "titleLine2": "für bessere Shorts",
-    "body": "Mach aus YouTube-Videos, Twitch- und Kick-VODs oder eigenen Uploads untertitelte Shorts, TikToks und Reels – mit KI-gestützter Highlight-Erkennung, Viralitätsbewertung und gesichtsbewussten Hochformatschnitten.",
+    "badge": "Open Source und selbst hostbar. Auch fürs iPhone.",
+    "titleLine1": "Ein langes Video.",
+    "titleLine2": "Eine Woche Shorts.",
+    "body": "SupoClip findet die Momente in deinen Videos, VODs und Uploads, die sich zum Posten lohnen, schneidet sie mit wortgenauen Untertiteln auf 9:16 zu und plant sie für YouTube Shorts ein.",
     "startClipping": "Jetzt clippen",
     "useHosted": "Gehostete App nutzen",
     "viewSource": "Quellcode ansehen",
     "appStoreAria": "SupoClip im App Store laden",
     "appStoreAlt": "Im App Store laden",
-    "chips": {
-      "crop": "9:16-Auto-Zuschnitt",
-      "captions": "Wortgenaue Untertitel",
-      "virality": "Viralitätsbewertung"
-    },
     "productHuntAlt": "SupoClip - Open-Source-KI-Clipper: lange Videos werden virale Shorts | Product Hunt",
-    "player": {
-      "source": "youtube.com · langes Quellvideo",
-      "clipsFound": "{count} Clips gefunden",
+    "sources": {
+      "upload": "Eigene Dateien",
+      "label": "Clips aus"
+    },
+    "newLabel": "Neu",
+    "announcement": "Clips direkt auf YouTube planen",
+    "publishTo": "Posten auf",
+    "stage": {
+      "howMade": "So wurden diese Clips erstellt",
       "pause": "Clip pausieren",
       "play": "Clip abspielen",
-      "unmute": "Ton einschalten",
-      "mute": "Ton ausschalten",
-      "howMade": "So sind diese Clips entstanden"
-    },
-    "sources": {
-      "label": "Funktioniert mit",
-      "upload": "Eigene Dateien"
+      "unmute": "Ton an",
+      "mute": "Ton aus",
+      "youtubeShorts": "YouTube Shorts",
+      "scheduled": "Geplant",
+      "steps": {
+        "source": "Dein langes Video",
+        "clip": "Der Clip, den SupoClip gefunden hat",
+        "post": "Auf YouTube geplant"
+      },
+      "longForm": "Langes Video",
+      "captions": "Wortgenaue Untertitel",
+      "queued": "{count, plural, one {# Clip geplant} other {# Clips geplant}}"
     }
   },
   "steps": {
-    "title": "Drei Schritte. Null Aufwand.",
+    "eyebrow": "So funktioniert's",
+    "title": "Von der Rohaufnahme zum Post in drei Schritten",
     "items": {
       "drop": {
-        "title": "Link oder Datei ablegen",
-        "description": "Füge einen YouTube-, Twitch- oder Kick-Link (VOD oder Clip) ein oder zieh deine eigene Videodatei per Drag-and-drop hinein."
+        "title": "Link oder Datei einfügen",
+        "description": "Füge einen YouTube-, Twitch- oder Kick-Link ein oder zieh deine eigene Aufnahme hinein."
       },
       "gold": {
-        "title": "Die KI findet die besten Stellen",
-        "description": "Transkription, Viralitätsbewertung und Szenenerkennung holen die besten Momente raus."
+        "title": "KI findet die Momente",
+        "description": "Wortgenaue Transkription und Viralitäts-Scoring finden die Passagen, die für sich allein stehen."
       },
       "export": {
-        "title": "Exportieren & veröffentlichen",
-        "description": "Hol dir vertikale, untertitelte Clips mit Gesichtstracking, fertig für jede Plattform."
+        "title": "Posten oder planen",
+        "description": "Passe im Editor alles an und lade dann herunter, veröffentliche sofort oder plane für YouTube Shorts."
       }
     }
   },
+  "film": {
+    "play": "Rundgang abspielen",
+    "pause": "Rundgang pausieren",
+    "channel": "Dein Kanal",
+    "caption": "Beständigkeit schlägt alles andere. Jeden Montag zu veröffentlichen hat die Hörerzahl dieses Podcasts verzehnfacht.",
+    "hashtags": "podcast, creator, wachstum",
+    "progress": {
+      "downloading": "Video wird heruntergeladen…",
+      "transcribing": "Audio wird transkribiert…",
+      "finding": "Die besten Momente werden gesucht…",
+      "rendering": "Clip {current} von {total} wird gerendert…"
+    }
+  },
   "features": {
-    "title": "Alles, was du zum Viralgehen brauchst",
-    "body": "Professionelles Videoclipping mit KI in jedem Schritt der Pipeline.",
+    "title": "Das Auge eines Editors, auf Autopilot",
+    "body": "Alles zwischen der Rohaufnahme und einem postbaren Clip wird für dich erledigt, und du kannst trotzdem alles anpassen.",
+    "eyebrow": "Funktionen",
+    "captionSample": "Untertitel, die jedes einzelne Wort treffen",
+    "ownFonts": "Deine Schriften",
+    "scores": {
+      "hook": "Hook",
+      "engagement": "Engagement",
+      "value": "Mehrwert",
+      "shareability": "Teilbarkeit"
+    },
+    "presets": {
+      "shorts": "YouTube Shorts",
+      "tiktok": "TikTok",
+      "reels": "Instagram Reels",
+      "broll": "Optionales B-Roll von Pexels"
+    },
     "items": {
-      "faceCrop": {
-        "title": "Gesichtszentrierter Zuschnitt",
-        "description": "MediaPipe + OpenCV erkennt und verfolgt Gesichter für ein sauberes 9:16-Hochformat."
+      "reframe": {
+        "title": "Gesichtserkennender Zuschnitt",
+        "description": "Gesichter werden in jeder Einstellung verfolgt, damit der Hochformat-Ausschnitt der sprechenden Person folgt, statt sie abzuschneiden."
       },
-      "subtitles": {
-        "title": "Wortgenaue Untertitel",
-        "description": "Zeitstempel auf Wortebene erzeugen perfekt getimte, animierte Untertitel in jedem Clip."
+      "captions": {
+        "title": "Untertitel auf jedes Wort",
+        "description": "Wortgenaue Zeitstempel halten animierte Untertitel exakt im Takt der Stimme."
       },
       "virality": {
-        "title": "Viralitätsbewertung",
-        "description": "Die KI bewertet Hook, Engagement, Mehrwert und Teilbarkeit — von 0 bis 100."
+        "title": "Viralitäts-Scoring",
+        "description": "Jeder Moment wird nach Hook, Engagement, Mehrwert und Teilbarkeit bewertet, von 0 bis 100."
       },
-      "broll": {
-        "title": "B-Roll-Einblendungen",
-        "description": "Passendes Stockmaterial von Pexels wird automatisch gesucht und eingeblendet."
+      "hooks": {
+        "title": "Hook-Titel",
+        "description": "Ein kurzer KI-Titel steht in den ersten Sekunden oben im Bild und stoppt das Scrollen."
       },
       "templates": {
         "title": "Untertitel-Vorlagen",
-        "description": "Mehrere Animationsstile und Schriftvorlagen, passend zu deiner Marke."
+        "description": "Animationsstile, Schrift-Presets und deine eigenen Schriften halten jeden Clip im Markenstil."
       },
       "export": {
-        "title": "Plattform-Export",
-        "description": "Presets mit einem Klick für TikTok, Reels und Shorts, mit optimierter Codierung."
+        "title": "Export-Presets",
+        "description": "Export per Klick für Shorts, TikTok und Reels, mit Stock-B-Roll, wenn ein Clip es braucht."
       }
+    }
+  },
+  "editor": {
+    "eyebrow": "Editor",
+    "title": "Ein kompletter Editor, direkt eingebaut",
+    "body": "Jeder Clip öffnet sich in einem Studio für Kurzvideos. Schneiden, ein Wort korrigieren, Untertitel umgestalten, Bildausschnitt anpassen und exportieren, ohne SupoClip zu verlassen.",
+    "tryIt": "Diese Vorschau funktioniert. Klick die Tabs an, wechsle den Ausschnitt, zieh an den Reglern.",
+    "points": {
+      "timeline": {
+        "title": "Schnitt auf der Timeline",
+        "description": "Kürze auf einer Timeline mit Vorschaubildern und Wellenform, teile am Abspielkopf und verschiebe, dupliziere oder entferne Segmente. Jeder Schnitt lässt sich rückgängig machen."
+      },
+      "transcript": {
+        "title": "Transkript auf Wortebene",
+        "description": "Korrigiere ein falsch erkanntes Wort, ohne sein Timing zu verändern, oder schreib das Skript um und der Rest bleibt synchron."
+      },
+      "captions": {
+        "title": "Untertitel gestalten",
+        "description": "Schriften, Farben, Größe, Position und die Hervorhebung des gesprochenen Worts. Speichere einen Stil und wende ihn auf alle Clips an."
+      },
+      "framing": {
+        "title": "Bildausschnitt",
+        "description": "Zieh das Bild, damit die Person im Fokus bleibt, zoome hinein und wechsle zwischen Hochformat, Quadrat und Originalformat."
+      },
+      "audio": {
+        "title": "Audio und Effekte",
+        "description": "Lautstärke einstellen oder stummschalten, dazu Helligkeit, Kontrast, Sättigung, Unschärfe und Farbton, während die Untertitel scharf bleiben."
+      },
+      "combine": {
+        "title": "Clips zusammenfügen",
+        "description": "Wähle zwei oder mehr Clips und füge sie zu einem neuen zusammen. Die Originale bleiben unverändert."
+      },
+      "drafts": {
+        "title": "Entwürfe, die sich selbst speichern",
+        "description": "Automatisches Speichern, Rückgängig und Wiederholen sowie Tastenkürzel. Generierte Clips werden nie überschrieben."
+      },
+      "export": {
+        "title": "Export für jede Plattform",
+        "description": "Presets für TikTok, Reels und Shorts. Rendere im Browser oder im Hintergrund, einen Clip oder alle."
+      }
+    }
+  },
+  "publish": {
+    "eyebrow": "Neu: Veröffentlichen",
+    "title": "Einmal clippen. Die ganze Woche posten.",
+    "body": "Verbinde deinen YouTube-Kanal und jeder Clip erscheint nach seinem eigenen Zeitplan. Wähle eine Uhrzeit, prüfe den KI-Titelentwurf und SupoClip postet für dich.",
+    "platforms": {
+      "youtube": "YouTube Shorts",
+      "tiktok": "TikTok",
+      "instagram": "Instagram Reels",
+      "tiktokShort": "TikTok",
+      "instagramShort": "Instagram",
+      "live": "Live",
+      "soon": "Bald verfügbar"
+    },
+    "points": {
+      "schedule": {
+        "title": "Sofort posten oder Termin wählen",
+        "description": "Plane eine Woche Clips in einem Rutsch. Jeder erscheint pünktlich, auch wenn dein Laptop zu ist."
+      },
+      "drafts": {
+        "title": "Titel und Beschreibungen vorformuliert",
+        "description": "Die KI schreibt einen ersten Entwurf aus dem Transkript. Bearbeite ihn oder poste ihn direkt."
+      },
+      "learn": {
+        "title": "Lernt, was dein Publikum schaut",
+        "description": "Aufrufe fließen zurück in SupoClip, damit künftige Clips sich an dem orientieren, was auf deinem Kanal funktioniert."
+      }
+    },
+    "plan": "Planen ist im Creator-Tarif enthalten. Sofort veröffentlichen geht auch mit Pro.",
+    "calendar": {
+      "week": "Diese Woche",
+      "published": "Veröffentlicht",
+      "scheduled": "Geplant",
+      "soon": "Bald"
     }
   },
   "pricing": {
@@ -249,21 +361,68 @@
       "priority": "Bevorzugte Verarbeitung",
       "earlyAccess": "Früher Zugriff auf neue Funktionen"
     },
+    "clipsNote": "Aus jedem Video werden so viele Clips, wie es gute Momente hat.",
     "selfHostNote": "Selbst hosten? Alle Funktionen sind kostenlos und unbegrenzt.",
     "selfHostGuide": "Zum Self-Hosting-Guide",
     "billedYearly": "${price}/Monat, jährlich abgerechnet",
     "usageExample": {
-      "videos": "Etwa {count} Ausgangsvideos à {minutes} Minuten pro Monat"
+      "videos": "Etwa {count} Videos"
+    },
+    "publishYoutube": "Clips auf YouTube Shorts posten",
+    "schedulingYoutube": "Clips für YouTube Shorts planen",
+    "schedulingSoon": "Planen für TikTok und Instagram"
+  },
+  "faq": {
+    "eyebrow": "FAQ",
+    "title": "Fragen und Antworten",
+    "body": "Kurz beantwortet, was Leute fragen, bevor sie mit dem Clippen anfangen.",
+    "items": {
+      "sources": {
+        "question": "Welche Videos kann ich clippen?",
+        "answer": "YouTube-Videos, Twitch- und Kick-VODs oder -Clips und Dateien, die du selbst hochlädst. Füge einen Link ein oder zieh eine Aufnahme hinein, den Rest erledigt SupoClip."
+      },
+      "selection": {
+        "question": "Wie wählt SupoClip die Clips aus?",
+        "answer": "Das Video wird Wort für Wort transkribiert, dann liest ein KI-Modell das gesamte Transkript und wählt Momente, die für sich allein funktionieren. Jeder wird nach Hook, Engagement, Mehrwert und Teilbarkeit bewertet, und du kannst jeden Clip danach kürzen, teilen oder zusammenfügen."
+      },
+      "minutes": {
+        "question": "Wie werden Minuten gezählt?",
+        "answer": "Tarife werden in Minuten Quellvideo gemessen, nicht in Clips. Pro enthält {proHours} Stunden im Monat, Creator {creatorHours} Stunden. Ein 30-Minuten-Video verbraucht 30 Minuten, egal wie viele Clips daraus entstehen. Das Kontingent wird jeden Monat zurückgesetzt, auch bei Jahrestarifen."
+      },
+      "publishing": {
+        "question": "Kann SupoClip auf TikTok und Instagram posten?",
+        "answer": "Heute kannst du direkt auf YouTube Shorts veröffentlichen: sofort mit Pro oder geplant mit Creator. TikTok und Instagram kommen bald. Bis dahin lädst du Clips mit den Export-Presets für TikTok und Reels herunter und lädst sie selbst hoch."
+      },
+      "watermark": {
+        "question": "Haben die Clips ein Wasserzeichen?",
+        "answer": "Nein. SupoClip fügt nie ein Wasserzeichen hinzu, weder in den gehosteten Tarifen noch beim Selbsthosten."
+      },
+      "languages": {
+        "question": "Funktioniert es auch in anderen Sprachen?",
+        "answer": "Ja. Die gesprochene Sprache wird automatisch erkannt, sodass Transkript, Untertitel und Clip-Auswahl der Sprache des Videos folgen."
+      },
+      "selfHost": {
+        "question": "Ist Selbsthosten wirklich kostenlos?",
+        "answer": "Ja. SupoClip ist Open Source unter AGPL-3.0 und läuft mit Docker Compose auf deinem eigenen Rechner. Du zahlst nur für die Transkriptions- und KI-Anbieter, die du wählst, falls überhaupt."
+      },
+      "cancel": {
+        "question": "Kann ich jederzeit kündigen?",
+        "answer": "Ja. Du kannst deinen Tarif jederzeit in den Einstellungen ändern oder kündigen. Wenn du über die iPhone-App abonniert hast, verwaltest du das Abo im App Store."
+      }
     }
   },
   "openSource": {
     "badge": "AGPL-3.0-lizenziert",
     "title": "Offen entwickelt",
     "body": "Komplett Open Source. Hoste es auf deiner Infrastruktur, steuere Funktionen bei oder fork es und mach es zu deinem.",
-    "commandLabel": "Selbst hosten mit Docker Compose:",
+    "commandLabel": "selbst hosten",
     "comment": "# Trag einen Transkriptions- und LLM-Anbieter in .env ein",
-    "tryHosted": "Gehostete Version testen",
-    "openHosted": "Gehostete Version öffnen"
+    "facts": {
+      "license": "AGPL-3.0, jede Zeile auf GitHub",
+      "docker": "Ein Docker-Compose-Befehl, um es selbst zu betreiben",
+      "models": "Eigene Modelle nutzen: Gemini, OpenAI, Anthropic oder Ollama"
+    },
+    "ready": "SupoClip läuft auf localhost:3107"
   },
   "guides": {
     "eyebrow": "Guides & Vergleiche",
@@ -272,7 +431,7 @@
     "read": "Guide lesen"
   },
   "cta": {
-    "title": "Bereit zum Clippen?",
-    "body": "Mach aus deinem nächsten Video Shorts, bei denen niemand weiterscrollt. Nutze die gehostete App oder hoste die Open-Source-Version kostenlos selbst."
+    "title": "Dein nächstes Video ist schon eine Woche Content.",
+    "body": "Füge einen Link ein und sieh, was SupoClip findet. Nutze die gehostete App oder hoste die Open-Source-Version kostenlos selbst."
   }
 }

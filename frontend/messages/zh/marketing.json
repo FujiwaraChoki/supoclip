@@ -123,6 +123,7 @@
   "nav": {
     "howItWorks": "使用方法",
     "features": "功能",
+    "editor": "编辑器",
     "pricing": "价格",
     "openSource": "开源",
     "blog": "博客",
@@ -131,83 +132,194 @@
     "signIn": "登录",
     "getStarted": "开始使用",
     "openHosted": "打开托管应用",
-    "toggleMenu": "打开或关闭菜单"
+    "toggleMenu": "打开或关闭菜单",
+    "publishing": "发布"
   },
   "hero": {
-    "badge": "开源，可自托管",
-    "titleLine1": "开源 AI 视频剪辑工具",
-    "titleLine2": "做出更好的短视频",
-    "body": "借助 AI 高光检测、传播潜力评分和人脸感知的竖屏裁切，把 YouTube 视频、Twitch 和 Kick 回放或你自己上传的文件变成带字幕的 Shorts、TikTok 和 Reels。",
+    "badge": "开源，可自托管。也有 iPhone 版。",
+    "titleLine1": "一条长视频。",
+    "titleLine2": "一周的短视频。",
+    "body": "SupoClip 从你的视频、直播回放和上传文件中找出值得发布的片段，配上逐字同步的字幕裁成 9:16 竖屏，并排期发布到 YouTube Shorts。",
     "startClipping": "开始剪辑",
     "useHosted": "使用托管应用",
     "viewSource": "查看源码",
     "appStoreAria": "在 App Store 下载 SupoClip",
     "appStoreAlt": "在 App Store 下载",
-    "chips": {
-      "crop": "9:16 自动裁切",
-      "captions": "逐词同步字幕",
-      "virality": "传播潜力评分"
-    },
     "productHuntAlt": "SupoClip - 开源 AI 剪辑工具：把长视频变成会传播的短片 | Product Hunt",
-    "player": {
-      "source": "youtube.com · 长视频源",
-      "clipsFound": "找到 {count} 个短片",
-      "pause": "暂停短片",
-      "play": "播放短片",
-      "unmute": "取消静音",
-      "mute": "静音",
-      "howMade": "这些短片是怎么做出来的"
-    },
     "sources": {
-      "label": "支持",
-      "upload": "你自己的文件"
+      "upload": "你自己的文件",
+      "label": "素材来源"
+    },
+    "newLabel": "新功能",
+    "announcement": "直接将剪辑排期发布到 YouTube",
+    "publishTo": "发布到",
+    "stage": {
+      "howMade": "这些片段是如何生成的",
+      "pause": "暂停片段",
+      "play": "播放片段",
+      "unmute": "打开声音",
+      "mute": "静音",
+      "youtubeShorts": "YouTube Shorts",
+      "scheduled": "已排期",
+      "steps": {
+        "source": "你的长视频",
+        "clip": "SupoClip 找到的片段",
+        "post": "已排期到 YouTube"
+      },
+      "longForm": "长视频",
+      "captions": "逐字同步字幕",
+      "queued": "{count, plural, other {已排队 # 个片段}}"
     }
   },
   "steps": {
-    "title": "三步。零负担。",
+    "eyebrow": "使用流程",
+    "title": "从原始录像到发布，只需三步",
     "items": {
       "drop": {
-        "title": "丢入链接或文件",
-        "description": "粘贴 YouTube、Twitch 或 Kick 链接（回放或剪辑），或拖放你自己的视频文件。"
+        "title": "粘贴链接或上传文件",
+        "description": "粘贴 YouTube、Twitch 或 Kick 链接，或直接拖入你自己的录像。"
       },
       "gold": {
-        "title": "AI 找出精华",
-        "description": "转录、传播潜力评分和片段检测会找出最精彩的时刻。"
+        "title": "AI 找出精彩片段",
+        "description": "逐字转写和爆款评分会挑出能独立成片的段落。"
       },
       "export": {
-        "title": "导出并发布",
-        "description": "获得竖屏、带字幕、已追踪人脸的短片，可直接发到各个平台。"
+        "title": "发布或排期",
+        "description": "在编辑器里随意调整，然后下载、立即发布，或排期到 YouTube Shorts。"
       }
     }
   },
+  "film": {
+    "play": "播放演示",
+    "pause": "暂停演示",
+    "channel": "你的频道",
+    "caption": "坚持胜过一切。每周一固定更新，让这档播客的听众增长了 10 倍。",
+    "hashtags": "播客, 创作者, 增长",
+    "progress": {
+      "downloading": "正在下载视频…",
+      "transcribing": "正在转写音频…",
+      "finding": "正在寻找最佳片段…",
+      "rendering": "正在渲染第 {current}/{total} 个片段…"
+    }
+  },
   "features": {
-    "title": "走红所需要的一切",
-    "body": "专业级视频剪辑，流水线的每一步都有 AI。",
+    "title": "剪辑师的眼光，自动运行",
+    "body": "从原始录像到值得发布的片段，中间的一切都替你完成，而且仍然可以随时微调。",
+    "eyebrow": "功能",
+    "captionSample": "每一个字都精准对上的字幕",
+    "ownFonts": "你的字体",
+    "scores": {
+      "hook": "开场吸引力",
+      "engagement": "互动性",
+      "value": "价值",
+      "shareability": "分享性"
+    },
+    "presets": {
+      "shorts": "YouTube Shorts",
+      "tiktok": "TikTok",
+      "reels": "Instagram Reels",
+      "broll": "可选 Pexels 空镜素材"
+    },
     "items": {
-      "faceCrop": {
-        "title": "人脸居中裁切",
-        "description": "MediaPipe + OpenCV 检测并跟踪人脸，做出准确的 9:16 竖屏构图。"
+      "reframe": {
+        "title": "人脸追踪构图",
+        "description": "每个镜头都会追踪人脸，竖屏画面始终跟随说话的人，不会把人裁掉。"
       },
-      "subtitles": {
-        "title": "逐词同步字幕",
-        "description": "逐词时间戳让每条短片上的动画字幕都卡在点上。"
+      "captions": {
+        "title": "逐字字幕",
+        "description": "逐字时间戳让动态字幕与声音严丝合缝。"
       },
       "virality": {
-        "title": "传播潜力评分",
-        "description": "AI 为开头钩子、互动、价值和分享意愿打分 — 0 到 100。"
+        "title": "爆款评分",
+        "description": "每个片段都会按开场吸引力、互动性、价值和分享性打分，满分 100。"
       },
-      "broll": {
-        "title": "B-roll 叠加",
-        "description": "自动从 Pexels 找来相关素材并叠到画面上。"
+      "hooks": {
+        "title": "开场标题",
+        "description": "AI 撰写的简短标题会在开头几秒显示在画面顶部，留住观众。"
       },
       "templates": {
         "title": "字幕模板",
-        "description": "多种动画样式和字体预设，贴合你的品牌。"
+        "description": "动画样式、字体预设和你自己的字体，让每个片段都保持品牌风格。"
       },
       "export": {
-        "title": "平台导出",
-        "description": "一键套用 TikTok、Reels 和 Shorts 预设，编码也已优化。"
+        "title": "导出预设",
+        "description": "一键导出 Shorts、TikTok 和 Reels 格式，需要时自动加入空镜素材。"
       }
+    }
+  },
+  "editor": {
+    "eyebrow": "编辑器",
+    "title": "内置完整的编辑器",
+    "body": "每个片段都会在专为短视频打造的工作室中打开。剪辑、改字、调整字幕样式、重新构图、导出，全都不用离开 SupoClip。",
+    "tryIt": "这个预览可以直接操作：点击标签页、切换画幅、拖动滑块试试。",
+    "points": {
+      "timeline": {
+        "title": "时间轴剪辑",
+        "description": "在带缩略图和波形的时间轴上裁剪，在播放头处拆分，再调整顺序、复制或删除片段。每一刀都可以撤销。"
+      },
+      "transcript": {
+        "title": "逐字文字稿",
+        "description": "修正识别错的字而不改变它的时间，或者直接改写脚本，其余部分保持同步。"
+      },
+      "captions": {
+        "title": "字幕样式",
+        "description": "字体、颜色、大小、位置和当前词高亮。保存一个样式，一键应用到所有片段。"
+      },
+      "framing": {
+        "title": "构图",
+        "description": "拖动画面让主体始终在画框内，放大，并在竖屏、方形和原始比例之间切换。"
+      },
+      "audio": {
+        "title": "音频与特效",
+        "description": "调整音量或静音，调节亮度、对比度、饱和度、模糊和色相，字幕依然清晰。"
+      },
+      "combine": {
+        "title": "合并片段",
+        "description": "选择两个或更多片段，合并成一个新片段。原片段保持不变。"
+      },
+      "drafts": {
+        "title": "自动保存的草稿",
+        "description": "自动保存、撤销与重做，还有键盘快捷键。生成的片段永远不会被覆盖。"
+      },
+      "export": {
+        "title": "按平台导出",
+        "description": "TikTok、Reels 和 Shorts 预设。可在浏览器中渲染，也可在后台渲染，单个或全部导出。"
+      }
+    }
+  },
+  "publish": {
+    "eyebrow": "新功能：发布",
+    "title": "剪一次，发一周。",
+    "body": "连接你的 YouTube 频道，每个片段都能按自己的时间发布。选好时间，看一眼 AI 起草的标题，SupoClip 会替你发布。",
+    "platforms": {
+      "youtube": "YouTube Shorts",
+      "tiktok": "TikTok",
+      "instagram": "Instagram Reels",
+      "tiktokShort": "TikTok",
+      "instagramShort": "Instagram",
+      "live": "已上线",
+      "soon": "即将推出"
+    },
+    "points": {
+      "schedule": {
+        "title": "立即发布或选择时间",
+        "description": "一次排好一周的片段。即使你合上电脑，也会准时发布。"
+      },
+      "drafts": {
+        "title": "标题和文案替你起草",
+        "description": "AI 会根据文字稿写出初稿。你可以修改，也可以直接发布。"
+      },
+      "learn": {
+        "title": "了解你的观众爱看什么",
+        "description": "播放数据会回流到 SupoClip，之后的选段会更偏向在你频道表现好的内容。"
+      }
+    },
+    "plan": "排期发布包含在 Creator 方案中。Pro 方案也可以立即发布。",
+    "calendar": {
+      "week": "本周",
+      "published": "已发布",
+      "scheduled": "已排期",
+      "soon": "即将推出"
     }
   },
   "pricing": {
@@ -249,21 +361,68 @@
       "priority": "优先处理",
       "earlyAccess": "抢先体验新功能"
     },
+    "clipsNote": "每个视频有多少精彩片段，就能剪出多少条短视频。",
     "selfHostNote": "自托管？全部功能免费且不限量。",
     "selfHostGuide": "查看自托管指南",
     "billedYearly": "${price}/月，按年计费",
     "usageExample": {
-      "videos": "每月约可处理 {count} 个 {minutes} 分钟的原视频"
+      "videos": "约 {count} 个视频"
+    },
+    "publishYoutube": "将片段发布到 YouTube Shorts",
+    "schedulingYoutube": "排期发布到 YouTube Shorts",
+    "schedulingSoon": "排期发布到 TikTok 和 Instagram"
+  },
+  "faq": {
+    "eyebrow": "常见问题",
+    "title": "常见问题解答",
+    "body": "开始剪辑前，大家最常问的几个问题。",
+    "items": {
+      "sources": {
+        "question": "可以剪辑哪些视频？",
+        "answer": "YouTube 视频、Twitch 和 Kick 的直播回放或片段，以及你自己上传的文件。粘贴链接或拖入录像，剩下的交给 SupoClip。"
+      },
+      "selection": {
+        "question": "SupoClip 如何挑选片段？",
+        "answer": "它会逐字转写视频，再由 AI 模型通读完整文字稿，挑出能独立成片的段落。每个片段都会按开场吸引力、互动性、价值和分享性打分，之后你还可以裁剪、拆分或合并任意片段。"
+      },
+      "minutes": {
+        "question": "分钟数如何计算？",
+        "answer": "方案按处理的原视频分钟数计量，而不是按片段数。Pro 每月包含 {proHours} 小时，Creator 包含 {creatorHours} 小时。一个 30 分钟的视频消耗 30 分钟，无论剪出多少片段。额度每月重置，年付方案也一样。"
+      },
+      "publishing": {
+        "question": "SupoClip 能发布到 TikTok 和 Instagram 吗？",
+        "answer": "目前可以直接发布到 YouTube Shorts：Pro 可立即发布，Creator 可排期发布。TikTok 和 Instagram 即将推出。在此之前，可以用 TikTok 和 Reels 导出预设下载片段，再自行上传。"
+      },
+      "watermark": {
+        "question": "片段会带水印吗？",
+        "answer": "不会。无论是托管方案还是自托管，SupoClip 都不会添加水印。"
+      },
+      "languages": {
+        "question": "支持其他语言吗？",
+        "answer": "支持。系统会自动识别视频中的语言，文字稿、字幕和选段都会跟随视频的语言。"
+      },
+      "selfHost": {
+        "question": "自托管真的免费吗？",
+        "answer": "是的。SupoClip 以 AGPL-3.0 协议开源，用 Docker Compose 就能在你自己的机器上运行。你只需为自己选择的转写和 AI 服务付费（如果有的话）。"
+      },
+      "cancel": {
+        "question": "可以随时取消吗？",
+        "answer": "可以。随时在设置中更改或取消方案。如果你是通过 iPhone 应用订阅的，请在 App Store 中管理。"
+      }
     }
   },
   "openSource": {
     "badge": "AGPL-3.0 许可",
     "title": "公开构建",
     "body": "完全开源。在你的基础设施上自托管，贡献功能，或者 fork 之后改成你自己的。",
-    "commandLabel": "用 Docker Compose 自托管：",
+    "commandLabel": "自托管",
     "comment": "# 在 .env 中添加转录和 LLM 服务商",
-    "tryHosted": "试用托管版本",
-    "openHosted": "打开托管版本"
+    "facts": {
+      "license": "AGPL-3.0 许可，所有代码都在 GitHub 上",
+      "docker": "一条 Docker Compose 命令即可自行部署",
+      "models": "自选模型：Gemini、OpenAI、Anthropic 或 Ollama"
+    },
+    "ready": "SupoClip 已在 localhost:3107 运行"
   },
   "guides": {
     "eyebrow": "指南与对比",
@@ -272,7 +431,7 @@
     "read": "阅读指南"
   },
   "cta": {
-    "title": "准备好剪辑了吗？",
-    "body": "把下一条视频做成让人停下来的短片。使用托管应用，或免费自托管开源版本。"
+    "title": "你的下一条视频，已经是一周的内容。",
+    "body": "粘贴一个链接，看看 SupoClip 能找到什么。使用托管版应用，或免费自托管开源版本。"
   }
 }

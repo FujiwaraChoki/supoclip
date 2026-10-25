@@ -61,7 +61,7 @@ export function SiteFooter() {
         </div>
         {columns.map((column) => (
           <nav key={column.id} aria-label={t("footer.columnLinks", { heading: column.heading })}>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em]">{column.heading}</p>
+            <p className="text-sm font-medium">{column.heading}</p>
             <ul className="mt-4 space-y-2.5 text-xs text-muted-foreground">
               {column.hrefs.map((href) => (
                 <li key={href}>
