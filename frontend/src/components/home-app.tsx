@@ -471,207 +471,209 @@ export default function HomeApp() {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-1.5 px-3 pb-3 sm:px-4">
-              {!file && (
-                <Chip onClick={() => fileInputRef.current?.click()} disabled={controlsDisabled} aria-label={t("uploadFile")} aria-describedby="source-limits">
-                  <Paperclip className="size-3.5" /><span className="hidden sm:inline">{t("upload")}</span>
-                </Chip>
-              )}
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Chip disabled={controlsDisabled} active={clipLength !== "auto"} aria-label={t("clipLength.picker")}>
-                    <Timer className="size-3.5" />{t(`clipLength.${clipLength}`)}<ChevronDown className="size-3 opacity-60" />
+            <div className="flex items-start gap-1.5 px-3 pb-3 sm:px-4">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                {!file && (
+                  <Chip onClick={() => fileInputRef.current?.click()} disabled={controlsDisabled} aria-label={t("uploadFile")} aria-describedby="source-limits">
+                    <Paperclip className="size-3.5" /><span className="hidden sm:inline">{t("upload")}</span>
                   </Chip>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-72 rounded-2xl p-3">
-                  <p className="mb-2 text-sm font-medium">{t("clipLength.title")}</p>
-                  <div role="radiogroup" aria-label={t("clipLength.title")} className="grid gap-1">
-                    {CLIP_LENGTHS.map((length) => (
-                      <button type="button" role="radio" aria-checked={clipLength === length} disabled={controlsDisabled} key={length} onClick={() => chooseClipLength(length)} className={cn("flex items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-muted disabled:opacity-50", clipLength === length && "bg-muted")}>
-                        <span>{t(`clipLength.${length}`)}</span>
-                        {clipLength === length && <Check className="size-4" />}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">{t("clipLength.hint")}</p>
-                  {clipLengthSaveError && <p role="status" className="mt-2 text-xs text-destructive">{t("clipLength.saveError")}</p>}
-                </PopoverContent>
-              </Popover>
+                )}
 
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Chip disabled={controlsDisabled || !addSubtitles} active={customized}>
-                    <Paintbrush className="size-3.5" />{selectedTemplate?.name || t("defaultTemplate")}<ChevronDown className="size-3 opacity-60" />
-                  </Chip>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-[min(92vw,560px)] rounded-2xl p-0">
-                  <div className="grid gap-0 sm:grid-cols-[minmax(0,1fr)_180px]">
-                    <div className="max-h-[420px] min-w-0 space-y-4 overflow-y-auto p-4">
-                      <div>
-                        <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("captionStyle")}</p>
-                        <div className="flex flex-col gap-1" role="radiogroup" aria-label={t("captionStyle")}>
-                          {(availableTemplates.length ? availableTemplates : [{ id: "default", name: t("defaultTemplate"), description: t("defaultTemplateDescription"), animation: "" } as CaptionTemplate]).map((template) => (
-                            <button
-                              key={template.id}
-                              type="button"
-                              role="radio"
-                              aria-checked={captionTemplate === template.id}
-                              onClick={() => setCaptionTemplate(template.id)}
-                              className={cn("flex w-full min-w-0 items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-accent", captionTemplate === template.id && "bg-accent")}
-                            >
-                              <span className="size-3 shrink-0 rounded-full border" style={{ backgroundColor: template.font_color || "#fff" }} />
-                              <span className="min-w-0 flex-1">
-                                <span className="block text-sm font-medium">{template.name}</span>
-                                <span className="block truncate text-xs text-muted-foreground">{template.description}</span>
-                              </span>
-                              {captionTemplate === template.id && <Check className="size-4" />}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Chip disabled={controlsDisabled} active={clipLength !== "auto"} aria-label={t("clipLength.picker")}>
+                      <Timer className="size-3.5" />{t(`clipLength.${clipLength}`)}<ChevronDown className="size-3 opacity-60" />
+                    </Chip>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-72 rounded-2xl p-3">
+                    <p className="mb-2 text-sm font-medium">{t("clipLength.title")}</p>
+                    <div role="radiogroup" aria-label={t("clipLength.title")} className="grid gap-1">
+                      {CLIP_LENGTHS.map((length) => (
+                        <button type="button" role="radio" aria-checked={clipLength === length} disabled={controlsDisabled} key={length} onClick={() => chooseClipLength(length)} className={cn("flex items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-muted disabled:opacity-50", clipLength === length && "bg-muted")}>
+                          <span>{t(`clipLength.${length}`)}</span>
+                          {clipLength === length && <Check className="size-4" />}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">{t("clipLength.hint")}</p>
+                    {clipLengthSaveError && <p role="status" className="mt-2 text-xs text-destructive">{t("clipLength.saveError")}</p>}
+                  </PopoverContent>
+                </Popover>
 
-                      <div className="space-y-3 border-t pt-4">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("customize")}</p>
-                          {customized && (
-                            <button type="button" className="text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => { setFontFamily(null); setFontSize(null); setFontColor(null); }}>
-                              {t("resetTemplate")}
-                            </button>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <label className="text-sm">{t("font")}</label>
-                            <input ref={fontUploadInputRef} type="file" accept=".ttf,.otf" onChange={handleFontUpload} className="hidden" />
-                            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" disabled={controlsDisabled || isUploadingFont} onClick={() => canUploadCustomFonts ? fontUploadInputRef.current?.click() : openUpgrade({ kind: "custom_fonts" })}>
-                              <Upload className="size-3" />{isUploadingFont ? t("status.uploadingFont") : t("uploadFont")}
-                            </Button>
-                          </div>
-                          {!canUploadCustomFonts && (
-                            <button type="button" onClick={() => openUpgrade({ kind: "custom_fonts" })} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
-                              {t("customFontsPaid")}
-                            </button>
-                          )}
-                          {availableFonts.length > FONT_SEARCH_THRESHOLD && (
-                            <Input value={fontSearch} onChange={(e) => setFontSearch(e.target.value)} placeholder={t("searchFonts")} className="h-8" />
-                          )}
-                          <Select value={fontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE} onValueChange={(value) => setFontFamily(value === FONT_TEMPLATE_DEFAULT_VALUE ? null : value)}>
-                            <SelectTrigger className="w-full"><SelectValue placeholder={t("templateDefault")} /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>{t("templateDefault")}</SelectItem>
-                              {filteredFonts.map((font) => (
-                                <FontSelectOption key={font.name} font={font} />
-                              ))}
-                              {availableFonts.length > 0 && filteredFonts.length === 0 && <SelectItem value="__no_match__" disabled>{t("noFontMatch")}</SelectItem>}
-                            </SelectContent>
-                          </Select>
-                          {fontLoadError && <p className="text-xs text-amber-700">{fontLoadError}</p>}
-                        </div>
-                        <CaptionSizeControl value={fontSize} onChange={setFontSize} disabled={controlsDisabled} />
-                        <div className="space-y-2">
-                          <p className="text-sm">{t("color")}</p>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <button type="button" onClick={() => setFontColor(null)} className={cn("h-7 rounded-full border px-2.5 text-xs", fontColor === null ? "border-foreground bg-foreground text-background" : "hover:bg-accent")}>{t("template")}</button>
-                            {COLOR_SWATCHES.map((color) => (
-                              <button key={color} type="button" onClick={() => setFontColor(color)} title={color} aria-label={t("captionColor", { color })}
-                                className={cn("size-7 rounded-full border-2 transition-transform hover:scale-110", fontColor === color ? "border-foreground" : "border-border")}
-                                style={{ backgroundColor: color }} />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Chip disabled={controlsDisabled || !addSubtitles} active={customized}>
+                      <Paintbrush className="size-3.5" />{selectedTemplate?.name || t("defaultTemplate")}<ChevronDown className="size-3 opacity-60" />
+                    </Chip>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-[min(92vw,560px)] rounded-2xl p-0">
+                    <div className="grid gap-0 sm:grid-cols-[minmax(0,1fr)_180px]">
+                      <div className="max-h-[420px] min-w-0 space-y-4 overflow-y-auto p-4">
+                        <div>
+                          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("captionStyle")}</p>
+                          <div className="flex flex-col gap-1" role="radiogroup" aria-label={t("captionStyle")}>
+                            {(availableTemplates.length ? availableTemplates : [{ id: "default", name: t("defaultTemplate"), description: t("defaultTemplateDescription"), animation: "" } as CaptionTemplate]).map((template) => (
+                              <button
+                                key={template.id}
+                                type="button"
+                                role="radio"
+                                aria-checked={captionTemplate === template.id}
+                                onClick={() => setCaptionTemplate(template.id)}
+                                className={cn("flex w-full min-w-0 items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-accent", captionTemplate === template.id && "bg-accent")}
+                              >
+                                <span className="size-3 shrink-0 rounded-full border" style={{ backgroundColor: template.font_color || "#fff" }} />
+                                <span className="min-w-0 flex-1">
+                                  <span className="block text-sm font-medium">{template.name}</span>
+                                  <span className="block truncate text-xs text-muted-foreground">{template.description}</span>
+                                </span>
+                                {captionTemplate === template.id && <Check className="size-4" />}
+                              </button>
                             ))}
-                            <label className="relative size-7 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-border" title={t("customColor")}>
-                              <input type="color" value={fontColor ?? "#FFFFFF"} onChange={(e) => setFontColor(e.target.value)} className="absolute inset-0 cursor-pointer opacity-0" aria-label={t("customCaptionColor")} />
-                              <span className="absolute inset-1 rounded-full bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]" />
-                            </label>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3 border-t pt-4">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("customize")}</p>
+                            {customized && (
+                              <button type="button" className="text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => { setFontFamily(null); setFontSize(null); setFontColor(null); }}>
+                                {t("resetTemplate")}
+                              </button>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <label className="text-sm">{t("font")}</label>
+                              <input ref={fontUploadInputRef} type="file" accept=".ttf,.otf" onChange={handleFontUpload} className="hidden" />
+                              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" disabled={controlsDisabled || isUploadingFont} onClick={() => canUploadCustomFonts ? fontUploadInputRef.current?.click() : openUpgrade({ kind: "custom_fonts" })}>
+                                <Upload className="size-3" />{isUploadingFont ? t("status.uploadingFont") : t("uploadFont")}
+                              </Button>
+                            </div>
+                            {!canUploadCustomFonts && (
+                              <button type="button" onClick={() => openUpgrade({ kind: "custom_fonts" })} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                                {t("customFontsPaid")}
+                              </button>
+                            )}
+                            {availableFonts.length > FONT_SEARCH_THRESHOLD && (
+                              <Input value={fontSearch} onChange={(e) => setFontSearch(e.target.value)} placeholder={t("searchFonts")} className="h-8" />
+                            )}
+                            <Select value={fontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE} onValueChange={(value) => setFontFamily(value === FONT_TEMPLATE_DEFAULT_VALUE ? null : value)}>
+                              <SelectTrigger className="w-full"><SelectValue placeholder={t("templateDefault")} /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value={FONT_TEMPLATE_DEFAULT_VALUE}>{t("templateDefault")}</SelectItem>
+                                {filteredFonts.map((font) => (
+                                  <FontSelectOption key={font.name} font={font} />
+                                ))}
+                                {availableFonts.length > 0 && filteredFonts.length === 0 && <SelectItem value="__no_match__" disabled>{t("noFontMatch")}</SelectItem>}
+                              </SelectContent>
+                            </Select>
+                            {fontLoadError && <p className="text-xs text-amber-700">{fontLoadError}</p>}
+                          </div>
+                          <CaptionSizeControl value={fontSize} onChange={setFontSize} disabled={controlsDisabled} />
+                          <div className="space-y-2">
+                            <p className="text-sm">{t("color")}</p>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <button type="button" onClick={() => setFontColor(null)} className={cn("h-7 rounded-full border px-2.5 text-xs", fontColor === null ? "border-foreground bg-foreground text-background" : "hover:bg-accent")}>{t("template")}</button>
+                              {COLOR_SWATCHES.map((color) => (
+                                <button key={color} type="button" onClick={() => setFontColor(color)} title={color} aria-label={t("captionColor", { color })}
+                                  className={cn("size-7 rounded-full border-2 transition-transform hover:scale-110", fontColor === color ? "border-foreground" : "border-border")}
+                                  style={{ backgroundColor: color }} />
+                              ))}
+                              <label className="relative size-7 cursor-pointer overflow-hidden rounded-full border-2 border-dashed border-border" title={t("customColor")}>
+                                <input type="color" value={fontColor ?? "#FFFFFF"} onChange={(e) => setFontColor(e.target.value)} className="absolute inset-0 cursor-pointer opacity-0" aria-label={t("customCaptionColor")} />
+                                <span className="absolute inset-1 rounded-full bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]" />
+                              </label>
+                            </div>
                           </div>
                         </div>
                       </div>
+
+                      <div className="hidden border-l bg-muted/40 p-4 sm:block">
+                        <CaptionPreview
+                          thumbnail={youtubeThumbnailUrl}
+                          fontFamily={previewFontFamily}
+                          fontSize={previewFontSize}
+                          color={previewFontColor}
+                        />
+                        <p className="mt-3 text-center text-[11px] text-muted-foreground">{t("livePreview")}</p>
+                      </div>
                     </div>
+                  </PopoverContent>
+                </Popover>
 
-                    <div className="hidden border-l bg-muted/40 p-4 sm:block">
-                      <CaptionPreview
-                        thumbnail={youtubeThumbnailUrl}
-                        fontFamily={previewFontFamily}
-                        fontSize={previewFontSize}
-                        color={previewFontColor}
-                      />
-                      <p className="mt-3 text-center text-[11px] text-muted-foreground">{t("livePreview")}</p>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Chip disabled={controlsDisabled}>
+                      <Crop className="size-3.5" />{t(`framingOptions.${outputFormat}.label`)}<ChevronDown className="size-3 opacity-60" />
+                    </Chip>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-[min(92vw,420px)] rounded-2xl p-3">
+                    <p className="mb-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("framing")}</p>
+                    <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t("framing")}>
+                      {FRAMING_IDS.map((id) => (
+                        <button
+                          key={id}
+                          type="button"
+                          role="radio"
+                          aria-checked={outputFormat === id}
+                          onClick={() => setOutputFormat(id)}
+                          className={cn("rounded-xl border p-3 text-left transition-colors hover:bg-accent", outputFormat === id && "border-foreground ring-1 ring-foreground")}
+                        >
+                          <FramingGlyph kind={id} />
+                          <span className="mt-2 block text-sm font-medium">{t(`framingOptions.${id}.label`)}</span>
+                          <span className="block text-xs text-muted-foreground">{t(`framingOptions.${id}.hint`)}</span>
+                        </button>
+                      ))}
                     </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+                  </PopoverContent>
+                </Popover>
 
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Chip disabled={controlsDisabled}>
-                    <Crop className="size-3.5" />{t(`framingOptions.${outputFormat}.label`)}<ChevronDown className="size-3 opacity-60" />
-                  </Chip>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-[min(92vw,420px)] rounded-2xl p-3">
-                  <p className="mb-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("framing")}</p>
-                  <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t("framing")}>
-                    {FRAMING_IDS.map((id) => (
-                      <button
-                        key={id}
-                        type="button"
-                        role="radio"
-                        aria-checked={outputFormat === id}
-                        onClick={() => setOutputFormat(id)}
-                        className={cn("rounded-xl border p-3 text-left transition-colors hover:bg-accent", outputFormat === id && "border-foreground ring-1 ring-foreground")}
-                      >
-                        <FramingGlyph kind={id} />
-                        <span className="mt-2 block text-sm font-medium">{t(`framingOptions.${id}.label`)}</span>
-                        <span className="block text-xs text-muted-foreground">{t(`framingOptions.${id}.hint`)}</span>
-                      </button>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
+                <Chip onClick={() => setAddSubtitles((value) => !value)} disabled={controlsDisabled} aria-pressed={addSubtitles} active={!addSubtitles}>
+                  {addSubtitles ? <Captions className="size-3.5" /> : <CaptionsOff className="size-3.5" />}
+                  {addSubtitles ? t("captions") : t("noCaptions")}
+                </Chip>
 
-              <Chip onClick={() => setAddSubtitles((value) => !value)} disabled={controlsDisabled} aria-pressed={addSubtitles} active={!addSubtitles}>
-                {addSubtitles ? <Captions className="size-3.5" /> : <CaptionsOff className="size-3.5" />}
-                {addSubtitles ? t("captions") : t("noCaptions")}
-              </Chip>
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Chip disabled={controlsDisabled} active={cleanupCount > 0}>
-                    <Wand2 className="size-3.5" />{t("cleanup")}{cleanupCount > 0 && <span className="rounded-full bg-foreground px-1.5 text-[10px] text-background">{cleanupCount}</span>}
-                    <ChevronDown className="size-3 opacity-60" />
-                  </Chip>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-[min(92vw,340px)] space-y-4 rounded-2xl">
-                  <div>
-                    <p className="text-sm font-medium">{t("cleanupTitle")}</p>
-                    <p className="text-xs text-muted-foreground">{t("cleanupBody")}</p>
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Chip disabled={controlsDisabled} active={cleanupCount > 0}>
+                      <Wand2 className="size-3.5" />{t("cleanup")}{cleanupCount > 0 && <span className="rounded-full bg-foreground px-1.5 text-[10px] text-background">{cleanupCount}</span>}
+                      <ChevronDown className="size-3 opacity-60" />
+                    </Chip>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-[min(92vw,340px)] space-y-4 rounded-2xl">
                     <div>
-                      <label htmlFor="cut-pauses" className="text-sm font-medium">{t("shortenPauses")}</label>
-                      <p className="text-xs text-muted-foreground">{t("shortenPausesHint")}</p>
+                      <p className="text-sm font-medium">{t("cleanupTitle")}</p>
+                      <p className="text-xs text-muted-foreground">{t("cleanupBody")}</p>
                     </div>
-                    <Switch id="cut-pauses" checked={cutLongPauses} onCheckedChange={setCutLongPauses} />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Input type="number" min={250} max={3000} step={50} value={pauseThresholdMs} onChange={(e) => setPauseThresholdMs(e.target.value)} disabled={!cutLongPauses} aria-label={t("pauseThreshold")} className="h-8 w-24" />
-                    <span className="text-xs text-muted-foreground">{t("milliseconds")}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <label htmlFor="filler-words" className="text-sm font-medium">{t("removeFillers")}</label>
-                      <p className="text-xs text-muted-foreground">{t("removeFillersHint")}</p>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <label htmlFor="cut-pauses" className="text-sm font-medium">{t("shortenPauses")}</label>
+                        <p className="text-xs text-muted-foreground">{t("shortenPausesHint")}</p>
+                      </div>
+                      <Switch id="cut-pauses" checked={cutLongPauses} onCheckedChange={setCutLongPauses} />
                     </div>
-                    <Switch id="filler-words" checked={removeFillerWords} onCheckedChange={setRemoveFillerWords} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label htmlFor="filtered-words" className="text-xs font-medium text-muted-foreground">{t("extraWords")}</label>
-                    <Input id="filtered-words" value={filteredWords} onChange={(e) => setFilteredWords(e.target.value)} placeholder={t("extraWordsPlaceholder")} className="h-8" />
-                  </div>
-                </PopoverContent>
-              </Popover>
+                    <div className="flex items-center gap-2">
+                      <Input type="number" min={250} max={3000} step={50} value={pauseThresholdMs} onChange={(e) => setPauseThresholdMs(e.target.value)} disabled={!cutLongPauses} aria-label={t("pauseThreshold")} className="h-8 w-24" />
+                      <span className="text-xs text-muted-foreground">{t("milliseconds")}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <label htmlFor="filler-words" className="text-sm font-medium">{t("removeFillers")}</label>
+                        <p className="text-xs text-muted-foreground">{t("removeFillersHint")}</p>
+                      </div>
+                      <Switch id="filler-words" checked={removeFillerWords} onCheckedChange={setRemoveFillerWords} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label htmlFor="filtered-words" className="text-xs font-medium text-muted-foreground">{t("extraWords")}</label>
+                      <Input id="filtered-words" value={filteredWords} onChange={(e) => setFilteredWords(e.target.value)} placeholder={t("extraWordsPlaceholder")} className="h-8" />
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
 
-              <div className="ml-auto flex items-center gap-2">
-                <span className="hidden text-xs text-muted-foreground sm:inline-flex sm:items-center sm:gap-1">
-                  {isLoading ? <span role="status">{statusMessage || t("status.working")}</span> : hasSource ? <><Kbd>⌘</Kbd><Kbd>↵</Kbd></> : null}
+              <div className="flex h-9 shrink-0 items-center gap-2">
+                <span className="hidden max-w-32 text-xs text-muted-foreground lg:inline-flex lg:items-center lg:gap-1">
+                  {isLoading ? <span role="status" className="truncate">{statusMessage || t("status.working")}</span> : hasSource ? <><Kbd>⌘</Kbd><Kbd>↵</Kbd></> : null}
                 </span>
                 <Button
                   type="submit"
@@ -686,7 +688,7 @@ export default function HomeApp() {
             </div>
           </form>
 
-          {isLoading && statusMessage && <p role="status" className="mt-3 text-center text-sm text-muted-foreground sm:hidden">{statusMessage}</p>}
+          {isLoading && statusMessage && <p role="status" className="mt-3 text-center text-sm text-muted-foreground lg:hidden">{statusMessage}</p>}
 
           {error && (
             <Alert className="mt-4 border-red-200 bg-red-50">

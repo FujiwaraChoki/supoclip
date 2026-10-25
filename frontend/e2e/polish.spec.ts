@@ -253,3 +253,33 @@ for (const width of [390, 1280]) {
     expect(submitted?.clip_length).toBe("long");
   });
 }
+
+for (const clipLength of ["auto", "long"]) {
+  test(`submit stays beside the first options row with ${clipLength} clip length`, async ({ page }) => {
+    await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
+    await page.route(/\/api\/tasks\/?(\?.*)?$/, route => route.fulfill({ json: { tasks: [] } }));
+    await page.route("**/api/announcements**", route => route.fulfill({ json: { announcements: [] } }));
+    await page.route("**/api/service-status/video-downloads", route => route.fulfill({ json: { component: { status: "operational" } } }));
+    await page.route("**/api/preferences", route => route.fulfill({ json: { clipLength } }));
+    await page.goto("/");
+    const submit = page.getByRole("button", { name: "Generate clips", exact: true });
+    const upload = page.getByRole("button", { name: "Upload a video file", exact: true });
+    await expect(page.getByRole("button", { name: "Clip length", exact: true })).toContainText(clipLength === "auto" ? "Auto length" : "Long (1–2 min)");
+    for (const width of [320, 390, 768, 1024, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const url of ["", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]) {
+        await page.getByLabel("YouTube, Twitch, or Kick URL", { exact: true }).fill(url);
+        const buttonBox = await submit.boundingBox();
+        const uploadBox = await upload.boundingBox();
+        expect(buttonBox).not.toBeNull();
+        expect(uploadBox).not.toBeNull();
+        expect(Math.abs(buttonBox!.y - uploadBox!.y)).toBeLessThanOrEqual(4);
+        expect(buttonBox!.x).toBeGreaterThan(uploadBox!.x + uploadBox!.width);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      }
+      if (width === 390 || width === 1280) {
+        await page.screenshot({ path: `test-results/submit-layout-${clipLength}-${width}.png`, fullPage: true });
+      }
+    }
+  });
+}
