@@ -11,14 +11,16 @@ This module picks a layout from the face boxes already measured for reframing:
 - Two stable side-by-side webcams (a call) become a stacked pair of tiles.
   Each tile is a mild ~1.1x scale of that person's half, with the face in the
   upper part of the tile and captions in the gap between them.
-- A single low webcam face is placed on a blurred frame, cropped wide enough
-  to stay under ~1.32x and shifted so the face sits in the upper third.
+- A single low webcam face is placed on a blurred frame with the face in the
+  upper third. Sources up to 480p use a taller 4:5 foreground at up to 2.8x;
+  higher resolutions keep the wider stage with its ~1.32x upscale cap.
 - A gallery of three or more faces is shown in full (a downscale) on the blur,
   instead of zooming into one tiny tile.
 - A face already framed in the upper half, including a close podcast two-shot,
   returns None so the tracked crop and active-speaker cuts stay in charge.
 """
 
+import logging
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .common import UPSCALE_SHARPEN_FILTER
@@ -27,11 +29,14 @@ from .ffmpeg import clamp_even, round_to_even
 OUT_W = 1080
 OUT_H = 1920
 STAGE_MAX_UPSCALE = 1.32
+LOW_RES_STAGE_MAX_UPSCALE = 2.8
 STAGE_FACE_Y = 0.38
 STACK_TOP = 168
 STACK_TILE_H = 800
 STACK_BOTTOM = 1120
 STACK_CAPTION_Y = ((STACK_TOP + STACK_TILE_H) + STACK_BOTTOM) / 2 / OUT_H
+
+logger = logging.getLogger(__name__)
 
 Box = Tuple[float, float, float, float]
 FaceFrame = Tuple[float, Sequence[Box]]
@@ -144,31 +149,54 @@ def _stage_plan(width: int, height: int, box: Box) -> Dict[str, Any]:
     x, y, w, h = box
     cx = x + w / 2
     cy = y + h / 2
-    min_crop_w = max(2, round_to_even(int(OUT_W / STAGE_MAX_UPSCALE)))
-    preferred = round_to_even(int(width * 0.52))
-    # Keep the face large enough to read, but never zoom past the upscale cap.
-    subject_limit = round_to_even(int(w / 0.16)) if w > 0 else width
-    crop_w = min(width, max(min_crop_w, min(preferred, max(min_crop_w, subject_limit))))
+    low_res = 10 <= height <= 480
+    if low_res:
+        # A 4:5 window must fit inside the source height. Its output width
+        # can be smaller than the canvas: filling 1080px from a 360p source
+        # would require a 3.75x upscale, beyond the low-resolution cap.
+        preferred = max(w / 0.28, width * 0.55)
+        crop_w = int(min(width, preferred, height * 4 / 5))
+        # Multiples of eight also give an even 4:5 crop height.
+        crop_w = max(8, crop_w // 8 * 8)
+    else:
+        min_crop_w = max(2, round_to_even(int(OUT_W / STAGE_MAX_UPSCALE)))
+        preferred = round_to_even(int(width * 0.52))
+        # Preserve the wider HD stage and its existing upscale cap.
+        subject_limit = round_to_even(int(w / 0.16)) if w > 0 else width
+        crop_w = min(width, max(min_crop_w, min(preferred, max(min_crop_w, subject_limit))))
     crop_w = max(2, round_to_even(crop_w))
     if crop_w > width:
         crop_w = round_to_even(width)
     crop_x = clamp_even(int(cx - crop_w / 2), 0, max(0, width - crop_w))
+    out_w = OUT_W
+    if low_res:
+        out_w = max(8, min(OUT_W, int(crop_w * LOW_RES_STAGE_MAX_UPSCALE) // 8 * 8))
+    scale = out_w / crop_w
+    if crop_w >= width - 1:
+        logger.info(
+            "Stage crop fallback: source too small for stage crop "
+            "(source %dx%d, crop width %d, zoom %.2fx)",
+            width, height, crop_w, scale,
+        )
 
     def place(crop_y: int, crop_h: int) -> Tuple[int, int, float]:
-        scale = OUT_W / crop_w
         scaled_h = min(OUT_H, round_to_even(int(round(crop_h * scale))))
         scaled_h = max(2, scaled_h)
         face_in = (cy - crop_y) / max(crop_h, 1) * scaled_h
-        overlay = int(STAGE_FACE_Y * OUT_H - face_in)
+        face_target = 1 / 3 if low_res else STAGE_FACE_Y
+        overlay = int(face_target * OUT_H - face_in)
         overlay = max(0, min(overlay, OUT_H - scaled_h))
         overlay = round_to_even(overlay)
         face_out = (overlay + face_in) / OUT_H
         return scaled_h, overlay, face_out
 
     crop_y, crop_h = 0, height
+    if low_res:
+        crop_h = crop_w * 5 // 4
+        crop_y = clamp_even(int(cy - crop_h / 2), 0, height - crop_h)
     scaled_h, overlay, face_out = place(crop_y, crop_h)
     guard = max(8, int(h * 0.35))
-    if face_out > 0.44 and y > guard + 16:
+    if not low_res and face_out > 0.44 and y > guard + 16:
         cut = round_to_even(min(int(y - guard), int(height * 0.28)))
         if cut >= 16 and height - cut >= max(64, int(h * 2)):
             crop_y, crop_h = cut, round_to_even(height - cut)
@@ -182,14 +210,14 @@ def _stage_plan(width: int, height: int, box: Box) -> Dict[str, Any]:
         caption_y = caption_y_below_subject(face_bottom)
     video_filter = (
         f"{_blur_base(2, '[bgsrc]', '[fgsrc]')}"
-        f"{_foreground('[fgsrc]', (crop_x, crop_y, crop_w, crop_h), OUT_W, scaled_h)}[fg];"
-        f"[bg][fg]overlay=0:{overlay}[vout]"
+        f"{_foreground('[fgsrc]', (crop_x, crop_y, crop_w, crop_h), out_w, scaled_h)}[fg];"
+        f"[bg][fg]overlay={(OUT_W - out_w) // 2}:{overlay}[vout]"
     )
     return {
         "kind": "stage",
         "video_filter": video_filter,
         "caption_y": round(caption_y, 4),
-        "upscale": OUT_W / crop_w,
+        "upscale": scale,
         "face_y": face_out,
         "video_bottom": video_bottom,
     }
