@@ -20,6 +20,8 @@ from ..clip_editor import (
 )
 from ..video_utils import VALID_OUTPUT_FORMATS, parse_timestamp_to_seconds, create_optimized_clip
 from ..utils.async_helpers import run_in_thread
+from ..clip_duration import clip_duration, normalize_clip_length
+from ..media.common import MAX_RENDERED_CLIP_SECONDS
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..clip_source_map import (
     load_clip_source_ranges,
@@ -219,6 +221,12 @@ class ClipEditingMixin:
                 add_subtitles,
                 normalized_cleanup_settings,
                 max_short_side=output_short_side,
+                # Merged and trimmed clips can run past a short preset; only
+                # cap them as tightly as they were before presets existed.
+                max_clip_seconds=max(
+                    clip_duration(normalize_clip_length(metadata.get("clip_length"))).maximum,
+                    MAX_RENDERED_CLIP_SECONDS,
+                ),
             )
             if time_map:
                 for clip_info in clips_info:
@@ -596,6 +604,7 @@ class ClipEditingMixin:
         defaults = {
             "output_format": "vertical",
             "add_subtitles": True,
+            "clip_length": "auto",
             **normalize_clip_cleanup_settings(),
         }
         parsed = (
@@ -643,6 +652,7 @@ class ClipEditingMixin:
         return {
             "output_format": output_format,
             "add_subtitles": add_subtitles,
+            "clip_length": normalize_clip_length(parsed.get("clip_length")),
             **normalize_clip_cleanup_settings(
                 parsed.get("cut_long_pauses"),
                 parsed.get("pause_threshold_ms"),

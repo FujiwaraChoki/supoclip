@@ -114,5 +114,15 @@
     "nearWithPlan": "{refreshes} Precisa de mais espaço? O {plan} oferece {limit} de vídeo por mês.",
     "upgrade": "Fazer upgrade",
     "limitTitleAll": "Você usou os minutos de vídeo deste mês"
+  },
+  "clipLength": {
+    "picker": "Duração do clipe",
+    "title": "Duração do clipe",
+    "auto": "Duração automática",
+    "short": "Curto (15–30 s)",
+    "medium": "Médio (30–60 s)",
+    "long": "Longo (1–2 min)",
+    "hint": "Duração desejada antes de remover pausas e vícios de linguagem. Sua escolha é salva como padrão.",
+    "saveError": "Não foi possível salvar o padrão. Este vídeo usará sua escolha."
   }
 }

@@ -41,6 +41,7 @@ from ...stream_source import (
     fetch_stream_info,
 )
 from ...font_registry import is_font_accessible
+from ...clip_duration import normalize_clip_length, validate_clip_length
 from ...clip_cleanup import (
     new_task_cleanup_settings,
     normalize_clip_cleanup_settings,
@@ -463,6 +464,10 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     add_subtitles = data.get("add_subtitles", True)
     if not isinstance(add_subtitles, bool):
         add_subtitles = True
+    try:
+        clip_length = validate_clip_length(data.get("clip_length", "auto"))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
     cleanup_settings = new_task_cleanup_settings(data)
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
@@ -524,6 +529,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                     _merge_task_source_metadata(
                         {
                             "processing_job_id": processing_job_id,
+                            "clip_length": clip_length,
                             **_stream_resolution_metadata(stream_metadata),
                         },
                         source_url=raw_source["url"],
@@ -552,6 +558,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                     output_format,
                     add_subtitles,
                     cleanup_settings,
+                    clip_length,
                     _job_id=processing_job_id,
                 )
 
@@ -1374,6 +1381,7 @@ async def resume_task(
                         output_format,
                         add_subtitles,
                         cleanup_settings,
+                        normalize_clip_length(metadata.get("clip_length")),
                         _job_id=processing_job_id,
                     )
                 except Exception:

@@ -33,6 +33,7 @@ Available creation options on this screen include:
 - Source type
   - YouTube, Twitch, or Kick link
   - Upload
+- Clip length: Auto (15–60s), Short (15–30s), Medium (30–60s), or Long (1–2 min). The choice is saved to your account as the default for new videos. These are target lengths before removing pauses and filler words.
 - Font family
 - Font size
 - Font color

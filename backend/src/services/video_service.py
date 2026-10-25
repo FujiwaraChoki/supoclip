@@ -52,6 +52,7 @@ from ..clip_source_map import (
     source_range_bounds,
 )
 from ..ai import get_most_relevant_parts_by_transcript
+from ..clip_duration import clip_duration
 from ..config import get_config
 from ..media.source_limits import normalize_source_media
 from ..media_storage import MediaStorage
@@ -317,6 +318,7 @@ class VideoService:
         transcript: str,
         clip_signals: Optional[str] = None,
         performance_context: Optional[str] = None,
+        clip_length: str = "auto",
     ) -> Any:
         """
         Analyze transcript with AI to find relevant segments.
@@ -327,6 +329,7 @@ class VideoService:
             transcript,
             clip_signals=clip_signals,
             performance_context=performance_context,
+            clip_length=clip_length,
         )
         logger.info(
             f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"
@@ -345,6 +348,7 @@ class VideoService:
         add_subtitles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
         max_short_side: Optional[int] = None,
+        max_clip_seconds: float = 60.0,
     ) -> List[Dict[str, Any]]:
         """
         Create standalone video clips from segments with optional subtitles.
@@ -369,6 +373,7 @@ class VideoService:
             output_format,
             add_subtitles,
             cleanup_settings,
+            max_clip_seconds=max_clip_seconds,
         )
 
         if max_short_side:
@@ -395,6 +400,7 @@ class VideoService:
         add_subtitles: bool = True,
         cleanup_settings: Optional[Dict[str, Any]] = None,
         max_short_side: Optional[int] = None,
+        max_clip_seconds: float = 60.0,
     ) -> Optional[Dict[str, Any]]:
         """Render a single clip in the thread pool and return clip_info dict, or None on failure.
 
@@ -447,10 +453,11 @@ class VideoService:
             clip_text = segment.get("text", "")
             if not provided_keep_ranges and not source_ranges:
                 keep_ranges = apply_segment_hook_teaser(video_path, keep_ranges, segment)
-                # Snapping, cleanup and the teaser change what is spoken; keep
-                # the stored text word-for-word with the rendered timeline.
+            keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges, max_clip_seconds)
+            if not provided_keep_ranges and not source_ranges:
+                # Snapping, cleanup, the teaser and the cap change what is
+                # spoken; keep the stored text word-for-word with the timeline.
                 clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
-            keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges)
 
             success = await run_in_thread(
                 create_optimized_clip,
@@ -557,6 +564,7 @@ class VideoService:
         progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]] = None,
         should_cancel: Optional[Callable[[], Awaitable[bool]]] = None,
         performance_context: Optional[str] = None,
+        clip_length: str = "auto",
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.
@@ -762,6 +770,7 @@ class VideoService:
                     transcript,
                     clip_signals=clip_signals,
                     performance_context=performance_context,
+                    clip_length=clip_length,
                 )
 
             # Step 4: Create clips
@@ -833,7 +842,8 @@ class VideoService:
                     VideoService._build_fallback_segment(
                         file_duration,
                         transcript,
-                        runtime_config.clip_duration,
+                        (runtime_config.clip_duration if clip_length == "auto"
+                         else clip_duration(clip_length).ideal_minimum),
                     )
                 ]
 

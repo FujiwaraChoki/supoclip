@@ -207,7 +207,7 @@ async def test_long_transcript_runs_windows_then_reranks(monkeypatch):
             ai.RankedCandidate(candidate_id=i, score=90 - i) for i in reversed(range(prompt.count("candidate_id:")))
         ])
     )))
-    monkeypatch.setattr(ai, "get_transcript_agent", lambda: agent)
+    monkeypatch.setattr(ai, "get_transcript_agent", lambda clip_length="auto": agent)
     monkeypatch.setattr(ai, "get_rerank_agent", lambda: rerank_agent)
 
     result = await ai.get_most_relevant_parts_by_transcript(transcript)
@@ -236,7 +236,7 @@ async def test_window_failures_are_tolerated_when_another_window_succeeds(monkey
             most_relevant_segments=[_segment("00:30", "01:00")], summary="ok", key_topics=[],
         ))
 
-    monkeypatch.setattr(ai, "get_transcript_agent", lambda: SimpleNamespace(run=AsyncMock(side_effect=flaky)))
+    monkeypatch.setattr(ai, "get_transcript_agent", lambda clip_length="auto": SimpleNamespace(run=AsyncMock(side_effect=flaky)))
     monkeypatch.setattr(ai, "get_rerank_agent", lambda: (_ for _ in ()).throw(RuntimeError("no key")))
 
     result = await ai.get_most_relevant_parts_by_transcript(transcript)
@@ -289,7 +289,7 @@ async def test_hook_times_survive_windowing_snapping_and_rerank(monkeypatch):
         ])
     )))
     agent = SimpleNamespace(run=AsyncMock(side_effect=window_analysis))
-    monkeypatch.setattr(ai, "get_transcript_agent", lambda: agent)
+    monkeypatch.setattr(ai, "get_transcript_agent", lambda clip_length="auto": agent)
     monkeypatch.setattr(ai, "get_rerank_agent", lambda: rerank_agent)
 
     result = await ai.get_most_relevant_parts_by_transcript(transcript)
@@ -324,7 +324,7 @@ async def test_performance_context_shapes_windows_and_the_final_rerank(monkeypat
             ai.RankedCandidate(candidate_id=i, score=90 - i) for i in range(prompt.count("candidate_id:"))
         ])
     )))
-    monkeypatch.setattr(ai, "get_transcript_agent", lambda: agent)
+    monkeypatch.setattr(ai, "get_transcript_agent", lambda clip_length="auto": agent)
     monkeypatch.setattr(ai, "get_rerank_agent", lambda: rerank_agent)
 
     await ai.get_most_relevant_parts_by_transcript(transcript, performance_context=context)

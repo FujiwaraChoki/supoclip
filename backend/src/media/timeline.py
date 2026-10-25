@@ -171,9 +171,9 @@ def clamp_keep_ranges_to_max_duration(
 ) -> List[Tuple[float, float]]:
     """Shorten the end so a rewound or extended clip still plays within the cap.
 
-    Analysis already rejects segments longer than 60 seconds. Pulling the start
-    back to a self-contained sentence (up to 8s) or finishing the last sentence
-    can push the rendered timeline past that. The extra time comes off the end,
+    Analysis already checks the selected preset's duration range. Pulling the
+    start back to a self-contained sentence or finishing the last sentence
+    can push the rendered timeline past its cap. The extra time comes off the end,
     on a sentence boundary when one sits within a few seconds of the cap.
     """
     ranges = [(float(start), float(end)) for start, end in keep_ranges if end > start]

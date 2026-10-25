@@ -74,6 +74,7 @@ model User {
   default_font_size   Int?      @default(24)
   default_font_color  String?   @default("#FFFFFF") @db.VarChar(7)
   notify_on_completion Boolean  @default(true)
+  default_clip_length  String   @default("auto") @db.VarChar(10)
   product_updates_unsubscribed_at DateTime? @db.Timestamptz
 
   // Monetization and billing

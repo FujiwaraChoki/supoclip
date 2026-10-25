@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrismaClient } from "@/server/prisma";
+import { isClipLength } from "@/lib/clip-duration";
 import { getServerSession } from "@/server/session";
 
 // GET /api/preferences - Get user preferences
@@ -22,6 +23,7 @@ export async function GET() {
         default_font_size: true,
         default_font_color: true,
         notify_on_completion: true,
+        default_clip_length: true,
       },
     });
 
@@ -37,6 +39,7 @@ export async function GET() {
       fontSize: user.default_font_size || 24,
       fontColor: user.default_font_color || "#FFFFFF",
       notifyOnCompletion: user.notify_on_completion ?? true,
+      clipLength: user.default_clip_length || "auto",
     });
   } catch (error) {
     console.error("Error fetching preferences:", error);
@@ -63,7 +66,11 @@ export async function PATCH(request: NextRequest) {
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ error: "Expected a preferences object" }, { status: 400 });
     }
-    const { fontFamily, fontSize, fontColor, notifyOnCompletion } = body;
+    const { fontFamily, fontSize, fontColor, notifyOnCompletion, clipLength } = body;
+
+    if (clipLength !== undefined && !isClipLength(clipLength)) {
+      return NextResponse.json({ error: "Invalid clipLength" }, { status: 400 });
+    }
 
     // Validate inputs
     if (fontFamily !== undefined && (typeof fontFamily !== "string" || !fontFamily.trim())) {
@@ -101,6 +108,7 @@ export async function PATCH(request: NextRequest) {
     const updatedUser = await prisma.user.update({
       where: { id: session.user.id },
       data: {
+        ...(clipLength !== undefined && { default_clip_length: clipLength }),
         ...(fontFamily !== undefined && { default_font_family: fontFamily }),
         ...(fontSize !== undefined && { default_font_size: fontSize }),
         ...(fontColor !== undefined && { default_font_color: fontColor }),
@@ -113,6 +121,7 @@ export async function PATCH(request: NextRequest) {
         default_font_size: true,
         default_font_color: true,
         notify_on_completion: true,
+        default_clip_length: true,
       },
     });
 
@@ -121,6 +130,7 @@ export async function PATCH(request: NextRequest) {
       fontSize: updatedUser.default_font_size,
       fontColor: updatedUser.default_font_color,
       notifyOnCompletion: updatedUser.notify_on_completion,
+      clipLength: updatedUser.default_clip_length || "auto",
     });
   } catch (error) {
     console.error("Error updating preferences:", error);

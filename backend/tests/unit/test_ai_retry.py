@@ -35,7 +35,7 @@ async def test_analysis_recovers_from_gemini_overload_without_changing_prompt(
         ModelHTTPError(503, "gemini-test", {"message": "High demand"}),
         SimpleNamespace(output=analysis),
     ]))
-    monkeypatch.setattr(ai, "get_transcript_agent", lambda: agent)
+    monkeypatch.setattr(ai, "get_transcript_agent", lambda clip_length="auto": agent)
 
     result = await ai.get_most_relevant_parts_by_transcript(transcript)
 
@@ -48,7 +48,7 @@ async def test_analysis_recovers_from_gemini_overload_without_changing_prompt(
 async def test_exhausted_overload_is_bounded_and_has_safe_error(monkeypatch, retry_sleep, caplog):
     error = ModelHTTPError(503, "gemini-test", {"message": "sensitive transcript"})
     agent = SimpleNamespace(run=AsyncMock(side_effect=error))
-    monkeypatch.setattr(ai, "get_transcript_agent", lambda: agent)
+    monkeypatch.setattr(ai, "get_transcript_agent", lambda clip_length="auto": agent)
 
     with pytest.raises(RuntimeError, match="temporarily unavailable") as caught:
         await ai.get_most_relevant_parts_by_transcript("transcript")

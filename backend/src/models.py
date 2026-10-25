@@ -51,6 +51,10 @@ class User(Base):
     last_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
+    default_clip_length: Mapped[str] = mapped_column(
+        String(10), nullable=False, server_default=sql_text("'auto'")
+    )
+
     # Billing fields
     notify_on_completion: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sql_text("'true'")

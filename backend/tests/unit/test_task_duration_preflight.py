@@ -164,3 +164,30 @@ async def test_unreadable_or_long_upload_uses_no_minutes(monkeypatch, creation, 
     assert "No minutes were used" in error.value.detail["message"]
     service.create_task_with_source.assert_not_awaited()
     queue.enqueue_processing_job.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("preset", ["auto", "short", "medium", "long"])
+async def test_clip_length_is_persisted_and_queued(monkeypatch, creation, preset):
+    request, _, queue, _ = creation
+    request.json.return_value["clip_length"] = preset
+    monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value={"duration": 300}))
+    await tasks.create_task(request, db=None)
+    assert tasks._save_task_source_metadata.await_args.args[1]["clip_length"] == preset
+    assert queue.enqueue_processing_job.await_args.args[-1] == preset
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("value", [None, True, 30, "custom", {}])
+async def test_invalid_clip_length_rejected_before_billing_or_download(monkeypatch, creation, value):
+    request, service, queue, _ = creation
+    request.json.return_value["clip_length"] = value
+    preflight = AsyncMock()
+    monkeypatch.setattr(tasks, "async_get_youtube_video_info", preflight)
+    with pytest.raises(HTTPException) as error:
+        await tasks.create_task(request, db=None)
+    assert error.value.status_code == 422
+    tasks.BillingService.assert_can_create_task.assert_not_awaited()
+    service.create_task_with_source.assert_not_awaited()
+    queue.enqueue_processing_job.assert_not_awaited()
+    preflight.assert_not_awaited()
