@@ -315,6 +315,9 @@ export function ClipPublishButton({
   const [schedule, setSchedule] = useState(false);
   const [scheduledFor, setScheduledFor] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingCaption, setIsGeneratingCaption] = useState(false);
+  const captionRevision = useRef(0);
+  const captionRequest = useRef(0);
   const [error, setError] = useState<string | null>(null);
 
   const activeConnections = useMemo(
@@ -334,6 +337,43 @@ export function ClipPublishButton({
   const privacyOptions = privacyOptionsFor(providerForAccount(accountId));
   const anyProviderConfigured = providers.some((provider) => provider.configured);
 
+  const generateCaption = async (id: string) => {
+    const connection = activeConnections.find((item) => item.id === id);
+    if (!connection) return;
+    const request = ++captionRequest.current;
+    const revision = captionRevision.current;
+    setIsGeneratingCaption(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/social/captions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task_id: taskId, clip_id: clip.id, provider: connection.provider }),
+      });
+      if (!response.ok) throw new Error(await readError(response, t("captionFailed")));
+      const data = await response.json();
+      if (typeof data.caption !== "string" || !data.caption.trim()) throw new Error(t("captionFailed"));
+      // A late response must never replace edits or a newer form's draft.
+      if (request === captionRequest.current && revision === captionRevision.current) {
+        setCaption(data.caption);
+      }
+    } catch (err) {
+      if (request === captionRequest.current) {
+        setError(err instanceof Error ? err.message : t("captionFailed"));
+      }
+    } finally {
+      if (request === captionRequest.current) setIsGeneratingCaption(false);
+    }
+  };
+
+  const changeOpen = (value: boolean) => {
+    if (!value) {
+      captionRequest.current++;
+      setIsGeneratingCaption(false);
+    }
+    setOpen(value);
+  };
+
   // The form resets only when the sheet opens, so connections refreshing in
   // the background never wipe what the user is typing.
   const openSheet = () => {
@@ -349,9 +389,12 @@ export function ClipPublishButton({
     setAccountId(nextAccountId);
     setPrivacy(defaultPrivacyFor(providerForAccount(nextAccountId)));
     setOpen(true);
+    void generateCaption(nextAccountId);
   };
 
   const selectAccount = (id: string) => {
+    captionRequest.current++;
+    setIsGeneratingCaption(false);
     setAccountId(id);
     setPrivacy(defaultPrivacyFor(providerForAccount(id)));
   };
@@ -419,7 +462,7 @@ export function ClipPublishButton({
         {t("publish")}
       </Button>
 
-      <Sheet open={open} onOpenChange={setOpen}>
+      <Sheet open={open} onOpenChange={changeOpen}>
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           <SheetHeader>
             <SheetTitle>{t("publishTitle", { order: clip.clip_order })}</SheetTitle>
@@ -484,13 +527,22 @@ export function ClipPublishButton({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor={`publish-caption-${clip.id}`}>{t("caption")}</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor={`publish-caption-${clip.id}`}>{t("caption")}</Label>
+                    <Button type="button" size="sm" variant="ghost" disabled={isGeneratingCaption || isSubmitting} onClick={() => void generateCaption(accountId)}>
+                      {isGeneratingCaption ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                      {isGeneratingCaption ? t("generatingCaption") : t("generateCaption")}
+                    </Button>
+                  </div>
                   <Textarea
                     id={`publish-caption-${clip.id}`}
                     value={caption}
                     rows={5}
                     maxLength={2200}
-                    onChange={(event) => setCaption(event.target.value)}
+                    onChange={(event) => {
+                      captionRevision.current++;
+                      setCaption(event.target.value);
+                    }}
                   />
                 </div>
 
@@ -549,11 +601,11 @@ export function ClipPublishButton({
           </div>
 
           <SheetFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={isSubmitting}>
+            <Button variant="outline" onClick={() => changeOpen(false)} disabled={isSubmitting}>
               {t("cancel")}
             </Button>
             {activeConnections.length > 0 && (
-              <Button onClick={handleSubmit} disabled={isSubmitting || !accountId}>
+              <Button onClick={handleSubmit} disabled={isSubmitting || isGeneratingCaption || !accountId}>
                 {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : schedule ? <Clock className="size-4" /> : <Send className="size-4" />}
                 {isSubmitting ? (schedule ? t("scheduling") : t("publishing")) : schedule ? t("schedule") : t("publishNow")}
               </Button>

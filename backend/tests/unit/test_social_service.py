@@ -335,6 +335,45 @@ def service(provider, tmp_path):
     return svc
 
 
+async def test_generate_caption_checks_ownership_before_calling_model(service, monkeypatch):
+    from unittest.mock import AsyncMock
+    from src.services import social_caption_service
+
+    generate = AsyncMock(return_value="A post caption")
+    monkeypatch.setattr(social_caption_service, "generate_social_caption", generate)
+    with pytest.raises(SocialNotFound):
+        await service.generate_caption("other-user", task_id="task-1", clip_id="clip-1", provider="youtube")
+    with pytest.raises(SocialNotFound):
+        await service.generate_caption("user-1", task_id="task-1", clip_id="missing", provider="youtube")
+    generate.assert_not_awaited()
+
+
+async def test_generate_caption_does_not_create_a_post(service, monkeypatch):
+    from unittest.mock import AsyncMock
+    from src.services import social_caption_service
+
+    service.config.anthropic_api_key = "test-key"
+    generate = AsyncMock(return_value="A post caption")
+    monkeypatch.setattr(social_caption_service, "generate_social_caption", generate)
+    result = await service.generate_caption("user-1", task_id="task-1", clip_id="clip-1", provider="youtube")
+    assert result == {"caption": "A post caption"}
+    assert generate.await_args.args[1]["text"] == "Transcript text"
+    assert not service.repo.posts
+    assert not service.queue_adapter.jobs
+
+
+async def test_generate_caption_failure_is_safe(service, monkeypatch):
+    from unittest.mock import AsyncMock
+    from src.services import social_caption_service
+    from src.services.social_service import SocialProviderUnavailable
+
+    service.config.anthropic_api_key = "test-key"
+    monkeypatch.setattr(social_caption_service, "generate_social_caption", AsyncMock(side_effect=RuntimeError("secret")))
+    with pytest.raises(SocialProviderUnavailable, match="Couldn't generate") as error:
+        await service.generate_caption("user-1", task_id="task-1", clip_id="clip-1", provider="youtube")
+    assert "secret" not in str(error.value)
+
+
 async def _connect(service):
     start = await service.start_connection("user-1", "youtube")
     return await service.complete_connection(

@@ -1,4 +1,7 @@
 {
+  "generateCaption": "Bildunterschrift erstellen",
+  "generatingCaption": "Bildunterschrift wird erstellt…",
+  "captionFailed": "Die Bildunterschrift konnte nicht erstellt werden. Versuche es erneut oder schreibe deine eigene.",
   "metrics": {
     "view": "Aufruf",
     "views": "Aufrufe",

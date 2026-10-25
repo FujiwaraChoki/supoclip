@@ -170,6 +170,22 @@ async def list_posts(
     return {"posts": posts, "total": len(posts)}
 
 
+@router.post("/captions")
+async def generate_caption(request: Request, db: AsyncSession = Depends(get_db)):
+    """Draft a social caption without publishing or scheduling anything."""
+    user_id = await _allowed_user_id(request, db)
+    body = await _json_body(request)
+    for field in ("task_id", "clip_id", "provider"):
+        if not isinstance(body.get(field), str) or not body[field].strip():
+            raise HTTPException(status_code=422, detail=f"{field} is required")
+    try:
+        return await _service(request, db).generate_caption(
+            user_id, task_id=body["task_id"], clip_id=body["clip_id"], provider=body["provider"]
+        )
+    except SocialError as exc:
+        raise _http_error(exc)
+
+
 @router.post("/posts")
 async def create_post(request: Request, db: AsyncSession = Depends(get_db)):
     """Publish (or schedule) a clip to a connected account."""

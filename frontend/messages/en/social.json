@@ -1,4 +1,7 @@
 {
+  "generateCaption": "Generate caption",
+  "generatingCaption": "Writing caption…",
+  "captionFailed": "Couldn't generate a caption. Try again or write your own.",
   "metrics": {
     "view": "view",
     "views": "views",

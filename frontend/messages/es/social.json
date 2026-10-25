@@ -1,4 +1,7 @@
 {
+  "generateCaption": "Generar descripción",
+  "generatingCaption": "Escribiendo descripción…",
+  "captionFailed": "No se pudo generar la descripción. Inténtalo de nuevo o escribe la tuya.",
   "metrics": {
     "view": "vista",
     "views": "vistas",

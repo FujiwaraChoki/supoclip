@@ -350,6 +350,32 @@ class SocialService:
     # ------------------------------------------------------------------
     # Posts
     # ------------------------------------------------------------------
+    async def generate_caption(
+        self, user_id: str, *, task_id: str, clip_id: str, provider: str
+    ) -> Dict[str, str]:
+        from .social_caption_service import generate_social_caption
+
+        task = await self.task_repo.get_task_by_id(self.db, task_id)
+        if not task or task.get("user_id") != user_id:
+            raise SocialNotFound("Task not found")
+        clip = await self.clip_repo.get_clip_by_id(self.db, clip_id)
+        if not clip or clip.get("task_id") != task_id:
+            raise SocialNotFound("Clip not found")
+        if provider not in SUPPORTED_PROVIDERS:
+            raise SocialValidationError("Unsupported social platform")
+        if not (clip.get("text") or "").strip():
+            raise SocialValidationError("This clip has no transcript to draft a caption from.")
+        if not self.config.anthropic_api_key:
+            raise SocialProviderUnavailable("Caption generation requires ANTHROPIC_API_KEY on the server.")
+        try:
+            caption = await generate_social_caption(self.config.anthropic_api_key, clip, provider)
+        except Exception as exc:
+            logger.warning("Social caption generation failed (%s)", type(exc).__name__)
+            raise SocialProviderUnavailable(
+                "Couldn't generate a caption. Try again or write your own."
+            ) from exc
+        return {"caption": caption}
+
     async def create_post(
         self,
         user_id: str,

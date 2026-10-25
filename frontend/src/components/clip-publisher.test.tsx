@@ -39,6 +39,36 @@ function connection(overrides: Partial<SocialConnection> = {}): SocialConnection
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ caption: "An engaging caption" }))));
+});
+
+it("drafts a social caption when opening the scheduling form", async () => {
+  render(<ClipPublishButton taskId="task-1" clip={clip} connections={[connection()]} providers={[provider()]} onChanged={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: /publish/i }));
+  await waitFor(() => expect(screen.getByLabelText("Caption")).toHaveValue("An engaging caption"));
+  expect(fetch).toHaveBeenCalledWith("/api/social/captions", expect.objectContaining({
+    body: JSON.stringify({ task_id: "task-1", clip_id: "clip-1", provider: "youtube" }),
+  }));
+});
+
+it("preserves manual caption edits while generation is pending", async () => {
+  let finish!: (response: Response) => void;
+  vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise<Response>((resolve) => { finish = resolve; })));
+  render(<ClipPublishButton taskId="task-1" clip={clip} connections={[connection()]} providers={[provider()]} onChanged={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: /publish/i }));
+  fireEvent.change(await screen.findByLabelText("Caption"), { target: { value: "My own caption" } });
+  finish(new Response(JSON.stringify({ caption: "AI caption" })));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Generate caption" })).toBeEnabled());
+  expect(screen.getByLabelText("Caption")).toHaveValue("My own caption");
+});
+
+it("keeps the original caption editable when generation fails", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: "Try again" }), { status: 503 })));
+  render(<ClipPublishButton taskId="task-1" clip={clip} connections={[connection()]} providers={[provider()]} onChanged={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: /publish/i }));
+  expect(await screen.findByText("Try again")).toBeInTheDocument();
+  expect(screen.getByLabelText("Caption")).toHaveValue("Transcript");
+  expect(screen.getByRole("button", { name: "Publish now" })).toBeEnabled();
 });
 
 it("hides the publish button when no platform is configured", () => {

@@ -1,4 +1,7 @@
 {
+  "generateCaption": "生成文案",
+  "generatingCaption": "正在撰写文案…",
+  "captionFailed": "无法生成文案。请重试或自行编写。",
   "metrics": {
     "view": "次观看",
     "views": "次观看",

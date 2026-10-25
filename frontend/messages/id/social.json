@@ -1,4 +1,7 @@
 {
+  "generateCaption": "Buat caption",
+  "generatingCaption": "Menulis caption…",
+  "captionFailed": "Tidak dapat membuat caption. Coba lagi atau tulis sendiri.",
   "metrics": {
     "view": "penayangan",
     "views": "penayangan",

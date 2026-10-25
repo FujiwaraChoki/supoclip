@@ -510,3 +510,9 @@ resolution. A known missing-output reporting error may be recovered only when
 that complete private file passes validation. Unexpected errors use the configured
 fallback pool. The shared download spending limit covers Apify charges; S3 storage
 and network transfer are billed separately.
+
+### Social post caption drafts
+
+The publishing and scheduling form drafts editable captions with `claude-haiku-5-5`.
+This requires `ANTHROPIC_API_KEY`, independently of the clip-selection `LLM`.
+Drafting failures keep the caption editable and posting available. No migration is required.

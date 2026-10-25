@@ -1,4 +1,7 @@
 {
+  "generateCaption": "Gerar legenda",
+  "generatingCaption": "Escrevendo legenda…",
+  "captionFailed": "Não foi possível gerar a legenda. Tente novamente ou escreva a sua.",
   "metrics": {
     "view": "visualização",
     "views": "visualizações",
