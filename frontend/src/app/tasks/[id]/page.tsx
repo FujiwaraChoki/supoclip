@@ -43,6 +43,7 @@ import {
   Check,
   Clapperboard,
   Clock,
+  Download,
   Edit2,
   ExternalLink,
   Link2Off,
@@ -151,6 +152,7 @@ export default function TaskPage() {
   const [deletingClipId, setDeletingClipId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [exportPreset, setExportPreset] = useState("original");
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const [shareState, setShareState] = useState<"idle" | "copying" | "copied">("idle");
   const [isRevokingShare, setIsRevokingShare] = useState(false);
   const [socialConnections, setSocialConnections] = useState<SocialConnection[]>([]);
@@ -569,6 +571,19 @@ export default function TaskPage() {
     void runAction(clip.id, () => handleExportClip(clip.id, clip.filename));
   };
 
+  const handleDownloadAll = () => {
+    if (!task?.id || clips.length === 0 || isDownloadingAll) return;
+
+    setIsDownloadingAll(true);
+    const link = document.createElement("a");
+    link.href = `${taskApiUrl}/${task.id}/clips/archive`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    if (session?.user?.id) void trackClipExport({ userId: session.user.id, surface: "task", format: "zip" });
+    window.setTimeout(() => setIsDownloadingAll(false), 3000);
+  };
+
   const handleCopyShareLink = async () => {
     if (!task?.id || shareState === "copying") return;
 
@@ -814,6 +829,17 @@ export default function TaskPage() {
                 ))}
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 bg-background"
+                  onClick={handleDownloadAll}
+                  disabled={isDownloadingAll}
+                  title={t("downloadAllHint")}
+                >
+                  {isDownloadingAll ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                  {t("downloadAll")}
+                </Button>
                 <span className="hidden sm:inline">{t("downloadAs")}</span>
                 <Select value={exportPreset} onValueChange={setExportPreset}>
                   <SelectTrigger size="sm" aria-label={t("downloadFormat")} className="h-8 min-w-[112px] bg-background"><SelectValue /></SelectTrigger>

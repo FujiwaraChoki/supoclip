@@ -62,6 +62,8 @@
   },
   "downloadAs": "Herunterladen als",
   "downloadFormat": "Download-Format",
+  "downloadAll": "Alle herunterladen",
+  "downloadAllHint": "Alle Clips als ZIP in Originalqualität",
   "original": "Original",
   "settingsTitle": "Generierungseinstellungen",
   "settingsBody": "Stell Schrift, Untertitel und Bereinigung für die Clips dieser Generierung ein.",

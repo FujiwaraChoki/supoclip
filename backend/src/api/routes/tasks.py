@@ -17,6 +17,8 @@ from typing import Dict, Any, Optional
 import inspect
 import re
 import secrets
+import tempfile
+import zipfile
 import math
 import asyncio
 import time
@@ -705,6 +707,88 @@ async def get_task_clips(
     except Exception as e:
         logger.error(f"Error retrieving clips: {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving clips: {str(e)}")
+
+
+def _archive_entry_name(position: int, clip: Dict[str, Any]) -> str:
+    title = (clip.get("hook_title") or "").strip() or Path(clip.get("filename") or "").stem
+    title = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "-", title)
+    title = re.sub(r"\s+", " ", title).strip(" .-")[:80] or "clip"
+    return f"{position:02d} - {title}.mp4"
+
+
+def _archive_download_name(task: Dict[str, Any], task_id: str) -> str:
+    title = re.sub(r'[\\/:*?"<>|\x00-\x1f]', "-", (task.get("source_title") or "").strip())
+    title = re.sub(r"\s+", " ", title).strip(" .-")[:80]
+    return f"{title} clips.zip" if title else f"supoclip-{task_id[:8]}.zip"
+
+
+def _write_clip_archive(members: list[tuple[Path, str]]) -> Path:
+    archive_dir = Path(get_config().temp_dir) / "exports"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    handle = tempfile.NamedTemporaryFile(
+        prefix="clips-", suffix=".zip", dir=archive_dir, delete=False
+    )
+    handle.close()
+    archive_path = Path(handle.name)
+    try:
+        # Video is already compressed; storing avoids re-encoding every byte.
+        with zipfile.ZipFile(
+            archive_path, "w", compression=zipfile.ZIP_STORED, allowZip64=True
+        ) as archive:
+            for path, entry_name in members:
+                archive.write(path, arcname=entry_name)
+    except BaseException:
+        archive_path.unlink(missing_ok=True)
+        raise
+    return archive_path
+
+
+@router.get("/{task_id}/clips/archive")
+@media_work
+async def download_task_clips_archive(
+    task_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db, scope="function"),
+):
+    """Download every clip of a task as a single ZIP archive."""
+    try:
+        task_service = TaskService(db)
+        task = await _require_task_reader(request, task_service, db, task_id)
+        clips = [
+            clip
+            for clip in await task_service.clip_repo.get_clips_by_task(db, task_id)
+            if clip.get("file_path")
+        ]
+        if not clips:
+            raise HTTPException(status_code=404, detail="No clips available to download")
+
+        # Same connection-pool reasoning as get_clip_file: materializing S3
+        # objects and writing the archive can take a while.
+        await db.close()
+
+        storage = MediaStorage()
+        members: list[tuple[Path, str]] = []
+        for position, clip in enumerate(clips, start=1):
+            clip_path = await run_in_thread(storage.local_path, clip["file_path"])
+            if not clip_path.is_file():
+                raise HTTPException(
+                    status_code=404, detail=f"Clip file not found: {clip['filename']}"
+                )
+            members.append((clip_path, _archive_entry_name(position, clip)))
+
+        archive_path = await run_in_thread(_write_clip_archive, members)
+        return FileResponse(
+            path=str(archive_path),
+            media_type="application/zip",
+            filename=_archive_download_name(task, task_id),
+            headers={"Cache-Control": "private, no-store"},
+            background=BackgroundTask(archive_path.unlink, missing_ok=True),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error archiving clip files: {e}")
+        raise HTTPException(status_code=500, detail=f"Error archiving clip files: {str(e)}")
 
 
 @router.post("/{task_id}/share")

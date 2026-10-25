@@ -62,6 +62,8 @@
   },
   "downloadAs": "下载为",
   "downloadFormat": "下载格式",
+  "downloadAll": "全部下载",
+  "downloadAllHint": "所有片段打包为 ZIP，原画质",
   "original": "原始",
   "settingsTitle": "生成设置",
   "settingsBody": "为这次生成的片段设置字体、字幕和清理选项。",

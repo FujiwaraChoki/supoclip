@@ -62,6 +62,8 @@
   },
   "downloadAs": "Descargar como",
   "downloadFormat": "Formato de descarga",
+  "downloadAll": "Descargar todo",
+  "downloadAllHint": "Todos los clips en un ZIP, calidad original",
   "original": "Original",
   "settingsTitle": "Configuración de la generación",
   "settingsBody": "Configura la fuente, los subtítulos y la limpieza de los clips de esta generación.",

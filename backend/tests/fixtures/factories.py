@@ -138,6 +138,7 @@ async def create_clip(
     clip_id: str | None = None,
     task_id: str,
     text_value: str = "Seeded clip",
+    clip_order: int = 1,
 ):
     clip_id = clip_id or str(uuid4())
     await session.execute(
@@ -148,7 +149,7 @@ async def create_clip(
                 text, relevance_score, reasoning, clip_order, created_at, updated_at
             ) VALUES (
                 :id, :task_id, 'seeded.mp4', '/tmp/seeded.mp4', '00:00', '00:10', 10,
-                :text, 0.95, 'Seeded clip', 1, NOW(), NOW()
+                :text, 0.95, 'Seeded clip', :clip_order, NOW(), NOW()
             )
             """
         ),
@@ -156,6 +157,7 @@ async def create_clip(
             "id": clip_id,
             "task_id": task_id,
             "text": text_value,
+            "clip_order": clip_order,
         },
     )
     await session.execute(

@@ -62,6 +62,8 @@
   },
   "downloadAs": "Download as",
   "downloadFormat": "Download format",
+  "downloadAll": "Download all",
+  "downloadAllHint": "All clips in one ZIP, original quality",
   "original": "Original",
   "settingsTitle": "Generation settings",
   "settingsBody": "Configure font, caption, and cleanup settings for this generation's clips.",

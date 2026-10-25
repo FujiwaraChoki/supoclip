@@ -1,3 +1,6 @@
+import io
+import zipfile
+
 import pytest
 
 from fastapi.routing import APIRoute
@@ -52,6 +55,7 @@ async def test_database_health_returns_503_when_the_database_is_unavailable(
         "/tasks/shared/{share_token}/clips/{clip_id}/file",
         "/tasks/{task_id}/clips/{clip_id}/file",
         "/tasks/{task_id}/clips/{clip_id}/export",
+        "/tasks/{task_id}/clips/archive",
         "/fonts/{font_name}",
     ],
 )
@@ -324,6 +328,62 @@ async def test_shared_clip_file_requires_an_enabled_share_token(
         f"/tasks/shared/not-a-token/clips/{clip['id']}/file"
     )
     assert invalid_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_download_all_clips_as_zip(
+    client, db_session, auth_headers, tmp_path
+):
+    owner = await create_user(db_session, user_id="user-1", email="owner@example.com")
+    source = await create_source(db_session, title="Zip source")
+    task = await create_task(
+        db_session, user_id=owner["id"], source_id=source["id"], status="completed"
+    )
+    first = await create_clip(db_session, task_id=task["id"], clip_order=1)
+    second = await create_clip(db_session, task_id=task["id"], clip_order=2)
+
+    first_path = tmp_path / "first.mp4"
+    first_path.write_bytes(b"first-video-bytes")
+    second_path = tmp_path / "second.mp4"
+    second_path.write_bytes(b"second-video-bytes")
+    await db_session.execute(
+        text(
+            "UPDATE generated_clips SET file_path = :path, filename = :filename, "
+            "hook_title = :hook_title, clip_order = :clip_order WHERE id = :clip_id"
+        ),
+        {
+            "path": str(first_path),
+            "filename": "first.mp4",
+            "hook_title": "First hook",
+            "clip_order": 1,
+            "clip_id": first["id"],
+        },
+    )
+    await db_session.execute(
+        text(
+            "UPDATE generated_clips SET file_path = :path, filename = :filename, "
+            "clip_order = :clip_order WHERE id = :clip_id"
+        ),
+        {
+            "path": str(second_path),
+            "filename": "second.mp4",
+            "clip_order": 2,
+            "clip_id": second["id"],
+        },
+    )
+    await db_session.commit()
+
+    response = await client.get(
+        f"/tasks/{task['id']}/clips/archive", headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+    assert "attachment" in response.headers["content-disposition"]
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        assert archive.namelist() == ["01 - First hook.mp4", "02 - second.mp4"]
+        assert archive.read("01 - First hook.mp4") == b"first-video-bytes"
+        assert archive.read("02 - second.mp4") == b"second-video-bytes"
 
 
 @pytest.mark.asyncio
