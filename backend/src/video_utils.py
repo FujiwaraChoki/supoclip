@@ -1,6 +1,6 @@
 """Video utils helpers for the video pipeline."""
 
-from .clip_source_map import save_clip_caption_settings
+from .clip_source_map import save_clip_broll, save_clip_caption_settings
 from .media.common import (
     Any,
     Dict,
@@ -269,8 +269,13 @@ def create_optimized_clip(
     hook_title: Optional[str] = None,
     extend_to_sentence: bool = True,
     layout_report: Optional[Dict[str, Any]] = None,
+    broll_overlays: Optional[List[Dict[str, Any]]] = None,
 ) -> bool:
-    """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size)."""
+    """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size).
+
+    ``broll_overlays`` are stock cutaways (path, start, duration on the clip
+    timeline) composited under the captions.
+    """
     try:
         if keep_ranges:
             effective_keep_ranges = normalize_source_ranges(keep_ranges)
@@ -309,6 +314,7 @@ def create_optimized_clip(
         if (
             not add_subtitles
             and not hook_title
+            and not broll_overlays
             and keep_original
             and len(effective_keep_ranges) == 1
             and extend_to_sentence
@@ -429,6 +435,7 @@ def create_optimized_clip(
                 speaker_turns=speaker_turns,
                 speaker_words=speaker_words,
                 vertical_plan=vertical_plan,
+                broll_overlays=broll_overlays,
             )
             if not framed_ok:
                 raise RuntimeError("ffmpeg reframe render failed")
@@ -542,10 +549,12 @@ def create_clips_from_segments(
                 hook_title=segment.get("hook_title"),
                 extend_to_sentence=False,
                 layout_report=layout_report,
+                broll_overlays=segment.get("broll_overlays"),
             )
 
             if success:
                 save_clip_source_ranges(clip_path, keep_ranges)
+                save_clip_broll(clip_path, segment.get("broll"))
                 if layout_report.get("caption_y") is not None:
                     save_clip_caption_settings(
                         clip_path, {"position_y": layout_report["caption_y"]}

@@ -64,14 +64,25 @@ def save_clip_source_ranges(
         path.unlink(missing_ok=True)
         return
 
-    payload = {
+    # Rewriting the ranges of an existing clip (a partial download's timeline
+    # restore) keeps the settings stored next to them.
+    payload = _read_payload(path)
+    payload.update({
         "version": SOURCE_MAP_VERSION,
         "source_ranges": [
             {"start": round(start, 6), "end": round(end, 6)}
             for start, end in normalized
         ],
-    }
+    })
     path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _read_payload(path: Path) -> dict:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def load_clip_source_ranges(clip_path: Path) -> List[SourceRange] | None:
@@ -125,6 +136,26 @@ def load_clip_caption_settings(clip_path: Path) -> dict | None:
         return settings if isinstance(settings, dict) else None
     except (OSError, ValueError, AttributeError):
         return None
+
+
+def save_clip_broll(clip_path: Path, placements: list[dict] | None) -> None:
+    """Store the clip's B-roll placements (clip seconds) next to its source map."""
+    path = clip_source_map_path(clip_path)
+    if not placements and not path.exists():
+        return
+    payload = _read_payload(path) or {"version": SOURCE_MAP_VERSION}
+    if placements:
+        payload["broll"] = placements
+    else:
+        payload.pop("broll", None)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def load_clip_broll(clip_path: Path) -> list[dict]:
+    placements = _read_payload(clip_source_map_path(clip_path)).get("broll")
+    if not isinstance(placements, list):
+        return []
+    return [p for p in placements if isinstance(p, dict) and {"start", "duration"} <= p.keys()]
 
 
 def slice_source_ranges(

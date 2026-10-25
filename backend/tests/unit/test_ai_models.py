@@ -24,7 +24,9 @@ def test_transcript_segment_accepts_minimal_local_llm_shape():
     assert segment.virality.total_score == 60
 
 
-def test_transcript_analysis_accepts_local_llm_broll_shape():
+def test_transcript_analysis_ignores_legacy_broll_opportunities():
+    # Older prompts and cached analyses still carry this key; clip B-roll is
+    # now planned per rendered clip, so it must not break validation.
     analysis = TranscriptAnalysis.model_validate(
         {
             "most_relevant_segments": [
@@ -36,18 +38,9 @@ def test_transcript_analysis_accepts_local_llm_broll_shape():
             ],
             "summary": "A short summary.",
             "key_topics": ["local model output"],
-            "broll_opportunities": [
-                {
-                    "segment_start_time": "00:00",
-                    "segment_end_time": "00:15",
-                    "broll": ["programming tutorial channels", "AI comparison graphic"],
-                }
-            ],
+            "broll_opportunities": [{"broll": ["programming tutorial channels"]}],
         }
     )
 
-    broll = analysis.broll_opportunities[0]
-
-    assert broll.timestamp == "00:00"
-    assert broll.duration == 3.0
-    assert broll.search_term == "programming tutorial channels, AI comparison graphic"
+    assert len(analysis.most_relevant_segments) == 1
+    assert not hasattr(analysis, "broll_opportunities")

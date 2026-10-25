@@ -173,3 +173,62 @@ async def test_settings_edit_does_not_restore_job_id_from_before_concurrent_resu
     assert saved["concurrent_key"] == "retained"
     assert saved["output_format"] == "original"
     assert saved["add_subtitles"] is False
+
+
+@pytest.mark.asyncio
+async def test_styling_update_keeps_the_task_broll_setting(
+    client, app, db_session, auth_headers, monkeypatch
+):
+    await create_user(db_session, user_id="user-1")
+    monkeypatch.setattr(tasks, "_save_task_source_metadata", AsyncMock())
+    app.state.queue_adapter = SimpleNamespace(enqueue_processing_job=AsyncMock(return_value="job-1"))
+    created = await client.post(
+        "/tasks/", headers=auth_headers,
+        json={"source": {"url": "upload://source.mp4"}, "include_broll": True},
+    )
+    assert created.status_code == 200, created.text
+    task_id = created.json()["task_id"]
+
+    async def include_broll():
+        result = await db_session.execute(
+            text("SELECT include_broll FROM tasks WHERE id=:id"), {"id": task_id}
+        )
+        return result.scalar_one()
+
+    assert await include_broll() is True
+    await db_session.execute(
+        text("UPDATE tasks SET status='completed' WHERE id=:id"), {"id": task_id}
+    )
+    await db_session.commit()
+    # The task page's styling form does not send include_broll.
+    updated = await client.post(
+        f"/tasks/{task_id}/settings", headers=auth_headers, json={"font_size": 72}
+    )
+    assert updated.status_code == 200, updated.text
+    assert await include_broll() is True
+
+    turned_off = await client.post(
+        f"/tasks/{task_id}/settings", headers=auth_headers, json={"include_broll": False}
+    )
+    assert turned_off.status_code == 200, turned_off.text
+    assert await include_broll() is False
+
+
+@pytest.mark.asyncio
+async def test_create_task_only_accepts_a_real_broll_flag(
+    client, app, db_session, auth_headers, monkeypatch
+):
+    await create_user(db_session, user_id="user-1")
+    monkeypatch.setattr(tasks, "_save_task_source_metadata", AsyncMock())
+    app.state.queue_adapter = SimpleNamespace(enqueue_processing_job=AsyncMock(return_value="job-1"))
+
+    created = await client.post(
+        "/tasks/", headers=auth_headers,
+        json={"source": {"url": "upload://source.mp4"}, "include_broll": "false"},
+    )
+
+    assert created.status_code == 200, created.text
+    result = await db_session.execute(
+        text("SELECT include_broll FROM tasks WHERE id=:id"), {"id": created.json()["task_id"]}
+    )
+    assert result.scalar_one() is False

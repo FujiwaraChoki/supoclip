@@ -254,7 +254,15 @@ Caption templates are exposed by the backend and loaded into the frontend task c
 
 ### B-roll
 
-B-roll is optional and depends on `PEXELS_API_KEY`. The frontend checks whether it is available before presenting it as a real option.
+B-roll is optional and depends on `PEXELS_API_KEY`. The composer only shows the **B-roll** toggle when `GET /broll/status` reports it as configured.
+
+With B-roll on, each rendered clip gets its own plan (`backend/src/broll.py`):
+
+1. The LLM reads the clip's word-timed transcript and picks up to one cutaway per ~12 seconds, only where the speaker names something filmable. It never covers the first 3 seconds, the last second, or a moment where the speaker points at the screen ("like this").
+2. Each cue is snapped to the spoken word, then sourced from Pexels (portrait for vertical clips) at the smallest rendition that covers the clip's resolution, without reusing footage within a task.
+3. The renderer dissolves the footage over the framed picture in the same ffmpeg pass that burns captions, so captions and the hook title stay on top (`media/broll_overlay.py`).
+
+Placements are stored on the clip's `.source_map.json` sidecar (`broll`, in clip seconds). Caption edits and "apply settings" regenerations re-use them; trims, splits and merges shift them. Recomputed pause/filler cleanup re-plans. Clips exported from the clip studio are rebuilt from the source and do not include B-roll yet; the generated clip keeps it. Footage is cached under `{TEMP_DIR}/broll_cache` (unused for 24 hours or over 2 GB is pruned, and is re-downloaded on demand). If planning, Pexels or a download fails, the clip renders without B-roll.
 
 ### Output format
 

@@ -13,6 +13,7 @@ from time import perf_counter
 
 
 from arq.constants import job_key_prefix, in_progress_key_prefix, expires_extra_ms
+from ..broll import BRollSession
 from ..workers.job_queue import JobQueue
 from ..repositories.task_repository import TaskRepository
 from ..repositories.minute_usage_repository import charged_duration
@@ -513,6 +514,10 @@ class TaskService(ClipEditingMixin):
 
             clip_ids = []
             render_start = perf_counter()
+            # Read from the task so queued jobs and resumes honour the setting.
+            task_row = await self.task_repo.get_task_by_id(self.db, task_id) or {}
+            include_broll = bool(task_row.get("include_broll"))
+            broll_session = BRollSession()
 
             for i, segment in enumerate(segments_to_render):
                 # Check cancellation
@@ -544,6 +549,8 @@ class TaskService(ClipEditingMixin):
                     normalized_cleanup_settings,
                     max_short_side=output_short_side,
                     max_clip_seconds=clip_duration(clip_length).maximum,
+                    include_broll=include_broll,
+                    broll_session=broll_session,
                 )
                 pending_clip_path = Path(clip_info["path"]) if clip_info else None
                 await check_cancelled()

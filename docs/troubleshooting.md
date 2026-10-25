@@ -305,7 +305,8 @@ If B-roll is unavailable:
 
 - confirm `PEXELS_API_KEY` is set
 - check `GET /broll/status`
-- confirm the provider account has not been rate-limited or disabled
+- confirm the provider account has not been rate-limited or disabled (worker logs say `Pexels rate limit reached`; searches pause until the quota resets)
+- a clip with no concrete, filmable subject legitimately gets no cutaways; the worker logs `No B-roll moments in this clip`
 
 ## Billing or Subscription Flow Is Broken
 
