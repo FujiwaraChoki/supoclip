@@ -23,10 +23,27 @@ function isTracedApiRequest(url: URL) {
 }
 
 /**
+ * Background polls. A gateway timeout or a dropped connection is retried by
+ * the caller, which keeps the last payload, so it is not an application exception.
+ */
+const QUIET_TRANSIENT_PATHS = new Set([
+  "/api/announcements",
+  "/api/service-status/video-downloads",
+]);
+
+const QUIET_TRANSIENT_STATUSES = new Set([502, 503, 504]);
+
+function isQuietTransientFailure(pathname: string, status: number) {
+  const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  return QUIET_TRANSIENT_PATHS.has(path) && QUIET_TRANSIENT_STATUSES.has(status);
+}
+
+/**
  * The browser talks to the backend only through `/api/*` route handlers, from
  * dozens of call sites. Wrapping `fetch` once tags every such request with an
  * `x-trace-id` (forwarded to the backend by the proxies) and reports 5xx
  * responses with that id, so a browser error can be matched to backend logs.
+ * Announcement and video-download polls skip 502/503/504; those callers retry.
  */
 export function installTraceFetch() {
   if (typeof window === "undefined") return;
@@ -41,8 +58,11 @@ export function installTraceFetch() {
     const traceId = headers.get(TRACE_HEADER) || createTraceId();
     headers.set(TRACE_HEADER, traceId);
 
+    // A rejected fetch (offline, DNS, dropped connection) propagates to the
+    // caller and is not reported. Quiet polls catch it, keep the last payload,
+    // and retry. Gateway statuses below are the same kind of blip.
     const response = await originalFetch(input, { ...init, headers });
-    if (response.status >= 500) {
+    if (response.status >= 500 && !isQuietTransientFailure(url.pathname, response.status)) {
       captureApiFailure({
         method: (init?.method ?? request?.method ?? "GET").toUpperCase(),
         path: url.pathname,

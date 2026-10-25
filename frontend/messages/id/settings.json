@@ -103,6 +103,7 @@
     "verified": "Saya sudah memverifikasi email",
     "invalidLink": "Tautan verifikasi ini tidak valid atau kedaluwarsa. Minta email baru di bawah.",
     "reveal": "Salin kunci barumu sekarang — kunci tidak akan ditampilkan lagi.",
+    "copy": "Salin kunci API",
     "createLabel": "Buat kunci baru",
     "namePlaceholder": "mis. MCP laptop saya",
     "create": "Buat",

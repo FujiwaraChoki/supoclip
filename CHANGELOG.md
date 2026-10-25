@@ -4,6 +4,11 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-10-25
+
+- **Fixed:** Copying an API key, a creator code, or a share link still works when the browser blocks the clipboard. If it cannot copy, the text is selected and a message tells you to copy it yourself. ([#257](https://github.com/FujiwaraChoki/supoclip/pull/257))
+- **Under the hood:** A brief server error no longer clears the YouTube download notice or the What's new list, and those checks are not reported as crashes. ([#257](https://github.com/FujiwaraChoki/supoclip/pull/257))
+
 ## 2026-10-24
 
 - **Fixed:** A YouTube video whose direct audio link is blocked is retried over HLS before a paid download. ([#250](https://github.com/FujiwaraChoki/supoclip/pull/250))

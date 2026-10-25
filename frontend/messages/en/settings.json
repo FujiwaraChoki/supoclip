@@ -103,6 +103,7 @@
     "verified": "I have verified my email",
     "invalidLink": "This verification link is invalid or expired. Request a new email below.",
     "reveal": "Copy your new key now — it won't be shown again.",
+    "copy": "Copy API key",
     "createLabel": "Create a new key",
     "namePlaceholder": "e.g. My laptop MCP",
     "create": "Create",

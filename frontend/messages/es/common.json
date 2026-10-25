@@ -6,6 +6,10 @@
   "loading": "Cargando",
   "tryAgain": "Inténtalo de nuevo.",
   "justNow": "ahora mismo",
+  "copy": {
+    "copied": "Copiado al portapapeles",
+    "manual": "El portapapeles está bloqueado. El texto está seleccionado para que lo copies manualmente."
+  },
   "plans": {
     "free": "Gratis",
     "pro": "Pro",

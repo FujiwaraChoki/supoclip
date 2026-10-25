@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { AlertCircle, Check, Copy, Loader2 } from "lucide-react";
@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/lib/auth-client";
+import { useCopyText } from "@/lib/copy-text";
 import { appStoreRedeemUrl } from "@/lib/site";
 
 const APPLY_PATH = "/settings/creator-program";
@@ -42,9 +43,15 @@ interface Application {
 type SlugState = { state: "idle" | "checking" } | { state: "available" } | { state: "unavailable"; reason: string };
 
 function CopyField({ label, value, copyLabel }: { label: string; value: string; copyLabel: string }) {
+  const copyText = useCopyText();
+  const valueRef = useRef<HTMLElement>(null);
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    await navigator.clipboard.writeText(value);
+    const outcome = await copyText(value, valueRef.current);
+    if (outcome !== "copied") {
+      setCopied(false);
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -52,7 +59,7 @@ function CopyField({ label, value, copyLabel }: { label: string; value: string; 
     <div>
       <p className="mb-1.5 text-xs font-medium text-muted-foreground">{label}</p>
       <div className="flex items-center gap-2">
-        <code className="min-w-0 flex-1 truncate rounded-lg border bg-muted/40 px-3 py-2 text-sm">{value}</code>
+        <code ref={valueRef} tabIndex={-1} className="min-w-0 flex-1 select-text truncate rounded-lg border bg-muted/40 px-3 py-2 text-sm">{value}</code>
         <Button size="sm" variant="outline" onClick={copy} aria-label={copyLabel}>
           {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
         </Button>

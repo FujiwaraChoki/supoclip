@@ -53,16 +53,16 @@ export function VideoDownloadStatus() {
           cache: "no-store",
           signal: request.signal,
         });
-        if (!response.ok) throw new Error("Status unavailable");
+        // 502/503/504 and network errors keep the last incident and are retried
+        // on the next interval. Clearing the banner would hide a real outage.
+        if (!response.ok) return;
         const data: { component?: unknown } = await response.json();
-        if (!isServiceStatus(data.component)) throw new Error("Invalid status response");
+        if (!isServiceStatus(data.component)) return;
         if (active && !request.signal.aborted) {
           setComponent(data.component);
         }
       } catch {
-        if (active && !request.signal.aborted) {
-          setComponent(null);
-        }
+        // Aborted refreshes and dropped connections leave the last known status.
       }
     };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { ArrowUpRight, Bot, Braces, Copy, Check, Trash2, AlertCircle, Plus } from "lucide-react";
@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { authClient, useSession } from "@/lib/auth-client";
+import { useCopyText } from "@/lib/copy-text";
 import { GITHUB_URL } from "@/lib/site";
 
 const DOCS = [
@@ -47,6 +48,8 @@ function formatDate(value: string | null): string {
 
 export default function ApiKeysPage() {
   const t = useTranslations("settings");
+  const copyText = useCopyText();
+  const newKeyRef = useRef<HTMLElement>(null);
   const { data: session, isPending, refetch } = useSession();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [isFetching, setIsFetching] = useState(true);
@@ -146,7 +149,11 @@ export default function ApiKeysPage() {
 
   const handleCopy = async () => {
     if (!newKey) return;
-    await navigator.clipboard.writeText(newKey);
+    const outcome = await copyText(newKey, newKeyRef.current);
+    if (outcome !== "copied") {
+      setCopied(false);
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -240,10 +247,10 @@ export default function ApiKeysPage() {
                   {t("apiKeys.reveal")}
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 px-3 py-2 bg-white border rounded text-sm break-all">
+                  <code ref={newKeyRef} tabIndex={-1} className="flex-1 select-text px-3 py-2 bg-white border rounded text-sm break-all">
                     {newKey}
                   </code>
-                  <Button size="sm" variant="outline" onClick={handleCopy}>
+                  <Button size="sm" variant="outline" onClick={handleCopy} aria-label={t("apiKeys.copy")}>
                     {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   </Button>
                 </div>
