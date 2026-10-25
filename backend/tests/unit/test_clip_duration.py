@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src import ai, video_utils
-from src.clip_duration import clip_duration, validate_clip_length
+from src.clip_duration import CLIP_DURATIONS, clip_duration, normalize_clip_length, validate_clip_length
 from src.services.task_service import TaskService
 from src.services.video_service import VideoService
 from src.services import video_service
@@ -81,9 +81,23 @@ async def test_single_and_windowed_analysis_keep_long_clips(monkeypatch, seconds
     assert ai._segment_bounds_seconds(result.most_relevant_segments[0]) == (0, 90)
 
 
+@pytest.mark.parametrize("value", [None, True, 30, "", "LONG", "custom", [], {}])
+def test_stored_unknown_presets_fall_back_to_auto(value):
+    assert normalize_clip_length(value) == "auto"
+    assert normalize_clip_length("long") == "long"
+
+
+@pytest.mark.parametrize("preset", list(CLIP_DURATIONS))
+def test_every_preset_leaves_room_to_finish_a_sentence(preset):
+    bounds = clip_duration(preset)
+    assert bounds.ideal_maximum <= bounds.maximum - 5
+
+
 def test_analysis_cache_is_separate_for_every_preset():
-    keys = [TaskService._build_cache_key("upload://talk.mp4", "video_url", "fast", clip_length=preset)
+    source_key = TaskService._build_cache_key("upload://talk.mp4", "video_url", "fast")
+    keys = [TaskService._build_analysis_cache_key(source_key, preset)
             for preset in ("auto", "short", "medium", "long")]
+    assert keys[0] == source_key
     assert len(set(keys)) == 4
 
 
@@ -109,3 +123,20 @@ async def test_single_and_batch_rendering_respect_caps(tmp_path, monkeypatch, pr
     for info in [single, batch[0]]:
         assert info["duration"] == expected_end
         assert load_clip_source_ranges(tmp_path / info["filename"]) == [(0, expected_end)]
+
+
+@pytest.mark.asyncio
+async def test_regenerated_ranges_keep_the_stored_clip_text(tmp_path, monkeypatch):
+    source = tmp_path / "source.mp4"
+    source.touch()
+    segment = {"start_time": "00:00", "end_time": "00:20", "keep_ranges": [(0, 20)], "text": "Edited caption text.", "relevance_score": 0.8, "reasoning": "Merged by the user."}
+    def render(*args, **kwargs):
+        args[3].touch()
+        return True
+    monkeypatch.setattr(video_utils, "create_optimized_clip", render)
+    monkeypatch.setattr(video_service, "create_optimized_clip", render)
+    monkeypatch.setattr(video_utils, "keep_ranges_transcript_text", lambda *_: "Source words.")
+    monkeypatch.setattr(video_service, "keep_ranges_transcript_text", lambda *_: "Source words.")
+    single = await VideoService.create_single_clip(source, segment, 0, tmp_path)
+    batch = video_utils.create_clips_from_segments(source, [segment], tmp_path)
+    assert single["text"] == batch[0]["text"] == "Edited caption text."

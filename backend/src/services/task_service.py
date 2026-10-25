@@ -59,8 +59,7 @@ class TaskService(ClipEditingMixin):
 
     @staticmethod
     def _build_cache_key(
-        url: str, source_type: str, processing_mode: str, quality: Optional[str] = None,
-        clip_length: str = "auto",
+        url: str, source_type: str, processing_mode: str, quality: Optional[str] = None
     ) -> str:
         payload = (
             f"{source_type}|{processing_mode}|"
@@ -70,9 +69,18 @@ class TaskService(ClipEditingMixin):
         # request never reuses a 720p source. Full quality keeps the old key.
         if quality and source_type == "youtube":
             payload += f"|q{quality}"
-        validate_clip_length(clip_length)
-        if clip_length != "auto":
-            payload += f"|length:{clip_length}"
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _build_analysis_cache_key(cache_key: str, clip_length: str = "auto") -> str:
+        """Row holding the analysis for a preset. Auto keeps the source row.
+
+        The source and transcript do not depend on the preset, so other presets
+        store only their analysis under a derived key and share the rest.
+        """
+        if validate_clip_length(clip_length) == "auto":
+            return cache_key
+        payload = f"{cache_key}|length:{clip_length}"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     async def _media_limits(self, user_id: Optional[str]) -> tuple[Optional[str], Optional[int]]:
@@ -356,15 +364,21 @@ class TaskService(ClipEditingMixin):
             # a final downscale; 1080p plans keep the renderer's output.
             download_quality, output_short_side = reduced_media_limits(billing)
             cache_key = self._build_cache_key(
-                url, source_type, processing_mode, download_quality, clip_length
+                url, source_type, processing_mode, download_quality
             )
+            analysis_cache_key = self._build_analysis_cache_key(cache_key, clip_length)
 
             cache_entry = await self.cache_repo.get_cache(self.db, cache_key)
             cached_transcript = (
                 cache_entry.get("transcript_text") if cache_entry else None
             )
+            analysis_entry = (
+                cache_entry
+                if analysis_cache_key == cache_key
+                else await self.cache_repo.get_cache(self.db, analysis_cache_key)
+            )
             cached_analysis_json = (
-                cache_entry.get("analysis_json") if cache_entry else None
+                analysis_entry.get("analysis_json") if analysis_entry else None
             )
             # Performance loop: feed this creator's real audience data back into
             # clip selection. Personalized analyses bypass the shared analysis
@@ -469,8 +483,20 @@ class TaskService(ClipEditingMixin):
                 source_type=source_type,
                 video_path=MediaStorage().source_reference(url) if url.startswith("upload://s3/") else result.get("video_path"),
                 transcript_text=result.get("transcript"),
-                analysis_json=None if performance_context else result.get("analysis_json"),
+                analysis_json=(
+                    result.get("analysis_json")
+                    if not performance_context and analysis_cache_key == cache_key
+                    else None
+                ),
             )
+            if not performance_context and analysis_cache_key != cache_key:
+                await self.cache_repo.upsert_cache(
+                    self.db,
+                    cache_key=analysis_cache_key,
+                    source_url=url,
+                    source_type=source_type,
+                    analysis_json=result.get("analysis_json"),
+                )
 
             video_path = Path(result["video_path"])
             time_map = await run_in_thread(load_time_map, video_path)

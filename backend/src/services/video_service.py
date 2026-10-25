@@ -454,7 +454,10 @@ class VideoService:
             if not provided_keep_ranges and not source_ranges:
                 keep_ranges = apply_segment_hook_teaser(video_path, keep_ranges, segment)
             keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges, max_clip_seconds)
-            clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
+            if not provided_keep_ranges and not source_ranges:
+                # Snapping, cleanup, the teaser and the cap change what is
+                # spoken; keep the stored text word-for-word with the timeline.
+                clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
 
             success = await run_in_thread(
                 create_optimized_clip,

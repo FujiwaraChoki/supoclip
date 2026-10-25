@@ -521,7 +521,10 @@ def create_clips_from_segments(
             # ranges — and the render, which must not extend them again — stay
             # inside the selected duration cap.
             keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges, max_clip_seconds)
-            clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
+            if not provided_keep_ranges and not provided_source_ranges:
+                # Snapping, cleanup, the teaser and the cap change what is
+                # spoken; keep the stored text word-for-word with the timeline.
+                clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
 
             layout_report: Dict[str, Any] = {}
             success = create_optimized_clip(

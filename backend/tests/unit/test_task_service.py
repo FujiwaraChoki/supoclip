@@ -770,6 +770,42 @@ async def test_task_applies_the_same_length_to_selection_cache_and_render(preset
     )
     assert service.video_service.process_video_complete.await_args.kwargs["clip_length"] == preset
     assert service.video_service.create_single_clip.await_args.kwargs["max_clip_seconds"] == cap
-    assert service.cache_repo.get_cache.await_args.args[1] == TaskService._build_cache_key(
-        "upload://source.mp4", "upload", "fast", clip_length=preset,
+    source_key = TaskService._build_cache_key("upload://source.mp4", "upload", "fast")
+    analysis_key = TaskService._build_analysis_cache_key(source_key, preset)
+    assert [call.args[1] for call in service.cache_repo.get_cache.await_args_list] == [
+        source_key, analysis_key,
+    ]
+    # The source row keeps the shared transcript; the analysis goes to the preset row.
+    source_write, analysis_write = service.cache_repo.upsert_cache.await_args_list
+    assert source_write.kwargs["cache_key"] == source_key
+    assert source_write.kwargs["transcript_text"] == "Transcript"
+    assert source_write.kwargs["analysis_json"] is None
+    assert analysis_write.kwargs["cache_key"] == analysis_key
+    assert analysis_write.kwargs["analysis_json"] == "{}"
+    assert "transcript_text" not in analysis_write.kwargs
+
+
+@pytest.mark.asyncio
+async def test_preset_task_reuses_cached_transcript_with_its_own_analysis():
+    service = build_task_service()
+    source_key = TaskService._build_cache_key("upload://source.mp4", "upload", "fast")
+    rows = {
+        source_key: {"transcript_text": "Shared transcript", "analysis_json": '{"auto": true}'},
+        TaskService._build_analysis_cache_key(source_key, "long"): {"analysis_json": '{"long": true}'},
+    }
+    service.cache_repo.get_cache = AsyncMock(side_effect=lambda _db, key: rows.get(key))
+    await service.process_task(
+        task_id="task-1", url="upload://source.mp4", source_type="upload", clip_length="long",
     )
+    kwargs = service.video_service.process_video_complete.await_args.kwargs
+    assert kwargs["cached_transcript"] == "Shared transcript"
+    assert kwargs["cached_analysis_json"] == '{"long": true}'
+
+
+@pytest.mark.asyncio
+async def test_auto_task_keeps_its_analysis_on_the_source_row():
+    service = build_task_service()
+    await service.process_task(task_id="task-1", url="upload://source.mp4", source_type="upload")
+    service.cache_repo.get_cache.assert_awaited_once()
+    (write,) = service.cache_repo.upsert_cache.await_args_list
+    assert write.kwargs["analysis_json"] == "{}"

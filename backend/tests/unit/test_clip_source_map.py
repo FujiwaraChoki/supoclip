@@ -108,7 +108,8 @@ async def test_trim_clip_uses_persisted_source_ranges(isolated_clip_edits, monke
 
 
 @pytest.mark.asyncio
-async def test_regenerate_all_clips_reuses_persisted_source_ranges(isolated_clip_edits, monkeypatch, tmp_path):
+@pytest.mark.parametrize("clip_length,cap", [(None, 60), ("short", 60), ("long", 120)])
+async def test_regenerate_all_clips_reuses_persisted_source_ranges(isolated_clip_edits, monkeypatch, tmp_path, clip_length, cap):
     source_path = tmp_path / "source.mp4"
     source_path.write_bytes(b"source")
     clip_path = tmp_path / "clip.mp4"
@@ -160,8 +161,9 @@ async def test_regenerate_all_clips_reuses_persisted_source_ranges(isolated_clip
         async def prepare_source(self, path: Path) -> Path:
             return path
 
-        async def create_video_clips(self, _video_path: Path, segments, *_args, **_kwargs):
+        async def create_video_clips(self, _video_path: Path, segments, *_args, **kwargs):
             captured["segments"] = segments
+            captured["max_clip_seconds"] = kwargs["max_clip_seconds"]
             return []
 
     service = TaskService(db=None)
@@ -173,6 +175,7 @@ async def test_regenerate_all_clips_reuses_persisted_source_ranges(isolated_clip
             "pause_threshold_ms": 900,
             "remove_filler_words": False,
             "filtered_words": [],
+            **({"clip_length": clip_length} if clip_length else {}),
         }
 
     monkeypatch.setattr(service, "_load_task_source_settings", fake_load_task_source_settings)
@@ -191,6 +194,8 @@ async def test_regenerate_all_clips_reuses_persisted_source_ranges(isolated_clip
 
     segments = captured["segments"]
     assert segments[0]["keep_ranges"] == [(10.0, 11.0), (13.0, 15.0)]
+    # Merged or trimmed clips are never cut tighter than before presets existed.
+    assert captured["max_clip_seconds"] == cap
 
 
 @pytest.mark.asyncio

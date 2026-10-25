@@ -41,7 +41,7 @@ from ...stream_source import (
     fetch_stream_info,
 )
 from ...font_registry import is_font_accessible
-from ...clip_duration import validate_clip_length
+from ...clip_duration import normalize_clip_length, validate_clip_length
 from ...clip_cleanup import (
     new_task_cleanup_settings,
     normalize_clip_cleanup_settings,
@@ -1381,7 +1381,7 @@ async def resume_task(
                         output_format,
                         add_subtitles,
                         cleanup_settings,
-                        metadata.get("clip_length", "auto"),
+                        normalize_clip_length(metadata.get("clip_length")),
                         _job_id=processing_job_id,
                     )
                 except Exception:
