@@ -104,6 +104,31 @@ it("starts TikTok posts as private", async () => {
   expect(await screen.findByLabelText("Visibility")).toHaveTextContent("Private (only me)");
 });
 
+it("excludes an old TikTok connection when only YouTube is enabled", async () => {
+  // jsdom has no scrolling implementation; Radix scrolls the selected item.
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+  render(
+    <ClipPublishButton
+      taskId="task-1"
+      clip={clip}
+      connections={[
+        connection({ id: "old-tiktok", provider: "tiktok", display_name: "Disabled account" }),
+        connection(),
+      ]}
+      providers={[
+        provider(),
+        provider({ provider: "tiktok", display_name: "TikTok", configured: false }),
+      ]}
+      onChanged={vi.fn()}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /publish/i }));
+  expect(await screen.findByLabelText("Account")).toHaveTextContent("My Channel");
+  fireEvent.keyDown(screen.getByLabelText("Account"), { key: "Enter" });
+  expect(await screen.findByRole("option", { name: /My Channel/ })).toBeInTheDocument();
+  expect(screen.queryByRole("option", { name: /Disabled account/ })).toBeNull();
+});
+
 it("reports failed post actions with a toast", async () => {
   vi.stubGlobal(
     "fetch",

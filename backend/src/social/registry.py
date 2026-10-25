@@ -38,14 +38,20 @@ def list_provider_status(config: Optional[Config] = None) -> List[Dict[str, Any]
     statuses = []
     for name in SUPPORTED_PROVIDERS:
         provider = get_provider(name, runtime_config)
+        enabled = name in runtime_config.social_publishing_providers
+        configured = enabled and provider.is_configured
         statuses.append(
             {
                 "provider": name,
                 "display_name": provider.display_name,
-                "configured": provider.is_configured,
+                "configured": configured,
                 "supported_privacy_levels": list(provider.supported_privacy_levels),
                 "default_privacy_level": provider.default_privacy_level,
-                "setup_hint": None if provider.is_configured else PROVIDER_SETUP_HINTS[name],
+                "setup_hint": (
+                    f"{provider.display_name} publishing is disabled on this server."
+                    if not enabled
+                    else None if configured else PROVIDER_SETUP_HINTS[name]
+                ),
             }
         )
     return statuses

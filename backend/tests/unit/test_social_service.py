@@ -308,6 +308,7 @@ def service(provider, tmp_path):
     config.social_public_media_base_url = "https://app.example"
     config.social_performance_min_posts = 3
     config.social_publish_max_attempts = 3
+    config.social_publishing_access = "all"
 
     clip_path = tmp_path / "clip.mp4"
     clip_path.write_bytes(b"video")
@@ -520,6 +521,73 @@ async def test_unconfigured_provider_is_rejected(service, provider, monkeypatch)
         await service.start_connection("user-1", "youtube")
     with pytest.raises(SocialNotFound):
         await service.start_connection("user-1", "myspace")
+
+
+@pytest.mark.asyncio
+async def test_disabled_platform_blocks_oauth_before_state_is_created(service):
+    service.config.social_publishing_providers = frozenset({"youtube"})
+    for platform in ("tiktok", "instagram"):
+        with pytest.raises(social_module.SocialProviderUnavailable, match="disabled"):
+            await service.start_connection("user-1", platform)
+        with pytest.raises(social_module.SocialProviderUnavailable, match="disabled"):
+            await service.complete_connection("user-1", platform, code="good-code", state="old")
+    assert service.repo.states == {}
+    assert (await _connect(service))["provider"] == "youtube"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_admin,expected", [(True, True), (False, False)])
+async def test_admin_trial_allows_scheduling_without_changing_billing(service, monkeypatch, is_admin, expected):
+    service.config.social_publishing_access = "admins"
+    service.db = _UsersDb({"user-1": {"is_admin": is_admin, "email": "user@example.com"}})
+
+    async def summary(_self, _user_id):
+        return {"can_schedule_posts": False}
+
+    monkeypatch.setattr(social_module.BillingService, "get_usage_summary", summary)
+    assert await service.can_schedule("user-1") is expected
+
+
+@pytest.mark.asyncio
+async def test_disabled_platform_rejects_old_connection_and_retry(service):
+    account = await _connect(service)
+    args = dict(task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+                title=None, caption=None, hashtags=None, privacy_level="private", scheduled_for=None)
+    post = await service.create_post("user-1", **args)
+    service.repo.posts[post["id"]].update(provider="tiktok", status="failed")
+    service.repo.accounts[account["id"]]["provider"] = "tiktok"
+    service.config.social_publishing_providers = frozenset({"youtube"})
+    jobs_before = len(service.queue_adapter.jobs)
+    with pytest.raises(social_module.SocialProviderUnavailable, match="disabled"):
+        await service.create_post("user-1", **args)
+    with pytest.raises(social_module.SocialProviderUnavailable, match="disabled"):
+        await service.retry_post("user-1", post["id"])
+    assert len(service.queue_adapter.jobs) == jobs_before
+    assert service.repo.posts[post["id"]]["status"] == "failed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("restriction", ["provider", "user", "off"])
+async def test_worker_rechecks_rollout_before_uploading_old_job(service, provider, restriction):
+    account = await _connect(service)
+    post = await service.create_post(
+        "user-1", task_id="task-1", clip_id="clip-1", social_account_id=account["id"],
+        title=None, caption=None, hashtags=None, privacy_level="private", scheduled_for=None,
+    )
+    if restriction == "provider":
+        service.repo.posts[post["id"]]["provider"] = "tiktok"
+        service.config.social_publishing_providers = frozenset({"youtube"})
+    elif restriction == "user":
+        service.config.social_publishing_access = "admins"
+        service.config.social_publishing_allowed_emails = frozenset()
+        service.db = _UsersDb({"user-1": {"is_admin": False, "email": "user@example.com"}})
+    else:
+        service.config.social_publishing_access = "off"
+    result = await service.publish_post(post["id"])
+    assert result["status"] == "failed"
+    assert result["media_token_expires_at"] is None
+    assert provider.publish_calls == []
+    assert provider.refresh_calls == 0
 
 
 # ----------------------------------------------------------------------

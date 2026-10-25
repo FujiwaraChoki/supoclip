@@ -93,6 +93,33 @@ def test_registry_reports_configuration_state():
         get_provider("myspace", _config())
 
 
+@pytest.mark.parametrize("value,expected", [
+    ("youtube", frozenset({"youtube"})),
+    (" YouTube, TIKTOK, youtube ", frozenset({"youtube", "tiktok"})),
+    ("", frozenset()),
+])
+def test_provider_allowlist_configuration(monkeypatch, value, expected):
+    monkeypatch.setenv("SOCIAL_PUBLISHING_PROVIDERS", value)
+    assert Config().social_publishing_providers == expected
+
+
+def test_provider_allowlist_defaults_and_rejects_typos(monkeypatch):
+    monkeypatch.delenv("SOCIAL_PUBLISHING_PROVIDERS", raising=False)
+    assert Config().social_publishing_providers == frozenset({"youtube", "tiktok", "instagram"})
+    monkeypatch.setenv("SOCIAL_PUBLISHING_PROVIDERS", "youtub")
+    with pytest.raises(ValueError, match="SOCIAL_PUBLISHING_PROVIDERS"):
+        Config()
+
+
+def test_credentials_do_not_enable_platforms_outside_rollout():
+    config = _config(social_publishing_providers=frozenset({"youtube"}))
+    statuses = {row["provider"]: row for row in list_provider_status(config)}
+    assert statuses["youtube"]["configured"] is True
+    for platform in ("tiktok", "instagram"):
+        assert statuses[platform]["configured"] is False
+        assert "disabled" in statuses[platform]["setup_hint"]
+
+
 # ----------------------------------------------------------------------
 # YouTube
 # ----------------------------------------------------------------------
