@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
 import { HomeRouter } from "@/components/home-router";
+import { getLandingFaqs } from "@/lib/landing-faq";
 import { APP_STORE_URL, getSiteUrl } from "@/lib/site";
 
 const siteUrl = getSiteUrl();
@@ -94,6 +95,15 @@ export default async function HomePage() {
       name: "SupoClip",
       url: siteUrl,
       description: t("metadata.structured.website"),
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: getLandingFaqs(t).map((faq) => ({
+        "@type": "Question",
+        name: faq.question,
+        acceptedAnswer: { "@type": "Answer", text: faq.answer },
+      })),
     },
   ];
 

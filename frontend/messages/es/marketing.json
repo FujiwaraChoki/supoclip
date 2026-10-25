@@ -123,6 +123,7 @@
   "nav": {
     "howItWorks": "Cómo funciona",
     "features": "Funciones",
+    "editor": "Editor",
     "pricing": "Precios",
     "openSource": "Código abierto",
     "blog": "Blog",
@@ -131,83 +132,194 @@
     "signIn": "Iniciar sesión",
     "getStarted": "Comenzar",
     "openHosted": "Abrir la app alojada",
-    "toggleMenu": "Abrir o cerrar el menú"
+    "toggleMenu": "Abrir o cerrar el menú",
+    "publishing": "Publicación"
   },
   "hero": {
-    "badge": "Código abierto y autoalojable",
-    "titleLine1": "Recortador de video con IA de código abierto",
-    "titleLine2": "para mejores shorts",
-    "body": "Convierte videos de YouTube, VODs de Twitch y Kick o tus propios archivos en Shorts, TikToks y Reels con subtítulos, detección de momentos asistida por IA, puntuación de viralidad y encuadres verticales centrados en el rostro.",
+    "badge": "Código abierto y autoalojable. También en iPhone.",
+    "titleLine1": "Un video largo.",
+    "titleLine2": "Una semana de shorts.",
+    "body": "SupoClip encuentra los momentos que vale la pena publicar en tus videos, VODs y archivos, los reencuadra a 9:16 con subtítulos sincronizados palabra por palabra y los programa en YouTube Shorts.",
     "startClipping": "Empieza a recortar",
     "useHosted": "Usar la app alojada",
     "viewSource": "Ver el código",
     "appStoreAria": "Descarga SupoClip en el App Store",
     "appStoreAlt": "Descargar en el App Store",
-    "chips": {
-      "crop": "Recorte automático 9:16",
-      "captions": "Subtítulos sincronizados",
-      "virality": "Puntuación de viralidad"
-    },
     "productHuntAlt": "SupoClip - Recortador de video con IA de código abierto: videos largos en shorts virales | Product Hunt",
-    "player": {
-      "source": "youtube.com · video largo de origen",
-      "clipsFound": "{count} clips encontrados",
+    "sources": {
+      "upload": "Tus propios archivos",
+      "label": "Recorta desde"
+    },
+    "newLabel": "Nuevo",
+    "announcement": "Programa clips directamente en YouTube",
+    "publishTo": "Publica en",
+    "stage": {
+      "howMade": "Cómo se hicieron estos clips",
       "pause": "Pausar clip",
       "play": "Reproducir clip",
-      "unmute": "Activar sonido del clip",
-      "mute": "Silenciar clip",
-      "howMade": "Cómo se hicieron estos clips"
-    },
-    "sources": {
-      "label": "Funciona con",
-      "upload": "Tus propios archivos"
+      "unmute": "Activar sonido",
+      "mute": "Silenciar",
+      "youtubeShorts": "YouTube Shorts",
+      "scheduled": "Programado",
+      "steps": {
+        "source": "Tu video largo",
+        "clip": "El clip que encontró SupoClip",
+        "post": "Programado en YouTube"
+      },
+      "longForm": "Video largo",
+      "captions": "Subtítulos sincronizados",
+      "queued": "{count, plural, one {# clip en cola} other {# clips en cola}}"
     }
   },
   "steps": {
-    "title": "Tres pasos. Cero esfuerzo.",
+    "eyebrow": "Cómo funciona",
+    "title": "De la grabación en bruto a publicado, en tres pasos",
     "items": {
       "drop": {
-        "title": "Suelta un enlace o un archivo",
-        "description": "Pega un enlace de YouTube, Twitch o Kick (VOD o clip) o arrastra tu propio archivo de video."
+        "title": "Pega un enlace o sube un archivo",
+        "description": "Pega un enlace de YouTube, Twitch o Kick, o arrastra tu propia grabación."
       },
       "gold": {
-        "title": "La IA encuentra lo mejor",
-        "description": "La transcripción, la puntuación de viralidad y la detección de segmentos sacan a la luz los mejores momentos."
+        "title": "La IA encuentra los momentos",
+        "description": "La transcripción palabra por palabra y la puntuación de viralidad sacan a la luz los fragmentos que se sostienen solos."
       },
       "export": {
-        "title": "Exporta y publica",
-        "description": "Obtén clips verticales, con subtítulos y seguimiento de rostro, listos para cada plataforma."
+        "title": "Publica o programa",
+        "description": "Ajusta lo que quieras en el editor y luego descarga, publica ya o programa en YouTube Shorts."
       }
     }
   },
+  "film": {
+    "play": "Reproducir recorrido",
+    "pause": "Pausar recorrido",
+    "channel": "Tu canal",
+    "caption": "La constancia ganó a todo lo demás. Publicar cada lunes multiplicó por 10 los oyentes de este pódcast.",
+    "hashtags": "podcast, creadores, crecimiento",
+    "progress": {
+      "downloading": "Descargando el video…",
+      "transcribing": "Transcribiendo el audio…",
+      "finding": "Buscando los mejores momentos…",
+      "rendering": "Renderizando el clip {current} de {total}…"
+    }
+  },
   "features": {
-    "title": "Todo lo que necesitas para volverte viral",
-    "body": "Recorte de video de nivel profesional, con inteligencia artificial en cada paso del proceso.",
+    "title": "Ojo de editor, en piloto automático",
+    "body": "Todo lo que hay entre la grabación en bruto y un clip listo para publicar se hace por ti, y sigues pudiendo ajustarlo.",
+    "eyebrow": "Funciones",
+    "captionSample": "Subtítulos que caen en cada palabra",
+    "ownFonts": "Tus fuentes",
+    "scores": {
+      "hook": "Gancho",
+      "engagement": "Interacción",
+      "value": "Valor",
+      "shareability": "Compartibilidad"
+    },
+    "presets": {
+      "shorts": "YouTube Shorts",
+      "tiktok": "TikTok",
+      "reels": "Instagram Reels",
+      "broll": "B-roll opcional de Pexels"
+    },
     "items": {
-      "faceCrop": {
-        "title": "Recorte centrado en el rostro",
-        "description": "MediaPipe + OpenCV detecta y sigue rostros para un encuadre vertical 9:16 perfecto."
+      "reframe": {
+        "title": "Reencuadre que sigue rostros",
+        "description": "Los rostros se siguen en cada plano, así que el recorte vertical acompaña a quien habla en lugar de cortarlo."
       },
-      "subtitles": {
-        "title": "Subtítulos sincronizados por palabra",
-        "description": "Las marcas de tiempo por palabra generan subtítulos animados perfectamente sincronizados en cada clip."
+      "captions": {
+        "title": "Subtítulos en cada palabra",
+        "description": "Las marcas de tiempo por palabra mantienen los subtítulos animados al ritmo exacto de la voz."
       },
       "virality": {
         "title": "Puntuación de viralidad",
-        "description": "La IA evalúa el gancho, la interacción, el valor y la posibilidad de que lo compartan — de 0 a 100."
+        "description": "Cada momento se valora por gancho, interacción, valor y compartibilidad, sobre 100."
       },
-      "broll": {
-        "title": "Superposiciones de B-roll",
-        "description": "Busca y superpone automáticamente material de archivo relevante de Pexels."
+      "hooks": {
+        "title": "Títulos gancho",
+        "description": "Un título breve escrito por IA aparece arriba durante los primeros segundos para frenar el scroll."
       },
       "templates": {
         "title": "Plantillas de subtítulos",
-        "description": "Varios estilos de animación y tipografías para que coincidan con tu marca."
+        "description": "Estilos de animación, fuentes predefinidas y tus propias fuentes mantienen cada clip fiel a tu marca."
       },
       "export": {
-        "title": "Exportación por plataforma",
-        "description": "Ajustes de un clic para TikTok, Reels y Shorts con codificación optimizada."
+        "title": "Ajustes de exportación",
+        "description": "Exporta con un clic para Shorts, TikTok y Reels, con B-roll de stock cuando un clip lo necesite."
       }
+    }
+  },
+  "editor": {
+    "eyebrow": "Editor",
+    "title": "Un editor completo, incluido",
+    "body": "Cada clip se abre en un estudio pensado para video corto. Recorta, corrige una palabra, cambia el estilo de los subtítulos, reencuadra y exporta sin salir de SupoClip.",
+    "tryIt": "Esta vista previa funciona. Pulsa las pestañas, cambia el encuadre y mueve los controles.",
+    "points": {
+      "timeline": {
+        "title": "Cortes en la línea de tiempo",
+        "description": "Recorta sobre una línea de tiempo con miniaturas y forma de onda, divide en el cabezal y reordena, duplica o elimina segmentos. Cada corte se puede deshacer."
+      },
+      "transcript": {
+        "title": "Transcripción palabra por palabra",
+        "description": "Corrige una palabra mal entendida sin tocar su tiempo, o reescribe el guion y el resto sigue sincronizado."
+      },
+      "captions": {
+        "title": "Estilo de subtítulos",
+        "description": "Fuentes, colores, tamaño, posición y el resaltado de la palabra activa. Guarda un estilo y aplícalo a todos los clips."
+      },
+      "framing": {
+        "title": "Encuadre",
+        "description": "Arrastra para mantener al sujeto en cuadro, haz zoom y cambia entre vertical, cuadrado o el formato original."
+      },
+      "audio": {
+        "title": "Audio y efectos",
+        "description": "Ajusta el volumen o silencia, y cambia brillo, contraste, saturación, desenfoque y tono mientras los subtítulos siguen nítidos."
+      },
+      "combine": {
+        "title": "Combina clips",
+        "description": "Elige dos o más clips y únelos en uno nuevo. Los originales quedan como están."
+      },
+      "drafts": {
+        "title": "Borradores que se guardan solos",
+        "description": "Guardado automático, deshacer y rehacer, y atajos de teclado. Los clips generados nunca se sobrescriben."
+      },
+      "export": {
+        "title": "Exporta para cada plataforma",
+        "description": "Ajustes para TikTok, Reels y Shorts. Renderiza en el navegador o en segundo plano, un clip o todos."
+      }
+    }
+  },
+  "publish": {
+    "eyebrow": "Nuevo: publicación",
+    "title": "Recorta una vez. Publica toda la semana.",
+    "body": "Conecta tu canal de YouTube y cada clip puede salir con su propio horario. Elige una hora, revisa el título redactado por la IA y SupoClip lo publica por ti.",
+    "platforms": {
+      "youtube": "YouTube Shorts",
+      "tiktok": "TikTok",
+      "instagram": "Instagram Reels",
+      "tiktokShort": "TikTok",
+      "instagramShort": "Instagram",
+      "live": "Disponible",
+      "soon": "Próximamente"
+    },
+    "points": {
+      "schedule": {
+        "title": "Publica ya o elige un horario",
+        "description": "Organiza una semana de clips de una sentada. Cada uno sale a su hora, aunque tengas el portátil cerrado."
+      },
+      "drafts": {
+        "title": "Títulos y descripciones redactados para ti",
+        "description": "La IA escribe un primer borrador a partir de la transcripción. Edítalo o publícalo tal cual."
+      },
+      "learn": {
+        "title": "Aprende lo que ve tu audiencia",
+        "description": "Las visualizaciones vuelven a SupoClip, así que las siguientes selecciones se inclinan hacia lo que funciona en tu canal."
+      }
+    },
+    "plan": "Programar está incluido en Creator. Publicar al momento funciona con Pro.",
+    "calendar": {
+      "week": "Esta semana",
+      "published": "Publicado",
+      "scheduled": "Programado",
+      "soon": "Pronto"
     }
   },
   "pricing": {
@@ -249,21 +361,68 @@
       "priority": "Procesamiento prioritario",
       "earlyAccess": "Acceso anticipado a funciones nuevas"
     },
+    "clipsNote": "Cada video se convierte en tantos clips como buenos momentos tenga.",
     "selfHostNote": "¿Autoalojas? Todas las funciones son gratis e ilimitadas.",
     "selfHostGuide": "Ver la guía de autoalojamiento",
     "billedYearly": "${price}/mes, facturado anualmente",
     "usageExample": {
-      "videos": "Aproximadamente {count} vídeos originales de {minutes} minutos al mes"
+      "videos": "Unos {count} videos"
+    },
+    "publishYoutube": "Publica clips en YouTube Shorts",
+    "schedulingYoutube": "Programa clips en YouTube Shorts",
+    "schedulingSoon": "Programación en TikTok e Instagram"
+  },
+  "faq": {
+    "eyebrow": "Preguntas frecuentes",
+    "title": "Preguntas y respuestas",
+    "body": "Lo que la gente pregunta antes de empezar a recortar, en corto.",
+    "items": {
+      "sources": {
+        "question": "¿Qué videos puedo recortar?",
+        "answer": "Videos de YouTube, VODs o clips de Twitch y Kick, y archivos que subas tú. Pega un enlace o arrastra una grabación, y SupoClip se encarga del resto."
+      },
+      "selection": {
+        "question": "¿Cómo elige SupoClip los clips?",
+        "answer": "Transcribe el video palabra por palabra y luego un modelo de IA lee toda la transcripción y elige momentos que se sostienen solos. Cada uno se puntúa por gancho, interacción, valor y compartibilidad, y después puedes recortar, dividir o unir cualquier clip."
+      },
+      "minutes": {
+        "question": "¿Cómo se cuentan los minutos?",
+        "answer": "Los planes se miden en minutos de video original, no en clips. Pro incluye {proHours} horas al mes y Creator {creatorHours} horas. Un video de 30 minutos usa 30 minutos, salgan los clips que salgan. El saldo se renueva cada mes, también en los planes anuales."
+      },
+      "publishing": {
+        "question": "¿SupoClip puede publicar en TikTok e Instagram?",
+        "answer": "Hoy puedes publicar directamente en YouTube Shorts: al momento con Pro o programado con Creator. TikTok e Instagram llegarán pronto. Mientras tanto, descarga los clips con los ajustes de exportación para TikTok y Reels y súbelos tú."
+      },
+      "watermark": {
+        "question": "¿Los clips llevan marca de agua?",
+        "answer": "No. SupoClip nunca añade marca de agua, ni en los planes alojados ni si lo alojas tú."
+      },
+      "languages": {
+        "question": "¿Funciona en otros idiomas?",
+        "answer": "Sí. El idioma hablado se detecta automáticamente, así que la transcripción, los subtítulos y la selección de clips siguen el idioma del video."
+      },
+      "selfHost": {
+        "question": "¿De verdad es gratis autoalojarlo?",
+        "answer": "Sí. SupoClip es de código abierto bajo AGPL-3.0 y funciona con Docker Compose en tu propia máquina. Solo pagas los proveedores de transcripción e IA que elijas, si usas alguno."
+      },
+      "cancel": {
+        "question": "¿Puedo cancelar cuando quiera?",
+        "answer": "Sí. Cambia o cancela tu plan desde los ajustes cuando quieras. Si te suscribiste en la app de iPhone, gestiónalo desde la App Store."
+      }
     }
   },
   "openSource": {
     "badge": "Licencia AGPL-3.0",
     "title": "Hecho en público",
     "body": "Totalmente de código abierto. Autoalója en tu infraestructura, aporta funciones o haz un fork y adáptalo.",
-    "commandLabel": "Autoaloja con Docker Compose:",
+    "commandLabel": "autoalojar",
     "comment": "# agrega un proveedor de transcripción y de LLM en .env",
-    "tryHosted": "Probar la versión alojada",
-    "openHosted": "Abrir la versión alojada"
+    "facts": {
+      "license": "AGPL-3.0, con cada línea en GitHub",
+      "docker": "Un solo comando de Docker Compose para ejecutarlo tú mismo",
+      "models": "Usa tus propios modelos: Gemini, OpenAI, Anthropic u Ollama"
+    },
+    "ready": "SupoClip está funcionando en localhost:3107"
   },
   "guides": {
     "eyebrow": "Guías y comparaciones",
@@ -272,7 +431,7 @@
     "read": "Leer la guía"
   },
   "cta": {
-    "title": "¿Listo para recortar?",
-    "body": "Convierte tu próximo video en shorts que detienen el scroll. Usa la app alojada o autoaloja la versión de código abierto gratis."
+    "title": "Tu próximo video ya es una semana de contenido.",
+    "body": "Pega un enlace y mira lo que encuentra SupoClip. Usa la app alojada o aloja gratis la versión de código abierto."
   }
 }

@@ -123,6 +123,7 @@
   "nav": {
     "howItWorks": "Como funciona",
     "features": "Recursos",
+    "editor": "Editor",
     "pricing": "Preços",
     "openSource": "Código aberto",
     "blog": "Blog",
@@ -131,83 +132,194 @@
     "signIn": "Entrar",
     "getStarted": "Começar",
     "openHosted": "Abrir o app hospedado",
-    "toggleMenu": "Abrir ou fechar o menu"
+    "toggleMenu": "Abrir ou fechar o menu",
+    "publishing": "Publicação"
   },
   "hero": {
-    "badge": "Código aberto e auto-hospedável",
-    "titleLine1": "Clipper de vídeo com IA de código aberto",
-    "titleLine2": "para shorts melhores",
-    "body": "Transforme vídeos do YouTube, VODs da Twitch e da Kick ou seus próprios arquivos em Shorts, TikToks e Reels legendados, com detecção de destaques por IA, pontuação de viralidade e cortes verticais centrados no rosto.",
-    "startClipping": "Comece a criar clipes",
+    "badge": "Código aberto e auto-hospedável. Também no iPhone.",
+    "titleLine1": "Um vídeo longo.",
+    "titleLine2": "Uma semana de shorts.",
+    "body": "O SupoClip encontra os momentos que valem a pena postar nos seus vídeos, VODs e uploads, reenquadra tudo em 9:16 com legendas sincronizadas palavra por palavra e agenda no YouTube Shorts.",
+    "startClipping": "Comece a cortar",
     "useHosted": "Usar o app hospedado",
     "viewSource": "Ver o código",
     "appStoreAria": "Baixe o SupoClip na App Store",
     "appStoreAlt": "Baixar na App Store",
-    "chips": {
-      "crop": "Corte automático 9:16",
-      "captions": "Legendas sincronizadas",
-      "virality": "Pontuação de viralidade"
-    },
     "productHuntAlt": "SupoClip - Clipper de vídeo com IA de código aberto: vídeos longos em shorts virais | Product Hunt",
-    "player": {
-      "source": "youtube.com · vídeo longo de origem",
-      "clipsFound": "{count} clipes encontrados",
+    "sources": {
+      "upload": "Seus próprios arquivos",
+      "label": "Corte de"
+    },
+    "newLabel": "Novo",
+    "announcement": "Agende clipes direto no YouTube",
+    "publishTo": "Poste no",
+    "stage": {
+      "howMade": "Como estes clipes foram feitos",
       "pause": "Pausar clipe",
       "play": "Reproduzir clipe",
-      "unmute": "Ativar o som do clipe",
-      "mute": "Silenciar clipe",
-      "howMade": "Como estes clipes foram feitos"
-    },
-    "sources": {
-      "label": "Funciona com",
-      "upload": "Seus próprios arquivos"
+      "unmute": "Ativar som",
+      "mute": "Silenciar",
+      "youtubeShorts": "YouTube Shorts",
+      "scheduled": "Agendado",
+      "steps": {
+        "source": "Seu vídeo longo",
+        "clip": "O clipe que o SupoClip encontrou",
+        "post": "Agendado no YouTube"
+      },
+      "longForm": "Vídeo longo",
+      "captions": "Legendas sincronizadas",
+      "queued": "{count, plural, one {# clipe na fila} other {# clipes na fila}}"
     }
   },
   "steps": {
-    "title": "Três passos. Zero esforço.",
+    "eyebrow": "Como funciona",
+    "title": "Da gravação bruta ao post, em três passos",
     "items": {
       "drop": {
-        "title": "Solte um link ou um arquivo",
-        "description": "Cole um link do YouTube, da Twitch ou da Kick (VOD ou clipe) ou arraste o seu próprio arquivo de vídeo."
+        "title": "Cole um link ou envie um arquivo",
+        "description": "Cole um link do YouTube, Twitch ou Kick, ou arraste sua própria gravação."
       },
       "gold": {
-        "title": "A IA encontra o ouro",
-        "description": "A transcrição, a pontuação de viralidade e a detecção de trechos revelam os melhores momentos."
+        "title": "A IA encontra os momentos",
+        "description": "Transcrição palavra por palavra e pontuação de viralidade revelam os trechos que se sustentam sozinhos."
       },
       "export": {
-        "title": "Exporte e publique",
-        "description": "Receba clipes verticais, legendados e com rastreamento de rosto, prontos para cada plataforma."
+        "title": "Poste ou agende",
+        "description": "Ajuste o que quiser no editor e depois baixe, publique agora ou agende no YouTube Shorts."
       }
     }
   },
+  "film": {
+    "play": "Reproduzir demonstração",
+    "pause": "Pausar demonstração",
+    "channel": "Seu canal",
+    "caption": "Constância venceu todo o resto. Publicar toda segunda-feira multiplicou por 10 os ouvintes deste podcast.",
+    "hashtags": "podcast, criadores, crescimento",
+    "progress": {
+      "downloading": "Baixando o vídeo…",
+      "transcribing": "Transcrevendo o áudio…",
+      "finding": "Encontrando os melhores momentos…",
+      "rendering": "Renderizando o clipe {current} de {total}…"
+    }
+  },
   "features": {
-    "title": "Tudo o que você precisa para viralizar",
-    "body": "Clipping de vídeo de nível profissional, com inteligência de IA em cada etapa do processo.",
+    "title": "Olhar de editor, no piloto automático",
+    "body": "Tudo entre a gravação bruta e um clipe pronto para postar é feito para você, e continua ajustável.",
+    "eyebrow": "Recursos",
+    "captionSample": "Legendas que acertam cada palavra",
+    "ownFonts": "Suas fontes",
+    "scores": {
+      "hook": "Gancho",
+      "engagement": "Engajamento",
+      "value": "Valor",
+      "shareability": "Compartilhamento"
+    },
+    "presets": {
+      "shorts": "YouTube Shorts",
+      "tiktok": "TikTok",
+      "reels": "Instagram Reels",
+      "broll": "B-roll opcional do Pexels"
+    },
     "items": {
-      "faceCrop": {
-        "title": "Corte centrado no rosto",
-        "description": "MediaPipe + OpenCV detecta e acompanha rostos para um enquadramento vertical 9:16 perfeito."
+      "reframe": {
+        "title": "Reenquadramento que segue rostos",
+        "description": "Os rostos são acompanhados em cada cena, então o corte vertical segue quem fala em vez de cortá-lo."
       },
-      "subtitles": {
-        "title": "Legendas sincronizadas por palavra",
-        "description": "Marcações de tempo por palavra geram legendas animadas no tempo certo em cada clipe."
+      "captions": {
+        "title": "Legenda em cada palavra",
+        "description": "Marcações de tempo por palavra mantêm as legendas animadas no ritmo exato da voz."
       },
       "virality": {
         "title": "Pontuação de viralidade",
-        "description": "A IA avalia gancho, engajamento, valor e potencial de compartilhamento — de 0 a 100."
+        "description": "Cada momento recebe nota de gancho, engajamento, valor e compartilhamento, de 0 a 100."
       },
-      "broll": {
-        "title": "Sobreposições de B-roll",
-        "description": "Busque e sobreponha automaticamente imagens de arquivo relevantes do Pexels."
+      "hooks": {
+        "title": "Títulos gancho",
+        "description": "Um título curto escrito pela IA aparece no topo nos primeiros segundos para prender a atenção."
       },
       "templates": {
         "title": "Modelos de legenda",
-        "description": "Vários estilos de animação e fontes para combinar com a sua marca."
+        "description": "Estilos de animação, fontes predefinidas e suas próprias fontes mantêm cada clipe com a sua marca."
       },
       "export": {
-        "title": "Exportação por plataforma",
-        "description": "Predefinições de um clique para TikTok, Reels e Shorts com codificação otimizada."
+        "title": "Predefinições de exportação",
+        "description": "Exportação em um clique para Shorts, TikTok e Reels, com B-roll de banco quando o clipe precisar."
       }
+    }
+  },
+  "editor": {
+    "eyebrow": "Editor",
+    "title": "Um editor completo, já incluído",
+    "body": "Cada clipe abre em um estúdio feito para vídeo curto. Corte, corrija uma palavra, mude o estilo das legendas, reenquadre e exporte sem sair do SupoClip.",
+    "tryIt": "Esta prévia funciona. Clique nas abas, troque o enquadramento e arraste os controles.",
+    "points": {
+      "timeline": {
+        "title": "Cortes na linha do tempo",
+        "description": "Corte em uma linha do tempo com miniaturas e forma de onda, divida no cursor e reordene, duplique ou remova segmentos. Todo corte pode ser desfeito."
+      },
+      "transcript": {
+        "title": "Transcrição palavra por palavra",
+        "description": "Corrija uma palavra mal transcrita sem mexer no tempo dela, ou reescreva o roteiro e o resto continua sincronizado."
+      },
+      "captions": {
+        "title": "Estilo das legendas",
+        "description": "Fontes, cores, tamanho, posição e o destaque da palavra falada. Salve um estilo e aplique em todos os clipes."
+      },
+      "framing": {
+        "title": "Enquadramento",
+        "description": "Arraste para manter a pessoa no quadro, dê zoom e alterne entre vertical, quadrado ou o formato original."
+      },
+      "audio": {
+        "title": "Áudio e efeitos",
+        "description": "Ajuste o volume ou silencie, e mude brilho, contraste, saturação, desfoque e matiz enquanto as legendas continuam nítidas."
+      },
+      "combine": {
+        "title": "Junte clipes",
+        "description": "Escolha dois ou mais clipes e junte em um novo. Os originais ficam como estão."
+      },
+      "drafts": {
+        "title": "Rascunhos que se salvam sozinhos",
+        "description": "Salvamento automático, desfazer e refazer, e atalhos de teclado. Clipes gerados nunca são sobrescritos."
+      },
+      "export": {
+        "title": "Exporte para cada plataforma",
+        "description": "Predefinições para TikTok, Reels e Shorts. Renderize no navegador ou em segundo plano, um clipe ou todos."
+      }
+    }
+  },
+  "publish": {
+    "eyebrow": "Novo: publicação",
+    "title": "Corte uma vez. Poste a semana toda.",
+    "body": "Conecte seu canal do YouTube e cada clipe pode sair no seu próprio horário. Escolha uma hora, revise o título sugerido pela IA e o SupoClip posta por você.",
+    "platforms": {
+      "youtube": "YouTube Shorts",
+      "tiktok": "TikTok",
+      "instagram": "Instagram Reels",
+      "tiktokShort": "TikTok",
+      "instagramShort": "Instagram",
+      "live": "Disponível",
+      "soon": "Em breve"
+    },
+    "points": {
+      "schedule": {
+        "title": "Poste agora ou escolha um horário",
+        "description": "Organize uma semana de clipes de uma vez. Cada um sai na hora certa, mesmo com o notebook fechado."
+      },
+      "drafts": {
+        "title": "Títulos e legendas escritos para você",
+        "description": "A IA escreve um primeiro rascunho a partir da transcrição. Edite ou poste como está."
+      },
+      "learn": {
+        "title": "Aprende o que seu público assiste",
+        "description": "As visualizações voltam para o SupoClip, então as próximas escolhas puxam para o que funciona no seu canal."
+      }
+    },
+    "plan": "O agendamento está incluído no Creator. Publicar na hora funciona no Pro.",
+    "calendar": {
+      "week": "Esta semana",
+      "published": "Publicado",
+      "scheduled": "Agendado",
+      "soon": "Em breve"
     }
   },
   "pricing": {
@@ -249,21 +361,68 @@
       "priority": "Processamento prioritário",
       "earlyAccess": "Acesso antecipado a novos recursos"
     },
+    "clipsNote": "Cada vídeo vira tantos clipes quantos bons momentos ele tiver.",
     "selfHostNote": "Auto-hospedando? Todos os recursos são grátis e ilimitados.",
     "selfHostGuide": "Ver o guia de auto-hospedagem",
     "billedYearly": "${price}/mês, cobrado anualmente",
     "usageExample": {
-      "videos": "Cerca de {count} vídeos de origem de {minutes} minutos por mês"
+      "videos": "Cerca de {count} vídeos"
+    },
+    "publishYoutube": "Poste clipes no YouTube Shorts",
+    "schedulingYoutube": "Agende clipes no YouTube Shorts",
+    "schedulingSoon": "Agendamento no TikTok e Instagram"
+  },
+  "faq": {
+    "eyebrow": "Perguntas frequentes",
+    "title": "Perguntas e respostas",
+    "body": "A versão curta do que as pessoas perguntam antes de começar a cortar.",
+    "items": {
+      "sources": {
+        "question": "Quais vídeos posso cortar?",
+        "answer": "Vídeos do YouTube, VODs ou clipes da Twitch e da Kick, e arquivos que você mesmo envia. Cole um link ou arraste uma gravação, e o SupoClip cuida do resto."
+      },
+      "selection": {
+        "question": "Como o SupoClip escolhe os clipes?",
+        "answer": "Ele transcreve o vídeo palavra por palavra, e um modelo de IA lê a transcrição inteira e escolhe momentos que se sustentam sozinhos. Cada um recebe nota de gancho, engajamento, valor e compartilhamento, e depois você pode cortar, dividir ou juntar qualquer clipe."
+      },
+      "minutes": {
+        "question": "Como os minutos são contados?",
+        "answer": "Os planos são medidos em minutos de vídeo original, não em clipes. O Pro inclui {proHours} horas por mês e o Creator {creatorHours} horas. Um vídeo de 30 minutos usa 30 minutos, não importa quantos clipes saiam dele. O saldo renova todo mês, inclusive nos planos anuais."
+      },
+      "publishing": {
+        "question": "O SupoClip posta no TikTok e no Instagram?",
+        "answer": "Hoje você publica direto no YouTube Shorts: na hora com o Pro ou agendado com o Creator. TikTok e Instagram chegam em breve. Até lá, baixe os clipes com as predefinições de exportação para TikTok e Reels e envie você mesmo."
+      },
+      "watermark": {
+        "question": "Os clipes têm marca d'água?",
+        "answer": "Não. O SupoClip nunca adiciona marca d'água, nem nos planos hospedados nem quando você hospeda por conta própria."
+      },
+      "languages": {
+        "question": "Funciona em outros idiomas?",
+        "answer": "Sim. O idioma falado é detectado automaticamente, então a transcrição, as legendas e a escolha dos clipes seguem o idioma do vídeo."
+      },
+      "selfHost": {
+        "question": "Auto-hospedar é mesmo de graça?",
+        "answer": "Sim. O SupoClip é de código aberto sob AGPL-3.0 e roda com Docker Compose na sua própria máquina. Você só paga pelos provedores de transcrição e IA que escolher, se escolher algum."
+      },
+      "cancel": {
+        "question": "Posso cancelar quando quiser?",
+        "answer": "Sim. Mude ou cancele seu plano nas configurações quando quiser. Se você assinou pelo app de iPhone, gerencie pela App Store."
+      }
     }
   },
   "openSource": {
     "badge": "Licença AGPL-3.0",
     "title": "Feito às claras",
     "body": "Totalmente de código aberto. Auto-hospede na sua infraestrutura, contribua com recursos ou faça um fork e deixe do seu jeito.",
-    "commandLabel": "Auto-hospede com Docker Compose:",
+    "commandLabel": "auto-hospedar",
     "comment": "# adicione um provedor de transcrição e de LLM no .env",
-    "tryHosted": "Testar a versão hospedada",
-    "openHosted": "Abrir a versão hospedada"
+    "facts": {
+      "license": "AGPL-3.0, com cada linha no GitHub",
+      "docker": "Um comando do Docker Compose para rodar por conta própria",
+      "models": "Use seus próprios modelos: Gemini, OpenAI, Anthropic ou Ollama"
+    },
+    "ready": "O SupoClip está rodando em localhost:3107"
   },
   "guides": {
     "eyebrow": "Guias e comparações",
@@ -272,7 +431,7 @@
     "read": "Ler o guia"
   },
   "cta": {
-    "title": "Pronto para criar clipes?",
-    "body": "Transforme o seu próximo vídeo em shorts que param o scroll. Use o app hospedado ou auto-hospede a versão de código aberto de graça."
+    "title": "Seu próximo vídeo já é uma semana de conteúdo.",
+    "body": "Cole um link e veja o que o SupoClip encontra. Use o app hospedado ou hospede de graça a versão de código aberto."
   }
 }

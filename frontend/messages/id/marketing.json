@@ -123,6 +123,7 @@
   "nav": {
     "howItWorks": "Cara kerja",
     "features": "Fitur",
+    "editor": "Editor",
     "pricing": "Harga",
     "openSource": "Open Source",
     "blog": "Blog",
@@ -131,83 +132,194 @@
     "signIn": "Masuk",
     "getStarted": "Mulai",
     "openHosted": "Buka aplikasi yang di-host",
-    "toggleMenu": "Buka atau tutup menu"
+    "toggleMenu": "Buka atau tutup menu",
+    "publishing": "Publikasi"
   },
   "hero": {
-    "badge": "Open source & bisa di-host sendiri",
-    "titleLine1": "AI video clipper open source",
-    "titleLine2": "untuk short yang lebih baik",
-    "body": "Ubah video YouTube, VOD Twitch dan Kick, atau unggahanmu sendiri jadi Shorts, TikTok, dan Reels ber-caption dengan deteksi highlight berbantuan AI, skor viral, dan crop vertikal yang mengikuti wajah.",
-    "startClipping": "Mulai buat clip",
+    "badge": "Open source dan bisa di-host sendiri. Juga tersedia di iPhone.",
+    "titleLine1": "Satu video panjang.",
+    "titleLine2": "Seminggu konten shorts.",
+    "body": "SupoClip menemukan momen yang layak diposting dari video, VOD, dan unggahanmu, membingkai ulang ke 9:16 dengan subtitle yang sinkron per kata, lalu menjadwalkannya ke YouTube Shorts.",
+    "startClipping": "Mulai memotong",
     "useHosted": "Pakai aplikasi yang di-host",
     "viewSource": "Lihat sumber",
     "appStoreAria": "Unduh SupoClip di App Store",
     "appStoreAlt": "Unduh di App Store",
-    "chips": {
-      "crop": "Auto-crop 9:16",
-      "captions": "Caption sinkron per kata",
-      "virality": "Skor viral"
-    },
     "productHuntAlt": "SupoClip - AI clipper open source: video panjang jadi short viral | Product Hunt",
-    "player": {
-      "source": "youtube.com · sumber bentuk panjang",
-      "clipsFound": "{count} clip ditemukan",
-      "pause": "Jeda clip",
-      "play": "Putar clip",
-      "unmute": "Nyalakan suara clip",
-      "mute": "Bisukan clip",
-      "howMade": "Bagaimana clip ini dibuat"
-    },
     "sources": {
-      "label": "Bekerja dengan",
-      "upload": "File milikmu"
+      "upload": "File milikmu",
+      "label": "Potong dari"
+    },
+    "newLabel": "Baru",
+    "announcement": "Jadwalkan klip langsung ke YouTube",
+    "publishTo": "Posting ke",
+    "stage": {
+      "howMade": "Cara klip ini dibuat",
+      "pause": "Jeda klip",
+      "play": "Putar klip",
+      "unmute": "Nyalakan suara",
+      "mute": "Matikan suara",
+      "youtubeShorts": "YouTube Shorts",
+      "scheduled": "Terjadwal",
+      "steps": {
+        "source": "Video panjangmu",
+        "clip": "Klip yang ditemukan SupoClip",
+        "post": "Terjadwal ke YouTube"
+      },
+      "longForm": "Video panjang",
+      "captions": "Subtitle sinkron per kata",
+      "queued": "{count, plural, other {# klip dalam antrean}}"
     }
   },
   "steps": {
-    "title": "Tiga langkah. Nyaris tanpa usaha.",
+    "eyebrow": "Cara kerjanya",
+    "title": "Dari rekaman mentah sampai terposting, dalam tiga langkah",
     "items": {
       "drop": {
-        "title": "Lempar tautan atau file",
-        "description": "Tempel tautan YouTube, Twitch, atau Kick (VOD atau clip), atau seret dan lepas file videomu."
+        "title": "Tempel tautan atau file",
+        "description": "Tempel tautan YouTube, Twitch, atau Kick, atau seret rekamanmu sendiri."
       },
       "gold": {
-        "title": "AI menemukan bagian emasnya",
-        "description": "Transkripsi, skor viral, dan deteksi segmen memunculkan momen terbaik."
+        "title": "AI menemukan momennya",
+        "description": "Transkripsi per kata dan skor viralitas menampilkan bagian yang bisa berdiri sendiri."
       },
       "export": {
-        "title": "Ekspor & publikasikan",
-        "description": "Dapatkan clip vertikal, ber-caption, dengan pelacakan wajah, siap untuk setiap platform."
+        "title": "Posting atau jadwalkan",
+        "description": "Sesuaikan apa pun di editor, lalu unduh, publikasikan sekarang, atau jadwalkan ke YouTube Shorts."
       }
     }
   },
+  "film": {
+    "play": "Putar panduan",
+    "pause": "Jeda panduan",
+    "channel": "Channel-mu",
+    "caption": "Konsistensi mengalahkan segalanya. Rutin tayang setiap Senin membuat pendengar podcast ini naik 10x.",
+    "hashtags": "podcast, kreator, pertumbuhan",
+    "progress": {
+      "downloading": "Mengunduh video…",
+      "transcribing": "Mentranskripsi audio…",
+      "finding": "Mencari momen terbaik…",
+      "rendering": "Merender klip {current} dari {total}…"
+    }
+  },
   "features": {
-    "title": "Semua yang kamu butuhkan untuk viral",
-    "body": "Clipping video kelas profesional dengan kecerdasan AI di setiap langkah pipeline.",
+    "title": "Mata seorang editor, berjalan otomatis",
+    "body": "Semua yang ada di antara rekaman mentah dan klip yang layak diposting dikerjakan untukmu, dan tetap bisa kamu ubah.",
+    "eyebrow": "Fitur",
+    "captionSample": "Subtitle yang pas di setiap kata",
+    "ownFonts": "Font milikmu",
+    "scores": {
+      "hook": "Hook",
+      "engagement": "Keterlibatan",
+      "value": "Nilai",
+      "shareability": "Daya bagi"
+    },
+    "presets": {
+      "shorts": "YouTube Shorts",
+      "tiktok": "TikTok",
+      "reels": "Instagram Reels",
+      "broll": "B-roll opsional dari Pexels"
+    },
     "items": {
-      "faceCrop": {
-        "title": "Crop yang berpusat pada wajah",
-        "description": "MediaPipe + OpenCV mendeteksi dan melacak wajah untuk framing vertikal 9:16 yang pas."
+      "reframe": {
+        "title": "Pembingkaian ulang mengikuti wajah",
+        "description": "Wajah dilacak di setiap shot, jadi potongan vertikal mengikuti pembicara alih-alih memotongnya."
       },
-      "subtitles": {
-        "title": "Subtitle sinkron per kata",
-        "description": "Stempel waktu tingkat kata menggerakkan caption animasi yang tepat waktunya di setiap clip."
+      "captions": {
+        "title": "Subtitle di setiap kata",
+        "description": "Stempel waktu per kata membuat subtitle animasi selalu seirama dengan suara."
       },
       "virality": {
-        "title": "Skor viral",
-        "description": "AI menilai hook, engagement, nilai, dan kelayakan dibagikan — skor 0 sampai 100."
+        "title": "Skor viralitas",
+        "description": "Setiap momen dinilai dari hook, keterlibatan, nilai, dan daya bagi, dari 100."
       },
-      "broll": {
-        "title": "Overlay B-roll",
-        "description": "Ambil dan tumpuk footage stok yang relevan dari Pexels secara otomatis."
+      "hooks": {
+        "title": "Judul hook",
+        "description": "Judul singkat buatan AI muncul di atas pada detik-detik pertama untuk menghentikan scroll."
       },
       "templates": {
-        "title": "Template caption",
-        "description": "Beberapa gaya animasi dan preset font agar sesuai dengan brand-mu."
+        "title": "Template subtitle",
+        "description": "Gaya animasi, preset font, dan font milikmu menjaga setiap klip tetap sesuai brand."
       },
       "export": {
-        "title": "Ekspor platform",
-        "description": "Preset sekali klik untuk TikTok, Reels, dan Shorts dengan encoding yang dioptimalkan."
+        "title": "Preset ekspor",
+        "description": "Ekspor sekali klik untuk Shorts, TikTok, dan Reels, dengan B-roll stok saat klip membutuhkannya."
       }
+    }
+  },
+  "editor": {
+    "eyebrow": "Editor",
+    "title": "Editor lengkap, sudah termasuk",
+    "body": "Setiap klip terbuka di studio yang dibuat untuk video pendek. Potong, perbaiki kata, ubah gaya subtitle, atur bingkai, dan ekspor tanpa keluar dari SupoClip.",
+    "tryIt": "Pratinjau ini berfungsi. Klik tab, ganti bingkai, dan geser slider-nya.",
+    "points": {
+      "timeline": {
+        "title": "Potong di timeline",
+        "description": "Pangkas di timeline dengan thumbnail dan gelombang suara, pisah di playhead, lalu atur ulang, duplikat, atau hapus segmen. Setiap potongan bisa dibatalkan."
+      },
+      "transcript": {
+        "title": "Transkrip per kata",
+        "description": "Perbaiki kata yang salah dengar tanpa mengubah waktunya, atau tulis ulang naskah dan sisanya tetap sinkron."
+      },
+      "captions": {
+        "title": "Gaya subtitle",
+        "description": "Font, warna, ukuran, posisi, dan sorotan kata yang sedang diucapkan. Simpan gaya lalu terapkan ke semua klip."
+      },
+      "framing": {
+        "title": "Pembingkaian",
+        "description": "Seret agar subjek tetap di dalam bingkai, perbesar, dan pilih vertikal, persegi, atau format asli."
+      },
+      "audio": {
+        "title": "Audio dan efek",
+        "description": "Atur volume atau bisukan, lalu sesuaikan kecerahan, kontras, saturasi, blur, dan hue sementara subtitle tetap tajam."
+      },
+      "combine": {
+        "title": "Gabungkan klip",
+        "description": "Pilih dua klip atau lebih lalu gabungkan menjadi klip baru. Klip aslinya tetap utuh."
+      },
+      "drafts": {
+        "title": "Draf yang tersimpan otomatis",
+        "description": "Simpan otomatis, urungkan dan ulangi, serta pintasan keyboard. Klip yang dihasilkan tidak pernah ditimpa."
+      },
+      "export": {
+        "title": "Ekspor untuk tiap platform",
+        "description": "Preset untuk TikTok, Reels, dan Shorts. Render di browser atau di latar belakang, satu klip atau semuanya."
+      }
+    }
+  },
+  "publish": {
+    "eyebrow": "Baru: publikasi",
+    "title": "Potong sekali. Posting sepanjang minggu.",
+    "body": "Hubungkan channel YouTube-mu dan setiap klip bisa tayang sesuai jadwalnya sendiri. Pilih waktu, tinjau judul buatan AI, dan SupoClip yang memposting untukmu.",
+    "platforms": {
+      "youtube": "YouTube Shorts",
+      "tiktok": "TikTok",
+      "instagram": "Instagram Reels",
+      "tiktokShort": "TikTok",
+      "instagramShort": "Instagram",
+      "live": "Aktif",
+      "soon": "Segera hadir"
+    },
+    "points": {
+      "schedule": {
+        "title": "Posting sekarang atau pilih jadwal",
+        "description": "Susun klip untuk seminggu sekaligus. Masing-masing tayang tepat waktu, bahkan saat laptopmu tertutup."
+      },
+      "drafts": {
+        "title": "Judul dan caption disiapkan untukmu",
+        "description": "AI menulis draf pertama dari transkrip. Edit, atau langsung posting."
+      },
+      "learn": {
+        "title": "Belajar dari apa yang ditonton audiensmu",
+        "description": "Jumlah tayangan kembali ke SupoClip, jadi pilihan berikutnya condong ke yang berhasil di channel-mu."
+      }
+    },
+    "plan": "Penjadwalan termasuk dalam paket Creator. Publikasi langsung bisa dengan Pro.",
+    "calendar": {
+      "week": "Minggu ini",
+      "published": "Terbit",
+      "scheduled": "Terjadwal",
+      "soon": "Segera"
     }
   },
   "pricing": {
@@ -249,21 +361,68 @@
       "priority": "Pemrosesan prioritas",
       "earlyAccess": "Akses awal ke fitur baru"
     },
+    "clipsNote": "Setiap video menjadi klip sebanyak momen bagus yang ada di dalamnya.",
     "selfHostNote": "Host sendiri? Semua fitur gratis dan tanpa batas.",
     "selfHostGuide": "Lihat panduan host sendiri",
     "billedYearly": "${price}/bln, ditagih tahunan",
     "usageExample": {
-      "videos": "Sekitar {count} × video sumber {minutes} menit per bulan"
+      "videos": "Sekitar {count} video"
+    },
+    "publishYoutube": "Posting klip ke YouTube Shorts",
+    "schedulingYoutube": "Jadwalkan klip ke YouTube Shorts",
+    "schedulingSoon": "Penjadwalan ke TikTok dan Instagram"
+  },
+  "faq": {
+    "eyebrow": "FAQ",
+    "title": "Pertanyaan yang sering diajukan",
+    "body": "Versi singkat dari hal yang biasa ditanyakan sebelum mulai memotong.",
+    "items": {
+      "sources": {
+        "question": "Video apa saja yang bisa dipotong?",
+        "answer": "Video YouTube, VOD atau klip Twitch dan Kick, serta file yang kamu unggah sendiri. Tempel tautan atau seret rekaman, lalu SupoClip mengerjakan sisanya."
+      },
+      "selection": {
+        "question": "Bagaimana SupoClip memilih klip?",
+        "answer": "Video ditranskripsi kata demi kata, lalu model AI membaca seluruh transkrip dan memilih momen yang bisa berdiri sendiri. Setiap momen dinilai dari hook, keterlibatan, nilai, dan daya bagi, dan kamu bisa memangkas, memisah, atau menggabungkan klip mana pun setelahnya."
+      },
+      "minutes": {
+        "question": "Bagaimana menit dihitung?",
+        "answer": "Paket dihitung dalam menit video sumber, bukan jumlah klip. Pro mencakup {proHours} jam per bulan dan Creator {creatorHours} jam. Video 30 menit memakai 30 menit, berapa pun klip yang dihasilkan. Kuota diatur ulang setiap bulan, termasuk pada paket tahunan."
+      },
+      "publishing": {
+        "question": "Bisakah SupoClip memposting ke TikTok dan Instagram?",
+        "answer": "Saat ini kamu bisa memublikasikan langsung ke YouTube Shorts: langsung dengan Pro, atau terjadwal dengan Creator. TikTok dan Instagram segera hadir. Sementara itu, unduh klip dengan preset ekspor TikTok dan Reels lalu unggah sendiri."
+      },
+      "watermark": {
+        "question": "Apakah klip diberi watermark?",
+        "answer": "Tidak. SupoClip tidak pernah menambahkan watermark, baik di paket hosted maupun saat di-host sendiri."
+      },
+      "languages": {
+        "question": "Apakah bisa untuk bahasa lain?",
+        "answer": "Bisa. Bahasa yang diucapkan terdeteksi otomatis, jadi transkrip, subtitle, dan pilihan klip mengikuti bahasa videonya."
+      },
+      "selfHost": {
+        "question": "Benarkah host sendiri itu gratis?",
+        "answer": "Benar. SupoClip open source dengan lisensi AGPL-3.0 dan berjalan dengan Docker Compose di mesinmu sendiri. Kamu hanya membayar penyedia transkripsi dan AI yang kamu pilih, jika ada."
+      },
+      "cancel": {
+        "question": "Bisakah saya berhenti berlangganan kapan saja?",
+        "answer": "Bisa. Ubah atau batalkan paketmu dari pengaturan kapan saja. Jika berlangganan lewat aplikasi iPhone, kelola melalui App Store."
+      }
     }
   },
   "openSource": {
     "badge": "Berlisensi AGPL-3.0",
     "title": "Dibangun secara terbuka",
     "body": "Sepenuhnya open source. Host sendiri di infrastrukturmu, sumbang fitur, atau fork dan jadikan milikmu.",
-    "commandLabel": "Host sendiri dengan Docker Compose:",
+    "commandLabel": "host sendiri",
     "comment": "# tambahkan penyedia transkripsi + LLM ke .env",
-    "tryHosted": "Coba versi yang di-host",
-    "openHosted": "Buka versi yang di-host"
+    "facts": {
+      "license": "AGPL-3.0, setiap baris kode ada di GitHub",
+      "docker": "Satu perintah Docker Compose untuk menjalankannya sendiri",
+      "models": "Pakai model pilihanmu: Gemini, OpenAI, Anthropic, atau Ollama"
+    },
+    "ready": "SupoClip berjalan di localhost:3107"
   },
   "guides": {
     "eyebrow": "Panduan & perbandingan",
@@ -272,7 +431,7 @@
     "read": "Baca panduan"
   },
   "cta": {
-    "title": "Siap buat clip?",
-    "body": "Ubah video berikutnya jadi short yang bikin orang berhenti scroll. Pakai aplikasi yang di-host, atau host sendiri versi open source secara gratis."
+    "title": "Video berikutnya sudah jadi konten seminggu.",
+    "body": "Tempel tautan dan lihat apa yang ditemukan SupoClip. Pakai aplikasi yang di-host, atau host sendiri versi open source secara gratis."
   }
 }
