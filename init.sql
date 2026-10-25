@@ -21,6 +21,7 @@ CREATE TABLE users (
     default_font_size INTEGER DEFAULT 24,
     default_font_color VARCHAR(7) DEFAULT '#FFFFFF',
     notify_on_completion BOOLEAN NOT NULL DEFAULT true,
+    product_updates_unsubscribed_at TIMESTAMP WITH TIME ZONE,
     -- Monetization and billing fields
     is_admin BOOLEAN NOT NULL DEFAULT false,
     plan VARCHAR(20) NOT NULL DEFAULT 'free',

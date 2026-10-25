@@ -19,6 +19,7 @@ class EmailContent:
     subject: str
     html: str
     text: str
+    headers: tuple[tuple[str, str], ...] = ()
 
 
 class SesEmailService:
@@ -39,6 +40,7 @@ class SesEmailService:
         )
 
     def _send(self, recipient: str, content: EmailContent) -> dict:
+        headers = [{"Name": name, "Value": value} for name, value in content.headers]
         client = boto3.client(
             "sesv2",
             region_name=self.region,
@@ -50,6 +52,7 @@ class SesEmailService:
             Destination={"ToAddresses": [recipient]},
             Content={
                 "Simple": {
+                    **({"Headers": headers} if headers else {}),
                     "Subject": {"Data": content.subject, "Charset": "UTF-8"},
                     "Body": {
                         "Html": {"Data": content.html, "Charset": "UTF-8"},
