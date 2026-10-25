@@ -129,3 +129,19 @@ async def test_billing_denial_returns_json_402_with_real_datetime_fields(resume_
     repo.update_task_status.assert_not_awaited()
     redis.delete.assert_not_awaited()
     queue.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_resume_setup_failure_restores_refundable_terminal_state(resume_context):
+    _task, repo, billing_guard, queue, redis = resume_context
+    redis.delete.side_effect = RuntimeError("Redis unavailable")
+    with pytest.raises(HTTPException) as error:
+        await tasks.resume_task("task-1", SimpleNamespace(), db=None)
+    assert error.value.status_code == 500
+    billing_guard.assert_awaited_once()
+    queue.assert_not_awaited()
+    # Even failures before the queued transition go through the central refund
+    # path, undoing the reactivated charge when there is no saved output.
+    repo.update_task_status.assert_awaited_once()
+    assert repo.update_task_status.await_args.args[2] == "error"
+    assert "error" in repo.update_task_status.await_args.kwargs["expected_statuses"]

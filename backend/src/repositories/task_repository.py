@@ -3,6 +3,7 @@ Task repository - handles all database operations for tasks.
 """
 
 from .edit_transaction import commit_unless_editing
+from .minute_usage_repository import charged_duration, record_minute_usage, refund_failed_minute_usage
 from sqlalchemy.exc import DBAPIError
 
 
@@ -34,8 +35,10 @@ class TaskRepository:
         include_broll: bool = False,
         processing_mode: str = "fast",
         source_duration_seconds: Optional[int] = None,
+        charge_minutes: bool = False,
     ) -> str:
         """Create a new task and return its ID."""
+        source_duration_seconds = charged_duration(source_duration_seconds)
         task_id = str(uuid4())
         try:
             result = await db.execute(
@@ -66,34 +69,16 @@ class TaskRepository:
                     "source_duration_seconds": source_duration_seconds,
                 },
             )
+            returned_id = result.scalar()
+            if not returned_id:
+                raise RuntimeError("Failed to create task: no ID returned")
+            if charge_minutes:
+                await record_minute_usage(db, user_id, task_id, source_duration_seconds)
+            # The task and its charge become visible together, before enqueueing.
+            await commit_unless_editing(db)
         except Exception:
             await db.rollback()
-            result = await db.execute(
-                text("""
-                    INSERT INTO tasks (
-                        id, user_id, source_id, status, font_family, font_size, font_color,
-                        created_at, updated_at
-                    )
-                    VALUES (
-                        :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
-                        NOW(), NOW()
-                    )
-                    RETURNING id
-                """),
-                {
-                    "task_id": task_id,
-                    "user_id": user_id,
-                    "source_id": source_id,
-                    "status": status,
-                    "font_family": font_family,
-                    "font_size": font_size,
-                    "font_color": font_color,
-                },
-            )
-        await commit_unless_editing(db)
-        task_id = result.scalar()
-        if not task_id:
-            raise RuntimeError("Failed to create task: no ID returned")
+            raise
         logger.info(f"Created task {task_id} for user {user_id}")
         return str(task_id)
 
@@ -350,9 +335,18 @@ class TaskRepository:
         if expected_statuses is not None:
             query += " AND status = ANY(:expected_statuses)"
             params["expected_statuses"] = expected_statuses
-        result = await db.execute(text(query), params)
-        await commit_unless_editing(db)
-        if result.rowcount == 0:
+        try:
+            result = await db.execute(text(query), params)
+            changed = result.rowcount != 0
+            if changed and status in {"error", "failed", "cancelled", "canceled"}:
+                await refund_failed_minute_usage(db, task_id)
+            # Publish the terminal state and its refund together. A failed or
+            # stale status update must never refund another attempt's charge.
+            await commit_unless_editing(db)
+        except Exception:
+            await db.rollback()
+            raise
+        if not changed:
             return False
         logger.info(
             f"Updated task {task_id} status to {status}"

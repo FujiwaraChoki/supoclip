@@ -15,6 +15,7 @@ from time import perf_counter
 from arq.constants import job_key_prefix, in_progress_key_prefix, expires_extra_ms
 from ..workers.job_queue import JobQueue
 from ..repositories.task_repository import TaskRepository
+from ..repositories.minute_usage_repository import charged_duration
 from ..repositories.source_repository import SourceRepository
 from ..repositories.clip_repository import ClipRepository
 from ..repositories.cache_repository import CacheRepository
@@ -22,6 +23,7 @@ from .video_service import VideoService
 from .clip_service import ClipEditingMixin
 from ..repositories.edit_transaction import serialized_task_edit, task_edit_transaction, TaskCancelled
 from ..repositories.task_run_guard import exclusive_task_run, task_run_guard
+from ..repositories.generation_allowance_guard import generation_allowance_guard
 from .billing_service import BillingService, reduced_media_limits
 from .task_completion_email_service import (
     TaskCompletionEmailService,
@@ -215,6 +217,13 @@ class TaskService(ClipEditingMixin):
         if url.startswith("upload://s3/"):
             await run_in_thread(MediaStorage().validate_source, url, user_id)
 
+        # Routes preflight new sources. Other callers must also persist a verified
+        # duration, rather than creating an unmetered task with a NULL default.
+        try:
+            source_duration_seconds = charged_duration(source_duration_seconds)
+        except ValueError:
+            source_duration_seconds = await self.video_service.measure_source_duration(url, user_id)
+
         # Get or generate title
         if not title:
             if source_type == "youtube":
@@ -240,6 +249,7 @@ class TaskService(ClipEditingMixin):
             include_broll=include_broll,
             processing_mode=processing_mode,
             source_duration_seconds=source_duration_seconds,
+            charge_minutes=self.config.monetization_enabled,
         )
 
         logger.info(f"Created task {task_id} for user {user_id}")
@@ -322,6 +332,13 @@ class TaskService(ClipEditingMixin):
         try:
             await check_cancelled()
             logger.info(f"Starting processing for task {task_id}")
+            # New tasks already have an atomic acceptance charge. Recover queued
+            # legacy jobs with missing durations before doing paid processing.
+            if self.config.monetization_enabled and user_id:
+                async with generation_allowance_guard(self.db, user_id, enabled=True):
+                    await BillingService(self.db, self.config).assert_can_resume_task(
+                        user_id, task_id, require_active_plan=False
+                    )
             started_at = datetime.utcnow()
             stage_timings: Dict[str, float] = {}
             billing = (
