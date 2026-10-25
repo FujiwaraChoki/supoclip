@@ -291,3 +291,29 @@ for (const clipLength of ["auto", "long"]) {
     }
   });
 }
+
+test("captions turn off from the caption style menu and the composer stays on one row", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
+  await page.route(/\/api\/tasks\/?(\?.*)?$/, route => route.fulfill({ json: { tasks: [] } }));
+  await page.route("**/api/announcements**", route => route.fulfill({ json: { announcements: [] } }));
+  await page.route("**/api/service-status/video-downloads", route => route.fulfill({ json: { component: { status: "operational" } } }));
+  await page.route("**/api/preferences", route => route.fulfill({ json: { clipLength: "long" } }));
+  let submitted: Record<string, unknown> | undefined;
+  await page.route("**/api/tasks/create", async route => {
+    submitted = route.request().postDataJSON();
+    await route.fulfill({ json: { task_id: "one" } });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Default", exact: true }).click();
+  await page.getByRole("switch", { name: "Captions", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "No captions", exact: true })).toBeVisible();
+  await page.getByLabel("YouTube, Twitch, or Kick URL", { exact: true }).fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+  const submit = page.getByRole("button", { name: "Generate clips", exact: true });
+  const uploadBox = await page.getByRole("button", { name: "Upload a video file", exact: true }).boundingBox();
+  expect(Math.abs((await submit.boundingBox())!.y - uploadBox!.y)).toBeLessThanOrEqual(4);
+  await submit.click();
+  await expect(page).toHaveURL(/\/tasks\/one$/);
+  expect(submitted?.add_subtitles).toBe(false);
+});
