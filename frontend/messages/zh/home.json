@@ -73,6 +73,8 @@
   },
   "captions": "字幕",
   "noCaptions": "无字幕",
+  "broll": "B-roll 素材",
+  "brollHint": "在说话者提到可展示的事物时，自动插入 Pexels 素材视频",
   "cleanup": "清理",
   "cleanupTitle": "片段清理",
   "cleanupBody": "渲染时收紧空白，并切掉填充音。",

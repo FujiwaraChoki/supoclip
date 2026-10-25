@@ -73,6 +73,8 @@
   },
   "captions": "Subtítulos",
   "noCaptions": "Sin subtítulos",
+  "broll": "B-roll",
+  "brollHint": "Añade metraje de archivo de Pexels cuando se menciona algo que se puede mostrar",
   "cleanup": "Limpieza",
   "cleanupTitle": "Limpieza del clip",
   "cleanupBody": "Reduce los silencios y corta sonidos de relleno al renderizar.",

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
-  AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Crop, FileVideo,
+  AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Clapperboard, Crop, FileVideo,
   Loader2, Timer, Paperclip, Upload, Link2, Wand2, X,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
@@ -99,6 +99,8 @@ export default function HomeApp() {
   const clipLengthEdited = useRef(false);
   const clipLengthSave = useRef<Promise<unknown>>(Promise.resolve());
   const [addSubtitles, setAddSubtitles] = useState(true);
+  const [brollAvailable, setBrollAvailable] = useState(false);
+  const [includeBroll, setIncludeBroll] = useState(false);
   const [cutLongPauses, setCutLongPauses] = useState(true);
   const [pauseThresholdMs, setPauseThresholdMs] = useState("1200");
   const [removeFillerWords, setRemoveFillerWords] = useState(true);
@@ -193,6 +195,11 @@ export default function HomeApp() {
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => { if (data) setAvailableTemplates(data.templates || []); })
       .catch((error) => console.error("Failed to load caption templates:", error));
+    // B-roll is only offered when the server has a stock footage provider.
+    fetch("/api/broll/status")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => setBrollAvailable(data?.configured === true))
+      .catch(() => setBrollAvailable(false));
   }, []);
 
   useEffect(() => {
@@ -317,6 +324,7 @@ export default function HomeApp() {
           output_format: outputFormat,
           clip_length: clipLength,
           add_subtitles: addSubtitles,
+          include_broll: brollAvailable && includeBroll,
           cut_long_pauses: cutLongPauses,
           pause_threshold_ms: normalizedPauseThreshold,
           remove_filler_words: removeFillerWords,
@@ -342,6 +350,7 @@ export default function HomeApp() {
         caption_template: captionTemplate,
         output_format: outputFormat,
         add_subtitles: addSubtitles,
+        include_broll: brollAvailable && includeBroll,
         cut_long_pauses: cutLongPauses,
         pause_threshold_ms: normalizedPauseThreshold,
         remove_filler_words: removeFillerWords,
@@ -631,6 +640,13 @@ export default function HomeApp() {
                   </div>
                 </PopoverContent>
               </Popover>
+
+              {brollAvailable && (
+                // Icon-only so the desktop composer stays on one row.
+                <Chip onClick={() => setIncludeBroll((value) => !value)} disabled={controlsDisabled} aria-pressed={includeBroll} aria-label={t("broll")} active={includeBroll} title={`${t("broll")}: ${t("brollHint")}`} className="px-2">
+                  <Clapperboard className="size-3.5" />
+                </Chip>
+              )}
 
               <Popover>
                 <PopoverTrigger asChild>

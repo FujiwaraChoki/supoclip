@@ -73,6 +73,8 @@
   },
   "captions": "Legendas",
   "noCaptions": "Sem legendas",
+  "broll": "B-roll",
+  "brollHint": "Adiciona imagens de banco do Pexels quando quem fala cita algo que dá para mostrar",
   "cleanup": "Limpeza",
   "cleanupTitle": "Limpeza do clipe",
   "cleanupBody": "Encurta os silêncios e corta sons de preenchimento na renderização.",

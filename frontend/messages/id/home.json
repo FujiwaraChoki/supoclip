@@ -73,6 +73,8 @@
   },
   "captions": "Caption",
   "noCaptions": "Tanpa caption",
+  "broll": "B-roll",
+  "brollHint": "Menambahkan stok video dari Pexels saat pembicara menyebut sesuatu yang bisa ditampilkan",
   "cleanup": "Pembersihan",
   "cleanupTitle": "Pembersihan clip",
   "cleanupBody": "Rapatkan jeda kosong dan potong suara pengisi saat render.",

@@ -73,6 +73,8 @@
   },
   "captions": "Untertitel",
   "noCaptions": "Keine Untertitel",
+  "broll": "B-Roll",
+  "brollHint": "Fügt Stock-Footage von Pexels ein, wo der Sprecher etwas Zeigbares nennt",
   "cleanup": "Bereinigung",
   "cleanupTitle": "Clip-Bereinigung",
   "cleanupBody": "Kürzt Leerlauf und schneidet Fülllaute beim Rendern heraus.",
