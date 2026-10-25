@@ -366,7 +366,7 @@
     "selfHostGuide": "Ver o guia de auto-hospedagem",
     "billedYearly": "${price}/mês, cobrado anualmente",
     "usageExample": {
-      "videos": "Cerca de {count} vídeos"
+      "videos": "Cerca de {count} vídeos originais por mês. Cada um vira vários clipes."
     },
     "publishYoutube": "Poste clipes no YouTube Shorts",
     "schedulingYoutube": "Agende clipes no YouTube Shorts",

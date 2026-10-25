@@ -471,7 +471,7 @@ export default function LandingPage() {
                                 side="top"
                                 sideOffset={6}
                                 // Light so it stands out on the dark Pro card too.
-                                className="bg-background text-foreground shadow-lg ring-1 ring-border [&_svg]:bg-background [&_svg]:fill-background"
+                                className="max-w-60 bg-background text-foreground shadow-lg ring-1 ring-border [&_svg]:bg-background [&_svg]:fill-background"
                               >
                                 {plan.usageExample}
                               </TooltipContent>
