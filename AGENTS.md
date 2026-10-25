@@ -53,8 +53,5 @@ PRs should include:
 ## Security & Configuration Tips
 - Never commit real secrets; use `.env.example` as the template.
 - Preserve the committed dependency lockfiles and patched base-image versions when deploying. Run the `Image security` checks against freshly built final images; do not bypass a failing critical-vulnerability check with a server-only tag or an unpinned package install.
-- Before a production restart, check both SupoClip task records and the worker queue, let active clips finish, and recheck after stopping new submissions. Follow `docs/security-updates.md` for the deployment and rollback checks.
+- Before a production restart, check that no SupoClip tasks are queued or processing and the worker has no ongoing jobs; let active clips finish first.
 - Required runtime keys include `ASSEMBLY_AI_API_KEY` and either one hosted LLM provider key (`OPENAI_API_KEY`, `GOOGLE_API_KEY`, or `ANTHROPIC_API_KEY`) or an Ollama model configuration (`LLM=ollama:*`, optional `OLLAMA_BASE_URL`).
-
-## Production security maintenance (2026-10-24)
-Before deploying on the maintainer's production host, read /opt/production-security/DEPLOYMENT.md. Preserve the security dependency fixes and private Compose overrides. Use `sudo production-compose CONTAINER build/check/up` for registered services; do not bypass a failed image check with raw `docker compose up`. Check SupoClip queued/processing tasks and active workers before every restart. SupoClip itself requires a coordinated ingress and worker drain; the generic command intentionally blocks standalone SupoClip restarts.
