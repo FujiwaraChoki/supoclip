@@ -22,7 +22,8 @@ def normalize_broll_overlays(
     """Valid, non-overlapping overlays in play order.
 
     Each overlay needs ``path`` (an existing file), ``start`` and ``duration``
-    in seconds of the output timeline. Overlays past the clip end are cut to
+    in seconds of the output timeline; ``offset`` is where in the footage it
+    begins (after a trim cut into it). Overlays past the clip end are cut to
     fit; anything too short to read as a cutaway is dropped.
     """
     cleaned: List[Dict[str, Any]] = []
@@ -35,11 +36,15 @@ def normalize_broll_overlays(
             continue
         if not path.is_file():
             continue
+        try:
+            offset = max(0.0, float(overlay.get("offset") or 0.0))
+        except (TypeError, ValueError):
+            offset = 0.0
         if clip_duration is not None:
             duration = min(duration, clip_duration - start)
         if duration < MIN_BROLL_SECONDS:
             continue
-        cleaned.append({"path": path, "start": start, "duration": duration})
+        cleaned.append({"path": path, "start": start, "duration": duration, "offset": offset})
 
     cleaned.sort(key=lambda overlay: overlay["start"])
     result: List[Dict[str, Any]] = []
@@ -57,7 +62,8 @@ def broll_input_args(overlays: List[Dict[str, Any]]) -> List[str]:
     args: List[str] = []
     for overlay in overlays:
         # A little slack past the cutaway so the fade-out has frames to use.
-        args += ["-t", f"{overlay['duration'] + 0.5:.3f}", "-i", str(overlay["path"])]
+        read = overlay.get("offset", 0.0) + overlay["duration"] + 0.5
+        args += ["-t", f"{read:.3f}", "-i", str(overlay["path"])]
     return args
 
 
@@ -84,7 +90,7 @@ def broll_overlay_graph(
         # Shift the cutaway onto the clip timeline, fill the frame like the
         # main picture does, then fade its alpha so it dissolves over the speaker.
         parts.append(
-            f"[{first_input + index}:v]trim=duration={duration:.3f},"
+            f"[{first_input + index}:v]trim=start={overlay.get('offset', 0.0):.3f}:duration={duration:.3f},"
             f"setpts=PTS-STARTPTS+{start:.3f}/TB,"
             f"scale={width}:{height}:force_original_aspect_ratio=increase:flags=lanczos,"
             f"crop={width}:{height},setsar=1,format=yuva420p,"

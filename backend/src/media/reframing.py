@@ -1500,8 +1500,12 @@ def render_reframed_clip_ffmpeg(
         needs_fps = source_fps is not None and source_fps > MAX_OUTPUT_FPS + FPS_EPSILON
         out_w, out_h = round_to_even(capped_width), round_to_even(capped_height)
         if overlays:
-            scale = f"scale={out_w}:{out_h}:flags=lanczos," if needs_scale else ""
-            ok = composited(f"[0:v]{scale}setsar=1[base]", "[base]", out_w, out_h, tail="setsar=1")
+            # Always scale to the display size: on a non-square-pixel source
+            # the coded frame is not the size the overlay is built for.
+            ok = composited(
+                f"[0:v]scale={out_w}:{out_h}:flags=lanczos,setsar=1[base]", "[base]", out_w, out_h,
+                tail="setsar=1",
+            )
             return ok, out_w, out_h
         # A source already within 1080p/60 can be copied. Anything above that is
         # re-encoded so original-format output cannot exceed the cap.

@@ -252,6 +252,10 @@ class ClipEditingMixin:
             if source_type in {"youtube", "twitch", "kick"}:
                 self._cleanup_source_video(video_path, source_type, source_url)
 
+        if not clips_info:
+            # Replacing the rows with nothing would delete every clip.
+            raise ValueError("Could not regenerate the clips. Your existing clips are unchanged.")
+
         await self.clip_repo.delete_clips_by_task(self.db, task_id)
 
         clip_ids = []
@@ -556,6 +560,7 @@ class ClipEditingMixin:
             # The clip timeline is unchanged, so its cutaways go back on as they were.
             broll = load_clip_broll(input_path)
             broll_overlays = await broll_overlays_for(broll)
+            render_report: Dict[str, Any] = {}
             with tempfile.TemporaryDirectory(prefix="caption_edit_", dir=output_dir) as temporary:
                 clean_path = Path(temporary) / "clean.mp4"
                 rendered = await run_in_thread(
@@ -569,10 +574,13 @@ class ClipEditingMixin:
                     font_color=task.get("font_color") or None,
                     caption_template=task.get("caption_template") or "default",
                     extend_to_sentence=False,
+                    layout_report=render_report,
                     broll_overlays=broll_overlays,
                 )
                 if not rendered:
                     raise ValueError("Could not prepare the clip for caption editing")
+                if not render_report.get("broll_applied"):
+                    broll = []
                 output_path = await run_in_thread(
                     overlay_custom_captions,
                     clean_path, output_dir, caption_text, position, highlight_words,

@@ -45,9 +45,12 @@ SEARCH_RESULTS_PER_QUERY = 10
 SEARCH_CACHE_TTL_SECONDS = 6 * 3600
 SEARCH_CACHE_MAX_ENTRIES = 512
 MAX_DOWNLOAD_BYTES = 150 * 1024 * 1024
-# Footage is re-downloaded on demand, so the cache can stay small.
+# Footage is re-downloaded on demand, so the cache can stay small. Files used
+# recently are kept even over the cap: a task prepares every clip's footage
+# before its renders run.
 CACHE_MAX_AGE_SECONDS = 24 * 3600
 CACHE_MAX_BYTES = 2 * 1024 * 1024 * 1024
+CACHE_IN_USE_SECONDS = 2 * 3600
 HTTP_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 
 _search_cache: Dict[tuple[str, str], tuple[float, List[Dict[str, Any]]]] = {}
@@ -198,9 +201,14 @@ def broll_file_path(entry: Dict[str, Any]) -> Path:
 
 
 def prune_broll_cache(
-    max_age_seconds: float = CACHE_MAX_AGE_SECONDS, max_bytes: int = CACHE_MAX_BYTES
+    max_age_seconds: float = CACHE_MAX_AGE_SECONDS,
+    max_bytes: int = CACHE_MAX_BYTES,
+    in_use_seconds: float = CACHE_IN_USE_SECONDS,
 ) -> None:
-    """Drop footage unused for a day, then the oldest until under the size cap."""
+    """Drop footage unused for a day, then the oldest until under the size cap.
+
+    Footage used in the last ``in_use_seconds`` is never removed.
+    """
     directory = broll_cache_dir()
     if not directory.is_dir():
         return
@@ -216,8 +224,9 @@ def prune_broll_cache(
         except OSError:
             continue
     total = sum(size for _, size, _ in kept)
-    for _, size, path in sorted(kept):
-        if total <= max_bytes:
+    protect_after = time.time() - in_use_seconds
+    for mtime, size, path in sorted(kept):
+        if total <= max_bytes or mtime >= protect_after:
             break
         path.unlink(missing_ok=True)
         total -= size
@@ -264,7 +273,23 @@ async def ensure_broll_file(entry: Dict[str, Any]) -> Optional[Path]:
             return path
         if not entry.get("file_url") or not await _download(entry["file_url"], path):
             return None
+        # A 200 can still be an error page or a truncated file, and one bad
+        # input would fail the whole clip render.
+        if not await asyncio.to_thread(_is_playable_video, path):
+            logger.warning("B-roll download for %s is not a playable video", entry.get("pexels_id"))
+            path.unlink(missing_ok=True)
+            return None
         return path
+
+
+def _is_playable_video(path: Path) -> bool:
+    from .media.ffmpeg import ffprobe_duration, ffprobe_video_size
+
+    try:
+        width, height = ffprobe_video_size(path)
+        return width > 0 and height > 0 and ffprobe_duration(path) > 0
+    except Exception:
+        return False
 
 
 # --------------------------------------------------------------------------
@@ -462,7 +487,12 @@ async def broll_overlays_for(placements: Iterable[Dict[str, Any]]) -> List[Dict[
             logger.warning("B-roll footage %s unavailable; skipping it", placement.get("pexels_id"))
             continue
         overlays.append(
-            {"path": path, "start": placement["start"], "duration": placement["duration"]}
+            {
+                "path": path,
+                "start": placement["start"],
+                "duration": placement["duration"],
+                "offset": float(placement.get("footage_offset") or 0.0),
+            }
         )
     return overlays
 
@@ -473,14 +503,19 @@ def shift_broll_placements(
     """Placements for a cut of the clip that starts ``offset`` seconds in.
 
     Cutaways that end up mostly outside the new clip are dropped; the rest are
-    clipped to it.
+    clipped to it. A cutaway cut at its head resumes its footage where the
+    cut falls (``footage_offset``) instead of replaying it from the start.
     """
     shifted = []
     for placement in placements or []:
         start = float(placement["start"]) - offset
         end = start + float(placement["duration"])
+        footage_offset = float(placement.get("footage_offset") or 0.0) + max(0.0, -start)
         start, end = max(0.0, start), min(duration, end)
         if end - start < MIN_CUE_SECONDS:
             continue
-        shifted.append({**placement, "start": round(start, 3), "duration": round(end - start, 3)})
+        moved = {**placement, "start": round(start, 3), "duration": round(end - start, 3)}
+        if footage_offset > 0:
+            moved["footage_offset"] = round(footage_offset, 3)
+        shifted.append(moved)
     return shifted

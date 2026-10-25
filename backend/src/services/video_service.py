@@ -535,6 +535,7 @@ class VideoService:
                     video_path, keep_ranges, output_format, max_short_side, broll_session
                 )
             broll_overlays = await broll_overlays_for(broll_placements)
+            render_report: Dict[str, Any] = {}
 
             success = await run_in_thread(
                 create_optimized_clip,
@@ -551,12 +552,15 @@ class VideoService:
                 keep_ranges,
                 segment.get("hook_title"),
                 extend_to_sentence=False,
+                layout_report=render_report,
                 broll_overlays=broll_overlays,
             )
 
             if not success:
                 logger.error(f"Failed to create clip {clip_index + 1}")
                 return None
+            if not render_report.get("broll_applied"):
+                broll_placements = []
 
             if max_short_side:
                 try:

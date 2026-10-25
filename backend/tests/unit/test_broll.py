@@ -28,6 +28,33 @@ from src.clip_source_map import (
 from src.media.broll_overlay import broll_overlay_graph, normalize_broll_overlays
 
 
+requires_ffmpeg = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is required")
+
+
+def _solid(path: Path, color: str, seconds: float, size: str):
+    subprocess.run(
+        [
+            "ffmpeg", "-v", "error", "-y",
+            "-f", "lavfi", "-i", f"color=c={color}:s={size}:r=30:d={seconds}",
+            "-f", "lavfi", "-i", f"sine=d={seconds}",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(path),
+        ],
+        check=True,
+    )
+
+
+def _pixel(path: Path, at: float) -> tuple[int, int, int]:
+    raw = subprocess.run(
+        [
+            "ffmpeg", "-v", "error", "-ss", f"{at}", "-i", str(path),
+            "-frames:v", "1", "-vf", "scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
+        ],
+        check=True,
+        capture_output=True,
+    ).stdout
+    return raw[0], raw[1], raw[2]
+
+
 def _file(width, height, quality=None, link=None):
     return {
         "quality": quality,
@@ -276,13 +303,17 @@ async def test_rate_limit_pauses_further_searches(pexels_config, monkeypatch):
     assert len(calls) == 1
 
 
+@requires_ffmpeg
 @pytest.mark.asyncio
-async def test_ensure_broll_file_downloads_once(pexels_config, monkeypatch):
+async def test_ensure_broll_file_downloads_once(pexels_config, monkeypatch, tmp_path):
     calls = []
+    footage = tmp_path / "footage.mp4"
+    _solid(footage, "blue", 1, "64x64")
+    video_bytes = footage.read_bytes()
 
     def handler(request):
         calls.append(request)
-        return httpx.Response(200, content=b"video-bytes")
+        return httpx.Response(200, content=video_bytes)
 
     _mock_pexels(monkeypatch, handler)
     placement = {"pexels_id": 5, "width": 1080, "height": 1920, "file_url": "https://videos.example/a.mp4"}
@@ -290,7 +321,7 @@ async def test_ensure_broll_file_downloads_once(pexels_config, monkeypatch):
     first = await broll.ensure_broll_file(placement)
     second = await broll.ensure_broll_file(placement)
 
-    assert first == second and first.read_bytes() == b"video-bytes"
+    assert first == second and first.read_bytes() == video_bytes
     assert first.parent == Path(pexels_config.temp_dir) / "broll_cache"
     assert len(calls) == 1
     assert not list(first.parent.glob("*.part"))
@@ -372,31 +403,6 @@ def test_overlay_graph_dissolves_each_cutaway_in_place():
     assert "[base][broll0]overlay=0:0:eof_action=pass:enable='between(t,4.000,7.000)'" in graph
 
 
-requires_ffmpeg = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is required")
-
-
-def _solid(path: Path, color: str, seconds: float, size: str):
-    subprocess.run(
-        [
-            "ffmpeg", "-v", "error", "-y",
-            "-f", "lavfi", "-i", f"color=c={color}:s={size}:r=30:d={seconds}",
-            "-f", "lavfi", "-i", f"sine=d={seconds}",
-            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(path),
-        ],
-        check=True,
-    )
-
-
-def _pixel(path: Path, at: float) -> tuple[int, int, int]:
-    raw = subprocess.run(
-        [
-            "ffmpeg", "-v", "error", "-ss", f"{at}", "-i", str(path),
-            "-frames:v", "1", "-vf", "scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
-        ],
-        check=True,
-        capture_output=True,
-    ).stdout
-    return raw[0], raw[1], raw[2]
 
 
 @requires_ffmpeg
@@ -440,9 +446,27 @@ def test_prune_drops_stale_footage_then_oldest_over_the_cap(pexels_config):
         path.write_bytes(b"x" * size)
         os.utime(path, (now - age, now - age))
 
-    broll.prune_broll_cache(max_bytes=15)
+    broll.prune_broll_cache(max_bytes=15, in_use_seconds=0)
 
     assert sorted(p.name for p in cache.iterdir()) == ["pexels_3_a.mp4"]
+
+
+def test_prune_never_evicts_footage_a_render_is_about_to_use(pexels_config):
+    import os
+    import time
+
+    cache = Path(pexels_config.temp_dir) / "broll_cache"
+    cache.mkdir()
+    now = time.time()
+    for name, age in (("pexels_1_a.mp4", 1800), ("pexels_2_a.mp4", 60)):
+        path = cache / name
+        path.write_bytes(b"x" * 10)
+        os.utime(path, (now - age, now - age))
+
+    # Over the cap, but both were prepared within the last two hours.
+    broll.prune_broll_cache(max_bytes=5)
+
+    assert sorted(p.name for p in cache.iterdir()) == ["pexels_1_a.mp4", "pexels_2_a.mp4"]
 
 
 @requires_ffmpeg
@@ -471,3 +495,122 @@ async def test_carrying_broll_never_fails_the_edit(tmp_path):
     await ClipEditingMixin._carry_broll([{"start": 3.0, "duration": 2.0}], [(broken, 0.0)])
 
     assert load_clip_broll(broken) == []
+
+
+@pytest.mark.asyncio
+async def test_a_download_that_is_not_a_video_is_discarded(pexels_config, monkeypatch):
+    _mock_pexels(monkeypatch, lambda request: httpx.Response(200, content=b"<html>rate limited</html>"))
+    placement = {"pexels_id": 8, "width": 1080, "height": 1920, "file_url": "https://videos.example/c.mp4"}
+
+    assert await broll.ensure_broll_file(placement) is None
+    assert not any((Path(pexels_config.temp_dir) / "broll_cache").iterdir())
+
+
+def test_trimming_into_a_cutaway_resumes_its_footage():
+    placements = [{"start": 3.0, "duration": 4.0}]
+
+    trimmed = shift_broll_placements(placements, 4.0, 20.0)
+    assert trimmed == [{"start": 0.0, "duration": 3.0, "footage_offset": 1.0}]
+    # A second trim adds to the offset.
+    assert shift_broll_placements(trimmed, 0.5, 20.0)[0]["footage_offset"] == 1.5
+
+    graph, _ = broll_overlay_graph(
+        "[base]", [{"path": "a", "start": 0.0, "duration": 3.0, "offset": 1.0}], 1080, 1920
+    )
+    assert "trim=start=1.000:duration=3.000" in graph
+
+
+@requires_ffmpeg
+def test_render_plays_footage_from_its_offset(tmp_path):
+    from src.media.reframing import render_reframed_clip_ffmpeg
+
+    main, footage, output = tmp_path / "main.mp4", tmp_path / "footage.mp4", tmp_path / "out.mp4"
+    _solid(main, "red", 6, "320x240")
+    green, blue = tmp_path / "green.mp4", tmp_path / "blue.mp4"
+    _solid(green, "green", 2, "180x320")
+    _solid(blue, "blue", 3, "180x320")
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-i", str(green), "-i", str(blue),
+         "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[v]", "-map", "[v]", str(footage)],
+        check=True,
+    )
+
+    ok, _, _ = render_reframed_clip_ffmpeg(
+        main, output, "original",
+        broll_overlays=[{"path": footage, "start": 1.0, "duration": 2.5, "offset": 2.0}],
+    )
+
+    assert ok
+    shown = _pixel(output, 1.6)
+    assert shown[2] > 200 and shown[1] < 100  # blue: footage from second 2, not green
+
+
+@requires_ffmpeg
+def test_broken_footage_falls_back_to_the_clip_without_broll(tmp_path):
+    from src.video_utils import create_optimized_clip
+
+    main, output = tmp_path / "main.mp4", tmp_path / "out.mp4"
+    _solid(main, "red", 6, "320x240")
+    broken = tmp_path / "broken.mp4"
+    broken.write_bytes(b"not a video")
+    report: dict = {}
+
+    ok = create_optimized_clip(
+        main, 0.0, 6.0, output, add_subtitles=False, output_format="original",
+        keep_ranges=[(0.0, 6.0)], extend_to_sentence=False, layout_report=report,
+        broll_overlays=[{"path": broken, "start": 2.0, "duration": 2.0}],
+    )
+
+    assert ok and output.is_file()
+    assert report["broll_applied"] is False
+
+
+@requires_ffmpeg
+def test_original_format_broll_keeps_non_square_pixel_sources_in_shape(tmp_path):
+    from src.media.reframing import render_reframed_clip_ffmpeg
+
+    main, footage, output = tmp_path / "main.mp4", tmp_path / "footage.mp4", tmp_path / "out.mp4"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=320x240:r=30:d=4",
+         "-vf", "setsar=2", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(main)],
+        check=True,
+    )
+    _solid(footage, "blue", 3, "180x320")
+
+    ok, width, height = render_reframed_clip_ffmpeg(
+        main, output, "original", broll_overlays=[{"path": footage, "start": 1.0, "duration": 2.0}]
+    )
+
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+         "stream=width,height,sample_aspect_ratio", "-of", "csv=p=0", str(output)],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    assert ok and (width, height) == (640, 240)
+    assert probe.startswith("640,240,1:1")
+
+
+@pytest.mark.asyncio
+async def test_regeneration_that_renders_nothing_keeps_the_existing_clips(isolated_clip_edits, tmp_path):
+    from unittest.mock import AsyncMock
+
+    from src.services.task_service import TaskService
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    service = TaskService(db=None)
+    service.task_repo.get_task_by_id = AsyncMock(return_value={"source_url": "upload://source.mp4", "source_type": "upload"})
+    service.clip_repo.get_clips_by_task = AsyncMock(return_value=[
+        {"id": "clip", "task_id": "task", "file_path": str(tmp_path / "clip.mp4"),
+         "start_time": "00:00", "end_time": "00:05", "text": "hello"}
+    ])
+    service.clip_repo.delete_clips_by_task = AsyncMock()
+    service._load_task_source_settings = AsyncMock(return_value={"output_format": "vertical", "add_subtitles": True})
+    service.video_service.resolve_local_video_path = lambda _url: source
+    service.video_service.prepare_source = AsyncMock(return_value=source)
+    service.video_service.create_video_clips = AsyncMock(return_value=[])
+
+    with pytest.raises(ValueError, match="existing clips are unchanged"):
+        await service.regenerate_all_clips_for_task("task", None, None, None, "default")
+
+    service.clip_repo.delete_clips_by_task.assert_not_awaited()

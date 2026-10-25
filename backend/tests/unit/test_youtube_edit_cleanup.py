@@ -96,7 +96,7 @@ async def test_regeneration_removes_its_download(
     service._load_task_source_settings = AsyncMock(return_value={"output_format": "vertical", "add_subtitles": True})
     service.video_service.download_video = AsyncMock(return_value=source)
     service.video_service.create_video_clips = AsyncMock(
-        return_value=[] if render_succeeds else None,
+        return_value=[{"clip_id": 1, "filename": "new.mp4", "path": "new.mp4", "start_time": "00:10", "end_time": "00:15", "duration": 3.0}] if render_succeeds else None,
         side_effect=None if render_succeeds else RuntimeError("render failed"),
     )
 

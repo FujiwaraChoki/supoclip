@@ -274,7 +274,8 @@ def create_optimized_clip(
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size).
 
     ``broll_overlays`` are stock cutaways (path, start, duration on the clip
-    timeline) composited under the captions.
+    timeline) composited under the captions. If that render fails the clip is
+    rendered without them; ``layout_report["broll_applied"]`` says which.
     """
     try:
         if keep_ranges:
@@ -426,17 +427,27 @@ def create_optimized_clip(
                     font_family or get_template(caption_template)["font_family"]
                 )
 
-            framed_ok, _, _ = render_reframed_clip_ffmpeg(
-                source_clip_path,
-                final_clip_path,
-                reframe_format,
-                subtitle_ass_path=burn_ass_path,
-                fonts_dir=fonts_dir,
-                speaker_turns=speaker_turns,
-                speaker_words=speaker_words,
-                vertical_plan=vertical_plan,
-                broll_overlays=broll_overlays,
-            )
+            def render(overlays):
+                return render_reframed_clip_ffmpeg(
+                    source_clip_path,
+                    final_clip_path,
+                    reframe_format,
+                    subtitle_ass_path=burn_ass_path,
+                    fonts_dir=fonts_dir,
+                    speaker_turns=speaker_turns,
+                    speaker_words=speaker_words,
+                    vertical_plan=vertical_plan,
+                    broll_overlays=overlays,
+                )[0]
+
+            framed_ok = render(broll_overlays)
+            broll_applied = bool(broll_overlays) and framed_ok
+            if not framed_ok and broll_overlays:
+                # Stock footage must never cost the user the clip itself.
+                logger.warning("Render with B-roll failed; rendering the clip without it")
+                framed_ok = render(None)
+            if layout_report is not None:
+                layout_report["broll_applied"] = broll_applied
             if not framed_ok:
                 raise RuntimeError("ffmpeg reframe render failed")
 
@@ -554,7 +565,10 @@ def create_clips_from_segments(
 
             if success:
                 save_clip_source_ranges(clip_path, keep_ranges)
-                save_clip_broll(clip_path, segment.get("broll"))
+                save_clip_broll(
+                    clip_path,
+                    segment.get("broll") if layout_report.get("broll_applied") else [],
+                )
                 if layout_report.get("caption_y") is not None:
                     save_clip_caption_settings(
                         clip_path, {"position_y": layout_report["caption_y"]}
