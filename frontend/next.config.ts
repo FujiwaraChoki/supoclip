@@ -21,6 +21,8 @@ const posthogRewrites = isPostHogEnabled
 const nextConfig: NextConfig = {
   distDir: process.env.NEXT_BUILD_DIR || ".next",
   output: 'standalone',
+  // Keep canonical tags in the initial <head>, including for Googlebot.
+  htmlLimitedBots: /.*/,
   // PostHog's API paths end in a slash (e.g. /e/); don't redirect them.
   skipTrailingSlashRedirect: isPostHogEnabled,
   typescript: {
