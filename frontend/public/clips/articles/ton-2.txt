@@ -1,0 +1,10 @@
+Interview: Ton Roosendaal introducing Project Gooseberry
+Source: https://www.youtube.com/watch?v=G5CAAY-unN4
+Creator: Blender Foundation; interview by Bart Veldhuizen; edited by Francesco Siddi
+License: CC BY 3.0 — https://creativecommons.org/licenses/by/3.0/
+License record: https://commons.wikimedia.org/wiki/File:Interview_with_Ton_Roosendaal_introducing_Project_Gooseberry.ogv
+Source span: 08:04–08:38 (484.10–518.65 seconds)
+
+Adaptation: Excerpted with reviewed start and end points, reframed to 9:16, captioned with corrected spellings, given an editorial hook title, and encoded at 540×960. Pauses may be removed by the clipping pipeline.
+Processed by SupoClip repository revision 846a025f6ec258d2afc835d7ae69645d6cf3140a plus local content changes. Transcription: local Whisper small; initial selection: local Ollama qwen3.8:27b; final editorial boundaries and caption corrections recorded separately.
+The sources do not endorse SupoClip. These are demonstrations, not an audience-growth or processing-speed benchmark.

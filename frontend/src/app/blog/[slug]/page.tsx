@@ -1,4 +1,5 @@
 import { formatArticleDate } from "@/components/articles/article-shell";
+import { CreatorGuideArticle } from "@/components/articles/creator-guide-article";
 import { OpusClipComparisonArticle } from "@/components/articles/opusclip-comparison-article";
 import { SelfHostingGuideArticle } from "@/components/articles/self-hosting-guide-article";
 import { RelatedGuides } from "@/components/marketing/related-guides";
@@ -28,6 +29,7 @@ import { Separator } from "@/components/ui/separator";
 import { intlLocale } from "@/i18n/config";
 import { applyBlogCopy, HOSTED_APP_URL, blogPosts, getBlogPost, getBlogPostMetadata, getSiteUrl } from "@/lib/blog-posts";
 import { OPUSCLIP_COMPARISON_HREF, SELF_HOSTING_GUIDE_HREF } from "@/lib/marketing-links";
+import { getCreatorGuide } from "@/lib/creator-guides";
 
 interface BlogPostPageProps {
   params: Promise<{
@@ -66,6 +68,9 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   if (!basePost) {
     notFound();
   }
+
+  const guide = getCreatorGuide(slug);
+  if (guide) return <CreatorGuideArticle guide={guide} />;
 
   const t = await getTranslations("blog");
   const locale = await getLocale();

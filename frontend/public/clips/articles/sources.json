@@ -1,0 +1,28 @@
+{
+  "sources": {
+    "price": {
+      "title": "7 Habits of Effective Artists \u2014 Andrew Price",
+      "url": "https://www.youtube.com/watch?v=vM39qhXle4g",
+      "credit": "Blender; speaker Andrew Price",
+      "publishedAt": "2016-11-08",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "evidenceUrl": "https://commons.wikimedia.org/wiki/File:The_Habits_of_Effective_Artists_(vM39qhXle4g).webm",
+      "viewsAtSelection": 3775607,
+      "checkedAt": "2026-10-26"
+    },
+    "ton": {
+      "title": "Interview: Ton Roosendaal introducing Project Gooseberry",
+      "url": "https://www.youtube.com/watch?v=G5CAAY-unN4",
+      "credit": "Blender Foundation; interview by Bart Veldhuizen; edited by Francesco Siddi",
+      "publishedAt": "2014-03-29",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "evidenceUrl": "https://commons.wikimedia.org/wiki/File:Interview_with_Ton_Roosendaal_introducing_Project_Gooseberry.ogv",
+      "viewsAtSelection": 25197,
+      "checkedAt": "2026-10-26"
+    }
+  },
+  "processing": "Excerpted with reviewed start and end points, reframed to 9:16, captioned with corrected spellings, given an editorial hook title, and encoded at 540\u00d7960. Pauses may be removed by the clipping pipeline.",
+  "generatedAt": "2026-10-26T22:51:41+00:00"
+}

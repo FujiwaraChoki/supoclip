@@ -29,6 +29,7 @@ export function RelatedGuides({ href, heading = "Continue exploring" }: { href: 
           <Link
             key={link.href}
             href={link.href}
+            lang={link.language}
             className="group rounded-lg border p-5 !no-underline transition-colors hover:border-foreground/30"
           >
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t(`links.${catalogKey(link.href)}.eyebrow`)}</p>

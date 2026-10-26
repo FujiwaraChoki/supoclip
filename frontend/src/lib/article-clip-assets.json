@@ -1,0 +1,117 @@
+[
+  {
+    "id": "price-1",
+    "title": "What separates artists who improve",
+    "src": "/clips/articles/price-1.mp4",
+    "poster": "/clips/articles/price-1.jpg",
+    "durationSeconds": 44.5,
+    "startSeconds": 1344.15,
+    "sourceRange": "22:24\u201323:08",
+    "publishedAt": "2026-10-26T22:51:41+00:00",
+    "edits": "Excerpted with reviewed start and end points, reframed to 9:16, captioned with corrected spellings, given an editorial hook title, and encoded at 540\u00d7960. Pauses may be removed by the clipping pipeline.",
+    "attributionFile": "/clips/articles/price-1.txt",
+    "source": {
+      "title": "7 Habits of Effective Artists \u2014 Andrew Price",
+      "url": "https://www.youtube.com/watch?v=vM39qhXle4g",
+      "credit": "Blender; speaker Andrew Price",
+      "publishedAt": "2016-11-08",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "evidenceUrl": "https://commons.wikimedia.org/wiki/File:The_Habits_of_Effective_Artists_(vM39qhXle4g).webm",
+      "viewsAtSelection": 3775607,
+      "checkedAt": "2026-10-26"
+    }
+  },
+  {
+    "id": "price-2",
+    "title": "You know the hits, not all the work",
+    "src": "/clips/articles/price-2.mp4",
+    "poster": "/clips/articles/price-2.jpg",
+    "durationSeconds": 33.133,
+    "startSeconds": 393.05,
+    "sourceRange": "06:33\u201307:06",
+    "publishedAt": "2026-10-26T22:51:41+00:00",
+    "edits": "Excerpted with reviewed start and end points, reframed to 9:16, captioned with corrected spellings, given an editorial hook title, and encoded at 540\u00d7960. Pauses may be removed by the clipping pipeline.",
+    "attributionFile": "/clips/articles/price-2.txt",
+    "source": {
+      "title": "7 Habits of Effective Artists \u2014 Andrew Price",
+      "url": "https://www.youtube.com/watch?v=vM39qhXle4g",
+      "credit": "Blender; speaker Andrew Price",
+      "publishedAt": "2016-11-08",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "evidenceUrl": "https://commons.wikimedia.org/wiki/File:The_Habits_of_Effective_Artists_(vM39qhXle4g).webm",
+      "viewsAtSelection": 3775607,
+      "checkedAt": "2026-10-26"
+    }
+  },
+  {
+    "id": "price-3",
+    "title": "A minute of feedback saved hours of work",
+    "src": "/clips/articles/price-3.mp4",
+    "poster": "/clips/articles/price-3.jpg",
+    "durationSeconds": 54.0,
+    "startSeconds": 1388.9,
+    "sourceRange": "23:08\u201324:02",
+    "publishedAt": "2026-10-26T22:51:41+00:00",
+    "edits": "Excerpted with reviewed start and end points, reframed to 9:16, captioned with corrected spellings, given an editorial hook title, and encoded at 540\u00d7960. Pauses may be removed by the clipping pipeline.",
+    "attributionFile": "/clips/articles/price-3.txt",
+    "source": {
+      "title": "7 Habits of Effective Artists \u2014 Andrew Price",
+      "url": "https://www.youtube.com/watch?v=vM39qhXle4g",
+      "credit": "Blender; speaker Andrew Price",
+      "publishedAt": "2016-11-08",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "evidenceUrl": "https://commons.wikimedia.org/wiki/File:The_Habits_of_Effective_Artists_(vM39qhXle4g).webm",
+      "viewsAtSelection": 3775607,
+      "checkedAt": "2026-10-26"
+    }
+  },
+  {
+    "id": "ton-1",
+    "title": "Why an open film needs its community",
+    "src": "/clips/articles/ton-1.mp4",
+    "poster": "/clips/articles/ton-1.jpg",
+    "durationSeconds": 33.0,
+    "startSeconds": 22.65,
+    "sourceRange": "00:22\u201300:55",
+    "publishedAt": "2026-10-26T22:51:41+00:00",
+    "edits": "Excerpted with reviewed start and end points, reframed to 9:16, captioned with corrected spellings, given an editorial hook title, and encoded at 540\u00d7960. Pauses may be removed by the clipping pipeline.",
+    "attributionFile": "/clips/articles/ton-1.txt",
+    "source": {
+      "title": "Interview: Ton Roosendaal introducing Project Gooseberry",
+      "url": "https://www.youtube.com/watch?v=G5CAAY-unN4",
+      "credit": "Blender Foundation; interview by Bart Veldhuizen; edited by Francesco Siddi",
+      "publishedAt": "2014-03-29",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "evidenceUrl": "https://commons.wikimedia.org/wiki/File:Interview_with_Ton_Roosendaal_introducing_Project_Gooseberry.ogv",
+      "viewsAtSelection": 25197,
+      "checkedAt": "2026-10-26"
+    }
+  },
+  {
+    "id": "ton-2",
+    "title": "Open the project before it feels finished",
+    "src": "/clips/articles/ton-2.mp4",
+    "poster": "/clips/articles/ton-2.jpg",
+    "durationSeconds": 34.6,
+    "startSeconds": 484.1,
+    "sourceRange": "08:04\u201308:38",
+    "publishedAt": "2026-10-26T22:51:41+00:00",
+    "edits": "Excerpted with reviewed start and end points, reframed to 9:16, captioned with corrected spellings, given an editorial hook title, and encoded at 540\u00d7960. Pauses may be removed by the clipping pipeline.",
+    "attributionFile": "/clips/articles/ton-2.txt",
+    "source": {
+      "title": "Interview: Ton Roosendaal introducing Project Gooseberry",
+      "url": "https://www.youtube.com/watch?v=G5CAAY-unN4",
+      "credit": "Blender Foundation; interview by Bart Veldhuizen; edited by Francesco Siddi",
+      "publishedAt": "2014-03-29",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "evidenceUrl": "https://commons.wikimedia.org/wiki/File:Interview_with_Ton_Roosendaal_introducing_Project_Gooseberry.ogv",
+      "viewsAtSelection": 25197,
+      "checkedAt": "2026-10-26"
+    }
+  }
+]

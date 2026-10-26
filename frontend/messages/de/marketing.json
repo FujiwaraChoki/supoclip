@@ -118,6 +118,48 @@
     },
     "changelog": {
       "label": "Änderungen"
+    },
+    "blog_podcast_to_shorts": {
+      "eyebrow": "Podcast clips",
+      "title": "Turn a video podcast into Shorts and Reels",
+      "label": "Podcast to Shorts",
+      "description": "Choose complete ideas, correct captions, and follow real clips back to the source."
+    },
+    "blog_find_best_moments_in_video": {
+      "eyebrow": "Highlight selection",
+      "title": "Find the best moments in a long video",
+      "label": "Find video highlights",
+      "description": "Use a practical checklist for hooks, context, payoff, and clean boundaries."
+    },
+    "blog_twitch_vod_to_shorts": {
+      "eyebrow": "Stream clips",
+      "title": "Turn Twitch VODs into TikTok clips and Shorts",
+      "label": "Twitch VOD to Shorts",
+      "description": "Review spoken highlights, preserve gameplay context, and export vertical clips."
+    },
+    "blog_repurpose_webinar_clips": {
+      "eyebrow": "Webinar repurposing",
+      "title": "Repurpose a webinar into social media clips",
+      "label": "Webinar clips",
+      "description": "Turn audience questions and useful answers into clips with readable slides and captions."
+    },
+    "blog_word_by_word_video_captions": {
+      "eyebrow": "Caption editing",
+      "title": "Add readable word-by-word captions to clips",
+      "label": "Word-by-word captions",
+      "description": "Correct the transcript, choose a style, and keep subtitles clear of platform controls."
+    },
+    "blog_schedule_week_of_youtube_shorts": {
+      "eyebrow": "Publishing workflow",
+      "title": "Create and schedule a week of YouTube Shorts",
+      "label": "Schedule YouTube Shorts",
+      "description": "Build a distinct batch, review each clip, and verify scheduled publication."
+    },
+    "blog_open_source_video_clippers": {
+      "eyebrow": "Open-source comparison",
+      "title": "Compare SupoClip, Clips AI, and Auto-Editor",
+      "label": "Open-source video clippers",
+      "description": "Choose an app, Python library, or command-line tool for the editing job you need."
     }
   },
   "nav": {

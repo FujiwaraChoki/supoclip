@@ -45,7 +45,6 @@ import {
   type BillingInterval,
 } from "@/lib/billing-plans";
 import {
-  OPUSCLIP_COMPARISON_HREF,
   SELF_HOSTING_GUIDE_HREF,
   getMarketingLink,
   type MarketingLink,
@@ -69,12 +68,12 @@ const NAV_LINKS = [
 
 // Featured on the landing page; the footer links every marketing page.
 const SEO_RESOURCES = [
-  OPUSCLIP_COMPARISON_HREF,
-  SELF_HOSTING_GUIDE_HREF,
+  "/blog/podcast-to-shorts",
+  "/blog/find-best-moments-in-video",
   "/ai-video-clipper",
   "/youtube-shorts-clipper",
   "/open-source-video-clipper",
-  "/blog/supoclip-vs-supo-live",
+  "/blog/twitch-vod-to-shorts",
 ].map((href) => getMarketingLink(href)).filter((link): link is MarketingLink => Boolean(link));
 
 function getPlans(
@@ -609,6 +608,7 @@ export default function LandingPage() {
               <Reveal key={resource.href} delay={(index % 2) * 0.06}>
                 <Link
                   href={resource.href}
+                  lang={resource.language}
                   className="group flex items-start justify-between gap-6 border-b py-6 transition-colors"
                 >
                   <span>

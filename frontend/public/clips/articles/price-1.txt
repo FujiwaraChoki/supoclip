@@ -1,0 +1,10 @@
+7 Habits of Effective Artists — Andrew Price
+Source: https://www.youtube.com/watch?v=vM39qhXle4g
+Creator: Blender; speaker Andrew Price
+License: CC BY 3.0 — https://creativecommons.org/licenses/by/3.0/
+License record: https://commons.wikimedia.org/wiki/File:The_Habits_of_Effective_Artists_(vM39qhXle4g).webm
+Source span: 22:24–23:08 (1344.15–1388.60 seconds)
+
+Adaptation: Excerpted with reviewed start and end points, reframed to 9:16, captioned with corrected spellings, given an editorial hook title, and encoded at 540×960. Pauses may be removed by the clipping pipeline.
+Processed by SupoClip repository revision 846a025f6ec258d2afc835d7ae69645d6cf3140a plus local content changes. Transcription: local Whisper small; initial selection: local Ollama qwen3.8:27b; final editorial boundaries and caption corrections recorded separately.
+The sources do not endorse SupoClip. These are demonstrations, not an audience-growth or processing-speed benchmark.

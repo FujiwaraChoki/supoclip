@@ -37,12 +37,10 @@ export const seoPages: SeoPage[] = [
   {
     slug: "ai-video-clipper",
     metaTitle: "AI Video Clipper for Shorts, Reels & TikTok",
-    metaDescription:
-      "Use SupoClip to find highlights in long videos, score promising moments, create face-aware vertical crops, add captions, and export social-ready clips.",
+    metaDescription: "Find highlights in long videos, edit captions and framing, and export Shorts, Reels, or TikToks. See real SupoClip output before choosing hosted or self-hosted.",
     eyebrow: "AI Video Clipping",
     heading: "AI video clipper for turning long videos into better shorts",
-    summary:
-      "SupoClip combines transcription, AI-assisted highlight detection, virality scoring, face-aware reframing, word-synced captions, and export presets in one open-source workflow.",
+    summary: "Paste a YouTube, Twitch, or Kick recording link, or upload a video. SupoClip suggests moments from the transcript, adds word-synced captions, and reframes them for short-form video. Review every cut in the editor, then export. Use managed hosting or run the open-source app yourself.",
     keywords: [
       "AI video clipper",
       "AI clip maker",
@@ -51,7 +49,7 @@ export const seoPages: SeoPage[] = [
       "AI shorts generator",
     ],
     publishedAt: "2026-07-27",
-    updatedAt: "2026-10-05",
+    updatedAt: "2026-10-26",
     tableCaption: "SupoClip AI clipping capability matrix",
     tableHeaders: ["Workflow stage", "Manual approach", "SupoClip approach"],
     tableRows: [
@@ -62,23 +60,23 @@ export const seoPages: SeoPage[] = [
     ],
     sections: [
       {
-        heading: "What an AI video clipper should automate",
+        heading: "Find promising moments without scrubbing the whole recording",
         paragraphs: [
-          "The time-consuming part of short-form production is not one edit. It is repeating the same review, reframing, captioning, and export work for every source video. A useful AI clipper reduces that repetition while keeping the creator in control of the final cut.",
-          "SupoClip starts from the source transcript, identifies candidate segments, and scores them for qualities such as hook strength, engagement, value, and shareability. The score is a review aid, not a promise that a clip will go viral.",
+          "An AI video clipper reduces the repeated work between a long recording and a finished short: transcribing speech, proposing boundaries, finding a vertical crop, and timing captions. SupoClip analyzes what is said to identify candidates. Start with a podcast answer, interview story, tutorial explanation, or spoken stream reaction. The useful test is whether a new viewer can understand the excerpt without the preceding conversation. A sentence that sounds dramatic but leaves out its explanation still needs an edit.",
+          "Candidate scores consider hook strength, engagement, value, and shareability. Use them to decide what to review first; they do not predict views. Transcript-led selection can miss silent gameplay, a visual demonstration, or an important chart that nobody describes aloud. Check those passages in your source yourself. Keep the candidates that contain an opening, enough context, and a complete payoff, even if that means exporting fewer clips.",
         ],
         bullets: [
-          "YouTube, Twitch, and Kick links, plus uploaded video files",
-          "AI-assisted candidate selection",
-          "Face-centered vertical crops",
-          "Editable caption styles and export formats",
+          "Import supported YouTube, Twitch, and Kick recordings, or upload your video file",
+          "Review suggested moments against the source instead of treating a score as approval",
+          "Check faces, slides, screen shares, and scene changes in the final crop",
+          "Correct words and timing before exporting the destination preset",
         ],
       },
       {
-        heading: "How the SupoClip workflow works",
+        heading: "Finish the cut, captions, and framing in one workflow",
         paragraphs: [
-          "Paste a YouTube, Twitch, or Kick link or upload a source file. SupoClip transcribes the recording, proposes clip boundaries, and presents the strongest candidates for review. Selected moments can then be rendered as vertical, captioned videos for short-form platforms.",
-          "Because SupoClip is open source, teams can inspect the pipeline, choose supported hosted or local language models, and adapt processing to their own infrastructure. A hosted version is also available for creators who do not want to manage deployment.",
+          "Open a generated clip in the editor and play the opening without the episode around it. If the first sentence depends on an earlier question, move the start to include enough context. Trim repeated setup and stop after the answer resolves. You can adjust cuts and framing rather than accepting the first suggestion unchanged. Watch transitions between speakers and screen shares: a close crop that works on a face can hide the detail a demonstration needs.",
+          "Review the transcript for names, numbers, and specialist terms. Choose a caption style, adjust contrast and position, and inspect it at phone size. Keep captions clear of faces and the destination app’s controls. Export using the Shorts, Reels, or TikTok preset, then watch the rendered file all the way through. For YouTube, publishing options also depend on your account and deployment access. Exporting a TikTok or Reels file does not mean those platforms are connected for automatic posting.",
         ],
         links: [
           { href: "/youtube-shorts-clipper", label: "Step-by-step: turn a YouTube video into Shorts" },
@@ -86,10 +84,10 @@ export const seoPages: SeoPage[] = [
         ],
       },
       {
-        heading: "Who this is built for",
+        heading: "Choose managed hosting or an open-source setup",
         paragraphs: [
-          "The workflow fits podcasters, educators, founders, agencies, and video teams that already produce long-form recordings and need a repeatable way to publish more short-form clips.",
-          "It is especially useful when ownership matters: self-hosters retain control of the application and can modify the source instead of depending entirely on a closed editing platform.",
+          "Use hosted SupoClip when you want processing managed for you. The paid plans include a monthly allowance measured in source-video minutes; producing more clips from the same recording does not multiply that recording’s duration. Check current plans for output resolution, source limits, and publishing access before choosing. A creator can start with one recording and review its finished clips before making the workflow part of a weekly schedule.",
+          "Self-hosting gives technical teams the application source and control over the processing stack. You provide compute, storage, updates, and the transcription and language-model configuration. Local Whisper and Ollama can be used, while external providers bring their own usage costs and data handling. The source is free under AGPL-3.0; managed hosting is paid. Use the real examples above to judge the output, then choose the operating model that fits how you work.",
         ],
         links: [
           { href: "/blog/supoclip-vs-opusclip", label: "How SupoClip compares with OpusClip" },
@@ -123,12 +121,10 @@ export const seoPages: SeoPage[] = [
   {
     slug: "open-source-video-clipper",
     metaTitle: "Open-Source Video Clipper You Can Self-Host",
-    metaDescription:
-      "SupoClip is an open-source AI video clipper for self-hosted highlight detection, face-aware vertical crops, captions, and short-form exports.",
+    metaDescription: "Self-host SupoClip for AI clip discovery, editable captions, vertical framing, and exports. Compare local and hosted processing, real output, setup, and costs.",
     eyebrow: "Open Source & Self-Hosted",
     heading: "Open-source video clipper with full control of the workflow",
-    summary:
-      "Run AI-assisted video clipping on your own infrastructure, inspect the source, choose your model provider, and customize how clips are scored, captioned, framed, and exported.",
+    summary: "Run a complete video clipping app on your own infrastructure: discover moments, edit cuts and captions, adjust vertical framing, and export. Inspect the real output below, understand what stays local, and choose between self-hosting and managed hosting.",
     keywords: [
       "open-source video clipper",
       "self-hosted AI video editor",
@@ -137,42 +133,42 @@ export const seoPages: SeoPage[] = [
       "open-source OpusClip alternative",
     ],
     publishedAt: "2026-07-27",
-    updatedAt: "2026-10-05",
-    tableCaption: "Hosted-only and open-source clipping workflows",
-    tableHeaders: ["Decision", "Hosted-only tool", "Self-hosted SupoClip"],
+    updatedAt: "2026-10-26",
+    tableCaption: "Hosted and self-hosted SupoClip compared",
+    tableHeaders: ["Decision", "Managed SupoClip", "Self-hosted SupoClip"],
     tableRows: [
-      ["Source access", "Unavailable", "Full AGPL-3.0 repository"],
-      ["Infrastructure", "Vendor controlled", "Your server or local environment"],
-      ["Model choice", "Vendor selected", "Supported hosted providers or Ollama"],
-      ["Customization", "Product settings", "Application and pipeline source code"],
+      ["Source access", "Full AGPL-3.0 repository", "Full AGPL-3.0 repository"],
+      ["Infrastructure", "Managed for you", "Your server or local environment"],
+      ["Model choice", "Managed provider configuration", "Supported hosted providers or Ollama"],
+      ["Customization", "App settings; source available separately", "Application and pipeline source code"],
     ],
     sections: [
       {
-        heading: "Why self-host a video clipping pipeline",
+        heading: "An open-source clipping app you can inspect and change",
         paragraphs: [
-          "Self-hosting is useful when a team needs control over deployment, provider choice, processing limits, or product customization. Instead of sending every workflow decision through a closed platform, the application can run alongside the rest of the team's infrastructure.",
-          "SupoClip includes a Next.js frontend, FastAPI backend, background workers, PostgreSQL, and Redis. The repository includes a Docker Compose setup so the complete application can be deployed as one stack.",
+          "SupoClip brings source import, transcription, candidate selection, captions, framing, and exports into a browser workflow. The application is available under AGPL-3.0. Self-hosting is useful when you want to adapt the pipeline, choose providers, automate jobs with the REST API or bundled MCP server, or keep the application alongside your own systems. You still review each suggested cut before using it: access to the source does not make an automatic selection editorially correct.",
+          "The documented Docker Compose stack includes the frontend, backend, worker, PostgreSQL, and Redis. Begin with the self-hosting guide and a short video you know well. Verify that a task moves through processing, that a finished clip plays, and that captions and framing match the source. The examples above show the kind of output to inspect; they are not a benchmark for your hardware, models, or footage. Do a small first run before processing a backlog.",
         ],
       },
       {
-        heading: "What remains your responsibility",
+        heading: "Know which processing stays local and what it costs",
         paragraphs: [
-          "Open source does not mean that every dependency is free. Self-hosters provide their own compute, storage, transcription service, and language-model configuration. The tradeoff is operational responsibility in exchange for source-level control.",
-          "Teams should also review the AGPL-3.0 license, secure their environment variables, keep dependencies updated, and monitor the worker and storage layers in production.",
+          "Running the app on your server does not automatically keep every part of processing on that server. Hosted transcription or language-model providers receive the inputs required for their work. For local speech transcription, configure Whisper; for local clip selection, configure Ollama and a suitable installed model. Check connectivity from the worker as well as from your terminal. Review your selected configuration before processing material that needs to remain on your infrastructure.",
+          "The code has no subscription fee for self-hosting, but hardware, electricity, persistent media storage, backups, maintenance, and optional API usage still have costs. Keep secrets private, review updates, monitor workers, and retain backups before upgrades. License terms also matter when you modify or distribute the application or provide a network service. Consult the repository license for the exact requirements. Choose managed hosting if operating this stack would distract from making clips.",
         ],
         bullets: [
-          "Provision compute and persistent storage",
-          "Configure transcription and model providers",
-          "Protect secrets and authenticated routes",
-          "Monitor processing jobs and generated media",
+          "Provide compute, persistent storage, backups, and room for generated media",
+          "Choose local or external transcription and language-model providers",
+          "Configure access, protect secrets, and maintain the deployed application",
+          "Check jobs, provider usage, and output quality as your workload changes",
         ],
         links: [{ href: "/blog/self-host-supoclip-docker", label: "Production checklist in the self-hosting guide" }],
       },
       {
-        heading: "Start with Docker, customize when needed",
+        heading: "Choose a complete app or integrate a smaller tool",
         paragraphs: [
-          "The quickest setup is to clone the repository, copy the environment template, add the required provider credentials, and start the stack with Docker Compose. Developers can then change the scoring logic, caption presets, interface, or deployment model as their workflow evolves.",
-          "Creators who prefer not to operate infrastructure can use the hosted SupoClip application while keeping the open-source repository available as a migration path.",
+          "If you need an interface for reviewing clips, timing captions, and correcting crops, evaluate the complete SupoClip app. If you are building a custom processing service, a library may be a better starting point. Automatic silence removal is another distinct editing job; it does not by itself decide which story or explanation makes a good social clip. Compare tools against the task you need to finish instead of assuming every open-source video project replaces the same workflow.",
+          "Test a recording you have permission to use and know well. Check complete thoughts, speaker changes, proper nouns, visual context, and final exports. Record setup effort separately from processing time, and include human review and provider costs in your decision. You can use paid hosted SupoClip to focus on creating clips or self-host to control the application and its configuration. Both routes benefit from checking the real output before adopting a repeatable workflow.",
         ],
         links: [
           { href: "/blog/self-host-supoclip-docker", label: "Self-host SupoClip with Docker Compose" },
@@ -200,13 +196,11 @@ export const seoPages: SeoPage[] = [
   },
   {
     slug: "youtube-shorts-clipper",
-    metaTitle: "YouTube Shorts Clipper for Long Videos",
-    metaDescription:
-      "Turn long YouTube videos into vertical, captioned Shorts with AI-assisted highlight detection, virality scoring, and face-aware 9:16 crops.",
+    metaTitle: "YouTube Shorts Clipper: Turn Long Videos into Shorts",
+    metaDescription: "Turn a long YouTube video into captioned Shorts. See real examples, select complete moments, edit the vertical crop, and export or publish with SupoClip.",
     eyebrow: "YouTube to Shorts",
     heading: "YouTube Shorts clipper for repurposing long videos",
-    summary:
-      "Paste a YouTube URL, review AI-selected moments, and create captioned vertical clips without manually scanning and reframing the entire recording.",
+    summary: "Turn an existing YouTube recording into a shortlist of Shorts. Paste a link, review the suggested moments, correct captions and framing, then export. The examples below show actual clips alongside the source moments so you can judge the result before signing up.",
     keywords: [
       "YouTube Shorts clipper",
       "YouTube video to Shorts",
@@ -215,7 +209,7 @@ export const seoPages: SeoPage[] = [
       "YouTube highlight generator",
     ],
     publishedAt: "2026-07-27",
-    updatedAt: "2026-10-05",
+    updatedAt: "2026-10-26",
     tableCaption: "Long-video to YouTube Shorts workflow",
     tableHeaders: ["Step", "Input", "Output"],
     tableRows: [
@@ -226,31 +220,31 @@ export const seoPages: SeoPage[] = [
     ],
     sections: [
       {
-        heading: "How to turn a YouTube video into Shorts",
+        heading: "1. Import your YouTube video and choose complete moments",
         paragraphs: [
-          "Start with a video you own or have permission to repurpose. Paste its YouTube URL into SupoClip, choose the output and caption options, and begin processing. The application transcribes the source and proposes short segments for review.",
-          "Choose the moments that make sense without the surrounding episode. Strong Shorts usually establish context quickly, deliver one clear idea, and end without relying on footage that was removed from the clip.",
+          "Use a video you own or have permission to repurpose. Copy its YouTube URL, open SupoClip, and paste the link into the source field. Choose your generation options and start processing. Check the source-duration limit shown for your plan before submitting a long recording. If a link is restricted or cannot be downloaded, upload your original video file instead. Wait for the task to finish, then review the proposed clips rather than publishing the full batch automatically.",
+          "Choose a candidate that makes sense to someone who has never seen the channel. Keep one useful idea: a question and answer, a specific mistake and lesson, or a short demonstration with its result. In the real examples above, the two clips take different editorial angles from the same recording. Compare them with their source timestamps. If a candidate begins with an unexplained “that” or cuts before the conclusion, adjust its boundaries or leave it out.",
         ],
         bullets: [
-          "Use a clear spoken hook near the beginning",
-          "Keep one idea per short clip",
-          "Review names, numbers, and caption timing",
-          "Confirm that vertical framing follows the active speaker",
+          "Start with a recording that fits your plan and that you can repurpose",
+          "Keep the first sentence that clearly introduces the subject",
+          "Preserve the explanation and any important qualification",
+          "End after the payoff, before the next unrelated topic",
         ],
       },
       {
-        heading: "Captions and vertical reframing",
+        heading: "2. Make the crop and captions work on a phone",
         paragraphs: [
-          "SupoClip uses word-level timing to create synchronized captions and can track faces when converting landscape footage to a vertical frame. Caption templates provide a consistent starting point, while font, color, and output settings can be adjusted before rendering.",
-          "Automated crops still deserve a visual review, especially when multiple people appear, screen shares are important, or the speaker moves quickly through the frame.",
+          "Open the selected clip in the editor and check its vertical framing. Face tracking can keep a speaker visible, but review the whole cut, particularly camera changes and moments with slides or screen recordings. Keep the information the viewer needs inside the frame. A chart without its labels or a product demo without its key control can become meaningless even when the speaker is perfectly centered.",
+          "Correct transcript mistakes in names, numbers, and terminology. Pick a caption template and adjust font size, contrast, and position while watching the preview at a realistic mobile size. Keep words away from the bottom description area and side controls of the destination app. The active-word effect should help the viewer follow speech, not compete with a busy scene. Replay both the first and last seconds after making timeline changes.",
         ],
         links: [{ href: "/ai-video-clipper", label: "What the AI clipper automates, stage by stage" }],
       },
       {
-        heading: "Build a repeatable repurposing workflow",
+        heading: "3. Export, publish, and learn from the result",
         paragraphs: [
-          "Treat each long video as a source library rather than a one-time upload. Process the recording, group clips by theme, and connect each Short back to the longer video or a relevant product page.",
-          "Track which topics earn watch time and engagement, then use those results to guide future recordings. SupoClip's scores help prioritize candidates; publishing data should determine what the audience actually values.",
+          "Choose the YouTube Shorts export preset and render the finished video. Watch the exported file with audio, then once without sound to check that the captions and framing carry the idea. Write a title that describes what the viewer will learn. When YouTube publishing is enabled for your account, Pro supports posting immediately and Creator adds scheduled posting. Availability also depends on the deployment’s social integration; exporting remains a separate workflow.",
+          "Keep the original episode link and source timestamp with each clip. Publish distinct takeaways rather than multiple cuts that repeat the same answer. For a weekly batch, finish editorial review before filling the calendar, then confirm that scheduled posts actually appear on the intended channel. Use real audience viewing and responses to choose the next topics. SupoClip’s selection scores help prioritize review; they do not guarantee reach, and no recording is guaranteed to produce a fixed number of useful Shorts.",
         ],
         links: [{ href: "/blog/supoclip-vs-opusclip", label: "Choosing between SupoClip and OpusClip" }],
       },

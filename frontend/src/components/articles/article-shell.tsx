@@ -36,22 +36,27 @@ export async function ArticleShell({
   breadcrumb,
   toc,
   faqs,
+  cta,
+  videos = [],
   children,
 }: {
   post: BlogPost;
   breadcrumb: string;
   toc: Array<[id: string, label: string]>;
   faqs: ArticleFaq[];
+  cta?: { title: string; body: string; label: string };
+  videos?: Array<Record<string, unknown>>;
   children: React.ReactNode;
 }) {
-  const t = await getTranslations("blog");
-  const locale = await getLocale();
+  const locale = post.language ?? await getLocale();
+  const t = await getTranslations({ locale, namespace: "blog" });
   const siteUrl = getSiteUrl();
   const url = `${siteUrl}/blog/${post.slug}`;
   const updatedLabel = formatArticleDate(post.updatedAt, locale);
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
+      ...videos,
       {
         "@type": "BreadcrumbList",
         itemListElement: [
@@ -72,6 +77,7 @@ export async function ArticleShell({
         keywords: post.keywords.join(", "),
         inLanguage: intlLocale(locale),
         mainEntityOfPage: url,
+        image: post.image ? `${siteUrl}${post.image.src}` : undefined,
       },
       {
         "@type": "FAQPage",
@@ -98,7 +104,7 @@ export async function ArticleShell({
           </div>
         </nav>
       </header>
-      <article className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-16">
+      <article lang={locale} className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-16">
         <nav aria-label={t("shell.breadcrumbNav")} className="mb-8 flex flex-wrap gap-2 text-sm text-muted-foreground">
           <Link href="/">{t("shell.home")}</Link><span aria-hidden="true">/</span><Link href="/blog">{t("shell.blog")}</Link><span aria-hidden="true">/</span><span>{breadcrumb}</span>
         </nav>
@@ -127,10 +133,11 @@ export async function ArticleShell({
             </section>
           ))}
           <section className="not-prose rounded-2xl border bg-muted/30 p-6 sm:p-8" aria-label={t("shell.startAria")}>
-            <h2 className="!pt-0 text-2xl font-bold">{t("shell.ctaTitle")}</h2>
-            <p className="mt-2 text-muted-foreground">{t("shell.ctaBody")}</p>
+            <h2 className="!pt-0 text-2xl font-bold">{cta?.title ?? t("shell.ctaTitle")}</h2>
+            <p className="mt-2 text-muted-foreground">{cta?.body ?? t("shell.ctaBody")}</p>
             <div className="mt-5 flex flex-wrap gap-3">
-              <Link href="/sign-up" className="inline-flex items-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-semibold !text-background !no-underline">{t("shell.startClipping")}<ArrowRight className="h-4 w-4" /></Link>
+              <Link href="/sign-up" className="inline-flex items-center gap-2 rounded-lg bg-foreground px-5 py-3 text-sm font-semibold !text-background !no-underline">{cta?.label ?? t("shell.startClipping")}<ArrowRight className="h-4 w-4" /></Link>
+              {cta ? <Link href="/#pricing" className="inline-flex items-center gap-2 rounded-lg border px-5 py-3 text-sm font-semibold !no-underline">See hosted plans</Link> : null}
               <a href={GITHUB_URL} className="inline-flex items-center gap-2 rounded-lg border px-5 py-3 text-sm font-semibold !no-underline"><Github className="h-4 w-4" />{t("shell.getSource")}</a>
             </div>
           </section>
