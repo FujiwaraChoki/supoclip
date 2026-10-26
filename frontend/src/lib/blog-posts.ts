@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { getSiteUrl } from "@/lib/site";
+import { creatorGuides } from "@/lib/creator-guides";
 
 export { HOSTED_APP_URL, getSiteUrl } from "@/lib/site";
 
 export interface BlogPost {
+  /** Set for editorial content not yet translated; do not localize only its title. */
+  language?: "en";
   slug: string;
   image?: { src: string; alt: string; width: number; height: number };
   title: string;
@@ -19,6 +22,7 @@ export interface BlogPost {
 }
 
 export const blogPosts: BlogPost[] = [
+  ...creatorGuides.map((guide) => guide.post),
   {
     slug: "supoclip-vs-supo-live",
     image: { src: "/blog/supoclip-open-source-clipping.webp", alt: "Editorial illustration of a podcast recording becoming three vertical video clips", width: 1672, height: 941 },
@@ -79,13 +83,12 @@ export const blogPosts: BlogPost[] = [
   },
   {
     slug: "best-free-opusclip-alternative",
-    title: "Best Free, Self-Hosted OpusClip Alternative",
-    description:
-      "Looking for a free OpusClip alternative? SupoClip is an open-source AI clip maker you can self-host for free. It turns long videos into captioned, vertical shorts.",
+    title: "Free OpusClip Alternative: Self-Hosting Costs and Tradeoffs",
+    description: "Looking for a free OpusClip alternative? Understand what self-hosting SupoClip costs, what you maintain, and when a paid hosted workflow is a better fit.",
     eyebrow: "OpusClip Alternative",
     category: "Comparison",
     publishedAt: "2026-05-07",
-    updatedAt: "2026-10-05",
+    updatedAt: "2026-10-26",
     readingTime: "6 min read",
     author: "SupoClip",
     keywords: [
@@ -96,8 +99,7 @@ export const blogPosts: BlogPost[] = [
       "open-source OpusClip alternative",
       "YouTube shorts clipper",
     ],
-    summary:
-      "SupoClip is built for creators who want OpusClip-style AI clipping on their own infrastructure, without another credit-based subscription.",
+    summary: "The SupoClip source is free. This guide explains the hardware, provider costs, and maintenance behind a self-hosted clipping workflow so you can decide whether it fits.",
   },
 ];
 
@@ -107,6 +109,7 @@ export function getBlogPost(slug: string) {
 
 /** Overlay translated title, description, and listing copy. Keywords stay English. */
 export function applyBlogCopy(post: BlogPost, translate: (key: string) => string): BlogPost {
+  if (post.language) return post;
   const slug = post.slug;
   return {
     ...post,

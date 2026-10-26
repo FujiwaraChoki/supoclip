@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 
 import { blogPosts } from "@/lib/blog-posts";
+import { articleClipGalleries, getArticleClip } from "@/lib/article-clips";
 import { readChangelog } from "@/lib/changelog";
 import { DEMO_CLIPS, DEMO_PUBLISHED_AT, DEMO_SOURCE } from "@/lib/demo";
 import { seoPages } from "@/lib/seo-pages";
@@ -19,7 +20,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
       url: siteUrl,
-      lastModified: new Date("2026-10-05T00:00:00.000Z"),
+      lastModified: new Date("2026-10-26T00:00:00.000Z"),
       changeFrequency: "weekly",
       priority: 1,
     },
@@ -52,6 +53,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...blogPosts.map((post) => ({
       url: `${siteUrl}/blog/${post.slug}`,
       images: post.image ? [`${siteUrl}${post.image.src}`] : undefined,
+      videos: articleClipGalleries[post.slug]?.examples.flatMap(({ clipId }) => {
+        const clip = getArticleClip(clipId);
+        return clip ? [{
+          title: clip.title,
+          description: `SupoClip excerpt from ${clip.source.title}. ${clip.edits}`,
+          thumbnail_loc: `${siteUrl}${clip.poster}`,
+          content_loc: `${siteUrl}${clip.src}`,
+          duration: Math.round(clip.durationSeconds),
+          publication_date: clip.publishedAt,
+        }] : [];
+      }),
       lastModified: new Date(`${post.updatedAt}T00:00:00.000Z`),
       changeFrequency: "monthly" as const,
       priority: 0.8,

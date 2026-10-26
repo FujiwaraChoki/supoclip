@@ -138,31 +138,31 @@
     "eyebrow": "Open Source & Host Sendiri",
     "heading": "Video clipper open source dengan kendali penuh atas alur kerja",
     "summary": "Jalankan video clipping berbantuan AI di infrastrukturmu sendiri, periksa sumbernya, pilih penyedia model, dan sesuaikan cara clip dinilai, diberi caption, dibingkai, dan diekspor.",
-    "tableCaption": "Alur clipping yang hanya di-host dan yang open source",
+    "tableCaption": "Perbandingan SupoClip terkelola dan hosting mandiri",
     "tableHeaders": {
       "0": "Keputusan",
-      "1": "Alat yang hanya di-host",
+      "1": "SupoClip terkelola",
       "2": "SupoClip yang di-host sendiri"
     },
     "tableRows": {
       "0": {
         "0": "Akses sumber",
-        "1": "Tidak tersedia",
+        "1": "Repositori AGPL-3.0 lengkap",
         "2": "Repositori AGPL-3.0 penuh"
       },
       "1": {
         "0": "Infrastruktur",
-        "1": "Dikendalikan vendor",
+        "1": "Dikelola untuk Anda",
         "2": "Server atau lingkungan lokalmu"
       },
       "2": {
         "0": "Pilihan model",
-        "1": "Dipilih vendor",
+        "1": "Konfigurasi penyedia terkelola",
         "2": "Penyedia yang di-host yang didukung atau Ollama"
       },
       "3": {
         "0": "Kustomisasi",
-        "1": "Pengaturan produk",
+        "1": "Pengaturan aplikasi; kode sumber tersedia terpisah",
         "2": "Kode sumber aplikasi dan pipeline"
       }
     },
@@ -275,6 +275,39 @@
         "question": "Apakah setiap clip yang dipilih AI berkinerja baik?",
         "answer": "Tidak. Skor AI membantu memprioritaskan kandidat, tapi kreator sebaiknya meninjau konteks, akurasi, framing, dan kecocokan dengan audiens sebelum memublikasikan."
       }
+    }
+  },
+  "proof": {
+    "heading": "Lihat klip sebelum mendaftar",
+    "intro": "Ini adalah hasil SupoClip yang sebenarnya dari satu rekaman. Bandingkan setiap pratinjau dengan momen aslinya untuk menilai pemilihan, pembingkaian, dan takarir.",
+    "preview": "Pratinjau: {hook}",
+    "duration": "Pratinjau {seconds} dtk · klip lengkap {full}",
+    "source": "Momen asli: {range}",
+    "note": "Pratinjau ini dipersingkat dan diperkecil menjadi 540×960 untuk web. Hasil ini tidak menjamin kecepatan pemrosesan atau pertumbuhan penonton.",
+    "details": "Lihat demo dan alur lengkap",
+    "previewButton": "Lihat klip nyata"
+  },
+  "conversion": {
+    "hostedTitle": "Gunakan SupoClip terkelola",
+    "hostedBody": "Pro mulai US${price}/bulan dengan {hours} jam video sumber per bulan dan klip {resolution}. Pemrosesan dikelola untuk Anda. Aplikasi terkelola memerlukan paket berbayar.",
+    "plans": "Lihat paket saat ini",
+    "selfHostTitle": "Jalankan sendiri",
+    "selfHostBody": "Kode sumber gratis dengan lisensi AGPL-3.0. Anda menyediakan perangkat keras, penyimpanan, pemeliharaan, serta layanan transkripsi atau AI berbayar yang Anda pilih.",
+    "selfHostButton": "Baca panduan hosting mandiri",
+    "ai-video-clipper": {
+      "title": "Ubah rekaman Anda menjadi klip siap terbit",
+      "body": "Mulai dengan satu video, tinjau momen yang disarankan, lalu rapikan takarir dan bingkai sebelum mengekspor.",
+      "button": "Temukan klip saya"
+    },
+    "youtube-shorts-clipper": {
+      "title": "Buat Shorts dari video YouTube berikutnya",
+      "body": "Gunakan rekaman milik Anda atau yang diizinkan untuk digunakan ulang. Pilih gagasan yang utuh, lalu ekspor atau terbitkan melalui opsi yang tersedia di akun Anda.",
+      "button": "Ubah video saya menjadi Shorts"
+    },
+    "open-source-video-clipper": {
+      "title": "Pilih cara menjalankan pembuat klip Anda",
+      "body": "Jalankan alur sumber terbuka di infrastruktur sendiri atau pilih hosting terkelola agar dapat berfokus membuat klip.",
+      "button": "Gunakan aplikasi terkelola"
     }
   }
 }

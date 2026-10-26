@@ -138,31 +138,31 @@
     "eyebrow": "Código abierto y autoalojado",
     "heading": "Recortador de video de código abierto con control total del flujo",
     "summary": "Ejecuta el recorte de video asistido por IA en tu propia infraestructura, inspecciona el código, elige el proveedor del modelo y personaliza cómo se puntúan, subtitulan, encuadran y exportan los clips.",
-    "tableCaption": "Flujos de recorte solo alojados y de código abierto",
+    "tableCaption": "Comparación de SupoClip alojado y autoalojado",
     "tableHeaders": {
       "0": "Decisión",
-      "1": "Herramienta solo alojada",
+      "1": "SupoClip gestionado",
       "2": "SupoClip autoalojado"
     },
     "tableRows": {
       "0": {
         "0": "Acceso al código",
-        "1": "No disponible",
+        "1": "Repositorio completo AGPL-3.0",
         "2": "Repositorio completo AGPL-3.0"
       },
       "1": {
         "0": "Infraestructura",
-        "1": "Controlada por el proveedor",
+        "1": "Gestionada para ti",
         "2": "Tu servidor o entorno local"
       },
       "2": {
         "0": "Elección de modelo",
-        "1": "La elige el proveedor",
+        "1": "Configuración de proveedores gestionada",
         "2": "Proveedores alojados compatibles u Ollama"
       },
       "3": {
         "0": "Personalización",
-        "1": "Ajustes del producto",
+        "1": "Ajustes de la app; código disponible por separado",
         "2": "Código de la aplicación y del proceso"
       }
     },
@@ -275,6 +275,39 @@
         "question": "¿Todos los clips que elige la IA funcionan bien?",
         "answer": "No. El puntaje de la IA ayuda a priorizar candidatos, pero quien crea debe revisar el contexto, la exactitud, el encuadre y el encaje con su audiencia antes de publicar."
       }
+    }
+  },
+  "proof": {
+    "heading": "Mira los clips antes de registrarte",
+    "intro": "Estos son resultados reales de SupoClip a partir de una grabación. Compara cada vista previa con el momento original para revisar la selección, el encuadre y los subtítulos.",
+    "preview": "Vista previa: {hook}",
+    "duration": "Vista previa de {seconds}s · clip completo {full}",
+    "source": "Momento original: {range}",
+    "note": "Estas vistas previas se han acortado y reducido a 540×960 para la web. Muestran el resultado, sin garantizar velocidad de procesamiento ni crecimiento de audiencia.",
+    "details": "Ver la demo y el flujo completo",
+    "previewButton": "Ver clips reales"
+  },
+  "conversion": {
+    "hostedTitle": "Usar SupoClip alojado",
+    "hostedBody": "Pro parte de US${price}/mes con {hours} horas de vídeo fuente al mes y clips en {resolution}. Gestionamos el procesamiento. La app alojada requiere un plan de pago.",
+    "plans": "Ver planes actuales",
+    "selfHostTitle": "Alojarlo por tu cuenta",
+    "selfHostBody": "El código es gratuito bajo AGPL-3.0. Tú proporcionas el equipo, almacenamiento, mantenimiento y los servicios de transcripción o IA de pago que elijas.",
+    "selfHostButton": "Leer la guía de autoalojamiento",
+    "ai-video-clipper": {
+      "title": "Convierte tu grabación en clips listos para publicar",
+      "body": "Empieza con un vídeo, revisa los momentos sugeridos y ajusta los subtítulos y el encuadre antes de exportar.",
+      "button": "Encontrar mis clips"
+    },
+    "youtube-shorts-clipper": {
+      "title": "Crea Shorts de tu próximo vídeo de YouTube",
+      "body": "Usa una grabación propia o que puedas reutilizar. Elige ideas completas y exporta o publica con las opciones disponibles en tu cuenta.",
+      "button": "Convertir mi vídeo en Shorts"
+    },
+    "open-source-video-clipper": {
+      "title": "Elige cómo ejecutar tu herramienta de clips",
+      "body": "Usa el flujo de código abierto en tu infraestructura o elige alojamiento gestionado para centrarte en crear clips.",
+      "button": "Usar la app alojada"
     }
   }
 }

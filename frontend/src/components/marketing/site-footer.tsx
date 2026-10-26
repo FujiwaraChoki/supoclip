@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 import { catalogKey } from "@/i18n/config";
-import { getMarketingLinks } from "@/lib/marketing-links";
+import { getMarketingLink, getMarketingLinks } from "@/lib/marketing-links";
 import { APP_STORE_URL, GITHUB_URL } from "@/lib/site";
 
 const linkClassName = "hover:text-foreground transition-colors";
@@ -65,7 +65,7 @@ export function SiteFooter() {
             <ul className="mt-4 space-y-2.5 text-xs text-muted-foreground">
               {column.hrefs.map((href) => (
                 <li key={href}>
-                  <Link href={href} className={linkClassName}>{t(`links.${catalogKey(href)}.label`)}</Link>
+                  <Link href={href} lang={getMarketingLink(href)?.language} className={linkClassName}>{t(`links.${catalogKey(href)}.label`)}</Link>
                 </li>
               ))}
             </ul>

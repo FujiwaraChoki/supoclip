@@ -3,9 +3,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
-import { ArrowRight, CalendarDays, Check, ExternalLink, Github } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, ExternalLink } from "lucide-react";
 
 import { RelatedGuides } from "@/components/marketing/related-guides";
+import { ClipExamples } from "@/components/marketing/clip-examples";
+import { AcquisitionCta } from "@/components/marketing/acquisition-cta";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -157,14 +159,13 @@ export default async function SeoLandingPage({ params }: SeoLandingPageProps) {
             </div>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link href="/sign-up"><Button size="lg">{t("chrome.trySupoclip")} <ArrowRight className="h-4 w-4" /></Button></Link>
-              <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
-                <Button variant="outline" size="lg"><Github className="h-4 w-4" /> {t("chrome.viewSource")}</Button>
-              </a>
+              <Link href="#real-clips"><Button variant="outline" size="lg">{t("proof.previewButton")}</Button></Link>
             </div>
           </div>
         </section>
 
         <div className="mx-auto max-w-5xl px-6 py-12 md:py-16">
+          <div id="real-clips" className="mb-14 scroll-mt-8"><ClipExamples locale={locale} /></div>
           <section aria-labelledby="comparison-heading">
             <h2 id="comparison-heading" className="text-3xl font-bold tracking-tight">{t("chrome.capabilityOverview")}</h2>
             <div className="mt-6 overflow-x-auto rounded-lg border">
@@ -223,6 +224,8 @@ export default async function SeoLandingPage({ params }: SeoLandingPageProps) {
               </section>
             ))}
           </div>
+
+          <AcquisitionCta slug={slug} locale={locale} />
 
           <section className="mt-16" aria-labelledby="faq-heading">
             <h2 id="faq-heading" className="text-3xl font-bold tracking-tight">{t("chrome.faqHeading")}</h2>

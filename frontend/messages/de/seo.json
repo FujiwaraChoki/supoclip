@@ -138,31 +138,31 @@
     "eyebrow": "Open Source und selbst gehostet",
     "heading": "Open-Source-Video-Clipper mit voller Kontrolle über den Ablauf",
     "summary": "Lass KI-gestütztes Video-Clipping auf deiner eigenen Infrastruktur laufen, sieh dir den Quellcode an, wähl den Modellanbieter und bestimm, wie Clips bewertet, untertitelt, gerahmt und exportiert werden.",
-    "tableCaption": "Nur gehostete und Open-Source-Clipping-Abläufe",
+    "tableCaption": "Gehostetes und selbst betriebenes SupoClip im Vergleich",
     "tableHeaders": {
       "0": "Entscheidung",
-      "1": "Nur gehostetes Tool",
+      "1": "Verwaltetes SupoClip",
       "2": "Selbst gehostetes SupoClip"
     },
     "tableRows": {
       "0": {
         "0": "Quellcodezugriff",
-        "1": "Nicht verfügbar",
+        "1": "Vollständiges AGPL-3.0-Repository",
         "2": "Volles AGPL-3.0-Repository"
       },
       "1": {
         "0": "Infrastruktur",
-        "1": "Vom Anbieter gesteuert",
+        "1": "Für dich verwaltet",
         "2": "Dein Server oder lokale Umgebung"
       },
       "2": {
         "0": "Modellwahl",
-        "1": "Vom Anbieter gewählt",
+        "1": "Verwaltete Anbieterkonfiguration",
         "2": "Unterstützte gehostete Anbieter oder Ollama"
       },
       "3": {
         "0": "Anpassung",
-        "1": "Produkteinstellungen",
+        "1": "App-Einstellungen; Quellcode separat verfügbar",
         "2": "Quellcode von Anwendung und Pipeline"
       }
     },
@@ -275,6 +275,39 @@
         "question": "Läuft jeder von der KI gewählte Clip gut?",
         "answer": "Nein. Die KI-Bewertung hilft, Kandidaten zu priorisieren, aber du solltest Kontext, Genauigkeit, Ausschnitt und Passung für dein Publikum prüfen, bevor du veröffentlichst."
       }
+    }
+  },
+  "proof": {
+    "heading": "Sieh dir die Clips vor der Anmeldung an",
+    "intro": "Das sind echte SupoClip-Ergebnisse aus einer Aufnahme. Vergleiche jede Vorschau mit der Originalstelle und prüfe Auswahl, Bildausschnitt und Untertitel.",
+    "preview": "Vorschau: {hook}",
+    "duration": "{seconds}s Vorschau · ganzer Clip {full}",
+    "source": "Originalstelle: {range}",
+    "note": "Diese Vorschauen wurden für das Web gekürzt und auf 540×960 verkleinert. Sie zeigen das Ergebnis, garantieren aber weder eine Verarbeitungsgeschwindigkeit noch mehr Reichweite.",
+    "details": "Demo und Ablauf ansehen",
+    "previewButton": "Echte Clips ansehen"
+  },
+  "conversion": {
+    "hostedTitle": "Gehostetes SupoClip nutzen",
+    "hostedBody": "Pro gibt es ab US${price}/Monat mit {hours} Stunden Quellvideo pro Monat und Clips in {resolution}. Wir übernehmen die Verarbeitung. Die gehostete App erfordert ein kostenpflichtiges Abo.",
+    "plans": "Aktuelle Abos ansehen",
+    "selfHostTitle": "Selbst betreiben",
+    "selfHostBody": "Der Quellcode ist unter AGPL-3.0 kostenlos. Du stellst Hardware, Speicher, Wartung und die von dir gewählten kostenpflichtigen Transkriptions- oder KI-Dienste bereit.",
+    "selfHostButton": "Self-Hosting-Anleitung lesen",
+    "ai-video-clipper": {
+      "title": "Mach aus deiner Aufnahme fertige Clips",
+      "body": "Starte mit einem Video, prüfe die vorgeschlagenen Stellen und bearbeite vor dem Export Untertitel und Bildausschnitt.",
+      "button": "Meine Clips finden"
+    },
+    "youtube-shorts-clipper": {
+      "title": "Mach Shorts aus deinem nächsten YouTube-Video",
+      "body": "Nutze eine Aufnahme, die du verwenden darfst. Wähle vollständige Gedanken aus und exportiere oder veröffentliche mit den Optionen deines Kontos.",
+      "button": "Mein Video in Shorts verwandeln"
+    },
+    "open-source-video-clipper": {
+      "title": "Wähle, wie du deinen Clipper betreiben möchtest",
+      "body": "Nutze den Open-Source-Ablauf auf deiner Infrastruktur oder wähle verwaltetes Hosting, um dich auf die Clips zu konzentrieren.",
+      "button": "Gehostete App nutzen"
     }
   }
 }

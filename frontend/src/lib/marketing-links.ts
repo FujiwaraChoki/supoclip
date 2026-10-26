@@ -5,6 +5,8 @@
 export type MarketingLinkGroup = "product" | "guide" | "comparison";
 
 export interface MarketingLink {
+  /** English-only editorial destinations keep their English navigation labels. */
+  language?: "en";
   href: string;
   group: MarketingLinkGroup;
   eyebrow: string;
@@ -36,7 +38,7 @@ export const marketingLinks: MarketingLink[] = [
     title: "AI video clipper for Shorts, Reels, and TikTok",
     label: "AI video clipper",
     description: "How SupoClip finds moments, scores candidates, reframes faces, and adds captions.",
-    related: ["/demo", "/youtube-shorts-clipper", OPUSCLIP_COMPARISON_HREF],
+    related: ["/blog/find-best-moments-in-video", "/blog/podcast-to-shorts", "/youtube-shorts-clipper"],
   },
   {
     href: "/youtube-shorts-clipper",
@@ -45,7 +47,7 @@ export const marketingLinks: MarketingLink[] = [
     title: "Repurpose long YouTube videos into Shorts",
     label: "YouTube Shorts clipper",
     description: "A practical workflow for selecting, captioning, reframing, and reviewing clips.",
-    related: ["/demo", "/ai-video-clipper", OPUSCLIP_COMPARISON_HREF],
+    related: ["/demo", "/blog/schedule-week-of-youtube-shorts", "/blog/word-by-word-video-captions"],
   },
   {
     href: "/open-source-video-clipper",
@@ -54,7 +56,7 @@ export const marketingLinks: MarketingLink[] = [
     title: "Open-source video clipper you can control",
     label: "Open-source clipper",
     description: "What self-hosting changes about control, model providers, and infrastructure.",
-    related: [SELF_HOSTING_GUIDE_HREF, OPUSCLIP_COMPARISON_HREF, "/blog/supoclip-vs-supo-live"],
+    related: ["/blog/open-source-video-clippers", SELF_HOSTING_GUIDE_HREF, OPUSCLIP_COMPARISON_HREF],
   },
   {
     href: SELF_HOSTING_GUIDE_HREF,
@@ -78,10 +80,10 @@ export const marketingLinks: MarketingLink[] = [
     href: "/blog/best-free-opusclip-alternative",
     group: "comparison",
     eyebrow: "Comparison",
-    title: "Best free, self-hosted OpusClip alternative",
+    title: "Free OpusClip alternative: costs and tradeoffs",
     label: "Self-hosted OpusClip alternative",
-    description: "When a self-hosted, open-source clipper is the better route than a credit-based tool.",
-    related: [OPUSCLIP_COMPARISON_HREF, SELF_HOSTING_GUIDE_HREF, "/open-source-video-clipper"],
+    description: "Understand the compute, provider costs, and maintenance behind a self-hosted workflow.",
+    related: [OPUSCLIP_COMPARISON_HREF, SELF_HOSTING_GUIDE_HREF, "/blog/supoclip-vs-supo-live"],
   },
   {
     href: "/blog/supoclip-vs-supo-live",
@@ -90,6 +92,48 @@ export const marketingLinks: MarketingLink[] = [
     title: "SupoClip vs supo.live: open-source control",
     label: "SupoClip vs supo.live",
     description: "Compare self-hosting, AI clipping, and editing workflows before choosing a video tool.",
+    related: ["/open-source-video-clipper", SELF_HOSTING_GUIDE_HREF, OPUSCLIP_COMPARISON_HREF],
+  },
+  {
+    href: "/blog/podcast-to-shorts", language: "en", group: "guide", eyebrow: "Podcast clips",
+    title: "Turn a video podcast into Shorts and Reels", label: "Podcast to Shorts",
+    description: "Choose complete ideas, correct captions, and follow real clips back to the source.",
+    related: ["/blog/find-best-moments-in-video", "/blog/word-by-word-video-captions", "/youtube-shorts-clipper"],
+  },
+  {
+    href: "/blog/find-best-moments-in-video", language: "en", group: "guide", eyebrow: "Highlight selection",
+    title: "Find the best moments in a long video", label: "Find video highlights",
+    description: "Use a practical checklist for hooks, context, payoff, and clean boundaries.",
+    related: ["/blog/podcast-to-shorts", "/blog/repurpose-webinar-clips", "/ai-video-clipper"],
+  },
+  {
+    href: "/blog/twitch-vod-to-shorts", language: "en", group: "guide", eyebrow: "Stream clips",
+    title: "Turn Twitch VODs into TikTok clips and Shorts", label: "Twitch VOD to Shorts",
+    description: "Review spoken highlights, preserve gameplay context, and export vertical clips.",
+    related: ["/blog/find-best-moments-in-video", "/blog/word-by-word-video-captions", "/youtube-shorts-clipper"],
+  },
+  {
+    href: "/blog/repurpose-webinar-clips", language: "en", group: "guide", eyebrow: "Webinar repurposing",
+    title: "Repurpose a webinar into social media clips", label: "Webinar clips",
+    description: "Turn audience questions and useful answers into clips with readable slides and captions.",
+    related: ["/blog/find-best-moments-in-video", "/blog/word-by-word-video-captions", "/blog/schedule-week-of-youtube-shorts"],
+  },
+  {
+    href: "/blog/word-by-word-video-captions", language: "en", group: "guide", eyebrow: "Caption editing",
+    title: "Add readable word-by-word captions to clips", label: "Word-by-word captions",
+    description: "Correct the transcript, choose a style, and keep subtitles clear of platform controls.",
+    related: ["/blog/podcast-to-shorts", "/blog/twitch-vod-to-shorts", "/blog/repurpose-webinar-clips"],
+  },
+  {
+    href: "/blog/schedule-week-of-youtube-shorts", language: "en", group: "guide", eyebrow: "Publishing workflow",
+    title: "Create and schedule a week of YouTube Shorts", label: "Schedule YouTube Shorts",
+    description: "Build a distinct batch, review each clip, and verify scheduled publication.",
+    related: ["/blog/podcast-to-shorts", "/youtube-shorts-clipper", "/blog/repurpose-webinar-clips"],
+  },
+  {
+    href: "/blog/open-source-video-clippers", language: "en", group: "comparison", eyebrow: "Open-source comparison",
+    title: "Compare SupoClip, Clips AI, and Auto-Editor", label: "Open-source video clippers",
+    description: "Choose an app, Python library, or command-line tool for the editing job you need.",
     related: ["/open-source-video-clipper", SELF_HOSTING_GUIDE_HREF, OPUSCLIP_COMPARISON_HREF],
   },
 ];
