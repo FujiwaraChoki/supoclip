@@ -3,13 +3,15 @@ from datetime import datetime, timezone
 from contextlib import nullcontext
 import hashlib
 from pathlib import Path
-from unittest.mock import AsyncMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from src.config import Config
 from src.ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from src.services import task_service as task_service_module
+from src.services.email_previews import TaskPreviews
 from src.services.task_service import TaskService
 
 
@@ -303,6 +305,71 @@ async def test_process_task_sends_completion_email_when_enabled(monkeypatch):
     service.task_repo.mark_completion_notification_sent.assert_awaited_once_with(
         service.db, "task-1"
     )
+
+
+def stub_completion_email(monkeypatch, service):
+    service.task_repo.get_task_notification_context = AsyncMock(
+        return_value={
+            "notify_on_completion": True,
+            "completion_notification_sent_at": None,
+            "source_title": "Demo video",
+            "user_email": "user@example.com",
+        }
+    )
+    service.task_repo.mark_completion_notification_sent = AsyncMock(return_value=True)
+    service.clip_repo.get_clips_by_task = AsyncMock(
+        return_value=[
+            {"file_path": "s3://low", "hook_title": "Low", "virality_score": 40, "clip_order": 1},
+            {"file_path": "s3://high", "hook_title": "High", "virality_score": 90, "clip_order": 2},
+        ]
+    )
+    send = AsyncMock(return_value={"id": "email-1"})
+
+    class FakeTaskCompletionEmailService:
+        def __init__(self, config):
+            pass
+
+        is_configured = True
+
+        async def send_task_completed_email(self, **kwargs):
+            return await send(**kwargs)
+
+    monkeypatch.setattr(task_service_module, "TaskCompletionEmailService", FakeTaskCompletionEmailService)
+    monkeypatch.setattr(task_service_module, "MediaStorage", lambda: SimpleNamespace(read_path=nullcontext))
+    return send
+
+
+@pytest.mark.asyncio
+async def test_completion_email_gets_previews_of_the_top_clips(monkeypatch):
+    service = build_task_service()
+    send = stub_completion_email(monkeypatch, service)
+    previews = TaskPreviews(source=b"thumb")
+    build = MagicMock(return_value=previews)
+    monkeypatch.setattr(task_service_module, "build_task_previews", build)
+
+    await service.process_task(
+        task_id="task-1", url="https://www.youtube.com/watch?v=dQw4w9WgXcQ", source_type="youtube",
+    )
+
+    kwargs = build.call_args.kwargs
+    assert kwargs["youtube_video_id"] == "dQw4w9WgXcQ"
+    assert kwargs["source_path"] == Path("/tmp/source.mp4")
+    assert kwargs["clips"] == [("s3://high", "High"), ("s3://low", "Low")]
+    assert send.await_args.kwargs["previews"] is previews
+
+
+@pytest.mark.asyncio
+async def test_completion_email_is_sent_without_previews_when_they_fail(monkeypatch):
+    service = build_task_service()
+    send = stub_completion_email(monkeypatch, service)
+    monkeypatch.setattr(
+        task_service_module, "build_task_previews", MagicMock(side_effect=RuntimeError("ffmpeg crashed"))
+    )
+
+    await service.process_task(task_id="task-1", url="/tmp/upload.mp4", source_type="video_url")
+
+    assert send.await_args.kwargs["previews"] is None
+    service.task_repo.mark_completion_notification_sent.assert_awaited_once()
 
 
 @pytest.mark.asyncio

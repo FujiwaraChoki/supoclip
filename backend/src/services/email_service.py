@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from email import policy
+from email.message import EmailMessage
 from typing import Optional
 
 import boto3
@@ -10,6 +12,7 @@ import boto3
 from ..config import Config
 from ..database import get_session_maker
 from ..models import EmailDelivery
+from .email_layout import is_full_document, render_email_html
 
 logger = logging.getLogger(__name__)
 
@@ -20,12 +23,25 @@ PRODUCT_UPDATE = "product_update"
 
 
 @dataclass(frozen=True)
+class InlineImage:
+    """An image shown in the body via ``<img src="cid:{content_id}">``.
+
+    Use an address-like id (``clip0@supoclip``), as RFC 2392 expects.
+    """
+
+    content_id: str
+    data: bytes
+    content_type: str = "image/jpeg"
+
+
+@dataclass(frozen=True)
 class EmailContent:
     subject: str
     html: str
     text: str
     headers: tuple[tuple[str, str], ...] = ()
     category: str = TRANSACTIONAL
+    inline_images: tuple[InlineImage, ...] = ()
 
 
 class SesEmailService:
@@ -46,6 +62,34 @@ class SesEmailService:
             and self.from_email
         )
 
+    def _raw_message(self, recipient: str, content: EmailContent) -> bytes:
+        """MIME for emails with inline images.
+
+        multipart/alternative(text, multipart/related(html, images)) is the
+        shape Outlook needs to show images in the body instead of listing them
+        as attachments; SES's Simple attachments don't guarantee it.
+        """
+        message = EmailMessage()
+        message["From"] = self.from_email
+        message["To"] = recipient
+        message["Subject"] = content.subject
+        for name, value in content.headers:
+            message[name] = value
+        message.set_content(content.text)
+        message.add_alternative(content.html, subtype="html")
+        html_part = message.get_payload()[1]
+        for image in content.inline_images:
+            maintype, subtype = image.content_type.split("/", 1)
+            html_part.add_related(
+                image.data,
+                maintype=maintype,
+                subtype=subtype,
+                cid=f"<{image.content_id}>",
+                disposition="inline",
+                filename=f"{image.content_id.split('@')[0]}.{subtype}",
+            )
+        return message.as_bytes(policy=policy.SMTP)
+
     def _send(self, recipient: str, content: EmailContent) -> dict:
         headers = [{"Name": name, "Value": value} for name, value in content.headers]
         # boto3 clients are thread-safe; reuse one across a campaign's sends.
@@ -55,6 +99,12 @@ class SesEmailService:
                 region_name=self.region,
                 aws_access_key_id=self.access_key_id,
                 aws_secret_access_key=self.secret_access_key,
+            )
+        if content.inline_images:
+            return self._client.send_email(
+                FromEmailAddress=self.from_email,
+                Destination={"ToAddresses": [recipient]},
+                Content={"Raw": {"Data": self._raw_message(recipient, content)}},
             )
         return self._client.send_email(
             FromEmailAddress=self.from_email,
@@ -81,6 +131,12 @@ class SesEmailService:
             name.lower() == "list-unsubscribe-post" for name, _ in content.headers
         ):
             raise ValueError("Send product updates through ProductUpdateEmailService")
+        if not is_full_document(content.html):
+            content = replace(
+                content, html=render_email_html(
+                    content.html, app_url=getattr(self.config, "app_base_url", "")
+                )
+            )
 
         response = await asyncio.to_thread(self._send, recipient, content)
         # This is acceptance by SES, not proof of inbox delivery. Record only

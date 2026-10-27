@@ -4,6 +4,7 @@ Task service - orchestrates task creation and processing workflow.
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional, Callable
+import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -26,6 +27,12 @@ from ..repositories.edit_transaction import serialized_task_edit, task_edit_tran
 from ..repositories.task_run_guard import exclusive_task_run, task_run_guard
 from ..repositories.generation_allowance_guard import generation_allowance_guard
 from .billing_service import BillingService, reduced_media_limits
+from .email_previews import (
+    MAX_CLIP_PREVIEWS,
+    PREVIEW_BUDGET_SECONDS,
+    TaskPreviews,
+    build_task_previews,
+)
 from .task_completion_email_service import (
     TaskCompletionEmailService,
     TaskCompletionRecipient,
@@ -633,6 +640,9 @@ class TaskService(ClipEditingMixin):
             await self._send_completion_notification_if_needed(
                 task_id=task_id,
                 clips_count=len(clip_ids),
+                source_path=video_path,
+                source_type=source_type,
+                url=url,
             )
 
             logger.info(
@@ -705,7 +715,13 @@ class TaskService(ClipEditingMixin):
                 await run_in_thread(cleanup_stream_task, task_id)
 
     async def _send_completion_notification_if_needed(
-        self, *, task_id: str, clips_count: int
+        self,
+        *,
+        task_id: str,
+        clips_count: int,
+        source_path: Optional[Path] = None,
+        source_type: Optional[str] = None,
+        url: Optional[str] = None,
     ) -> None:
         context = await self.task_repo.get_task_notification_context(self.db, task_id)
         if not context:
@@ -737,6 +753,23 @@ class TaskService(ClipEditingMixin):
             )
             return
 
+        previews = None
+        try:
+            clips = await self.clip_repo.get_clips_by_task(self.db, task_id)
+            # build_task_previews has its own budget; this also bounds storage
+            # downloads, which it can't interrupt.
+            previews = await asyncio.wait_for(
+                run_in_thread(
+                    self._build_completion_previews, clips, source_path, source_type, url
+                ),
+                timeout=PREVIEW_BUDGET_SECONDS + 10,
+            )
+        except Exception:
+            # Images are a nice-to-have; the email still goes out without them.
+            logger.warning(
+                "Could not build completion email previews for task %s", task_id, exc_info=True
+            )
+
         try:
             await email_service.send_task_completed_email(
                 recipient=TaskCompletionRecipient(
@@ -747,6 +780,7 @@ class TaskService(ClipEditingMixin):
                 task_id=task_id,
                 source_title=context.get("source_title"),
                 clips_count=clips_count,
+                previews=previews,
             )
             stamped = await self.task_repo.mark_completion_notification_sent(
                 self.db, task_id
@@ -761,6 +795,25 @@ class TaskService(ClipEditingMixin):
                 "Failed to send completion notification for task %s",
                 task_id,
             )
+
+    @staticmethod
+    def _build_completion_previews(
+        clips: list[Dict[str, Any]],
+        source_path: Optional[Path],
+        source_type: Optional[str],
+        url: Optional[str],
+    ) -> TaskPreviews:
+        top_clips = sorted(
+            clips,
+            key=lambda clip: (-(clip.get("virality_score") or 0), clip.get("clip_order") or 0),
+        )[:MAX_CLIP_PREVIEWS]
+        return build_task_previews(
+            source_path=source_path,
+            youtube_video_id=extract_video_id(url) if source_type == "youtube" and url else None,
+            clips=[(clip["file_path"], clip.get("hook_title")) for clip in top_clips],
+            # Clips may live in S3/R2; read_path downloads one at a time.
+            open_clip=MediaStorage().read_path,
+        )
 
     async def get_task_with_clips(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Get task details with all clips."""
