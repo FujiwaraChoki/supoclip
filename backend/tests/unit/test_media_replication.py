@@ -4,6 +4,7 @@ import fcntl
 from io import BytesIO
 import hashlib
 import json
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -227,6 +228,43 @@ def test_primary_remains_preferred_after_recovery(mirrored, tmp_path):
     primary.failure = None
     assert "aws.example" in mirrored.generate_presigned_url("get_object", Params=params)
     assert params["Bucket"] == "original"
+
+
+def test_recent_outage_probe_skips_primary_timeouts_and_recovers(mirrored, tmp_path):
+    upload(mirrored, tmp_path)
+    primary, fallback = stores(mirrored)
+    health = {"checked_at": time.time(), "providers": {
+        "primary": {"status": "unhealthy"}, "fallback": {"status": "healthy"}}}
+    (mirrored.root / "health.json").write_text(json.dumps(health))
+    primary.head_object = Mock(side_effect=AssertionError("Repeated primary timeout"))
+    params = {"Bucket": "original", "Key": "media/clips/clip.mp4"}
+    assert "r2.example" in mirrored.generate_presigned_url("get_object", Params=params)
+    assert mirrored.create_multipart_upload(**params)["UploadId"].startswith("r2:")
+    primary.head_object = Mock(return_value={"ContentLength": 5})
+    health["providers"]["primary"]["status"] = "healthy"
+    (mirrored.root / "health.json").write_text(json.dumps(health))
+    assert "aws.example" in mirrored.generate_presigned_url("get_object", Params=params)
+
+
+def test_stale_outage_probe_does_not_hide_primary_recovery(mirrored, tmp_path):
+    upload(mirrored, tmp_path)
+    (mirrored.root / "health.json").write_text(json.dumps({"checked_at": time.time() - 181,
+        "providers": {"primary": {"status": "unhealthy"}, "fallback": {"status": "healthy"}}}))
+    params = {"Bucket": "original", "Key": "media/clips/clip.mp4"}
+    assert "aws.example" in mirrored.generate_presigned_url("get_object", Params=params)
+
+
+def test_newest_draft_takes_priority_over_cached_provider_health(mirrored, tmp_path):
+    primary, fallback = stores(mirrored)
+    fallback.failure = "ServiceUnavailable"
+    upload(mirrored, tmp_path, b"newest-version")
+    fallback.failure = None
+    fallback.objects["media/clips/clip.mp4"] = b"old-version"
+    (mirrored.root / "health.json").write_text(json.dumps({"checked_at": time.time(),
+        "providers": {"primary": {"status": "unhealthy"}, "fallback": {"status": "healthy"}}}))
+    target = tmp_path / "restored.mp4"
+    mirrored.download_file("original", "media/clips/clip.mp4", str(target))
+    assert target.read_bytes() == b"newest-version"
 
 
 def test_a_missing_replica_does_not_hide_aws_credential_failure(mirrored):

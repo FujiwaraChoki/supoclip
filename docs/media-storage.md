@@ -176,7 +176,11 @@ copied still depends on AWS being accessible.
 After verifying the backfill, set `MEDIA_FAILOVER_ENABLED=true`. Playback and
 download signing now checks object access before redirecting; a rejected primary
 request selects the R2 copy. Worker reads also fall back, preserving regeneration
-and editing during an AWS outage. Browser multipart sessions select one provider
+and editing during an AWS outage. A recent failed AWS probe prefers healthy R2
+immediately, avoiding repeated AWS timeouts; independent minute probes restore
+primary preference after recovery. Pending revisions still take priority over
+provider health so older drafts cannot replace newer ones.
+Browser multipart sessions select one provider
 at creation and retain it for part signing, completion and abort. Completed
 browser uploads enter the retry queue for mirroring without making the completion
 request wait for an entire second upload. New uploads can select R2 when AWS is

@@ -176,6 +176,16 @@ class ReplicatedMediaClient:
             return ["primary"]
         names = list(self.stores)
         try:
+            health = json.loads((self.root / "health.json").read_text())
+            if (0 <= time.time() - health["checked_at"] <= 180
+                    and health["providers"]["primary"]["status"] == "unhealthy"
+                    and health["providers"]["fallback"]["status"] == "healthy"):
+                # Avoid a full AWS timeout on every playback during a known
+                # outage. Independent probes keep testing recovery each minute.
+                names.reverse()
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+        try:
             manifest = json.loads((self._directory(key) / "pending.json").read_text())
             if manifest["operation"] == "upload":
                 # Mutable drafts must prefer the store that acknowledged the
@@ -240,7 +250,7 @@ class ReplicatedMediaClient:
     def create_multipart_upload(self, **kwargs):
         self._scope(kwargs["Bucket"])
         error = None
-        names = list(self.stores) if self.failover else ["primary"]
+        names = self._read_names(kwargs["Key"])
         for name in names:
             client, bucket = self.stores[name]
             try:
