@@ -15,7 +15,7 @@ import {
 } from "@/server/stripe-subscription-sync";
 import Stripe from "stripe";
 
-type SubscriptionEmailEvent = "subscribed" | "unsubscribed";
+type SubscriptionEmailEvent = "subscribed" | "unsubscribed" | "cancellation_scheduled";
 
 async function sendBackendSubscriptionEmail(userId: string, event: SubscriptionEmailEvent) {
   const response = await fetchBackend("/billing/subscription-email", {
@@ -129,6 +129,40 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   }
 }
 
+async function handleCancellationScheduled(
+  subscription: Stripe.Subscription,
+  previousAttributes: Partial<Stripe.Subscription> | undefined,
+) {
+  if (!previousAttributes || !["active", "trialing", "past_due"].includes(subscription.status)) {
+    return;
+  }
+
+  const previous = { ...subscription, ...previousAttributes };
+  const isScheduled = subscription.cancel_at_period_end || subscription.cancel_at != null;
+  const wasScheduled = previous.cancel_at_period_end || previous.cancel_at != null;
+  // Stripe also sends updates for discounts, plan changes, and resumed subscriptions.
+  // Only the transition into a scheduled cancellation should send this email.
+  if (!isScheduled || wasScheduled) return;
+
+  const customerId = typeof subscription.customer === "string"
+    ? subscription.customer
+    : subscription.customer.id;
+  const user = await getPrismaClient().user.findFirst({
+    where: {
+      stripe_customer_id: customerId,
+      stripe_subscription_id: subscription.id,
+      subscription_provider: "stripe",
+      subscription_cancel_at: { not: null },
+    },
+    select: { id: true },
+  });
+  if (!user) return;
+
+  // Let Stripe retry delivery failures. The event record suppresses successful
+  // redeliveries, and previous_attributes still identifies the transition on retry.
+  await sendBackendSubscriptionEmail(user.id, "cancellation_scheduled");
+}
+
 export async function POST(request: Request) {
   if (!monetizationEnabled) {
     return NextResponse.json({ ok: true });
@@ -179,7 +213,9 @@ export async function POST(request: Request) {
     }
 
     if (event.type === "customer.subscription.updated") {
-      await syncSubscriptionUpdate(event.data.object as Stripe.Subscription);
+      const subscription = event.data.object as Stripe.Subscription;
+      await syncSubscriptionUpdate(subscription);
+      await handleCancellationScheduled(subscription, event.data.previous_attributes);
     }
 
     // Enable these on the Stripe webhook endpoint. invoice.paid covers

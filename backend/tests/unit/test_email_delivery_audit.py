@@ -54,3 +54,21 @@ async def test_rejected_send_has_no_acceptance_record(sender):
     with pytest.raises(RuntimeError, match="rejected"):
         await service.send_email("user@example.com", EmailContent("Subject", "html", "text"))
     db.add.assert_not_called()
+
+
+def test_ses_uses_per_message_reply_address_only_when_provided(monkeypatch):
+    client = MagicMock()
+    monkeypatch.setattr(email_service.boto3, "client", lambda *args, **kwargs: client)
+    service = SesEmailService(SimpleNamespace(
+        aws_region="us-east-1", aws_access_key_id="test", aws_secret_access_key="test",
+        ses_from_email="SupoClip <noreply@example.com>",
+    ))
+
+    service._send("user@example.com", EmailContent(
+        "Cancellation", "html", "text", reply_to=("support@example.com",),
+    ))
+    assert client.send_email.call_args.kwargs["ReplyToAddresses"] == ["support@example.com"]
+    assert client.send_email.call_args.kwargs["FromEmailAddress"] == service.from_email
+
+    service._send("user@example.com", EmailContent("Other", "html", "text"))
+    assert "ReplyToAddresses" not in client.send_email.call_args.kwargs
