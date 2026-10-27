@@ -1,4 +1,4 @@
-import { postAuthPath } from "./auth-redirect";
+import { postAuthPath, signInPath } from "./auth-redirect";
 
 describe("postAuthPath", () => {
   it("follows a same-site path", () => {
@@ -11,4 +11,13 @@ describe("postAuthPath", () => {
       expect(postAuthPath(search)).toBe("/");
     },
   );
+});
+
+describe("signInPath", () => {
+  it("round-trips a path with its query", () => {
+    const path = "/tasks/abc/edit?clip=c1";
+    const url = signInPath(path);
+    expect(url.startsWith("/sign-in?next=")).toBe(true);
+    expect(postAuthPath(url.slice(url.indexOf("?")))).toBe(path);
+  });
 });
