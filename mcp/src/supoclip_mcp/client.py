@@ -35,6 +35,23 @@ class AuthNotConfiguredError(SupoClipError):
     """Raised when an authenticated operation is attempted without credentials."""
 
 
+def path_id(value: str, name: str = "id") -> str:
+    """Validate an id that is interpolated into a request path.
+
+    Ids come from the model (and indirectly from untrusted video metadata), so
+    one containing ``/``, ``?``, ``#`` or dot segments could redirect the
+    request, with the user's credentials, to a different backend route.
+    """
+    if (
+        not value
+        or value in {".", ".."}
+        or any(ch in value for ch in "/\\?#%")
+        or any(ch.isspace() or ord(ch) < 32 for ch in value)
+    ):
+        raise SupoClipError(f"Invalid {name}: expected a plain id without path or URL characters.")
+    return value
+
+
 def _signed_headers(user_id: str, secret: str) -> Dict[str, str]:
     timestamp = str(int(time.time()))
     payload = f"{user_id}:{timestamp}".encode("utf-8")
