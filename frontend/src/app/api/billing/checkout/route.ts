@@ -161,6 +161,9 @@ export async function POST(request: Request) {
     }
   }
 
+  // Tilly analytics attributes revenue to the visitor through this cookie.
+  const tillyVisitorId = request.headers.get("cookie")?.match(/(?:^|;\s*)tilly_visitor_id=([^;]+)/)?.[1];
+
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
@@ -169,6 +172,7 @@ export async function POST(request: Request) {
       plan: billingPlan.id,
       interval,
       ...(offer ? { creator_code: offer.code } : {}),
+      ...(tillyVisitorId ? { tilly_visitor_id: decodeURIComponent(tillyVisitorId).slice(0, 100) } : {}),
     },
     line_items: [{ price: priceId, quantity: 1 }],
     ...(offer ? { discounts: [{ promotion_code: offer.promotionCodeId }] } : {}),

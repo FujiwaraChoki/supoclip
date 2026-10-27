@@ -20,6 +20,11 @@ declare global {
       (...args: [string] | [string, Record<string, string>]): void;
       q?: IArguments[];
     };
+    // Tilly analytics, running alongside DataFast (see layout.tsx).
+    tilly?: {
+      (goal: string, metadata?: Record<string, string>): void;
+      q?: IArguments[];
+    };
   }
 }
 
@@ -79,7 +84,7 @@ const sanitizeGoalName = (goalName: string) =>
     .slice(0, 64);
 
 export function track(goalName: string, metadata?: DataFastMetadata) {
-  if (!isClient() || !isDataFastConfigured || !window.datafast) {
+  if (!isClient()) {
     return;
   }
 
@@ -89,6 +94,12 @@ export function track(goalName: string, metadata?: DataFastMetadata) {
   }
 
   const sanitizedMetadata = sanitizeMetadata(metadata);
+  window.tilly?.(sanitizedGoalName, sanitizedMetadata);
+
+  if (!isDataFastConfigured || !window.datafast) {
+    return;
+  }
+
   if (sanitizedMetadata) {
     window.datafast(sanitizedGoalName, sanitizedMetadata);
     return;
