@@ -62,7 +62,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import Link from "next/link";
 import { ClipTile, ClipFocus, ProcessingPanel, EmptyState } from "@/components/app/clip-wall";
 import { intlLocale } from "@/i18n/config";
-import { timeAgo } from "@/lib/generations";
+import { timeAgoLabel } from "@/lib/generations";
 import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind, type VideoSourceKind } from "@/components/video-source-icon";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
@@ -676,7 +676,7 @@ export default function TaskPage() {
                   value={editedTitle}
                   onChange={(e) => setEditedTitle(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Escape") { setIsEditing(false); setEditedTitle(task.source_title); } }}
-                  className="h-auto py-1 font-display text-2xl font-bold md:text-3xl"
+                  className="h-auto py-1 font-display text-xl font-bold md:text-2xl"
                   aria-label={t("titleLabel")}
                   autoFocus
                 />
@@ -685,7 +685,7 @@ export default function TaskPage() {
               </form>
             ) : (
               <div className="group flex items-start gap-2">
-                <h1 className={cn("min-w-0 break-words font-display text-2xl font-bold tracking-tight md:text-3xl", isActive && "shimmer")}>{task.source_title}</h1>
+                <h1 className={cn("min-w-0 break-words font-display text-xl font-bold tracking-tight md:text-2xl", isActive && "shimmer")}>{task.source_title}</h1>
                 {!readOnly && (
                   <Button size="icon-sm" variant="ghost" aria-label={t("editTitle")} className="mt-0.5 shrink-0 text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                     onClick={() => { setIsEditing(true); setEditedTitle(task.source_title); }}>
@@ -705,7 +705,7 @@ export default function TaskPage() {
               )}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="flex cursor-default items-center gap-1.5"><Clock className="size-3.5" />{timeAgo(task.created_at, locale)}</span>
+                  <span className="flex cursor-default items-center gap-1.5"><Clock className="size-3.5" />{timeAgoLabel(task.created_at, locale)}</span>
                 </TooltipTrigger>
                 <TooltipContent>
                   {new Date(task.created_at).toLocaleString(intlLocale(locale), { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}

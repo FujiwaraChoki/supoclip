@@ -54,6 +54,12 @@ export function timeAgo(value: string, locale = "en") {
   return JUST_NOW[locale] ?? JUST_NOW.en;
 }
 
+/** `timeAgo` capitalized, for standalone labels ("Just now", "Yesterday"). */
+export function timeAgoLabel(value: string, locale = "en") {
+  const text = timeAgo(value, locale);
+  return text.charAt(0).toLocaleUpperCase(locale) + text.slice(1);
+}
+
 /** Tailwind classes for a 0–100 virality score. */
 export function scoreTone(score: number) {
   if (score >= 80) return "text-brand";
