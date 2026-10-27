@@ -60,7 +60,7 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
-import { ClipTile, ClipFocus, ProcessingPanel, EmptyState } from "@/components/app/clip-wall";
+import { ClipTile, ClipFocus, ProcessingPanel, ProcessingSlots, EmptyState, clipProgressFromMessage, expectedClipCount } from "@/components/app/clip-wall";
 import { intlLocale } from "@/i18n/config";
 import { timeAgoLabel } from "@/lib/generations";
 import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind, type VideoSourceKind } from "@/components/video-source-icon";
@@ -108,6 +108,7 @@ interface TaskDetails {
   progress?: number;
   progress_message?: string;
   clips_count: number;
+  source_duration_seconds?: number | null;
   created_at: string;
   updated_at: string;
   font_family?: string | null;
@@ -685,7 +686,7 @@ export default function TaskPage() {
               </form>
             ) : (
               <div className="group flex items-start gap-2">
-                <h1 className={cn("min-w-0 break-words font-display text-xl font-bold tracking-tight md:text-2xl", isActive && "shimmer")}>{task.source_title}</h1>
+                <h1 className={cn("min-w-0 break-words font-display text-xl font-bold tracking-tight md:text-2xl", isActive && "title-sheen")}>{task.source_title}</h1>
                 {!readOnly && (
                   <Button size="icon-sm" variant="ghost" aria-label={t("editTitle")} className="mt-0.5 shrink-0 text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                     onClick={() => { setIsEditing(true); setEditedTitle(task.source_title); }}>
@@ -695,7 +696,7 @@ export default function TaskPage() {
               </div>
             )}
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
-              <StatusBadge status={task.status} />
+              {!isActive && <StatusBadge status={task.status} />}
               {sourceVideoUrl ? (
                 <a href={sourceVideoUrl} target="_blank" rel="noopener noreferrer" title={t("originalVideo")} className="flex items-center gap-1.5 hover:text-foreground">
                   <VideoSourceIcon source={videoSourceKind(task.source_type)} className="size-3.5" aria-hidden />{sourceLabel(videoSourceKind(task.source_type), tLibrary("card.upload"))}<ExternalLink className="size-3" aria-hidden />
@@ -711,6 +712,7 @@ export default function TaskPage() {
                   {new Date(task.created_at).toLocaleString(intlLocale(locale), { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}
                 </TooltipContent>
               </Tooltip>
+              {isActive && task.source_duration_seconds ? <span className="tabular-nums">{t("sourceLength", { duration: formatDuration(task.source_duration_seconds) })}</span> : null}
               {clips.length > 0 && <span className="tabular-nums">{t("clipsTotal", { count: clips.length, duration: formatDuration(totalSeconds) })}</span>}
               {readOnly && <span>{t("readOnly")}</span>}
             </div>
@@ -791,12 +793,11 @@ export default function TaskPage() {
 
         {isActive && task ? (
           <div className="space-y-8">
-            <ProcessingPanel status={task.status} progress={progress} message={progressMessage} readyCount={clips.length} />
-            {clips.length > 0 && (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {sortedClips.map(renderTile)}
-              </div>
-            )}
+            <ProcessingPanel status={task.status} progress={progress} message={progressMessage} startedAt={Date.parse(task.created_at)} />
+            <ProcessingSlots status={task.status} progress={progress} message={progressMessage}
+              total={clipProgressFromMessage(progressMessage)?.total ?? Math.max(clips.length, expectedClipCount(task.source_duration_seconds))}>
+              {sortedClips.map(renderTile)}
+            </ProcessingSlots>
           </div>
         ) : !task ? (
           <div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
