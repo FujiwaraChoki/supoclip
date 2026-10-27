@@ -54,7 +54,8 @@ const FALLBACK_LOOK: CaptionLook = {
 };
 const HOOK_SECONDS = 4,
   HOOK_MIN_SECONDS = 1.5,
-  HOOK_MARGIN = 0.07;
+  HOOK_SIDE_MARGIN = 0.07,
+  HOOK_TOP_MARGIN = 0.12;
 
 /** libass sizes fonts by ascender + descender, not the em box CSS uses. */
 function setAssFont(ctx: CanvasRenderingContext2D, font: string, size: number) {
@@ -302,7 +303,7 @@ function drawHookTitle(
     text = style.uppercase ? title.toUpperCase() : title;
   const captionPx = Math.max(1, Math.round((style.size * width) / 1080)),
     basePx = Math.max(34, Math.min(66, Math.floor(captionPx * 0.82))),
-    usable = width - 2 * Math.max(48, Math.floor(width * HOOK_MARGIN)),
+    usable = width - 2 * Math.max(48, Math.floor(width * HOOK_SIDE_MARGIN)),
     maxChars = Math.max(10, Math.floor(usable / (basePx * 0.52))),
     lines = balanceTitle(text.split(/\s+/), maxChars),
     longest = Math.max(...lines.map((l) => l.length)),
@@ -319,7 +320,7 @@ function drawHookTitle(
         ? Math.max(look.strokeWidth, Math.round((px * look.strokeWidth) / 26))
         : Math.max(2, Math.floor(px / 16)),
     shadow = look.shadow ? Math.max(2, Math.floor(px / 20)) : 0,
-    top = Math.max(48, Math.floor(height * HOOK_MARGIN));
+    top = Math.max(48, Math.floor(height * HOOK_TOP_MARGIN));
   const t = time - start;
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, t / 0.16, (end - time) / 0.24));
