@@ -45,6 +45,7 @@
   "disableShare": "Desactivar enlace para compartir",
   "openEditor": "Abrir editor",
   "deleteGeneration": "Eliminar generación",
+  "moreActions": "Más acciones",
   "reconnectingOwn": "Reconectando a las actualizaciones en vivo. Tu video sigue procesándose.",
   "reconnectingOther": "Reconectando a las actualizaciones en vivo. Esta generación sigue procesándose.",
   "cancelledTitle": "Generación cancelada",

@@ -24,10 +24,11 @@ function readIds(key: string): string[] {
 }
 
 /** One announcement list, with read state scoped to the visitor or signed-in account. */
-export function Announcements({ userId, compact = false, landing = false }: {
+export function Announcements({ userId, compact = false, landing = false, className }: {
   userId?: string;
   compact?: boolean;
   landing?: boolean;
+  className?: string;
 }) {
   const t = useTranslations("shell");
   const locale = useLocale();
@@ -86,6 +87,7 @@ export function Announcements({ userId, compact = false, landing = false }: {
             "relative flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             landing ? "rounded-full border border-brand/25 bg-brand-soft text-brand hover:border-brand/50" : "text-muted-foreground hover:bg-accent hover:text-foreground",
             compact && "justify-center px-2",
+            className,
           )}
         >
           <Megaphone className="size-4 shrink-0" aria-hidden />
