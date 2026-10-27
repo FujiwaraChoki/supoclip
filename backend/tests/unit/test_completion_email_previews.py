@@ -2,7 +2,6 @@ import email
 import random
 import shutil
 import subprocess
-from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -16,9 +15,10 @@ from src.services.email_previews import (
     ClipPreview,
     TaskPreviews,
     _Deadline,
-    build_task_previews,
     center_crop,
+    clip_preview,
     colorfulness,
+    source_preview,
     source_still,
 )
 from src.services.email_service import EmailContent, InlineImage, SesEmailService
@@ -90,37 +90,22 @@ def test_portrait_source_is_skipped(tmp_path):
 def test_clip_stills_match_the_clip_shape(tmp_path):
     vertical = make_video(tmp_path / "v.mp4", "smptebars=d=6", size="180x320")
     wide = make_video(tmp_path / "w.mp4", "smptebars=d=6")
-    previews = build_task_previews(
-        source_path=None, youtube_video_id=None, clips=[(str(vertical), "A"), (str(wide), None)],
-    )
-    tall, square = (decode(clip.image).shape[:2] for clip in previews.clips)
+    tall = decode(clip_preview(vertical, "A").image).shape[:2]
+    square = decode(clip_preview(wide, None).image).shape[:2]
     assert tall[0] > tall[1] and abs(square[0] - square[1]) <= 1
 
 
-@needs_ffmpeg
-def test_one_failing_clip_does_not_drop_the_others(tmp_path):
-    good = make_video(tmp_path / "good.mp4", "smptebars=d=6", size="180x320")
+def test_unreadable_clip_gives_no_preview(tmp_path):
+    broken = tmp_path / "broken.mp4"
+    broken.write_bytes(b"not a video")
+    assert clip_preview(broken, "Lost") is None
 
-    @contextmanager
-    def open_clip(reference):
-        if reference == "s3://broken":
-            raise OSError("storage unavailable")
-        yield Path(reference)
 
-    previews = build_task_previews(
-        source_path=good, youtube_video_id=None,
-        clips=[("s3://broken", "Lost"), (str(good), "Kept")], open_clip=open_clip,
+def test_source_preview_respects_its_budget(monkeypatch):
+    monkeypatch.setattr(
+        email_previews.requests, "get", MagicMock(side_effect=AssertionError("fetched after the deadline"))
     )
-    assert [clip.title for clip in previews.clips] == ["Kept"]
-
-
-def test_previews_stop_when_the_budget_runs_out(monkeypatch):
-    calls = []
-    monkeypatch.setattr(email_previews, "clip_still", lambda path, deadline: calls.append(path) or b"x")
-    previews = build_task_previews(
-        source_path=None, youtube_video_id=None, clips=[("a", None), ("b", None)], budget_seconds=0,
-    )
-    assert previews == TaskPreviews() and calls == []
+    assert source_preview(source_path=None, youtube_video_id="abc", budget_seconds=0) is None
 
 
 def test_completion_email_embeds_previews_inline():

@@ -4,7 +4,6 @@ Task service - orchestrates task creation and processing workflow.
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional, Callable
-import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -29,9 +28,10 @@ from ..repositories.generation_allowance_guard import generation_allowance_guard
 from .billing_service import BillingService, reduced_media_limits
 from .email_previews import (
     MAX_CLIP_PREVIEWS,
-    PREVIEW_BUDGET_SECONDS,
+    ClipPreview,
     TaskPreviews,
-    build_task_previews,
+    clip_preview,
+    source_preview,
 )
 from .task_completion_email_service import (
     TaskCompletionEmailService,
@@ -525,6 +525,9 @@ class TaskService(ClipEditingMixin):
             task_row = await self.task_repo.get_task_by_id(self.db, task_id) or {}
             include_broll = bool(task_row.get("include_broll"))
             broll_session = BRollSession()
+            wants_previews: Optional[bool] = None  # checked once a clip renders
+            # (virality, render order, still) for each saved clip.
+            clip_previews: list[tuple[int, int, ClipPreview]] = []
 
             for i, segment in enumerate(segments_to_render):
                 # Check cancellation
@@ -563,6 +566,16 @@ class TaskService(ClipEditingMixin):
                 await check_cancelled()
                 if clip_info is None:
                     continue  # Skip failed clip
+                # Take the email still now: once saved, the clip may move to S3/R2.
+                if wants_previews is None:
+                    wants_previews = await self._completion_email_wanted(task_id)
+                preview = (
+                    await run_in_thread(
+                        clip_preview, Path(clip_info["path"]), clip_info.get("hook_title")
+                    )
+                    if wants_previews
+                    else None
+                )
                 if time_map:
                     clip_info = await run_in_thread(
                         restore_clip_timeline, clip_info, time_map, segment
@@ -598,6 +611,8 @@ class TaskService(ClipEditingMixin):
                     await check_cancelled()
                 pending_clip_path = None
                 clip_ids.append(clip_id)
+                if preview:
+                    clip_previews.append((clip_info.get("virality_score") or 0, i, preview))
 
                 # Notify frontend via SSE
                 if clip_ready_callback:
@@ -643,6 +658,10 @@ class TaskService(ClipEditingMixin):
                 source_path=video_path,
                 source_type=source_type,
                 url=url,
+                clip_previews=tuple(
+                    preview
+                    for _, _, preview in sorted(clip_previews, key=lambda item: (-item[0], item[1]))
+                )[:MAX_CLIP_PREVIEWS],
             )
 
             logger.info(
@@ -722,6 +741,7 @@ class TaskService(ClipEditingMixin):
         source_path: Optional[Path] = None,
         source_type: Optional[str] = None,
         url: Optional[str] = None,
+        clip_previews: tuple[ClipPreview, ...] = (),
     ) -> None:
         context = await self.task_repo.get_task_notification_context(self.db, task_id)
         if not context:
@@ -753,22 +773,14 @@ class TaskService(ClipEditingMixin):
             )
             return
 
-        previews = None
-        try:
-            clips = await self.clip_repo.get_clips_by_task(self.db, task_id)
-            # build_task_previews has its own budget; this also bounds storage
-            # downloads, which it can't interrupt.
-            previews = await asyncio.wait_for(
-                run_in_thread(
-                    self._build_completion_previews, clips, source_path, source_type, url
-                ),
-                timeout=PREVIEW_BUDGET_SECONDS + 10,
-            )
-        except Exception:
-            # Images are a nice-to-have; the email still goes out without them.
-            logger.warning(
-                "Could not build completion email previews for task %s", task_id, exc_info=True
-            )
+        # Local ffmpeg and one HTTP fetch, each bounded by source_preview's
+        # budget; images are a nice-to-have and never block the email.
+        source = await run_in_thread(
+            source_preview,
+            source_path=source_path,
+            youtube_video_id=extract_video_id(url) if source_type == "youtube" and url else None,
+        )
+        previews = TaskPreviews(source=source, clips=clip_previews)
 
         try:
             await email_service.send_task_completed_email(
@@ -796,23 +808,19 @@ class TaskService(ClipEditingMixin):
                 task_id,
             )
 
-    @staticmethod
-    def _build_completion_previews(
-        clips: list[Dict[str, Any]],
-        source_path: Optional[Path],
-        source_type: Optional[str],
-        url: Optional[str],
-    ) -> TaskPreviews:
-        top_clips = sorted(
-            clips,
-            key=lambda clip: (-(clip.get("virality_score") or 0), clip.get("clip_order") or 0),
-        )[:MAX_CLIP_PREVIEWS]
-        return build_task_previews(
-            source_path=source_path,
-            youtube_video_id=extract_video_id(url) if source_type == "youtube" and url else None,
-            clips=[(clip["file_path"], clip.get("hook_title")) for clip in top_clips],
-            # Clips may live in S3/R2; read_path downloads one at a time.
-            open_clip=MediaStorage().read_path,
+    async def _completion_email_wanted(self, task_id: str) -> bool:
+        """Whether a completion email will go out, so clip stills are worth taking."""
+        try:
+            context = await self.task_repo.get_task_notification_context(self.db, task_id)
+        except Exception:
+            logger.warning("Could not read notification settings for task %s", task_id, exc_info=True)
+            return False
+        return bool(
+            context
+            and context.get("notify_on_completion")
+            and not context.get("completion_notification_sent_at")
+            and context.get("user_email")
+            and TaskCompletionEmailService(self.config).is_configured
         )
 
     async def get_task_with_clips(self, task_id: str) -> Optional[Dict[str, Any]]:

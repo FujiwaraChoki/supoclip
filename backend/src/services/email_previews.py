@@ -1,6 +1,6 @@
 """Still images for the "clips ready" email, embedded inline so no public URLs are needed.
 
-Everything here is best effort and bounded by one deadline: an image that fails
+Everything here is best effort and bounded by a deadline: an image that fails
 or runs out of time is left out rather than delaying or failing the email.
 """
 from __future__ import annotations
@@ -10,10 +10,9 @@ import logging
 import random
 import subprocess
 import time
-from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Optional, Sequence
+from typing import Optional, Sequence
 
 import cv2
 import numpy as np
@@ -24,7 +23,8 @@ from ..media.ffmpeg import parse_ffprobe_video_size
 logger = logging.getLogger(__name__)
 
 MAX_CLIP_PREVIEWS = 3
-PREVIEW_BUDGET_SECONDS = 10.0
+PREVIEW_BUDGET_SECONDS = 8.0
+CLIP_BUDGET_SECONDS = 4.0
 SOURCE_WIDTH = 640
 CLIP_WIDTH = 200
 # Hook titles are burned into a clip's first ~4s; stills from that window
@@ -191,36 +191,34 @@ def youtube_thumbnail(video_id: str, deadline: _Deadline) -> Optional[bytes]:
     return None
 
 
-def build_task_previews(
+def clip_preview(
+    video_path: Path, title: Optional[str], *, budget_seconds: float = CLIP_BUDGET_SECONDS
+) -> Optional[ClipPreview]:
+    """Call right after a clip renders, while the file is still local.
+
+    Taking stills here means the email never downloads clips back from S3/R2,
+    so a stalled storage read can't hold up the notification.
+    """
+    try:
+        image = clip_still(video_path, _Deadline(budget_seconds))
+    except Exception:
+        logger.warning("Could not build a clip preview for the completion email", exc_info=True)
+        return None
+    return ClipPreview(image=image, title=title) if image else None
+
+
+def source_preview(
     *,
     source_path: Optional[Path],
     youtube_video_id: Optional[str],
-    clips: Sequence[tuple[str, Optional[str]]],
-    open_clip: Callable[[str], AbstractContextManager[Path]] = lambda ref: nullcontext(Path(ref)),
     budget_seconds: float = PREVIEW_BUDGET_SECONDS,
-) -> TaskPreviews:
-    """``clips`` are (storage reference, hook title); ``open_clip`` yields a local path."""
+) -> Optional[bytes]:
     deadline = _Deadline(budget_seconds)
-    clip_previews = []
-    # Clips first: they matter more than the header image if time runs short.
-    for reference, title in clips[:MAX_CLIP_PREVIEWS]:
-        if deadline.expired():
-            break
-        try:
-            with open_clip(reference) as path:
-                image = clip_still(path, deadline)
-        except Exception:
-            logger.warning("Could not build a clip preview for the completion email", exc_info=True)
-            continue
-        if image:
-            clip_previews.append(ClipPreview(image=image, title=title))
-
-    source = None
     try:
         if youtube_video_id:
-            source = youtube_thumbnail(youtube_video_id, deadline)
-        elif source_path and source_path.exists() and not deadline.expired():
-            source = source_still(source_path, deadline)
+            return youtube_thumbnail(youtube_video_id, deadline)
+        if source_path and source_path.exists():
+            return source_still(source_path, deadline)
     except Exception:
         logger.warning("Could not build the source preview for the completion email", exc_info=True)
-    return TaskPreviews(source=source, clips=tuple(clip_previews))
+    return None
