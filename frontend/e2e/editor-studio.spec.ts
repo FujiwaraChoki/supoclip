@@ -252,6 +252,35 @@ test("background export sends the complete edited document", async ({
   });
 });
 
+test("playback decodes changing picture frames and pause and frame-step control the video", async ({ page }) => {
+  await setup(page);
+  const source = page.locator('video[src$="/media/clean.mp4"]');
+  const picture = () => page.getByLabel("Edited video preview").evaluate((canvas: HTMLCanvasElement) => {
+    // Above the caption area: caption redraws must not masquerade as video playback.
+    const pixels = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, Math.floor(canvas.height / 2)).data;
+    let hash = 0, lit = 0;
+    for (let i = 0; i < pixels.length; i += 16) {
+      hash = (Math.imul(hash, 31) + pixels[i] + 3 * pixels[i + 1] + 7 * pixels[i + 2]) | 0;
+      if (pixels[i] + pixels[i + 1] + pixels[i + 2] > 50) lit++;
+    }
+    return { hash, lit };
+  });
+  await expect.poll(async () => (await picture()).lit).toBeGreaterThan(1000);
+  const before = await picture();
+  const frames = await source.evaluate((v: HTMLVideoElement) => v.getVideoPlaybackQuality().totalVideoFrames);
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect.poll(() => source.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.3);
+  await expect.poll(() => source.evaluate((v: HTMLVideoElement) => v.getVideoPlaybackQuality().totalVideoFrames)).toBeGreaterThan(frames + 4);
+  await expect.poll(async () => (await picture()).hash).not.toBe(before.hash);
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
+  const paused = await source.evaluate((v: HTMLVideoElement) => v.currentTime);
+  await page.waitForTimeout(200);
+  expect(await source.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeCloseTo(paused, 2);
+  await page.getByRole("button", { name: "Next frame", exact: true }).click();
+  await expect.poll(() => source.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(paused + 0.03);
+  expect(await source.evaluate((v: HTMLVideoElement) => v.error?.message ?? null)).toBeNull();
+});
+
 test("preview, caption dragging and responsive layout", async ({
   page,
 }, info) => {

@@ -145,6 +145,21 @@ test("generated B-roll shows on the timeline and in the preview at its time", as
   await page.screenshot({ path: "test-results/editor-broll-preview.png", fullPage: true });
 });
 
+test("live playback paints the source, B-roll and source again as the clock advances", async ({ page }) => {
+  await setup(page);
+  const source = page.locator('video[src$="/media/clean.mp4"]');
+  await expect.poll(async () => (await canvasColor(page)).red).toBeGreaterThan(150);
+  await page.getByRole("button", { name: "Loop selected edit", exact: true }).click();
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect.poll(async () => (await canvasColor(page)).blue, { intervals: [50] }).toBeGreaterThan(200);
+  expect(await source.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(1);
+  await expect.poll(() => source.evaluate((v: HTMLVideoElement) => v.currentTime), { intervals: [50] }).toBeGreaterThan(2.4);
+  await expect.poll(async () => (await canvasColor(page)).red).toBeGreaterThan(150);
+  await expect(page.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+  expect(await source.evaluate((v: HTMLVideoElement) => v.getVideoPlaybackQuality().totalVideoFrames)).toBeGreaterThan(40);
+  expect(await source.evaluate((v: HTMLVideoElement) => v.error?.message ?? null)).toBeNull();
+});
+
 test("footage is searched, added at the playhead, replaced and removed", async ({ page }) => {
   const { saved } = await setup(page);
   const searches: string[] = [];
