@@ -179,6 +179,7 @@ Choosing operations:
 - Tightening dead air: remove_pauses.
 - Caption look and position, hook title, framing, colour, volume: one "set" operation per setting that changes.
 - B-roll: add_broll only on concrete, filmable subjects the speaker names, 2-4 seconds each, never overlapping other B-roll and never in the first 3 seconds.
+- Moving existing B-roll: move_broll with its existing id and new source start/end. Removing it: remove_broll with its ids. Keep its footage; do not replace a move with a setting change.
 - Fixing a caption's spelling: edit_words. Emphasis: highlight_words.
 
 Rules:
@@ -552,6 +553,9 @@ async def _plan_edit_ollama(context: str, model: str) -> EditPlan:
         base = base[:-3]
     headers = {"Authorization": f"Bearer {config.ollama_api_key}"} if config.ollama_api_key else {}
     local_system = SYSTEM_PROMPT + '\n\nReturn only the JSON plan. Every set operation value is a JSON string, including booleans and numbers. Examples: {"type":"set","setting":"captions.uppercase","value":"true"}, {"type":"set","setting":"audio.volume","value":"0.5"}. Do not put JSON punctuation inside values.'
+    # Ollama's format constrains the output grammar, but does not teach the
+    # model the operation catalogue. Supply the same schema in the prompt.
+    local_system += "\n\nJSON output schema:\n" + json.dumps(EditPlan.model_json_schema(), separators=(",", ":"))
     try:
         async with httpx.AsyncClient(timeout=AI_EDIT_TIMEOUT_SECONDS) as client:
             response = await client.post(f"{base}/api/chat", headers=headers, json={
@@ -674,13 +678,14 @@ async def ai_edit_job(ctx: dict, job_id: str) -> None:
         result, notes = await apply_plan(
             document, plan, duration, int(request.get("width") or 1080), int(request.get("height") or 1920)
         )
+        changed = result.model_dump() != document.model_dump()
         await publish(
             {
                 "status": "completed",
-                "summary": plan.summary.strip()[:600],
+                "summary": plan.summary.strip()[:600] if changed or not plan.operations else "Your draft is unchanged.",
                 "notes": notes,
                 "document": result.model_dump(),
-                "changed": result.model_dump() != document.model_dump(),
+                "changed": changed,
                 "length": round(sum(s.end - s.start for s in result.segments), 2),
             }
         )

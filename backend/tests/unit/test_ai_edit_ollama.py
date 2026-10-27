@@ -36,6 +36,12 @@ async def test_local_uses_schema_and_bounded_nonstreaming_generation(local):
     body = json.loads(seen[0].content)
     assert body["model"] == "qwen3.8:27b"
     assert body["format"] == ai.EditPlan.model_json_schema()
+    # A constrained grammar alone doesn't expose the catalogue to local models.
+    system = body["messages"][0]["content"]
+    schema = json.loads(system.split("JSON output schema:\n", 1)[1])
+    assert schema == body["format"]
+    assert schema["$defs"]["MoveBRoll"]["properties"]["id"]["type"] == "string"
+    assert "move_broll with its existing id" in system
     assert body["stream"] is False and body["think"] is False
     assert body["options"] == {"temperature": 0, "num_predict": 2048, "num_ctx": 8192}
 

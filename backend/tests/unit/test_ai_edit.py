@@ -246,6 +246,20 @@ async def test_job_reports_failures_without_touching_the_draft(monkeypatch, no_r
     }
 
 
+async def test_noop_plan_cannot_claim_a_change_that_was_not_applied(monkeypatch, no_runtime_settings):
+    redis = FakeRedis()
+    document = draft().model_dump()
+    redis.data[ai.request_key("noop")] = json.dumps({"document": document, "instruction": "move B-roll", "duration": 10})
+    monkeypatch.setattr(ai, "plan_edit", AsyncMock(return_value=plan(
+        {"type": "set", "setting": "audio.volume", "value": "1.0"}, summary="Moved the B-roll.",
+    )))
+    await ai.ai_edit_job({"redis": redis}, "noop")
+    result = json.loads(redis.data[ai.result_key("noop")])
+    assert result["changed"] is False
+    assert result["document"] == document
+    assert result["summary"] == "Your draft is unchanged."
+
+
 async def test_plan_edit_handles_refusals(monkeypatch):
     monkeypatch.setattr(ai, "get_config", lambda: SimpleNamespace(anthropic_api_key="key"))
     response = SimpleNamespace(stop_reason="refusal", parsed_output=None)
