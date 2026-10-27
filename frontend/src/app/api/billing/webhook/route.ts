@@ -129,20 +129,32 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   }
 }
 
-async function handleCancellationScheduled(
+const LIVE_SUBSCRIPTION_STATUSES = ["active", "trialing", "past_due"];
+
+function hasScheduledCancellation(subscription: Pick<Stripe.Subscription, "cancel_at_period_end" | "cancel_at">) {
+  return subscription.cancel_at_period_end || subscription.cancel_at != null;
+}
+
+function isNewlyScheduledCancellation(
   subscription: Stripe.Subscription,
   previousAttributes: Partial<Stripe.Subscription> | undefined,
 ) {
-  if (!previousAttributes || !["active", "trialing", "past_due"].includes(subscription.status)) {
-    return;
+  if (!previousAttributes || !LIVE_SUBSCRIPTION_STATUSES.includes(subscription.status)) {
+    return false;
   }
-
-  const previous = { ...subscription, ...previousAttributes };
-  const isScheduled = subscription.cancel_at_period_end || subscription.cancel_at != null;
-  const wasScheduled = previous.cancel_at_period_end || previous.cancel_at != null;
   // Stripe also sends updates for discounts, plan changes, and resumed subscriptions.
   // Only the transition into a scheduled cancellation should send this email.
-  if (!isScheduled || wasScheduled) return;
+  return hasScheduledCancellation(subscription)
+    && !hasScheduledCancellation({ ...subscription, ...previousAttributes });
+}
+
+async function sendCancellationScheduledEmail(subscription: Stripe.Subscription) {
+  if (
+    !LIVE_SUBSCRIPTION_STATUSES.includes(subscription.status)
+    || !hasScheduledCancellation(subscription)
+  ) {
+    return;
+  }
 
   const customerId = typeof subscription.customer === "string"
     ? subscription.customer
@@ -214,8 +226,15 @@ export async function POST(request: Request) {
 
     if (event.type === "customer.subscription.updated") {
       const subscription = event.data.object as Stripe.Subscription;
-      await syncSubscriptionUpdate(subscription);
-      await handleCancellationScheduled(subscription, event.data.previous_attributes);
+      if (isNewlyScheduledCancellation(subscription, event.data.previous_attributes)) {
+        // A retry after a failed email can arrive after the customer resumed. Sync and
+        // decide from the live subscription so the old snapshot can't overwrite that.
+        const current = await stripe.subscriptions.retrieve(subscription.id);
+        await syncSubscriptionUpdate(current);
+        await sendCancellationScheduledEmail(current);
+      } else {
+        await syncSubscriptionUpdate(subscription);
+      }
     }
 
     // Enable these on the Stripe webhook endpoint. invoice.paid covers

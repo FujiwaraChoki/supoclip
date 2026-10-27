@@ -487,32 +487,32 @@ describe("/api/billing/webhook", () => {
         stripeWebhookEvent: { create: createEvent, delete: deleteEvent },
         user: { updateMany, findFirst },
       } as never);
+      const subscription = {
+        id: "sub_123",
+        customer: "cus_123",
+        status: "active",
+        cancel_at_period_end: true,
+        cancel_at: 1772592000,
+        trial_end: null,
+        items: {
+          data: [{
+            price: { id: "price_pro" },
+            current_period_start: 1770000000,
+            current_period_end: 1772592000,
+          }],
+        },
+        ...changes,
+      };
+      const retrieveSubscription = vi.fn().mockResolvedValue(subscription);
       vi.mocked(getServerStripeClient).mockReturnValue({
         webhooks: {
           constructEvent: vi.fn().mockReturnValue({
             id: "evt_scheduled_cancellation",
             type: "customer.subscription.updated",
-            data: {
-              previous_attributes: previousAttributes,
-              object: {
-                id: "sub_123",
-                customer: "cus_123",
-                status: "active",
-                cancel_at_period_end: true,
-                cancel_at: 1772592000,
-                trial_end: null,
-                items: {
-                  data: [{
-                    price: { id: "price_pro" },
-                    current_period_start: 1770000000,
-                    current_period_end: 1772592000,
-                  }],
-                },
-                ...changes,
-              },
-            },
+            data: { previous_attributes: previousAttributes, object: subscription },
           }),
         },
+        subscriptions: { retrieve: retrieveSubscription },
       } as never);
       vi.mocked(fetchBackend).mockResolvedValue(new Response("{}", { status: 200 }));
       const deliver = () => POST(new Request("http://localhost/api/billing/webhook", {
@@ -520,7 +520,7 @@ describe("/api/billing/webhook", () => {
         headers: { "stripe-signature": "sig" },
         body: "{}",
       }));
-      return { deliver, createEvent, deleteEvent, updateMany, findFirst };
+      return { deliver, createEvent, deleteEvent, updateMany, findFirst, retrieveSubscription };
     }
 
     it.each([
@@ -590,6 +590,32 @@ describe("/api/billing/webhook", () => {
       expect(deleteEvent).toHaveBeenCalledWith({ where: { id: "evt_scheduled_cancellation" } });
       expect((await deliver()).status).toBe(200);
       expect(fetchBackend).toHaveBeenCalledTimes(2);
+    });
+
+    it("syncs the live subscription and skips the email when a retry arrives after a resume", async () => {
+      const { deliver, updateMany, retrieveSubscription } = mockCancellationUpdate();
+      retrieveSubscription.mockResolvedValueOnce({
+        id: "sub_123",
+        customer: "cus_123",
+        status: "active",
+        cancel_at_period_end: false,
+        cancel_at: null,
+        trial_end: null,
+        items: {
+          data: [{
+            price: { id: "price_pro" },
+            current_period_start: 1770000000,
+            current_period_end: 1772592000,
+          }],
+        },
+      });
+
+      expect((await deliver()).status).toBe(200);
+      expect(retrieveSubscription).toHaveBeenCalledWith("sub_123");
+      expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ subscription_cancel_at: null }),
+      }));
+      expect(fetchBackend).not.toHaveBeenCalled();
     });
   });
 
