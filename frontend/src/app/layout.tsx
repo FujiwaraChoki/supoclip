@@ -33,6 +33,8 @@ const dataFastWebsiteId = process.env.NEXT_PUBLIC_DATAFAST_WEBSITE_ID;
 const dataFastDomain = process.env.NEXT_PUBLIC_DATAFAST_DOMAIN;
 const shouldTrackLocalhost = process.env.NEXT_PUBLIC_DATAFAST_ALLOW_LOCALHOST === "true";
 const isDataFastEnabled = Boolean(dataFastWebsiteId && dataFastDomain);
+// Tilly analytics runs next to DataFast; it only uses its own cookies and window.tilly.
+const tillyWebsiteId = process.env.NEXT_PUBLIC_TILLY_WEBSITE_ID;
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("metadata");
@@ -107,6 +109,23 @@ export default async function RootLayout({
               data-domain={dataFastDomain}
               data-allow-localhost={shouldTrackLocalhost ? "true" : undefined}
               data-disable-console="true"
+            />
+          </>
+        ) : null}
+        {tillyWebsiteId ? (
+          <>
+            <Script id="tilly-queue" strategy="beforeInteractive">
+              {`window.tilly = window.tilly || function() {
+  window.tilly.q = window.tilly.q || [];
+  window.tilly.q.push(arguments);
+};`}
+            </Script>
+            <Script
+              id="tilly-script"
+              strategy="afterInteractive"
+              src="https://tilly.samihindi.com/js/script.js"
+              data-website-id={tillyWebsiteId}
+              data-allow-localhost={shouldTrackLocalhost ? "true" : undefined}
             />
           </>
         ) : null}
