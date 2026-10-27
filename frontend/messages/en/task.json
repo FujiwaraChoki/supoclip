@@ -117,10 +117,15 @@
     "finding": "Finding moments",
     "rendering": "Rendering clips"
   },
-  "waiting": "Waiting in queue",
-  "processing": "Processing",
-  "clipsReady": "{count, plural, one {# clip ready below — more on the way.} other {# clips ready below — more on the way.}}",
-  "grabCoffee": "Grab a coffee — clips appear here the moment they render.",
+  "eta": {
+    "queued": "Waiting for a worker",
+    "estimating": "Estimating time left…",
+    "underMinute": "Less than a minute left",
+    "minutes": "About {count} min left"
+  },
+  "clipOf": "Clip {current} of {total}",
+  "leavePage": "You can leave this page — your clips will be waiting in your library.",
+  "sourceLength": "{duration} source",
   "percentComplete": "{progress}% complete",
   "transcript": {
     "heading": "Transcript",

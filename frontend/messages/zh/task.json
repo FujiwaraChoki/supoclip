@@ -117,10 +117,15 @@
     "finding": "寻找片段",
     "rendering": "渲染片段"
   },
-  "waiting": "正在排队",
-  "processing": "处理中",
-  "clipsReady": "{count, plural, one {下方已有 # 个片段——还有更多在路上。} other {下方已有 # 个片段——还有更多在路上。}}",
-  "grabCoffee": "先去倒杯咖啡——片段一渲染完就会出现在这里。",
+  "eta": {
+    "queued": "正在等待处理",
+    "estimating": "正在估算剩余时间…",
+    "underMinute": "不到一分钟",
+    "minutes": "大约还需 {count} 分钟"
+  },
+  "clipOf": "第 {current} / {total} 个片段",
+  "leavePage": "可以离开此页面——片段完成后会保存在你的素材库中。",
+  "sourceLength": "源视频 {duration}",
   "percentComplete": "已完成 {progress}%",
   "transcript": {
     "heading": "文稿",

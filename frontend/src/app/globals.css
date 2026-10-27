@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "tw-shimmer";
 
 
 @custom-variant dark (&:is(.dark *));
@@ -197,6 +196,47 @@
   width: 40%;
   background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.55), transparent);
   animation: progress-sheen 1.6s ease-in-out infinite;
+}
+
+/* Task processing: a muted iridescent metal bar and the step-tinted glow behind it */
+@keyframes metal-flow { from { background-position: 0 0, 0% 50%; } to { background-position: 0 0, 200% 50%; } }
+@keyframes aura-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(6%, -8%) scale(1.08); }
+  66% { transform: translate(-5%, 6%) scale(0.95); }
+}
+.metal-flow {
+  background-image:
+    linear-gradient(180deg, oklch(1 0 0 / 0.55), transparent 45%, oklch(0 0 0 / 0.08)),
+    linear-gradient(100deg,
+      oklch(0.83 0.05 245), oklch(0.95 0.015 260), oklch(0.72 0.04 270), oklch(0.85 0.06 305),
+      oklch(0.96 0.02 340), oklch(0.8 0.06 20), oklch(0.93 0.04 75), oklch(0.74 0.03 110),
+      oklch(0.86 0.05 165), oklch(0.96 0.015 200), oklch(0.83 0.05 245));
+  background-size: 100% 100%, 200% 100%;
+  filter: saturate(0.75);
+  animation: metal-flow 12s linear infinite;
+}
+/* Processing title: one faint light pass every ~7s, then rest. The band only
+   lifts the text slightly toward the background, so words never wash out. */
+@keyframes title-sheen {
+  0% { background-position: 100% 0; }
+  30%, 100% { background-position: -50% 0; }
+}
+.title-sheen {
+  background-image: linear-gradient(100deg,
+    var(--foreground) 42%,
+    color-mix(in oklch, var(--foreground) 72%, var(--background)) 50%,
+    var(--foreground) 58%);
+  background-size: 250% 100%;
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: title-sheen 7s ease-in-out infinite;
+}
+.aura-blob { animation: aura-drift 14s ease-in-out infinite; transition: background 1.2s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .metal-flow, .aura-blob, .title-sheen { animation: none; }
 }
 
 .scrollbar-none { scrollbar-width: none; }
