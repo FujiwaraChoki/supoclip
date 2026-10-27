@@ -316,9 +316,9 @@ export default function SettingsPage() {
           <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_150px]">
             <div className="space-y-5">
               <div className="space-y-2">
-                <Label className="text-sm">{t("captions.font")}</Label>
+                <Label htmlFor="caption-default-font" className="text-sm">{t("captions.font")}</Label>
                 <Select value={fontFamily} onValueChange={setFontFamily} disabled={isLoading}>
-                  <SelectTrigger className="w-full"><SelectValue placeholder={t("captions.selectFont")} /></SelectTrigger>
+                  <SelectTrigger id="caption-default-font" className="w-full"><SelectValue placeholder={t("captions.selectFont")} /></SelectTrigger>
                   <SelectContent>
                     {availableFonts.map((font) => (
                       <FontSelectOption key={font.name} font={font} />

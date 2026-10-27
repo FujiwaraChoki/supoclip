@@ -126,7 +126,8 @@ test("font info stays open in a real selector and preserves the selected font", 
   await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
   await page.route("**/api/preferences", route => route.fulfill({ json: { fontFamily: "TikTokSans-Regular", fontSize: 24, fontColor: "#FFFFFF", notifyOnCompletion: true } }));
   await page.goto("/settings");
-  const selector = page.getByRole("combobox").first();
+  await expect(page.getByRole("combobox", { name: "Language", exact: true })).toBeVisible();
+  const selector = page.getByRole("combobox", { name: "Font", exact: true });
   await selector.click();
   await page.keyboard.press("ArrowRight");
   await expect(page.getByRole("button", { name: "Language support for TikTok Sans Regular" })).toBeFocused();
