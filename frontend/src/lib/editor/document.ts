@@ -57,6 +57,31 @@ export interface Effects {
   blur: number;
   hue: number;
 }
+/** A Pexels video rendition; the server only downloads from Pexels' CDN. */
+export interface BRollFootage {
+  provider: "pexels";
+  id: number;
+  width: number;
+  height: number;
+  duration: number;
+  fileUrl: string;
+  pageUrl: string;
+  thumbnail: string;
+  credit: string;
+}
+/**
+ * Stock footage over the clip from `start` to `end` on the source (clean.mp4)
+ * timeline, so it follows cuts like captions do. `offset` is where in the
+ * footage it begins.
+ */
+export interface BRollClip {
+  id: string;
+  start: number;
+  end: number;
+  offset: number;
+  query: string;
+  footage: BRollFootage;
+}
 export interface EditDocument {
   version: 1;
   segments: Segment[];
@@ -68,6 +93,8 @@ export interface EditDocument {
   muted: boolean;
   /** Headline shown at the top for the first seconds; absent on very old drafts. */
   hookTitle?: string;
+  /** Absent on drafts cached before the editor had B-roll. */
+  broll?: BRollClip[];
 }
 export interface ExportJob {
   id: string;
@@ -89,6 +116,8 @@ export interface EditorState {
   original: EditDocument;
   jobs: ExportJob[];
   captionLooks?: Record<string, CaptionLook>;
+  /** Whether the server can make AI edits (an Anthropic key is configured). */
+  aiEditing?: boolean;
 }
 export const DEFAULT_EFFECTS: Effects = {
   brightness: 100,
@@ -251,4 +280,144 @@ export function replaceWords(
     if (nextI < words.length) result.push({ ...words[nextI] });
   }
   return result;
+}
+
+export const BROLL_MIN_SECONDS = 0.2;
+export const BROLL_FADE_SECONDS = 0.25;
+export const brollOf = (doc: EditDocument) => doc.broll ?? [];
+export const footageKey = (footage: BRollFootage) =>
+  `${footage.id}/${footage.width}x${footage.height}`;
+export const footageUrl = (endpoint: string, footage: BRollFootage) =>
+  `${endpoint}/broll/footage/${footage.id}/${footage.width}x${footage.height}.mp4`;
+
+/** The B-roll clip on screen at a source time, if any. */
+export function brollAt(doc: EditDocument, sourceTime: number) {
+  return brollOf(doc).find((b) => sourceTime >= b.start && sourceTime < b.end) ?? null;
+}
+
+/**
+ * How opaque a B-roll clip is at a source time: it dissolves in over its first
+ * and out over its last quarter second, as the export does.
+ */
+export function brollAlpha(clip: BRollClip, sourceTime: number) {
+  const fade = Math.min(BROLL_FADE_SECONDS, (clip.end - clip.start) / 3);
+  if (fade <= 0) return 1;
+  return clamp(Math.min((sourceTime - clip.start) / fade, (clip.end - sourceTime) / fade), 0, 1);
+}
+
+/** Room for a B-roll clip around `at`: from the previous clip's end to the next one's start. */
+export function brollGap(doc: EditDocument, at: number, duration: number, ignore?: string) {
+  let start = 0,
+    end = duration;
+  for (const b of brollOf(doc)) {
+    if (b.id === ignore) continue;
+    if (b.end <= at) start = Math.max(start, b.end);
+    else if (b.start > at) end = Math.min(end, b.start);
+    else return null;
+  }
+  return { start, end };
+}
+
+/**
+ * Insert footage at `at` (source seconds) for up to `length` seconds, fitted
+ * into the free space there and the footage's own length. Null when no room.
+ */
+export function insertBroll(
+  doc: EditDocument,
+  footage: BRollFootage,
+  at: number,
+  duration: number,
+  query = "",
+  length = 3,
+): { doc: EditDocument; id: string } | null {
+  const gap = brollGap(doc, at, duration);
+  if (!gap) return null;
+  const start = clamp(at, gap.start, gap.end);
+  const end = Math.min(gap.end, start + Math.min(length, footage.duration));
+  if (end - start < BROLL_MIN_SECONDS) return null;
+  const id = uid();
+  const clip: BRollClip = { id, start, end, offset: 0, query, footage };
+  const broll = [...brollOf(doc), clip].sort((a, b) => a.start - b.start);
+  return { doc: { ...doc, broll }, id };
+}
+
+/**
+ * Move or resize a B-roll clip, kept inside the clip, clear of its neighbours,
+ * and no longer than its footage (after its offset).
+ */
+export function placeBroll(
+  doc: EditDocument,
+  id: string,
+  start: number,
+  end: number,
+  duration: number,
+): EditDocument {
+  const clip = brollOf(doc).find((b) => b.id === id);
+  if (!clip) return doc;
+  const others = brollOf(doc).filter((b) => b.id !== id);
+  const before = Math.max(0, ...others.filter((b) => b.end <= clip.start + 1e-6).map((b) => b.end));
+  const after = Math.min(duration, ...others.filter((b) => b.start >= clip.end - 1e-6).map((b) => b.start));
+  const maxLength = Math.max(BROLL_MIN_SECONDS, clip.footage.duration - clip.offset);
+  let nextStart = clamp(start, before, after - BROLL_MIN_SECONDS);
+  let nextEnd = clamp(end, nextStart + BROLL_MIN_SECONDS, Math.min(after, nextStart + maxLength));
+  if (Math.abs(end - start - (clip.end - clip.start)) < 1e-6) {
+    // A move keeps the length; clamping one edge shifts the other.
+    const length = Math.min(clip.end - clip.start, after - before);
+    nextStart = clamp(start, before, after - length);
+    nextEnd = nextStart + length;
+  }
+  return {
+    ...doc,
+    broll: brollOf(doc).map((b) => (b.id === id ? { ...b, start: nextStart, end: nextEnd } : b)),
+  };
+}
+
+/** B-roll pieces on the output timeline, mirroring the server's mapped_broll. */
+export function mappedBroll(doc: EditDocument) {
+  const pieces: {
+    clip: BRollClip;
+    start: number;
+    end: number;
+    offset: number;
+    fadeIn: boolean;
+    fadeOut: boolean;
+  }[] = [];
+  let cursor = 0;
+  const ordered = [...brollOf(doc)].sort((a, b) => a.start - b.start);
+  for (const segment of doc.segments) {
+    for (const clip of ordered) {
+      const start = Math.max(segment.start, clip.start),
+        end = Math.min(segment.end, clip.end);
+      if (end - start > 0.04)
+        pieces.push({
+          clip,
+          start: cursor + start - segment.start,
+          end: cursor + end - segment.start,
+          offset: clip.offset + start - clip.start,
+          fadeIn: start - clip.start < 0.02,
+          fadeOut: clip.end - end < 0.02,
+        });
+    }
+    cursor += segment.end - segment.start;
+  }
+  return pieces;
+}
+
+/** Segments laid out back to back on the edit (output) timeline. */
+export function sequence(doc: EditDocument) {
+  let cursor = 0;
+  return doc.segments.map((segment, index) => {
+    const start = cursor;
+    cursor += segment.end - segment.start;
+    return { segment, index, start, end: cursor };
+  });
+}
+
+/** The segment and source time playing at an edit (output) time. */
+export function locate(doc: EditDocument, time: number) {
+  const items = sequence(doc);
+  const total = items.length ? items[items.length - 1].end : 0;
+  const at = clamp(time, 0, Math.max(0, total - 0.001));
+  const item = items.find((i) => at >= i.start && at < i.end) ?? items[items.length - 1];
+  return { index: item.index, source: item.segment.start + at - item.start };
 }

@@ -5,6 +5,7 @@ import {
   AlignCenter,
   Bookmark,
   Captions,
+  Clapperboard,
   Crop,
   Highlighter,
   Info,
@@ -27,7 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,11 +43,13 @@ import {
 } from "@/lib/editor/document";
 import { cn } from "@/lib/utils";
 import { editorMessage, Field, Panel, Range, Section } from "./studio-ui";
-export type InspectorTab = "captions" | "framing" | "audio" | "effects";
+import { BRollPanel } from "./broll-panel";
+export type InspectorTab = "captions" | "framing" | "broll" | "audio" | "effects";
 
 const TABS = [
   ["captions", Captions],
   ["framing", Crop],
+  ["broll", Clapperboard],
   ["audio", Volume2],
   ["effects", Palette],
 ] as const;
@@ -111,6 +113,9 @@ interface Props {
   seek: (value: number) => void;
   update: (change: (doc: EditDocument) => EditDocument, group?: string) => void;
   applyAll: (style: CaptionStyle) => Promise<void>;
+  endpoint: string;
+  brollId: string | null;
+  selectBroll: (id: string | null) => void;
 }
 export function Inspector({
   doc,
@@ -121,6 +126,9 @@ export function Inspector({
   seek,
   update,
   applyAll,
+  endpoint,
+  brollId,
+  selectBroll,
 }: Props) {
   const t = useTranslations("editor");
   const scriptWords = useRef(doc.words);
@@ -131,20 +139,20 @@ export function Inspector({
   return (
     <Panel
       aria-label={t("inspector.tools")}
-      className="md:sticky md:top-4 xl:col-start-3"
+      className="flex flex-col lg:h-full lg:min-h-0"
     >
       <Tabs
         value={tab}
         onValueChange={(value) => setTab(value as InspectorTab)}
-        className="gap-0"
+        className="gap-0 lg:min-h-0 lg:flex-1"
       >
-        <div className="border-b p-2">
-          <TabsList className="grid w-full grid-cols-4 group-data-[orientation=horizontal]/tabs:h-auto">
+        <div className="p-2">
+          <TabsList className="grid w-full grid-cols-5 rounded-xl bg-stone-100 p-1 group-data-[orientation=horizontal]/tabs:h-auto dark:bg-stone-900">
             {TABS.map(([id, Icon]) => (
               <TabsTrigger
                 key={id}
                 value={id}
-                className="h-auto flex-col gap-1 py-2 text-xs"
+                className="h-auto flex-col gap-1 rounded-lg py-1.5 text-[11px] text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-[0_1px_2px_rgb(0_0_0/0.08)]"
               >
                 <Icon />
                 {t(`tabs.${id}`)}
@@ -152,7 +160,7 @@ export function Inspector({
             ))}
           </TabsList>
         </div>
-        <div className="md:max-h-[calc(100dvh-250px)] md:overflow-y-auto">
+        <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
           <TabsContent value="captions" className="space-y-6 p-4">
             <Section
               title={t("captions.styleTitle")}
@@ -348,7 +356,6 @@ export function Inspector({
                 </Button>
               </div>
             </Section>
-            <Separator />
             <Section
               title={t("captions.hookTitle")}
               description={t("captions.hookDescription")}
@@ -364,7 +371,6 @@ export function Inspector({
                 }}
               />
             </Section>
-            <Separator />
             <Section
               title={
                 <>
@@ -687,7 +693,6 @@ export function Inspector({
                 </ToggleGroup>
               </Field>
             </Section>
-            <Separator />
             <Section title={t("framing.position")}>
               <Range
                 label={t("framing.zoom")}
@@ -744,6 +749,18 @@ export function Inspector({
                 {t("framing.center")}
               </Button>
             </Section>
+          </TabsContent>
+          <TabsContent value="broll" className="p-4">
+            <BRollPanel
+              doc={doc}
+              asset={asset}
+              endpoint={endpoint}
+              time={time}
+              seek={seek}
+              update={update}
+              selected={brollId}
+              select={selectBroll}
+            />
           </TabsContent>
           <TabsContent value="audio" className="space-y-6 p-4">
             <Section

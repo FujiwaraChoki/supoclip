@@ -173,7 +173,9 @@ test("drafts survive clip switching and reload, undo restores an edit", async ({
     page.getByRole("slider", { name: "Zoom", exact: true }),
   ).toHaveAttribute("aria-valuenow", "1");
   await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await page.getByRole("button", { name: "Switch clip", exact: true }).click();
   await page.getByRole("button", { name: "Edit clip 2", exact: true }).click();
+  await page.getByRole("button", { name: "Switch clip", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Edit clip 2", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -213,9 +215,8 @@ test("splits and restores non-destructively with keyboard and precise trim", asy
   await page.getByLabel("Seek to word 2", { exact: true }).click();
   await page.getByRole("button", { name: "Split at playhead" }).click();
   await expect(page.getByText("Segment 2", { exact: true })).toBeVisible();
-  await page
-    .getByRole("button", { name: "Restore original", exact: true })
-    .click();
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Restore original" }).click();
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Restore original", exact: true })

@@ -71,6 +71,8 @@
   "captionTemplate": "Modelo de legendas",
   "selectStyle": "Escolher estilo",
   "defaultTemplate": "Padrão",
+  "brollTitle": "B-roll",
+  "brollBody": "Adiciona imagens de banco quando quem fala cita algo que dá para mostrar. Ao aplicar, o B-roll existente é mantido e clipes sem ele recebem; desligado, ele é removido.",
   "cleanupTitle": "Limpeza do clipe",
   "cleanupBody": "Aplica cortes de silêncio e palavras de preenchimento aos clipes regenerados.",
   "shortenPauses": "Encurtar pausas longas",

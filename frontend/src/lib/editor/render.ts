@@ -110,6 +110,14 @@ function cachedLook(doc: EditDocument, looks?: Record<string, CaptionLook>) {
   return look;
 }
 
+/** Stock footage drawn over the whole frame, under the captions. */
+export interface BRollLayer {
+  width: number;
+  height: number;
+  alpha: number;
+  draw: (x: number, y: number, width: number, height: number) => void;
+}
+
 export function drawEditorFrame(
   ctx: CanvasRenderingContext2D,
   doc: EditDocument,
@@ -118,6 +126,7 @@ export function drawEditorFrame(
   time: number,
   draw: (rect: ReturnType<typeof frameRect>) => void,
   looks?: Record<string, CaptionLook>,
+  broll?: BRollLayer | null,
 ) {
   const { width, height } = ctx.canvas,
     fx = doc.effects;
@@ -128,6 +137,16 @@ export function drawEditorFrame(
   ctx.filter = `brightness(${fx.brightness}%) contrast(${fx.contrast}%) saturate(${fx.saturation}%) blur(${(fx.blur * width) / 1080}px) hue-rotate(${fx.hue}deg)`;
   draw(frameRect(doc.framing, sourceWidth, sourceHeight, width, height));
   ctx.restore();
+  if (broll && broll.alpha > 0 && broll.width > 0 && broll.height > 0) {
+    // Fill the frame (cover), centred, as the export's scale+crop does.
+    const scale = Math.max(width / broll.width, height / broll.height),
+      w = broll.width * scale,
+      h = broll.height * scale;
+    ctx.save();
+    ctx.globalAlpha = broll.alpha;
+    broll.draw((width - w) / 2, (height - h) / 2, w, h);
+    ctx.restore();
+  }
   // Lay text out in export pixels so preview and export share every measurement.
   const out = outputSize(doc, sourceWidth, sourceHeight),
     look = cachedLook(doc, looks);

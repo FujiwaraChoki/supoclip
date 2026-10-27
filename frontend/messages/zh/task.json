@@ -71,6 +71,8 @@
   "captionTemplate": "字幕模板",
   "selectStyle": "选择样式",
   "defaultTemplate": "默认",
+  "brollTitle": "B-roll 素材",
+  "brollBody": "在说话者提到可展示的事物时添加素材视频。应用后保留已有 B-roll，并为没有的剪辑补充；关闭则移除。",
   "cleanupTitle": "片段清理",
   "cleanupBody": "对重新生成的片段应用静音和填充词剪切。",
   "shortenPauses": "缩短长停顿",

@@ -11,12 +11,12 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-/** Bordered surface matching the app's Card styling, without Card's padding rhythm. */
+/** A studio card: white, softly rounded, floating on the stone canvas. */
 export function Panel({ className, ...props }: ComponentProps<"section">) {
   return (
     <section
       className={cn(
-        "min-w-0 overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm",
+        "min-w-0 overflow-hidden rounded-2xl bg-background text-foreground shadow-[0_1px_2px_rgb(0_0_0/0.04)] ring-1 ring-black/[0.06] dark:ring-white/10",
         className,
       )}
       {...props}
@@ -38,19 +38,19 @@ export function PanelHeader({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3",
+        "flex min-h-11 flex-wrap items-center justify-between gap-3 px-4 py-2",
         className,
       )}
     >
       <div className="flex min-w-0 items-baseline gap-2">
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 className="shrink-0 text-sm font-semibold">{title}</h2>
         {meta && (
           <span className="truncate text-xs text-muted-foreground tabular-nums">
             {meta}
           </span>
         )}
       </div>
-      {children && <div className="flex items-center gap-2">{children}</div>}
+      {children && <div className="flex flex-wrap items-center gap-2 lg:shrink-0 lg:flex-nowrap">{children}</div>}
     </div>
   );
 }

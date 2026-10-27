@@ -71,6 +71,8 @@
   "captionTemplate": "Untertitelvorlage",
   "selectStyle": "Stil wählen",
   "defaultTemplate": "Standard",
+  "brollTitle": "B-Roll",
+  "brollBody": "Fügt Stock-Footage ein, wo der Sprecher etwas Zeigbares nennt. Beim Anwenden bleibt vorhandenes B-Roll erhalten und Clips ohne bekommen welches; ausgeschaltet wird es entfernt.",
   "cleanupTitle": "Clip-Bereinigung",
   "cleanupBody": "Wendet Schnitte für Stille und Füllwörter auf neu erzeugte Clips an.",
   "shortenPauses": "Lange Pausen kürzen",

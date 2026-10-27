@@ -116,6 +116,7 @@ interface TaskDetails {
   pause_threshold_ms?: number;
   remove_filler_words?: boolean;
   filtered_words?: string[];
+  include_broll?: boolean;
   share_enabled?: boolean;
 }
 
@@ -168,6 +169,14 @@ export default function TaskPage() {
   const [projectCutLongPauses, setProjectCutLongPauses] = useState(false);
   const [projectPauseThresholdMs, setProjectPauseThresholdMs] = useState("1200");
   const [projectRemoveFillerWords, setProjectRemoveFillerWords] = useState(false);
+  const [projectIncludeBroll, setProjectIncludeBroll] = useState(false);
+  const [brollAvailable, setBrollAvailable] = useState(false);
+  useEffect(() => {
+    fetch("/api/broll/status")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => setBrollAvailable(data?.configured === true))
+      .catch(() => setBrollAvailable(false));
+  }, []);
   const [projectFilteredWords, setProjectFilteredWords] = useState("");
   const [isApplyingSettings, setIsApplyingSettings] = useState(false);
   const [settingsSheetOpen, setSettingsSheetOpen] = useState(false);
@@ -275,6 +284,7 @@ export default function TaskPage() {
         setProjectCutLongPauses(Boolean(taskData.cut_long_pauses));
         setProjectPauseThresholdMs(String(taskData.pause_threshold_ms || 1200));
         setProjectRemoveFillerWords(Boolean(taskData.remove_filler_words));
+        setProjectIncludeBroll(Boolean(taskData.include_broll));
         setProjectFilteredWords((taskData.filtered_words || []).join(", "));
 
         }
@@ -496,6 +506,8 @@ export default function TaskPage() {
           cut_long_pauses: projectCutLongPauses,
           pause_threshold_ms: safePauseThreshold,
           remove_filler_words: projectRemoveFillerWords,
+          // Omitted when B-roll isn't offered, so the task keeps its setting.
+          ...(brollAvailable ? { include_broll: projectIncludeBroll } : {}),
           filtered_words: normalizedFilteredWords,
           apply_to_existing: true,
         }),
@@ -950,6 +962,23 @@ export default function TaskPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {brollAvailable && (
+                <div className="rounded-lg border bg-gray-50 p-3 space-y-2">
+                  <label className="flex items-start gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={projectIncludeBroll}
+                      onChange={(e) => setProjectIncludeBroll(e.target.checked)}
+                      className="mt-0.5 rounded"
+                    />
+                    <span>
+                      <span className="block font-medium text-gray-900">{t("brollTitle")}</span>
+                      <span className="block text-xs text-gray-500">{t("brollBody")}</span>
+                    </span>
+                  </label>
+                </div>
+              )}
 
               <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
                 <div>
