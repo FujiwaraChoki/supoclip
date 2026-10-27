@@ -45,6 +45,7 @@
   "disableShare": "Disable share link",
   "openEditor": "Open Editor",
   "deleteGeneration": "Delete generation",
+  "moreActions": "More actions",
   "reconnectingOwn": "Reconnecting to live updates. Your video is still processing.",
   "reconnectingOther": "Reconnecting to live updates. This generation is still processing.",
   "cancelledTitle": "Generation cancelled",

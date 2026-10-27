@@ -45,6 +45,7 @@
   "disableShare": "Freigabelink deaktivieren",
   "openEditor": "Editor öffnen",
   "deleteGeneration": "Generierung löschen",
+  "moreActions": "Weitere Aktionen",
   "reconnectingOwn": "Verbindung zu den Live-Updates wird wiederhergestellt. Dein Video wird noch verarbeitet.",
   "reconnectingOther": "Verbindung zu den Live-Updates wird wiederhergestellt. Diese Generierung wird noch verarbeitet.",
   "cancelledTitle": "Generierung abgebrochen",

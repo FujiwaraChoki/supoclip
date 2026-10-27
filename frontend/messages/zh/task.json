@@ -45,6 +45,7 @@
   "disableShare": "停用分享链接",
   "openEditor": "打开编辑器",
   "deleteGeneration": "删除生成",
+  "moreActions": "更多操作",
   "reconnectingOwn": "正在重新连接实时更新。你的视频仍在处理。",
   "reconnectingOther": "正在重新连接实时更新。这次生成仍在处理。",
   "cancelledTitle": "生成已取消",
