@@ -134,6 +134,23 @@ export const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 export const editDuration = (doc: EditDocument) =>
   doc.segments.reduce((total, s) => total + s.end - s.start, 0);
+/** Decode source-continuous splits together without changing the editable draft. */
+export function renderSegments(segments: Segment[]): Segment[] {
+  const result: Segment[] = [];
+  for (const segment of segments) {
+    const previous = result.at(-1);
+    if (previous && Math.abs(previous.end - segment.start) < 1e-9) previous.end = segment.end;
+    else result.push({ ...segment });
+  }
+  return result;
+}
+/** Hook titles are timed on the edited output, including their fade margins. */
+export function hookRange(doc: EditDocument) {
+  const duration = editDuration(doc);
+  return duration <= 1.5
+    ? { start: 0, end: Math.max(0.5, duration) }
+    : { start: 0.12, end: Math.min(4, Math.max(1.5, duration - 0.25)) };
+}
 export const timecode = (time: number) =>
   `${Math.floor(Math.max(0, time) / 60)}:${(Math.max(0, time) % 60).toFixed(2).padStart(5, "0")}`;
 export const uid = () => crypto.randomUUID();
@@ -168,19 +185,34 @@ export function frameRect(
 export function mappedWords(doc: EditDocument): CaptionWord[] {
   const result: CaptionWord[] = [];
   let cursor = 0;
+  let previousEnd: number | null = null;
+  let previousWords = new Map<string, CaptionWord>();
   const orderedWords = [...doc.words].sort((a, b) => a.start - b.start);
   for (const segment of doc.segments) {
+    const continuous = previousEnd !== null && Math.abs(segment.start - previousEnd) < 1e-6;
+    const currentWords = new Map<string, CaptionWord>();
     for (const word of orderedWords) {
       const start = Math.max(segment.start, word.start),
         end = Math.min(segment.end, word.end);
-      if (end > start && word.text.trim())
-        result.push({
+      if (end > start && word.text.trim()) {
+        const piece = {
           ...word,
           start: cursor + start - segment.start,
           end: cursor + end - segment.start,
-        });
+        };
+        const previous = continuous ? previousWords.get(word.id) : undefined;
+        if (previous && Math.abs(previous.end - piece.start) < 1e-6) {
+          previous.end = piece.end;
+          currentWords.set(word.id, previous);
+        } else {
+          result.push(piece);
+          currentWords.set(word.id, piece);
+        }
+      }
     }
     cursor += segment.end - segment.start;
+    previousEnd = segment.end;
+    previousWords = currentWords;
   }
   return result;
 }
@@ -284,6 +316,36 @@ export function replaceWords(
     if (nextI < words.length) result.push({ ...words[nextI] });
   }
   return result;
+}
+
+/** Replace one displayed phrase using original source timings, including after cuts. */
+export function replaceCaptionGroup(doc: EditDocument, ids: string[], text: string, duration: number): EditDocument {
+  const selected = new Set(ids);
+  const byId = new Map(doc.words.map(word => [word.id, word]));
+  const words = [...selected].flatMap(id => byId.has(id) ? [byId.get(id)!] : []);
+  if (!words.length) return doc;
+  let replacement: CaptionWord[];
+  if (words.every((word, index) => !index || word.start >= words[index - 1].start)) {
+    replacement = replaceWords(words, text, duration);
+  } else {
+    // A phrase may cross reordered segments. Align the typed words in display
+    // order, then put each result back inside its original source-word slot.
+    const slots = words.map((word, index) => ({ ...word, start: index, end: index + 1 }));
+    replacement = replaceWords(slots, text, slots.length).map(word => {
+      const index = Math.min(words.length - 1, Math.floor((word.start + word.end) / 2));
+      const source = words[index], span = source.end - source.start, minimum = Math.min(0.001, span / 2);
+      const start = source.start + clamp(word.start - index, 0, 1 - minimum / span) * span;
+      return { ...word, start, end: Math.max(start + minimum, source.start + clamp(word.end - index, 0, 1) * span) };
+    });
+  }
+  replacement.sort((a, b) => a.start - b.start);
+  let inserted = false;
+  return { ...doc, words: doc.words.flatMap(word => {
+    if (!selected.has(word.id)) return [word];
+    if (inserted) return [];
+    inserted = true;
+    return replacement;
+  }) };
 }
 
 export const BROLL_MIN_SECONDS = 0.2;

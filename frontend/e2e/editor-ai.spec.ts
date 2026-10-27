@@ -15,7 +15,7 @@ test.beforeAll(() => {
     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-movflags", "+faststart", mediaPath,
   ]);
   // A filmstrip sprite like the one the editor prepares.
-  execFileSync("ffmpeg", ["-v", "error", "-y", "-i", mediaPath, "-vf", "fps=20/3,scale=54:96,tile=20x1", "-frames:v", "1", thumbsPath]);
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-i", mediaPath, "-vf", "fps=12/3,scale=160:90:force_original_aspect_ratio=decrease,pad=160:90:(ow-iw)/2:(oh-ih)/2,tile=12x1", "-frames:v", "1", thumbsPath]);
 });
 
 function serve(route: Route, file: string) {

@@ -44,6 +44,7 @@ import { drawEditorFrame, loadEditorFont, type BRollLayer } from "@/lib/editor/r
 import type { InspectorTab } from "./inspector";
 import { cn } from "@/lib/utils";
 import { Panel, ToolButton } from "./studio-ui";
+import { TextLayers } from "./text-layers";
 
 interface Props {
   doc: EditDocument;
@@ -222,6 +223,7 @@ export function Preview({
               context.drawImage(video, rect.x, rect.y, rect.width, rect.height),
             asset.captionLooks,
             layer,
+            "none",
           );
       }
       frame = requestAnimationFrame(draw);
@@ -405,6 +407,7 @@ export function Preview({
               drag.current = null;
             }}
           />
+          <TextLayers doc={doc} asset={asset} time={time} index={segmentIndex} videoRef={videoRef} update={update} width={previewWidth} />
           {guides && (
             <div className="pointer-events-none absolute inset-x-[8%] top-[10%] bottom-[20%] rounded-lg border border-dashed border-white/60">
               <span className="absolute -top-5 text-[10px] text-white/70">

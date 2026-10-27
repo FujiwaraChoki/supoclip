@@ -1,8 +1,8 @@
 import {
   activeWordIndex,
   captionGroups,
-  editDuration,
   frameRect,
+  hookRange,
   mappedWords,
   outputSize,
   type CaptionLook,
@@ -52,9 +52,7 @@ const FALLBACK_LOOK: CaptionLook = {
   glow: false,
   backgroundColor: null,
 };
-const HOOK_SECONDS = 4,
-  HOOK_MIN_SECONDS = 1.5,
-  HOOK_MARGIN = 0.07;
+const HOOK_MARGIN = 0.07;
 
 /** libass sizes fonts by ascender + descender, not the em box CSS uses. */
 function setAssFont(ctx: CanvasRenderingContext2D, font: string, size: number) {
@@ -127,6 +125,7 @@ export function drawEditorFrame(
   draw: (rect: ReturnType<typeof frameRect>) => void,
   looks?: Record<string, CaptionLook>,
   broll?: BRollLayer | null,
+  textLayers: "all" | "none" = "all",
 ) {
   const { width, height } = ctx.canvas,
     fx = doc.effects;
@@ -147,13 +146,21 @@ export function drawEditorFrame(
     broll.draw((width - w) / 2, (height - h) / 2, w, h);
     ctx.restore();
   }
-  // Lay text out in export pixels so preview and export share every measurement.
-  const out = outputSize(doc, sourceWidth, sourceHeight),
-    look = cachedLook(doc, looks);
+  if (textLayers === "all") drawEditorTextLayer(ctx, doc, sourceWidth, sourceHeight, time, looks, "all", false);
+}
+
+/** Transparent editable layers in the viewer; composited only when exporting. */
+export function drawEditorTextLayer(
+  ctx: CanvasRenderingContext2D, doc: EditDocument, sourceWidth: number, sourceHeight: number,
+  time: number, looks: Record<string, CaptionLook> | undefined, layer: "hook" | "captions" | "all", clear = true,
+) {
+  const { width, height } = ctx.canvas;
+  if (clear) ctx.clearRect(0, 0, width, height);
+  const out = outputSize(doc, sourceWidth, sourceHeight), look = cachedLook(doc, looks);
   ctx.save();
   ctx.scale(width / out.width, height / out.height);
-  if (doc.captions.enabled) drawCaptions(ctx, doc, out, time, look);
-  if (doc.hookTitle?.trim()) drawHookTitle(ctx, doc, out, time, look);
+  if (layer !== "hook" && doc.captions.enabled) drawCaptions(ctx, doc, out, time, look);
+  if (layer !== "captions" && doc.hookTitle?.trim()) drawHookTitle(ctx, doc, out, time, look);
   ctx.restore();
 }
 
@@ -300,6 +307,19 @@ function balanceTitle(words: string[], maxChars: number) {
   return best;
 }
 
+export function hookTitleLayout(doc: EditDocument, width: number, height: number) {
+  const title = doc.hookTitle?.trim() ?? "";
+  const text = doc.captions.uppercase ? title.toUpperCase() : title;
+  const captionPx = Math.max(1, Math.round((doc.captions.size * width) / 1080));
+  const basePx = Math.max(34, Math.min(66, Math.floor(captionPx * 0.82)));
+  const usable = width - 2 * Math.max(48, Math.floor(width * HOOK_MARGIN));
+  const maxChars = Math.max(10, Math.floor(usable / (basePx * 0.52)));
+  const lines = balanceTitle(text.split(/\s+/), maxChars);
+  const longest = Math.max(...lines.map(line => line.length));
+  const px = longest > maxChars ? Math.max(30, Math.min(basePx, Math.floor(usable / (longest * 0.52)))) : basePx;
+  return { lines, px, usable, top: Math.max(48, Math.floor(height * HOOK_MARGIN)) };
+}
+
 /** The generated clip's headline: top safe area, fading in and out over ~4s. */
 function drawHookTitle(
   ctx: CanvasRenderingContext2D,
@@ -308,27 +328,10 @@ function drawHookTitle(
   time: number,
   look: ReturnType<typeof resolveLook>,
 ) {
-  const duration = editDuration(doc);
-  let start = 0.12,
-    end = Math.min(HOOK_SECONDS, Math.max(HOOK_MIN_SECONDS, duration - 0.25));
-  if (duration <= HOOK_MIN_SECONDS) {
-    start = 0;
-    end = Math.max(0.5, duration);
-  }
+  const { start, end } = hookRange(doc);
   if (time < start || time >= end) return;
-  const style = doc.captions,
-    title = doc.hookTitle!.trim(),
-    text = style.uppercase ? title.toUpperCase() : title;
-  const captionPx = Math.max(1, Math.round((style.size * width) / 1080)),
-    basePx = Math.max(34, Math.min(66, Math.floor(captionPx * 0.82))),
-    usable = width - 2 * Math.max(48, Math.floor(width * HOOK_MARGIN)),
-    maxChars = Math.max(10, Math.floor(usable / (basePx * 0.52))),
-    lines = balanceTitle(text.split(/\s+/), maxChars),
-    longest = Math.max(...lines.map((l) => l.length)),
-    px =
-      longest > maxChars
-        ? Math.max(30, Math.min(basePx, Math.floor(usable / (longest * 0.52))))
-        : basePx;
+  const style = doc.captions;
+  const { lines, px, top } = hookTitleLayout(doc, width, height);
   const hasOutline = !!look.strokeColor && look.strokeWidth > 0,
     // Mirrors build_hook_title_ass: an opaque box only without an outline.
     boxed = !hasOutline && !!look.backgroundColor,
@@ -337,8 +340,7 @@ function drawHookTitle(
       : hasOutline
         ? Math.max(look.strokeWidth, Math.round((px * look.strokeWidth) / 26))
         : Math.max(2, Math.floor(px / 16)),
-    shadow = look.shadow ? Math.max(2, Math.floor(px / 20)) : 0,
-    top = Math.max(48, Math.floor(height * HOOK_MARGIN));
+    shadow = look.shadow ? Math.max(2, Math.floor(px / 20)) : 0;
   const t = time - start;
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, t / 0.16, (end - time) / 0.24));

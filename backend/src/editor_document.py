@@ -224,19 +224,30 @@ def output_size(document: EditDocument, width: int, height: int):
 def mapped_words(document: EditDocument):
     result = []
     cursor = 0.0
+    previous_end = None
+    previous_words = {}
     ordered_words = sorted(document.words, key=lambda w: w.start)
     for segment in document.segments:
+        continuous = previous_end is not None and abs(segment.start - previous_end) < 1e-6
+        current_words = {}
         for word in ordered_words:
             start, end = max(segment.start, word.start), min(segment.end, word.end)
             if end > start and word.text.strip():
-                result.append(
-                    {
-                        **word.model_dump(),
-                        "start": cursor + start - segment.start,
-                        "end": cursor + end - segment.start,
-                    }
-                )
+                piece = {
+                    **word.model_dump(),
+                    "start": cursor + start - segment.start,
+                    "end": cursor + end - segment.start,
+                }
+                previous = previous_words.get(word.id) if continuous else None
+                if previous is not None and abs(previous["end"] - piece["start"]) < 1e-6:
+                    previous["end"] = piece["end"]
+                    current_words[word.id] = previous
+                else:
+                    result.append(piece)
+                    current_words[word.id] = piece
         cursor += segment.end - segment.start
+        previous_end = segment.end
+        previous_words = current_words
     return result
 
 
@@ -398,6 +409,17 @@ def render_document(
     from .clip_editor import _ffprobe_size, _escape_filter_path
     from .media.broll_overlay import broll_input_args, broll_overlay_graph, normalize_broll_overlays
     from .video_utils import ass_fonts_dir
+
+    # A split without a source-time jump is one continuous picture. Render it
+    # as such so a split inside a dissolve cannot reset its opacity or discard
+    # a sub-frame B-roll fragment. Keep the editable draft and its IDs intact.
+    segments = []
+    for segment in document.segments:
+        if segments and abs(segments[-1].end - segment.start) < TIME_EPSILON:
+            segments[-1] = segments[-1].model_copy(update={"end": segment.end})
+        else:
+            segments.append(segment)
+    document = document.model_copy(update={"segments": segments})
 
     source = directory / "clean.mp4"
     sw, sh = _ffprobe_size(source)

@@ -46,7 +46,7 @@ test.beforeAll(() => {
     mediaPath,
   ]);
 });
-async function setup(page: Page, failSave = false) {
+async function setup(page: Page, failSave = false, filmstrip?: string) {
   const documents = new Map(
     clips.map((c) => [c.id, { revision: 0, document: structuredClone(draft) }]),
   );
@@ -144,7 +144,7 @@ async function setup(page: Page, failSave = false) {
     });
   });
   await page.route("**/editor/media/thumbnails.jpg", (r) =>
-    r.fulfill({ status: 404 }),
+    filmstrip ? r.fulfill({ body: filmstrip, contentType: "image/svg+xml" }) : r.fulfill({ status: 404 }),
   );
   await page.goto("/tasks/one/edit?clip=clip1");
   await expect(page.getByLabel("Word 1", { exact: true })).toBeVisible();
@@ -250,6 +250,140 @@ test("background export sends the complete edited document", async ({
       words: [{ text: "Edited" }, { text: "world" }, { text: "today" }],
     },
   });
+});
+
+for (const width of [1440, 390]) {
+  test(`filmstrip preserves round shapes after trimming and zooming at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    const sprite = `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="90">${Array.from({ length: 12 }, (_, i) =>
+      `<rect x="${i * 160}" width="160" height="90" fill="black"/><circle cx="${i * 160 + 80}" cy="45" r="25" fill="#00ff00"/>`,
+    ).join("")}</svg>`;
+    await setup(page, false, sprite);
+    const circles = async () => {
+      const png = await page.getByRole("button", { name: /^Segment 1,/ }).screenshot();
+      const w = png.readUInt32BE(16), h = png.readUInt32BE(20);
+      const rgb = execFileSync("ffmpeg", ["-v", "error", "-i", "pipe:0", "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"], { input: png });
+      const columns: { x: number; top: number; bottom: number }[] = [];
+      for (let x = 0; x < w; x++) {
+        let top = h, bottom = -1;
+        for (let y = 0; y < h; y++) {
+          const i = (y * w + x) * 3;
+          if (rgb[i + 1] > 200 && rgb[i] < 40 && rgb[i + 2] < 40) { top = Math.min(top, y); bottom = y; }
+        }
+        if (bottom >= 0) columns.push({ x, top, bottom });
+      }
+      const groups: { left: number; right: number; top: number; bottom: number }[] = [];
+      for (const c of columns) {
+        const last = groups.at(-1);
+        if (!last || c.x > last.right + 1) groups.push({ left: c.x, right: c.x, top: c.top, bottom: c.bottom });
+        else { last.right = c.x; last.top = Math.min(last.top, c.top); last.bottom = Math.max(last.bottom, c.bottom); }
+      }
+      // Exclude the first thumbnail's segment label and the partially clipped final frame.
+      return groups.slice(1, -1)
+        .map(g => (g.right - g.left + 1) / (g.bottom - g.top + 1));
+    };
+    for (const trimmed of [false, true]) {
+      if (trimmed) {
+        await page.getByRole("spinbutton", { name: "In point seconds" }).fill("0.6");
+        await page.getByRole("spinbutton", { name: "Out point seconds" }).fill("2.4");
+      }
+      await expect.poll(async () => (await circles()).length).toBeGreaterThan(0);
+      for (const ratio of await circles()) expect(Math.abs(ratio - 1)).toBeLessThan(0.12);
+      await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+      await expect.poll(async () => (await circles()).length).toBeGreaterThan(0);
+      for (const ratio of await circles()) expect(Math.abs(ratio - 1)).toBeLessThan(0.12);
+    }
+  });
+}
+
+test("splitting through a spoken word does not duplicate its caption", async ({ page }) => {
+  await setup(page);
+  for (let i = 0; i < 6; i++) await page.getByRole("button", { name: "Next frame", exact: true }).click();
+  await page.getByRole("button", { name: "Split at playhead", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^Segment 2,/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Hello world today", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Hello Hello world today", exact: true })).toHaveCount(0);
+});
+
+test("hook title is edited inline on its timed track with undo, redo and cancel", async ({ page }) => {
+  await setup(page);
+  const title = page.getByRole("textbox", { name: "Hook title", exact: true });
+  await title.fill("A headline worth watching");
+  const lane = page.getByRole("group", { name: "Hook title", exact: true });
+  const clip = lane.getByRole("button", { name: "Hook title: A headline worth watching", exact: true });
+  await expect(clip).toBeVisible();
+  // A 3s edit shows the title from 0.12s until 2.75s, leaving the closing margin.
+  await expect(clip).toHaveAttribute("title", /0:00.12 – 0:02.75/);
+  await page.getByRole("tab", { name: "Audio", exact: true }).click();
+  await clip.click();
+  const editor = lane.getByRole("textbox", { name: "Hook title", exact: true });
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(editor).toBeFocused();
+  await editor.fill("A revised headline");
+  await editor.press("Enter");
+  const revised = lane.getByRole("button", { name: "Hook title: A revised headline", exact: true });
+  await expect(revised).toBeVisible();
+  await revised.click();
+  await editor.fill("Uncommitted text");
+  await editor.press("Escape");
+  await expect(revised).toBeVisible();
+  await revised.click();
+  await editor.fill("");
+  await editor.press("Enter");
+  await expect(lane).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(revised).toBeVisible();
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect(lane).toHaveCount(0);
+});
+
+for (const width of [1440, 390]) test(`titles and captions edit in place as separate preview layers at ${width}px`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 1100 });
+  const documents = await setup(page);
+  await page.getByRole("textbox", { name: "Hook title", exact: true }).fill("Editable title");
+  const lane = page.getByRole("group", { name: "Hook title", exact: true });
+  await lane.getByRole("button").click();
+  await lane.getByRole("textbox").press("Escape");
+  const preview = page.getByRole("region", { name: "Video preview", exact: true });
+  await preview.getByRole("button", { name: "Video preview: Hook title: Editable title", exact: true }).click();
+  const title = preview.getByRole("textbox", { name: "Hook title", exact: true });
+  await expect(title).toBeFocused();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await title.fill("Inline title ✨");
+  await title.press("Enter");
+  await expect(lane.getByRole("button", { name: "Hook title: Inline title ✨", exact: true })).toBeVisible();
+  await expect(preview.locator("canvas")).toHaveCount(3); // picture, title, captions
+  const pictureHash = () => preview.getByLabel("Edited video preview", { exact: true }).evaluate((canvas: HTMLCanvasElement) => {
+    const pixels = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+    let hash = 0;
+    for (let i = 0; i < pixels.length; i += 16) hash = (Math.imul(hash, 31) + pixels[i] + pixels[i + 1] + pixels[i + 2]) | 0;
+    return hash;
+  });
+  const pictureBefore = await pictureHash();
+  await preview.getByRole("button", { name: "Video preview: Hello world today", exact: true }).click();
+  const caption = preview.getByRole("textbox", { name: "Captions", exact: true });
+  await caption.fill("Hello bright world today");
+  await caption.press("Enter");
+  await expect.poll(() => documents.get("clip1")!.document.words.map(word => word.text).join(" ")).toBe("Hello bright world today");
+  await expect(page.getByRole("button", { name: "Hello bright world today", exact: true })).toBeVisible();
+  expect(await pictureHash()).toBe(pictureBefore); // text edits never repaint words into the picture
+  await preview.getByRole("button", { name: "Video preview: Hello bright world today", exact: true }).click();
+  await caption.fill("Cancelled change");
+  await caption.press("Escape");
+  await expect(preview.getByRole("button", { name: "Video preview: Hello bright world today", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Hello world today", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  const block = page.getByRole("button", { name: "Hello bright world today", exact: true });
+  await block.click();
+  const timelineCaption = page.getByRole("textbox", { name: "Captions", exact: true });
+  await timelineCaption.fill("A timeline caption");
+  await timelineCaption.press("Tab"); // blur commits too
+  await expect(page.getByRole("button", { name: "A timeline caption", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "A timeline caption", exact: true })).toBeVisible();
+  await expect(lane.getByRole("button", { name: "Hook title: Inline title ✨", exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("inline-text-layers.png"), fullPage: true });
 });
 
 test("playback decodes changing picture frames and pause and frame-step control the video", async ({ page }) => {

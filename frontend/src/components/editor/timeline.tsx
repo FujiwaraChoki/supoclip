@@ -10,6 +10,7 @@ import {
   Film,
   Scissors,
   Trash2,
+  Type,
   Volume2,
   VolumeX,
   ZoomIn,
@@ -26,11 +27,13 @@ import {
   captionGroups,
   clamp,
   editDuration,
+  hookRange,
   locate,
   mappedBroll,
   mappedWords,
   outputTime,
   placeBroll,
+  replaceCaptionGroup,
   sequence,
   splitSegment,
   timecode,
@@ -39,6 +42,8 @@ import {
   type EditorState,
 } from "@/lib/editor/document";
 import { Panel, ToolButton } from "./studio-ui";
+import { Filmstrip } from "./filmstrip";
+import { InlineText } from "./inline-text";
 
 interface Props {
   doc: EditDocument;
@@ -48,6 +53,7 @@ interface Props {
   currentTime: number;
   index: number;
   select: (index: number) => void;
+  pause: () => void;
   seek: (time: number) => void;
   update: (change: (doc: EditDocument) => EditDocument, group?: string) => void;
   brollId: string | null;
@@ -63,6 +69,7 @@ const TRACK = {
   video: "h-12 [@media(max-height:780px)]:h-10",
   broll: "h-8",
   captions: "h-7",
+  hook: "h-7",
   audio: "h-8",
 };
 
@@ -91,6 +98,7 @@ export function Timeline({
   currentTime,
   index,
   select,
+  pause,
   seek,
   update,
   brollId,
@@ -103,6 +111,7 @@ export function Timeline({
   const lanes = useRef<HTMLDivElement>(null);
   const items = sequence(doc);
   const total = Math.max(0.01, editDuration(doc));
+  const hook = doc.hookTitle?.trim() ? hookRange(doc) : null;
   const active = doc.segments[index] ?? doc.segments[0];
   const playhead = clamp(
     outputTime(doc, Math.min(index, doc.segments.length - 1), clamp(currentTime, active.start, active.end)),
@@ -339,6 +348,7 @@ export function Timeline({
           <div className="h-7" />
           {header(<Film className="size-4" />, t("timeline.tracks.video"), TRACK.video)}
           {header(<Clapperboard className="size-4" />, t("timeline.tracks.broll"), TRACK.broll)}
+          {hook && header(<Type className="size-4" />, t("captions.hookTitle"), TRACK.hook)}
           {header(
             null,
             t("timeline.tracks.captions"),
@@ -411,9 +421,6 @@ export function Timeline({
                     style={{
                       left: pct(item.start),
                       width: pct(length),
-                      backgroundImage: `url(${endpoint}/media/thumbnails.jpg)`,
-                      backgroundSize: `${(asset.duration / Math.max(length, 0.01)) * 100}% 100%`,
-                      backgroundPosition: `${asset.duration - length > 0.01 ? (item.segment.start / (asset.duration - length)) * 100 : 0}% 0`,
                     }}
                     onPointerDown={(e) => {
                       e.stopPropagation();
@@ -427,6 +434,7 @@ export function Timeline({
                       }
                     }}
                   >
+                    <Filmstrip url={`${endpoint}/media/thumbnails.jpg`} start={item.segment.start} end={item.segment.end} duration={asset.duration} />
                     <span className="pointer-events-none absolute bottom-1 left-2.5 max-w-[calc(100%-1.25rem)] truncate rounded bg-black/55 px-1.5 py-px text-[10px] font-medium text-white backdrop-blur-sm">
                       {t("timeline.segment", { n: item.index + 1 })}
                     </span>
@@ -465,18 +473,38 @@ export function Timeline({
               secondsPerPixel={secondsPerPixel}
               duration={asset.duration}
             />
+            {hook && (
+              <div role="group" aria-label={t("captions.hookTitle")} className={cn("relative", TRACK.hook)} {...scrubbing}>
+                <InlineText
+                  value={doc.hookTitle ?? ""}
+                  label={t("captions.hookTitle")}
+                  maxLength={200}
+                  buttonLabel={`${t("captions.hookTitle")}: ${doc.hookTitle}`}
+                  title={`${doc.hookTitle} · ${timecode(hook.start)} – ${timecode(Math.min(total, hook.end))}`}
+                  className="absolute inset-y-0 overflow-hidden rounded-md bg-amber-100 px-2 text-left text-[11px] leading-7 text-amber-950 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-100"
+                  style={{ left: pct(hook.start), width: pct(Math.max(0, Math.min(total, hook.end) - hook.start)) }}
+                  onBegin={() => { pause(); seekOut(Math.min(total, hook.start + 0.3)); }}
+                  onCommit={hookTitle => update(current => ({ ...current, hookTitle }))}
+                >
+                  <span className="block truncate">{doc.hookTitle}</span>
+                </InlineText>
+              </div>
+            )}
             <div className={cn("relative", TRACK.captions, !doc.captions.enabled && "opacity-40")} {...scrubbing}>
               {groups.map((group) => (
-                <button
+                <InlineText
                   key={`${group[0].id}-${group[0].start}`}
-                  type="button"
+                  value={group.map(w => w.text).join(" ")}
+                  label={t("timeline.tracks.captions")}
+                  maxLength={960}
                   className="absolute inset-y-0 overflow-hidden rounded-md bg-stone-100 px-1.5 text-left text-[11px] leading-7 text-stone-600 transition-colors hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300"
                   style={{ left: pct(group[0].start), width: pct(Math.max(0.05, group[group.length - 1].end - group[0].start)) }}
                   title={group.map((w) => w.text).join(" ")}
-                  onClick={() => seekOut(group[0].start + 0.001)}
+                  onBegin={() => { pause(); seekOut(group[0].start + 0.001); }}
+                  onCommit={text => update(current => replaceCaptionGroup(current, group.map(word => word.id), text, asset.duration))}
                 >
                   <span className="block truncate">{group.map((w) => w.text).join(" ")}</span>
-                </button>
+                </InlineText>
               ))}
             </div>
             <div className={cn("relative", TRACK.audio, doc.muted && "opacity-40")} {...scrubbing}>
@@ -522,6 +550,7 @@ export function Timeline({
         onChange={(e) => seekOut(Number(e.target.value))}
       />
     </Panel>
+
   );
 }
 

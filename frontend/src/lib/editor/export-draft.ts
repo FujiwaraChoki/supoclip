@@ -6,6 +6,7 @@ import {
   footageUrl,
   mappedBroll,
   outputSize,
+  renderSegments,
   type EditDocument,
   type EditorState,
 } from "./document";
@@ -19,6 +20,8 @@ export async function exportDraft(
   signal: AbortSignal,
   progress: (value: number) => void,
 ) {
+  // Preserve a continuous dissolve (and frame timestamps) through UI splits.
+  doc = { ...doc, segments: renderSegments(doc.segments) };
   const m = await import("mediabunny");
   const size = outputSize(doc, asset.width, asset.height);
   const bitrate = preset === "reels" ? 12_000_000 : 10_000_000;

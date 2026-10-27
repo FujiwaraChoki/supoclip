@@ -1,0 +1,79 @@
+"use client";
+import { useRef, useState, type CSSProperties, type ReactNode } from "react";
+
+/** Edit a text layer in its own bounds. Enter/blur commits; Escape cancels. */
+export function InlineText({ value, label, buttonLabel = value, title, onCommit, onBegin, onEditing, onMoveStart, onMove, className, style, children, multiline = false, maxLength }: {
+  value: string;
+  label: string;
+  buttonLabel?: string;
+  title?: string;
+  onCommit: (value: string) => void;
+  onBegin?: () => void;
+  onEditing?: (editing: boolean) => void;
+  onMoveStart?: () => void;
+  onMove?: (dx: number, dy: number) => void;
+  className?: string;
+  style?: CSSProperties;
+  children?: ReactNode;
+  multiline?: boolean;
+  maxLength?: number;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(value);
+  const finished = useRef(false);
+  const drag = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const dragged = useRef(false);
+  const finish = (commit: boolean) => {
+    if (finished.current) return;
+    finished.current = true;
+    if (commit) onCommit(text.trim().replace(/\s+/g, " "));
+    setEditing(false);
+    onEditing?.(false);
+  };
+  if (!editing) return (
+    <button type="button" aria-label={buttonLabel} title={title} className={className} style={style}
+      onPointerDown={event => {
+        if (!onMove) return;
+        dragged.current = false;
+        drag.current = { x: event.clientX, y: event.clientY, moved: false };
+        onMoveStart?.();
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={event => {
+        const from = drag.current;
+        if (!from || !(event.buttons & 1)) return;
+        const dx = event.clientX - from.x, dy = event.clientY - from.y;
+        if (Math.hypot(dx, dy) > 3) from.moved = true;
+        if (from.moved) onMove?.(dx, dy);
+      }}
+      onPointerUp={() => { dragged.current = drag.current?.moved ?? false; drag.current = null; }}
+      onPointerCancel={() => { drag.current = null; }}
+      onClick={() => {
+      if (dragged.current) { dragged.current = false; return; }
+      finished.current = false;
+      setText(value);
+      setEditing(true);
+      onEditing?.(true);
+      onBegin?.();
+    }}>{children}</button>
+  );
+  const props = {
+    autoFocus: true,
+    "aria-label": label,
+    value: text,
+    maxLength,
+    className,
+    style,
+    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setText(event.target.value),
+    onBlur: () => finish(true),
+    onKeyDown: (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      event.stopPropagation();
+      if (event.nativeEvent.isComposing) return;
+      if (event.key === "Escape" || (event.key === "Enter" && !event.shiftKey)) {
+        event.preventDefault();
+        finish(event.key === "Enter");
+      }
+    },
+  };
+  return multiline ? <textarea {...props} /> : <input {...props} />;
+}

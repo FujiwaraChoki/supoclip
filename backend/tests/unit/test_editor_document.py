@@ -33,6 +33,18 @@ def document(**changes):
     )
 
 
+def test_split_word_is_one_caption_across_contiguous_segments_including_overlaps():
+    doc = document(segments=[{"id": "one", "start": 0, "end": .5}, {"id": "two", "start": .5, "end": 1}], words=[
+        {"id": "a", "start": 0, "end": 1, "text": "blue", "highlight": True},
+        {"id": "b", "start": .2, "end": .8, "text": "light"},
+    ])
+    before = doc.model_dump_json()
+    assert mapped_words(doc) == [word.model_dump() for word in doc.words]
+    assert doc.model_dump_json() == before
+    repeated = doc.model_copy(update={"segments": [doc.segments[0].model_copy(update={"end": 1}), doc.segments[1].model_copy(update={"start": 0})]})
+    assert [w["text"] for w in mapped_words(repeated)] == ["blue", "light", "blue", "light"]
+
+
 def test_revisions_protect_other_tabs_and_original(tmp_path):
     draft = document()
     saved = save_document(tmp_path, draft, 0, 2)

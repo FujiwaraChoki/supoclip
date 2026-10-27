@@ -254,21 +254,27 @@ for (const mode of ["move", "trim"] as const) {
   });
 }
 
-const exportCases: { name: string; broll: BRollClip[]; at: number[] }[] = [
+const exportCases: { name: string; broll: BRollClip[]; at: number[]; segments?: EditDocument["segments"]; blue?: [number, number] }[] = [
   { name: "generated", broll: [generated], at: [1.5] },
   { name: "minimum-length", broll: [{ ...generated, end: 1.2 }], at: [1.0834] },
   { name: "combined continuation", broll: [
     { ...generated, end: 1.5, fadeOut: false, fadeDuration: 0.25 },
     { ...generated, id: "continuation", start: 1.5, offset: 0.5, fadeIn: false, fadeDuration: 0.25 },
   ], at: [1.4167, 1.5, 1.5834] },
+  { name: "splits inside both dissolves", broll: [generated], at: [1.125, 1.875], blue: [100, 155],
+    segments: [0, 1.02, 1.083333, 1.916667, 1.98].map((start, index, starts) => ({
+      id: `split-${index}`, start, end: starts[index + 1] ?? 3,
+    })),
+  },
 ];
 
-for (const { name, broll, at } of exportCases) {
+for (const { name, broll, at, segments, blue = [200, 256] } of exportCases) {
   test(`preview and browser export keep ${name} B-roll under the captions`, async ({ page }, info) => {
-    await setup(page, { document: { ...structuredClone(draft), framing: { ...draft.framing, aspect: "original" }, broll } });
+    await setup(page, { document: { ...structuredClone(draft), ...(segments ? { segments } : {}), framing: { ...draft.framing, aspect: "original" }, broll } });
     for (const time of at) {
       await seekTo(page, time);
-      await expect.poll(async () => (await canvasColor(page)).blue).toBeGreaterThan(150);
+      await expect.poll(async () => (await canvasColor(page)).blue).toBeGreaterThan(blue[0] - 10);
+      await expect.poll(async () => (await canvasColor(page)).blue).toBeLessThan(blue[1]);
     }
     await page.getByRole("button", { name: "Export", exact: true }).click();
     await page.getByRole("button", { name: /On this device/ }).click();
@@ -285,7 +291,10 @@ for (const { name, broll, at } of exportCases) {
       return { red: raw[0], blue: raw[2] };
     };
     expect(pixel(0.4).red).toBeGreaterThan(150);
-    for (const time of at) expect(pixel(time).blue).toBeGreaterThan(200);
+    for (const time of at) {
+      expect(pixel(time).blue).toBeGreaterThan(blue[0]);
+      expect(pixel(time).blue).toBeLessThan(blue[1]);
+    }
     expect(pixel(2.6).red).toBeGreaterThan(150);
   });
 }

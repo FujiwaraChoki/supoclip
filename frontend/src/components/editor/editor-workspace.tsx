@@ -610,8 +610,9 @@ export function EditorWorkspace({
         )}
       </div>
       {doc && asset?.status === "ready" && (
-        <div className="shrink-0 p-2 lg:h-[252px]">
+        <div className={cn("shrink-0 p-2 lg:h-[252px]", doc.hookTitle?.trim() && "lg:h-[284px]")}>
           <Timeline
+            pause={() => videoRef.current?.pause()}
             doc={doc}
             asset={asset}
             endpoint={endpoint}

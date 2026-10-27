@@ -222,6 +222,27 @@ def test_export_composites_broll_across_a_cut(tmp_path):
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
+@pytest.mark.parametrize("cut", [1.02, 1.083333, 1.916667, 1.98])
+def test_splitting_inside_a_broll_dissolve_preserves_export_frames(tmp_path, cut):
+    _solid(tmp_path / "clean.mp4", "red", 3, "320x180")
+    footage = tmp_path / "footage.mp4"
+    _solid(footage, "blue", 4, "180x320")
+    original = doc(
+        segments=((0, 3),), broll=((1, 2, 0),),
+        framing={"aspect": "original"}, captions={"enabled": False},
+    )
+    split = original.model_copy(update={"segments": doc(segments=((0, cut), (cut, 3))).segments})
+    before = split.model_dump()
+    render_document(tmp_path, "reference", original, "tiktok", {"42/1080x1920": footage})
+    render_document(tmp_path, "split", split, "tiktok", {"42/1080x1920": footage})
+    for at in (1.041667, 1.125, 1.208334, 1.791667, 1.875, 1.958334):
+        expected = _pixel(tmp_path / "export-reference.mp4", at)
+        actual = _pixel(tmp_path / "export-split.mp4", at)
+        assert max(abs(a - b) for a, b in zip(actual, expected)) <= 3, (cut, at, actual, expected)
+    assert split.model_dump() == before
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
 def test_export_without_footage_files_renders_the_clip_alone(tmp_path):
     _solid(tmp_path / "clean.mp4", "red", 3, "320x180")
     draft = doc(segments=((0, 3),), broll=((1, 2, 0),), framing={"aspect": "original"}, captions={"enabled": False})
