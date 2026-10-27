@@ -8,6 +8,7 @@ import json
 from arq import Retry, cron
 from arq.worker import func
 from .media_cleanup import cleanup_media, sweep_orphaned_media
+from .media_replication import check_media_storage, replicate_pending_media
 from ..repositories.task_run_guard import TaskRunBusy
 
 from ..observability import configure_logging, set_trace_id, set_user_id
@@ -243,6 +244,8 @@ class WorkerSettings:
     # Worker pool settings
     max_jobs = 4  # Process up to 4 jobs simultaneously
     cron_jobs = [
+        cron(check_media_storage, second=20, run_at_startup=True, timeout=120),
+        cron(replicate_pending_media, second=40, run_at_startup=True, timeout=1800),
         cron(cleanup_media, minute={0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55}, run_at_startup=True),
         cron(sweep_orphaned_media, hour={0, 6, 12, 18}, minute=15),
         # Every minute: promote due scheduled posts and poll async publishes.

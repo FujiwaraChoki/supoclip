@@ -138,7 +138,70 @@ jobs, old YouTube media and deleted-account leftovers. Live clips and editor dra
 are excluded. There is no bucket-wide expiry rule for active originals or clips.
 The one-day orphan grace period is longer than the worker's three-hour job timeout.
 
-## Migrating existing files
+## Independent R2 fallback
+
+S3 can remain the primary store while a private, independently billed R2 bucket
+holds replicas. Set all of `MEDIA_FALLBACK_BUCKET`, `MEDIA_FALLBACK_ENDPOINT`,
+`MEDIA_FALLBACK_ACCESS_KEY_ID` and `MEDIA_FALLBACK_SECRET_ACCESS_KEY` on both API
+and worker. `MEDIA_FALLBACK_REGION` defaults to `auto`. EU-jurisdiction buckets
+must use the EU endpoint shown in Cloudflare, not the global endpoint. Keep the
+bucket private; give its runtime token object read/write permission on that
+bucket only. Configure browser CORS for the same frontend origins and methods
+as the primary bucket. Do not change existing database `s3://` references.
+
+With credentials present, new server uploads are copied to both stores. The
+shared `TEMP_DIR/media-replication/` outbox fsyncs each payload before attempting
+delivery. An upload succeeds when at least one provider accepts it, retaining a
+durable local copy until the second provider catches up. If both fail the caller
+receives an error, but completed output stays in the outbox for retry. Keep space
+available on the shared volume; replication never silently drops files to make
+room. Both stores receive deletions, with durable tombstones preventing a queued
+upload from recreating a deleted file. Per-object file locks serialize revisions.
+
+Backfill all existing objects before enabling read failover:
+
+```sh
+cd backend
+.venv/bin/python scripts/mirror_media.py
+.venv/bin/python scripts/mirror_media.py --apply --verify --workers 2
+```
+
+The script prioritizes final clips and originals, preserves source metadata,
+never rewrites AWS originals, and fully reads each target to check its SHA-256.
+It is restartable. Re-run it for objects changed during the initial migration.
+Copies incur AWS outbound transfer charges plus R2 storage/operation charges.
+Do not use an on-demand migration alone as an outage fallback: an object not yet
+copied still depends on AWS being accessible.
+
+After verifying the backfill, set `MEDIA_FAILOVER_ENABLED=true`. Playback and
+download signing now checks object access before redirecting; a rejected primary
+request selects the R2 copy. Worker reads also fall back, preserving regeneration
+and editing during an AWS outage. A recent failed AWS probe prefers healthy R2
+immediately, avoiding repeated AWS timeouts; independent minute probes restore
+primary preference after recovery. Pending revisions still take priority over
+provider health so older drafts cannot replace newer ones.
+Browser multipart sessions select one provider
+at creation and retain it for part signing, completion and abort. Completed
+browser uploads enter the retry queue for mirroring without making the completion
+request wait for an entire second upload. New uploads can select R2 when AWS is
+unavailable. An interrupted multipart session must be restarted if its selected
+provider becomes unavailable mid-upload.
+
+The worker retries pending replicas every minute and probes both stores every
+minute with an upload, read, signed browser-style GET and deletion. The public
+`GET /health/storage` endpoint reads the cached result, performs no writes, and
+returns 503 for a failed provider, pending replication, or a probe older than
+three minutes. It remains separate from liveness so a provider outage doesn't
+cause pointless container restarts. Monitor this endpoint externally; the worker
+also logs degraded results. A healthy web/Redis/database check alone does not
+prove that video delivery works.
+
+Rollback delivery with `MEDIA_FAILOVER_ENABLED=false` while keeping replication
+credentials configured. Before removing fallback credentials entirely, ensure
+the outbox is drained and AWS has every object written during failover. Never
+discard the outbox as cache, and retain normal account-deletion processing.
+
+## Migrating existing local files
 
 Back up PostgreSQL and drain processing/editor jobs first. Run the migration from
 the backend directory with the deployment's database, S3 and `TEMP_DIR` settings:

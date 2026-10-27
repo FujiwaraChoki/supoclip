@@ -126,7 +126,30 @@ class MediaStorage:
                     aws_secret_access_key=self.config.media_s3_secret_key,
                     aws_session_token=self.config.media_s3_session_token,
                 )
-            self._client = boto3.client("s3", **options)
+            if getattr(self.config, "media_fallback_enabled", False):
+                from .media_replication import ReplicatedMediaClient
+
+                options["config"] = BotoConfig(
+                    signature_version="s3v4", connect_timeout=3, read_timeout=15,
+                    retries={"mode": "standard", "total_max_attempts": 2},
+                )
+                primary = boto3.client("s3", **options)
+                fallback = boto3.client(
+                    "s3", region_name=self.config.media_fallback_region,
+                    endpoint_url=self.config.media_fallback_endpoint,
+                    aws_access_key_id=self.config.media_fallback_access_key,
+                    aws_secret_access_key=self.config.media_fallback_secret_key,
+                    config=BotoConfig(signature_version="s3v4", connect_timeout=3, read_timeout=15,
+                                      retries={"mode": "standard", "total_max_attempts": 2},
+                                      request_checksum_calculation="when_required",
+                                      response_checksum_validation="when_required"),
+                )
+                self._client = ReplicatedMediaClient(
+                    primary, fallback, self.bucket, self.config.media_fallback_bucket,
+                    self.config.temp_dir, failover=self.config.media_failover_enabled,
+                )
+            else:
+                self._client = boto3.client("s3", **options)
         return self._client
 
     def key(self, *parts: str) -> str:
@@ -210,7 +233,12 @@ class MediaStorage:
     def _download(self, key: str, path: Path, *, optional=False):
         temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.part")
         try:
-            self.client.download_file(self.bucket, key, str(temporary))
+            from .media_replication import ReplicatedMediaClient
+
+            if isinstance(self.client, ReplicatedMediaClient):
+                self.client.download_file(self.bucket, key, str(temporary), optional=optional)
+            else:
+                self.client.download_file(self.bucket, key, str(temporary))
             temporary.replace(path)
             return True
         except ClientError as exc:

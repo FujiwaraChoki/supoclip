@@ -264,6 +264,24 @@ def create_app(
             content={"status": "unhealthy", "worker": "unavailable"},
         )
 
+    @app.get("/health/storage")
+    async def check_storage_health():
+        """Read cached worker probes; public requests never perform writes."""
+        import json
+        from pathlib import Path
+
+        config = get_config()
+        if not getattr(config, "media_fallback_enabled", False):
+            return {"status": "unmonitored", "replication": "disabled"}
+        try:
+            report = json.loads((Path(config.temp_dir) / "media-replication" / "health.json").read_text())
+            if time.time() - report["checked_at"] > 180:
+                report = {"status": "unhealthy", "reason": "stale_probe"}
+        except (OSError, ValueError, KeyError):
+            report = {"status": "unhealthy", "reason": "probe_unavailable"}
+        return JSONResponse(status_code=200 if report["status"] == "healthy" else 503, content=report,
+                            headers={"Cache-Control": "no-store"})
+
     return app
 
 

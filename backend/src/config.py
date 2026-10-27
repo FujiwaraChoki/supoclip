@@ -127,6 +127,19 @@ class Config:
         self.media_s3_access_key = self._get_optional_env("MEDIA_S3_ACCESS_KEY_ID")
         self.media_s3_secret_key = self._get_optional_env("MEDIA_S3_SECRET_ACCESS_KEY")
         self.media_s3_session_token = self._get_optional_env("MEDIA_S3_SESSION_TOKEN")
+        self.media_fallback_bucket = self._get_optional_env("MEDIA_FALLBACK_BUCKET")
+        self.media_fallback_endpoint = self._get_optional_env("MEDIA_FALLBACK_ENDPOINT")
+        self.media_fallback_access_key = self._get_optional_env("MEDIA_FALLBACK_ACCESS_KEY_ID")
+        self.media_fallback_secret_key = self._get_optional_env("MEDIA_FALLBACK_SECRET_ACCESS_KEY")
+        self.media_fallback_region = os.getenv("MEDIA_FALLBACK_REGION", "auto")
+        fallback_values = (self.media_fallback_bucket, self.media_fallback_endpoint,
+                           self.media_fallback_access_key, self.media_fallback_secret_key)
+        if any(fallback_values) and not all(fallback_values):
+            raise ValueError("All MEDIA_FALLBACK bucket, endpoint and credentials are required")
+        self.media_fallback_enabled = all(fallback_values)
+        self.media_failover_enabled = self._get_bool_env("MEDIA_FAILOVER_ENABLED", False)
+        if self.media_failover_enabled and not self.media_fallback_enabled:
+            raise ValueError("MEDIA_FAILOVER_ENABLED requires MEDIA_FALLBACK configuration")
         self.media_url_ttl_seconds = min(3600, max(60, int(os.getenv("MEDIA_URL_TTL_SECONDS", "900"))))
         self.media_cache_ttl_seconds = max(14400, int(os.getenv("MEDIA_CACHE_TTL_SECONDS", "86400")))
         self.media_orphan_grace_seconds = max(86400, int(os.getenv("MEDIA_ORPHAN_GRACE_SECONDS", "86400")))
