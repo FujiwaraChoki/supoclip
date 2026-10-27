@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { draft } from "../src/lib/editor/document.test-fixture";
+import type { EditDocument } from "../src/lib/editor/document";
 
 const generation = {
   id: "one",
@@ -46,9 +47,9 @@ test.beforeAll(() => {
     mediaPath,
   ]);
 });
-async function setup(page: Page, failSave = false, filmstrip?: string) {
+async function setup(page: Page, failSave = false, filmstrip?: string, initial: EditDocument = draft) {
   const documents = new Map(
-    clips.map((c) => [c.id, { revision: 0, document: structuredClone(draft) }]),
+    clips.map((c) => [c.id, { revision: 0, document: structuredClone(initial) }]),
   );
   await page.route("**/api/auth/get-session**", (r) =>
     r.fulfill({
@@ -397,6 +398,7 @@ for (const width of [1440, 390]) test(`text layers drag and resize with one undo
   await preview.getByLabel("Edited video preview").scrollIntoViewIfNeeded();
   const frame = (await preview.getByLabel("Edited video preview").boundingBox())!;
   const saved = () => documents.get("clip1")!.document;
+  const transform = (doc: EditDocument, layer: "hook" | "captions") => layer === "captions" ? Object.values(doc.captionTransforms ?? {})[0] : doc.textTransforms?.hook;
   await expect.poll(() => saved().hookTitle).toBe("Move this title");
   for (const [layer, label] of [["hook", "Hook title"], ["captions", "Captions"]] as const) {
     await preview.getByLabel("Edited video preview").scrollIntoViewIfNeeded();
@@ -410,8 +412,8 @@ for (const width of [1440, 390]) test(`text layers drag and resize with one undo
     await page.waitForTimeout(850); // a stationary pause must not split history
     await page.mouse.move(x + frame.width * .1, y + frame.height * (layer === "hook" ? .15 : -.15), { steps: 5 });
     await page.mouse.up();
-    await expect.poll(() => saved().textTransforms?.[layer]?.x).toBeCloseTo(.1, 2);
-    await expect.poll(() => saved().textTransforms?.[layer]?.y).toBeCloseTo(layer === "hook" ? .15 : -.15, 2);
+    await expect.poll(() => transform(saved(), layer)?.x).toBeCloseTo(.1, 2);
+    await expect.poll(() => transform(saved(), layer)?.y).toBeCloseTo(layer === "hook" ? .15 : -.15, 2);
     const moved = structuredClone(saved());
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expect.poll(() => saved()).toEqual(original);
@@ -425,7 +427,7 @@ for (const width of [1440, 390]) test(`text layers drag and resize with one undo
     await page.mouse.down();
     await page.mouse.move(grip.x + grip.width / 2 + beforeResize.width * .2, grip.y + grip.height / 2 + beforeResize.height * .2, { steps: 5 });
     await page.mouse.up();
-    await expect.poll(() => saved().textTransforms?.[layer]?.scale).toBeCloseTo(1.2, 1);
+    await expect.poll(() => transform(saved(), layer)?.scale).toBeCloseTo(1.2, 1);
     const afterResize = (await box.boundingBox())!;
     expect(afterResize.x).toBeCloseTo(beforeResize.x, 0);
     expect(afterResize.y).toBeCloseTo(beforeResize.y, 0);
@@ -447,7 +449,7 @@ for (const width of [1440, 390]) test(`text layers drag and resize with one undo
     const canvas = (await preview.getByLabel("Edited video preview").boundingBox())!;
     await expect.poll(async () => (await box.boundingBox())!.x).toBeGreaterThanOrEqual(canvas.x);
     await expect.poll(async () => (await box.boundingBox())!.y).toBeGreaterThanOrEqual(canvas.y);
-    await expect.poll(() => saved().textTransforms?.[layer]).not.toEqual(resized.textTransforms?.[layer]);
+    await expect.poll(() => transform(saved(), layer)).not.toEqual(transform(resized, layer));
     const released = structuredClone(saved());
     await page.mouse.move(text.x, text.y, { steps: 3 });
     await page.getByRole("tab", { name: "Audio", exact: true }).click();
@@ -459,6 +461,63 @@ for (const width of [1440, 390]) test(`text layers drag and resize with one undo
   await page.reload();
   await expect.poll(() => saved()).toEqual(final);
   await expect(page.getByRole("button", { name: "Hook title: Move this title", exact: true })).toBeVisible();
+});
+
+for (const width of [1440, 390]) test(`moving and resizing one caption leaves neighbors and repeated footage unchanged at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 1100 });
+  const initial: EditDocument = { ...structuredClone(draft), captions: { ...draft.captions, wordsPerLine: 1 }, segments: [draft.segments[0], { id: "repeat", start: 0, end: 3 }] };
+  const documents = await setup(page, false, undefined, initial);
+  const saved = () => documents.get("clip1")!.document;
+  const preview = page.getByRole("region", { name: "Video preview", exact: true });
+  const box = preview.getByRole("group", { name: "Video preview: Captions", exact: true });
+  const go = async (word: string, occurrence = 0) => {
+    await page.getByRole("button", { name: word, exact: true }).nth(occurrence).click();
+    await page.getByRole("textbox", { name: "Captions", exact: true }).press("Escape");
+    await preview.getByLabel("Edited video preview").scrollIntoViewIfNeeded();
+    await expect(box).toBeVisible();
+  };
+  const geometry = async () => {
+    const frame = (await preview.getByLabel("Edited video preview").boundingBox())!, rect = (await box.boundingBox())!;
+    return { x: (rect.x - frame.x) / frame.width, y: (rect.y - frame.y) / frame.height, width: rect.width / frame.width, height: rect.height / frame.height };
+  };
+  await go("world"); const neighbor = await geometry();
+  await go("Hello", 1); const repeated = await geometry();
+  await go("Hello");
+  const initialGeometry = await geometry();
+  const frame = (await preview.getByLabel("Edited video preview").boundingBox())!, first = (await box.boundingBox())!;
+  await page.mouse.move(first.x + first.width / 2, first.y + first.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(first.x + first.width / 2 + frame.width * .1, first.y + first.height / 2 - frame.height * .15, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(() => Object.values(saved().captionTransforms ?? {})[0]?.x).toBeCloseTo(.1, 2);
+  const moved = structuredClone(saved());
+  const size = (await box.boundingBox())!, grip = (await box.getByRole("button", { name: "Resize Captions, bottom right", exact: true }).boundingBox())!;
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(grip.x + grip.width / 2 + size.width * .25, grip.y + grip.height / 2 + size.height * .25, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(() => Object.values(saved().captionTransforms ?? {})[0]?.scale).toBeCloseTo(1.25, 1);
+  expect(saved().captions).toEqual(initial.captions);
+  expect(Object.keys(saved().captionTransforms!)).toEqual(['["s","a"]']);
+  const resized = structuredClone(saved()), editedGeometry = await geometry();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(() => saved()).toEqual(moved);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(() => saved()).toEqual(initial);
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect.poll(() => saved()).toEqual(resized);
+  await go("world"); expect(await geometry()).toEqual(neighbor);
+  await go("Hello", 1); expect(await geometry()).toEqual(repeated);
+  await page.reload();
+  await go("Hello"); expect(await geometry()).toEqual(editedGeometry);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(() => saved().captionTransforms ?? {}).toEqual({});
+  expect(await geometry()).toEqual(initialGeometry);
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect.poll(async () => (await geometry()).width).toBeCloseTo(editedGeometry.width, 6);
 });
 
 test("playback decodes changing picture frames and pause and frame-step control the video", async ({ page }) => {

@@ -370,6 +370,11 @@ def _apply_setting(doc: dict, setting: str, value: str) -> Optional[str]:
             transform["scale"] = desired / base
         else:
             target[key] = desired
+        for placement in doc.get("captionTransforms", {}).values():
+            if setting == "captions.position":
+                placement["y"] = desired - captions["y"]
+            elif setting == "captions.size":
+                placement.update(size=desired, scale=1)
     elif setting in {"captions.color", "captions.accent"}:
         colour = _hex(value.strip())
         if not colour:

@@ -371,6 +371,7 @@ def build_assemblyai_ass_subtitles(
     wrap_lines: bool = False,
     center_x_override: Optional[int] = None,
     hook_editor_style: Optional[Dict[str, Any]] = None,
+    caption_placements: Optional[List[Optional[Dict[str, Any]]]] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -581,10 +582,21 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     events: List[str] = []
     total = len(relevant_words)
+    original_geometry = (outline_px, shadow_px, box_bord, line_prefix)
     for chunk_start in range(0, total, chunk_size):
         chunk = relevant_words[chunk_start : chunk_start + chunk_size]
         indices = list(range(chunk_start, chunk_start + len(chunk)))
         chunk_end = float(chunk[-1]["end"])
+        outline_px, shadow_px, box_bord, line_prefix = original_geometry
+        placement = (caption_placements[chunk_start // chunk_size]
+                     if caption_placements and chunk_start // chunk_size < len(caption_placements) else None)
+        if placement is not None:
+            px = placement["font_px"]
+            outline_px = max(base_stroke, round(px * base_stroke / 26)) if has_outline else 0
+            shadow_px = max(2, px // 20) if template.get("shadow") else 0
+            box_bord = max(outline_px + 2, px // 5)
+            border = max(outline_px, px // 6) if border_style == 3 else outline_px
+            line_prefix = f"{{\\pos({placement['x']},{placement['y']})\\fs{px}\\bord{border}\\shad{shadow_px}" + ("\\blur4" if glow else "") + "}"
 
         if animation == "karaoke":
             for local_i, word in enumerate(chunk):

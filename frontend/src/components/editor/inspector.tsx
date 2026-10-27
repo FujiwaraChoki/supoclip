@@ -34,6 +34,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   DEFAULT_EFFECTS,
+  captionAt,
+  captionKey,
+  captionTransform,
   clamp,
   replaceWords,
   setCaptionVisualSize,
@@ -41,6 +44,7 @@ import {
   uid,
   type EditDocument,
   type CaptionStyle,
+  type CaptionTransform,
   type EditorState,
 } from "@/lib/editor/document";
 import { cn } from "@/lib/utils";
@@ -112,6 +116,7 @@ interface Props {
   tab: InspectorTab;
   setTab: (tab: InspectorTab) => void;
   time: number;
+  editTime: number;
   seek: (value: number) => void;
   update: (change: (doc: EditDocument) => EditDocument, group?: string) => void;
   applyAll: (style: CaptionStyle) => Promise<void>;
@@ -125,6 +130,7 @@ export function Inspector({
   tab,
   setTab,
   time,
+  editTime,
   seek,
   update,
   applyAll,
@@ -133,6 +139,10 @@ export function Inspector({
   selectBroll,
 }: Props) {
   const t = useTranslations("editor");
+  const activeCaption = captionAt(doc, editTime);
+  const captionId = activeCaption ? captionKey(doc, activeCaption) : undefined;
+  const placement: CaptionTransform = activeCaption ? captionTransform(doc, activeCaption) : textTransform(doc, "captions");
+  const captionSize = (placement.size ?? doc.captions.size) * placement.scale;
   const scriptWords = useRef(doc.words);
   const [script, setScript] = useState<string | null>(null),
     [applying, setApplying] = useState(false);
@@ -236,18 +246,21 @@ export function Inspector({
               </Field>
               <Range
                 label={t("captions.size")}
-                value={Math.round(doc.captions.size * textTransform(doc, "captions").scale)}
-                min={Math.min(20, Math.round(doc.captions.size * textTransform(doc, "captions").scale))}
-                max={Math.max(132, Math.round(doc.captions.size * textTransform(doc, "captions").scale))}
-                onChange={(size) => update(current => setCaptionVisualSize(current, size), "caption-size")}
+                value={Math.round(captionSize)}
+                min={Math.min(20, Math.round(captionSize))}
+                max={Math.max(132, Math.round(captionSize))}
+                onChange={(size) => update(current => setCaptionVisualSize(current, size, captionId), `caption-size:${captionId ?? "all"}`)}
               />
               <Range
                 label={t("captions.position")}
-                value={(doc.captions.y + textTransform(doc, "captions").y) * 100}
+                value={(doc.captions.y + placement.y) * 100}
                 min={0}
                 max={100}
                 unit="%"
-                onChange={(y) => update(current => ({ ...current, textTransforms: { ...current.textTransforms, captions: { ...textTransform(current, "captions"), y: y / 100 - current.captions.y } } }), "caption-position")}
+                onChange={(y) => update(current => {
+                  const transform = { ...(captionId ? current.captionTransforms?.[captionId] : undefined) ?? textTransform(current, "captions"), y: y / 100 - current.captions.y };
+                  return captionId ? { ...current, captionTransforms: { ...current.captionTransforms, [captionId]: transform } } : { ...current, textTransforms: { ...current.textTransforms, captions: transform } };
+                }, `caption-position:${captionId ?? "all"}`)}
               />
               <div className="grid grid-cols-2 gap-3">
                 <ColorField

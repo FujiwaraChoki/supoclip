@@ -61,8 +61,8 @@ const generated = [{
   },
 }];
 
-function cachedEditor(present: typeof draft, revision = 0, serverRevision = 0) {
-  const server = { ...draft, broll: generated };
+function cachedEditor(present: typeof draft, revision = 0, serverRevision = 0, serverChanges: Partial<typeof draft> = {}) {
+  const server = { ...draft, broll: generated, ...serverChanges };
   const local = {
     basis: "clip.mp4", revision, saved: JSON.stringify(draft),
     history: { past: [draft], present, future: [draft] },
@@ -84,6 +84,19 @@ function cachedEditor(present: typeof draft, revision = 0, serverRevision = 0) {
   }));
   return { requests, storage };
 }
+
+it("restores original placements when undoing a cached edit after reload", async () => {
+  const transformed = { ...draft, textTransforms: { hook: { x: .1, y: .2, scale: 1.5 } }, captionTransforms: { '["s","a"]': { x: -.1, y: -.2, scale: 1.4 } } };
+  cachedEditor(transformed, 0, 0, transformed);
+  const { result } = renderHook(() => useEditor("/test/editor"));
+  await waitFor(() => expect(result.current.document?.captionTransforms?.['["s","a"]']?.scale).toBe(1.4));
+  act(() => result.current.undo());
+  expect(result.current.document?.captionTransforms).toEqual({});
+  expect(result.current.document?.textTransforms).toEqual({});
+  act(() => result.current.redo());
+  expect(result.current.document?.captionTransforms?.['["s","a"]']?.scale).toBe(1.4);
+  expect(result.current.document?.textTransforms?.hook?.scale).toBe(1.5);
+});
 
 it("keeps a long pointer gesture in one undo step and separates the next gesture", async () => {
   cachedEditor(draft);

@@ -1,14 +1,15 @@
 "use client";
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { clamp, textTransform, uid, type EditDocument, type TextLayer } from "@/lib/editor/document";
+import { clamp, textTransform, uid, type CaptionTransform, type EditDocument, type TextLayer } from "@/lib/editor/document";
 import type { TextBounds } from "@/lib/editor/render";
 import { keepTextInFrame, resizeTextScale, TEXT_CORNERS, type TextCorner } from "@/lib/editor/text-transform";
 import { InlineText } from "./inline-text";
 
-export function TransformableText({ doc, layer, label, value, buttonLabel, bounds, width, height, frame, measure, pause, update, onEditing, onCommit }: {
+export function TransformableText({ doc, layer, captionId, label, value, buttonLabel, bounds, width, height, frame, measure, pause, update, onEditing, onCommit }: {
   doc: EditDocument;
   layer: TextLayer;
+  captionId?: string;
   label: string;
   value: string;
   buttonLabel: string;
@@ -25,6 +26,7 @@ export function TransformableText({ doc, layer, label, value, buttonLabel, bound
   const t = useTranslations("editor");
   const [editing, setEditing] = useState(false);
   const drag = useRef<{ doc: EditDocument; bounds: TextBounds; group: string; sx: number; sy: number; corner?: TextCorner; x: number; y: number } | null>(null);
+  const placement = (document: EditDocument): CaptionTransform => (captionId ? document.captionTransforms?.[captionId] : undefined) ?? textTransform(document, layer);
   const begin = (corner?: TextCorner, x = 0, y = 0) => {
     pause();
     const rect = frame.current?.getBoundingClientRect();
@@ -36,10 +38,12 @@ export function TransformableText({ doc, layer, label, value, buttonLabel, bound
     if (!start) return;
     dx *= start.sx;
     dy *= start.sy;
-    const original = textTransform(start.doc, layer);
+    const original = placement(start.doc);
     let transform = { ...original, x: original.x + dx / width, y: original.y + dy / height };
     if (start.corner) transform = { ...original, scale: resizeTextScale(start.bounds, start.corner, dx, dy, original.scale) };
-    const withTransform = (base: EditDocument) => ({ ...base, textTransforms: { ...base.textTransforms, [layer]: transform } });
+    const withTransform = (base: EditDocument): EditDocument => captionId
+      ? { ...base, captionTransforms: { ...base.captionTransforms, [captionId]: { ...transform, size: transform.size ?? null } } }
+      : { ...base, textTransforms: { ...base.textTransforms, [layer]: transform } };
     let nextBounds = measure(withTransform(start.doc));
     if (!nextBounds) return;
     if (start.corner) {
@@ -63,7 +67,7 @@ export function TransformableText({ doc, layer, label, value, buttonLabel, bound
     style={{ left: `${bounds.x / width * 100}%`, top: `${bounds.y / height * 100}%`, width: `${bounds.width / width * 100}%`, height: `${bounds.height / height * 100}%` }}>
     <InlineText value={value} label={label} buttonLabel={buttonLabel} multiline maxLength={layer === "hook" ? 200 : 960}
       className="pointer-events-auto absolute inset-0 h-full w-full resize-none cursor-text rounded-sm border border-transparent bg-transparent p-0 text-center outline-none hover:border-sky-400 focus:border-sky-400 focus:bg-black/60 focus:ring-1 focus:ring-sky-400"
-      style={{ color: doc.captions.color, fontFamily: `"Editor-${doc.captions.font}", sans-serif`, fontSize: Math.max(12, Math.min(bounds.height * 0.6, doc.captions.size * textTransform(doc, layer).scale) * scale), lineHeight: "1.2", textTransform: doc.captions.uppercase ? "uppercase" : "none", textShadow: "0 1px 2px black" }}
+      style={{ color: doc.captions.color, fontFamily: `"Editor-${doc.captions.font}", sans-serif`, fontSize: Math.max(12, Math.min(bounds.height * 0.6, (placement(doc).size ?? doc.captions.size) * placement(doc).scale) * scale), lineHeight: "1.2", textTransform: doc.captions.uppercase ? "uppercase" : "none", textShadow: "0 1px 2px black" }}
       onBegin={pause} onCommit={onCommit}
       onEditing={active => { setEditing(active); onEditing(active); }}
       onMoveStart={() => begin()} onMove={move}

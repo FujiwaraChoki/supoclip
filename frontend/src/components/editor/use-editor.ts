@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
-import type { EditDocument, EditorState } from "@/lib/editor/document";
+import { remapCaptionTransforms, type EditDocument, type EditorState } from "@/lib/editor/document";
 
 export async function editorRequest<T>(
   url: string,
@@ -40,6 +40,12 @@ function upgradeCachedHistory(history: History, server: EditDocument): History {
     ...document,
     // Missing means this cache predates editable B-roll; [] is an intentional removal.
     broll: structuredClone(document.broll ?? server.broll ?? []),
+    // Missing placement fields mean the original layout, including in old undo
+    // snapshots. Inheriting today's server placement would corrupt undo.
+    ...(document.textTransforms !== undefined || server.textTransforms !== undefined
+      ? { textTransforms: structuredClone(document.textTransforms ?? {}) } : {}),
+    ...(document.captionTransforms !== undefined || server.captionTransforms !== undefined
+      ? { captionTransforms: Object.fromEntries(Object.entries(document.captionTransforms ?? {}).map(([key, value]) => [key, { ...value, size: value.size ?? null }])) } : {}),
   });
   return {
     past: history.past.map(upgrade),
@@ -95,7 +101,9 @@ export function useEditor(endpoint: string) {
     (change: (doc: EditDocument) => EditDocument, group = "") => {
       const current = historyRef.current;
       if (!current) return;
-      const next = change(current.present);
+      const changed = change(current.present);
+      const next = changed.words !== current.present.words || changed.captions.wordsPerLine !== current.present.captions.wordsPerLine
+        ? remapCaptionTransforms(current.present, changed) : changed;
       if (JSON.stringify(next) === JSON.stringify(current.present)) return;
       const coalesce =
         group &&

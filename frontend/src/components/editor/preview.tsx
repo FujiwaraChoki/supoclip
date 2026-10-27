@@ -96,7 +96,6 @@ export function Preview({
     y: number;
     startX: number;
     startY: number;
-    captionY: number;
   } | null>(null);
   const size = outputSize(doc, asset.width, asset.height);
   useEffect(() => {
@@ -343,15 +342,14 @@ export function Preview({
             width={Math.round((size.width / size.height) * 640)}
             height={640}
             aria-label={t("preview.canvas")}
-            className={`block h-full w-full touch-none ${tab === "framing" || tab === "captions" ? "cursor-move" : "cursor-default"}`}
+            className={`block h-full w-full touch-none ${tab === "framing" ? "cursor-move" : "cursor-default"}`}
             onPointerDown={(e) => {
-              if (tab !== "framing" && tab !== "captions") return;
+              if (tab !== "framing") return;
               drag.current = {
                 x: e.clientX,
                 y: e.clientY,
                 startX: doc.framing.x,
                 startY: doc.framing.y,
-                captionY: doc.captions.y,
               };
               e.currentTarget.setPointerCapture(e.pointerId);
             }}
@@ -360,17 +358,6 @@ export function Preview({
               const box = e.currentTarget.getBoundingClientRect(),
                 deltaX = e.clientX - drag.current.x,
                 deltaY = e.clientY - drag.current.y;
-              if (tab === "captions") {
-                const y = clamp(
-                  drag.current.captionY + deltaY / box.height,
-                  0.1,
-                  0.9,
-                );
-                update(
-                  (d) => ({ ...d, captions: { ...d.captions, y } }),
-                  "drag-caption",
-                );
-              } else {
                 const rect = frameRect(
                   doc.framing,
                   asset.width,
@@ -398,7 +385,6 @@ export function Preview({
                   (d) => ({ ...d, framing: { ...d.framing, x, y } }),
                   "drag-frame",
                 );
-              }
             }}
             onPointerUp={() => {
               drag.current = null;

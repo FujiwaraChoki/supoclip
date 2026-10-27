@@ -52,6 +52,18 @@ async def test_caption_settings_use_visual_values_after_direct_manipulation():
     assert not notes
 
 
+async def test_global_caption_settings_also_update_individual_overrides():
+    doc = draft(captionTransforms={'["s","w0"]': {"x": .1, "y": -.2, "scale": 1.5}})
+    result, _ = await apply(
+        {"type": "set", "setting": "captions.size", "value": "80"},
+        {"type": "set", "setting": "captions.position", "value": "0.7"}, document=doc,
+    )
+    placement = result.captionTransforms['["s","w0"]']
+    assert placement.x == .1
+    assert placement.size * placement.scale == 80
+    assert result.captions.y + placement.y == pytest.approx(.7)
+
+
 async def test_removing_filler_words_cuts_them_out_of_the_segments():
     result, notes = await apply({"type": "remove_words", "word_ids": ["w1", "w9"]})
 

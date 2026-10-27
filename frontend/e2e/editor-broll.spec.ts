@@ -340,3 +340,50 @@ test("browser export matches the independently moved and resized preview text", 
     expect((x2 - x1 + 1) / 640).toBeCloseTo(expected.width, 2);
   }
 });
+
+test("browser export keeps individual caption placements separate", async ({ page }, info) => {
+  await setup(page, { document: {
+    ...structuredClone(draft), broll: [], framing: { ...draft.framing, aspect: "original" },
+    captions: { ...draft.captions, wordsPerLine: 1, template: "minimal", background: false, color: "#FFFFFF", accent: "#FFFFFF" },
+    words: [{ id: "first", start: 0, end: 1.5, text: "CAPTION", highlight: false }, { id: "second", start: 1.5, end: 3, text: "CAPTION", highlight: false }],
+    captionTransforms: { '["s","first"]': { x: .15, y: -.2, scale: 1.5 } },
+  } });
+  const raster = () => page.getByRole("region", { name: "Video preview", exact: true }).locator("canvas").nth(2).evaluate((canvas: HTMLCanvasElement) => {
+    const pixels = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+    let x1 = canvas.width, y1 = canvas.height, x2 = -1, y2 = -1;
+    for (let i = 0; i < pixels.length; i += 4) if (pixels[i + 3] > 180 && pixels[i] > 180 && pixels[i + 1] > 180 && pixels[i + 2] > 180) {
+      const x = i / 4 % canvas.width, y = Math.floor(i / 4 / canvas.width);
+      x1 = Math.min(x1, x); y1 = Math.min(y1, y); x2 = Math.max(x2, x); y2 = Math.max(y2, y);
+    }
+    return { x: (x1 + x2) / 2 / canvas.width * 640, y: (y1 + y2) / 2 / canvas.height * 360, width: (x2 - x1) / canvas.width * 640 };
+  });
+  await seekTo(page, .5);
+  await expect.poll(async () => (await raster()).x / 640).toBeCloseTo(.65, 2);
+  const firstPreview = await raster();
+  await seekTo(page, 2);
+  await expect.poll(async () => (await raster()).x / 640).toBeCloseTo(.5, 2);
+  const secondPreview = await raster();
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await page.getByRole("button", { name: /On this device/ }).click();
+  const download = page.waitForEvent("download", { timeout: 60000 });
+  await page.getByRole("button", { name: "Export clip", exact: true }).click();
+  const file = info.outputPath("individual-captions.mp4");
+  await (await download).saveAs(file);
+  const bounds = (time: number) => {
+    const raw = execFileSync("ffmpeg", ["-v", "error", "-ss", String(time), "-i", file, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]);
+    let x1 = 640, y1 = 360, x2 = -1, y2 = -1;
+    for (let y = 0; y < 360; y++) for (let x = 0; x < 640; x++) {
+      const i = (y * 640 + x) * 3;
+      if (raw[i] > 180 && raw[i + 1] > 180 && raw[i + 2] > 180) { x1 = Math.min(x1, x); y1 = Math.min(y1, y); x2 = Math.max(x2, x); y2 = Math.max(y2, y); }
+    }
+    return { x: (x1 + x2) / 2, y: (y1 + y2) / 2, width: x2 - x1 };
+  };
+  const first = bounds(.5), second = bounds(2);
+  // Compare rendered glyphs with the preview rather than their font baselines.
+  for (const [actual, expected] of [[first, firstPreview], [second, secondPreview]]) {
+    expect(Math.abs(actual.x - expected.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(actual.y - expected.y)).toBeLessThanOrEqual(2);
+    expect(Math.abs(actual.width - expected.width)).toBeLessThanOrEqual(3);
+  }
+  expect(first.width / second.width).toBeCloseTo(1.5, 1);
+});

@@ -8,10 +8,37 @@ import {
   outputSize,
   replaceWords,
   replaceCaptionGroup,
+  captionKey,
+  captionTransform,
+  setCaptionVisualSize,
   renderSegments,
   splitSegment,
 } from "./document";
 import { draft } from "./document.test-fixture";
+
+it("keeps placements local to a caption occurrence across splits and repeated footage", () => {
+  const doc = { ...draft, captions: { ...draft.captions, wordsPerLine: 1 }, segments: [{ id: "s", start: 0, end: 3 }, { id: "repeat", start: 0, end: 3 }] };
+  const groups = captionGroups(mappedWords(doc), 1);
+  const key = captionKey(doc, groups[0]);
+  const placed = { ...doc, captionTransforms: { [key]: { x: .1, y: -.2, scale: 1.5 } } };
+  expect(captionTransform(placed, groups[0]).scale).toBe(1.5);
+  for (const group of groups.slice(1)) expect(captionTransform(placed, group)).toEqual({ x: 0, y: 0, scale: 1 });
+  const split = splitSegment(placed, 0, .25);
+  expect(captionKey(split, captionGroups(mappedWords(split), 1)[0])).toBe(key);
+  const resized = setCaptionVisualSize(placed, 132, key);
+  expect(resized.captions).toEqual(doc.captions);
+  expect(captionTransform(resized, groups[0]).size).toBe(132);
+  expect(captionTransform(resized, groups[1]).size).toBeUndefined();
+});
+
+it("preserves a local placement when all words in the caption are replaced", () => {
+  const key = captionKey(draft, draft.words);
+  const placed = { ...draft, captionTransforms: { [key]: { x: .1, y: -.2, scale: 1.5 } } };
+  const edited = replaceCaptionGroup(placed, draft.words.map(word => word.id), "A new phrase", 3);
+  const [group] = captionGroups(mappedWords(edited), 4);
+  expect(captionKey(edited, group)).not.toBe(key);
+  expect(captionTransform(edited, group)).toEqual(placed.captionTransforms[key]);
+});
 
 it("edits a caption phrase in source time without changing surrounding words or highlights", () => {
   const before = structuredClone(draft);

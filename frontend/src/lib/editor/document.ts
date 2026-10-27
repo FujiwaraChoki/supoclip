@@ -99,16 +99,20 @@ export interface EditDocument {
   hookTitle?: string;
   /** Normalized offsets from the original text anchors; independent font scales. */
   textTransforms?: Partial<Record<TextLayer, TextTransform>>;
+  /** Placement overrides for individual caption occurrences. */
+  captionTransforms?: Record<string, CaptionTransform>;
   /** Absent on drafts cached before the editor had B-roll. */
   broll?: BRollClip[];
 }
 export type TextLayer = "hook" | "captions";
 export interface TextTransform { x: number; y: number; scale: number }
+export interface CaptionTransform extends TextTransform { size?: number | null }
 export const textTransform = (doc: EditDocument, layer: TextLayer): TextTransform =>
   doc.textTransforms?.[layer] ?? { x: 0, y: 0, scale: 1 };
 /** Keep the inspector's size in output units, including extreme legacy base sizes. */
-export function setCaptionVisualSize(doc: EditDocument, size: number): EditDocument {
+export function setCaptionVisualSize(doc: EditDocument, size: number, captionId?: string): EditDocument {
   size = clamp(size, 5, 528);
+  if (captionId) return { ...doc, captionTransforms: { ...doc.captionTransforms, [captionId]: { ...(doc.captionTransforms?.[captionId] ?? textTransform(doc, "captions")), size, scale: 1 } } };
   const base = clamp(doc.captions.size, Math.max(20, Math.ceil(size / 4)), Math.min(132, Math.floor(size / 0.25)));
   return { ...doc, captions: { ...doc.captions, size: base }, textTransforms: { ...doc.textTransforms, captions: { ...textTransform(doc, "captions"), scale: size / base } } };
 }
@@ -235,6 +239,43 @@ export function captionGroups(words: CaptionWord[], count: number) {
     groups.push(words.slice(i, i + count));
   return groups;
 }
+/** A source-continuous run survives a split; repeated footage has its own ID. */
+export function captionKey(doc: EditDocument, group: CaptionWord[]): string {
+  let cursor = 0;
+  for (const segment of renderSegments(doc.segments)) {
+    cursor += segment.end - segment.start;
+    if (group[0].start < cursor - 1e-9) return JSON.stringify([segment.id, group[0].id]);
+  }
+  return JSON.stringify([doc.segments.at(-1)?.id, group[0].id]);
+}
+export function captionTransform(doc: EditDocument, group: CaptionWord[]): CaptionTransform {
+  return doc.captionTransforms?.[captionKey(doc, group)] ?? textTransform(doc, "captions");
+}
+export function captionAt(doc: EditDocument, time: number) {
+  return captionGroups(mappedWords(doc), doc.captions.wordsPerLine)
+    .find(words => time >= words[0].start && time < words[words.length - 1].end);
+}
+
+/** Keep local placement with the same spoken phrase when its text/IDs change. */
+export function remapCaptionTransforms(before: EditDocument, after: EditDocument): EditDocument {
+  if (!before.captionTransforms || !Object.keys(before.captionTransforms).length) return after;
+  const previous = captionGroups(mappedWords(before), before.captions.wordsPerLine)
+    .map(words => ({ words, key: captionKey(before, words) }));
+  const placements: Record<string, CaptionTransform> = {};
+  for (const words of captionGroups(mappedWords(after), after.captions.wordsPerLine)) {
+    const key = captionKey(after, words);
+    if (after.captionTransforms?.[key]) { placements[key] = after.captionTransforms[key]; continue; }
+    const run = JSON.parse(key)[0];
+    let best = 0;
+    for (const old of previous) {
+      const placement = before.captionTransforms[old.key];
+      if (!placement || JSON.parse(old.key)[0] !== run) continue;
+      const overlap = Math.min(words.at(-1)!.end, old.words.at(-1)!.end) - Math.max(words[0].start, old.words[0].start);
+      if (overlap > best) { best = overlap; placements[key] = placement; }
+    }
+  }
+  return { ...after, captionTransforms: placements };
+}
 /** The spoken word stays active until the next word in its group starts. */
 export function activeWordIndex(group: CaptionWord[], time: number) {
   for (let i = group.length - 1; i >= 0; i--)
@@ -352,12 +393,12 @@ export function replaceCaptionGroup(doc: EditDocument, ids: string[], text: stri
   }
   replacement.sort((a, b) => a.start - b.start);
   let inserted = false;
-  return { ...doc, words: doc.words.flatMap(word => {
+  return remapCaptionTransforms(doc, { ...doc, words: doc.words.flatMap(word => {
     if (!selected.has(word.id)) return [word];
     if (inserted) return [];
     inserted = true;
     return replacement;
-  }) };
+  }) });
 }
 
 export const BROLL_MIN_SECONDS = 0.2;

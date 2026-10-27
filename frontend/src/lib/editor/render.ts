@@ -1,6 +1,7 @@
 import {
   activeWordIndex,
   captionGroups,
+  captionTransform,
   frameRect,
   hookRange,
   mappedWords,
@@ -182,9 +183,9 @@ function drawCaptions(
     (group) => time >= group[0].start && time < group[group.length - 1].end,
   );
   if (!group) return;
-  const transform = textTransform(doc, "captions");
+  const transform = captionTransform(doc, group);
   const style = doc.captions,
-    size = Math.max(1, Math.round((style.size * width * transform.scale) / 1080)),
+    size = Math.max(1, Math.round(((transform.size ?? style.size) * width * transform.scale) / 1080)),
     karaoke = look.animation === "karaoke",
     active = karaoke ? group[activeWordIndex(group, time)] : undefined,
     label = (text: string) => (style.uppercase ? text.toUpperCase() : text);
@@ -411,8 +412,8 @@ export function textLayerBounds(ctx: CanvasRenderingContext2D, doc: EditDocument
   const group = captionGroups(mappedWords(doc), doc.captions.wordsPerLine)
     .find(words => time >= words[0].start && time < words[words.length - 1].end);
   if (!group || !doc.captions.enabled) return null;
-  const transform = textTransform(doc, layer);
-  const px = Math.max(1, Math.round(doc.captions.size * width * transform.scale / 1080));
+  const transform = captionTransform(doc, group);
+  const px = Math.max(1, Math.round((transform.size ?? doc.captions.size) * width * transform.scale / 1080));
   setAssFont(ctx, doc.captions.font, px);
   const space = ctx.measureText(" ").width;
   let lineWidth = 0, longest = 0, lines = 1;

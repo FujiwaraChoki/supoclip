@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 import fcntl
 import hashlib
 import json
@@ -141,6 +141,10 @@ class TextTransform(Model):
     scale: float = Field(default=1, ge=0.25, le=4)
 
 
+class CaptionTransform(TextTransform):
+    size: float | None = Field(default=None, ge=5, le=528)
+
+
 class EditDocument(Model):
     version: Literal[1] = 1
     segments: list[Segment] = Field(min_length=1, max_length=100)
@@ -153,6 +157,7 @@ class EditDocument(Model):
     # AI headline burned into the top safe area for the first seconds, as generated.
     hookTitle: str = Field(default="", max_length=200)
     textTransforms: dict[Literal["hook", "captions"], TextTransform] = Field(default_factory=dict)
+    captionTransforms: dict[Annotated[str, Field(max_length=300)], CaptionTransform] = Field(default_factory=dict, max_length=5000)
     broll: list[BRollClip] = Field(default_factory=list, max_length=60)
 
     def validate_duration(self, duration: float):
@@ -258,6 +263,26 @@ def mapped_words(document: EditDocument):
     return result
 
 
+def continuous_segments(segments: list[Segment]) -> list[Segment]:
+    result = []
+    for segment in segments:
+        if result and abs(result[-1].end - segment.start) < TIME_EPSILON:
+            result[-1] = result[-1].model_copy(update={"end": segment.end})
+        else:
+            result.append(segment)
+    return result
+
+
+def caption_key(document: EditDocument, words: list[dict]) -> str:
+    cursor = 0.0
+    segment = document.segments[-1]
+    for segment in continuous_segments(document.segments):
+        cursor += segment.end - segment.start
+        if words[0]["start"] < cursor - TIME_EPSILON:
+            break
+    return json.dumps([segment.id, words[0]["id"]], separators=(",", ":"), ensure_ascii=False)
+
+
 def mapped_broll(document: EditDocument) -> list[dict]:
     """B-roll pieces on the output timeline, following segments like captions do.
 
@@ -326,6 +351,15 @@ def write_ass(path: Path, document: EditDocument, width: int, height: int):
     hook_transform = document.textTransforms.get("hook", TextTransform())
     original_font_px = max(1, round(style.size * width / 1080))
     font_px = max(1, round(style.size * width * caption_transform.scale / 1080))
+    placements = []
+    for index in range(0, len(words), style.wordsPerLine):
+        group = words[index:index + style.wordsPerLine]
+        placement = document.captionTransforms.get(caption_key(document, group))
+        placements.append(None if placement is None else {
+            "font_px": max(1, round((placement.size if placement.size is not None else style.size) * width * placement.scale / 1080)),
+            "x": round((0.5 + placement.x) * width),
+            "y": round((style.y + placement.y) * height),
+        })
     written = build_assemblyai_ass_subtitles(
         path,
         0,
@@ -349,6 +383,7 @@ def write_ass(path: Path, document: EditDocument, width: int, height: int):
         emphasis_indices=[i for i, w in enumerate(words) if w["highlight"]],
         wrap_lines=True,
         hook_title=document.hookTitle.strip() or None,
+        caption_placements=placements,
     )
     if not written:
         # Nothing to show (no captions or hook title): keep ffmpeg's ass filter valid.
@@ -428,13 +463,7 @@ def render_document(
     # A split without a source-time jump is one continuous picture. Render it
     # as such so a split inside a dissolve cannot reset its opacity or discard
     # a sub-frame B-roll fragment. Keep the editable draft and its IDs intact.
-    segments = []
-    for segment in document.segments:
-        if segments and abs(segments[-1].end - segment.start) < TIME_EPSILON:
-            segments[-1] = segments[-1].model_copy(update={"end": segment.end})
-        else:
-            segments.append(segment)
-    document = document.model_copy(update={"segments": segments})
+    document = document.model_copy(update={"segments": continuous_segments(document.segments)})
 
     source = directory / "clean.mp4"
     sw, sh = _ffprobe_size(source)

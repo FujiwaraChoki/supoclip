@@ -336,6 +336,19 @@ def rebased_broll(document: EditDocument, cursor: float = 0) -> list[dict]:
     ]
 
 
+def rebased_caption_transforms(document: EditDocument, words: list[dict]) -> dict:
+    """Carry caption placements to the fresh word IDs in a combined source."""
+    from ..editor_document import caption_key, mapped_words
+    mapped = mapped_words(document)
+    result = {}
+    for index in range(0, len(mapped), document.captions.wordsPerLine):
+        placement = document.captionTransforms.get(caption_key(document, mapped[index:index + document.captions.wordsPerLine]))
+        if placement is not None:
+            key = json.dumps(["combined", words[index]["id"]], separators=(",", ":"), ensure_ascii=False)
+            result[key] = placement.model_dump()
+    return result
+
+
 async def document_footage(document: EditDocument) -> dict:
     """Local files for a draft's B-roll footage, keyed by footage; missing ones are skipped."""
     from ..broll import ensure_footage_file
@@ -656,6 +669,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
         entries = payload["inputs"]
         commands, filters, joins, all_words, ranges = ["ffmpeg", "-y"], [], [], [], []
         all_broll = []
+        all_caption_transforms = {}
         cursor = 0.0
         width, height = entries[0]["state"]["width"], entries[0]["state"]["height"]
         scale = min(1, 1920 / max(width, height))
@@ -669,7 +683,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             document = EditDocument.model_validate(entry["document"])
             # Each draft's B-roll stays editable in the combined clip.
             all_broll += rebased_broll(document, cursor)
-            all_words += [
+            entry_words = [
                 {
                     **w,
                     "id": uuid.uuid4().hex,
@@ -678,6 +692,8 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                 }
                 for w in mapped_words(document)
             ]
+            all_caption_transforms.update(rebased_caption_transforms(document, entry_words))
+            all_words += entry_words
             for j, segment in enumerate(document.segments):
                 key = f"{i}_{j}"
                 filters.append(
@@ -702,6 +718,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             "segments": [{"id": "combined", "start": 0, "end": cursor}],
             "words": all_words,
             "broll": all_broll,
+            "captionTransforms": all_caption_transforms,
             # The first clip's headline doesn't describe the combination.
             "hookTitle": "",
         }

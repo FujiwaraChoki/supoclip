@@ -41,6 +41,7 @@ import {
 import { downloadBlob } from "@/lib/clip-actions";
 import {
   clamp,
+  outputTime,
   splitSegment,
   timecode,
   type CaptionStyle,
@@ -575,6 +576,7 @@ export function EditorWorkspace({
                 tab={tab}
                 setTab={setTab}
                 time={time}
+                editTime={outputTime(doc, Math.min(index, doc.segments.length - 1), time)}
                 seek={seekSource}
                 update={editor.update}
                 applyAll={applyAll}

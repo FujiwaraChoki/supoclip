@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { captionGroups, hookRange, mappedWords, outputSize, outputTime, replaceCaptionGroup, type EditDocument, type EditorState, type TextLayer } from "@/lib/editor/document";
+import { captionGroups, captionKey, hookRange, mappedWords, outputSize, outputTime, replaceCaptionGroup, type EditDocument, type EditorState, type TextLayer } from "@/lib/editor/document";
 import { drawEditorTextLayer, loadEditorFont, textLayerBounds, type TextBounds } from "@/lib/editor/render";
 import { TransformableText } from "./transformable-text";
 
@@ -68,7 +68,7 @@ export function TextLayers({ doc, asset, time, index, videoRef, update }: {
       onCommit={hookTitle => update(current => ({ ...current, hookTitle }))}
     />}
     {doc.captions.enabled && group && bounds.captions && <TransformableText
-      {...shared} key={group.map(word => word.id).join(":")} layer="captions" label={t("timeline.tracks.captions")}
+      {...shared} key={captionKey(doc, group)} captionId={captionKey(doc, group)} layer="captions" label={t("timeline.tracks.captions")}
       value={group.map(word => word.text).join(" ")} bounds={bounds.captions}
       buttonLabel={`${t("preview.region")}: ${group.map(word => word.text).join(" ")}`}
       measure={document => measure(document, "captions")}
