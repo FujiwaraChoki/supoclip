@@ -1,5 +1,6 @@
 """Outage and recovery contracts; no real cloud or production database calls."""
 from datetime import datetime, timezone
+import fcntl
 from io import BytesIO
 import hashlib
 import json
@@ -135,6 +136,41 @@ def test_both_stores_down_retain_completed_output(mirrored, tmp_path):
     for store in stores(mirrored):
         store.failure = None
     assert mirrored.sync_pending()["pending"] == 0
+
+
+def test_replication_batches_do_not_overlap_across_workers(mirrored, tmp_path):
+    primary, fallback = stores(mirrored)
+    fallback.failure = "ServiceUnavailable"
+    upload(mirrored, tmp_path)
+    fallback.failure = None
+    with (mirrored.root / ".sync.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert mirrored.sync_pending()["pending"] == 1
+        assert not fallback.objects
+    assert mirrored.sync_pending()["pending"] == 0
+    assert primary.objects == fallback.objects
+
+
+def test_replication_stops_starting_objects_after_its_time_budget(mirrored, tmp_path):
+    fallback = stores(mirrored)[1]
+    fallback.failure = "ServiceUnavailable"
+    upload(mirrored, tmp_path)
+    fallback.failure = None
+    assert mirrored.sync_pending(max_seconds=0)["pending"] == 1
+    assert not fallback.objects
+    assert mirrored.sync_pending()["pending"] == 0
+
+
+def test_backfill_adopts_its_download_without_allocating_a_second_video(mirrored, monkeypatch):
+    from src import media_replication
+    primary, fallback = stores(mirrored)
+    primary.objects["media/large.mp4"] = b"complete-video"
+    # Copying an upload still needs a durable second copy, but backfill owns
+    # its downloaded file already and must not double peak disk consumption.
+    monkeypatch.setattr(media_replication.shutil, "copyfileobj", Mock(side_effect=AssertionError("duplicate allocation")))
+    assert mirrored.mirror_existing("media/large.mp4", verify=True) == "copied"
+    assert primary.objects == fallback.objects
+    assert not list(mirrored.root.glob("*/*.part"))
 
 
 def test_older_pending_revision_cannot_overwrite_new_editor_snapshot(mirrored, tmp_path):

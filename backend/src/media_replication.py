@@ -83,15 +83,21 @@ class ReplicatedMediaClient:
         finally:
             os.close(fd)
 
-    def _stage(self, directory, path, key, extra, *, pending=None):
-        if shutil.disk_usage(self.root).free < path.stat().st_size + 256 * 1024 * 1024:
+    def _stage(self, directory, path, key, extra, *, pending=None, adopt=False):
+        if adopt and (path.parent != directory or path.suffix != ".part"):
+            raise ValueError("Only this object's private temporary download can be adopted")
+        if not adopt and shutil.disk_usage(self.root).free < path.stat().st_size + 256 * 1024 * 1024:
             raise OSError("Insufficient disk space for durable media replication")
-        temporary = directory / (uuid.uuid4().hex + ".part")
+        temporary = path if adopt else directory / (uuid.uuid4().hex + ".part")
         try:
-            with path.open("rb") as source, temporary.open("wb") as target:
-                shutil.copyfileobj(source, target, length=1024 * 1024)
-                target.flush()
-                os.fsync(target.fileno())
+            if adopt:
+                with temporary.open("rb") as stream:
+                    os.fsync(stream.fileno())
+            else:
+                with path.open("rb") as source, temporary.open("wb") as target:
+                    shutil.copyfileobj(source, target, length=1024 * 1024)
+                    target.flush()
+                    os.fsync(target.fileno())
             digest = sha256_file(temporary)
             # A new immutable filename ensures a crash cannot pair an older
             # manifest with a newer payload or vice versa.
@@ -303,10 +309,20 @@ class ReplicatedMediaClient:
                     yield {"Contents": values[start:start + 1000]}
         return Paginator()
 
-    def sync_pending(self, *, limit=100):
+    def sync_pending(self, *, limit=100, max_seconds=45):
+        # A timed-out asyncio.to_thread call keeps running. A process-shared
+        # lease prevents the next cron invocation from starting another batch.
+        with (self.root / ".sync.lock").open("a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return self.pending_status()
+            return self._sync_pending(limit=limit, deadline=time.monotonic() + max_seconds)
+
+    def _sync_pending(self, *, limit, deadline):
         done = 0
         for manifest_path in self.root.glob("*/pending.json"):
-            if done >= limit:
+            if done >= limit or time.monotonic() >= deadline:
                 break
             try:
                 initial = json.loads(manifest_path.read_text())
@@ -325,7 +341,8 @@ class ReplicatedMediaClient:
                             if temporary.stat().st_size != head["ContentLength"]:
                                 raise OSError("Incomplete replication download")
                             extra = {k: head[k] for k in ("ContentType", "ContentDisposition", "CacheControl", "Metadata") if k in head}
-                            manifest = self._stage(directory, temporary, manifest["key"], extra, pending=manifest["pending"])
+                            manifest = self._stage(directory, temporary, manifest["key"], extra,
+                                                   pending=manifest["pending"], adopt=True)
                         finally:
                             temporary.unlink(missing_ok=True)
                     self._apply(directory, manifest)
@@ -382,7 +399,7 @@ class ReplicatedMediaClient:
                 return "verified" if verify else "unchanged"
             temporary = directory / (uuid.uuid4().hex + ".part")
             try:
-                if shutil.disk_usage(self.root).free < source["ContentLength"] * 2 + 256 * 1024 * 1024:
+                if shutil.disk_usage(self.root).free < source["ContentLength"] + 256 * 1024 * 1024:
                     raise OSError("Insufficient disk space for media backfill")
                 response = primary.get_object(Bucket=source_bucket, Key=key, IfMatch=source["ETag"])
                 with response["Body"] as body, temporary.open("wb") as stream:
@@ -394,7 +411,7 @@ class ReplicatedMediaClient:
                     return "changed"
                 extra = {k: source[k] for k in ("ContentType", "ContentDisposition", "CacheControl", "Metadata") if k in source}
                 extra["Metadata"] = {**extra.get("Metadata", {}), "supoclip-source-etag": source["ETag"]}
-                manifest = self._stage(directory, temporary, key, extra, pending=["fallback"])
+                manifest = self._stage(directory, temporary, key, extra, pending=["fallback"], adopt=True)
                 _, error = self._apply(directory, manifest)
                 if manifest["pending"]:
                     raise error or OSError("Backfill upload is pending")
