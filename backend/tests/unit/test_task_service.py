@@ -3,13 +3,14 @@ from datetime import datetime, timezone
 from contextlib import nullcontext
 import hashlib
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from src.config import Config
 from src.ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from src.services import task_service as task_service_module
+from src.services.email_previews import ClipPreview, TaskPreviews
 from src.services.task_service import TaskService
 
 
@@ -303,6 +304,85 @@ async def test_process_task_sends_completion_email_when_enabled(monkeypatch):
     service.task_repo.mark_completion_notification_sent.assert_awaited_once_with(
         service.db, "task-1"
     )
+
+
+def stub_completion_email(monkeypatch, service):
+    service.task_repo.get_task_notification_context = AsyncMock(
+        return_value={
+            "notify_on_completion": True,
+            "completion_notification_sent_at": None,
+            "source_title": "Demo video",
+            "user_email": "user@example.com",
+        }
+    )
+    service.task_repo.mark_completion_notification_sent = AsyncMock(return_value=True)
+    send = AsyncMock(return_value={"id": "email-1"})
+
+    class FakeTaskCompletionEmailService:
+        def __init__(self, config):
+            pass
+
+        is_configured = True
+
+        async def send_task_completed_email(self, **kwargs):
+            return await send(**kwargs)
+
+    monkeypatch.setattr(task_service_module, "TaskCompletionEmailService", FakeTaskCompletionEmailService)
+    return send
+
+
+@pytest.mark.asyncio
+async def test_completion_email_gets_stills_of_the_top_clips(monkeypatch):
+    service = build_task_service()
+    send = stub_completion_email(monkeypatch, service)
+    service.video_service.process_video_complete.return_value["segments_to_render"] = [
+        {"start": 0, "end": 10}, {"start": 10, "end": 20},
+    ]
+    service.video_service.create_single_clip = AsyncMock(side_effect=[
+        {**build_clip_result(), "path": "/tmp/low.mp4", "hook_title": "Low", "virality_score": 40},
+        {**build_clip_result(), "path": "/tmp/high.mp4", "hook_title": "High", "virality_score": 90},
+    ])
+    # Stills come from the freshly rendered local files, never from storage.
+    clip_preview = MagicMock(side_effect=lambda path, title: ClipPreview(path.name.encode(), title))
+    source_preview = MagicMock(return_value=b"thumb")
+    monkeypatch.setattr(task_service_module, "clip_preview", clip_preview)
+    monkeypatch.setattr(task_service_module, "source_preview", source_preview)
+
+    await service.process_task(
+        task_id="task-1", url="https://www.youtube.com/watch?v=dQw4w9WgXcQ", source_type="youtube",
+    )
+
+    assert [call.args[0] for call in clip_preview.call_args_list] == [Path("/tmp/low.mp4"), Path("/tmp/high.mp4")]
+    assert source_preview.call_args.kwargs == {
+        "source_path": Path("/tmp/source.mp4"), "youtube_video_id": "dQw4w9WgXcQ",
+    }
+    previews = send.await_args.kwargs["previews"]
+    assert previews.source == b"thumb"
+    assert [clip.title for clip in previews.clips] == ["High", "Low"]
+
+
+@pytest.mark.asyncio
+async def test_no_stills_are_taken_when_no_email_will_be_sent(monkeypatch):
+    service = build_task_service()
+    clip_preview = MagicMock()
+    monkeypatch.setattr(task_service_module, "clip_preview", clip_preview)
+
+    await service.process_task(task_id="task-1", url="/tmp/upload.mp4", source_type="video_url")
+
+    clip_preview.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_completion_email_is_sent_without_previews_when_they_fail(monkeypatch):
+    service = build_task_service()
+    send = stub_completion_email(monkeypatch, service)
+    monkeypatch.setattr(task_service_module, "clip_preview", MagicMock(return_value=None))
+    monkeypatch.setattr(task_service_module, "source_preview", MagicMock(return_value=None))
+
+    await service.process_task(task_id="task-1", url="/tmp/upload.mp4", source_type="video_url")
+
+    assert send.await_args.kwargs["previews"] == TaskPreviews()
+    service.task_repo.mark_completion_notification_sent.assert_awaited_once()
 
 
 @pytest.mark.asyncio
