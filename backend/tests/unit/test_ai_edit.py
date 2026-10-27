@@ -69,6 +69,21 @@ async def test_pauses_are_tightened_between_words():
     assert [(s.start, round(s.end, 2)) for s in result.segments][:2] == [(0, 2.5), (3.9, 10)]
 
 
+@pytest.mark.parametrize("gap", [0.4, 0.5])
+async def test_pause_removal_never_expands_a_gap_shorter_than_keep(gap):
+    document = draft(words=[
+        {"id": "a", "start": 0, "end": 1, "text": "hello"},
+        {"id": "b", "start": 1 + gap, "end": 2, "text": "world"},
+        {"id": "c", "start": 4, "end": 5, "text": "again"},
+    ])
+    result, _ = await apply(
+        {"type": "remove_pauses", "min_gap": 0.3, "keep": 0.5}, document=document,
+    )
+
+    # Keep the short gap untouched, while still shortening the later long one.
+    assert [(s.start, s.end) for s in result.segments] == [(0, 2.25), (3.75, 10)]
+
+
 async def test_settings_are_coerced_clamped_and_validated():
     result, notes = await apply(
         *[

@@ -1,3 +1,4 @@
+import json
 import shutil
 import subprocess
 from types import SimpleNamespace
@@ -12,7 +13,7 @@ from src.api.routes import editor
 from src.broll import editor_piece_to_placement, placement_to_editor_clip
 from src.database import get_db
 from src.editor_document import EditDocument, atomic_json, editor_dir, mapped_broll, render_document
-from src.services.editor_service import editor_broll_from_placements, upgrade_document
+from src.services.editor_service import editor_broll_from_placements, rebased_broll, upgrade_document
 
 FOOTAGE = {
     "id": 42,
@@ -67,6 +68,16 @@ def test_broll_is_validated_against_the_clip():
 def test_old_drafts_without_broll_still_load():
     loaded = EditDocument.model_validate({"segments": [{"id": "s", "start": 0, "end": 2}]})
     assert loaded.broll == []
+
+
+@pytest.mark.parametrize("start,end", [(1, 1.2), (1.8, 2), (2.8, 3)])
+def test_minimum_broll_duration_is_independent_of_float_rounding(start, end):
+    doc(broll=((start, end, 0),)).validate_duration(6)
+
+
+def test_broll_shorter_than_the_minimum_is_still_rejected():
+    with pytest.raises(ValidationError):
+        doc(broll=((1, 1.199, 0),))
 
 
 # --- timeline mapping --------------------------------------------------------
@@ -137,6 +148,26 @@ def test_editor_pieces_round_trip_to_placements():
     assert (clip["start"], clip["end"], clip["offset"]) == (1, 4, 0.5)
 
 
+def test_combined_cutaways_keep_short_pieces_and_dissolves_after_reopening():
+    original = doc(segments=((0, 1.1), (2, 6)), broll=((1, 4, 0.5),))
+    combined = EditDocument.model_validate({
+        **original.model_dump(),
+        "segments": [{"id": "combined", "start": 0, "end": 5.1}],
+        "broll": rebased_broll(original),
+    }).validate_duration(5.1)
+    assert len(combined.broll) == 2  # Keep the 0.1 s continuation at the first cut.
+    assert [(b.fadeIn, b.fadeOut) for b in combined.broll] == [(True, False), (False, True)]
+    assert [b.fadeDuration for b in combined.broll] == [0.25, 0.25]
+    reopened = editor_broll_from_placements([
+        editor_piece_to_placement(p) for p in mapped_broll(combined)
+    ], 5.1)
+    restored = EditDocument.model_validate({**combined.model_dump(), "broll": reopened})
+    for expected, actual in zip(mapped_broll(original), mapped_broll(restored), strict=True):
+        for key in ("start", "duration", "offset", "fade_duration"):
+            assert actual[key] == pytest.approx(expected[key])
+        assert (actual["fade_in"], actual["fade_out"]) == (expected["fade_in"], expected["fade_out"])
+
+
 def test_upgrade_seeds_broll_only_for_drafts_without_it():
     old = doc().model_dump()
     old.pop("broll")
@@ -200,6 +231,44 @@ def test_export_without_footage_files_renders_the_clip_alone(tmp_path):
     assert _pixel(tmp_path / f"export-{'c' * 32}.mp4", 1.5)[0] > 200
 
 
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
+@pytest.mark.parametrize("end,at", [(1.2, 1.0834), (1.4, 1.2084)])
+def test_export_keeps_short_editor_cutaways(tmp_path, end, at):
+    _solid(tmp_path / "clean.mp4", "red", 3, "320x180")
+    footage = tmp_path / "footage.mp4"
+    _solid(footage, "blue", 4, "180x320")
+    draft = doc(
+        segments=((0, 3),), broll=((1, end, 0),),
+        framing={"aspect": "original"}, captions={"enabled": False},
+    )
+
+    render_document(tmp_path, "short", draft, "tiktok", {"42/1080x1920": footage})
+
+    before, during, after = (_pixel(tmp_path / "export-short.mp4", t) for t in (0.5, at, 2.0))
+    assert before[0] > 200 and after[0] > 200
+    assert during[2] > 200 and during[0] < 60
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
+def test_combining_does_not_flash_the_speaker_at_an_internal_cut(tmp_path):
+    _solid(tmp_path / "clean.mp4", "red", 6, "320x180")
+    footage = tmp_path / "footage.mp4"
+    _solid(footage, "blue", 8, "180x320")
+    original = doc(
+        segments=((0, 2), (3, 6)), broll=((1, 4, 0),),
+        framing={"aspect": "original"}, captions={"enabled": False},
+    )
+    combined = EditDocument.model_validate({
+        **original.model_dump(),
+        "segments": [{"id": "combined", "start": 0, "end": 5}],
+        "broll": rebased_broll(original),
+    })
+    render_document(tmp_path, "combined", combined, "tiktok", {"42/1080x1920": footage})
+    for at in (1.875, 1.9584, 2.0, 2.0834, 2.2084):
+        red, _, blue = _pixel(tmp_path / "export-combined.mp4", at)
+        assert blue > 200 and red < 60, (at, red, blue)
+
+
 # --- routes --------------------------------------------------------------------
 
 
@@ -211,6 +280,7 @@ async def client(tmp_path, monkeypatch):
         task_repo=SimpleNamespace(get_task_by_id=AsyncMock(return_value=task)),
         clip_repo=SimpleNamespace(get_clip_by_id=AsyncMock(return_value=clip)),
         config=SimpleNamespace(temp_dir=str(tmp_path)),
+        _get_clip_source_ranges=lambda clip: [],
     )
     monkeypatch.setattr(editor, "TaskService", lambda db: service)
     monkeypatch.setattr("src.api.routes.tasks._get_user_id_from_headers", AsyncMock(return_value="owner"))
@@ -226,7 +296,7 @@ async def client(tmp_path, monkeypatch):
     ).model_dump()
     atomic_json(directory / "draft.json", {"revision": 0, "document": draft})
     atomic_json(directory / "original.json", draft)
-    atomic_json(directory / "asset.json", {"status": "ready", "duration": 20, "width": 1920, "height": 1080})
+    atomic_json(directory / "asset.json", {"status": "ready", "duration": 20, "width": 1920, "height": 1080, "hasAudio": False})
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
         yield http, draft, tmp_path
 
@@ -313,3 +383,38 @@ async def test_editor_state_seeds_generated_broll_into_old_drafts(client, monkey
     assert [(b["start"], b["end"]) for b in state["draft"]["document"]["broll"]] == [(8.0, 11.0)]
     # The original already had B-roll and is left as it was.
     assert [(b["start"], b["end"]) for b in state["original"]["broll"]] == [(4.0, 7.0)]
+
+
+async def test_combine_migrates_legacy_inputs_without_reintroducing_removed_broll(client, monkeypatch):
+    http, draft, tmp_path = client
+    directory = editor_dir(str(tmp_path), "task", "clip", "clip.mp4")
+    old = {k: v for k, v in draft.items() if k != "broll"}
+    atomic_json(directory / "draft.json", {"revision": 0, "document": old})
+    other = editor_dir(str(tmp_path), "task", "other", "clip.mp4")
+    atomic_json(other / "asset.json", {
+        "status": "ready", "duration": 20, "width": 1920, "height": 1080, "hasAudio": False,
+    })
+    atomic_json(other / "draft.json", {"revision": 0, "document": {**draft, "broll": []}})
+    atomic_json(other / "original.json", draft)
+    monkeypatch.setattr(editor, "_clip_broll", lambda clip: [_placement(start=8.0)])
+    monkeypatch.setattr(editor.JobQueue, "enqueue_job", AsyncMock(return_value="job"))
+
+    opened = (await http.get("/tasks/task/clips/clip/editor")).json()
+    response = await http.post("/tasks/task/editor/combine", json={"clip_ids": ["clip", "other"]})
+
+    assert response.status_code == 202
+    request = json.loads((directory / f"request-{response.json()['id']}.json").read_text())
+    assert request["inputs"][0]["document"]["broll"] == opened["draft"]["document"]["broll"]
+    assert request["inputs"][1]["document"]["broll"] == []
+
+
+async def test_minimum_cutaway_saves_through_the_api(client):
+    http, draft, _ = client
+    draft["broll"][0].update(start=1, end=1.2)
+    response = await http.patch("/tasks/task/clips/clip/editor", json={
+        "basis": "clip.mp4", "revision": 0, "document": draft,
+    })
+    assert response.status_code == 200, response.text
+    state = (await http.get("/tasks/task/clips/clip/editor")).json()
+    assert state["draft"]["revision"] == 1
+    assert state["draft"]["document"]["broll"][0]["end"] == 1.2

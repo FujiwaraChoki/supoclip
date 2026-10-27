@@ -65,6 +65,28 @@ describe("B-roll on the timeline", () => {
     expect(brollAt(withBroll([b]), 5)).toBeNull();
   });
 
+  it("preserves continuation fades in combined preview and export pieces", () => {
+    const first = { ...clip("a", 1, 2), fadeOut: false, fadeDuration: 0.25 };
+    const second = { ...clip("b", 2, 2.3, 2), fadeIn: false, fadeDuration: 0.25 };
+    const doc = withBroll([first, second]);
+    expect(brollAlpha(first, 1.99)).toBe(1);
+    expect(brollAlpha(second, 2)).toBe(1);
+    expect(brollAlpha(second, 2.175)).toBeCloseTo(0.5);
+    expect(mappedBroll(doc).map(({ fadeIn, fadeOut, fadeDuration }) => ({ fadeIn, fadeOut, fadeDuration }))).toEqual([
+      { fadeIn: true, fadeOut: false, fadeDuration: 0.25 },
+      { fadeIn: false, fadeOut: true, fadeDuration: 0.25 },
+    ]);
+  });
+
+  it("keeps frame-length continuation pieces editable and tied to their segment", () => {
+    const b = { ...clip("a", 1, 1.04), fadeOut: false, fadeDuration: 0.25 };
+    const doc = withBroll([b]);
+    expect(mappedBroll(doc)).toHaveLength(1);
+    expect(mappedBroll(doc)[0].segmentId).toBe("s");
+    const placed = placeBroll(doc, "a", 1, 1.041, 20).broll![0];
+    expect(placed.end - placed.start).toBeCloseTo(0.041);
+  });
+
   it("inserts into the free space at the playhead, never over other B-roll", () => {
     const doc = withBroll([clip("a", 2, 5), clip("b", 6, 9)]);
     const added = insertBroll(doc, footage, 5.2, 20, "city");
@@ -76,6 +98,9 @@ describe("B-roll on the timeline", () => {
     expect(insertBroll(doc, footage, 3, 20)).toBeNull();
     // Footage shorter than the default length limits the clip.
     expect(insertBroll(withBroll([]), { ...footage, duration: 1.5 }, 10, 20)?.doc.broll?.[0].end).toBe(11.5);
+    // A free 0.2 s gap remains usable despite subtraction rounding below 0.2.
+    const minimum = insertBroll(doc, footage, 1.8, 20);
+    expect(minimum?.doc.broll?.find((b) => b.id === minimum.id)?.end).toBe(2);
   });
 
   it("moves and resizes within its neighbours and its footage", () => {

@@ -345,11 +345,17 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
         state = read_state(directory)
         if state["status"] != "ready":
             raise HTTPException(409, "Prepare each selected clip before combining")
+        placements = (
+            await run_in_thread(_clip_broll, clip)
+            if "broll" not in state["draft"]["document"] else []
+        )
         entries.append(
             {
                 "id": clip_id,
                 "filename": clip["filename"],
-                "document": upgrade_document(state["draft"]["document"], clip, task),
+                "document": upgrade_document(
+                    state["draft"]["document"], clip, task, placements, state["duration"]
+                ),
                 "state": {k: state[k] for k in ("width", "height", "hasAudio")},
                 "ranges": await run_in_thread(service._get_clip_source_ranges, clip),
             }

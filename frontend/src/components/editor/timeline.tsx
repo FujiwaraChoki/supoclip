@@ -573,6 +573,10 @@ function BRollTrack({
   const move = (e: React.PointerEvent) => {
     const d = drag.current;
     if (!d) return;
+    if (!(e.buttons & 1)) {
+      drag.current = null;
+      return;
+    }
     if (Math.abs(e.clientX - d.x) > 2) d.moved = true;
     if (!d.moved) return;
     // An edit-time distance moves the clip by the same source-time distance.
@@ -612,7 +616,7 @@ function BRollTrack({
         const clip = piece.clip;
         return (
           <div
-            key={`${clip.id}-${piece.start}`}
+            key={JSON.stringify([piece.segmentId, clip.id])}
             role="button"
             tabIndex={0}
             aria-pressed={clip.id === selected}
@@ -634,6 +638,7 @@ function BRollTrack({
             onPointerMove={move}
             onPointerUp={end}
             onPointerCancel={() => (drag.current = null)}
+            onLostPointerCapture={() => (drag.current = null)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();

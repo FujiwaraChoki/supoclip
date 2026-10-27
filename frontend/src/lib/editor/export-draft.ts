@@ -1,6 +1,5 @@
 import { downloadBlob } from "@/lib/clip-actions";
 import {
-  BROLL_FADE_SECONDS,
   clamp,
   editDuration,
   footageKey,
@@ -116,7 +115,7 @@ export async function exportDraft(
               : null;
             let layer: BRollLayer | null = null;
             if (piece && brollSample) {
-              const fade = Math.min(BROLL_FADE_SECONDS, (piece.clip.end - piece.clip.start) / 3);
+              const fade = piece.fadeDuration;
               const alpha = clamp(
                 Math.min(
                   piece.fadeIn && fade > 0 ? (at - piece.start) / fade : 1,

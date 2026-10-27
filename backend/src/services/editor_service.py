@@ -316,6 +316,26 @@ def editor_broll_from_placements(placements: list, duration: float) -> list[dict
     return clips
 
 
+def rebased_broll(document: EditDocument, cursor: float = 0) -> list[dict]:
+    """Flatten cuts into editable footage pieces while retaining their dissolve boundaries."""
+    from ..editor_document import mapped_broll
+
+    return [
+        {
+            "id": uuid.uuid4().hex,
+            "start": round(cursor + piece["start"], 4),
+            "end": round(cursor + piece["start"] + piece["duration"], 4),
+            "offset": round(piece["offset"], 4),
+            "query": piece["query"],
+            "footage": piece["footage"].model_dump(),
+            "fadeIn": piece["fade_in"],
+            "fadeOut": piece["fade_out"],
+            "fadeDuration": piece["fade_duration"],
+        }
+        for piece in mapped_broll(document)
+    ]
+
+
 async def document_footage(document: EditDocument) -> dict:
     """Local files for a draft's B-roll footage, keyed by footage; missing ones are skipped."""
     from ..broll import ensure_footage_file
@@ -648,18 +668,7 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             commands += ["-i", str(source_dir / "clean.mp4")]
             document = EditDocument.model_validate(entry["document"])
             # Each draft's B-roll stays editable in the combined clip.
-            all_broll += [
-                {
-                    "id": uuid.uuid4().hex,
-                    "start": round(cursor + piece["start"], 4),
-                    "end": round(cursor + piece["start"] + piece["duration"], 4),
-                    "offset": round(piece["offset"], 4),
-                    "query": piece["query"],
-                    "footage": piece["footage"].model_dump(),
-                }
-                for piece in mapped_broll(document)
-                if piece["duration"] >= 0.2
-            ]
+            all_broll += rebased_broll(document, cursor)
             all_words += [
                 {
                     **w,

@@ -53,11 +53,22 @@ function serve(route: Route, file: string) {
   });
 }
 
-async function setup(page: Page) {
+async function setup(page: Page, options: { document?: EditDocument; legacyCache?: boolean } = {}) {
+  const initial = options.document ?? {
+    ...structuredClone(draft), framing: { ...draft.framing, aspect: "original" as const }, broll: [generated],
+  };
   let saved: { revision: number; document: EditDocument } = {
     revision: 0,
-    document: { ...structuredClone(draft), framing: { ...draft.framing, aspect: "original" }, broll: [generated] },
+    document: initial,
   };
+  if (options.legacyCache) await page.addInitScript((document) => {
+    const legacy = { ...document };
+    delete legacy.broll;
+    localStorage.setItem("supoclip-editor:/api/tasks/one/clips/clip1/editor", JSON.stringify({
+      basis: "clip1.mp4", revision: 0, saved: JSON.stringify(legacy),
+      history: { past: [], present: legacy, future: [] },
+    }));
+  }, initial);
   await page.route("**/api/auth/get-session**", (r) =>
     r.fulfill({
       json: {
@@ -88,7 +99,7 @@ async function setup(page: Page) {
     return r.fulfill({
       json: {
         status: "ready", basis: "clip1.mp4", duration: 3, width: 640, height: 360, fps: 24, hasAudio: true,
-        waveform: Array.from({ length: 160 }, () => 0.4), draft: saved, original: saved.document, jobs: [],
+        waveform: Array.from({ length: 160 }, () => 0.4), draft: saved, original: initial, jobs: [],
       },
     });
   });
@@ -187,23 +198,79 @@ test("auto-fill adds AI suggestions and the lane drags them", async ({ page }) =
   expect(moved.end).toBeCloseTo(2.2, 2);
 });
 
-test("browser export includes the B-roll under the captions", async ({ page }, info) => {
-  await setup(page);
-  await page.getByRole("button", { name: "Export", exact: true }).click();
-  await page.getByRole("button", { name: /On this device/ }).click();
-  const downloadPromise = page.waitForEvent("download", { timeout: 60000 });
-  await page.getByRole("button", { name: "Export clip", exact: true }).click();
-  const file = info.outputPath("broll-export.mp4");
-  await (await downloadPromise).saveAs(file);
-
-  const pixel = (at: number) => {
-    const raw = execFileSync("ffmpeg", [
-      "-v", "error", "-ss", String(at), "-i", file, "-frames:v", "1",
-      "-vf", "crop=40:40:0:150,scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
-    ]);
-    return { red: raw[0], blue: raw[2] };
-  };
-  expect(pixel(0.4).red).toBeGreaterThan(150);
-  expect(pixel(1.5).blue).toBeGreaterThan(150);
-  expect(pixel(2.6).red).toBeGreaterThan(150);
+test("a legacy cached draft keeps generated B-roll through editing and undo", async ({ page }) => {
+  const { saved } = await setup(page, { legacyCache: true });
+  await expect(page.getByRole("button", { name: /B-roll mountain summit/ })).toBeVisible();
+  await page.getByLabel("Word 1", { exact: true }).fill("Welcome");
+  await expect.poll(() => saved().document.words[0].text).toBe("Welcome");
+  expect(saved().document.broll).toEqual([generated]);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(() => saved().document.words[0].text).toBe("Hello");
+  expect(saved().document.broll).toEqual([generated]);
 });
+
+for (const mode of ["move", "trim"] as const) {
+  test(`B-roll ${mode} retains capture and ends when released outside its lane`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const { saved } = await setup(page);
+    const block = page.getByRole("button", { name: /B-roll mountain summit/ });
+    const element = (await block.elementHandle())!;
+    const box = (await block.boundingBox())!;
+    const lane = (await page.getByRole("group", { name: "B-roll track" }).boundingBox())!;
+    const delta = lane.width * 0.15 / 3;
+    const x = mode === "trim" ? box.x + 3 : box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + delta, y, { steps: 5 });
+    await expect(page.getByLabel("B-roll start, seconds", { exact: true })).toHaveValue("1.15");
+    expect(await element.evaluate((el) => el.isConnected)).toBe(true);
+    // Leave vertically, release, and return with no mouse button held.
+    await page.mouse.move(x + delta, box.y - 15);
+    await page.mouse.up();
+    await expect.poll(() => saved().document.broll![0].start).toBeCloseTo(1.15, 2);
+    await page.mouse.move(x + delta * 2, y, { steps: 5 });
+    await page.getByRole("tab", { name: "Audio", exact: true }).click();
+    await page.getByRole("switch", { name: "Mute export audio", exact: true }).click();
+    // Another autosave proves hovering did not change the cutaway.
+    await expect.poll(() => saved().document.muted).toBe(true);
+    expect(saved().document.broll![0].start).toBeCloseTo(1.15, 2);
+    expect(saved().document.broll![0].end).toBeCloseTo(mode === "trim" ? 2 : 2.15, 2);
+  });
+}
+
+const exportCases: { name: string; broll: BRollClip[]; at: number[] }[] = [
+  { name: "generated", broll: [generated], at: [1.5] },
+  { name: "minimum-length", broll: [{ ...generated, end: 1.2 }], at: [1.0834] },
+  { name: "combined continuation", broll: [
+    { ...generated, end: 1.5, fadeOut: false, fadeDuration: 0.25 },
+    { ...generated, id: "continuation", start: 1.5, offset: 0.5, fadeIn: false, fadeDuration: 0.25 },
+  ], at: [1.4167, 1.5, 1.5834] },
+];
+
+for (const { name, broll, at } of exportCases) {
+  test(`preview and browser export keep ${name} B-roll under the captions`, async ({ page }, info) => {
+    await setup(page, { document: { ...structuredClone(draft), framing: { ...draft.framing, aspect: "original" }, broll } });
+    for (const time of at) {
+      await seekTo(page, time);
+      await expect.poll(async () => (await canvasColor(page)).blue).toBeGreaterThan(150);
+    }
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    await page.getByRole("button", { name: /On this device/ }).click();
+    const downloadPromise = page.waitForEvent("download", { timeout: 60000 });
+    await page.getByRole("button", { name: "Export clip", exact: true }).click();
+    const file = info.outputPath("broll-export.mp4");
+    await (await downloadPromise).saveAs(file);
+
+    const pixel = (at: number) => {
+      const raw = execFileSync("ffmpeg", [
+        "-v", "error", "-ss", String(at), "-i", file, "-frames:v", "1",
+        "-vf", "crop=40:40:0:150,scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
+      ]);
+      return { red: raw[0], blue: raw[2] };
+    };
+    expect(pixel(0.4).red).toBeGreaterThan(150);
+    for (const time of at) expect(pixel(time).blue).toBeGreaterThan(200);
+    expect(pixel(2.6).red).toBeGreaterThan(150);
+  });
+}

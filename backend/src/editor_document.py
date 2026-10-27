@@ -19,6 +19,11 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+BROLL_MIN_SECONDS = 0.2
+BROLL_CONTINUATION_MIN_SECONDS = 0.04
+BROLL_FADE_SECONDS = 0.25
+TIME_EPSILON = 1e-9
+
 
 class Model(BaseModel):
     model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
@@ -117,11 +122,16 @@ class BRollClip(Model):
     offset: float = Field(default=0, ge=0, le=3600)
     query: str = Field(default="", max_length=120)
     footage: BRollFootage
+    # Combined cuts remain separate footage ranges, without adding dissolves at the join.
+    fadeIn: bool = True
+    fadeOut: bool = True
+    fadeDuration: float | None = Field(default=None, gt=0, le=BROLL_FADE_SECONDS)
 
     @model_validator(mode="after")
     def ordered(self):
-        if self.end - self.start < 0.2:
-            raise ValueError("B-roll must be at least 0.2 seconds long")
+        minimum = BROLL_MIN_SECONDS if self.fadeIn and self.fadeOut else BROLL_CONTINUATION_MIN_SECONDS
+        if self.end - self.start < minimum - TIME_EPSILON:
+            raise ValueError(f"B-roll must be at least {minimum} seconds long")
         return self
 
 
@@ -243,7 +253,7 @@ def mapped_broll(document: EditDocument) -> list[dict]:
     for segment in document.segments:
         for clip in ordered:
             start, end = max(segment.start, clip.start), min(segment.end, clip.end)
-            if end - start > 0.04:
+            if end - start >= BROLL_CONTINUATION_MIN_SECONDS - TIME_EPSILON:
                 pieces.append(
                     {
                         "id": clip.id,
@@ -252,8 +262,9 @@ def mapped_broll(document: EditDocument) -> list[dict]:
                         "start": cursor + start - segment.start,
                         "duration": end - start,
                         "offset": clip.offset + start - clip.start,
-                        "fade_in": start - clip.start < 0.02,
-                        "fade_out": clip.end - end < 0.02,
+                        "fade_in": clip.fadeIn and start - clip.start < 0.02,
+                        "fade_out": clip.fadeOut and clip.end - end < 0.02,
+                        "fade_duration": clip.fadeDuration or min(BROLL_FADE_SECONDS, (clip.end - clip.start) / 3),
                     }
                 )
         cursor += segment.end - segment.start
@@ -451,6 +462,7 @@ def render_document(
             if broll_files and piece["footage"].key in broll_files
         ],
         total,
+        min_duration=BROLL_MIN_SECONDS,
     )
     if overlays:
         # Footage fills the output frame over the framed, graded picture and

@@ -252,6 +252,8 @@ def _subtract(segments: list[dict], cuts: list[tuple[float, float]]) -> list[dic
     for segment in segments:
         pieces = [(segment["start"], segment["end"])]
         for cut_start, cut_end in cuts:
+            if cut_end <= cut_start:
+                continue
             next_pieces = []
             for start, end in pieces:
                 if cut_end <= start or cut_start >= end:
@@ -445,7 +447,7 @@ async def apply_plan(
             cuts = [
                 (a["end"] + keep / 2, b["start"] - keep / 2)
                 for a, b in zip(ordered_words, ordered_words[1:])
-                if b["start"] - a["end"] > min_gap
+                if b["start"] - a["end"] > max(min_gap, keep)
             ]
             keep_cuts(_subtract(doc["segments"], cuts)[:100], "Remove pauses")
         elif isinstance(op, SetValue):

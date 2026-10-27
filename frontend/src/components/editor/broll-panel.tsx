@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  BROLL_MIN_SECONDS,
+  brollMinimum,
   brollOf,
   clamp,
   insertBroll,
@@ -92,7 +92,7 @@ export function BRollPanel({ doc, asset, endpoint, time, seek, update, selected,
                 footage,
                 offset: 0,
                 query: searched || b.query,
-                end: Math.max(b.start + BROLL_MIN_SECONDS, Math.min(b.end, b.start + footage.duration)),
+                end: Math.max(b.start + brollMinimum(b), Math.min(b.end, b.start + footage.duration)),
               }
             : b,
         ),

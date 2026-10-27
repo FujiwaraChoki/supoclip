@@ -31,6 +31,20 @@ interface History {
   present: EditDocument;
   future: EditDocument[];
 }
+
+function upgradeCachedHistory(history: History, server: EditDocument): History {
+  const upgrade = (document: EditDocument): EditDocument => ({
+    ...server,
+    ...document,
+    // Missing means this cache predates editable B-roll; [] is an intentional removal.
+    broll: structuredClone(document.broll ?? server.broll ?? []),
+  });
+  return {
+    past: history.past.map(upgrade),
+    present: upgrade(history.present),
+    future: history.future.map(upgrade),
+  };
+}
 export function useEditor(endpoint: string) {
   const [asset, setAsset] = useState<EditorState | null>(null);
   const [history, setHistory] = useState<History | null>(null);
@@ -195,13 +209,14 @@ export function useEditor(endpoint: string) {
             local?.basis === state.basis &&
             local.history?.present?.version === 1
           ) {
+            const restored = upgradeCachedHistory(local.history, state.draft.document);
             if (
               local.revision === state.draft.revision ||
-              JSON.stringify(local.history.present) === saved.current
+              JSON.stringify(restored.present) === saved.current
             )
-              h = local.history;
+              h = restored;
             else if (JSON.stringify(local.history.present) !== local.saved) {
-              h = local.history;
+              h = restored;
               revision.current = local.revision;
               setError(
                 "A newer draft exists on the server. Your local changes are retained. Download a draft backup, then reload the saved version to resolve the conflict.",

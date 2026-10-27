@@ -621,13 +621,18 @@ def placement_to_editor_clip(placement: Dict[str, Any], index: int, clip_duratio
     The editor's clean.mp4 is rendered from the same ranges as the generated
     clip, so placement seconds are already on its timeline.
     """
+    from .editor_document import BROLL_CONTINUATION_MIN_SECONDS, BROLL_MIN_SECONDS, TIME_EPSILON
+
     try:
         start = max(0.0, float(placement["start"]))
         end = min(clip_duration, start + float(placement["duration"]))
         offset = float(placement.get("footage_offset") or 0.0)
         file_url = str(placement.get("file_url") or "")
         duration = float(placement.get("footage_duration") or 0) or offset + end - start
-        if end - start < 0.2 or not file_url.startswith("https://videos.pexels.com/"):
+        fade_in = placement.get("fade_in", True) is not False
+        fade_out = placement.get("fade_out", True) is not False
+        minimum = BROLL_MIN_SECONDS if fade_in and fade_out else BROLL_CONTINUATION_MIN_SECONDS
+        if end - start < minimum - TIME_EPSILON or not file_url.startswith("https://videos.pexels.com/"):
             return None
         return {
             "id": f"broll-{index}-{int(placement['pexels_id'])}",
@@ -635,6 +640,9 @@ def placement_to_editor_clip(placement: Dict[str, Any], index: int, clip_duratio
             "end": round(end, 3),
             "offset": round(offset, 3),
             "query": str(placement.get("query") or "")[:120],
+            "fadeIn": fade_in,
+            "fadeOut": fade_out,
+            "fadeDuration": placement.get("fade_duration"),
             "footage": {
                 "provider": "pexels",
                 "id": int(placement["pexels_id"]),
@@ -669,4 +677,7 @@ def editor_piece_to_placement(piece: Dict[str, Any]) -> Dict[str, Any]:
         "footage_duration": footage["duration"],
         "thumbnail": footage.get("thumbnail"),
         "credit": footage.get("credit"),
+        "fade_in": piece.get("fade_in", True),
+        "fade_out": piece.get("fade_out", True),
+        "fade_duration": piece.get("fade_duration"),
     }

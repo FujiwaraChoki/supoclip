@@ -18,14 +18,19 @@ MIN_BROLL_SECONDS = 0.6
 def normalize_broll_overlays(
     overlays: Iterable[Dict[str, Any]] | None,
     clip_duration: float | None = None,
+    *,
+    min_duration: float = MIN_BROLL_SECONDS,
 ) -> List[Dict[str, Any]]:
     """Valid, non-overlapping overlays in play order.
 
     Each overlay needs ``path`` (an existing file), ``start`` and ``duration``
     in seconds of the output timeline; ``offset`` is where in the footage it
     begins (after a trim cut into it). ``fade_in``/``fade_out`` (default on)
-    are off for a piece that continues a cutaway across an editor cut. Overlays past the clip end are cut to
-    fit; anything too short to read as a cutaway is dropped.
+    are off for a piece that continues a cutaway across an editor cut.
+    ``fade_duration`` retains the original dissolve length after combining.
+    ``min_duration`` lets editor exports keep their shorter, explicitly placed
+    cutaways while generation retains its default minimum. Overlays past the
+    clip end are cut to fit.
     """
     cleaned: List[Dict[str, Any]] = []
     for overlay in overlays or []:
@@ -47,8 +52,13 @@ def normalize_broll_overlays(
         fade_out = overlay.get("fade_out", True) is not False
         # A standalone cutaway must be long enough to read; a piece continuing
         # one across a cut only has to exist.
-        if duration < (MIN_BROLL_SECONDS if fade_in and fade_out else 0.04):
+        if duration < (min_duration if fade_in and fade_out else 0.04) - 1e-9:
             continue
+        fade_duration = min(BROLL_FADE_SECONDS, duration / 3)
+        try:
+            fade_duration = min(BROLL_FADE_SECONDS, max(0.001, float(overlay.get("fade_duration") or fade_duration)))
+        except (TypeError, ValueError):
+            pass
         cleaned.append(
             {
                 "path": path,
@@ -57,6 +67,7 @@ def normalize_broll_overlays(
                 "offset": offset,
                 "fade_in": fade_in,
                 "fade_out": fade_out,
+                "fade_duration": fade_duration,
             }
         )
 
@@ -99,7 +110,7 @@ def broll_overlay_graph(
         start = overlay["start"]
         duration = overlay["duration"]
         end = start + duration
-        fade = min(BROLL_FADE_SECONDS, duration / 3)
+        fade = overlay.get("fade_duration", min(BROLL_FADE_SECONDS, duration / 3))
         clip_label = f"[broll{index}]"
         out_label = f"[withbroll{index}]"
         fades = ""

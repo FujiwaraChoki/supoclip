@@ -81,6 +81,10 @@ export interface BRollClip {
   offset: number;
   query: string;
   footage: BRollFootage;
+  /** Combined pieces dissolve only at the original cutaway's outer edges. */
+  fadeIn?: boolean;
+  fadeOut?: boolean;
+  fadeDuration?: number | null;
 }
 export interface EditDocument {
   version: 1;
@@ -283,7 +287,12 @@ export function replaceWords(
 }
 
 export const BROLL_MIN_SECONDS = 0.2;
+export const BROLL_CONTINUATION_MIN_SECONDS = 0.04;
 export const BROLL_FADE_SECONDS = 0.25;
+export const brollMinimum = (clip: BRollClip) =>
+  clip.fadeIn === false || clip.fadeOut === false ? BROLL_CONTINUATION_MIN_SECONDS : BROLL_MIN_SECONDS;
+export const brollFadeDuration = (clip: BRollClip) =>
+  clip.fadeDuration ?? Math.min(BROLL_FADE_SECONDS, (clip.end - clip.start) / 3);
 export const brollOf = (doc: EditDocument) => doc.broll ?? [];
 export const footageKey = (footage: BRollFootage) =>
   `${footage.id}/${footage.width}x${footage.height}`;
@@ -300,9 +309,12 @@ export function brollAt(doc: EditDocument, sourceTime: number) {
  * and out over its last quarter second, as the export does.
  */
 export function brollAlpha(clip: BRollClip, sourceTime: number) {
-  const fade = Math.min(BROLL_FADE_SECONDS, (clip.end - clip.start) / 3);
+  const fade = brollFadeDuration(clip);
   if (fade <= 0) return 1;
-  return clamp(Math.min((sourceTime - clip.start) / fade, (clip.end - sourceTime) / fade), 0, 1);
+  return clamp(Math.min(
+    clip.fadeIn === false ? 1 : (sourceTime - clip.start) / fade,
+    clip.fadeOut === false ? 1 : (clip.end - sourceTime) / fade,
+  ), 0, 1);
 }
 
 /** Room for a B-roll clip around `at`: from the previous clip's end to the next one's start. */
@@ -334,7 +346,7 @@ export function insertBroll(
   if (!gap) return null;
   const start = clamp(at, gap.start, gap.end);
   const end = Math.min(gap.end, start + Math.min(length, footage.duration));
-  if (end - start < BROLL_MIN_SECONDS) return null;
+  if (end - start < BROLL_MIN_SECONDS - 1e-9) return null;
   const id = uid();
   const clip: BRollClip = { id, start, end, offset: 0, query, footage };
   const broll = [...brollOf(doc), clip].sort((a, b) => a.start - b.start);
@@ -357,9 +369,10 @@ export function placeBroll(
   const others = brollOf(doc).filter((b) => b.id !== id);
   const before = Math.max(0, ...others.filter((b) => b.end <= clip.start + 1e-6).map((b) => b.end));
   const after = Math.min(duration, ...others.filter((b) => b.start >= clip.end - 1e-6).map((b) => b.start));
-  const maxLength = Math.max(BROLL_MIN_SECONDS, clip.footage.duration - clip.offset);
-  let nextStart = clamp(start, before, after - BROLL_MIN_SECONDS);
-  let nextEnd = clamp(end, nextStart + BROLL_MIN_SECONDS, Math.min(after, nextStart + maxLength));
+  const minimum = brollMinimum(clip);
+  const maxLength = Math.max(minimum, clip.footage.duration - clip.offset);
+  let nextStart = clamp(start, before, after - minimum);
+  let nextEnd = clamp(end, nextStart + minimum, Math.min(after, nextStart + maxLength));
   if (Math.abs(end - start - (clip.end - clip.start)) < 1e-6) {
     // A move keeps the length; clamping one edge shifts the other.
     const length = Math.min(clip.end - clip.start, after - before);
@@ -375,12 +388,14 @@ export function placeBroll(
 /** B-roll pieces on the output timeline, mirroring the server's mapped_broll. */
 export function mappedBroll(doc: EditDocument) {
   const pieces: {
+    segmentId: string;
     clip: BRollClip;
     start: number;
     end: number;
     offset: number;
     fadeIn: boolean;
     fadeOut: boolean;
+    fadeDuration: number;
   }[] = [];
   let cursor = 0;
   const ordered = [...brollOf(doc)].sort((a, b) => a.start - b.start);
@@ -388,14 +403,16 @@ export function mappedBroll(doc: EditDocument) {
     for (const clip of ordered) {
       const start = Math.max(segment.start, clip.start),
         end = Math.min(segment.end, clip.end);
-      if (end - start > 0.04)
+      if (end - start >= BROLL_CONTINUATION_MIN_SECONDS - 1e-9)
         pieces.push({
+          segmentId: segment.id,
           clip,
           start: cursor + start - segment.start,
           end: cursor + end - segment.start,
           offset: clip.offset + start - clip.start,
-          fadeIn: start - clip.start < 0.02,
-          fadeOut: clip.end - end < 0.02,
+          fadeIn: clip.fadeIn !== false && start - clip.start < 0.02,
+          fadeOut: clip.fadeOut !== false && clip.end - end < 0.02,
+          fadeDuration: brollFadeDuration(clip),
         });
     }
     cursor += segment.end - segment.start;
