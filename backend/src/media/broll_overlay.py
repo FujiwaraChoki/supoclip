@@ -23,7 +23,8 @@ def normalize_broll_overlays(
 
     Each overlay needs ``path`` (an existing file), ``start`` and ``duration``
     in seconds of the output timeline; ``offset`` is where in the footage it
-    begins (after a trim cut into it). Overlays past the clip end are cut to
+    begins (after a trim cut into it). ``fade_in``/``fade_out`` (default on)
+    are off for a piece that continues a cutaway across an editor cut. Overlays past the clip end are cut to
     fit; anything too short to read as a cutaway is dropped.
     """
     cleaned: List[Dict[str, Any]] = []
@@ -42,16 +43,30 @@ def normalize_broll_overlays(
             offset = 0.0
         if clip_duration is not None:
             duration = min(duration, clip_duration - start)
-        if duration < MIN_BROLL_SECONDS:
+        fade_in = overlay.get("fade_in", True) is not False
+        fade_out = overlay.get("fade_out", True) is not False
+        # A standalone cutaway must be long enough to read; a piece continuing
+        # one across a cut only has to exist.
+        if duration < (MIN_BROLL_SECONDS if fade_in and fade_out else 0.04):
             continue
-        cleaned.append({"path": path, "start": start, "duration": duration, "offset": offset})
+        cleaned.append(
+            {
+                "path": path,
+                "start": start,
+                "duration": duration,
+                "offset": offset,
+                "fade_in": fade_in,
+                "fade_out": fade_out,
+            }
+        )
 
     cleaned.sort(key=lambda overlay: overlay["start"])
     result: List[Dict[str, Any]] = []
     for overlay in cleaned:
         if result:
             previous = result[-1]
-            if overlay["start"] < previous["start"] + previous["duration"]:
+            # Pieces of one cutaway meet exactly; allow for float rounding.
+            if overlay["start"] < previous["start"] + previous["duration"] - 0.01:
                 continue
         result.append(overlay)
     return result
@@ -87,18 +102,26 @@ def broll_overlay_graph(
         fade = min(BROLL_FADE_SECONDS, duration / 3)
         clip_label = f"[broll{index}]"
         out_label = f"[withbroll{index}]"
+        fades = ""
+        if overlay.get("fade_in", True):
+            fades += f",fade=t=in:st={start:.3f}:d={fade:.3f}:alpha=1"
+        if overlay.get("fade_out", True):
+            fades += f",fade=t=out:st={end - fade:.3f}:d={fade:.3f}:alpha=1"
         # Shift the cutaway onto the clip timeline, fill the frame like the
         # main picture does, then fade its alpha so it dissolves over the speaker.
+        # Stock files use coarse time bases (1/25): settb first, or the shift
+        # rounds to whole frames and the cutaway ends a couple of frames early.
+        # A little headroom plus eof_action=repeat keeps the last frame up to
+        # the window's end; `enable` still cuts it off exactly.
         parts.append(
-            f"[{first_input + index}:v]trim=start={overlay.get('offset', 0.0):.3f}:duration={duration:.3f},"
+            f"[{first_input + index}:v]settb=AVTB,"
+            f"trim=start={overlay.get('offset', 0.0):.3f}:duration={duration + 0.1:.3f},"
             f"setpts=PTS-STARTPTS+{start:.3f}/TB,"
             f"scale={width}:{height}:force_original_aspect_ratio=increase:flags=lanczos,"
-            f"crop={width}:{height},setsar=1,format=yuva420p,"
-            f"fade=t=in:st={start:.3f}:d={fade:.3f}:alpha=1,"
-            f"fade=t=out:st={end - fade:.3f}:d={fade:.3f}:alpha=1{clip_label}"
+            f"crop={width}:{height},setsar=1,format=yuva420p{fades}{clip_label}"
         )
         parts.append(
-            f"{current}{clip_label}overlay=0:0:eof_action=pass:"
+            f"{current}{clip_label}overlay=0:0:eof_action=repeat:"
             f"enable='between(t,{start:.3f},{end:.3f})'{out_label}"
         )
         current = out_label

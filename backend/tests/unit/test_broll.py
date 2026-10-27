@@ -400,7 +400,8 @@ def test_overlay_graph_dissolves_each_cutaway_in_place():
     assert "setpts=PTS-STARTPTS+4.000/TB" in graph
     assert "fade=t=in:st=4.000:d=0.250:alpha=1" in graph
     assert "fade=t=out:st=6.750:d=0.250:alpha=1" in graph
-    assert "[base][broll0]overlay=0:0:eof_action=pass:enable='between(t,4.000,7.000)'" in graph
+    assert "settb=AVTB,trim=start=0.000:duration=3.100" in graph
+    assert "[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,4.000,7.000)'" in graph
 
 
 
@@ -517,7 +518,7 @@ def test_trimming_into_a_cutaway_resumes_its_footage():
     graph, _ = broll_overlay_graph(
         "[base]", [{"path": "a", "start": 0.0, "duration": 3.0, "offset": 1.0}], 1080, 1920
     )
-    assert "trim=start=1.000:duration=3.000" in graph
+    assert "trim=start=1.000:duration=3.100" in graph
 
 
 @requires_ffmpeg
@@ -614,3 +615,32 @@ async def test_regeneration_that_renders_nothing_keeps_the_existing_clips(isolat
         await service.regenerate_all_clips_for_task("task", None, None, None, "default")
 
     service.clip_repo.delete_clips_by_task.assert_not_awaited()
+
+
+@requires_ffmpeg
+def test_cutaway_from_coarse_timebase_footage_covers_its_whole_window(tmp_path):
+    """Pexels files use a 1/25 stream time base; the cutaway must still reach its end."""
+    from src.media.reframing import render_reframed_clip_ffmpeg
+
+    main, footage, output = tmp_path / "main.mp4", tmp_path / "footage.mp4", tmp_path / "out.mp4"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=320x240:r=24:d=4",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", str(main)],
+        check=True,
+    )
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:s=180x320:r=25:d=4",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-video_track_timescale", "25", str(footage)],
+        check=True,
+    )
+
+    ok, _, _ = render_reframed_clip_ffmpeg(
+        main, output, "original",
+        broll_overlays=[{"path": footage, "start": 0.98, "duration": 1.25, "fade_in": False, "fade_out": False}],
+    )
+
+    assert ok
+    # Frames at 24 fps from 1.0 s up to the cutaway's end at 2.23 s.
+    covered = [_pixel(output, 1.0 + i / 24) for i in range(29)]
+    assert all(c[2] > 200 and c[0] < 60 for c in covered)
+    assert _pixel(output, 2.30)[0] > 200

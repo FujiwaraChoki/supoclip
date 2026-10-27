@@ -28,6 +28,7 @@ from .config import get_config
 logger = logging.getLogger(__name__)
 
 PEXELS_SEARCH_URL = "https://api.pexels.com/videos/search"
+PEXELS_VIDEO_URL = "https://api.pexels.com/videos/videos/{id}"
 
 # Cutaway placement. The opening seconds stay on the speaker (and the hook
 # title), and the clip ends on the speaker too.
@@ -53,7 +54,7 @@ CACHE_MAX_BYTES = 2 * 1024 * 1024 * 1024
 CACHE_IN_USE_SECONDS = 2 * 3600
 HTTP_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 
-_search_cache: Dict[tuple[str, str], tuple[float, List[Dict[str, Any]]]] = {}
+_search_cache: Dict[tuple, tuple[float, List[Dict[str, Any]]]] = {}
 _rate_limited_until = 0.0
 _download_locks: Dict[str, asyncio.Lock] = {}
 
@@ -72,7 +73,10 @@ def broll_cache_dir() -> Path:
 
 
 async def search_pexels_videos(
-    query: str, orientation: str = "portrait", per_page: int = SEARCH_RESULTS_PER_QUERY
+    query: str,
+    orientation: str = "portrait",
+    per_page: int = SEARCH_RESULTS_PER_QUERY,
+    page: int = 1,
 ) -> List[Dict[str, Any]]:
     """Pexels results for ``query`` in relevance order; empty on any failure.
 
@@ -85,7 +89,7 @@ async def search_pexels_videos(
     if not api_key or not query:
         return []
 
-    key = (query.lower(), orientation)
+    key = (query.lower(), orientation, per_page, page)
     cached = _search_cache.get(key)
     if cached and time.time() - cached[0] < SEARCH_CACHE_TTL_SECONDS:
         return cached[1]
@@ -96,7 +100,7 @@ async def search_pexels_videos(
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
             response = await client.get(
                 PEXELS_SEARCH_URL,
-                params={"query": query, "orientation": orientation, "per_page": per_page},
+                params={"query": query, "orientation": orientation, "per_page": per_page, "page": page},
                 headers={"Authorization": api_key},
             )
     except httpx.HTTPError as exc:
@@ -126,6 +130,8 @@ async def search_pexels_videos(
 
 
 def _matches_orientation(width: int, height: int, orientation: str) -> bool:
+    if orientation == "square":
+        return True
     if orientation == "portrait":
         return height > width
     if orientation == "landscape":
@@ -416,6 +422,8 @@ async def _source_cue(
             "file_url": chosen["link"],
             "width": chosen["width"],
             "height": chosen["height"],
+            "footage_duration": float(video.get("duration") or 0),
+            "thumbnail": video.get("image"),
             "credit": user.get("name"),
         }
     return None
@@ -519,3 +527,146 @@ def shift_broll_placements(
             moved["footage_offset"] = round(footage_offset, 3)
         shifted.append(moved)
     return shifted
+
+
+# --------------------------------------------------------------------------
+# Editor: search, lookup and conversion between placements and editor clips
+# --------------------------------------------------------------------------
+
+
+def footage_from_video(video: Dict[str, Any], target_short_side: int, orientation: str) -> Optional[Dict[str, Any]]:
+    """Editor footage (``BRollFootage`` fields) for a Pexels video, or None."""
+    chosen = pick_video_file(video, target_short_side, orientation)
+    if not chosen or not str(chosen["link"]).startswith("https://videos.pexels.com/"):
+        return None
+    try:
+        duration = float(video.get("duration") or 0)
+    except (TypeError, ValueError):
+        return None
+    if duration <= 0:
+        return None
+    user = video.get("user") or {}
+    return {
+        "provider": "pexels",
+        "id": int(video["id"]),
+        "width": chosen["width"],
+        "height": chosen["height"],
+        "duration": duration,
+        "fileUrl": chosen["link"],
+        "pageUrl": str(video.get("url") or "")[:500],
+        "thumbnail": str(video.get("image") or "")[:500],
+        "credit": str(user.get("name") or "")[:200],
+    }
+
+
+async def search_footage(
+    query: str, orientation: str = "portrait", target_short_side: int = 1080, page: int = 1
+) -> List[Dict[str, Any]]:
+    videos = await search_pexels_videos(query, orientation, per_page=18, page=page)
+    results = []
+    for video in videos:
+        footage = footage_from_video(video, target_short_side, orientation)
+        if footage:
+            results.append(footage)
+    return results
+
+
+async def fetch_pexels_video(video_id: int) -> Optional[Dict[str, Any]]:
+    """One Pexels video by id (to re-resolve a rendition's download link)."""
+    api_key = get_config().pexels_api_key
+    if not api_key or time.time() < _rate_limited_until:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            response = await client.get(
+                PEXELS_VIDEO_URL.format(id=int(video_id)), headers={"Authorization": api_key}
+            )
+    except httpx.HTTPError:
+        return None
+    if response.status_code != 200:
+        return None
+    try:
+        video = response.json()
+    except ValueError:
+        return None
+    return video if isinstance(video, dict) else None
+
+
+async def ensure_footage_file(footage: Dict[str, Any]) -> Optional[Path]:
+    """Local copy of editor footage; re-resolves the link if the stored one fails."""
+    entry = {
+        "pexels_id": footage["id"],
+        "width": footage["width"],
+        "height": footage["height"],
+        "file_url": footage.get("fileUrl"),
+    }
+    path = await ensure_broll_file(entry)
+    if path is not None:
+        return path
+    video = await fetch_pexels_video(int(footage["id"]))
+    for item in (video or {}).get("video_files") or []:
+        link = str(item.get("link") or "")
+        if (
+            item.get("width") == footage["width"]
+            and item.get("height") == footage["height"]
+            and link.startswith("https://videos.pexels.com/")
+        ):
+            return await ensure_broll_file({**entry, "file_url": link})
+    return None
+
+
+def placement_to_editor_clip(placement: Dict[str, Any], index: int, clip_duration: float) -> Optional[Dict[str, Any]]:
+    """An editor B-roll clip from a generated clip's stored placement.
+
+    The editor's clean.mp4 is rendered from the same ranges as the generated
+    clip, so placement seconds are already on its timeline.
+    """
+    try:
+        start = max(0.0, float(placement["start"]))
+        end = min(clip_duration, start + float(placement["duration"]))
+        offset = float(placement.get("footage_offset") or 0.0)
+        file_url = str(placement.get("file_url") or "")
+        duration = float(placement.get("footage_duration") or 0) or offset + end - start
+        if end - start < 0.2 or not file_url.startswith("https://videos.pexels.com/"):
+            return None
+        return {
+            "id": f"broll-{index}-{int(placement['pexels_id'])}",
+            "start": round(start, 3),
+            "end": round(end, 3),
+            "offset": round(offset, 3),
+            "query": str(placement.get("query") or "")[:120],
+            "footage": {
+                "provider": "pexels",
+                "id": int(placement["pexels_id"]),
+                "width": int(placement["width"]),
+                "height": int(placement["height"]),
+                "duration": round(duration, 3),
+                "fileUrl": file_url,
+                "pageUrl": str(placement.get("pexels_url") or "")[:500],
+                "thumbnail": str(placement.get("thumbnail") or "")[:500],
+                "credit": str(placement.get("credit") or "")[:200],
+            },
+        }
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def editor_piece_to_placement(piece: Dict[str, Any]) -> Dict[str, Any]:
+    """A clip placement (sidecar format) for a rendered editor B-roll piece."""
+    footage = piece["footage"]
+    footage = footage.model_dump() if hasattr(footage, "model_dump") else footage
+    return {
+        "start": round(piece["start"], 3),
+        "duration": round(piece["duration"], 3),
+        "footage_offset": round(piece.get("offset") or 0.0, 3),
+        "query": piece.get("query") or "",
+        "provider": "pexels",
+        "pexels_id": footage["id"],
+        "pexels_url": footage.get("pageUrl"),
+        "file_url": footage["fileUrl"],
+        "width": footage["width"],
+        "height": footage["height"],
+        "footage_duration": footage["duration"],
+        "thumbnail": footage.get("thumbnail"),
+        "credit": footage.get("credit"),
+    }
