@@ -34,6 +34,14 @@ async def main():
   with urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=15) as response:
    result['backend_health']=json.load(response)
  except Exception as error: result['backend_health']={'error_type':type(error).__name__}
+ try:
+  with urllib.request.urlopen('http://127.0.0.1:8000/health/storage',timeout=15) as response:
+   result['storage_health']=json.load(response)
+ except urllib.error.HTTPError as error:
+  result['storage_health']={'http_status':error.code}
+  try:result['storage_health']['details']=json.load(error)
+  except (ValueError, OSError):pass
+ except Exception as error:result['storage_health']={'error_type':type(error).__name__}
  if cfg.openrouter_api_key:
   result['openrouter']={}
   for route in ['key','credits']:
