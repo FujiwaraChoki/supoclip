@@ -2,7 +2,7 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 /** Edit a text layer in its own bounds. Enter/blur commits; Escape cancels. */
-export function InlineText({ value, label, buttonLabel = value, title, onCommit, onBegin, onEditing, onMoveStart, onMove, className, style, children, multiline = false, maxLength }: {
+export function InlineText({ value, label, buttonLabel = value, title, onCommit, onBegin, onEditing, onMoveStart, onMove, onNudge, className, style, children, multiline = false, maxLength }: {
   value: string;
   label: string;
   buttonLabel?: string;
@@ -12,6 +12,7 @@ export function InlineText({ value, label, buttonLabel = value, title, onCommit,
   onEditing?: (editing: boolean) => void;
   onMoveStart?: () => void;
   onMove?: (dx: number, dy: number) => void;
+  onNudge?: (dx: number, dy: number) => void;
   className?: string;
   style?: CSSProperties;
   children?: ReactNode;
@@ -31,7 +32,14 @@ export function InlineText({ value, label, buttonLabel = value, title, onCommit,
     onEditing?.(false);
   };
   if (!editing) return (
-    <button type="button" aria-label={buttonLabel} title={title} className={className} style={style}
+    <button type="button" aria-label={buttonLabel} title={title} className={`${className ?? ""} ${onMove ? "touch-none" : ""}`} style={style}
+      onKeyDown={event => {
+        if (!onNudge || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const step = event.shiftKey ? 10 : 1;
+        onNudge(event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0, event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0);
+      }}
       onPointerDown={event => {
         if (!onMove) return;
         dragged.current = false;

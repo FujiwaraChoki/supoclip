@@ -212,7 +212,11 @@ def build_context(document: EditDocument, duration: float, playhead: float | Non
         "Segments (play order): "
         + ", ".join(f"{_fmt(s.start)}-{_fmt(s.end)}" for s in document.segments)
     )
-    lines.append("Captions: " + json.dumps(document.captions.model_dump(), separators=(",", ":")))
+    caption_settings = document.captions.model_dump()
+    if transform := document.textTransforms.get("captions"):
+        caption_settings["size"] = round(caption_settings["size"] * transform.scale, 3)
+        caption_settings["y"] = round(caption_settings["y"] + transform.y, 3)
+    lines.append("Captions: " + json.dumps(caption_settings, separators=(",", ":")))
     lines.append(f"Hook title: {json.dumps(document.hookTitle)}")
     lines.append("Framing: " + json.dumps(document.framing.model_dump(), separators=(",", ":")))
     lines.append("Effects: " + json.dumps(document.effects.model_dump(), separators=(",", ":")))
@@ -355,7 +359,17 @@ def _apply_setting(doc: dict, setting: str, value: str) -> Optional[str]:
             return f"{setting}: {value!r} isn't a number"
         target, key, low, high, integer = numbers[setting]
         clamped = _clamp(number, low, high)
-        target[key] = int(round(clamped)) if integer else round(clamped, 3)
+        desired = int(round(clamped)) if integer else round(clamped, 3)
+        transform = doc.get("textTransforms", {}).get("captions")
+        if transform is not None and setting == "captions.position":
+            transform["y"] = desired - captions["y"]
+        elif transform is not None and setting == "captions.size":
+            import math
+            base = _clamp(captions["size"], max(20, math.ceil(desired / 4)), min(132, math.floor(desired / 0.25)))
+            captions["size"] = int(base)
+            transform["scale"] = desired / base
+        else:
+            target[key] = desired
     elif setting in {"captions.color", "captions.accent"}:
         colour = _hex(value.strip())
         if not colour:

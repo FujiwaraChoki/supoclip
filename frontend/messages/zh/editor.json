@@ -141,7 +141,7 @@
   "preview": {
     "fontError": "字幕字体无法加载。导出前请检查网络。",
     "framingHint": "拖动视频重新构图 · 字幕保持不动",
-    "captionHint": "上下拖动来调整字幕位置",
+    "captionHint": "拖动文字以移动 · 拖动角点以调整大小 · 点击以编辑",
     "region": "视频预览",
     "title": "预览",
     "size": "{width} × {height} · {fps} fps",
@@ -158,7 +158,14 @@
     "nextFrame": "下一帧",
     "pause": "暂停",
     "play": "播放",
-    "muted": "已静音"
+    "muted": "已静音",
+    "resizeText": "调整{layer}大小，{corner}",
+    "corners": {
+      "nw": "左上角",
+      "ne": "右上角",
+      "sw": "左下角",
+      "se": "右下角"
+    }
   },
   "timeline": {
     "region": "片段时间线",

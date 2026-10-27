@@ -85,6 +85,25 @@ function cachedEditor(present: typeof draft, revision = 0, serverRevision = 0) {
   return { requests, storage };
 }
 
+it("keeps a long pointer gesture in one undo step and separates the next gesture", async () => {
+  cachedEditor(draft);
+  const { result } = renderHook(() => useEditor("/test/editor"));
+  await waitFor(() => expect(result.current.document).not.toBeNull());
+  const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+  try {
+    act(() => result.current.update(d => ({ ...d, volume: 0.8 }), "gesture:first"));
+    now.mockReturnValue(4000);
+    act(() => result.current.update(d => ({ ...d, volume: 0.6 }), "gesture:first"));
+    act(() => result.current.undo());
+    expect(result.current.document?.volume).toBe(1);
+    act(() => result.current.redo());
+    expect(result.current.document?.volume).toBe(0.6);
+    act(() => result.current.update(d => ({ ...d, volume: 0.4 }), "gesture:second"));
+    act(() => result.current.undo());
+    expect(result.current.document?.volume).toBe(0.6);
+  } finally { now.mockRestore(); }
+});
+
 it("migrates legacy cached drafts and their undo/redo history before saving", async () => {
   const edited = { ...draft, volume: 0.25 };
   const { requests } = cachedEditor(edited);

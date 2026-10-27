@@ -141,7 +141,7 @@
   "preview": {
     "fontError": "Font caption tidak bisa dimuat. Periksa koneksimu sebelum mengekspor.",
     "framingHint": "Seret video untuk mengatur framing · caption tetap di tempatnya",
-    "captionHint": "Seret vertikal untuk memosisikan caption",
+    "captionHint": "Seret teks untuk memindahkan · seret sudut untuk mengubah ukuran · klik untuk mengedit",
     "region": "Pratinjau video",
     "title": "Pratinjau",
     "size": "{width} × {height} · {fps} fps",
@@ -158,7 +158,14 @@
     "nextFrame": "Frame berikutnya",
     "pause": "Jeda",
     "play": "Putar",
-    "muted": "Dibisukan"
+    "muted": "Dibisukan",
+    "resizeText": "Ubah ukuran {layer}, {corner}",
+    "corners": {
+      "nw": "kiri atas",
+      "ne": "kanan atas",
+      "sw": "kiri bawah",
+      "se": "kanan bawah"
+    }
   },
   "timeline": {
     "region": "Timeline clip",

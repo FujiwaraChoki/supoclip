@@ -141,7 +141,7 @@
   "preview": {
     "fontError": "No se pudo cargar la fuente de los subtítulos. Revisa tu conexión antes de exportar.",
     "framingHint": "Arrastra el video para reencuadrar · los subtítulos se quedan en su lugar",
-    "captionHint": "Arrastra en vertical para colocar los subtítulos",
+    "captionHint": "Arrastra el texto para moverlo · arrastra una esquina para cambiar el tamaño · haz clic para editar",
     "region": "Vista previa del video",
     "title": "Vista previa",
     "size": "{width} × {height} · {fps} fps",
@@ -158,7 +158,14 @@
     "nextFrame": "Fotograma siguiente",
     "pause": "Pausa",
     "play": "Reproducir",
-    "muted": "Silenciado"
+    "muted": "Silenciado",
+    "resizeText": "Cambiar tamaño de {layer}, {corner}",
+    "corners": {
+      "nw": "arriba a la izquierda",
+      "ne": "arriba a la derecha",
+      "sw": "abajo a la izquierda",
+      "se": "abajo a la derecha"
+    }
   },
   "timeline": {
     "region": "Línea de tiempo del clip",

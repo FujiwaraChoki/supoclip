@@ -5,6 +5,8 @@ import {
   hookRange,
   mappedWords,
   outputSize,
+  textTransform,
+  type TextLayer,
   type CaptionLook,
   type CaptionWord,
   type EditDocument,
@@ -180,8 +182,9 @@ function drawCaptions(
     (group) => time >= group[0].start && time < group[group.length - 1].end,
   );
   if (!group) return;
+  const transform = textTransform(doc, "captions");
   const style = doc.captions,
-    size = Math.max(1, Math.round((style.size * width) / 1080)),
+    size = Math.max(1, Math.round((style.size * width * transform.scale) / 1080)),
     karaoke = look.animation === "karaoke",
     active = karaoke ? group[activeWordIndex(group, time)] : undefined,
     label = (text: string) => (style.uppercase ? text.toUpperCase() : text);
@@ -195,7 +198,7 @@ function drawCaptions(
     shadow = look.shadow ? Math.max(2, Math.floor(size / 20)) : 0,
     boxPadding = Math.max(outline + 2, Math.floor(size / 5)),
     linePadding = Math.max(outline, Math.floor(size / 6)),
-    centre = Math.round(height * style.y);
+    centre = Math.round(height * (style.y + transform.y));
   const t = time - group[0].start,
     remaining = group[group.length - 1].end - time;
   let scale = 1,
@@ -210,7 +213,7 @@ function drawCaptions(
 
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.translate(width / 2, centre);
+  ctx.translate(width * (0.5 + transform.x), centre);
   ctx.scale(scale, scale);
   setAssFont(ctx, style.font, size);
   ctx.textBaseline = "middle";
@@ -316,8 +319,11 @@ export function hookTitleLayout(doc: EditDocument, width: number, height: number
   const maxChars = Math.max(10, Math.floor(usable / (basePx * 0.52)));
   const lines = balanceTitle(text.split(/\s+/), maxChars);
   const longest = Math.max(...lines.map(line => line.length));
-  const px = longest > maxChars ? Math.max(30, Math.min(basePx, Math.floor(usable / (longest * 0.52)))) : basePx;
-  return { lines, px, usable, top: Math.max(48, Math.floor(height * HOOK_MARGIN)) };
+  const originalPx = longest > maxChars ? Math.max(30, Math.min(basePx, Math.floor(usable / (longest * 0.52)))) : basePx;
+  const transform = textTransform(doc, "hook");
+  const px = originalPx * transform.scale;
+  const top = Math.max(48, Math.floor(height * HOOK_MARGIN)) + transform.y * height + (originalPx - px) * lines.length * 0.6;
+  return { lines, px, usable, top, x: width * (0.5 + transform.x) };
 }
 
 /** The generated clip's headline: top safe area, fading in and out over ~4s. */
@@ -331,7 +337,7 @@ function drawHookTitle(
   const { start, end } = hookRange(doc);
   if (time < start || time >= end) return;
   const style = doc.captions;
-  const { lines, px, top } = hookTitleLayout(doc, width, height);
+  const { lines, px, top, x: centreX } = hookTitleLayout(doc, width, height);
   const hasOutline = !!look.strokeColor && look.strokeWidth > 0,
     // Mirrors build_hook_title_ass: an opaque box only without an outline.
     boxed = !hasOutline && !!look.backgroundColor,
@@ -346,7 +352,7 @@ function drawHookTitle(
   ctx.globalAlpha = Math.max(0, Math.min(1, t / 0.16, (end - time) / 0.24));
   const lineHeight = px * 1.2,
     scale = look.wordPop ? keyframes(t, [[0, 0.9], [0.16, 1]]) : 1;
-  ctx.translate(width / 2, top + (lineHeight * lines.length) / 2);
+  ctx.translate(centreX, top + (lineHeight * lines.length) / 2);
   ctx.scale(scale, scale);
   setAssFont(ctx, style.font, px);
   ctx.textBaseline = "middle";
@@ -387,4 +393,35 @@ function drawHookTitle(
     }
   });
   ctx.restore();
+}
+
+export interface TextBounds { x: number; y: number; width: number; height: number }
+
+/** Selection geometry in output pixels, measured with the renderer's font. */
+export function textLayerBounds(ctx: CanvasRenderingContext2D, doc: EditDocument, width: number, height: number, time: number, layer: TextLayer, looks?: Record<string, CaptionLook>): TextBounds | null {
+  const look = cachedLook(doc, looks);
+  if (layer === "hook") {
+    if (!doc.hookTitle?.trim()) return null;
+    const { lines, px, top, x } = hookTitleLayout(doc, width, height);
+    setAssFont(ctx, doc.captions.font, px);
+    const pad = Math.max(5, Math.round(px * (look.strokeWidth || 2) / 26)) + 3;
+    const w = Math.max(...lines.map(line => ctx.measureText(line).width)) + pad * 2;
+    return { x: x - w / 2, y: top - pad, width: w, height: lines.length * px * 1.2 + pad * 2 };
+  }
+  const group = captionGroups(mappedWords(doc), doc.captions.wordsPerLine)
+    .find(words => time >= words[0].start && time < words[words.length - 1].end);
+  if (!group || !doc.captions.enabled) return null;
+  const transform = textTransform(doc, layer);
+  const px = Math.max(1, Math.round(doc.captions.size * width * transform.scale / 1080));
+  setAssFont(ctx, doc.captions.font, px);
+  const space = ctx.measureText(" ").width;
+  let lineWidth = 0, longest = 0, lines = 1;
+  for (const word of group) {
+    const w = ctx.measureText(doc.captions.uppercase ? word.text.toUpperCase() : word.text).width;
+    if (lineWidth && lineWidth + space + w > width - 120) { longest = Math.max(longest, lineWidth); lineWidth = 0; lines++; }
+    lineWidth += (lineWidth ? space : 0) + w;
+  }
+  const pad = Math.max(px / 5, look.strokeWidth * px / 26, 5) + 3;
+  const w = Math.max(longest, lineWidth) + pad * 2, h = lines * px * 1.2 + pad * 2;
+  return { x: width * (0.5 + transform.x) - w / 2, y: height * (doc.captions.y + transform.y) - h / 2, width: w, height: h };
 }

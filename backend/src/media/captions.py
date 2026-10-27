@@ -256,6 +256,7 @@ def build_hook_title_ass(
     font_name: str,
     caption_font_px: int,
     position_y: Optional[float] = None,
+    editor_style: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, List[str]]:
     """Build the (style_line, dialogue_events) for a burned-in hook title.
 
@@ -279,6 +280,8 @@ def build_hook_title_ass(
     # still does not fit (a long compound word, or two long lines) shrinks
     # below the preferred size so it is not clipped at the frame edge.
     base_px = min(96, max(caption_font_px + 8, int(round(caption_font_px * 1.35))))
+    if editor_style is not None:
+        base_px = int(editor_style["base_px"])
     usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_TOP_MARGIN_FRAC))
     max_chars = max(10, int(usable_width / (base_px * 0.52)))
     lines = _balance_title_lines(title_text.split(), max_chars)
@@ -287,6 +290,11 @@ def build_hook_title_ass(
     if longest > max_chars:
         fitted = int(usable_width / (longest * 0.52))
         hook_px = min(base_px, max(1, fitted))
+        if editor_style is not None:
+            hook_px = max(30, hook_px)
+    original_px = hook_px
+    if editor_style is not None:
+        hook_px *= float(editor_style.get("scale", 1))
 
     base_stroke = int(template.get("stroke_width", 3) or 0)
     has_outline = template.get("stroke_color") is not None and base_stroke > 0
@@ -323,7 +331,11 @@ def build_hook_title_ass(
     if output_duration <= HOOK_TITLE_MIN_SECONDS:
         start, end = 0.0, max(0.5, output_duration)
     entrance = "\\fad(160,240)"
-    if position_y is not None:
+    if editor_style is not None:
+        x = video_width * (0.5 + float(editor_style.get("x", 0)))
+        y = margin_v + original_px * 1.2 * len(lines) / 2 + video_height * float(editor_style.get("y", 0))
+        entrance += f"\\an5\\pos({round(x)},{round(y)})"
+    elif position_y is not None:
         entrance += f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})"
     if template.get("word_pop", True):
         entrance += "\\fscx90\\fscy90\\t(0,160,\\fscx100\\fscy100)"
@@ -357,6 +369,8 @@ def build_assemblyai_ass_subtitles(
     center_y_override: Optional[int] = None,
     emphasis_indices: Optional[Iterable[int]] = None,
     wrap_lines: bool = False,
+    center_x_override: Optional[int] = None,
+    hook_editor_style: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -481,6 +495,7 @@ def build_assemblyai_ass_subtitles(
             # An upper-third caption seam belongs to a reaction stack. Keep
             # the headline below the source subject, off the reactor's face.
             position_y=0.94 if position_y_override is not None and position_y_override < .4 else None,
+            editor_style=hook_editor_style,
         )
         hook_style_block = f"{hook_style_line}\n"
 
@@ -522,7 +537,8 @@ Style: Default,{font_name},{font_px},{primary},&H000000FF,{style_outline},{back_
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
-    line_prefix = f"{{\\pos({video_width // 2},{y_pos})" + ("\\blur4" if glow else "") + "}"
+    x_pos = video_width // 2 if center_x_override is None else center_x_override
+    line_prefix = f"{{\\pos({x_pos},{y_pos})" + ("\\blur4" if glow else "") + "}"
 
     # Every word span re-declares the caption font, so an emoji's \fn override
     # can never leak into the following word.

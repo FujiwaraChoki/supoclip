@@ -97,8 +97,20 @@ export interface EditDocument {
   muted: boolean;
   /** Headline shown at the top for the first seconds; absent on very old drafts. */
   hookTitle?: string;
+  /** Normalized offsets from the original text anchors; independent font scales. */
+  textTransforms?: Partial<Record<TextLayer, TextTransform>>;
   /** Absent on drafts cached before the editor had B-roll. */
   broll?: BRollClip[];
+}
+export type TextLayer = "hook" | "captions";
+export interface TextTransform { x: number; y: number; scale: number }
+export const textTransform = (doc: EditDocument, layer: TextLayer): TextTransform =>
+  doc.textTransforms?.[layer] ?? { x: 0, y: 0, scale: 1 };
+/** Keep the inspector's size in output units, including extreme legacy base sizes. */
+export function setCaptionVisualSize(doc: EditDocument, size: number): EditDocument {
+  size = clamp(size, 5, 528);
+  const base = clamp(doc.captions.size, Math.max(20, Math.ceil(size / 4)), Math.min(132, Math.floor(size / 0.25)));
+  return { ...doc, captions: { ...doc.captions, size: base }, textTransforms: { ...doc.textTransforms, captions: { ...textTransform(doc, "captions"), scale: size / base } } };
 }
 export interface ExportJob {
   id: string;

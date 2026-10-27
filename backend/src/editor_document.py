@@ -135,6 +135,12 @@ class BRollClip(Model):
         return self
 
 
+class TextTransform(Model):
+    x: float = Field(default=0, ge=-1, le=1)
+    y: float = Field(default=0, ge=-1, le=1)
+    scale: float = Field(default=1, ge=0.25, le=4)
+
+
 class EditDocument(Model):
     version: Literal[1] = 1
     segments: list[Segment] = Field(min_length=1, max_length=100)
@@ -146,6 +152,7 @@ class EditDocument(Model):
     muted: bool = False
     # AI headline burned into the top safe area for the first seconds, as generated.
     hookTitle: str = Field(default="", max_length=200)
+    textTransforms: dict[Literal["hook", "captions"], TextTransform] = Field(default_factory=dict)
     broll: list[BRollClip] = Field(default_factory=list, max_length=60)
 
     def validate_duration(self, duration: float):
@@ -315,7 +322,10 @@ def write_ass(path: Path, document: EditDocument, width: int, height: int):
 
     style = document.captions
     words = mapped_words(document) if style.enabled else []
-    font_px = max(1, round(style.size * width / 1080))
+    caption_transform = document.textTransforms.get("captions", TextTransform())
+    hook_transform = document.textTransforms.get("hook", TextTransform())
+    original_font_px = max(1, round(style.size * width / 1080))
+    font_px = max(1, round(style.size * width * caption_transform.scale / 1080))
     written = build_assemblyai_ass_subtitles(
         path,
         0,
@@ -329,7 +339,12 @@ def write_ass(path: Path, document: EditDocument, width: int, height: int):
         template_override=editor_caption_template(style),
         font_px_override=font_px,
         # The editor's position is the caption centre, already kept in range.
-        center_y_override=round(style.y * height),
+        center_y_override=round((style.y + caption_transform.y) * height),
+        center_x_override=round((0.5 + caption_transform.x) * width),
+        hook_editor_style={
+            **hook_transform.model_dump(),
+            "base_px": max(34, min(66, int(original_font_px * 0.82))),
+        },
         # Highlights are per occurrence and already include the generated emphasis.
         emphasis_indices=[i for i, w in enumerate(words) if w["highlight"]],
         wrap_lines=True,

@@ -35,6 +35,22 @@ async def apply(*operations, document=None):
 
 # --- applying operations -------------------------------------------------------
 
+async def test_caption_settings_use_visual_values_after_direct_manipulation():
+    doc = draft(textTransforms={"hook": {"x": .1, "y": .1, "scale": 1.4}, "captions": {"x": -.1, "y": -.2, "scale": 2}})
+    context = build_context(doc, 10, 0, "Style the captions")
+    assert '"size":108.0' in context and '"y":0.58' in context
+    result, notes = await apply(
+        {"type": "set", "setting": "captions.size", "value": "80"},
+        {"type": "set", "setting": "captions.position", "value": "0.7"}, document=doc,
+    )
+    transform = result.textTransforms["captions"]
+    assert result.captions.size * transform.scale == pytest.approx(80)
+    assert result.captions.y + transform.y == pytest.approx(.7)
+    assert transform.x == -.1
+    assert result.textTransforms["hook"] == doc.textTransforms["hook"]
+    assert result.captions.size == doc.captions.size
+    assert not notes
+
 
 async def test_removing_filler_words_cuts_them_out_of_the_segments():
     result, notes = await apply({"type": "remove_words", "word_ids": ["w1", "w9"]})

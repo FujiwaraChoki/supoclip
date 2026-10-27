@@ -141,7 +141,7 @@
   "preview": {
     "fontError": "Die Untertitelschrift konnte nicht geladen werden. Prüfe deine Verbindung vor dem Export.",
     "framingHint": "Zieh das Video zum Neuausschnitt · Untertitel bleiben an Ort und Stelle",
-    "captionHint": "Zieh vertikal, um die Untertitel zu positionieren",
+    "captionHint": "Text zum Verschieben ziehen · Ecke zum Skalieren ziehen · zum Bearbeiten klicken",
     "region": "Videovorschau",
     "title": "Vorschau",
     "size": "{width} × {height} · {fps} fps",
@@ -158,7 +158,14 @@
     "nextFrame": "Nächstes Bild",
     "pause": "Pause",
     "play": "Wiedergabe",
-    "muted": "Stumm"
+    "muted": "Stumm",
+    "resizeText": "{layer} skalieren, {corner}",
+    "corners": {
+      "nw": "oben links",
+      "ne": "oben rechts",
+      "sw": "unten links",
+      "se": "unten rechts"
+    }
   },
   "timeline": {
     "region": "Clip-Timeline",

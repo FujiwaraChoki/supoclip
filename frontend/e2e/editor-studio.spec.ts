@@ -386,6 +386,81 @@ for (const width of [1440, 390]) test(`titles and captions edit in place as sepa
   await page.screenshot({ path: info.outputPath("inline-text-layers.png"), fullPage: true });
 });
 
+for (const width of [1440, 390]) test(`text layers drag and resize with one undo per gesture at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 1100 });
+  const documents = await setup(page);
+  await page.getByRole("textbox", { name: "Hook title", exact: true }).fill("Move this title");
+  const titleTrack = page.getByRole("group", { name: "Hook title", exact: true });
+  await titleTrack.getByRole("button").click();
+  await titleTrack.getByRole("textbox").press("Escape");
+  const preview = page.getByRole("region", { name: "Video preview", exact: true });
+  await preview.getByLabel("Edited video preview").scrollIntoViewIfNeeded();
+  const frame = (await preview.getByLabel("Edited video preview").boundingBox())!;
+  const saved = () => documents.get("clip1")!.document;
+  await expect.poll(() => saved().hookTitle).toBe("Move this title");
+  for (const [layer, label] of [["hook", "Hook title"], ["captions", "Captions"]] as const) {
+    await preview.getByLabel("Edited video preview").scrollIntoViewIfNeeded();
+    const box = preview.getByRole("group", { name: `Video preview: ${label}`, exact: true });
+    const original = structuredClone(saved());
+    const rect = (await box.boundingBox())!;
+    const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + frame.width * .03, y + frame.height * .02, { steps: 3 });
+    await page.waitForTimeout(850); // a stationary pause must not split history
+    await page.mouse.move(x + frame.width * .1, y + frame.height * (layer === "hook" ? .15 : -.15), { steps: 5 });
+    await page.mouse.up();
+    await expect.poll(() => saved().textTransforms?.[layer]?.x).toBeCloseTo(.1, 2);
+    await expect.poll(() => saved().textTransforms?.[layer]?.y).toBeCloseTo(layer === "hook" ? .15 : -.15, 2);
+    const moved = structuredClone(saved());
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect.poll(() => saved()).toEqual(original);
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    await expect.poll(() => saved()).toEqual(moved);
+    await preview.getByLabel("Edited video preview").scrollIntoViewIfNeeded();
+    const beforeResize = (await box.boundingBox())!;
+    const handle = box.getByRole("button", { name: `Resize ${label}, bottom right`, exact: true });
+    const grip = (await handle.boundingBox())!;
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(grip.x + grip.width / 2 + beforeResize.width * .2, grip.y + grip.height / 2 + beforeResize.height * .2, { steps: 5 });
+    await page.mouse.up();
+    await expect.poll(() => saved().textTransforms?.[layer]?.scale).toBeCloseTo(1.2, 1);
+    const afterResize = (await box.boundingBox())!;
+    expect(afterResize.x).toBeCloseTo(beforeResize.x, 0);
+    expect(afterResize.y).toBeCloseTo(beforeResize.y, 0);
+    expect(afterResize.width).toBeGreaterThan(beforeResize.width * 1.1);
+    const resized = structuredClone(saved());
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect.poll(() => saved()).toEqual(moved);
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    await expect.poll(() => saved()).toEqual(resized);
+    const other = layer === "hook" ? "captions" : "hook";
+    expect(resized.textTransforms?.[other]).toEqual(original.textTransforms?.[other]);
+    // Capture must survive leaving the video, then stop on release.
+    await preview.getByLabel("Edited video preview").scrollIntoViewIfNeeded();
+    const text = (await box.boundingBox())!;
+    await page.mouse.move(text.x + text.width / 2, text.y + text.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(0, 0, { steps: 5 });
+    await page.mouse.up();
+    const canvas = (await preview.getByLabel("Edited video preview").boundingBox())!;
+    await expect.poll(async () => (await box.boundingBox())!.x).toBeGreaterThanOrEqual(canvas.x);
+    await expect.poll(async () => (await box.boundingBox())!.y).toBeGreaterThanOrEqual(canvas.y);
+    await expect.poll(() => saved().textTransforms?.[layer]).not.toEqual(resized.textTransforms?.[layer]);
+    const released = structuredClone(saved());
+    await page.mouse.move(text.x, text.y, { steps: 3 });
+    await page.getByRole("tab", { name: "Audio", exact: true }).click();
+    expect(saved()).toEqual(released);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect.poll(() => saved()).toEqual(resized);
+  }
+  const final = structuredClone(saved());
+  await page.reload();
+  await expect.poll(() => saved()).toEqual(final);
+  await expect(page.getByRole("button", { name: "Hook title: Move this title", exact: true })).toBeVisible();
+});
+
 test("playback decodes changing picture frames and pause and frame-step control the video", async ({ page }) => {
   await setup(page);
   const source = page.locator('video[src$="/media/clean.mp4"]');

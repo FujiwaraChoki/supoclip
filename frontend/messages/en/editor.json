@@ -141,7 +141,7 @@
   "preview": {
     "fontError": "Caption font could not load. Check your connection before exporting.",
     "framingHint": "Drag the video to reframe · captions stay in place",
-    "captionHint": "Drag vertically to position captions",
+    "captionHint": "Drag text to move · drag a corner to resize · click to edit",
     "region": "Video preview",
     "title": "Preview",
     "size": "{width} × {height} · {fps} fps",
@@ -158,7 +158,14 @@
     "nextFrame": "Next frame",
     "pause": "Pause",
     "play": "Play",
-    "muted": "Muted"
+    "muted": "Muted",
+    "resizeText": "Resize {layer}, {corner}",
+    "corners": {
+      "nw": "top left",
+      "ne": "top right",
+      "sw": "bottom left",
+      "se": "bottom right"
+    }
   },
   "timeline": {
     "region": "Clip timeline",

@@ -36,6 +36,8 @@ import {
   DEFAULT_EFFECTS,
   clamp,
   replaceWords,
+  setCaptionVisualSize,
+  textTransform,
   uid,
   type EditDocument,
   type CaptionStyle,
@@ -234,18 +236,18 @@ export function Inspector({
               </Field>
               <Range
                 label={t("captions.size")}
-                value={doc.captions.size}
-                min={20}
-                max={132}
-                onChange={(size) => caption({ size })}
+                value={Math.round(doc.captions.size * textTransform(doc, "captions").scale)}
+                min={Math.min(20, Math.round(doc.captions.size * textTransform(doc, "captions").scale))}
+                max={Math.max(132, Math.round(doc.captions.size * textTransform(doc, "captions").scale))}
+                onChange={(size) => update(current => setCaptionVisualSize(current, size), "caption-size")}
               />
               <Range
                 label={t("captions.position")}
-                value={doc.captions.y * 100}
-                min={10}
-                max={90}
+                value={(doc.captions.y + textTransform(doc, "captions").y) * 100}
+                min={0}
+                max={100}
                 unit="%"
-                onChange={(y) => caption({ y: y / 100 })}
+                onChange={(y) => update(current => ({ ...current, textTransforms: { ...current.textTransforms, captions: { ...textTransform(current, "captions"), y: y / 100 - current.captions.y } } }), "caption-position")}
               />
               <div className="grid grid-cols-2 gap-3">
                 <ColorField

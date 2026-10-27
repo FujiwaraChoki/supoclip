@@ -141,7 +141,7 @@
   "preview": {
     "fontError": "Não foi possível carregar a fonte das legendas. Verifique sua conexão antes de exportar.",
     "framingHint": "Arraste o vídeo para reenquadrar · as legendas ficam no lugar",
-    "captionHint": "Arraste na vertical para posicionar as legendas",
+    "captionHint": "Arraste o texto para mover · arraste um canto para redimensionar · clique para editar",
     "region": "Prévia do vídeo",
     "title": "Prévia",
     "size": "{width} × {height} · {fps} fps",
@@ -158,7 +158,14 @@
     "nextFrame": "Próximo quadro",
     "pause": "Pausar",
     "play": "Reproduzir",
-    "muted": "Sem som"
+    "muted": "Sem som",
+    "resizeText": "Redimensionar {layer}, {corner}",
+    "corners": {
+      "nw": "superior esquerdo",
+      "ne": "superior direito",
+      "sw": "inferior esquerdo",
+      "se": "inferior direito"
+    }
   },
   "timeline": {
     "region": "Linha do tempo do clipe",

@@ -298,3 +298,45 @@ for (const { name, broll, at, segments, blue = [200, 256] } of exportCases) {
     expect(pixel(2.6).red).toBeGreaterThan(150);
   });
 }
+
+test("browser export matches the independently moved and resized preview text", async ({ page }, info) => {
+  await setup(page, { document: {
+    ...structuredClone(draft), broll: [], hookTitle: "TITLE",
+    framing: { ...draft.framing, aspect: "original" },
+    words: [{ id: "phrase", start: 0, end: 3, text: "CAPTION", highlight: false }],
+    captions: { ...draft.captions, template: "minimal", background: false, color: "#FFFFFF", accent: "#FFFFFF" },
+    textTransforms: { hook: { x: .15, y: .1, scale: 1.5 }, captions: { x: -.15, y: -.15, scale: 1.5 } },
+  } });
+  await seekTo(page, .5);
+  const preview = page.getByRole("region", { name: "Video preview", exact: true });
+  const layerBox = (index: number) => preview.locator("canvas").nth(index).evaluate((canvas: HTMLCanvasElement) => {
+    const pixels = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+    let x1 = canvas.width, y1 = canvas.height, x2 = -1, y2 = -1;
+    for (let i = 0; i < pixels.length; i += 4) if (pixels[i + 3] > 180 && pixels[i] > 180 && pixels[i + 1] > 180 && pixels[i + 2] > 180) {
+      const x = i / 4 % canvas.width, y = Math.floor(i / 4 / canvas.width);
+      x1 = Math.min(x1, x); y1 = Math.min(y1, y); x2 = Math.max(x2, x); y2 = Math.max(y2, y);
+    }
+    return { x: (x1 + x2) / 2 / canvas.width, y: (y1 + y2) / 2 / canvas.height, width: (x2 - x1 + 1) / canvas.width };
+  });
+  await expect.poll(async () => (await layerBox(1)).width).toBeGreaterThan(.05);
+  const title = await layerBox(1), caption = await layerBox(2);
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await page.getByRole("button", { name: /On this device/ }).click();
+  const download = page.waitForEvent("download", { timeout: 60000 });
+  await page.getByRole("button", { name: "Export clip", exact: true }).click();
+  const file = info.outputPath("transformed-text.mp4");
+  await (await download).saveAs(file);
+  const raw = execFileSync("ffmpeg", ["-v", "error", "-ss", "0.5", "-i", file, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]);
+  for (const [expected, from, to] of [[title, 0, 180], [caption, 180, 360]] as const) {
+    let x1 = 640, y1 = 360, x2 = -1, y2 = -1;
+    for (let y = from; y < to; y++) for (let x = 0; x < 640; x++) {
+      const i = (y * 640 + x) * 3;
+      if (raw[i] > 180 && raw[i + 1] > 180 && raw[i + 2] > 180) {
+        x1 = Math.min(x1, x); y1 = Math.min(y1, y); x2 = Math.max(x2, x); y2 = Math.max(y2, y);
+      }
+    }
+    expect((x1 + x2) / 2 / 640).toBeCloseTo(expected.x, 2);
+    expect((y1 + y2) / 2 / 360).toBeCloseTo(expected.y, 2);
+    expect((x2 - x1 + 1) / 640).toBeCloseTo(expected.width, 2);
+  }
+});

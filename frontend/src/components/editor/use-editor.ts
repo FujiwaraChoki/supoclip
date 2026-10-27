@@ -100,7 +100,7 @@ export function useEditor(endpoint: string) {
       const coalesce =
         group &&
         lastEdit.current.group === group &&
-        Date.now() - lastEdit.current.at < 700;
+        (group.startsWith("gesture:") || Date.now() - lastEdit.current.at < 700);
       publish({
         past: coalesce
           ? current.past
