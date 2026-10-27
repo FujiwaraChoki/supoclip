@@ -7,10 +7,12 @@ export async function editorRequest<T>(
   url: string,
   method = "GET",
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
   const response = await fetch(url, {
     method,
     cache: "no-store",
+    ...(signal ? { signal } : {}),
     ...(body === undefined
       ? {}
       : {

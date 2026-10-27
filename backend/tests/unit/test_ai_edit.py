@@ -387,3 +387,111 @@ def test_output_schema_stays_small_enough_for_structured_outputs():
     schema = json.dumps(transform_schema(EditPlan))
     assert '"null"' not in schema
     assert len(schema) < 8000
+
+
+@pytest.mark.parametrize("instruction", [None, 42, True, [], {"text": "mute"}])
+async def test_nontext_instructions_never_spend_quota(client, instruction):
+    http, document, pool, enqueue = client
+    response = await http.post("/tasks/task/clips/clip/editor/ai", json={
+        "basis": "clip.mp4", "document": document, "instruction": instruction,
+    })
+    assert response.status_code == 400
+    assert pool.counts == {}
+    enqueue.assert_not_awaited()
+
+
+@pytest.mark.parametrize("playhead,expected", [(-999, 0), (999, 10), (True, None), ("3", None), (10**400, 10), (-10**400, 0)])
+async def test_playhead_is_bounded_or_ignored(client, playhead, expected):
+    http, document, pool, _ = client
+    response = await http.post("/tasks/task/clips/clip/editor/ai", json={
+        "basis": "clip.mp4", "document": document, "instruction": "mute", "playhead": playhead,
+    })
+    request = json.loads(pool.data[ai.request_key(response.json()["id"])])
+    assert request["playhead"] == expected
+
+
+@pytest.mark.parametrize("playhead", ["NaN", "Infinity", "-Infinity"])
+async def test_nonfinite_playhead_is_not_sent_to_the_model(client, playhead):
+    http, document, pool, _ = client
+    response = await http.post("/tasks/task/clips/clip/editor/ai", content=json.dumps({
+        "basis": "clip.mp4", "document": document, "instruction": "mute", "playhead": 0,
+    }).replace('"playhead": 0', f'"playhead": {playhead}'), headers={"Content-Type": "application/json"})
+    assert response.status_code == 202
+    request = json.loads(pool.data[ai.request_key(response.json()["id"])])
+    assert request["playhead"] is None
+
+
+async def test_worker_reports_expired_and_corrupt_requests(no_runtime_settings):
+    redis = FakeRedis()
+    await ai.ai_edit_job({"redis": redis}, "expired")
+    assert json.loads(redis.data[ai.result_key("expired")])["status"] == "failed"
+    redis.data[ai.request_key("corrupt")] = "{broken"
+    await ai.ai_edit_job({"redis": redis}, "corrupt")
+    assert json.loads(redis.data[ai.result_key("corrupt")])["status"] == "failed"
+    assert ai.request_key("corrupt") not in redis.data
+
+
+async def test_worker_cancellation_does_not_leave_a_running_result(monkeypatch, no_runtime_settings):
+    import asyncio
+
+    redis = FakeRedis()
+    redis.data[ai.request_key("cancel")] = json.dumps({"document": draft().model_dump(), "instruction": "mute", "duration": 10})
+    monkeypatch.setattr(ai, "plan_edit", AsyncMock(side_effect=asyncio.CancelledError))
+    with pytest.raises(asyncio.CancelledError):
+        await ai.ai_edit_job({"redis": redis}, "cancel")
+    assert json.loads(redis.data[ai.result_key("cancel")])["status"] == "failed"
+    assert ai.request_key("cancel") not in redis.data
+
+
+async def test_sixteen_concurrent_jobs_keep_results_separate(monkeypatch, no_runtime_settings):
+    import asyncio
+
+    redis = FakeRedis()
+    async def fake_plan(context):
+        await asyncio.sleep(0)
+        return plan({"type": "set", "setting": "hook_title", "value": context.split("Request:\n")[-1]})
+    monkeypatch.setattr(ai, "plan_edit", fake_plan)
+    for i in range(16):
+        redis.data[ai.request_key(str(i))] = json.dumps({
+            "document": draft().model_dump(), "instruction": f"job {i}", "duration": 10,
+        })
+    await asyncio.gather(*(ai.ai_edit_job({"redis": redis}, str(i)) for i in range(16)))
+    for i in range(16):
+        result = json.loads(redis.data[ai.result_key(str(i))])
+        assert result["status"] == "completed"
+        assert result["document"]["hookTitle"] == f"job {i}"
+        assert ai.request_key(str(i)) not in redis.data
+
+
+@pytest.mark.parametrize("failure", ["metadata", "enqueue"])
+async def test_queue_failure_refunds_quota_and_removes_partial_request(client, monkeypatch, failure):
+    http, document, pool, enqueue = client
+    if failure == "metadata":
+        original_set = pool.set
+        async def fail_owner(key, value, ex=None):
+            if key.startswith("ai_edit:owner:"):
+                raise ConnectionError("Redis unavailable")
+            await original_set(key, value, ex)
+        monkeypatch.setattr(pool, "set", fail_owner)
+    else:
+        enqueue.side_effect = ConnectionError("Queue unavailable")
+    response = await http.post("/tasks/task/clips/clip/editor/ai", json={
+        "basis": "clip.mp4", "document": document, "instruction": "mute",
+    })
+    assert response.status_code == 503
+    assert list(pool.counts.values()) == [0]
+    assert pool.data == {}
+
+
+async def test_concurrent_requests_cannot_exceed_daily_quota(client, monkeypatch):
+    import asyncio
+
+    http, document, pool, enqueue = client
+    monkeypatch.setattr(editor, "AI_EDIT_DAILY_LIMIT", 5)
+    responses = await asyncio.gather(*(http.post("/tasks/task/clips/clip/editor/ai", json={
+        "basis": "clip.mp4", "document": document, "instruction": f"request {i}",
+    }) for i in range(50)))
+    assert sum(r.status_code == 202 for r in responses) == 5
+    assert sum(r.status_code == 429 for r in responses) == 45
+    assert enqueue.await_count == 5
+    assert len([key for key in pool.data if key.startswith("ai_edit:request:")]) == 5

@@ -200,3 +200,88 @@ test("the AI prompt is hidden when AI editing isn't configured", async ({ page }
   await setup(page, { aiEditing: false });
   await expect(page.getByLabel("Ask AI to edit this clip")).toHaveCount(0);
 });
+
+test("repeated Enter during a slow job sends one request and a no-op preserves history", async ({ page }) => {
+  const { saved } = await setup(page);
+  const requests = await mockAI(page, () => ({
+    summary: "Music cannot be added here.", changed: false, notes: [],
+  }), 4);
+  const prompt = page.getByLabel("Ask AI to edit this clip");
+  await prompt.fill("add music");
+  await prompt.press("Enter");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await expect(prompt).toBeDisabled();
+  await expect(page.getByText("Music cannot be added here.")).toBeVisible({ timeout: 10_000 });
+  expect(requests).toHaveLength(1);
+  expect(saved().revision).toBe(0);
+  await expect(prompt).toBeEnabled();
+});
+
+test("an expired result can be retried without losing the draft", async ({ page }) => {
+  const { saved } = await setup(page);
+  let attempts = 0;
+  await page.route("**/editor/ai", r => {
+    attempts++;
+    return r.fulfill({ status: 202, json: { id: "a".repeat(32) } });
+  });
+  await page.route(`**/editor/ai/${"a".repeat(32)}`, r => attempts === 1
+    ? r.fulfill({ status: 404, json: { detail: "AI edit not found" } })
+    : r.fulfill({ json: { status: "completed", summary: "Muted after retry.", changed: true, document: { ...draft, muted: true } } }));
+  const prompt = page.getByLabel("Ask AI to edit this clip");
+  await prompt.fill("mute it");
+  await prompt.press("Enter");
+  await expect(page.getByText("AI edit not found")).toBeVisible();
+  expect(saved().revision).toBe(0);
+  await prompt.fill("mute it");
+  await prompt.press("Enter");
+  await expect(page.getByText("Muted after retry.")).toBeVisible();
+  await expect.poll(() => saved().document.muted).toBe(true);
+  expect(attempts).toBe(2);
+});
+
+test("switching clips cancels the old job and ignores its late response", async ({ page }) => {
+  const { saved } = await setup(page);
+  await page.route(/\/api\/tasks\/one\/clips\/clip2\/editor$/, r => r.fulfill({ json: {
+    status: "ready", basis: "clip2.mp4", duration: 3, width: 1080, height: 1920, fps: 24,
+    hasAudio: true, waveform: [], draft: { revision: 0, document: draft }, original: draft, jobs: [], aiEditing: true,
+  } }));
+  let release!: () => void;
+  let started!: () => void;
+  const polling = new Promise<void>(resolve => { started = resolve; });
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/editor/ai", r => r.fulfill({ status: 202, json: { id: "a".repeat(32) } }));
+  await page.route(`**/editor/ai/${"a".repeat(32)}`, async r => {
+    started();
+    await gate;
+    await r.fulfill({ json: { status: "completed", summary: "Old result.", changed: true, document: { ...draft, muted: true } } });
+  });
+  await page.getByLabel("Ask AI to edit this clip").fill("mute it");
+  await page.getByRole("button", { name: "Run", exact: true }).click();
+  await polling;
+  await page.getByRole("button", { name: "Switch clip", exact: true }).click();
+  await page.getByRole("button", { name: "Edit clip 2", exact: true }).click();
+  await expect(page).toHaveURL(/clip=clip2/);
+  await expect(page.getByLabel("Ask AI to edit this clip")).toBeEnabled();
+  release();
+  // A cancelled request may never produce a response, so wait for the new preview instead.
+  await expect(page.getByLabel("Word 1", { exact: true })).toBeVisible();
+  await expect(page.getByText("Old result.")).toHaveCount(0);
+  expect(saved().revision).toBe(0);
+});
+
+test("long unbroken Unicode requests and summaries stay inside a narrow editor", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await setup(page);
+  const text = "x".repeat(800) + "東京🙂".repeat(25);
+  await mockAI(page, () => ({ summary: text, changed: false, notes: [text] }), 0);
+  const prompt = page.getByLabel("Ask AI to edit this clip");
+  await prompt.fill(text);
+  await prompt.press("Enter");
+  const result = page.getByRole("region", { name: "Video preview" }).getByRole("status");
+  await expect(result).toContainText(text);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const status = await result.boundingBox();
+  expect(status!.x + status!.width).toBeLessThanOrEqual(390);
+  expect(status!.height).toBeLessThanOrEqual(128);
+});

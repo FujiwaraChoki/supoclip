@@ -36,7 +36,7 @@ class Segment(Model):
 
     @model_validator(mode="after")
     def ordered(self):
-        if self.end - self.start < 0.04:
+        if self.end - self.start < 0.04 - TIME_EPSILON:
             raise ValueError("Each segment must be at least one frame long")
         return self
 

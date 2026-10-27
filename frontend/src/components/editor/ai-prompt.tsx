@@ -43,6 +43,7 @@ export function AIPrompt({ endpoint, basis, doc, playhead, update, undo }: Props
   const docRef = useRef(doc);
   docRef.current = doc;
   const cancelled = useRef(false);
+  const active = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const focus = (event: KeyboardEvent) => {
@@ -57,23 +58,40 @@ export function AIPrompt({ endpoint, basis, doc, playhead, update, undo }: Props
   useEffect(() => {
     // Reset on mount: React's dev mode mounts, unmounts and mounts again.
     cancelled.current = false;
-    return () => void (cancelled.current = true);
+    return () => {
+      cancelled.current = true;
+      active.current?.abort();
+    };
   }, []);
   // Undo is only offered while the AI's change is still the latest one.
   const canUndo = applied !== null && JSON.stringify(doc) === applied;
 
   const apply = useCallback(
-    (next: EditDocument) => {
-      update(() => next);
-      setApplied(JSON.stringify(next));
-      setPending(null);
+    (next: EditDocument, expected?: string) => {
+      let accepted = false;
+      update((current) => {
+        if (expected !== undefined && JSON.stringify(current) !== expected) return current;
+        accepted = true;
+        return next;
+      });
+      if (accepted) {
+        setApplied(JSON.stringify(next));
+        setPending(null);
+      } else setPending(next);
     },
     [update],
   );
 
   const send = async () => {
     const instruction = text.trim();
-    if (!instruction || running) return;
+    if (!instruction || active.current) return;
+    const controller = new AbortController();
+    active.current = controller;
+    let timedOut = false;
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, GIVE_UP_MS);
     const sent = JSON.stringify(docRef.current);
     const before = editDuration(docRef.current);
     setResult(null);
@@ -86,36 +104,34 @@ export function AIPrompt({ endpoint, basis, doc, playhead, update, undo }: Props
         document: docRef.current,
         instruction,
         playhead,
-      });
+      }, controller.signal);
+      controller.signal.throwIfAborted();
       setText("");
-      const started = Date.now();
       for (;;) {
         await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-        if (cancelled.current) return;
-        const next = await editorRequest<AIResult>(`${endpoint}/ai/${id}`);
+        controller.signal.throwIfAborted();
+        const next = await editorRequest<AIResult>(`${endpoint}/ai/${id}`, "GET", undefined, controller.signal);
+        controller.signal.throwIfAborted();
         if (next.status === "completed" || next.status === "failed") {
           setResult({ ...next, instruction, before });
           if (next.status === "completed" && next.changed && next.document) {
             // Edits made while the AI worked are never silently overwritten.
-            if (JSON.stringify(docRef.current) === sent) apply(next.document);
-            else setPending(next.document);
+            apply(next.document, sent);
           }
-          break;
-        }
-        if (Date.now() - started > GIVE_UP_MS) {
-          setResult({ status: "failed", error: t("ai.timeout"), instruction, before });
           break;
         }
       }
     } catch (e) {
-      setResult({
+      if (!cancelled.current) setResult({
         status: "failed",
-        error: e instanceof Error ? e.message : t("ai.failed"),
+        error: timedOut ? t("ai.timeout") : e instanceof Error ? e.message : t("ai.failed"),
         instruction,
         before,
       });
     } finally {
-      setRunning(false);
+      clearTimeout(deadline);
+      if (active.current === controller) active.current = null;
+      if (!cancelled.current) setRunning(false);
     }
   };
 
@@ -156,7 +172,7 @@ export function AIPrompt({ endpoint, basis, doc, playhead, update, undo }: Props
         </Button>
       </form>
       {result && (
-        <div role="status" className="mt-2 flex items-start gap-2 px-1 text-xs">
+        <div role="status" className="mt-2 flex max-h-32 items-start gap-2 overflow-y-auto px-1 text-xs [overflow-wrap:anywhere]">
           <div className="min-w-0 flex-1 space-y-0.5">
             <p className={cn(result.status === "failed" && "text-destructive")}>
               <span className="text-muted-foreground">“{result.instruction}” — </span>

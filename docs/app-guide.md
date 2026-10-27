@@ -276,7 +276,9 @@ generated clips are never overwritten.
 - **AI editing:** type a request in the "AI edit" field under the preview (or press ⌘J), e.g. "remove the filler words", "make it under
   30 seconds", "bigger yellow captions", "add B-roll where he talks about biking". The AI worker asks Claude Sonnet 5.5
   for edit operations, applies them to the draft, and the change arrives as one step you can undo. Requests it can't
-  do (music, voiceover, transitions) are explained instead. Needs `ANTHROPIC_API_KEY`; limited by `AI_EDIT_DAILY_LIMIT`.
+  do (music, voiceover, transitions) are explained instead. Defaults to Sonnet with `ANTHROPIC_API_KEY`;
+  for local editing set `AI_EDIT_MODEL=ollama:qwen3.8:27b` on the API and AI worker, using the existing
+  `OLLAMA_BASE_URL` setting. Local requests do not fall back to a hosted model. Both modes are limited by `AI_EDIT_DAILY_LIMIT`.
 
 ### Output format
 

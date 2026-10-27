@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from pathlib import Path
 import logging
+import math
 import json
 import os
 import re
@@ -542,7 +543,9 @@ async def start_ai_edit(
         raise HTTPException(409, "Wait for the editor preview to finish preparing")
     if payload.get("basis") != clip["filename"]:
         raise HTTPException(409, "The original clip changed. Reopen the editor.")
-    instruction = " ".join(str(payload.get("instruction") or "").split())
+    if not isinstance(payload.get("instruction"), str):
+        raise HTTPException(400, "Describe the change as text")
+    instruction = " ".join(payload["instruction"].split())
     if not instruction:
         raise HTTPException(400, "Describe the change you want")
     if len(instruction) > MAX_INSTRUCTION_CHARS:
@@ -552,7 +555,14 @@ async def start_ai_edit(
     except (ValueError, ValidationError) as exc:
         raise HTTPException(400, str(exc))
     playhead = payload.get("playhead")
-    playhead = float(playhead) if isinstance(playhead, (int, float)) and not isinstance(playhead, bool) else None
+    if isinstance(playhead, bool) or not isinstance(playhead, (int, float)):
+        playhead = None
+    elif isinstance(playhead, float) and not math.isfinite(playhead):
+        playhead = None
+    else:
+        # Clamp integers before converting: an arbitrarily large JSON integer
+        # must not overflow float() and turn a harmless cursor hint into a 500.
+        playhead = float(min(state["duration"], max(0, playhead)))
 
     pool = await JobQueue.get_pool()
     day = datetime.now(timezone.utc).strftime("%Y%m%d")
@@ -564,25 +574,30 @@ async def start_ai_edit(
         raise HTTPException(429, "You've reached today's limit for AI edits. It resets tomorrow.")
 
     job_id = uuid.uuid4().hex
-    await pool.set(
-        request_key(job_id),
-        json.dumps(
-            {
-                "document": document.model_dump(),
-                "instruction": instruction,
-                "playhead": playhead,
-                "duration": state["duration"],
-                "width": state.get("width"),
-                "height": state.get("height"),
-            }
-        ),
-        ex=600,
-    )
-    await pool.set(f"ai_edit:owner:{job_id}", f"{task_id}:{clip_id}", ex=AI_EDIT_RESULT_TTL_SECONDS)
     try:
+        await pool.set(
+            request_key(job_id),
+            json.dumps(
+                {
+                    "document": document.model_dump(),
+                    "instruction": instruction,
+                    "playhead": playhead,
+                    "duration": state["duration"],
+                    "width": state.get("width"),
+                    "height": state.get("height"),
+                }
+            ),
+            ex=600,
+        )
+        await pool.set(f"ai_edit:owner:{job_id}", f"{task_id}:{clip_id}", ex=AI_EDIT_RESULT_TTL_SECONDS)
         await JobQueue.enqueue_job("ai_edit_job", job_id, _queue_name=AI_EDIT_QUEUE)
     except Exception:
-        await pool.decr(counter)
+        try:
+            await pool.decr(counter)
+            await pool.delete(request_key(job_id))
+            await pool.delete(f"ai_edit:owner:{job_id}")
+        except Exception:
+            logging.getLogger(__name__).warning("Could not clean up failed AI request %s", job_id, exc_info=True)
         raise HTTPException(503, "The AI service is unavailable. Your draft is safe.")
     return {"id": job_id, "status": "queued"}
 
