@@ -7,3 +7,8 @@ export function postAuthPath(search: string): string {
   if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return "/";
   return next;
 }
+
+/** Sign-in page that returns to `path` (pathname plus search) afterwards. */
+export function signInPath(path: string): string {
+  return `/sign-in?${new URLSearchParams({ next: path })}`;
+}
