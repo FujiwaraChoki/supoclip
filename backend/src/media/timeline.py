@@ -11,6 +11,8 @@ from ..clip_cleanup import clip_cleanup_enabled
 from ..clip_source_map import normalize_source_ranges
 import re
 from .common import (
+    CLIP_CAP_SENTENCE_BACKOFF_FRACTION,
+    CLIP_END_NEXT_WORD_GUARD_SECONDS,
     CLIP_END_PADDING_SECONDS,
     CLIP_END_SENTENCE_EXTENSION_SECONDS,
     MAX_RENDERED_CLIP_SECONDS,
@@ -28,11 +30,12 @@ from .common import (
     logger,
 )
 from .ffmpeg import (
-    crossfade_fade_for_ranges,
     ffprobe_duration,
+    output_offsets_for_ranges,
     run_ffmpeg_command,
     select_audio_stream_index,
 )
+from .gap_activity import active_gaps
 from .transcription import (
     _join_transcript_tokens,
     load_cached_transcript_data,
@@ -41,6 +44,34 @@ from .transcription import (
 
 def word_ends_sentence(text: str) -> bool:
     return bool(SENTENCE_END_RE.search((text or "").strip()))
+
+
+def _next_word_start(transcript_data: Optional[Dict], word_start: float) -> Optional[float]:
+    """Source time where the first word after the one starting at ``word_start`` begins."""
+    word_start_ms = int(round(word_start * 1000))
+    starts = [
+        int(word["start"])
+        for word in (transcript_data or {}).get("words") or []
+        if int(word["start"]) > word_start_ms
+    ]
+    return min(starts) / 1000.0 if starts else None
+
+
+def _padded_clip_end(
+    word_end: float,
+    next_word_start: Optional[float],
+    padding_seconds: float = CLIP_END_PADDING_SECONDS,
+) -> float:
+    """End a clip a little after its last word, but never inside the next one.
+
+    Word end timings land before the final consonant decays, so a short tail
+    is kept. When the next sentence starts sooner than that ("...won't. All
+    right, it's"), the tail stops just before it instead of leaking a fragment.
+    """
+    end = word_end + max(0.0, padding_seconds)
+    if next_word_start is not None:
+        end = min(end, max(word_end, next_word_start - CLIP_END_NEXT_WORD_GUARD_SECONDS))
+    return end
 
 
 def extend_keep_ranges_to_sentence_boundary(
@@ -97,7 +128,11 @@ def extend_keep_ranges_to_sentence_boundary(
             continue
         extended_end = max(extended_end, word_end)
         if word_ends_sentence(str(word.get("text", ""))):
-            extended_end += max(0.0, padding_seconds)
+            extended_end = _padded_clip_end(
+                extended_end,
+                _next_word_start(transcript_data, float(word["start"])),
+                padding_seconds,
+            )
             completed = True
             break
 
@@ -147,16 +182,22 @@ def _drop_dangling_tail(
             last_complete = word
     if last_complete is None:
         return keep_ranges
-    if last_end - float(last_complete["end"]) <= CLIP_END_PADDING_SECONDS + 0.2:
-        return keep_ranges
+    # Only words that are actually heard count; even a fraction of the next
+    # sentence's first word ("...won't. All right, it's") reads as a fragment.
     dangling = [
-        word for word in words if float(word["start"]) >= float(last_complete["end"]) - 0.02
+        word
+        for word in words
+        if float(word["start"]) >= float(last_complete["end"]) - 0.02
+        and float(word["start"]) < last_end - 0.02
     ]
     if not dangling or len(dangling) > 12:
         return keep_ranges
     if last_end - float(dangling[0]["start"]) > 4.0:
         return keep_ranges
-    trimmed_end = min(last_end, float(last_complete["end"]) + CLIP_END_PADDING_SECONDS)
+    trimmed_end = min(
+        last_end,
+        _padded_clip_end(float(last_complete["end"]), float(dangling[0]["start"])),
+    )
     # A real clip should stay long enough to stand alone. Ranges that were
     # already short (or a unit-test fixture) can still drop the fragment.
     if last_end - last_start >= 8.0 and trimmed_end - last_start < 8.0:
@@ -174,7 +215,8 @@ def clamp_keep_ranges_to_max_duration(
     Analysis already checks the selected preset's duration range. Pulling the
     start back to a self-contained sentence or finishing the last sentence
     can push the rendered timeline past its cap. The extra time comes off the end,
-    on a sentence boundary when one sits within a few seconds of the cap.
+    on the last sentence boundary inside the cap when one is close enough
+    (``CLIP_CAP_SENTENCE_BACKOFF_FRACTION`` of the cap) to keep a full clip.
     """
     ranges = [(float(start), float(end)) for start, end in keep_ranges if end > start]
     played = sum(end - start for start, end in ranges)
@@ -190,33 +232,54 @@ def clamp_keep_ranges_to_max_duration(
             budget -= length
             continue
         cut = start + max(0.0, budget)
-        if index == len(ranges) - 1:
-            cut = _end_at_cap(video_path, start, cut)
+        # Whichever range the cap lands in, end on a word, not mid-syllable.
+        cut = _end_at_cap(
+            video_path,
+            start,
+            cut,
+            max(3.0, max_seconds * CLIP_CAP_SENTENCE_BACKOFF_FRACTION),
+        )
         if cut - start >= 0.5:
             trimmed.append((start, cut))
         break
     return trimmed or ranges
 
 
-def _end_at_cap(video_path: Path, range_start: float, cut: float) -> float:
-    """Land the cap on a nearby sentence end, otherwise on the last word before it."""
+def _end_at_cap(
+    video_path: Path,
+    range_start: float,
+    cut: float,
+    max_backoff_seconds: float = 3.0,
+) -> float:
+    """Land the cap on the last sentence end before it, otherwise on the last word.
+
+    A 60s cap that falls in "...when you want to be asleep and when you want"
+    backs off to the previous full stop when it is within
+    ``max_backoff_seconds``; an unfinished thought is worse than a shorter clip.
+    """
     transcript_data = load_cached_transcript_data(video_path)
     if not transcript_data:
         return cut
-    words = get_absolute_words_in_range(transcript_data, range_start, cut + 0.05)
+    # Read past the cap so a word it splits keeps its real end and is not
+    # mistaken for one that fits.
+    words = get_absolute_words_in_range(transcript_data, range_start, cut + 5.0)
     fitting = [word for word in words if float(word["end"]) <= cut + 0.05]
     if not fitting:
         return cut
-    word_end = float(fitting[-1]["end"])
-    sentence_end = None
+    chosen = fitting[-1]
     for word in reversed(fitting):
-        if word_end - float(word["end"]) > 3.0:
+        if cut - float(word["end"]) > max_backoff_seconds:
             break
         if word_ends_sentence(str(word.get("text", ""))):
-            sentence_end = float(word["end"])
+            chosen = word
             break
-    chosen = sentence_end if sentence_end is not None else word_end
-    padded = min(cut, chosen + CLIP_END_PADDING_SECONDS)
+    padded = min(
+        cut,
+        _padded_clip_end(
+            float(chosen["end"]),
+            _next_word_start(transcript_data, float(chosen["start"])),
+        ),
+    )
     return max(range_start + 0.5, padded)
 
 
@@ -1099,15 +1162,32 @@ def build_clip_keep_ranges(
         if leading_gap >= pause_threshold_seconds:
             compress_pause(clip_start, spoken_words[0]["start"], 0.0, PAUSE_LEAD_IN_SECONDS)
 
-        for current, nxt in zip(spoken_words, spoken_words[1:]):
-            gap = nxt["start"] - current["end"]
-            if gap >= pause_threshold_seconds:
-                compress_pause(
-                    current["end"],
-                    nxt["start"],
-                    PAUSE_EDGE_PADDING_SECONDS,
-                    PAUSE_EDGE_PADDING_SECONDS,
+        internal_gaps = [
+            (current["end"], nxt["start"])
+            for current, nxt in zip(spoken_words, spoken_words[1:])
+            if nxt["start"] - current["end"] >= pause_threshold_seconds
+        ]
+        # A gap without words is not always dead air: gunfire or a moving
+        # game camera is the action the clip is about, so leave those intact.
+        action_flags = active_gaps(
+            video_path,
+            internal_gaps,
+            [(word["start"], word["end"]) for word in spoken_words],
+        )
+        for (gap_start, gap_end), has_action in zip(internal_gaps, action_flags):
+            if has_action:
+                logger.info(
+                    "Keeping %.1fs pause at %.2fs: the source has action there",
+                    gap_end - gap_start,
+                    gap_start,
                 )
+                continue
+            compress_pause(
+                gap_start,
+                gap_end,
+                PAUSE_EDGE_PADDING_SECONDS,
+                PAUSE_EDGE_PADDING_SECONDS,
+            )
 
         trailing_gap = clip_end - spoken_words[-1]["end"]
         if trailing_gap >= pause_threshold_seconds:
@@ -1162,21 +1242,19 @@ def get_words_for_keep_ranges(
 ) -> List[Dict[str, Any]]:
     """Project transcript word timings into the output timeline after cuts.
 
-    When the kept ranges are stitched with crossfades (see
-    ``crossfade_fade_for_ranges``) each junction shortens the timeline by the
-    fade duration, so word offsets are pulled earlier by the same amount to keep
-    captions locked to the spoken audio.
+    When the kept ranges are stitched with crossfades each junction shortens
+    the timeline by the fade duration; ``output_offsets_for_ranges`` applies
+    the same shift the renderer does, keeping captions locked to the audio.
     """
     if not transcript_data or not transcript_data.get("words") or not keep_ranges:
         return []
 
-    fade = crossfade_fade_for_ranges(keep_ranges)
+    keep_ranges = normalize_source_ranges(keep_ranges)
     relevant_words: List[Dict[str, Any]] = []
-    timeline_offset = 0.0
 
-    for index, (keep_start, keep_end) in enumerate(keep_ranges):
-        if index > 0:
-            timeline_offset -= fade  # account for the crossfade overlap
+    for (keep_start, keep_end), timeline_offset in zip(
+        keep_ranges, output_offsets_for_ranges(keep_ranges)
+    ):
         range_words = get_absolute_words_in_range(transcript_data, keep_start, keep_end)
         for word in range_words:
             relevant_words.append(
@@ -1188,6 +1266,5 @@ def get_words_for_keep_ranges(
                     "speaker": word.get("speaker"),
                 }
             )
-        timeline_offset += keep_end - keep_start
 
     return relevant_words

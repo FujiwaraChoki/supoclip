@@ -10,7 +10,7 @@ from src.media.common import (
     PAUSE_RETAINED_SILENCE_SECONDS,
     PAUSE_TAIL_SECONDS,
 )
-from src.media.ffmpeg import crossfade_fade_for_ranges
+from src.media.ffmpeg import crossfade_fade_for_ranges, rendered_clip_duration
 from src.video_utils import (
     build_clip_keep_ranges,
     build_keep_ranges_from_source_ranges,
@@ -230,6 +230,8 @@ def test_build_keep_ranges_from_source_ranges_recomputes_each_range(monkeypatch)
 @pytest.mark.asyncio
 async def test_create_single_clip_keeps_timing_fields_consistent(monkeypatch, tmp_path):
     async def fake_run_in_thread(_fn, *_args, **_kwargs):
+        if _fn is rendered_clip_duration:
+            return _fn(*_args, **_kwargs)
         return True
 
     monkeypatch.setattr("src.services.video_service.run_in_thread", fake_run_in_thread)
@@ -248,7 +250,8 @@ async def test_create_single_clip_keeps_timing_fields_consistent(monkeypatch, tm
     )
 
     assert clip is not None
-    assert clip["duration"] == pytest.approx(3.0)
+    # 3s of kept source, minus the crossfade that overlaps the two ranges.
+    assert clip["duration"] == pytest.approx(3.0 - crossfade_fade_for_ranges([(10.0, 11.0), (12.0, 14.0)]))
     assert clip["start_time"] == "00:10"
     assert clip["end_time"] == "00:20"
 
@@ -279,7 +282,7 @@ def test_create_clips_from_segments_keeps_timing_fields_consistent(
     )
 
     assert len(clips) == 1
-    assert clips[0]["duration"] == pytest.approx(3.0)
+    assert clips[0]["duration"] == pytest.approx(3.0 - crossfade_fade_for_ranges([(10.0, 11.0), (12.0, 14.0)]))
     assert clips[0]["start_time"] == "00:10"
     assert clips[0]["end_time"] == "00:20"
 
@@ -324,7 +327,7 @@ def test_create_clips_from_segments_uses_source_ranges_when_recomputing_cleanup(
     assert len(clips) == 1
     assert captured["source_ranges"] == [(10.0, 11.0), (13.0, 15.0)]
     assert captured["cleanup_settings"] == {"cut_long_pauses": True}
-    assert clips[0]["duration"] == pytest.approx(2.6)
+    assert clips[0]["duration"] == pytest.approx(2.6 - crossfade_fade_for_ranges([(10.1, 10.9), (13.1, 14.9)]))
 
 
 @pytest.mark.asyncio

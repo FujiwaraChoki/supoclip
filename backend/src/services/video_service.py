@@ -62,9 +62,10 @@ from ..media.source_limits import normalize_source_media
 from ..media_storage import MediaStorage
 from ..media.ffmpeg import (
     cap_video_short_side,
-    crossfade_fade_for_ranges,
     ffprobe_duration,
     ffprobe_video_size,
+    rendered_clip_duration,
+    rendered_ranges_duration,
 )
 from ..media.timeline import get_words_for_keep_ranges
 from ..media.visual_suitability import (
@@ -539,8 +540,7 @@ class VideoService:
             transcript = await run_in_thread(load_cached_transcript_data, video_path)
             words = get_words_for_keep_ranges(transcript, keep_ranges) if transcript else []
             # The renderer crossfades between kept ranges, which shortens the clip.
-            fade = crossfade_fade_for_ranges(keep_ranges)
-            clip_seconds = sum(end - start for start, end in keep_ranges) - fade * (len(keep_ranges) - 1)
+            clip_seconds = rendered_ranges_duration(keep_ranges)
             orientation = "portrait"
             target_short_side = 1080
             if output_format == "original":
@@ -626,6 +626,12 @@ class VideoService:
             for clip_info in clips_info:
                 try:
                     await run_in_thread(cap_video_short_side, Path(clip_info["path"]), max_short_side)
+                    # The re-encode can shift the length by a frame.
+                    clip_info["duration"] = await run_in_thread(
+                        rendered_clip_duration,
+                        Path(clip_info["path"]),
+                        clip_info.get("keep_ranges") or [],
+                    )
                 except Exception as e:
                     logger.warning(f"Keeping full-size clip {clip_info.get('filename')}: {e}")
 
@@ -751,7 +757,10 @@ class VideoService:
 
             save_clip_source_ranges(clip_path, keep_ranges)
             save_clip_broll(clip_path, broll_placements)
-            cleaned_duration = sum(end - start for start, end in keep_ranges)
+            # Store what plays, after crossfades and the resolution cap.
+            cleaned_duration = await run_in_thread(
+                rendered_clip_duration, clip_path, keep_ranges
+            )
             logger.info(
                 f"Created clip {clip_index + 1}: {cleaned_duration:.1f}s"
                 + (f" with {len(broll_placements)} B-roll cutaways" if broll_placements else "")
