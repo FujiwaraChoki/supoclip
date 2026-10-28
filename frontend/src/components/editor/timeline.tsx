@@ -44,6 +44,7 @@ import {
 import { Panel, ToolButton } from "./studio-ui";
 import { Filmstrip } from "./filmstrip";
 import { InlineText } from "./inline-text";
+import { prepareTextDraft, type TextDraft } from "@/lib/editor/render";
 
 interface Props {
   doc: EditDocument;
@@ -51,6 +52,7 @@ interface Props {
   endpoint: string;
   /** Playhead on the source timeline (the video element's time). */
   currentTime: number;
+  onTextDraft: (draft: TextDraft | undefined) => void;
   index: number;
   select: (index: number) => void;
   pause: () => void;
@@ -96,6 +98,7 @@ export function Timeline({
   asset,
   endpoint,
   currentTime,
+  onTextDraft,
   index,
   select,
   pause,
@@ -484,6 +487,7 @@ export function Timeline({
                   className="absolute inset-y-0 overflow-hidden rounded-md bg-amber-100 px-2 text-left text-[11px] leading-7 text-amber-950 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-100"
                   style={{ left: pct(hook.start), width: pct(Math.max(0, Math.min(total, hook.end) - hook.start)) }}
                   onBegin={() => { pause(); seekOut(Math.min(total, hook.start + 0.3)); }}
+                  onDraft={text => onTextDraft(text === null ? undefined : prepareTextDraft(doc, hook.start, "hook", text))}
                   onCommit={hookTitle => update(current => ({ ...current, hookTitle }))}
                 >
                   <span className="block truncate">{doc.hookTitle}</span>
@@ -501,6 +505,7 @@ export function Timeline({
                   style={{ left: pct(group[0].start), width: pct(Math.max(0.05, group[group.length - 1].end - group[0].start)) }}
                   title={group.map((w) => w.text).join(" ")}
                   onBegin={() => { pause(); seekOut(group[0].start + 0.001); }}
+                  onDraft={text => onTextDraft(text === null ? undefined : prepareTextDraft(doc, group[0].start, "captions", text))}
                   onCommit={text => update(current => replaceCaptionGroup(current, group.map(word => word.id), text, asset.duration))}
                 >
                   <span className="block truncate">{group.map((w) => w.text).join(" ")}</span>

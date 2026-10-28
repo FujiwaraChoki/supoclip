@@ -210,7 +210,8 @@ export function drawEditorTextLayer(
   ctx.save();
   ctx.scale(width / out.width, height / out.height);
   if (layer !== "hook" && doc.captions.enabled) drawCaptions(ctx, doc, out, time, look, draft?.captionWords);
-  if (layer !== "captions" && doc.hookTitle?.trim()) drawHookTitle(ctx, draft?.hookText === undefined ? doc : { ...doc, hookTitle: draft.hookText }, out, time, look);
+  const hookDocument = draft?.hookText === undefined ? doc : { ...doc, hookTitle: draft.hookText };
+  if (layer !== "captions" && hookDocument.hookTitle?.trim()) drawHookTitle(ctx, hookDocument, out, time, look);
   ctx.restore();
 }
 

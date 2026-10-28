@@ -520,6 +520,59 @@ for (const width of [1440, 390]) test(`moving and resizing one caption leaves ne
   await expect.poll(async () => (await geometry()).width).toBeCloseTo(editedGeometry.width, 6);
 });
 
+for (const width of [1440, 390]) test(`timeline typing updates the video before committing at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 1100 });
+  const initial = { ...structuredClone(draft), hookTitle: "Original title" };
+  const documents = await setup(page, false, undefined, initial);
+  const preview = page.getByRole("region", { name: "Video preview", exact: true });
+  const timeline = page.getByRole("region", { name: "Clip timeline", exact: true });
+  const pixels = (label: string) => preview.getByLabel(label, { exact: true }).evaluate((canvas: HTMLCanvasElement) => {
+    let hash = 0, lit = 0;
+    const data = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+    for (let i = 0; i < data.length; i += 4) {
+      hash = (Math.imul(hash, 31) + data[i] + data[i + 1] * 3 + data[i + 2] * 7 + data[i + 3]) | 0;
+      if (data[i + 3]) lit++;
+    }
+    return { hash, lit };
+  });
+  for (const [label, before, after] of [["Captions", "Hello world today", "Hello corrected today"], ["Hook title", "Original title", "Corrected title"]]) {
+    const buttonName = label === "Hook title" ? `Hook title: ${before}` : before;
+    await timeline.getByRole("button", { name: buttonName, exact: true }).click();
+    const input = timeline.getByRole("textbox", { name: label, exact: true });
+    await expect(input).toBeFocused();
+    await expect.poll(async () => (await pixels(label)).lit).toBeGreaterThan(10);
+    const normal = await pixels(label);
+    await input.press("ControlOrMeta+a");
+    await input.press("Backspace");
+    await expect.poll(async () => (await pixels(label)).lit).toBe(0);
+    await input.pressSequentially(after);
+    await expect.poll(async () => (await pixels(label)).hash).not.toBe(normal.hash);
+    await expect(input).toBeFocused();
+    expect(documents.get("clip1")!.document).toEqual(initial);
+    await input.press("Escape");
+    await expect.poll(() => pixels(label)).toEqual(normal);
+    await timeline.getByRole("button", { name: buttonName, exact: true }).click();
+    await input.press("ControlOrMeta+a");
+    await input.pressSequentially(after);
+    await expect.poll(async () => (await pixels(label)).hash).not.toBe(normal.hash);
+    const typed = await pixels(label);
+    await input.press("Enter");
+    await expect.poll(() => pixels(label)).toEqual(typed);
+    const text = () => label === "Hook title" ? documents.get("clip1")!.document.hookTitle : documents.get("clip1")!.document.words.map(w => w.text).join(" ");
+    await expect.poll(text).toBe(after);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect.poll(text).toBe(before);
+    await expect.poll(() => pixels(label)).toEqual(normal);
+    await page.getByRole("button", { name: "Redo", exact: true }).click();
+    await expect.poll(text).toBe(after);
+    await expect.poll(() => pixels(label)).toEqual(typed);
+    Object.assign(initial, structuredClone(documents.get("clip1")!.document));
+  }
+  await page.reload();
+  await expect(timeline.getByRole("button", { name: "Hello corrected today", exact: true })).toBeVisible();
+  await expect(timeline.getByRole("button", { name: "Hook title: Corrected title", exact: true })).toBeVisible();
+});
+
 for (const dpr of [1, 2]) test.describe(`text editing parity at DPR ${dpr}`, () => {
   test.use({ deviceScaleFactor: dpr });
   test("keeps text pixels, sizing and wrapping stable when editing", async ({ page }, info) => {

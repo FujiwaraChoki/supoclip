@@ -47,6 +47,7 @@ import {
   type CaptionStyle,
 } from "@/lib/editor/document";
 import { cn } from "@/lib/utils";
+import type { TextDraft } from "@/lib/editor/render";
 import { editorRequest, useEditor } from "./use-editor";
 import { Preview } from "./preview";
 import { Timeline } from "./timeline";
@@ -99,6 +100,8 @@ export function EditorWorkspace({
   const [tab, setTab] = useState<InspectorTab>("captions"),
     [segmentIndex, setSegmentIndex] = useState(0),
     [time, setTime] = useState(0);
+  // Paint timeline typing immediately without adding a history/save entry per key.
+  const [timelineTextDraft, setTimelineTextDraft] = useState<TextDraft>();
   const [seekRequest, setSeekRequest] = useState({ time: 0, nonce: 0 });
   const [exportOpen, setExportOpen] = useState(false),
     [helpOpen, setHelpOpen] = useState(false),
@@ -552,6 +555,7 @@ export function EditorWorkspace({
                 time={time}
                 onTime={setTime}
                 seekRequest={seekRequest}
+                textDraft={timelineTextDraft}
                 tab={tab}
                 update={editor.update}
                 videoRef={videoRef}
@@ -619,6 +623,7 @@ export function EditorWorkspace({
             asset={asset}
             endpoint={endpoint}
             currentTime={time}
+            onTextDraft={setTimelineTextDraft}
             index={index}
             select={setSegmentIndex}
             seek={seek}

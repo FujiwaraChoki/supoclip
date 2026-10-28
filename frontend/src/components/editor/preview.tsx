@@ -40,7 +40,7 @@ import {
   type EditDocument,
   type EditorState,
 } from "@/lib/editor/document";
-import { drawEditorFrame, loadEditorFont, type BRollLayer } from "@/lib/editor/render";
+import { drawEditorFrame, loadEditorFont, type TextDraft, type BRollLayer } from "@/lib/editor/render";
 import type { InspectorTab } from "./inspector";
 import { cn } from "@/lib/utils";
 import { Panel, ToolButton } from "./studio-ui";
@@ -56,6 +56,7 @@ interface Props {
   time: number;
   onTime: (time: number) => void;
   seekRequest: { time: number; nonce: number };
+  textDraft?: TextDraft;
   tab: InspectorTab;
   update: (change: (doc: EditDocument) => EditDocument, group?: string) => void;
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -71,6 +72,7 @@ export function Preview({
   time,
   onTime,
   seekRequest,
+  textDraft,
   tab,
   update,
   videoRef,
@@ -397,7 +399,7 @@ export function Preview({
               drag.current = null;
             }}
           />
-          <TextLayers doc={doc} asset={asset} time={time} index={segmentIndex} videoRef={videoRef} update={update} resolution={resolution} />
+          <TextLayers doc={doc} asset={asset} time={time} index={segmentIndex} videoRef={videoRef} update={update} resolution={resolution} timelineDraft={textDraft} />
           {guides && (
             <div className="pointer-events-none absolute inset-x-[8%] top-[10%] bottom-[20%] rounded-lg border border-dashed border-white/60">
               <span className="absolute -top-5 text-[10px] text-white/70">

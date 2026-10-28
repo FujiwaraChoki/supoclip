@@ -5,7 +5,7 @@ import { formatHookEditorText, prepareTextDraft, textEditorLayout } from "./rend
 function context() {
   return {
     font: "10px sans-serif",
-    measureText(text: string) {
+    measureText(this: { font: string }, text: string) {
       const px = Number.parseFloat(this.font);
       return { width: text.length * px * .5, fontBoundingBoxAscent: px * .9, fontBoundingBoxDescent: px * .3 };
     },

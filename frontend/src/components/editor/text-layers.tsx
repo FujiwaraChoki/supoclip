@@ -6,7 +6,7 @@ import { drawEditorTextLayer, formatHookEditorText, loadEditorFont, prepareTextD
 import { TransformableText } from "./transformable-text";
 
 /** Titles and subtitles remain independent of the decoded picture in the editor. */
-export function TextLayers({ doc, asset, time, index, videoRef, update, resolution }: {
+export function TextLayers({ doc, asset, time, index, videoRef, update, resolution, timelineDraft }: {
   doc: EditDocument;
   asset: EditorState;
   time: number;
@@ -14,13 +14,15 @@ export function TextLayers({ doc, asset, time, index, videoRef, update, resoluti
   videoRef: React.RefObject<HTMLVideoElement | null>;
   update: (change: (doc: EditDocument) => EditDocument, group?: string) => void;
   resolution: { width: number; height: number };
+  timelineDraft?: TextDraft;
 }) {
   const t = useTranslations("editor");
   const hookCanvas = useRef<HTMLCanvasElement>(null);
   const captionCanvas = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const [bounds, setBounds] = useState<Partial<Record<TextLayer, TextBounds>>>({});
-  const [draft, setDraft] = useState<TextDraft>();
+  const [previewDraft, setPreviewDraft] = useState<TextDraft>();
+  const draft = previewDraft ?? timelineDraft;
   const [layouts, setLayouts] = useState<Partial<Record<TextLayer, TextEditorLayout>>>({});
   const size = outputSize(doc, asset.width, asset.height);
   const at = outputTime(doc, Math.min(index, doc.segments.length - 1), time);
@@ -33,7 +35,7 @@ export function TextLayers({ doc, asset, time, index, videoRef, update, resoluti
   };
   const editDraft = (layer: TextLayer, text: string | null) => {
     const ctx = hookCanvas.current?.getContext("2d");
-    setDraft(text === null || !ctx ? undefined : prepareTextDraft(doc, at, layer, text));
+    setPreviewDraft(text === null || !ctx ? undefined : prepareTextDraft(doc, at, layer, text));
   };
   useEffect(() => {
     let cancelled = false;
