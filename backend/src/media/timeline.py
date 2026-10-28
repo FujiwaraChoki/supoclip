@@ -35,6 +35,7 @@ from .ffmpeg import (
     run_ffmpeg_command,
     select_audio_stream_index,
 )
+from .gap_activity import active_gaps
 from .transcription import (
     _join_transcript_tokens,
     load_cached_transcript_data,
@@ -1075,15 +1076,32 @@ def build_clip_keep_ranges(
         if leading_gap >= pause_threshold_seconds:
             compress_pause(clip_start, spoken_words[0]["start"], 0.0, PAUSE_LEAD_IN_SECONDS)
 
-        for current, nxt in zip(spoken_words, spoken_words[1:]):
-            gap = nxt["start"] - current["end"]
-            if gap >= pause_threshold_seconds:
-                compress_pause(
-                    current["end"],
-                    nxt["start"],
-                    PAUSE_EDGE_PADDING_SECONDS,
-                    PAUSE_EDGE_PADDING_SECONDS,
+        internal_gaps = [
+            (current["end"], nxt["start"])
+            for current, nxt in zip(spoken_words, spoken_words[1:])
+            if nxt["start"] - current["end"] >= pause_threshold_seconds
+        ]
+        # A gap without words is not always dead air: gunfire or a moving
+        # game camera is the action the clip is about, so leave those intact.
+        action_flags = active_gaps(
+            video_path,
+            internal_gaps,
+            [(word["start"], word["end"]) for word in spoken_words],
+        )
+        for (gap_start, gap_end), has_action in zip(internal_gaps, action_flags):
+            if has_action:
+                logger.info(
+                    "Keeping %.1fs pause at %.2fs: the source has action there",
+                    gap_end - gap_start,
+                    gap_start,
                 )
+                continue
+            compress_pause(
+                gap_start,
+                gap_end,
+                PAUSE_EDGE_PADDING_SECONDS,
+                PAUSE_EDGE_PADDING_SECONDS,
+            )
 
         trailing_gap = clip_end - spoken_words[-1]["end"]
         if trailing_gap >= pause_threshold_seconds:

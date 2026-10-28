@@ -13,10 +13,11 @@ from pathlib import Path
 import pytest
 
 from src import video_utils
-from src.media import timeline
+from src.media import gap_activity, timeline
 from src.media.common import (
     CLIP_END_NEXT_WORD_GUARD_SECONDS,
     CLIP_END_PADDING_SECONDS,
+    PAUSE_EDGE_PADDING_SECONDS,
 )
 from src.media.ffmpeg import (
     crossfade_fade_for_ranges,
@@ -87,6 +88,15 @@ HUBERMAN_WORDS = _ms_words(
     ('be', 265652, 265813), ('awake', 265813, 266150), ('is', 267001, 267146),
     ('light.', 267579, 267804),
 )
+
+# The audited cleanup settings (long-pause removal at 1,200ms, filler removal on).
+AUDIT_CLEANUP = {
+    "cut_long_pauses": True,
+    "pause_threshold_ms": 1200,
+    "remove_filler_words": True,
+    "filtered_words": [],
+}
+
 
 def _video(tmp_path, words, name="source.mp4"):
     path = tmp_path / name
@@ -164,6 +174,87 @@ def test_duration_cap_backs_off_only_a_share_of_the_cap(tmp_path):
     video = _video(tmp_path, HUBERMAN_WORDS)
     ranges = timeline.clamp_keep_ranges_to_max_duration(video, [(250.326, 267.9)], 15.0)
     assert ranges == [(250.326, pytest.approx(265.315 - CLIP_END_NEXT_WORD_GUARD_SECONDS))]
+
+
+# --- #281: pause cleanup keeps action -----------------------------------------
+
+
+def test_pause_with_action_is_not_cut(tmp_path, monkeypatch):
+    # 749.164-756.101 is sustained gunfire with no words.
+    video = _video(tmp_path, FORTNITE_WORDS)
+    calls = []
+
+    def fake_active_gaps(path, gaps, speech):
+        calls.append(gaps)
+        return [True] * len(gaps)
+
+    monkeypatch.setattr(timeline, "active_gaps", fake_active_gaps)
+    ranges = timeline.build_clip_keep_ranges(video, 746.168, 761.314, AUDIT_CLEANUP)
+
+    assert calls == [[(pytest.approx(748.889), pytest.approx(756.376))]]
+    assert ranges == [(746.168, 761.314)]
+
+
+def test_still_silent_pause_is_still_compressed(tmp_path, monkeypatch):
+    video = _video(tmp_path, FORTNITE_WORDS)
+    monkeypatch.setattr(timeline, "active_gaps", lambda _p, gaps, _s: [False] * len(gaps))
+    ranges = timeline.build_clip_keep_ranges(video, 746.168, 761.314, AUDIT_CLEANUP)
+
+    # The production cut for this clip.
+    pad = PAUSE_EDGE_PADDING_SECONDS
+    assert ranges == [
+        (746.168, pytest.approx(748.889 + pad)),
+        (pytest.approx(756.376 - pad), 761.314),
+    ]
+
+
+def _synthetic_source(tmp_path, name, video_filter, gap_audio):
+    """7s clip: tone "speech" at 0-2s and 5-7s, ``gap_audio`` in between."""
+    path = tmp_path / name
+    audio = (
+        f"0.3*sin(2*PI*220*t)*(lt(t,2)+gte(t,5))+({gap_audio})*gte(t,2)*lt(t,5)"
+    )
+    subprocess.run(
+        [
+            "ffmpeg", "-v", "error", "-y",
+            "-f", "lavfi", "-i", f"{video_filter}",
+            "-f", "lavfi", "-i", f"aevalsrc='{audio}':s=16000:d=7",
+            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-shortest", str(path),
+        ],
+        check=True,
+    )
+    return path
+
+
+STILL = "color=c=gray:s=160x90:r=24:d=7"
+MOVING = "nullsrc=s=160x90:r=24:d=7,format=gray,geq=lum='random(1)*255'"
+SPEECH = [(0.1, 1.9), (5.1, 6.9)]
+GAP = [(2.0, 5.0)]
+
+
+@needs_ffmpeg
+def test_still_and_silent_gap_is_dead_air(tmp_path):
+    video = _synthetic_source(tmp_path, "still.mp4", STILL, "0")
+    assert gap_activity.active_gaps(video, GAP, SPEECH) == [False]
+
+
+@needs_ffmpeg
+def test_loud_gap_counts_as_action(tmp_path):
+    # Gunfire-like noise as loud as the speech, over a still picture.
+    video = _synthetic_source(tmp_path, "loud.mp4", STILL, "0.5*(random(0)*2-1)")
+    assert gap_activity.active_gaps(video, GAP, SPEECH) == [True]
+
+
+@needs_ffmpeg
+def test_moving_picture_counts_as_action(tmp_path):
+    video = _synthetic_source(tmp_path, "moving.mp4", MOVING, "0")
+    assert gap_activity.gap_motion_score(video, 2.2, 4.8) > gap_activity.GAP_MOTION_THRESHOLD
+    assert gap_activity.active_gaps(video, GAP, SPEECH) == [True]
+
+
+def test_gap_check_without_media_keeps_old_behaviour(tmp_path):
+    assert gap_activity.active_gaps(tmp_path / "missing.mp4", GAP, SPEECH) == [False]
 
 
 # --- #285: stored duration ----------------------------------------------------
