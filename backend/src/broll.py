@@ -199,11 +199,16 @@ def choose_video(
             continue
         if not query:
             return video
-        reason = footage_mismatch(video, query, context)
+        try:
+            reason = footage_mismatch(video, query, context)
+            score = footage_relevance(video, query)
+        except Exception:
+            # Judging is a refinement: an odd result must not cost the clip its B-roll.
+            logger.warning("Could not judge B-roll %s; using it unjudged", video.get("id"), exc_info=True)
+            reason, score = None, 0
         if reason:
             logger.info("Skipping B-roll %s for %r: %s", video.get("id"), query, reason)
             continue
-        score = footage_relevance(video, query)
         if score > best_score:
             best, best_score = video, score
     return best
@@ -224,7 +229,8 @@ SENSITIVE_THEMES: Dict[str, tuple[str, ...]] = {
         "suicid*", "frustrat*", "heartbr*", "mourn*",
     ),
     "medical": (
-        "pill*", "medic*", "drug*", "hospital*", "patient*", "syringe*", "inject*",
+        "pill", "pills", "medic*", "drug*", "hospital", "hospitals", "hospitalized",
+        "patient", "patients", "syringe*", "inject*",
         "surgery", "surgical", "sick*", "illness", "disease*", "overdos*", "ambulance*",
         "injur*", "wound*", "therapist*", "psychiatr*",
     ),
@@ -271,9 +277,18 @@ def _content_words(text: str) -> set[str]:
     return words
 
 
+# Second halves of compounds that still show their first word ("bed" -> "bedroom").
+_COMPOUND_TAILS = frozenset({"room", "time", "side", "light", "shine", "rise", "set"})
+
+
 def _same_word(a: str, b: str) -> bool:
     short, long = sorted((a, b), key=len)
-    return a == b or (len(short) >= 4 and long.startswith(short) and len(long) - len(short) <= 2)
+    if a == b:
+        return True
+    if len(short) < 3 or not long.startswith(short):
+        return False
+    tail = long[len(short):]
+    return (len(short) >= 4 and len(tail) <= 2) or tail in _COMPOUND_TAILS
 
 
 def footage_description(video: Dict[str, Any]) -> str:
@@ -282,11 +297,9 @@ def footage_description(video: Dict[str, Any]) -> str:
     Pexels page URLs read like ``/video/a-depressed-woman-lying-on-bed-with-pills-7279741/``.
     """
     parts = [str(video.get(key) or "") for key in ("title", "alt", "description")]
-    parts += [
-        str(tag.get("name") if isinstance(tag, dict) else tag)
-        for tag in video.get("tags") or []
-        if tag
-    ]
+    tags = video.get("tags")
+    if isinstance(tags, (list, tuple)):
+        parts += [str(tag.get("name") if isinstance(tag, dict) else tag) for tag in tags if tag]
     match = re.search(r"/video/([^/?#]+)", str(video.get("url") or ""))
     if match:
         parts.append(re.sub(r"-?\d+$", "", match.group(1)).replace("-", " "))
@@ -319,7 +332,7 @@ def footage_mismatch(video: Dict[str, Any], query: str, context: str = "") -> Op
 
     Footage is rejected when its description brings a sensitive theme that
     neither the query nor the spoken ``context`` is about, or when it is
-    described and shares no descriptive word with them. Results without a
+    described and shares no descriptive word with the query. Results without a
     description cannot be judged and are allowed.
     """
     description = footage_description(video)

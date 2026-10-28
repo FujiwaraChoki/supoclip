@@ -355,6 +355,35 @@ async def test_plan_clip_broll_leaves_a_neutral_line_uncovered_rather_than_misle
     assert [p["pexels_id"] for p in placements] == [32109629]
 
 
+def test_everyday_words_sharing_a_sensitive_stem_are_not_flagged():
+    # "pillow" is bedding, not medication; "hospitality" is not a hospital.
+    pillow = _described(9, "https://www.pexels.com/video/woman-sleeping-on-a-white-pillow-9/")
+    hotel = _described(10, "https://www.pexels.com/video/hospitality-staff-at-a-hotel-desk-10/")
+
+    assert broll.sensitive_themes("woman sleeping on a white pillow") == set()
+    assert broll.footage_mismatch(pillow, "person sleeping pillow", MELATONIN_LINE) is None
+    assert broll.footage_mismatch(hotel, "hotel desk") is None
+
+
+def test_a_compound_still_matches_its_first_word():
+    texting = _described(11, "https://www.pexels.com/video/a-woman-texting-while-lying-on-the-bed-11/")
+
+    # The audit's "bedroom night phone scrolling" cue picked this bed shot.
+    assert broll.footage_mismatch(texting, "bedroom night phone scrolling") is None
+    assert broll.footage_mismatch(_described(1, TREES), "sun through trees") is None
+
+
+def test_choose_video_uses_a_result_it_cannot_judge(monkeypatch):
+    def broken(*_args, **_kwargs):
+        raise TypeError("unexpected metadata")
+
+    monkeypatch.setattr(broll, "footage_mismatch", broken)
+
+    chosen = choose_video([_described(1, TREES)], 3.0, "portrait", query="sunlight through trees")
+
+    assert chosen["id"] == 1
+
+
 def test_cue_context_is_the_speech_around_the_cutaway():
     words = _words("one two three four five six seven eight nine ten", step=1.0)
 
