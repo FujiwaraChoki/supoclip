@@ -9,8 +9,10 @@ import pytest
 from src.media import visual_suitability
 from src.media.visual_suitability import (
     is_visually_static,
+    longest_static_run,
     segment_static_fraction,
     static_run_fraction,
+    still_picture_shows_face,
 )
 from src.services import video_service
 from src.services.video_service import VideoService
@@ -76,7 +78,12 @@ def _segments():
     ]
 
 
-def test_interruption_card_segment_is_dropped(monkeypatch, tmp_path):
+@pytest.fixture
+def no_faces(monkeypatch):
+    monkeypatch.setattr(video_service, "still_picture_shows_face", lambda path, ranges: False)
+
+
+def test_interruption_card_segment_is_dropped(monkeypatch, tmp_path, no_faces):
     fractions = {806: 1.0, 409: 0.12, 102: 0.08}
     monkeypatch.setattr(
         video_service, "segment_static_fraction",
@@ -86,14 +93,93 @@ def test_interruption_card_segment_is_dropped(monkeypatch, tmp_path):
     assert [segment["start_time"] for segment in kept] == ["06:49", "01:42"]
 
 
-def test_all_static_source_keeps_every_segment(monkeypatch, tmp_path):
+def test_still_presenter_shot_is_kept(monkeypatch, tmp_path):
+    # The 2026-10 tagesschau "Endlager" clip: an anchor in front of a fixed
+    # backdrop scores 1.0 like the card, but a face is on screen.
+    fractions = {806: 1.0, 409: 1.0, 102: 0.08}
+    monkeypatch.setattr(
+        video_service, "segment_static_fraction",
+        lambda path, ranges: fractions[int(ranges[0][0])],
+    )
+    monkeypatch.setattr(
+        video_service, "still_picture_shows_face",
+        lambda path, ranges: int(ranges[0][0]) == 409,
+    )
+    kept = VideoService._drop_static_segments(tmp_path / "source.mp4", _segments())
+    assert [segment["start_time"] for segment in kept] == ["06:49", "01:42"]
+
+
+def test_failed_face_check_keeps_the_segment(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        video_service, "segment_static_fraction",
+        lambda path, ranges: 1.0 if int(ranges[0][0]) == 806 else 0.1,
+    )
+
+    def fail(path, ranges):
+        raise RuntimeError("detector unavailable")
+
+    monkeypatch.setattr(video_service, "still_picture_shows_face", fail)
+    segments = _segments()
+    assert VideoService._drop_static_segments(tmp_path / "source.mp4", segments) == segments
+
+
+def test_longest_static_run_reports_where_the_run_is():
+    frames = [_card(seed) for seed in range(5)] + [_card(99)] * 12 + [_card(7)]
+    assert longest_static_run(frames) == (5, 12)
+    assert longest_static_run([]) == (0, 0)
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg required")
+def test_face_check_looks_inside_the_held_picture(tmp_path):
+    path = tmp_path / "motion_then_card.mp4"
+    subprocess.run(
+        [
+            "ffmpeg", "-v", "error", "-y",
+            "-f", "lavfi", "-i", "testsrc2=s=320x180:d=3:r=25",
+            "-f", "lavfi", "-i", "color=c=navy:s=320x180:d=8:r=25",
+            "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[v]",
+            "-map", "[v]", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path),
+        ],
+        check=True,
+    )
+
+    class Recorder:
+        def __init__(self):
+            self.frames = []
+
+        def detect(self, frame):
+            self.frames.append(frame)
+            return []
+
+    recorder = Recorder()
+    assert still_picture_shows_face(path, [(0.0, 11.0)], detector=recorder) is False
+    assert len(recorder.frames) == visual_suitability.STATIC_FACE_SAMPLES
+    for frame in recorder.frames:
+        assert frame.shape[1] == visual_suitability.STATIC_FACE_FRAME_WIDTH
+        # navy in BGR: blue high, green and red near zero.
+        assert frame[..., 0].mean() > 100 and frame[..., 2].mean() < 20
+
+    class Presenter(Recorder):
+        def detect(self, frame):
+            return [(300.0, 100.0, 40.0, 50.0, 0.94)]
+
+    assert still_picture_shows_face(path, [(0.0, 11.0)], detector=Presenter()) is True
+
+    class TinyFaces(Recorder):
+        def detect(self, frame):
+            return [(300.0, 100.0, 8.0, 10.0, 0.95), (100.0, 100.0, 60.0, 60.0, 0.5)]
+
+    assert still_picture_shows_face(path, [(0.0, 11.0)], detector=TinyFaces()) is False
+
+
+def test_all_static_source_keeps_every_segment(monkeypatch, tmp_path, no_faces):
     # An audio podcast published over cover art: nothing better to pick.
     monkeypatch.setattr(video_service, "segment_static_fraction", lambda path, ranges: 1.0)
     segments = _segments()
     assert VideoService._drop_static_segments(tmp_path / "source.mp4", segments) == segments
 
 
-def test_failed_visual_check_keeps_the_segment(monkeypatch, tmp_path):
+def test_failed_visual_check_keeps_the_segment(monkeypatch, tmp_path, no_faces):
     def fail(path, ranges):
         if int(ranges[0][0]) == 806:
             raise RuntimeError("no video stream")

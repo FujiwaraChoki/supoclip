@@ -67,7 +67,11 @@ from ..media.ffmpeg import (
     ffprobe_video_size,
 )
 from ..media.timeline import get_words_for_keep_ranges
-from ..media.visual_suitability import is_visually_static, segment_static_fraction
+from ..media.visual_suitability import (
+    is_visually_static,
+    segment_static_fraction,
+    still_picture_shows_face,
+)
 from ..stream_source import (
     PROCESSING_OPERATION,
     StreamSourceError,
@@ -184,6 +188,10 @@ class VideoService:
             if words:
                 review = review_opening(words, start, end, min_duration)
                 issue, should_penalise = review.issue, review.penalise
+                if review.start is not None and review.start <= start:
+                    # The trim target is not after the stored start, so the
+                    # opening stays as it is; rank it like an untrimmable one.
+                    should_penalise = True
             else:
                 issue = opening_text_issue(str(segment.get("text") or ""))
                 review = None
@@ -246,12 +254,26 @@ class VideoService:
         segment is static (an audio podcast with cover art), all are kept.
         """
         fractions: List[Optional[float]] = []
+        static: List[bool] = []
         for segment in segments:
+            fraction: Optional[float] = None
+            is_static = False
             try:
                 start = parse_timestamp_to_seconds(str(segment.get("start_time") or ""))
                 end = parse_timestamp_to_seconds(str(segment.get("end_time") or ""))
                 ranges = local_ranges_for(video_path, [(start, end)])
-                fractions.append(segment_static_fraction(video_path, ranges))
+                fraction = segment_static_fraction(video_path, ranges)
+                is_static = is_visually_static(fraction)
+                # A presenter in front of a fixed backdrop barely moves either;
+                # only a held picture without a face is a card or placeholder.
+                if is_static and still_picture_shows_face(video_path, ranges):
+                    logger.info(
+                        "Segment %s-%s holds one picture for %.0f%% but shows a face; keeping it",
+                        segment.get("start_time"),
+                        segment.get("end_time"),
+                        (fraction or 0.0) * 100,
+                    )
+                    is_static = False
             except Exception as exc:
                 logger.warning(
                     "Visual check unavailable for segment %s-%s: %s",
@@ -259,9 +281,10 @@ class VideoService:
                     segment.get("end_time"),
                     exc,
                 )
-                fractions.append(None)
+                is_static = False
+            fractions.append(fraction)
+            static.append(is_static)
 
-        static = [is_visually_static(fraction) for fraction in fractions]
         if not any(static):
             return segments
         if all(static):
@@ -1072,9 +1095,13 @@ class VideoService:
                 )
                 segments_json.append(segment_payload)
 
-            segments_json = VideoService._refine_segment_openings(
-                segments_json, transcript_data, clip_length
-            )
+            try:
+                segments_json = VideoService._refine_segment_openings(
+                    segments_json, transcript_data, clip_length
+                )
+            except Exception:
+                # A heuristic must never fail the task; keep the AI's openings.
+                logger.exception("Opening review failed; keeping the selected openings")
 
             clip_limit = runtime_config.max_clips
             if processing_mode == "fast":
@@ -1143,9 +1170,12 @@ class VideoService:
 
             # The picture is only available now when analysis ran on audio.
             if len(segments_json) > 1:
-                segments_json = await run_in_thread(
-                    VideoService._drop_static_segments, video_path, segments_json
-                )
+                try:
+                    segments_json = await run_in_thread(
+                        VideoService._drop_static_segments, video_path, segments_json
+                    )
+                except Exception:
+                    logger.exception("Visual suitability check failed; keeping every segment")
 
             return {
                 "segments": segments_json,

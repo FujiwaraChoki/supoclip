@@ -10,6 +10,11 @@ Frames are sampled at 2 fps and 32x18 grey, so a 60 s segment is about 70 KB
 of pixels. A frame counts as the same picture when almost no pixel moved
 against the start of the current run; the score is the longest such run as a
 share of the sampled frames.
+
+A still picture is not always unusable: a news anchor or presenter standing
+in front of a fixed backdrop barely moves at this resolution (the 2026-10
+tagesschau "Endlager" clip scores 1.0, the same as the interruption card). So
+a static segment is only rejected when its held picture shows no face.
 """
 
 import subprocess
@@ -34,29 +39,48 @@ STATIC_SEGMENT_MIN_FRACTION = 0.8
 STATIC_MIN_SAMPLED_FRAMES = 6
 
 
+# Face check on the held picture: frames decoded this wide, a face must be at
+# least this share of the frame width (an anchor in a wide studio shot is
+# about 6%) and YuNet must be this sure, so crowds of tiny faces and printed
+# text do not count.
+STATIC_FACE_FRAME_WIDTH = 640
+STATIC_FACE_MIN_WIDTH_RATIO = 0.03
+STATIC_FACE_MIN_SCORE = 0.8
+STATIC_FACE_SAMPLES = 3
+
+
 def same_picture(first: np.ndarray, second: np.ndarray) -> bool:
     changed = np.abs(first.astype(np.int16) - second.astype(np.int16)) > STATIC_PIXEL_DELTA
     return float(changed.mean()) <= STATIC_CHANGED_PIXEL_RATIO
 
 
-def static_run_fraction(frames: Sequence[np.ndarray]) -> float:
-    """Longest run of frames showing the run's first picture, as a share of all frames.
+def longest_static_run(frames: Sequence[np.ndarray]) -> Tuple[int, int]:
+    """(first index, length) of the longest run of frames showing the run's first picture.
 
     Comparing against the run's first frame (not just the previous one) keeps a
     slow pan or fade from chaining into one long "static" run.
     """
     if len(frames) == 0:
-        return 0.0
-    best = run = 1
+        return 0, 0
+    best_start, best = 0, 1
+    run_start, run = 0, 1
     anchor = frames[0]
-    for frame in frames[1:]:
+    for index, frame in enumerate(frames[1:], start=1):
         if same_picture(anchor, frame):
             run += 1
         else:
             anchor = frame
-            run = 1
-        best = max(best, run)
-    return best / len(frames)
+            run_start, run = index, 1
+        if run > best:
+            best_start, best = run_start, run
+    return best_start, best
+
+
+def static_run_fraction(frames: Sequence[np.ndarray]) -> float:
+    """Longest static run as a share of all frames (see ``longest_static_run``)."""
+    if len(frames) == 0:
+        return 0.0
+    return longest_static_run(frames)[1] / len(frames)
 
 
 def sample_grey_frames(video_path: Path, start: float, end: float) -> List[np.ndarray]:
@@ -102,3 +126,73 @@ def segment_static_fraction(
 def is_visually_static(fraction: Optional[float]) -> bool:
     return fraction is not None and fraction >= STATIC_SEGMENT_MIN_FRACTION
 
+
+def _sample_times(ranges: Sequence[Tuple[float, float]]) -> List[float]:
+    """Local timestamp of each frame ``sample_grey_frames`` returns for ``ranges``."""
+    times: List[float] = []
+    for start, end in ranges:
+        start, end = float(start), float(end)
+        count = int(np.ceil(max(0.0, end - start) * STATIC_SAMPLE_FPS))
+        times.extend(max(0.0, start) + index / STATIC_SAMPLE_FPS for index in range(count))
+    return times
+
+
+def _decode_frame_bgr(video_path: Path, time: float) -> Optional[np.ndarray]:
+    width = STATIC_FACE_FRAME_WIDTH
+    command = [
+        "ffmpeg", "-v", "error", "-nostdin",
+        "-ss", f"{max(0.0, time):.3f}", "-i", str(video_path),
+        "-frames:v", "1", "-an", "-sn",
+        "-vf", f"scale={width}:-2", "-f", "rawvideo", "-pix_fmt", "bgr24", "-",
+    ]
+    result = subprocess.run(command, capture_output=True, timeout=60)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.decode("utf-8", "replace")[-500:])
+    height = len(result.stdout) // (width * 3)
+    if height <= 0:
+        return None
+    return np.frombuffer(result.stdout[: height * width * 3], dtype=np.uint8).reshape(height, width, 3)
+
+
+def still_picture_shows_face(
+    video_path: Path, ranges: Sequence[Tuple[float, float]], detector=None
+) -> bool:
+    """Whether the segment's held picture shows a face (a presenter, not a card).
+
+    Decodes a few frames from inside the longest static run and runs YuNet on
+    them. Raises when the picture cannot be checked, so the caller can keep
+    the segment.
+    """
+    ranges = [(float(start), float(end)) for start, end in ranges]
+    frames: List[np.ndarray] = []
+    for start, end in ranges:
+        frames.extend(sample_grey_frames(video_path, start, end))
+    if not frames:
+        raise RuntimeError("no frames decoded")
+    times = _sample_times(ranges)
+    run_start, run_length = longest_static_run(frames)
+    picks = sorted(
+        {
+            run_start + (run_length - 1) * step // max(1, STATIC_FACE_SAMPLES - 1)
+            for step in range(STATIC_FACE_SAMPLES)
+        }
+    )
+    if detector is None:
+        from .face_detection import open_yunet_detector
+
+        detector = open_yunet_detector()
+        if detector is None:
+            raise RuntimeError("YuNet face detector unavailable")
+    for pick in picks:
+        if pick >= len(times):
+            continue
+        frame = _decode_frame_bgr(video_path, times[pick])
+        if frame is None:
+            continue
+        for _x, _y, face_width, _h, score in detector.detect(frame):
+            if (
+                score >= STATIC_FACE_MIN_SCORE
+                and face_width >= STATIC_FACE_MIN_WIDTH_RATIO * frame.shape[1]
+            ):
+                return True
+    return False
