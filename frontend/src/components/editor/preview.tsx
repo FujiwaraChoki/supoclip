@@ -45,6 +45,7 @@ import type { InspectorTab } from "./inspector";
 import { cn } from "@/lib/utils";
 import { Panel, ToolButton } from "./studio-ui";
 import { TextLayers } from "./text-layers";
+import { usePreviewResolution } from "./use-preview-resolution";
 
 interface Props {
   doc: EditDocument;
@@ -77,6 +78,7 @@ export function Preview({
 }: Props) {
   const t = useTranslations("editor");
   const stageRef = useRef<HTMLDivElement>(null);
+  const pictureRef = useRef<HTMLDivElement>(null);
   const [previewWidth, setPreviewWidth] = useState(270);
   const canvasRef = useRef<HTMLCanvasElement>(null),
     audioRef = useRef<{ context: AudioContext; gain: GainNode } | null>(null);
@@ -98,6 +100,7 @@ export function Preview({
     startY: number;
   } | null>(null);
   const size = outputSize(doc, asset.width, asset.height);
+  const resolution = usePreviewResolution(pictureRef, size);
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -291,6 +294,7 @@ export function Preview({
           </Tooltip>
         </div>
         <div
+          ref={pictureRef}
           className="relative max-h-full max-w-full overflow-hidden rounded-xl bg-black shadow-[0_8px_30px_rgb(0_0_0/0.12)] ring-1 ring-black/5"
           style={{
             aspectRatio: `${size.width}/${size.height}`,
@@ -339,8 +343,8 @@ export function Preview({
           ))}
           <canvas
             ref={canvasRef}
-            width={Math.round((size.width / size.height) * 640)}
-            height={640}
+            width={resolution.width}
+            height={resolution.height}
             aria-label={t("preview.canvas")}
             className={`block h-full w-full touch-none ${tab === "framing" ? "cursor-move" : "cursor-default"}`}
             onPointerDown={(e) => {
@@ -393,7 +397,7 @@ export function Preview({
               drag.current = null;
             }}
           />
-          <TextLayers doc={doc} asset={asset} time={time} index={segmentIndex} videoRef={videoRef} update={update} />
+          <TextLayers doc={doc} asset={asset} time={time} index={segmentIndex} videoRef={videoRef} update={update} resolution={resolution} />
           {guides && (
             <div className="pointer-events-none absolute inset-x-[8%] top-[10%] bottom-[20%] rounded-lg border border-dashed border-white/60">
               <span className="absolute -top-5 text-[10px] text-white/70">

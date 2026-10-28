@@ -1,14 +1,18 @@
 import {
   activeWordIndex,
   captionGroups,
+  captionAt,
   captionTransform,
   frameRect,
   hookRange,
   mappedWords,
   outputSize,
+  replaceWords,
+  editDuration,
   textTransform,
   type TextLayer,
   type CaptionLook,
+  type CaptionTransform,
   type CaptionWord,
   type EditDocument,
 } from "./document";
@@ -62,8 +66,51 @@ function setAssFont(ctx: CanvasRenderingContext2D, font: string, size: number) {
   ctx.font = `${size}px "Editor-${font}", sans-serif`;
   const metrics = ctx.measureText("A"),
     height = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent;
-  if (height > 0)
-    ctx.font = `${(size * size) / height}px "Editor-${font}", sans-serif`;
+  const pixels = height > 0 ? size * size / height : size;
+  ctx.font = `${pixels}px "Editor-${font}", sans-serif`;
+  return pixels;
+}
+
+export interface TextDraft { hookText?: string; captionWords?: CaptionWord[] }
+
+function wrapCaptionWords(ctx: CanvasRenderingContext2D, words: CaptionWord[], uppercase: boolean | undefined, width: number) {
+  const lines: CaptionWord[][] = [];
+  const space = ctx.measureText(" ").width;
+  let line: CaptionWord[] = [], length = 0;
+  for (const word of words) {
+    const w = ctx.measureText(uppercase ? word.text.toUpperCase() : word.text).width;
+    if (line.length && length + space + w > width) { lines.push(line); line = []; length = 0; }
+    length += (line.length ? space : 0) + w;
+    line.push(word);
+  }
+  if (line.length) lines.push(line);
+  return lines;
+}
+
+/** The native field supplies caret/selection; these are the same font metrics as the canvas. */
+export function textEditorLayout(ctx: CanvasRenderingContext2D, doc: EditDocument, width: number, height: number, time: number, layer: TextLayer, draft?: TextDraft) {
+  const group = captionAt(doc, time) ?? [];
+  const transform: CaptionTransform = group.length ? captionTransform(doc, group) : textTransform(doc, "captions");
+  const hook = hookTitleLayout(draft?.hookText === undefined ? doc : { ...doc, hookTitle: draft.hookText }, width, height);
+  const size = layer === "hook" ? hook.px : Math.max(1, Math.round((transform.size ?? doc.captions.size) * width * transform.scale / 1080));
+  const fontSize = setAssFont(ctx, doc.captions.font, size);
+  const wrapWidth = Math.max(1, layer === "hook" ? hook.usable : width - 120);
+  const lines = layer === "hook" ? hook.lines : wrapCaptionWords(ctx, draft?.captionWords ?? group, doc.captions.uppercase, wrapWidth).map(line => line.map(word => word.text).join(" "));
+  return { fontSize, wrapWidth, lineHeight: size * 1.2, lines };
+}
+
+export function prepareTextDraft(doc: EditDocument, time: number, layer: TextLayer, text: string): TextDraft {
+  if (layer === "captions") return { captionWords: replaceWords(captionAt(doc, time) ?? [], text, editDuration(doc)) };
+  return { hookText: text.trim().replace(/\s+/g, " ") };
+}
+export type TextEditorLayout = ReturnType<typeof textEditorLayout>;
+
+export function formatHookEditorText(doc: EditDocument, width: number, height: number, text: string) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return text;
+  const layout = hookTitleLayout({ ...doc, hookTitle: words.join(" ") }, width, height);
+  let cursor = 0;
+  return layout.lines.map(line => { const count = line.trim().split(/\s+/).length; const value = words.slice(cursor, cursor + count).join(" "); cursor += count; return value; }).join("\n") + (/\s$/.test(text) ? " " : "");
 }
 
 /** Linear keyframes, as ASS `\t` interpolates them. */
@@ -155,15 +202,15 @@ export function drawEditorFrame(
 /** Transparent editable layers in the viewer; composited only when exporting. */
 export function drawEditorTextLayer(
   ctx: CanvasRenderingContext2D, doc: EditDocument, sourceWidth: number, sourceHeight: number,
-  time: number, looks: Record<string, CaptionLook> | undefined, layer: "hook" | "captions" | "all", clear = true,
+  time: number, looks: Record<string, CaptionLook> | undefined, layer: "hook" | "captions" | "all", clear = true, draft?: TextDraft,
 ) {
   const { width, height } = ctx.canvas;
   if (clear) ctx.clearRect(0, 0, width, height);
   const out = outputSize(doc, sourceWidth, sourceHeight), look = cachedLook(doc, looks);
   ctx.save();
   ctx.scale(width / out.width, height / out.height);
-  if (layer !== "hook" && doc.captions.enabled) drawCaptions(ctx, doc, out, time, look);
-  if (layer !== "captions" && doc.hookTitle?.trim()) drawHookTitle(ctx, doc, out, time, look);
+  if (layer !== "hook" && doc.captions.enabled) drawCaptions(ctx, doc, out, time, look, draft?.captionWords);
+  if (layer !== "captions" && doc.hookTitle?.trim()) drawHookTitle(ctx, draft?.hookText === undefined ? doc : { ...doc, hookTitle: draft.hookText }, out, time, look);
   ctx.restore();
 }
 
@@ -173,17 +220,19 @@ function drawCaptions(
   { width, height }: { width: number; height: number },
   time: number,
   look: ReturnType<typeof resolveLook>,
+  draftWords?: CaptionWord[],
 ) {
   let groups = groupCache.get(doc);
   if (!groups) {
     groups = captionGroups(mappedWords(doc), doc.captions.wordsPerLine);
     groupCache.set(doc, groups);
   }
-  const group = groups.find(
+  const original = groups.find(
     (group) => time >= group[0].start && time < group[group.length - 1].end,
   );
-  if (!group) return;
-  const transform = captionTransform(doc, group);
+  const group = draftWords ?? original;
+  if (!original || !group?.length) return;
+  const transform = captionTransform(doc, original);
   const style = doc.captions,
     size = Math.max(1, Math.round(((transform.size ?? style.size) * width * transform.scale) / 1080)),
     karaoke = look.animation === "karaoke",
@@ -221,21 +270,7 @@ function drawCaptions(
   ctx.lineJoin = "round";
   // Fit each phrase in the safe width, using the same font for preview and browser export.
   const space = ctx.measureText(" ").width;
-  const lines: CaptionWord[][] = [];
-  let line: CaptionWord[] = [],
-    lineWidth = 0;
-  for (const word of group) {
-    const wordWidth = ctx.measureText(label(word.text)).width;
-    // libass wraps inside the style's 60px side margins.
-    if (line.length && lineWidth + space + wordWidth > width - 120) {
-      lines.push(line);
-      line = [];
-      lineWidth = 0;
-    }
-    line.push(word);
-    lineWidth += wordWidth + (line.length > 1 ? space : 0);
-  }
-  if (line.length) lines.push(line);
+  const lines = wrapCaptionWords(ctx, group, style.uppercase, width - 120);
   lines.forEach((words, index) => {
     const total =
       words.reduce((sum, w) => sum + ctx.measureText(label(w.text)).width, 0) +
@@ -399,30 +434,26 @@ function drawHookTitle(
 export interface TextBounds { x: number; y: number; width: number; height: number }
 
 /** Selection geometry in output pixels, measured with the renderer's font. */
-export function textLayerBounds(ctx: CanvasRenderingContext2D, doc: EditDocument, width: number, height: number, time: number, layer: TextLayer, looks?: Record<string, CaptionLook>): TextBounds | null {
+export function textLayerBounds(ctx: CanvasRenderingContext2D, doc: EditDocument, width: number, height: number, time: number, layer: TextLayer, looks?: Record<string, CaptionLook>, draft?: TextDraft): TextBounds | null {
   const look = cachedLook(doc, looks);
   if (layer === "hook") {
     if (!doc.hookTitle?.trim()) return null;
-    const { lines, px, top, x } = hookTitleLayout(doc, width, height);
+    const { lines, px, top, x } = hookTitleLayout(draft?.hookText === undefined ? doc : { ...doc, hookTitle: draft.hookText }, width, height);
     setAssFont(ctx, doc.captions.font, px);
     const pad = Math.max(5, Math.round(px * (look.strokeWidth || 2) / 26)) + 3;
     const w = Math.max(...lines.map(line => ctx.measureText(line).width)) + pad * 2;
     return { x: x - w / 2, y: top - pad, width: w, height: lines.length * px * 1.2 + pad * 2 };
   }
-  const group = captionGroups(mappedWords(doc), doc.captions.wordsPerLine)
-    .find(words => time >= words[0].start && time < words[words.length - 1].end);
-  if (!group || !doc.captions.enabled) return null;
-  const transform = captionTransform(doc, group);
+  const original = captionAt(doc, time);
+  const group = draft?.captionWords ?? original;
+  if (!original || !group?.length || !doc.captions.enabled) return null;
+  const transform = captionTransform(doc, original);
   const px = Math.max(1, Math.round((transform.size ?? doc.captions.size) * width * transform.scale / 1080));
   setAssFont(ctx, doc.captions.font, px);
   const space = ctx.measureText(" ").width;
-  let lineWidth = 0, longest = 0, lines = 1;
-  for (const word of group) {
-    const w = ctx.measureText(doc.captions.uppercase ? word.text.toUpperCase() : word.text).width;
-    if (lineWidth && lineWidth + space + w > width - 120) { longest = Math.max(longest, lineWidth); lineWidth = 0; lines++; }
-    lineWidth += (lineWidth ? space : 0) + w;
-  }
+  const lines = wrapCaptionWords(ctx, group, doc.captions.uppercase, width - 120);
+  const longest = Math.max(...lines.map(line => line.reduce((sum, word) => sum + ctx.measureText(doc.captions.uppercase ? word.text.toUpperCase() : word.text).width, 0) + space * (line.length - 1)));
   const pad = Math.max(px / 5, look.strokeWidth * px / 26, 5) + 3;
-  const w = Math.max(longest, lineWidth) + pad * 2, h = lines * px * 1.2 + pad * 2;
+  const w = longest + pad * 2, h = lines.length * px * 1.2 + pad * 2;
   return { x: width * (0.5 + transform.x) - w / 2, y: height * (doc.captions.y + transform.y) - h / 2, width: w, height: h };
 }

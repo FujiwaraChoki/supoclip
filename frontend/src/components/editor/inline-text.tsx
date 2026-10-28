@@ -2,7 +2,7 @@
 import { useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 /** Edit a text layer in its own bounds. Enter/blur commits; Escape cancels. */
-export function InlineText({ value, label, buttonLabel = value, title, onCommit, onBegin, onEditing, onMoveStart, onMove, onNudge, className, style, children, multiline = false, maxLength }: {
+export function InlineText({ value, label, buttonLabel = value, title, onCommit, onBegin, onEditing, onDraft, formatValue, editorStyle, onMoveStart, onMove, onNudge, className, style, children, multiline = false, maxLength }: {
   value: string;
   label: string;
   buttonLabel?: string;
@@ -10,6 +10,9 @@ export function InlineText({ value, label, buttonLabel = value, title, onCommit,
   onCommit: (value: string) => void;
   onBegin?: () => void;
   onEditing?: (editing: boolean) => void;
+  onDraft?: (text: string | null) => void;
+  formatValue?: (text: string) => string;
+  editorStyle?: CSSProperties;
   onMoveStart?: () => void;
   onMove?: (dx: number, dy: number) => void;
   onNudge?: (dx: number, dy: number) => void;
@@ -28,6 +31,7 @@ export function InlineText({ value, label, buttonLabel = value, title, onCommit,
     if (finished.current) return;
     finished.current = true;
     if (commit) onCommit(text.trim().replace(/\s+/g, " "));
+    onDraft?.(null);
     setEditing(false);
     onEditing?.(false);
   };
@@ -59,10 +63,12 @@ export function InlineText({ value, label, buttonLabel = value, title, onCommit,
       onClick={() => {
       if (dragged.current) { dragged.current = false; return; }
       finished.current = false;
-      setText(value);
+      const initial = formatValue?.(value) ?? value;
+      setText(initial);
       setEditing(true);
       onEditing?.(true);
       onBegin?.();
+      onDraft?.(initial);
     }}>{children}</button>
   );
   const props = {
@@ -71,8 +77,18 @@ export function InlineText({ value, label, buttonLabel = value, title, onCommit,
     value: text,
     maxLength,
     className,
-    style,
-    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setText(event.target.value),
+    style: { ...style, ...editorStyle },
+    spellCheck: false,
+    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      const input = event.target, raw = input.value;
+      const formatted = (event.nativeEvent as InputEvent).isComposing ? raw : formatValue?.(raw) ?? raw;
+      const start = raw.slice(0, input.selectionStart ?? raw.length).replace(/\s+/g, " ").trimStart().length;
+      const end = raw.slice(0, input.selectionEnd ?? raw.length).replace(/\s+/g, " ").trimStart().length;
+      setText(formatted); onDraft?.(formatted);
+      if (formatted !== raw) requestAnimationFrame(() => {
+        if (document.activeElement === input) input.setSelectionRange(start, end);
+      });
+    },
     onBlur: () => finish(true),
     onKeyDown: (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       event.stopPropagation();

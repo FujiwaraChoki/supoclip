@@ -520,6 +520,69 @@ for (const width of [1440, 390]) test(`moving and resizing one caption leaves ne
   await expect.poll(async () => (await geometry()).width).toBeCloseTo(editedGeometry.width, 6);
 });
 
+for (const dpr of [1, 2]) test.describe(`text editing parity at DPR ${dpr}`, () => {
+  test.use({ deviceScaleFactor: dpr });
+  test("keeps text pixels, sizing and wrapping stable when editing", async ({ page }, info) => {
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await setup(page);
+    const headline = "A headline that stays sharp while editing";
+    await page.getByRole("textbox", { name: "Hook title", exact: true }).fill(headline);
+    const track = page.getByRole("group", { name: "Hook title", exact: true });
+    await track.getByRole("button").click();
+    await track.getByRole("textbox").press("Escape");
+    await expect.poll(() => page.evaluate(() => document.fonts.check('20px "Editor-TikTokSans-Regular"'))).toBe(true);
+    const preview = page.getByRole("region", { name: "Video preview", exact: true });
+    const picture = preview.getByLabel("Edited video preview", { exact: true });
+    await expect.poll(() => picture.evaluate((canvas: HTMLCanvasElement) => Math.abs(canvas.width - Math.min(2160, Math.round(canvas.getBoundingClientRect().width * devicePixelRatio))))).toBeLessThanOrEqual(1);
+    const pixels = (index: number) => preview.locator("canvas").nth(index).evaluate((canvas: HTMLCanvasElement) => {
+      const data = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+      let hash = 0, lit = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        hash = (Math.imul(hash, 31) + data[i] + data[i + 1] * 3 + data[i + 2] * 7 + data[i + 3]) | 0;
+        if (data[i + 3]) lit++;
+      }
+      return { hash, lit };
+    });
+    for (const [index, label, button, replacement] of [
+      [1, "Hook title", `Video preview: Hook title: ${headline}`, "A revised sharp title"],
+      [2, "Captions", "Video preview: Hello world today", "A longer replacement caption"],
+    ] as const) {
+      const canvas = preview.locator("canvas").nth(index);
+      await expect.poll(async () => (await pixels(index)).lit).toBeGreaterThan(10);
+      const before = await pixels(index);
+      await preview.getByRole("button", { name: button, exact: true }).click();
+      const input = preview.getByRole("textbox", { name: label, exact: true });
+      await expect(input).toBeFocused();
+      await expect(canvas).toBeVisible();
+      await expect.poll(() => pixels(index)).toEqual(before);
+      const metrics = await input.evaluate((element: HTMLTextAreaElement) => ({
+        color: getComputedStyle(element).color,
+        overflow: getComputedStyle(element).overflow,
+        clippedX: element.scrollWidth - element.clientWidth,
+        clippedY: element.scrollHeight - element.clientHeight,
+      }));
+      expect(metrics.color).toBe("rgba(0, 0, 0, 0)");
+      expect(metrics.overflow).toBe("hidden");
+      expect(metrics.clippedX).toBeLessThanOrEqual(1);
+      expect(metrics.clippedY).toBeLessThanOrEqual(1);
+      await page.screenshot({ path: info.outputPath(`${label}-editing.png`), fullPage: true });
+      await input.fill(replacement);
+      await expect.poll(async () => (await pixels(index)).hash).not.toBe(before.hash);
+      await input.press("Escape");
+      await expect.poll(() => pixels(index)).toEqual(before);
+      await preview.getByRole("button", { name: button, exact: true }).click();
+      await input.fill(replacement);
+      await expect.poll(async () => (await pixels(index)).hash).not.toBe(before.hash);
+      const typed = await pixels(index);
+      await input.press("Enter");
+      await expect(page.getByRole("button", { name: index === 1 ? `Hook title: ${replacement}` : replacement, exact: true })).toBeVisible();
+      await expect.poll(() => pixels(index)).toEqual(typed);
+    }
+    await page.setViewportSize({ width: 960, height: 900 });
+    await expect.poll(() => picture.evaluate((canvas: HTMLCanvasElement) => Math.abs(canvas.width - Math.min(2160, Math.round(canvas.getBoundingClientRect().width * devicePixelRatio))))).toBeLessThanOrEqual(1);
+  });
+});
+
 test("playback decodes changing picture frames and pause and frame-step control the video", async ({ page }) => {
   await setup(page);
   const source = page.locator('video[src$="/media/clean.mp4"]');
