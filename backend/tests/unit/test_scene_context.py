@@ -42,10 +42,11 @@ def test_context_decisions(sample, expected):
 
 
 def test_real_short_shots_are_not_swallowed_by_debounce():
+    # Short crops around a real content shot widen with it; the content shot
+    # itself is never cropped to keep a neighbouring face.
     samples = [subject(0), subject(0.33), SceneEvidence(0.66), subject(1), subject(1.33)]
     plan = build_context_layout_plan(samples, [0.66, 1], 1.6, 0.316)
-    assert [(p["start"], p["end"], p["kind"]) for p in plan] == [
-        (0, 0.66, "face"), (0.66, 1, "fit"), (1, 1.6, "face")]
+    assert [(p["start"], p["end"], p["kind"]) for p in plan] == [(0, 1.6, "fit")]
 
 
 def test_single_missed_detection_does_not_widen_interview():
@@ -63,7 +64,9 @@ def test_unsampled_shot_is_preserved_and_boundaries_cover_duration():
     plan = build_context_layout_plan([subject(0), subject(1)], [-1, 0.5, 0.5, 0.75, 9], 2, 0.316)
     assert plan[0]["start"] == 0 and plan[-1]["end"] == 2
     assert all(a["end"] == b["start"] for a, b in zip(plan, plan[1:]))
-    assert plan[1]["kind"] == "fit"
+    # The unsampled shot stays full frame; the brief crops beside it widen
+    # with it instead of flipping layouts twice in two seconds.
+    assert all(p["kind"] == "fit" for p in plan)
 
 
 @pytest.mark.parametrize("duration", [0, -1, 10])

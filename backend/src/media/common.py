@@ -164,6 +164,23 @@ MIN_LAYOUT_SECONDS = 1.5
 
 LAYOUT_SNAP_WINDOW = 0.6
 
+# Readable fit: while a content shot's detail sits inside part of the width
+# (code in an editor window, a diagram on a plain background), the fitted
+# foreground crops the empty margins and grows instead of staying a 16:9 strip.
+# Zoom steps through FIT_VISIBLE_LEVELS (fraction of the width kept), each zoom
+# holds for at least FIT_ZOOM_HOLD_SECONDS, and a clip uses at most
+# FIT_MAX_ZOOM_LEVELS sizes. FIT_DETAIL_MARGIN_FRAC pads the detail per side.
+FIT_VISIBLE_LEVELS = (0.6, 0.7, 0.8, 0.9)
+
+FIT_DETAIL_MARGIN_FRAC = 0.03
+
+FIT_ZOOM_HOLD_SECONDS = 5.0
+
+FIT_MAX_ZOOM_LEVELS = 3
+
+# Tallest zoomed foreground: clears the hook title above and captions at 0.80.
+FIT_MAX_FOREGROUND_H = 1040
+
 KENBURNS_ZOOM_DELTA = 0.05
 # Vertical point the punch-in zooms toward (0 = top, 1 = bottom): slightly
 # above centre, where faces sit.
