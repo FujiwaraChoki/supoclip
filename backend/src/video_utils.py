@@ -414,8 +414,12 @@ def create_optimized_clip(
             # and the plain vertical crop chains. Composited layouts move the
             # source elsewhere, so they keep the template position.
             source_caption_band = None
+            # A source narrower than 9:16 is cropped vertically too, which
+            # would shift the band, so it keeps the template position.
             keeps_source_height = reframe_format == "original" or (
-                vertical_plan is not None and vertical_plan[1] == "vf"
+                vertical_plan is not None
+                and vertical_plan[1] == "vf"
+                and compute_vertical_crop_dims(src_w, src_h)[1] >= src_h * 0.98
             )
             if add_subtitles and keeps_source_height:
                 try:

@@ -13,7 +13,7 @@ from typing import List, Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
-from .common import KENBURNS_ZOOM_DELTA, logger
+from .common import KENBURNS_FOCUS_Y, KENBURNS_ZOOM_DELTA, logger
 
 Band = Tuple[float, float]  # (top, bottom) as fractions of the frame height
 
@@ -146,9 +146,14 @@ def band_through_full_height_crop(band: Band, zoom_delta: float = KENBURNS_ZOOM_
     """Where ``band`` can appear after a full-height crop with a slow punch-in.
 
     A crop that keeps the whole source height leaves vertical positions alone;
-    the Ken Burns zoom then pushes them up to ``zoom_delta`` away from centre.
+    the Ken Burns zoom (up to ``1 + zoom_delta``, toward ``KENBURNS_FOCUS_Y``)
+    then moves a source row ``y`` to ``zoom * y - KENBURNS_FOCUS_Y * (zoom - 1)``.
+    The band covers both ends of the zoom.
     """
+    zoom = 1 + zoom_delta
+
+    def zoomed(y: float) -> float:
+        return zoom * y - KENBURNS_FOCUS_Y * (zoom - 1)
+
     top, bottom = band
-    zoomed_top = 0.5 + (top - 0.5) * (1 + zoom_delta)
-    zoomed_bottom = 0.5 + (bottom - 0.5) * (1 + zoom_delta)
-    return max(0.0, min(top, zoomed_top)), min(1.0, max(bottom, zoomed_bottom))
+    return max(0.0, min(top, zoomed(top))), min(1.0, max(bottom, zoomed(bottom)))

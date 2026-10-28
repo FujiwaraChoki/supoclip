@@ -80,3 +80,11 @@ def test_detector_ignores_clean_frames():
     # One title card is not a caption track.
     lines = [caption_lines_in_frame(_caption_frame("BREAKING"))] + [[] for _ in range(11)]
     assert aggregate_caption_bands(lines) is None
+
+
+def test_band_follows_the_ken_burns_zoom_toward_its_focus_point():
+    # zoompan keeps y = (ih - ih/zoom) * 0.35 fixed, so a source row y lands at
+    # zoom * y - 0.35 * (zoom - 1) at the end of the 5% punch-in.
+    top, bottom = band_through_full_height_crop((0.7484, 0.7893))
+    assert top == 0.7484
+    assert abs(bottom - (1.05 * 0.7893 - 0.35 * 0.05)) < 1e-9
