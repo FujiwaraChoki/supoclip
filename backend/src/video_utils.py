@@ -57,6 +57,10 @@ from .media.captions import (
 from .media.reframing import (
     render_reframed_clip_ffmpeg,
 )
+from .media.source_captions import (
+    band_through_full_height_crop,
+    detect_burned_caption_band,
+)
 from .media.speaker_framing import (
     build_clip_speaker_turns,
 )
@@ -404,6 +408,25 @@ def create_optimized_clip(
             if layout_report is not None and caption_y is not None:
                 layout_report["caption_y"] = caption_y
 
+            # Captions already burned into the source (common on reposted
+            # Shorts) would collide with ours. Only layouts that keep the full
+            # source height map its band straight onto the output: "original"
+            # and the plain vertical crop chains. Composited layouts move the
+            # source elsewhere, so they keep the template position.
+            source_caption_band = None
+            keeps_source_height = reframe_format == "original" or (
+                vertical_plan is not None and vertical_plan[1] == "vf"
+            )
+            if add_subtitles and keeps_source_height:
+                try:
+                    source_caption_band = detect_burned_caption_band(source_clip_path)
+                except Exception as exc:
+                    logger.warning("Burned-in caption detection failed: %s", exc)
+                if source_caption_band and reframe_format == "vertical":
+                    source_caption_band = band_through_full_height_crop(source_caption_band)
+            if layout_report is not None and source_caption_band is not None:
+                layout_report["source_caption_band"] = source_caption_band
+
             burn_ass_path: Optional[Path] = None
             fonts_dir: Optional[Path] = None
             if (add_subtitles or hook_title) and build_assemblyai_ass_subtitles(
@@ -421,6 +444,7 @@ def create_optimized_clip(
                 hook_title=hook_title,
                 include_captions=add_subtitles,
                 position_y_override=caption_y,
+                avoid_band=source_caption_band,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
