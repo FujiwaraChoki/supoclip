@@ -16,6 +16,7 @@ from .common import (
     FACE_PRESENCE_MIN_AREA,
     FACE_PRESENCE_RATE,
     FACE_RATE_WINDOW,
+    KENBURNS_FOCUS_Y,
     KENBURNS_MIN_SECONDS,
     KENBURNS_SUPERSAMPLE_H,
     KENBURNS_SUPERSAMPLE_W,
@@ -1162,7 +1163,7 @@ def kenburns_zoom_fragment(duration: float) -> Optional[str]:
     return (
         f"scale={KENBURNS_SUPERSAMPLE_W}:{KENBURNS_SUPERSAMPLE_H}:flags=lanczos,"
         f"fps={OUTPUT_FPS},"
-        f"zoompan=z='{z_expr}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)*0.35'"
+        f"zoompan=z='{z_expr}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)*{KENBURNS_FOCUS_Y}'"
         f":d=1:s=1080x1920:fps={OUTPUT_FPS},{UPSCALE_SHARPEN_FILTER},setsar=1"
     )
 

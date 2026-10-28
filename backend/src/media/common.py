@@ -157,6 +157,9 @@ MIN_LAYOUT_SECONDS = 1.5
 LAYOUT_SNAP_WINDOW = 0.6
 
 KENBURNS_ZOOM_DELTA = 0.05
+# Vertical point the punch-in zooms toward (0 = top, 1 = bottom): slightly
+# above centre, where faces sit.
+KENBURNS_FOCUS_Y = 0.35
 
 KENBURNS_MIN_SECONDS = 3.0
 

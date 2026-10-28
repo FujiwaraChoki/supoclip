@@ -800,6 +800,92 @@ def build_clip_signal_summary(video_path: Path, transcript: str) -> str:
     return "\n".join(summary_lines)
 
 
+# AssemblyAI stamps some words it could not align with start == end ("game" at
+# 541460-541460, or "And I did zero" all at 581250). They are real, usually
+# high-confidence text, so they get a short slot instead of being dropped by
+# the overlap checks below.
+REPAIRED_WORD_MS = 120
+# A neighbour lends at most half its length and normally keeps this much.
+MIN_LENDER_WORD_MS = 60
+
+
+def _is_degenerate_word(word: Dict[str, Any]) -> bool:
+    return int(word["end"]) <= int(word["start"])
+
+
+def repair_word_timings(words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Give zero-duration ASR words a short slot, keeping every word in order.
+
+    Each run of words stamped at one instant first takes free time from the
+    gaps around it, then borrows from the neighbouring words. Returns the input
+    list unchanged when no word needs repair.
+    """
+    if not any(_is_degenerate_word(word) for word in words):
+        return words
+
+    repaired = [dict(word) for word in words]
+    count = len(repaired)
+    index = 0
+    while index < count:
+        if not _is_degenerate_word(repaired[index]):
+            index += 1
+            continue
+        anchor = int(repaired[index]["start"])
+        run_end = index
+        while (
+            run_end + 1 < count
+            and _is_degenerate_word(repaired[run_end + 1])
+            and int(repaired[run_end + 1]["start"]) == anchor
+        ):
+            run_end += 1
+        run_length = run_end - index + 1
+        wanted = run_length * REPAIRED_WORD_MS
+        previous = repaired[index - 1] if index > 0 else None
+        following = repaired[run_end + 1] if run_end + 1 < count else None
+
+        # Free time in the gaps on either side.
+        right_limit = int(following["start"]) if following else anchor + wanted
+        left_limit = int(previous["end"]) if previous else 0
+        high = max(anchor, min(right_limit, anchor + wanted))
+        low = min(anchor, max(left_limit, anchor - (wanted - (high - anchor))))
+
+        def spare(word: Optional[Dict[str, Any]], edge: int, from_start: bool) -> int:
+            if word is None:
+                return 0
+            start, end = int(word["start"]), int(word["end"])
+            remaining = end - edge if from_start else edge - start
+            if remaining <= 0:
+                return 0
+            # Very short neighbours still lend a third so the slot is visible.
+            return max(min(remaining - MIN_LENDER_WORD_MS, remaining // 2), remaining // 3)
+
+        # Then borrow from the neighbouring words, split between both sides.
+        missing = wanted - (high - low)
+        if missing > 0:
+            right_spare = spare(following, high, True)
+            left_spare = spare(previous, low, False)
+            take_right = min(right_spare, missing - min(left_spare, missing // 2))
+            take_left = min(left_spare, missing - take_right)
+            high += take_right
+            low -= take_left
+        # No room at all: a millisecond each still keeps the text in range.
+        if high - low < run_length:
+            high = low + run_length
+        if following is not None and int(following["start"]) < high < int(following["end"]):
+            following["start"] = high
+        if previous is not None and int(previous["start"]) < low < int(previous["end"]):
+            previous["end"] = low
+
+        step = (high - low) / run_length
+        for offset in range(run_length):
+            word = repaired[index + offset]
+            word["start"] = low + round(step * offset)
+            word["end"] = low + round(step * (offset + 1))
+        index = run_end + 1
+
+    return repaired
+
+
 def get_words_in_range(
     transcript_data: Dict, clip_start: float, clip_end: float
 ) -> List[Dict]:
@@ -811,7 +897,7 @@ def get_words_in_range(
     clip_end_ms = int(clip_end * 1000)
 
     relevant_words = []
-    for word_data in transcript_data["words"]:
+    for word_data in repair_word_timings(transcript_data["words"]):
         word_start = word_data["start"]
         word_end = word_data["end"]
 
@@ -846,7 +932,7 @@ def get_absolute_words_in_range(
     clip_end_ms = int(clip_end * 1000)
 
     relevant_words: List[Dict[str, Any]] = []
-    for word_data in transcript_data["words"]:
+    for word_data in repair_word_timings(transcript_data["words"]):
         word_start = int(word_data["start"])
         word_end = int(word_data["end"])
         overlap_start = max(word_start, clip_start_ms)
