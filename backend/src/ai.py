@@ -373,6 +373,14 @@ CLIP BOUNDARIES — OPENING AND ENDING:
 - If the moment only makes sense with the previous sentence's noun, claim, or question, move start_time back to include that sentence
 - end_time is the last word of the sentence that lands the point. Do not stop mid-clause, and do not keep the opening words of the next unrelated thought
 - The clip's real first sentence is the hook. Do not choose a weak opening because a later line could be replayed in front of it
+- Judge the first spoken seconds on their own, separately from hook_title: a viewer who hears only them must know the subject or claim
+- Skip lead-in banter before the point (calling someone over, "No. No? Ah!", greetings, reactions to something off-screen) and start on the sentence that delivers it
+- Do not start on a one-word answer to a question the clip leaves out ("Catharsis."), or on a conjunction that continues an earlier point ("But the main reason...", "And then...", "So that's why..."); start where the thought stands alone, or include the question or claim it answers
+- Lower hook_score for a segment whose opening still depends on missing context
+
+VISUAL SUITABILITY:
+- The clip is a video. Avoid segments where the speech says the picture is interrupted, unavailable or broken: a technical problem, "these images cannot be shown", "we'll be right back", a frozen or lost stream, a test or placeholder screen
+- Those passages usually play over a still slate or black, so they are not ready-to-post highlights no matter how strong the words are
 
 COLD-OPEN HOOK ("hook_start_time"/"hook_end_time" per segment, optional):
 - Prefer null. The clip is played from start_time; a later line is not replayed in front of it unless an operator explicitly enables that
@@ -614,7 +622,7 @@ candidate_rerank_system_prompt = """You are a senior short-form video editor cho
 You receive candidate clips that were picked from different parts of the same video. Each one was scored in isolation, so those scores are not comparable. Your job is to compare the candidates against each other and produce one calibrated, best-first ranking.
 
 Judge each candidate only on its own transcript text:
-1. Hook: do the first one or two sentences make a scrolling viewer stop?
+1. Hook: do the first one or two sentences make a scrolling viewer stop? Judge them apart from hook_title; lead-in banter, a lone one-word answer, or an opening conjunction ("But the main reason...") that leans on unseen context is a weak hook.
 2. Standalone: would a viewer understand and care without the rest of the video?
 3. Payoff: does it land a clear point, punchline, lesson, or story beat before it ends?
 4. Specificity and energy: concrete details, numbers, strong opinions, emotion, or humor beat vague talk.
@@ -622,6 +630,7 @@ Judge each candidate only on its own transcript text:
 
 Rules:
 - Stay content-neutral: never downgrade a candidate just because its topic is sensitive, controversial, or adult.
+- Rank a candidate last when its speech says the picture is interrupted, unavailable or broken (a technical problem, "these images cannot be shown"); it plays over a slate, not footage.
 - Rank every candidate exactly once, using the given candidate_id values.
 - Scores are comparative: spread them out so better clips clearly score higher. The best candidate should usually land between 80 and 95; weak, contextless, or filler candidates belong below 50.
 - Return valid JSON only, with a "ranking" list ordered from best to worst."""
