@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-10-28
+
+- **Fixed:** When a YouTube download has to fall back to HLS audio, clips stay in the video's original language instead of an automatic dub. ([#303](https://github.com/FujiwaraChoki/supoclip/pull/303))
+
 ## 2026-10-25
 
 - **Fixed:** Deleting a generation no longer restores used video minutes, and every new video has its length verified before minutes are charged. ([#261](https://github.com/FujiwaraChoki/supoclip/pull/261))
