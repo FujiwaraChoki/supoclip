@@ -184,11 +184,11 @@ def test_pause_with_action_is_not_cut(tmp_path, monkeypatch):
     video = _video(tmp_path, FORTNITE_WORDS)
     calls = []
 
-    def fake_active_gaps(path, gaps, speech):
+    def fake_action_ranges(path, gaps, speech):
         calls.append(gaps)
-        return [True] * len(gaps)
+        return [[gap] for gap in gaps]
 
-    monkeypatch.setattr(timeline, "active_gaps", fake_active_gaps)
+    monkeypatch.setattr(timeline, "active_gap_ranges", fake_action_ranges)
     ranges = timeline.build_clip_keep_ranges(video, 746.168, 761.314, AUDIT_CLEANUP)
 
     assert calls == [[(pytest.approx(748.889), pytest.approx(756.376))]]
@@ -197,7 +197,7 @@ def test_pause_with_action_is_not_cut(tmp_path, monkeypatch):
 
 def test_still_silent_pause_is_still_compressed(tmp_path, monkeypatch):
     video = _video(tmp_path, FORTNITE_WORDS)
-    monkeypatch.setattr(timeline, "active_gaps", lambda _p, gaps, _s: [False] * len(gaps))
+    monkeypatch.setattr(timeline, "active_gap_ranges", lambda _p, gaps, _s: [[] for _ in gaps])
     ranges = timeline.build_clip_keep_ranges(video, 746.168, 761.314, AUDIT_CLEANUP)
 
     # The production cut for this clip.

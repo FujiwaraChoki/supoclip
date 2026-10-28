@@ -409,26 +409,20 @@ def create_optimized_clip(
             if layout_report is not None and caption_y is not None:
                 layout_report["caption_y"] = caption_y
 
-            # Captions already burned into the source (common on reposted
-            # Shorts) would collide with ours. Only layouts that keep the full
-            # source height map its band straight onto the output: "original"
-            # and the plain vertical crop chains. Composited layouts move the
-            # source elsewhere, so they keep the template position.
+            # Detect source captions in both polarities, then inspect their
+            # actual composed positions for fit, reaction, stack and split layouts.
             source_caption_band = None
-            # A source narrower than 9:16 is cropped vertically too, which
-            # would shift the band, so it keeps the template position.
-            keeps_source_height = reframe_format == "original" or (
-                vertical_plan is not None
-                and vertical_plan[1] == "vf"
-                and compute_vertical_crop_dims(src_w, src_h)[1] >= src_h * 0.98
-            )
-            if add_subtitles and keeps_source_height:
+            if add_subtitles:
                 try:
                     source_caption_band = detect_burned_caption_band(source_clip_path)
+                    if source_caption_band and reframe_format != "original":
+                        from .media.source_captions import detect_rendered_caption_band
+                        from .media.reframing import caption_probe_plan
+                        probe_filter, probe_mode = caption_probe_plan(source_clip_path, reframe_format, vertical_plan)
+                        source_caption_band = detect_rendered_caption_band(source_clip_path, probe_filter, probe_mode, ffprobe_duration(source_clip_path))
                 except Exception as exc:
                     logger.warning("Burned-in caption detection failed: %s", exc)
-                if source_caption_band and reframe_format == "vertical":
-                    source_caption_band = band_through_full_height_crop(source_caption_band)
+                    source_caption_band = None
             if layout_report is not None and source_caption_band is not None:
                 layout_report["source_caption_band"] = source_caption_band
 
@@ -450,6 +444,7 @@ def create_optimized_clip(
                 include_captions=add_subtitles,
                 position_y_override=caption_y,
                 avoid_band=source_caption_band,
+                caption_layout_report=layout_report,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
@@ -593,14 +588,15 @@ def create_clips_from_segments(
             )
 
             if success:
-                save_clip_source_ranges(clip_path, keep_ranges)
+                from .media.ffmpeg import output_offsets_for_ranges
+                save_clip_source_ranges(clip_path, keep_ranges, output_offsets_for_ranges(keep_ranges))
                 save_clip_broll(
                     clip_path,
                     segment.get("broll") if layout_report.get("broll_applied") else [],
                 )
                 if layout_report.get("caption_y") is not None:
                     save_clip_caption_settings(
-                        clip_path, {"position_y": layout_report["caption_y"]}
+                        clip_path, {"position_y": layout_report["caption_y"], "position_is_center": True}
                     )
                 # Crossfades overlap neighbouring ranges, so the file is
                 # shorter than the kept source; store what actually plays.

@@ -169,3 +169,81 @@ def _active_gaps(
         except Exception as exc:
             logger.warning("Gap motion check unavailable for %s: %s", video_path, exc)
     return flags
+
+
+def _merge_active_windows(windows: Sequence[Tuple[float, float]], start: float, end: float) -> List[Tuple[float, float]]:
+    result: List[Tuple[float, float]] = []
+    for a, b in sorted(windows):
+        a, b = max(start, a - .2), min(end, b + .2)
+        if b <= a:
+            continue
+        if result and a <= result[-1][1] + .35:
+            result[-1] = (result[-1][0], max(b, result[-1][1]))
+        else:
+            result.append((a, b))
+    return result
+
+
+def _local_motion(first: np.ndarray, second: np.ndarray) -> float:
+    """Measure changing content after removing a confident global camera translation."""
+    import cv2
+    first, second = first.astype(np.float32), second.astype(np.float32)
+    shift, response = cv2.phaseCorrelate(first, second)
+    if response > .25 and .3 < np.hypot(*shift) < min(first.shape) / 3:
+        dx, dy = shift
+        aligned = cv2.warpAffine(second, np.array([[1, 0, -dx], [0, 1, -dy]], dtype=np.float32), (first.shape[1], first.shape[0]))
+        border = int(np.ceil(max(abs(dx), abs(dy)))) + 1
+        first, second = first[border:-border, border:-border], aligned[border:-border, border:-border]
+    return float(np.abs(first - second).mean()) if first.size else 0.0
+
+
+def active_gap_ranges(video_path: Path, gaps: Sequence[Tuple[float, float]], speech: Sequence[Tuple[float, float]]) -> List[List[Tuple[float, float]]]:
+    """Keep action windows, allowing quiet filler on either side to be compressed.
+
+    Audio pulses and local motion protect their own time ranges. Uniform camera
+    movement alone is not enough to preserve an entire long pause. Decode failures
+    preserve the uncertain gap, rather than silently removing possible action.
+    """
+    video_path = Path(video_path)
+    if not gaps or not video_path.exists():
+        return [[] for _ in gaps]
+    levels, origin, speech_db = np.zeros(0), 0.0, None
+    try:
+        stream = select_audio_stream_index(video_path)
+        if stream is not None:
+            origin = min(a for a, _ in [*gaps, *speech])
+            span_end = max(b for _, b in [*gaps, *speech])
+            if span_end - origin <= 120:
+                levels = _window_levels_db(video_path, stream, origin, span_end)
+                speech_db = _speech_level_db(levels, origin, speech)
+    except Exception as exc:
+        logger.warning("Action audio unavailable for %s: %s", video_path, exc)
+    protected = []
+    for start, end in gaps:
+        if end - start > 120:
+            protected.append([(start, end)])
+            continue
+        windows = []
+        if speech_db is not None:
+            threshold = max(GAP_LOUD_FLOOR_DB, speech_db - GAP_LOUD_RELATIVE_DB)
+            first, last = max(0, int((start - origin) / _AUDIO_WINDOW_SECONDS)), min(len(levels), int((end - origin) / _AUDIO_WINDOW_SECONDS))
+            for index in range(first, last):
+                if levels[index] >= threshold:
+                    a = origin + index * _AUDIO_WINDOW_SECONDS
+                    windows.append((a, a + _AUDIO_WINDOW_SECONDS))
+        try:
+            width, height = GAP_ACTIVITY_FRAME_SIZE
+            fps = min(GAP_ACTIVITY_SAMPLE_FPS, 240 / max(.01, end - start))
+            raw = _decode(["ffmpeg", "-v", "error", "-ss", f"{start:.6f}", "-i", str(video_path), "-t", f"{end-start:.6f}", "-an", "-vf", f"fps={fps},scale={width}:{height},format=gray", "-f", "rawvideo", "-"])
+            data = np.frombuffer(raw, dtype=np.uint8)
+            frames = data[:len(data) // (width * height) * (width * height)].reshape(-1, height, width)
+            if len(frames) < 2:
+                raise ValueError("Insufficient frames to assess action")
+            for index in range(1, len(frames)):
+                if _local_motion(frames[index - 1], frames[index]) >= GAP_MOTION_THRESHOLD:
+                    windows.append((start + (index - 1) / fps, start + index / fps))
+            protected.append(_merge_active_windows(windows, start, end))
+        except Exception as exc:
+            logger.warning("Action windows uncertain for %s; preserving gap: %s", video_path, exc)
+            protected.append([(start, end)])
+    return protected

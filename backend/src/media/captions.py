@@ -402,7 +402,12 @@ def build_hook_title_ass(
     end = min(HOOK_TITLE_SECONDS, max(HOOK_TITLE_MIN_SECONDS, output_duration - 0.25))
     if output_duration <= HOOK_TITLE_MIN_SECONDS:
         start, end = 0.0, max(0.5, output_duration)
-    entrance = "\\fad(160,240)"
+    if editor_style is not None and "start" in editor_style:
+        start = max(0.0, min(float(editor_style["start"]), max(0.0, output_duration - .04)))
+        end = max(start + min(.04, output_duration), min(float(editor_style["end"]), output_duration))
+    span = max(0.001, end - start)
+    fade_in, fade_out = min(.16, span / 3), min(.24, span / 3)
+    entrance = f"\\fad({round(fade_in * 1000)},{round(fade_out * 1000)})"
     if editor_style is not None:
         x = video_width * (0.5 + float(editor_style.get("x", 0)))
         y = margin_v + original_px * 1.2 * len(lines) / 2 + video_height * float(editor_style.get("y", 0))
@@ -410,7 +415,7 @@ def build_hook_title_ass(
     elif position_y is not None:
         entrance += f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})"
     if template.get("word_pop", True):
-        entrance += "\\fscx90\\fscy90\\t(0,160,\\fscx100\\fscy100)"
+        entrance += f"\\fscx90\\fscy90\\t(0,{round(fade_in * 1000)},\\fscx100\\fscy100)"
     events = [
         f"Dialogue: 1,{ass_timestamp(start)},{ass_timestamp(end)},Hook,,0,0,0,,"
         f"{{{entrance}}}{text}"
@@ -445,6 +450,7 @@ def build_assemblyai_ass_subtitles(
     hook_editor_style: Optional[Dict[str, Any]] = None,
     caption_placements: Optional[List[Optional[Dict[str, Any]]]] = None,
     avoid_band: Optional[Tuple[float, float]] = None,
+    caption_layout_report: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -539,6 +545,8 @@ def build_assemblyai_ass_subtitles(
     )
     if avoid_band is not None and center_y_override is None:
         y_pos = caption_center_clear_of_band(y_pos, est_text_height, avoid_band, video_height)
+    if caption_layout_report is not None:
+        caption_layout_report["caption_y"] = y_pos / video_height
     font_name = ass_font_name(effective_font_family)
     border_style = (
         3

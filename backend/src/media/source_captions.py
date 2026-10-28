@@ -7,6 +7,7 @@ render moves its captions clear of the band found here. Detection is local
 and outlined, at the same height in a good share of the sampled frames.
 """
 
+import subprocess
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
@@ -44,6 +45,10 @@ def caption_lines_in_frame(frame: np.ndarray) -> List[Band]:
             interpolation=cv2.INTER_AREA,
         )
     gray = frame if frame.ndim == 2 else cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    return _caption_lines_polarity(gray) + _caption_lines_polarity(255 - gray)
+
+
+def _caption_lines_polarity(gray: np.ndarray) -> List[Band]:
     h, w = gray.shape
     top, bottom = int(h * SEARCH_TOP), int(h * SEARCH_BOTTOM)
     region = gray[top:bottom]
@@ -157,3 +162,26 @@ def band_through_full_height_crop(band: Band, zoom_delta: float = KENBURNS_ZOOM_
 
     top, bottom = band
     return max(0.0, min(top, zoomed(top))), min(1.0, max(bottom, zoomed(bottom)))
+
+
+def detect_rendered_caption_band(video_path: Path, video_filter: str, mode: str, duration: float) -> Optional[Band]:
+    """Inspect the actual composed layout, so fit/split/cropped sources use output coordinates.
+
+    Only called after source text is detected; ordinary footage avoids this extra pass.
+    Sampling follows composition, preserving its crop, zoom and split placement.
+    """
+    rate = SAMPLE_COUNT / max(1.0, duration)
+    tail = f"fps={rate:.9f},scale=540:960,format=gray"
+    command = ["ffmpeg", "-v", "error", "-nostdin", "-i", str(video_path), "-an", "-sn"]
+    if mode == "complex":
+        command += ["-filter_complex", f"{video_filter};[vout]{tail}[caption_probe]", "-map", "[caption_probe]"]
+    else:
+        command += ["-vf", f"{video_filter},{tail}"]
+    command += ["-frames:v", str(SAMPLE_COUNT), "-f", "rawvideo", "-"]
+    result = subprocess.run(command, capture_output=True, timeout=max(60, int(duration * 4)))
+    if result.returncode:
+        raise RuntimeError(result.stderr.decode("utf-8", "replace")[-500:])
+    data = np.frombuffer(result.stdout, dtype=np.uint8)
+    size = 540 * 960
+    frames = data[:len(data) // size * size].reshape(-1, 960, 540)
+    return aggregate_caption_bands([caption_lines_in_frame(frame) for frame in frames])

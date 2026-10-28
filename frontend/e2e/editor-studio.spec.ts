@@ -47,7 +47,7 @@ test.beforeAll(() => {
     mediaPath,
   ]);
 });
-async function setup(page: Page, failSave = false, filmstrip?: string, initial: EditDocument = draft) {
+async function setup(page: Page, failSave = false, filmstrip?: string, initial: EditDocument = draft, layout = false) {
   const documents = new Map(
     clips.map((c) => [c.id, { revision: 0, document: structuredClone(initial) }]),
   );
@@ -113,6 +113,8 @@ async function setup(page: Page, failSave = false, filmstrip?: string, initial: 
         height: 360,
         fps: 24,
         hasAudio: true,
+        hasLayout: layout,
+        landscapeRecommended: layout,
         waveform: Array.from(
           { length: 160 },
           (_, i) => 0.2 + Math.abs(Math.sin(i)) * 0.6,
@@ -123,7 +125,7 @@ async function setup(page: Page, failSave = false, filmstrip?: string, initial: 
       },
     });
   });
-  await page.route("**/editor/media/clean.mp4", (r) => {
+  await page.route(/\/editor\/media\/(clean|layout)\.mp4$/, (r) => {
     const bytes = readFileSync(mediaPath),
       range = r
         .request()
@@ -388,6 +390,7 @@ for (const width of [1440, 390]) test(`titles and captions edit in place as sepa
 });
 
 for (const width of [1440, 390]) test(`text layers drag and resize with one undo per gesture at ${width}px`, async ({ page }) => {
+  test.setTimeout(60_000); // two layers, multiple autosaves, undo and redo, then reload
   await page.setViewportSize({ width, height: 1100 });
   const documents = await setup(page);
   await page.getByRole("textbox", { name: "Hook title", exact: true }).fill("Move this title");
@@ -464,6 +467,7 @@ for (const width of [1440, 390]) test(`text layers drag and resize with one undo
 });
 
 for (const width of [1440, 390]) test(`moving and resizing one caption leaves neighbors and repeated footage unchanged at ${width}px`, async ({ page }) => {
+  test.setTimeout(60_000); // autosaves plus history restoration after reload
   await page.setViewportSize({ width, height: 1100 });
   const initial: EditDocument = { ...structuredClone(draft), captions: { ...draft.captions, wordsPerLine: 1 }, segments: [draft.segments[0], { id: "repeat", start: 0, end: 3 }] };
   const documents = await setup(page, false, undefined, initial);
@@ -518,6 +522,43 @@ for (const width of [1440, 390]) test(`moving and resizing one caption leaves ne
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   await page.getByRole("button", { name: "Redo", exact: true }).click();
   await expect.poll(async () => (await geometry()).width).toBeCloseTo(editedGeometry.width, 6);
+});
+
+for (const width of [1440, 390]) test(`title duration edges drag, persist and undo at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({ width, height: 1100 });
+  const initial: EditDocument = { ...structuredClone(draft), hookTitle: "Timed title", segments: [draft.segments[0], { id: "again", start: 0, end: 3 }] };
+  const documents = await setup(page, false, undefined, initial);
+  const end = page.getByRole("slider", { name: "Title end, seconds", exact: true });
+  const start = page.getByRole("slider", { name: "Title start, seconds", exact: true });
+  const track = page.getByRole("group", { name: "Hook title", exact: true });
+  await end.scrollIntoViewIfNeeded();
+  const box = (await end.boundingBox())!, lane = (await track.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + lane.width / 6, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.move(box.x + box.width / 2 + lane.width / 6, box.y - 20); await page.mouse.up();
+  await expect.poll(() => documents.get("clip1")!.document.hookTiming?.end).toBeCloseTo(5, 1);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(() => documents.get("clip1")!.document.hookTiming ?? null).toBeNull();
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect.poll(() => documents.get("clip1")!.document.hookTiming?.end).toBeCloseTo(5, 1);
+  await start.focus(); await start.press("ArrowRight");
+  await expect.poll(() => documents.get("clip1")!.document.hookTiming?.start).toBeCloseTo(.22, 2);
+  await page.reload();
+  await expect(end).toHaveAttribute("aria-valuenow", /^4\.9|^5/);
+  await expect(start).toHaveAttribute("aria-valuenow", "0.22");
+});
+
+test("custom title timing controls its transparent preview layer", async ({ page }) => {
+  await setup(page, false, undefined, { ...structuredClone(draft), hookTitle: "Timed title", hookTiming: { start: .75, end: 2.25 } });
+  const pixels = () => page.getByRole("region", { name: "Video preview", exact: true }).getByLabel("Hook title", { exact: true }).evaluate((c: HTMLCanvasElement) => c.getContext("2d")!.getImageData(0, 0, c.width, c.height).data.some((v, i) => i % 4 === 3 && v > 0));
+  for (const [time, visible] of [[.5, false], [1.5, true], [2.5, false]] as const) {
+    await page.getByRole("slider", { name: "Playhead", exact: true }).evaluate((e: HTMLInputElement, time) => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(e, String(time));
+      e.dispatchEvent(new Event("input", { bubbles: true }));
+      e.dispatchEvent(new Event("change", { bubbles: true }));
+    }, time);
+    await expect.poll(pixels).toBe(visible);
+  }
 });
 
 for (const width of [1440, 390]) test(`timeline typing updates the video before committing at ${width}px`, async ({ page }) => {
@@ -730,4 +771,26 @@ test("browser export contains edited video and audio through multiple cuts", asy
     probe.streams.some((s: { codec_type: string }) => s.codec_type === "audio"),
   ).toBe(true);
   expect(Number(probe.format.duration)).toBeCloseTo(3, 1);
+});
+
+
+test("wide content offers landscape, preserves playhead, and supports undo and redo", async ({ page }) => {
+  const initial = structuredClone(draft);
+  initial.framing.fit = "auto";
+  const documents = await setup(page, false, undefined, initial, true);
+  await page.getByLabel("Seek to word 2", { exact: true }).click();
+  const source = page.locator("video").first();
+  await expect.poll(() => source.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeCloseTo(1, 1);
+  await page.getByRole("tab", { name: "Framing" }).click();
+  await expect(page.getByRole("radio", { name: "Generated layout", exact: true })).toHaveAttribute("data-state", "on");
+  await page.getByRole("button", { name: "Use landscape version", exact: true }).click();
+  await expect(source).toHaveAttribute("src", /clean\.mp4$/);
+  await expect.poll(() => source.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeCloseTo(1, 1);
+  await expect.poll(() => documents.get("clip1")!.document.framing.aspect).toBe("original");
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(source).toHaveAttribute("src", /layout\.mp4$/);
+  await expect(page.getByRole("button", { name: "Use landscape version", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect(source).toHaveAttribute("src", /clean\.mp4$/);
+  await expect.poll(() => documents.get("clip1")!.document.framing).toEqual({ ...initial.framing, aspect: "original", fit: "contain" });
 });

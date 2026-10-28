@@ -47,6 +47,8 @@ async def test_process_video_complete_uses_fallback_when_ai_selects_no_segments(
         return _EmptyAnalysis()
 
     async def fake_run_in_thread(_func, *_args, **_kwargs):
+        if _func == VideoService._drop_static_segments:
+            return _args[1]
         return None
 
     monkeypatch.setattr(
@@ -117,3 +119,29 @@ async def test_cached_text_regenerates_missing_word_timings(monkeypatch, tmp_pat
     analysis = json.dumps({"most_relevant_segments": [{"start_time": "00:00", "end_time": "00:17", "text": "Cached segment"}], "summary": "Test", "key_topics": []})
     await VideoService.process_video_complete(url="upload://source.mp4", source_type="video_url", cached_transcript="Cached transcript", cached_analysis_json=analysis)
     transcribe.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_picture_review_backfills_before_enforcing_one_clip_limit(monkeypatch, tmp_path):
+    source = tmp_path / "source.mp4"
+    source.touch()
+    source.with_suffix(".transcript_cache.json").write_text(json.dumps({"words": [{"text": "A", "start": 0, "end": 100}]}))
+    monkeypatch.setattr(video_service_module, "get_config", lambda: SimpleNamespace(max_video_duration=5400, clip_duration=30, max_clips=1, fast_mode_max_clips=1))
+    monkeypatch.setattr(VideoService, "resolve_local_video_path", staticmethod(lambda _: source))
+    monkeypatch.setattr(VideoService, "_get_file_duration", staticmethod(lambda _: 120))
+    candidates = [{"start_time": "00:00", "end_time": "00:30", "text": "These images cannot be shown."},
+                  {"start_time": "00:50", "end_time": "01:20", "text": "A complete useful explanation."}]
+    seen = []
+    def review(_source, segments):
+        seen.extend(segments)
+        return segments[1:]
+    monkeypatch.setattr(VideoService, "_drop_static_segments", staticmethod(review))
+    monkeypatch.setattr(VideoService, "_refine_segment_openings", staticmethod(lambda s, *_: s))
+    async def threaded(func, *args, **kwargs):
+        return func(*args, **kwargs) if func == VideoService._drop_static_segments else None
+    monkeypatch.setattr(video_service_module, "run_in_thread", threaded)
+    result = await VideoService.process_video_complete(
+        "upload://source.mp4", "video_url", processing_mode="fast", cached_transcript="Existing transcript", cached_analysis_json=json.dumps({"most_relevant_segments": candidates}))
+    assert len(seen) == 2
+    assert len(result["segments_to_render"]) == 1
+    assert result["segments_to_render"][0]["start_time"] == "00:50"

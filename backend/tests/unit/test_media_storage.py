@@ -603,3 +603,18 @@ def test_orphan_scan_reclaims_retired_downloads_after_grace(storage, tmp_path, p
         os.utime(media, None)
     candidates = list(orphan_candidates(storage))
     assert ((str(directory), True) in candidates) is (not recent)
+
+
+def test_editor_restores_generated_layout_when_raw_media_is_already_local(storage, tmp_path):
+    directory = tmp_path / "editor" / ("f" * 64)
+    directory.mkdir(parents=True)
+    (directory / "asset.json").write_text('{"status":"ready","hasLayout":true}')
+    for name in ["draft.json", "original.json"]:
+        (directory / name).write_text('{}')
+    (directory / "clean.mp4").write_bytes(b"wide source")
+    (directory / "layout.mp4").write_bytes(b"full content composition")
+    storage.save_editor(directory)
+    (directory / "layout.mp4").unlink()
+    storage.restore_editor(directory, media=True)
+    assert (directory / "clean.mp4").read_bytes() == b"wide source"
+    assert (directory / "layout.mp4").read_bytes() == b"full content composition"

@@ -81,7 +81,7 @@
     "applying": "Applying…",
     "applyAll": "Apply to all clips",
     "hookTitle": "Hook title",
-    "hookDescription": "Shown at the top for the first few seconds. Leave empty to remove it.",
+    "hookDescription": "Drag the title’s timeline edges to set when it appears. Leave empty to remove it.",
     "hookPlaceholder": "No hook title",
     "transcript": "Transcript",
     "wordCount": "{count} words",
@@ -118,7 +118,10 @@
     "zoom": "Zoom",
     "horizontal": "Horizontal position",
     "vertical": "Vertical position",
-    "center": "Center subject"
+    "center": "Center subject",
+    "landscapeHint": "This clip contains wide detail. A landscape version keeps it readable without cropping content.",
+    "useLandscape": "Use landscape version",
+    "autoLayout": "Generated layout"
   },
   "audioPanel": {
     "title": "Audio",
@@ -200,7 +203,9 @@
       "showCaptions": "Show captions",
       "mute": "Mute",
       "unmute": "Unmute"
-    }
+    },
+    "hookStart": "Title start, seconds",
+    "hookEnd": "Title end, seconds"
   },
   "export": {
     "exported": "Video exported",

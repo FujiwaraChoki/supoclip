@@ -195,3 +195,15 @@ describe("B-roll gestures across sequence cuts", () => {
     }
   });
 });
+
+it("moves a continuation smoothly across a split in continuous footage", () => {
+  const doc = withBroll([clip("a", .5, 2.5)], [{ id: "head", start: 0, end: 1.5 }, { id: "tail", start: 1.5, end: 3 }]);
+  const second = mappedBroll(doc)[1];
+  const moved = placeBrollOnTimeline(doc, "a", second, "move", -.2, 3);
+  expect(moved.broll![0].start).toBeCloseTo(.3, 8);
+  expect(moved.broll![0].end).toBeCloseTo(2.3, 8);
+  const pieces = mappedBroll(moved);
+  expect(pieces).toHaveLength(2);
+  expect(pieces[0].end - pieces[0].start).toBeCloseTo(1.2, 8);
+  expect(pieces[1].end - pieces[1].start).toBeCloseTo(.8, 8);
+});

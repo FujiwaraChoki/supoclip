@@ -196,3 +196,62 @@ def still_picture_shows_face(
             ):
                 return True
     return False
+
+
+def is_interruption_notice(text: str) -> bool:
+    """Explicit unavailability notices, including animated/zoomed broadcaster slates."""
+    import re
+    text = " ".join((text or "").lower().split())
+    patterns = [r"kurze unterbrechung", r"(?:these|this) (?:images|pictures|footage).{0,80}(?:cannot|can't|not allowed).{0,40}(?:show|display)",
+                r"(?:footage|images|video) (?:is |are )?(?:unavailable|not available)",
+                r"(?:technical difficulties|please stand by|we(?:'ll| will) be right back)",
+                r"(?:diese|die) bilder.{0,100}(?:nicht|leider nicht).{0,30}(?:zeigen|gezeigt)",
+                r"aus (?:rechtlichen|lizenzrechtlichen) gründen.{0,80}(?:nicht|keine).{0,30}(?:zeigen|bilder)"]
+    return any(re.search(pattern, text) for pattern in patterns)
+
+
+def segment_shows_interruption_notice(video_path: Path, ranges: Sequence[Tuple[float, float]]) -> bool:
+    try:
+        return _segment_shows_interruption_notice(video_path, ranges)
+    except (OSError, RuntimeError, subprocess.SubprocessError):
+        return False
+
+
+def _segment_shows_interruption_notice(video_path: Path, ranges: Sequence[Tuple[float, float]]) -> bool:
+    """Read three picture samples locally; motion/zoom cannot disguise a notice.
+
+    A majority must contain an explicit interruption message. No model or
+    network is involved. Missing OCR or a failed sample keeps uncertain footage.
+    """
+    import os
+    import shutil
+    import cv2
+
+    binary = shutil.which("tesseract")
+    total = sum(max(0., end - start) for start, end in ranges)
+    if binary is None or total <= 0 or not Path(video_path).is_file():
+        return False
+    matches = 0
+    for fraction in (.15, .5, .85):
+        cursor, target = 0., total * fraction
+        for start, end in ranges:
+            if target < cursor + end - start:
+                timestamp = start + target - cursor
+                break
+            cursor += end - start
+        else:
+            continue
+        frame = _decode_frame_bgr(video_path, timestamp)
+        if frame is None:
+            return False
+        frame = cv2.resize(frame, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
+        ok, encoded = cv2.imencode(".png", frame)
+        if not ok:
+            return False
+        result = subprocess.run([binary, "stdin", "stdout", "-l", "eng", "--psm", "11"],
+                                input=encoded.tobytes(), capture_output=True, timeout=10,
+                                env={**os.environ, "OMP_THREAD_LIMIT": "1"})
+        if result.returncode:
+            return False
+        matches += is_interruption_notice(result.stdout.decode("utf-8", "replace"))
+    return matches >= 2

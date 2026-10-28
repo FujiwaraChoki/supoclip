@@ -29,6 +29,8 @@ from ..clip_source_map import (
     load_clip_source_ranges,
     save_clip_broll,
     save_clip_source_ranges,
+    load_clip_output_offsets,
+    slice_source_timeline,
     save_clip_caption_settings,
     load_clip_caption_settings,
     source_range_bounds,
@@ -305,7 +307,9 @@ class ClipEditingMixin:
             trim_clip_file, input_path, Path(self.config.temp_dir) / "clips", start_offset, end_offset
         )
         source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
-        trimmed_ranges = trim_source_ranges(source_ranges, start_offset, end_offset)
+        offsets = load_clip_output_offsets(input_path, source_ranges)
+        total = max(offset + b - a for offset, (a, b) in zip(offsets, source_ranges))
+        trimmed_ranges, trimmed_offsets = slice_source_timeline(source_ranges, start_offset, total - end_offset, offsets)
         clip_duration = max(
             0.1, await run_in_thread(rendered_clip_duration, output_path, trimmed_ranges)
         )
@@ -313,7 +317,7 @@ class ClipEditingMixin:
         if not bounds:
             raise ValueError("Trimmed clip has no remaining source mapping")
         start_seconds, end_seconds = bounds
-        save_clip_source_ranges(output_path, trimmed_ranges)
+        save_clip_source_ranges(output_path, trimmed_ranges, trimmed_offsets)
         if settings := load_clip_caption_settings(input_path):
             save_clip_caption_settings(output_path, settings)
         if broll := load_clip_broll(input_path):
@@ -353,13 +357,16 @@ class ClipEditingMixin:
 
         clamped_split = max(0.2, min(split_time, float(clip["duration"]) - 0.2))
         source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
-        first_ranges, second_ranges = split_source_ranges(source_ranges, clamped_split)
+        offsets = load_clip_output_offsets(input_path, source_ranges)
+        total = max(offset + b - a for offset, (a, b) in zip(offsets, source_ranges))
+        first_ranges, first_offsets = slice_source_timeline(source_ranges, 0, clamped_split, offsets)
+        second_ranges, second_offsets = slice_source_timeline(source_ranges, clamped_split, total, offsets)
         first_bounds = source_range_bounds(first_ranges)
         second_bounds = source_range_bounds(second_ranges)
         if not first_bounds or not second_bounds:
             raise ValueError("Split clip has invalid source mapping")
-        save_clip_source_ranges(first_path, first_ranges)
-        save_clip_source_ranges(second_path, second_ranges)
+        save_clip_source_ranges(first_path, first_ranges, first_offsets)
+        save_clip_source_ranges(second_path, second_ranges, second_offsets)
         if settings := load_clip_caption_settings(input_path):
             save_clip_caption_settings(first_path, settings)
             save_clip_caption_settings(second_path, settings)
@@ -431,15 +438,18 @@ class ClipEditingMixin:
             Path(self.config.temp_dir) / "clips",
         )
 
-        merged_ranges = []
-        for clip in ordered:
-            merged_ranges.extend(await run_in_thread(self._get_clip_source_ranges, clip))
+        merged_ranges, merged_offsets, cursor = [], [], 0.0
+        for clip, path in zip(ordered, input_paths):
+            source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
+            merged_ranges.extend(source_ranges)
+            merged_offsets += [cursor + offset for offset in load_clip_output_offsets(path, source_ranges)]
+            cursor += float(clip["duration"])
         merged_bounds = source_range_bounds(merged_ranges)
         if merged_bounds:
             start_time = self._seconds_to_mmss(merged_bounds[0])
             end_time = self._seconds_to_mmss(merged_bounds[1])
             duration = await run_in_thread(rendered_clip_duration, merged_path, merged_ranges)
-            save_clip_source_ranges(merged_path, merged_ranges)
+            save_clip_source_ranges(merged_path, merged_ranges, merged_offsets)
         else:
             start_time = ordered[0]["start_time"]
             end_time = ordered[-1]["end_time"]

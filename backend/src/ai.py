@@ -1647,6 +1647,7 @@ async def get_most_relevant_parts_by_transcript(
     clip_signals: str | None = None,
     performance_context: str | None = None,
     clip_length: str = "auto",
+    include_reserve: bool = False,
 ) -> TranscriptAnalysis:
     """Get the most relevant parts of a transcript with virality scoring.
 
@@ -1701,9 +1702,10 @@ async def get_most_relevant_parts_by_transcript(
         source_seconds = max(
             (line["end_seconds"] for line in transcript_lines), default=0
         )
-        validated_segments = candidates[
-            : max_final_clips_for_duration(source_seconds, get_config().max_clips)
-        ]
+        limit = max_final_clips_for_duration(source_seconds, get_config().max_clips)
+        # Retain already-ranked alternatives until picture suitability checks
+        # finish. No extra model call is needed when a slate is rejected.
+        validated_segments = candidates[: min(24, limit * 2) if include_reserve else limit]
 
         final_analysis = TranscriptAnalysis(
             most_relevant_segments=validated_segments,

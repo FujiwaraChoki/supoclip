@@ -53,13 +53,8 @@ def test_cooking_clip_does_not_flash_a_crop_inside_the_wide_demonstration():
         shot(33.333, 34.333, "fit", "no_reliable_close_subject"),
     ]
     stable = stabilize_layout_plan(plan)
-    kinds = [(p["kind"]) for p in stable]
-    # One switch: the opening close-up, then the wide demonstration.
-    assert layout(stable)[0] == (0.0, 4.333, "face")
-    assert kinds[1:] == ["fit"] * (len(kinds) - 1)
-    # The absorbed pan takes the neighbouring wide shot's reason.
-    pan = next(p for p in stable if p["start"] <= 30 < p["end"])
-    assert pan["reason"] == "subjects_spread_across_frame"
+    assert layout(stable) == [(0.0, 34.333, "fit")]
+    assert stable[0]["reason"] == "stable_context"
 
 
 def test_brief_wide_shot_of_the_same_speaker_keeps_the_face_crop():
@@ -92,7 +87,7 @@ def test_brief_content_shot_between_close_ups_stays_full_frame():
     slide = [SceneEvidence(i / 3, text_rows=6) for i in range(78, 84)]
     after = [subject(i / 3) for i in range(84, 120)]
     plan = build_context_layout_plan(close + slide + after, [26.0, 28.0], 40.0, 0.316)
-    assert layout(plan) == [(0.0, 26.0, "face"), (26.0, 28.0, "fit"), (28.0, 40.0, "face")]
+    assert layout(plan) == [(0.0, 40.0, "fit")]
 
 
 def test_brief_crop_inside_a_wide_two_shot_keeps_speaker_framing_reason():
@@ -105,13 +100,13 @@ def test_brief_crop_inside_a_wide_two_shot_keeps_speaker_framing_reason():
     assert stable == [shot(0, 20, "fit", "interaction_exceeds_crop")]
 
 
-def test_long_shots_keep_their_own_layouts():
+def test_repeated_context_changes_use_one_full_frame_layout():
     plan = [
         shot(0, 3, "face", "confident_subject"),
         shot(3, 6, "fit", "screen_content_outside_crop"),
         shot(6, 9, "face", "confident_subject"),
     ]
-    assert stabilize_layout_plan(plan) == plan
+    assert layout(stabilize_layout_plan(plan)) == [(0, 9, "fit")]
 
 
 # -- #290: text a face crop would cut ----------------------------------------

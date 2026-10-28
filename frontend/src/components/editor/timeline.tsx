@@ -43,6 +43,7 @@ import {
 import { Panel, ToolButton } from "./studio-ui";
 import { Filmstrip } from "./filmstrip";
 import { InlineText } from "./inline-text";
+import { HookTrack } from "./hook-track";
 import { prepareTextDraft, type TextDraft } from "@/lib/editor/render";
 
 interface Props {
@@ -475,24 +476,7 @@ export function Timeline({
               secondsPerPixel={secondsPerPixel}
               duration={asset.duration}
             />
-            {hook && (
-              <div role="group" aria-label={t("captions.hookTitle")} className={cn("relative", TRACK.hook)} {...scrubbing}>
-                <InlineText
-                  value={doc.hookTitle ?? ""}
-                  label={t("captions.hookTitle")}
-                  maxLength={200}
-                  buttonLabel={`${t("captions.hookTitle")}: ${doc.hookTitle}`}
-                  title={`${doc.hookTitle} · ${timecode(hook.start)} – ${timecode(Math.min(total, hook.end))}`}
-                  className="absolute inset-y-0 overflow-hidden rounded-md bg-amber-100 px-2 text-left text-[11px] leading-7 text-amber-950 hover:bg-amber-200 dark:bg-amber-950 dark:text-amber-100"
-                  style={{ left: pct(hook.start), width: pct(Math.max(0, Math.min(total, hook.end) - hook.start)) }}
-                  onBegin={() => { pause(); seekOut(Math.min(total, hook.start + 0.3)); }}
-                  onDraft={text => onTextDraft(text === null ? undefined : prepareTextDraft(doc, hook.start, "hook", text))}
-                  onCommit={hookTitle => update(current => ({ ...current, hookTitle }))}
-                >
-                  <span className="block truncate">{doc.hookTitle}</span>
-                </InlineText>
-              </div>
-            )}
+            {hook && <HookTrack doc={doc} pause={pause} seek={seekOut} update={update} onDraft={onTextDraft} secondsPerPixel={secondsPerPixel} />}
             <div className={cn("relative", TRACK.captions, !doc.captions.enabled && "opacity-40")} {...scrubbing}>
               {groups.map((group) => (
                 <InlineText

@@ -81,7 +81,7 @@
     "applying": "正在应用…",
     "applyAll": "应用到所有片段",
     "hookTitle": "开场标题",
-    "hookDescription": "在开头几秒显示在顶部。留空即可移除。",
+    "hookDescription": "拖动时间轴上标题的边缘，设置显示时间。留空即可移除。",
     "hookPlaceholder": "无开场标题",
     "transcript": "文字稿",
     "wordCount": "{count} 个词",
@@ -118,7 +118,10 @@
     "zoom": "缩放",
     "horizontal": "水平位置",
     "vertical": "垂直位置",
-    "center": "将主体居中"
+    "center": "将主体居中",
+    "landscapeHint": "此片段包含横向细节。横屏版本可完整保留内容，方便阅读。",
+    "useLandscape": "使用横屏版本",
+    "autoLayout": "生成的布局"
   },
   "audioPanel": {
     "title": "音频",
@@ -200,7 +203,9 @@
       "showCaptions": "显示字幕",
       "mute": "静音",
       "unmute": "取消静音"
-    }
+    },
+    "hookStart": "标题开始时间（秒）",
+    "hookEnd": "标题结束时间（秒）"
   },
   "export": {
     "exported": "视频已导出",

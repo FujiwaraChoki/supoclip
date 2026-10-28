@@ -54,7 +54,7 @@ from ..clip_source_map import (
     save_clip_source_ranges,
     source_range_bounds,
 )
-from ..ai import get_most_relevant_parts_by_transcript
+from ..ai import get_most_relevant_parts_by_transcript, max_final_clips_for_duration
 from ..clip_openings import OPENING_HOOK_PENALTY, opening_text_issue, review_opening
 from ..clip_duration import clip_duration
 from ..config import get_config
@@ -71,6 +71,7 @@ from ..media.timeline import get_words_for_keep_ranges
 from ..media.visual_suitability import (
     is_visually_static,
     segment_static_fraction,
+    segment_shows_interruption_notice,
     still_picture_shows_face,
 )
 from ..stream_source import (
@@ -254,9 +255,10 @@ class VideoService:
         "footage unavailable" card would otherwise lead the results. When every
         segment is static (an audio podcast with cover art), all are kept.
         """
+        notices = [False] * len(segments)
         fractions: List[Optional[float]] = []
         static: List[bool] = []
-        for segment in segments:
+        for segment, notice in zip(segments, notices):
             fraction: Optional[float] = None
             is_static = False
             try:
@@ -264,7 +266,9 @@ class VideoService:
                 end = parse_timestamp_to_seconds(str(segment.get("end_time") or ""))
                 ranges = local_ranges_for(video_path, [(start, end)])
                 fraction = segment_static_fraction(video_path, ranges)
-                is_static = is_visually_static(fraction)
+                notice = segment_shows_interruption_notice(video_path, ranges)
+                notices[len(static)] = notice
+                is_static = is_visually_static(fraction) or notice
                 # A presenter in front of a fixed backdrop barely moves either;
                 # only a held picture without a face is a card or placeholder.
                 if is_static and still_picture_shows_face(video_path, ranges):
@@ -288,7 +292,7 @@ class VideoService:
 
         if not any(static):
             return segments
-        if all(static):
+        if all(static) and not any(notices):
             logger.warning(
                 "Every selected segment shows a still picture; keeping them all "
                 "because the whole source looks static"
@@ -519,6 +523,7 @@ class VideoService:
             clip_signals=clip_signals,
             performance_context=performance_context,
             clip_length=clip_length,
+            include_reserve=True,
         )
         logger.info(
             f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"
@@ -755,8 +760,12 @@ class VideoService:
                     # A higher-resolution clip beats losing the clip entirely.
                     logger.warning(f"Keeping full-size clip {clip_index + 1}: {e}")
 
-            save_clip_source_ranges(clip_path, keep_ranges)
+            from ..media.ffmpeg import output_offsets_for_ranges
+            save_clip_source_ranges(clip_path, keep_ranges, output_offsets_for_ranges(keep_ranges))
             save_clip_broll(clip_path, broll_placements)
+            if render_report.get("caption_y") is not None:
+                from ..clip_source_map import save_clip_caption_settings
+                save_clip_caption_settings(clip_path, {"position_y": render_report["caption_y"], "position_is_center": True})
             # Store what plays, after crossfades and the resolution cap.
             cleaned_duration = await run_in_thread(
                 rendered_clip_duration, clip_path, keep_ranges
@@ -1112,10 +1121,12 @@ class VideoService:
                 # A heuristic must never fail the task; keep the AI's openings.
                 logger.exception("Opening review failed; keeping the selected openings")
 
-            clip_limit = runtime_config.max_clips
+            clip_limit = max_final_clips_for_duration(file_duration, runtime_config.max_clips)
             if processing_mode == "fast":
                 clip_limit = min(clip_limit, runtime_config.fast_mode_max_clips)
-            segments_json = segments_json[: max(1, clip_limit)]
+            # Retain a bounded reserve until picture checks finish, so a rejected
+            # slate can be replaced by the next already-ranked candidate.
+            segments_json = segments_json[: min(24, max(1, clip_limit) * 2)]
 
             if not segments_json:
                 logger.warning(
@@ -1178,13 +1189,17 @@ class VideoService:
                 video_path = await VideoService.prepare_source(video_path)
 
             # The picture is only available now when analysis ran on audio.
-            if len(segments_json) > 1:
+            if segments_json:
                 try:
                     segments_json = await run_in_thread(
                         VideoService._drop_static_segments, video_path, segments_json
                     )
                 except Exception:
                     logger.exception("Visual suitability check failed; keeping every segment")
+
+            segments_json = segments_json[:max(1, clip_limit)]
+            if not segments_json:
+                raise ValueError("No usable footage remains after excluding interruption notices.")
 
             return {
                 "segments": segments_json,

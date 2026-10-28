@@ -40,6 +40,8 @@ function upgradeCachedHistory(history: History, server: EditDocument): History {
     ...document,
     // Missing means this cache predates editable B-roll; [] is an intentional removal.
     broll: structuredClone(document.broll ?? server.broll ?? []),
+    ...(document.hookTiming !== undefined || server.hookTiming !== undefined
+      ? { hookTiming: structuredClone(document.hookTiming ?? null) } : {}),
     // Missing placement fields mean the original layout, including in old undo
     // snapshots. Inheriting today's server placement would corrupt undo.
     ...(document.textTransforms !== undefined || server.textTransforms !== undefined

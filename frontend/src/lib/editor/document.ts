@@ -45,7 +45,7 @@ export interface CaptionLook {
 }
 export interface Framing {
   aspect: "vertical" | "square" | "original";
-  fit: "contain" | "cover";
+  fit: "contain" | "cover" | "auto";
   zoom: number;
   x: number;
   y: number;
@@ -97,6 +97,8 @@ export interface EditDocument {
   muted: boolean;
   /** Headline shown at the top for the first seconds; absent on very old drafts. */
   hookTitle?: string;
+  /** Hook visibility in edited/output seconds. Missing preserves the generated default. */
+  hookTiming?: { start: number; end: number } | null;
   /** Normalized offsets from the original text anchors; independent font scales. */
   textTransforms?: Partial<Record<TextLayer, TextTransform>>;
   /** Placement overrides for individual caption occurrences. */
@@ -138,6 +140,8 @@ export interface EditorState {
   captionLooks?: Record<string, CaptionLook>;
   /** Whether the server can make AI edits (an Anthropic key is configured). */
   aiEditing?: boolean;
+  hasLayout?: boolean;
+  landscapeRecommended?: boolean;
 }
 export const DEFAULT_EFFECTS: Effects = {
   brightness: 100,
@@ -163,9 +167,19 @@ export function renderSegments(segments: Segment[]): Segment[] {
 /** Hook titles are timed on the edited output, including their fade margins. */
 export function hookRange(doc: EditDocument) {
   const duration = editDuration(doc);
+  if (doc.hookTiming) {
+    const start = clamp(doc.hookTiming.start, 0, Math.max(0, duration - .04));
+    return { start, end: clamp(doc.hookTiming.end, start + Math.min(.04, duration), duration) };
+  }
   return duration <= 1.5
     ? { start: 0, end: Math.max(0.5, duration) }
     : { start: 0.12, end: Math.min(4, Math.max(1.5, duration - 0.25)) };
+}
+/** Move one title edge, preserving a visible interval and the edited clip's bounds. */
+export function trimHook(doc: EditDocument, edge: "start" | "end", seconds: number): EditDocument {
+  const range = hookRange(doc), minimum = Math.min(.1, editDuration(doc));
+  const value = edge === "start" ? clamp(seconds, 0, range.end - minimum) : clamp(seconds, range.start + minimum, editDuration(doc));
+  return { ...doc, hookTiming: { ...range, [edge]: value } };
 }
 export const timecode = (time: number) =>
   `${Math.floor(Math.max(0, time) / 60)}:${(Math.max(0, time) % 60).toFixed(2).padStart(5, "0")}`;
@@ -504,8 +518,14 @@ export function placeBroll(
 function sourceAtTrackTime(doc: EditDocument, time: number, edge: "start" | "end") {
   const items = sequence(doc);
   const at = clamp(time, 0, editDuration(doc));
-  const item = items.find(item => at >= item.start && (edge === "end" ? at <= item.end : at < item.end)) ?? items.at(-1)!;
-  return { source: item.segment.start + at - item.start, segment: item.segment };
+  const index = items.findIndex(item => at >= item.start && (edge === "end" ? at <= item.end : at < item.end));
+  const i = index < 0 ? items.length - 1 : index, item = items[i];
+  // A split with no source-time jump is still continuous footage. Clamp to
+  // that whole run, so dragging a continuation cannot snap to the split edge.
+  let first = i, last = i;
+  while (first > 0 && Math.abs(items[first - 1].segment.end - items[first].segment.start) < 1e-6) first--;
+  while (last + 1 < items.length && Math.abs(items[last].segment.end - items[last + 1].segment.start) < 1e-6) last++;
+  return { source: item.segment.start + at - item.start, segment: { ...item.segment, start: items[first].segment.start, end: items[last].segment.end } };
 }
 
 /** Timeline gestures use edit seconds; persisted B-roll stays anchored to source footage. */

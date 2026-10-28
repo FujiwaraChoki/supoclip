@@ -81,7 +81,7 @@
     "applying": "Menerapkan…",
     "applyAll": "Terapkan ke semua clip",
     "hookTitle": "Judul hook",
-    "hookDescription": "Ditampilkan di atas selama beberapa detik pertama. Kosongkan untuk menghapusnya.",
+    "hookDescription": "Tarik tepi judul di linimasa untuk mengatur kapan judul muncul. Kosongkan untuk menghapusnya.",
     "hookPlaceholder": "Tanpa judul hook",
     "transcript": "Transkrip",
     "wordCount": "{count} kata",
@@ -118,7 +118,10 @@
     "zoom": "Zoom",
     "horizontal": "Posisi horizontal",
     "vertical": "Posisi vertikal",
-    "center": "Pusatkan subjek"
+    "center": "Pusatkan subjek",
+    "landscapeHint": "Klip ini berisi detail yang melebar. Versi lanskap menjaga detail tetap terbaca tanpa memotong konten.",
+    "useLandscape": "Gunakan versi lanskap",
+    "autoLayout": "Tata letak hasil pembuatan"
   },
   "audioPanel": {
     "title": "Audio",
@@ -200,7 +203,9 @@
       "showCaptions": "Tampilkan caption",
       "mute": "Bisukan",
       "unmute": "Bunyikan"
-    }
+    },
+    "hookStart": "Awal judul, detik",
+    "hookEnd": "Akhir judul, detik"
   },
   "export": {
     "exported": "Video diekspor",

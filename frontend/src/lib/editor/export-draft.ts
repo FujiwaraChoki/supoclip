@@ -38,7 +38,8 @@ export async function exportDraft(
       "This browser cannot encode this video. Choose background export to render it on the server.",
     );
   await loadEditorFont(doc.captions.font);
-  const response = await fetch(url, { signal });
+  const mediaUrl = asset.hasLayout && doc.framing.fit === "auto" && doc.framing.aspect === "vertical" ? url.replace(/clean\.mp4$/, "layout.mp4") : url;
+  const response = await fetch(mediaUrl, { signal });
   if (!response.ok) throw new Error("Could not load the source video.");
   const input = new m.Input({
     source: new m.BlobSource(await response.blob()),

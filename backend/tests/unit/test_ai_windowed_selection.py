@@ -336,3 +336,16 @@ async def test_performance_context_shapes_windows_and_the_final_rerank(monkeypat
     assert guard in rerank_prompt
     assert all(guard in call.args[0] for call in agent.run.await_args_list)
     assert context not in ai.build_candidate_rerank_prompt([_segment("00:30", "01:00")])
+
+
+@pytest.mark.asyncio
+async def test_picture_review_can_request_ranked_reserve_without_another_model_call(monkeypatch):
+    monkeypatch.setattr(ai, "get_config", lambda: SimpleNamespace(max_clips=1))
+    agent = SimpleNamespace(run=AsyncMock(return_value=SimpleNamespace(output=ai.TranscriptAnalysis(
+        most_relevant_segments=[_segment("00:00", "00:30", 80), _segment("00:50", "01:20", 72)],
+        summary="Two distinct picks", key_topics=[],
+    ))))
+    monkeypatch.setattr(ai, "get_transcript_agent", lambda *_: agent)
+    result = await ai.get_most_relevant_parts_by_transcript(_transcript(120), include_reserve=True)
+    assert len(result.most_relevant_segments) == 2
+    agent.run.assert_awaited_once()

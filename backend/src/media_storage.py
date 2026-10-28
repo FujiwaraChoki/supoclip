@@ -646,8 +646,12 @@ class MediaStorage:
         (directory / ".access").touch()
         asset = directory / "asset.json"
         if asset.exists():
-            ready = json.loads(asset.read_text()).get("status") == "ready"
-            if (not ready or all((directory / name).exists() for name in ("draft.json", "original.json"))) and (not media or (directory / "clean.mp4").exists()):
+            metadata = json.loads(asset.read_text())
+            ready = metadata.get("status") == "ready"
+            drafts_ready = not ready or all((directory / name).exists() for name in ("draft.json", "original.json"))
+            media_ready = ((directory / "clean.mp4").exists()
+                           and (not metadata.get("hasLayout") or (directory / "layout.mp4").exists()))
+            if drafts_ready and (not media or media_ready):
                 return
         manifest = directory / ".s3-manifest"
         if not self.bucket or (not self.enabled and not manifest.exists() and not s3_backed):
@@ -660,7 +664,7 @@ class MediaStorage:
         # Shared local state is authoritative; avoid waiting on a video upload
         # (or contacting S3) on every editor poll when the needed files exist.
         if stamps and all((directory / name).exists() for name in stamps
-                          if not name.endswith(".mp4") or (media and name == "clean.mp4")):
+                          if not name.endswith(".mp4") or (media and name in {"clean.mp4", "layout.mp4"})):
             return
         with (directory / ".sync").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
@@ -672,7 +676,7 @@ class MediaStorage:
                     if "/" in name or name.startswith(".") or not name:
                         continue
                     path = directory / name
-                    if path.exists() or (path.suffix == ".mp4" and (not media or name != "clean.mp4")):
+                    if path.exists() or (path.suffix == ".mp4" and (not media or name not in {"clean.mp4", "layout.mp4"})):
                         continue
                     self._download(obj["Key"], path)
                     stat = path.stat()

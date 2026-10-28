@@ -386,9 +386,10 @@ function drawHookTitle(
     shadow = look.shadow ? Math.max(2, Math.floor(px / 20)) : 0;
   const t = time - start;
   ctx.save();
-  ctx.globalAlpha = Math.max(0, Math.min(1, t / 0.16, (end - time) / 0.24));
+  const fadeIn = Math.min(.16, (end - start) / 3), fadeOut = Math.min(.24, (end - start) / 3);
+  ctx.globalAlpha = Math.max(0, Math.min(1, t / fadeIn, (end - time) / fadeOut));
   const lineHeight = px * 1.2,
-    scale = look.wordPop ? keyframes(t, [[0, 0.9], [0.16, 1]]) : 1;
+    scale = look.wordPop ? keyframes(t, [[0, 0.9], [fadeIn, 1]]) : 1;
   ctx.translate(centreX, top + (lineHeight * lines.length) / 2);
   ctx.scale(scale, scale);
   setAssFont(ctx, style.font, px);

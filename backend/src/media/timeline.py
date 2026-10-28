@@ -35,7 +35,7 @@ from .ffmpeg import (
     run_ffmpeg_command,
     select_audio_stream_index,
 )
-from .gap_activity import active_gaps
+from .gap_activity import active_gap_ranges
 from .transcription import (
     _join_transcript_tokens,
     load_cached_transcript_data,
@@ -1167,27 +1167,16 @@ def build_clip_keep_ranges(
             for current, nxt in zip(spoken_words, spoken_words[1:])
             if nxt["start"] - current["end"] >= pause_threshold_seconds
         ]
-        # A gap without words is not always dead air: gunfire or a moving
-        # game camera is the action the clip is about, so leave those intact.
-        action_flags = active_gaps(
-            video_path,
-            internal_gaps,
-            [(word["start"], word["end"]) for word in spoken_words],
-        )
-        for (gap_start, gap_end), has_action in zip(internal_gaps, action_flags):
-            if has_action:
-                logger.info(
-                    "Keeping %.1fs pause at %.2fs: the source has action there",
-                    gap_end - gap_start,
-                    gap_start,
-                )
-                continue
-            compress_pause(
-                gap_start,
-                gap_end,
-                PAUSE_EDGE_PADDING_SECONDS,
-                PAUSE_EDGE_PADDING_SECONDS,
-            )
+        protected = active_gap_ranges(video_path, internal_gaps, [(word["start"], word["end"]) for word in spoken_words])
+        for (gap_start, gap_end), action in zip(internal_gaps, protected):
+            cursor = gap_start
+            # Keep detected action, compressing only the quiet windows between it.
+            for action_start, action_end in action:
+                if action_start - cursor >= pause_threshold_seconds:
+                    compress_pause(cursor, action_start, PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS)
+                cursor = max(cursor, action_end)
+            if gap_end - cursor >= pause_threshold_seconds:
+                compress_pause(cursor, gap_end, PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS)
 
         trailing_gap = clip_end - spoken_words[-1]["end"]
         if trailing_gap >= pause_threshold_seconds:
@@ -1238,7 +1227,7 @@ def build_keep_ranges_from_source_ranges(
 
 
 def get_words_for_keep_ranges(
-    transcript_data: Dict, keep_ranges: List[Tuple[float, float]]
+    transcript_data: Dict, keep_ranges: List[Tuple[float, float]], output_offsets: Optional[List[float]] = None
 ) -> List[Dict[str, Any]]:
     """Project transcript word timings into the output timeline after cuts.
 
@@ -1253,7 +1242,7 @@ def get_words_for_keep_ranges(
     relevant_words: List[Dict[str, Any]] = []
 
     for (keep_start, keep_end), timeline_offset in zip(
-        keep_ranges, output_offsets_for_ranges(keep_ranges)
+        keep_ranges, output_offsets if output_offsets is not None else output_offsets_for_ranges(keep_ranges)
     ):
         range_words = get_absolute_words_in_range(transcript_data, keep_start, keep_end)
         for word in range_words:

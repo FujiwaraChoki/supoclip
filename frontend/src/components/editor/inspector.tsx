@@ -642,6 +642,10 @@ export function Inspector({
               title={t("framing.title")}
               description={t("framing.description")}
             >
+              {asset.landscapeRecommended && doc.framing.aspect !== "original" && <Alert><Info /><AlertDescription>
+                {t("framing.landscapeHint")}
+                <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => update(current => ({ ...current, framing: { ...current.framing, aspect: "original", fit: "contain", zoom: 1, x: .5, y: .5 } }))}>{t("framing.useLandscape")}</Button>
+              </AlertDescription></Alert>}
               <Field label={t("framing.aspect")}>
                 <ToggleGroup
                   type="single"
@@ -699,6 +703,7 @@ export function Inspector({
                     }))
                   }
                 >
+                  {asset.hasLayout && <ToggleGroupItem value="auto" className="flex-1 text-xs">{t("framing.autoLayout")}</ToggleGroupItem>}
                   <ToggleGroupItem value="cover" className="flex-1 text-xs">
                     {t("framing.fill")}
                   </ToggleGroupItem>

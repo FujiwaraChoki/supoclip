@@ -81,7 +81,7 @@
     "applying": "Wird angewendet…",
     "applyAll": "Auf alle Clips anwenden",
     "hookTitle": "Hook-Titel",
-    "hookDescription": "Erscheint oben in den ersten Sekunden. Leer lassen, um ihn zu entfernen.",
+    "hookDescription": "Ziehe die Kanten des Titels in der Zeitleiste, um die Anzeigedauer festzulegen. Leer lassen, um ihn zu entfernen.",
     "hookPlaceholder": "Kein Hook-Titel",
     "transcript": "Transkript",
     "wordCount": "{count} Wörter",
@@ -118,7 +118,10 @@
     "zoom": "Zoom",
     "horizontal": "Horizontale Position",
     "vertical": "Vertikale Position",
-    "center": "Person zentrieren"
+    "center": "Person zentrieren",
+    "landscapeHint": "Dieser Clip enthält breite Bilddetails. Eine Querformatversion zeigt sie gut lesbar, ohne Inhalte abzuschneiden.",
+    "useLandscape": "Querformat verwenden",
+    "autoLayout": "Generiertes Layout"
   },
   "audioPanel": {
     "title": "Audio",
@@ -200,7 +203,9 @@
       "showCaptions": "Untertitel einblenden",
       "mute": "Stumm",
       "unmute": "Ton an"
-    }
+    },
+    "hookStart": "Titelanfang, Sekunden",
+    "hookEnd": "Titelende, Sekunden"
   },
   "export": {
     "exported": "Video exportiert",

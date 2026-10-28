@@ -427,3 +427,24 @@ test("browser export keeps individual caption placements separate", async ({ pag
   }
   expect(first.width / second.width).toBeCloseTo(1.5, 1);
 });
+
+test("dragging a B-roll continuation across a contiguous split keeps its length and position", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const initial: EditDocument = { ...structuredClone(draft), segments: [{ id: "head", start: 0, end: 1.5 }, { id: "tail", start: 1.5, end: 3 }],
+    broll: [{ ...generated, start: .5, end: 2.5 }] };
+  const { saved } = await setup(page, { document: initial });
+  const lane = page.getByRole("group", { name: "B-roll track" }), track = (await lane.boundingBox())!;
+  const continuation = lane.getByRole("button", { name: /B-roll mountain summit/ }).nth(1), box = (await continuation.boundingBox())!;
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  await page.mouse.move(x, y); await page.mouse.down();
+  await page.mouse.move(x - track.width * .2 / 3, y, { steps: 12 }); await page.mouse.up();
+  await expect.poll(() => saved().document.broll![0].start).toBeCloseTo(.3, 2);
+  expect(saved().document.broll![0].end).toBeCloseTo(2.3, 2);
+  await expect(continuation).toBeVisible();
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(() => saved().document.broll![0].start).toBeCloseTo(.5, 2);
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect.poll(() => saved().document.broll![0].start).toBeCloseTo(.3, 2);
+  await page.reload(); await expect(continuation).toBeVisible();
+  expect(saved().document.broll![0].end - saved().document.broll![0].start).toBeCloseTo(2, 6);
+});

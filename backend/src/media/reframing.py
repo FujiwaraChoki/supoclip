@@ -1860,3 +1860,21 @@ def render_reframed_clip_ffmpeg(
         str(output_path),
     ]
     return run_ffmpeg_command(command).returncode == 0, 1080, 1920
+
+
+def caption_probe_plan(input_path: Path, output_format: str, vertical_plan=None) -> Tuple[str, str]:
+    """The same composition as the final render, without subtitles or stock footage."""
+    if output_format == "vertical_fit":
+        return build_full_frame_filter(), "complex"
+    if output_format in {"vertical_split", "vertical_pan"}:
+        plan = detect_speaker_reframe_plan(input_path, output_format)
+        if plan and plan["mode"] == "split":
+            left, right = plan["regions"]["left"], plan["regions"]["right"]
+            return (f"[0:v]split=2[a][b];[a]crop={left['tile_w']}:{left['tile_h']}:{left['tile_x']}:{left['tile_y']},scale=1080:960:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[top];[b]crop={right['tile_w']}:{right['tile_h']}:{right['tile_x']}:{right['tile_y']},scale=1080:960:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[bottom];[top][bottom]vstack,setsar=1[vout]", "complex")
+        if plan and plan["mode"] == "pan":
+            return f"crop={plan['crop_w']}:{plan['crop_h']}:x='{plan['x_expression']}':y=0,{VERTICAL_SCALE_CHAIN}", "vf"
+    if vertical_plan is not None:
+        return vertical_plan
+    width, height = ffprobe_video_size(input_path)
+    video_filter, mode, _ = build_vertical_filter_plan(input_path, width, height)
+    return video_filter, mode

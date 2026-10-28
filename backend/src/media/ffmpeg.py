@@ -447,6 +447,7 @@ def render_ranges_crossfade_ffmpeg(
     output_path: Path,
     audio_stream: Optional[int],
     transition: str = "fade",
+    output_offsets: Optional[List[float]] = None,
 ) -> bool:
     """Stitch kept ranges together with short crossfades instead of hard cuts.
 
@@ -460,7 +461,11 @@ def render_ranges_crossfade_ffmpeg(
         return False
     durations = [end - start for start, end in keep_ranges]
     fade = crossfade_fade_for_ranges(keep_ranges)
-    if fade <= 0:
+    if output_offsets is not None:
+        fades = [max(0.0, output_offsets[i-1] + durations[i-1] - output_offsets[i]) for i in range(1, n)]
+    else:
+        fades = [fade] * (n - 1)
+    if not any(fades):
         return False
     has_audio = audio_stream is not None
     seek_args, origin = _input_window_for_ranges(keep_ranges)
@@ -480,12 +485,11 @@ def render_ranges_crossfade_ffmpeg(
     cur_v = "[v0]"
     cumulative = durations[0]
     for i in range(1, n):
+        fade = fades[i-1]
         offset = cumulative - fade
         out = f"[vx{i}]"
-        parts.append(
-            f"{cur_v}[v{i}]xfade=transition={transition}:duration={fade:.3f}:"
-            f"offset={offset:.3f}{out}"
-        )
+        parts.append(f"{cur_v}[v{i}]concat=n=2:v=1:a=0{out}" if fade <= 1e-6 else
+            f"{cur_v}[v{i}]xfade=transition={transition}:duration={fade:.6f}:offset={offset:.6f}{out}")
         cumulative = cumulative + durations[i] - fade
         cur_v = out
 
@@ -494,7 +498,8 @@ def render_ranges_crossfade_ffmpeg(
         cur_a = "[a0]"
         for i in range(1, n):
             out = f"[ax{i}]"
-            parts.append(f"{cur_a}[a{i}]acrossfade=d={fade:.3f}{out}")
+            fade = fades[i-1]
+            parts.append(f"{cur_a}[a{i}]concat=n=2:v=0:a=1{out}" if fade <= 1e-6 else f"{cur_a}[a{i}]acrossfade=d={fade:.6f}{out}")
             cur_a = out
         map_args += ["-map", cur_a]
 
@@ -538,6 +543,7 @@ def render_source_ranges_ffmpeg(
     video_path: Path,
     keep_ranges: List[Tuple[float, float]],
     output_path: Path,
+    output_offsets: Optional[List[float]] = None,
 ) -> bool:
     """Render source ranges into one intermediate clip using ffmpeg only."""
     keep_ranges = normalize_source_ranges(keep_ranges)
@@ -579,9 +585,9 @@ def render_source_ranges_ffmpeg(
 
     # Smooth a handful of substantial internal cuts with crossfades; fall back to
     # a hard concat for many tiny fragments (heavy filler edits) or on failure.
-    if crossfade_fade_for_ranges(keep_ranges) > 0:
+    if output_offsets is not None or crossfade_fade_for_ranges(keep_ranges) > 0:
         if render_ranges_crossfade_ffmpeg(
-            video_path, keep_ranges, output_path, audio_stream
+            video_path, keep_ranges, output_path, audio_stream, output_offsets=output_offsets
         ):
             return True
         logger.info("Crossfade stitch failed; falling back to hard concat")

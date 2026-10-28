@@ -81,7 +81,7 @@
     "applying": "Aplicando…",
     "applyAll": "Aplicar a todos los clips",
     "hookTitle": "Título gancho",
-    "hookDescription": "Se muestra arriba durante los primeros segundos. Déjalo vacío para quitarlo.",
+    "hookDescription": "Arrastra los bordes del título en la línea de tiempo para ajustar cuándo aparece. Déjalo vacío para eliminarlo.",
     "hookPlaceholder": "Sin título gancho",
     "transcript": "Transcripción",
     "wordCount": "{count} palabras",
@@ -118,7 +118,10 @@
     "zoom": "Zoom",
     "horizontal": "Posición horizontal",
     "vertical": "Posición vertical",
-    "center": "Centrar sujeto"
+    "center": "Centrar sujeto",
+    "landscapeHint": "Este clip contiene detalles a lo ancho. La versión horizontal los mantiene legibles sin recortar contenido.",
+    "useLandscape": "Usar versión horizontal",
+    "autoLayout": "Composición generada"
   },
   "audioPanel": {
     "title": "Audio",
@@ -200,7 +203,9 @@
       "showCaptions": "Mostrar subtítulos",
       "mute": "Silenciar",
       "unmute": "Activar sonido"
-    }
+    },
+    "hookStart": "Inicio del título, segundos",
+    "hookEnd": "Fin del título, segundos"
   },
   "export": {
     "exported": "Video exportado",

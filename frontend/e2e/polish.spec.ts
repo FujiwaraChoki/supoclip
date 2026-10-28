@@ -161,7 +161,12 @@ for (const path of ["/", "/tasks/one"]) {
     await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
     await page.route(/\/api\/tasks\/?(\?.*)?$/, route => route.fulfill({ json: { tasks: [] } }));
     await page.goto(path);
-    await page.getByRole("button", { name: path === "/" ? "Default" : "Restyle", exact: true }).click();
+    if (path === "/") {
+      await page.getByRole("button", { name: "Default", exact: true }).click();
+    } else {
+      await page.getByRole("button", { name: "More actions", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Restyle", exact: true }).click();
+    }
     await page.getByRole("combobox").first().click();
     await page.getByRole("button", { name: "Language support for Inter" }).click();
     await expect(page.getByRole("heading", { name: "Inter: language support" })).toBeVisible();

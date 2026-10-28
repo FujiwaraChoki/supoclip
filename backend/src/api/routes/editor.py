@@ -180,7 +180,7 @@ async def media(
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
     _, directory = await context(request, db, task_id, clip_id)
-    if asset not in {"clean.mp4", "thumbnails.jpg"}:
+    if asset not in {"clean.mp4", "layout.mp4", "thumbnails.jpg"}:
         raise HTTPException(404, "Preview not ready")
     storage = MediaStorage()
     try:
@@ -350,6 +350,9 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
             await run_in_thread(_clip_broll, clip)
             if "broll" not in state["draft"]["document"] else []
         )
+        from ...clip_source_map import load_clip_output_offsets
+        source_ranges = await run_in_thread(service._get_clip_source_ranges, clip)
+        source_offsets = load_clip_output_offsets(MediaStorage().local_path(clip["file_path"], metadata_only=True), source_ranges)
         entries.append(
             {
                 "id": clip_id,
@@ -358,7 +361,8 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
                     state["draft"]["document"], clip, task, placements, state["duration"]
                 ),
                 "state": {k: state[k] for k in ("width", "height", "hasAudio")},
-                "ranges": await run_in_thread(service._get_clip_source_ranges, clip),
+                "ranges": source_ranges,
+                "source_offsets": source_offsets,
             }
         )
     await db.close()

@@ -77,7 +77,7 @@ class CaptionStyle(Model):
 
 class Framing(Model):
     aspect: Literal["vertical", "square", "original"] = "vertical"
-    fit: Literal["contain", "cover"] = "cover"
+    fit: Literal["contain", "cover", "auto"] = "cover"
     zoom: float = Field(default=1, ge=1, le=3)
     x: float = Field(default=0.5, ge=0, le=1)
     y: float = Field(default=0.5, ge=0, le=1)
@@ -135,6 +135,17 @@ class BRollClip(Model):
         return self
 
 
+class HookTiming(Model):
+    start: float = Field(ge=0, le=86400)
+    end: float = Field(gt=0, le=86400)
+
+    @model_validator(mode="after")
+    def ordered(self):
+        if self.end <= self.start:
+            raise ValueError("Title end must follow its start")
+        return self
+
+
 class TextTransform(Model):
     x: float = Field(default=0, ge=-1, le=1)
     y: float = Field(default=0, ge=-1, le=1)
@@ -156,6 +167,7 @@ class EditDocument(Model):
     muted: bool = False
     # AI headline burned into the top safe area for the first seconds, as generated.
     hookTitle: str = Field(default="", max_length=200)
+    hookTiming: HookTiming | None = None
     textTransforms: dict[Literal["hook", "captions"], TextTransform] = Field(default_factory=dict)
     captionTransforms: dict[Annotated[str, Field(max_length=300)], CaptionTransform] = Field(default_factory=dict, max_length=5000)
     broll: list[BRollClip] = Field(default_factory=list, max_length=60)
@@ -378,6 +390,7 @@ def write_ass(path: Path, document: EditDocument, width: int, height: int):
         hook_editor_style={
             **hook_transform.model_dump(),
             "base_px": max(34, min(66, int(original_font_px * 0.82))),
+            **(document.hookTiming.model_dump() if document.hookTiming else {}),
         },
         # Highlights are per occurrence and already include the generated emphasis.
         emphasis_indices=[i for i, w in enumerate(words) if w["highlight"]],
@@ -465,7 +478,7 @@ def render_document(
     # a sub-frame B-roll fragment. Keep the editable draft and its IDs intact.
     document = document.model_copy(update={"segments": continuous_segments(document.segments)})
 
-    source = directory / "clean.mp4"
+    source = directory / ("layout.mp4" if document.framing.fit == "auto" and document.framing.aspect == "vertical" and (directory / "layout.mp4").exists() else "clean.mp4")
     sw, sh = _ffprobe_size(source)
     width, height = output_size(document, sw, sh)
     framing, fx = document.framing, document.effects
@@ -539,6 +552,8 @@ def render_document(
         filters.append(f"{label}{subtitles}[outv]")
     else:
         filters.append(f"[video]{geometry},{effects},{subtitles}[outv]")
+    # Mixed source/stock frame rates must not make ffmpeg duplicate tail frames.
+    filters.append("[outv]fps=30[finalv]")
     if audio:
         filters.append(
             f"[audio]volume={0 if document.muted else document.volume}[outa]"
@@ -554,7 +569,7 @@ def render_document(
         "-filter_complex",
         ";".join(filters),
         "-map",
-        "[outv]",
+        "[finalv]",
     ]
     if audio:
         command += ["-map", "[outa]", "-c:a", "aac", "-b:a", "192k"]
@@ -573,6 +588,8 @@ def render_document(
         "yuv420p",
         "-movflags",
         "+faststart",
+        "-t",
+        f"{total:.6f}",
         str(temporary),
     ]
     try:

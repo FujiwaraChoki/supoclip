@@ -306,17 +306,20 @@ export function Preview({
           <video
             ref={videoRef}
             crossOrigin="anonymous"
-            src={`${endpoint}/media/clean.mp4`}
+            src={`${endpoint}/media/${asset.hasLayout && doc.framing.fit === "auto" && doc.framing.aspect === "vertical" ? "layout" : "clean"}.mp4`}
             preload="auto"
             playsInline
             className="hidden"
             onLoadedMetadata={() => {
               if (videoRef.current)
-                videoRef.current.currentTime = seekRequest.nonce
-                  ? seekRequest.time
-                  : doc.segments[0].start;
+                videoRef.current.currentTime = Math.min(videoRef.current.duration, Math.max(0, time));
             }}
-            onTimeUpdate={(e) => onTime(e.currentTarget.currentTime)}
+            onTimeUpdate={(e) => {
+              // Changing between the generated composition and raw landscape
+              // resets the element to 0 before metadata loads. Keep the playhead
+              // until that new source is ready to seek.
+              if (e.currentTarget.readyState >= 2) onTime(e.currentTarget.currentTime);
+            }}
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
             onEnded={() => {

@@ -378,6 +378,16 @@ def stabilize_layout_plan(plan: list[dict]) -> list[dict]:
             else:
                 merged.append(entry)
         plan = merged
+    runs = groups()
+    hard_fit = any(p["kind"] == "fit" and not p.get("soft")
+                   and p["end"] - p["start"] >= LAYOUT_FLASH_SECONDS for p in plan)
+    fit_duration = sum(p["end"] - p["start"] for p in plan if p["kind"] == "fit")
+    duration = plan[-1]["end"] - plan[0]["start"] if plan else 0
+    # Repeated crop/fit changes or a predominantly wide demonstration use one
+    # full-context composition. First resolve soft/brief shots above, so a lone
+    # speaker's wide angle does not needlessly shrink the whole clip.
+    if hard_fit and (len(runs) >= 3 or (len(runs) > 1 and fit_duration > duration * .6)):
+        return [{"start": plan[0]["start"], "end": plan[-1]["end"], "kind": "fit", "reason": "stable_context", "soft": False}]
     return plan
 
 
