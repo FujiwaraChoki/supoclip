@@ -164,7 +164,7 @@ def initial_caption_style(
     accent = template.get("highlight_color") or "#FACC15"
     position_y = caption_settings.get("position_y") or template.get("position_y") or 0.78
     # Generation centres the text at this pixel row; the editor stores it as a fraction.
-    center_px = get_safe_vertical_position(height, int(font_px * 1.5), float(position_y))
+    center_px = round(height * float(position_y)) if caption_settings.get("position_is_center") else get_safe_vertical_position(height, int(font_px * 1.5), float(position_y))
     return {
         "enabled": enabled,
         "font": font,
@@ -208,6 +208,7 @@ def editor_preserved_layout(
     output_format: str,
     speaker_turns: list | None = None,
     speaker_words: list | None = None,
+    include_content: bool = False,
 ) -> dict | None:
     """Split-screen or stacked plan to bake into the editor source.
 
@@ -241,16 +242,18 @@ def editor_preserved_layout(
             "Could not read an editor reframing plan", exc_info=True
         )
         return None
-    if described["kind"] not in PRESERVED_LAYOUT_KINDS:
+    allowed = PRESERVED_LAYOUT_KINDS | ({"fit", "compositor"} if include_content else set())
+    if described["kind"] not in allowed:
         return None
     return {
         "kind": described["kind"],
+        "landscape_recommended": described["kind"] in {"fit", "compositor"},
         "output_format": "vertical",
         "vertical_plan": (described["video_filter"], described["mode"]),
     }
 
 
-def apply_editor_layout(source: Path, layout: dict) -> bool:
+def apply_editor_layout(source: Path, layout: dict, destination: Path | None = None) -> bool:
     """Replace ``source`` with the composed layout. False leaves it untouched."""
     from ..media.reframing import render_reframed_clip_ffmpeg
 
@@ -265,7 +268,7 @@ def apply_editor_layout(source: Path, layout: dict) -> bool:
         )
         if not ok or not dest.is_file() or dest.stat().st_size == 0:
             return False
-        dest.replace(source)
+        dest.replace(destination or source)
         return True
     except Exception:
         logging.getLogger(__name__).warning(
@@ -281,6 +284,7 @@ def bake_editor_layout(
     output_format: str,
     source: Path,
     ranges: list,
+    preserve_content: bool = False,
 ) -> bool:
     """Compose a split or stacked layout into ``clean`` when the clip has one."""
     from ..config import get_config
@@ -298,13 +302,87 @@ def bake_editor_layout(
             logging.getLogger(__name__).warning(
                 "Speaker turns unavailable for the editor layout", exc_info=True
             )
-    layout = editor_preserved_layout(clean, output_format, turns, words)
+    layout = editor_preserved_layout(clean, output_format, turns, words, include_content=preserve_content)
     if not layout:
+        return False
+    if preserve_content and layout["kind"] in {"fit", "compositor"}:
+        destination = clean.with_name("layout.mp4")
+        if apply_editor_layout(clean, layout, destination):
+            atomic_json(clean.with_name("layout.json"), {"landscapeRecommended": bool(layout.get("landscape_recommended"))})
+            return True
         return False
     return apply_editor_layout(clean, layout)
 
 
-def upgrade_document(document: dict, clip: dict, task: dict) -> dict:
+def editor_broll_from_placements(placements: list, duration: float) -> list[dict]:
+    """Editor B-roll clips for a generated clip's stored placements, without overlaps."""
+    from ..broll import placement_to_editor_clip
+
+    clips = []
+    for index, placement in enumerate(placements or []):
+        clip = placement_to_editor_clip(placement, index, duration)
+        if clip and (not clips or clip["start"] >= clips[-1]["end"] - 0.01):
+            clips.append(clip)
+    return clips
+
+
+def rebased_broll(document: EditDocument, cursor: float = 0) -> list[dict]:
+    """Flatten cuts into editable footage pieces while retaining their dissolve boundaries."""
+    from ..editor_document import mapped_broll
+
+    return [
+        {
+            "id": uuid.uuid4().hex,
+            "start": round(cursor + piece["start"], 4),
+            "end": round(cursor + piece["start"] + piece["duration"], 4),
+            "offset": round(piece["offset"], 4),
+            "query": piece["query"],
+            "footage": piece["footage"].model_dump(),
+            "fadeIn": piece["fade_in"],
+            "fadeOut": piece["fade_out"],
+            "fadeDuration": piece["fade_duration"],
+        }
+        for piece in mapped_broll(document)
+    ]
+
+
+def rebased_caption_transforms(document: EditDocument, words: list[dict]) -> dict:
+    """Carry caption placements to the fresh word IDs in a combined source."""
+    from ..editor_document import caption_key, mapped_words
+    mapped = mapped_words(document)
+    result = {}
+    for index in range(0, len(mapped), document.captions.wordsPerLine):
+        placement = document.captionTransforms.get(caption_key(document, mapped[index:index + document.captions.wordsPerLine]))
+        if placement is not None:
+            key = json.dumps(["combined", words[index]["id"]], separators=(",", ":"), ensure_ascii=False)
+            result[key] = placement.model_dump()
+    return result
+
+
+async def document_footage(document: EditDocument) -> dict:
+    """Local files for a draft's B-roll footage, keyed by footage; missing ones are skipped."""
+    from ..broll import ensure_footage_file
+
+    files = {}
+    for clip in sorted(document.broll, key=lambda b: b.start):
+        key = clip.footage.key
+        if key in files:
+            continue
+        path = await ensure_footage_file(clip.footage.model_dump())
+        if path is None:
+            logging.getLogger(__name__).warning("B-roll footage %s unavailable for export", key)
+            continue
+        files[key] = path
+    return files
+
+
+def upgrade_document(
+    document: dict,
+    clip: dict,
+    task: dict,
+    broll_placements: list | None = None,
+    duration: float | None = None,
+) -> dict:
     """Fill fields that drafts saved by older editor versions don't have.
 
     Missing keys would otherwise validate to defaults that drop the generated
@@ -323,6 +401,13 @@ def upgrade_document(document: dict, clip: dict, task: dict) -> dict:
         **document,
         "captions": captions,
         "hookTitle": document.get("hookTitle", (clip.get("hook_title") or "")[:200]),
+        # Drafts saved before the editor had B-roll pick up the generated clip's.
+        "broll": document.get(
+            "broll",
+            editor_broll_from_placements(broll_placements or [], duration or 0)
+            if duration
+            else [],
+        ),
     }
 
 
@@ -361,7 +446,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
         get_words_for_keep_ranges,
     )
     from ..clip_editor import _caption_words_with_timings
-    from ..clip_source_map import load_clip_caption_settings
+    from ..clip_source_map import load_clip_caption_settings, load_clip_output_offsets, clip_source_map_path
     from ..youtube_source import local_ranges_for
 
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
@@ -396,6 +481,9 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             source_settings = await service._load_task_source_settings(task_id)
             caption_path = await run_in_thread(storage.local_path, clip["file_path"], metadata_only=True)
             caption_settings = load_clip_caption_settings(caption_path) or {}
+            from ..clip_source_map import load_clip_broll
+
+            broll_placements = load_clip_broll(caption_path)
             await db.close()
             if not source or not source.exists():
                 if source_type == "youtube":
@@ -421,18 +509,25 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             local_ranges = await run_in_thread(local_ranges_for, source, ranges)
             directory.mkdir(parents=True, exist_ok=True)
             clean = directory / "clean.mp4"
-            rendered = await run_in_thread(
-                create_optimized_clip,
-                source,
-                local_ranges[0][0],
-                local_ranges[-1][1],
-                clean,
-                add_subtitles=False,
-                output_format="original",
-                keep_ranges=local_ranges,
-                hook_title=None,
-                extend_to_sentence=False,
-            )
+            metadata_path = MediaStorage().local_path(clip["file_path"], metadata_only=True)
+            source_offsets = load_clip_output_offsets(metadata_path, ranges)
+            has_offsets = clip_source_map_path(metadata_path).exists() and "output_offsets" in json.loads(clip_source_map_path(metadata_path).read_text())
+            if has_offsets and len(local_ranges) > 1:
+                from ..media.ffmpeg import render_source_ranges_ffmpeg
+                rendered = await run_in_thread(render_source_ranges_ffmpeg, source, local_ranges, clean, source_offsets)
+            else:
+                rendered = await run_in_thread(
+                    create_optimized_clip,
+                    source,
+                    local_ranges[0][0],
+                    local_ranges[-1][1],
+                    clean,
+                    add_subtitles=False,
+                    output_format="original",
+                    keep_ranges=local_ranges,
+                    hook_title=None,
+                    extend_to_sentence=False,
+                )
             if not rendered:
                 raise ValueError("Could not prepare the original video")
             from ..media.common import VALID_OUTPUT_FORMATS
@@ -446,11 +541,14 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             # uncropped trim and the crop chosen below.
             if output_format in {"vertical", "vertical_split"}:
                 await run_in_thread(
-                    bake_editor_layout, clean, output_format, source, local_ranges
+                    bake_editor_layout, clean, output_format, source, local_ranges, True
                 )
             metadata = await run_in_thread(make_assets, directory)
+            if (directory / "layout.mp4").exists():
+                metadata["hasLayout"] = True
+                metadata.update(json.loads((directory / "layout.json").read_text()))
             transcript = load_cached_transcript_data(source)
-            timed = get_words_for_keep_ranges(transcript, local_ranges) if transcript else []
+            timed = get_words_for_keep_ranges(transcript, local_ranges, source_offsets) if transcript else []
             words = _caption_words_with_timings(
                 (clip.get("text") or "").split(), timed, metadata["duration"]
             )
@@ -467,7 +565,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 EditDocument.model_validate(
                     {
                         "segments": [{"id": "original", "start": 0, "end": duration}],
-                        "framing": {"aspect": "original" if original_format else "vertical"},
+                        "framing": {"aspect": "original" if original_format else "vertical", "fit": "auto" if metadata.get("hasLayout") else "cover"},
                         "captions": initial_caption_style(
                             task,
                             caption_settings,
@@ -476,6 +574,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                             clip_height,
                         ),
                         "hookTitle": (clip.get("hook_title") or "")[:200],
+                        "broll": editor_broll_from_placements(broll_placements, duration),
                         "words": [
                             {
                                 "id": f"word-{i}",
@@ -536,8 +635,9 @@ async def export_editor(ctx, task_id: str, clip_id: str, filename: str, job_id: 
         if (directory / f"cancel-{job_id}").exists():
             raise InterruptedError()
         document = EditDocument.model_validate(payload["document"])
+        broll_files = await document_footage(document)
         await run_in_thread(
-            render_document, directory, job_id, document, payload["preset"]
+            render_document, directory, job_id, document, payload["preset"], broll_files
         )
         await cap_export_for_plan(task_id, directory / f"export-{job_id}.mp4")
         await run_in_thread(MediaStorage().persist_editor_export, directory, job_id)
@@ -572,8 +672,9 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
     from ..config import get_config
     from ..database import AsyncSessionLocal
     from ..repositories.edit_transaction import task_edit_transaction
-    from ..clip_source_map import save_clip_source_ranges, slice_source_ranges
-    from ..editor_document import mapped_words, run_render
+    from ..broll import editor_piece_to_placement
+    from ..clip_source_map import save_clip_broll, save_clip_source_ranges, slice_source_timeline
+    from ..editor_document import mapped_broll, mapped_words, run_render
     from .task_service import TaskService
 
     directory = editor_dir(get_config().temp_dir, task_id, clip_id, filename)
@@ -587,6 +688,9 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
         payload = json.loads((directory / f"request-{job_id}.json").read_text())
         entries = payload["inputs"]
         commands, filters, joins, all_words, ranges = ["ffmpeg", "-y"], [], [], [], []
+        all_broll = []
+        combined_offsets = []
+        all_caption_transforms = {}
         cursor = 0.0
         width, height = entries[0]["state"]["width"], entries[0]["state"]["height"]
         scale = min(1, 1920 / max(width, height))
@@ -598,7 +702,9 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
             await run_in_thread(MediaStorage().restore_editor, source_dir, media=True)
             commands += ["-i", str(source_dir / "clean.mp4")]
             document = EditDocument.model_validate(entry["document"])
-            all_words += [
+            # Each draft's B-roll stays editable in the combined clip.
+            all_broll += rebased_broll(document, cursor)
+            entry_words = [
                 {
                     **w,
                     "id": uuid.uuid4().hex,
@@ -607,6 +713,8 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                 }
                 for w in mapped_words(document)
             ]
+            all_caption_transforms.update(rebased_caption_transforms(document, entry_words))
+            all_words += entry_words
             for j, segment in enumerate(document.segments):
                 key = f"{i}_{j}"
                 filters.append(
@@ -621,15 +729,23 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                         f"anullsrc=r=48000:cl=stereo,atrim=duration={segment.end - segment.start}[a{key}]"
                     )
                 joins += [f"[v{key}][a{key}]"]
+                sliced, offsets = slice_source_timeline(entry["ranges"], segment.start, segment.end, entry.get("source_offsets", [])) if entry.get("source_offsets") else ([], [])
+                if not offsets:
+                    from ..clip_source_map import slice_source_ranges
+                    sliced = slice_source_ranges(entry["ranges"], segment.start, segment.end)
+                    offset = 0.0
+                    for a, b in sliced:
+                        offsets.append(offset); offset += b - a
+                ranges += sliced
+                combined_offsets += [cursor + offset for offset in offsets]
                 cursor += segment.end - segment.start
-                ranges += slice_source_ranges(
-                    entry["ranges"], segment.start, segment.end
-                )
         filters.append("".join(joins) + f"concat=n={len(joins)}:v=1:a=1[v][a]")
         initial = {
             **entries[0]["document"],
             "segments": [{"id": "combined", "start": 0, "end": cursor}],
             "words": all_words,
+            "broll": all_broll,
+            "captionTransforms": all_caption_transforms,
             # The first clip's headline doesn't describe the combination.
             "hookTitle": "",
         }
@@ -661,13 +777,19 @@ async def combine_editor(ctx, task_id: str, clip_id: str, filename: str, job_id:
                 raise InterruptedError()
             # A symlink allows the second rendering pass to observe cancellation.
             (work / f"cancel-{job_id}").symlink_to(directory / f"cancel-{job_id}")
-            await run_in_thread(render_document, work, job_id, document, "tiktok")
+            broll_files = await document_footage(document)
+            await run_in_thread(render_document, work, job_id, document, "tiktok", broll_files)
             await cap_export_for_plan(task_id, work / f"export-{job_id}.mp4")
             new_filename = f"combined_{uuid.uuid4().hex}.mp4"
             clip_path = Path(get_config().temp_dir) / "clips" / new_filename
             clip_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(work / f"export-{job_id}.mp4", clip_path)
-            save_clip_source_ranges(clip_path, ranges)
+            save_clip_source_ranges(clip_path, ranges, combined_offsets)
+            save_clip_broll(clip_path, [
+                editor_piece_to_placement(piece)
+                for piece in mapped_broll(document)
+                if piece["footage"].key in broll_files
+            ])
             metadata = await run_in_thread(make_assets, work)
             # Finish durable export delivery before committing the new clip.
             # Cleanup may reclaim clip_path immediately after that commit.

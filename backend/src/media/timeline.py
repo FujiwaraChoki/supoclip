@@ -11,6 +11,8 @@ from ..clip_cleanup import clip_cleanup_enabled
 from ..clip_source_map import normalize_source_ranges
 import re
 from .common import (
+    CLIP_CAP_SENTENCE_BACKOFF_FRACTION,
+    CLIP_END_NEXT_WORD_GUARD_SECONDS,
     CLIP_END_PADDING_SECONDS,
     CLIP_END_SENTENCE_EXTENSION_SECONDS,
     MAX_RENDERED_CLIP_SECONDS,
@@ -28,11 +30,12 @@ from .common import (
     logger,
 )
 from .ffmpeg import (
-    crossfade_fade_for_ranges,
     ffprobe_duration,
+    output_offsets_for_ranges,
     run_ffmpeg_command,
     select_audio_stream_index,
 )
+from .gap_activity import active_gap_ranges
 from .transcription import (
     _join_transcript_tokens,
     load_cached_transcript_data,
@@ -41,6 +44,34 @@ from .transcription import (
 
 def word_ends_sentence(text: str) -> bool:
     return bool(SENTENCE_END_RE.search((text or "").strip()))
+
+
+def _next_word_start(transcript_data: Optional[Dict], word_start: float) -> Optional[float]:
+    """Source time where the first word after the one starting at ``word_start`` begins."""
+    word_start_ms = int(round(word_start * 1000))
+    starts = [
+        int(word["start"])
+        for word in (transcript_data or {}).get("words") or []
+        if int(word["start"]) > word_start_ms
+    ]
+    return min(starts) / 1000.0 if starts else None
+
+
+def _padded_clip_end(
+    word_end: float,
+    next_word_start: Optional[float],
+    padding_seconds: float = CLIP_END_PADDING_SECONDS,
+) -> float:
+    """End a clip a little after its last word, but never inside the next one.
+
+    Word end timings land before the final consonant decays, so a short tail
+    is kept. When the next sentence starts sooner than that ("...won't. All
+    right, it's"), the tail stops just before it instead of leaking a fragment.
+    """
+    end = word_end + max(0.0, padding_seconds)
+    if next_word_start is not None:
+        end = min(end, max(word_end, next_word_start - CLIP_END_NEXT_WORD_GUARD_SECONDS))
+    return end
 
 
 def extend_keep_ranges_to_sentence_boundary(
@@ -97,7 +128,11 @@ def extend_keep_ranges_to_sentence_boundary(
             continue
         extended_end = max(extended_end, word_end)
         if word_ends_sentence(str(word.get("text", ""))):
-            extended_end += max(0.0, padding_seconds)
+            extended_end = _padded_clip_end(
+                extended_end,
+                _next_word_start(transcript_data, float(word["start"])),
+                padding_seconds,
+            )
             completed = True
             break
 
@@ -147,16 +182,22 @@ def _drop_dangling_tail(
             last_complete = word
     if last_complete is None:
         return keep_ranges
-    if last_end - float(last_complete["end"]) <= CLIP_END_PADDING_SECONDS + 0.2:
-        return keep_ranges
+    # Only words that are actually heard count; even a fraction of the next
+    # sentence's first word ("...won't. All right, it's") reads as a fragment.
     dangling = [
-        word for word in words if float(word["start"]) >= float(last_complete["end"]) - 0.02
+        word
+        for word in words
+        if float(word["start"]) >= float(last_complete["end"]) - 0.02
+        and float(word["start"]) < last_end - 0.02
     ]
     if not dangling or len(dangling) > 12:
         return keep_ranges
     if last_end - float(dangling[0]["start"]) > 4.0:
         return keep_ranges
-    trimmed_end = min(last_end, float(last_complete["end"]) + CLIP_END_PADDING_SECONDS)
+    trimmed_end = min(
+        last_end,
+        _padded_clip_end(float(last_complete["end"]), float(dangling[0]["start"])),
+    )
     # A real clip should stay long enough to stand alone. Ranges that were
     # already short (or a unit-test fixture) can still drop the fragment.
     if last_end - last_start >= 8.0 and trimmed_end - last_start < 8.0:
@@ -174,7 +215,8 @@ def clamp_keep_ranges_to_max_duration(
     Analysis already checks the selected preset's duration range. Pulling the
     start back to a self-contained sentence or finishing the last sentence
     can push the rendered timeline past its cap. The extra time comes off the end,
-    on a sentence boundary when one sits within a few seconds of the cap.
+    on the last sentence boundary inside the cap when one is close enough
+    (``CLIP_CAP_SENTENCE_BACKOFF_FRACTION`` of the cap) to keep a full clip.
     """
     ranges = [(float(start), float(end)) for start, end in keep_ranges if end > start]
     played = sum(end - start for start, end in ranges)
@@ -190,33 +232,54 @@ def clamp_keep_ranges_to_max_duration(
             budget -= length
             continue
         cut = start + max(0.0, budget)
-        if index == len(ranges) - 1:
-            cut = _end_at_cap(video_path, start, cut)
+        # Whichever range the cap lands in, end on a word, not mid-syllable.
+        cut = _end_at_cap(
+            video_path,
+            start,
+            cut,
+            max(3.0, max_seconds * CLIP_CAP_SENTENCE_BACKOFF_FRACTION),
+        )
         if cut - start >= 0.5:
             trimmed.append((start, cut))
         break
     return trimmed or ranges
 
 
-def _end_at_cap(video_path: Path, range_start: float, cut: float) -> float:
-    """Land the cap on a nearby sentence end, otherwise on the last word before it."""
+def _end_at_cap(
+    video_path: Path,
+    range_start: float,
+    cut: float,
+    max_backoff_seconds: float = 3.0,
+) -> float:
+    """Land the cap on the last sentence end before it, otherwise on the last word.
+
+    A 60s cap that falls in "...when you want to be asleep and when you want"
+    backs off to the previous full stop when it is within
+    ``max_backoff_seconds``; an unfinished thought is worse than a shorter clip.
+    """
     transcript_data = load_cached_transcript_data(video_path)
     if not transcript_data:
         return cut
-    words = get_absolute_words_in_range(transcript_data, range_start, cut + 0.05)
+    # Read past the cap so a word it splits keeps its real end and is not
+    # mistaken for one that fits.
+    words = get_absolute_words_in_range(transcript_data, range_start, cut + 5.0)
     fitting = [word for word in words if float(word["end"]) <= cut + 0.05]
     if not fitting:
         return cut
-    word_end = float(fitting[-1]["end"])
-    sentence_end = None
+    chosen = fitting[-1]
     for word in reversed(fitting):
-        if word_end - float(word["end"]) > 3.0:
+        if cut - float(word["end"]) > max_backoff_seconds:
             break
         if word_ends_sentence(str(word.get("text", ""))):
-            sentence_end = float(word["end"])
+            chosen = word
             break
-    chosen = sentence_end if sentence_end is not None else word_end
-    padded = min(cut, chosen + CLIP_END_PADDING_SECONDS)
+    padded = min(
+        cut,
+        _padded_clip_end(
+            float(chosen["end"]),
+            _next_word_start(transcript_data, float(chosen["start"])),
+        ),
+    )
     return max(range_start + 0.5, padded)
 
 
@@ -800,6 +863,92 @@ def build_clip_signal_summary(video_path: Path, transcript: str) -> str:
     return "\n".join(summary_lines)
 
 
+# AssemblyAI stamps some words it could not align with start == end ("game" at
+# 541460-541460, or "And I did zero" all at 581250). They are real, usually
+# high-confidence text, so they get a short slot instead of being dropped by
+# the overlap checks below.
+REPAIRED_WORD_MS = 120
+# A neighbour lends at most half its length and normally keeps this much.
+MIN_LENDER_WORD_MS = 60
+
+
+def _is_degenerate_word(word: Dict[str, Any]) -> bool:
+    return int(word["end"]) <= int(word["start"])
+
+
+def repair_word_timings(words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Give zero-duration ASR words a short slot, keeping every word in order.
+
+    Each run of words stamped at one instant first takes free time from the
+    gaps around it, then borrows from the neighbouring words. Returns the input
+    list unchanged when no word needs repair.
+    """
+    if not any(_is_degenerate_word(word) for word in words):
+        return words
+
+    repaired = [dict(word) for word in words]
+    count = len(repaired)
+    index = 0
+    while index < count:
+        if not _is_degenerate_word(repaired[index]):
+            index += 1
+            continue
+        anchor = int(repaired[index]["start"])
+        run_end = index
+        while (
+            run_end + 1 < count
+            and _is_degenerate_word(repaired[run_end + 1])
+            and int(repaired[run_end + 1]["start"]) == anchor
+        ):
+            run_end += 1
+        run_length = run_end - index + 1
+        wanted = run_length * REPAIRED_WORD_MS
+        previous = repaired[index - 1] if index > 0 else None
+        following = repaired[run_end + 1] if run_end + 1 < count else None
+
+        # Free time in the gaps on either side.
+        right_limit = int(following["start"]) if following else anchor + wanted
+        left_limit = int(previous["end"]) if previous else 0
+        high = max(anchor, min(right_limit, anchor + wanted))
+        low = min(anchor, max(left_limit, anchor - (wanted - (high - anchor))))
+
+        def spare(word: Optional[Dict[str, Any]], edge: int, from_start: bool) -> int:
+            if word is None:
+                return 0
+            start, end = int(word["start"]), int(word["end"])
+            remaining = end - edge if from_start else edge - start
+            if remaining <= 0:
+                return 0
+            # Very short neighbours still lend a third so the slot is visible.
+            return max(min(remaining - MIN_LENDER_WORD_MS, remaining // 2), remaining // 3)
+
+        # Then borrow from the neighbouring words, split between both sides.
+        missing = wanted - (high - low)
+        if missing > 0:
+            right_spare = spare(following, high, True)
+            left_spare = spare(previous, low, False)
+            take_right = min(right_spare, missing - min(left_spare, missing // 2))
+            take_left = min(left_spare, missing - take_right)
+            high += take_right
+            low -= take_left
+        # No room at all: a millisecond each still keeps the text in range.
+        if high - low < run_length:
+            high = low + run_length
+        if following is not None and int(following["start"]) < high < int(following["end"]):
+            following["start"] = high
+        if previous is not None and int(previous["start"]) < low < int(previous["end"]):
+            previous["end"] = low
+
+        step = (high - low) / run_length
+        for offset in range(run_length):
+            word = repaired[index + offset]
+            word["start"] = low + round(step * offset)
+            word["end"] = low + round(step * (offset + 1))
+        index = run_end + 1
+
+    return repaired
+
+
 def get_words_in_range(
     transcript_data: Dict, clip_start: float, clip_end: float
 ) -> List[Dict]:
@@ -811,7 +960,7 @@ def get_words_in_range(
     clip_end_ms = int(clip_end * 1000)
 
     relevant_words = []
-    for word_data in transcript_data["words"]:
+    for word_data in repair_word_timings(transcript_data["words"]):
         word_start = word_data["start"]
         word_end = word_data["end"]
 
@@ -846,7 +995,7 @@ def get_absolute_words_in_range(
     clip_end_ms = int(clip_end * 1000)
 
     relevant_words: List[Dict[str, Any]] = []
-    for word_data in transcript_data["words"]:
+    for word_data in repair_word_timings(transcript_data["words"]):
         word_start = int(word_data["start"])
         word_end = int(word_data["end"])
         overlap_start = max(word_start, clip_start_ms)
@@ -1013,15 +1162,21 @@ def build_clip_keep_ranges(
         if leading_gap >= pause_threshold_seconds:
             compress_pause(clip_start, spoken_words[0]["start"], 0.0, PAUSE_LEAD_IN_SECONDS)
 
-        for current, nxt in zip(spoken_words, spoken_words[1:]):
-            gap = nxt["start"] - current["end"]
-            if gap >= pause_threshold_seconds:
-                compress_pause(
-                    current["end"],
-                    nxt["start"],
-                    PAUSE_EDGE_PADDING_SECONDS,
-                    PAUSE_EDGE_PADDING_SECONDS,
-                )
+        internal_gaps = [
+            (current["end"], nxt["start"])
+            for current, nxt in zip(spoken_words, spoken_words[1:])
+            if nxt["start"] - current["end"] >= pause_threshold_seconds
+        ]
+        protected = active_gap_ranges(video_path, internal_gaps, [(word["start"], word["end"]) for word in spoken_words])
+        for (gap_start, gap_end), action in zip(internal_gaps, protected):
+            cursor = gap_start
+            # Keep detected action, compressing only the quiet windows between it.
+            for action_start, action_end in action:
+                if action_start - cursor >= pause_threshold_seconds:
+                    compress_pause(cursor, action_start, PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS)
+                cursor = max(cursor, action_end)
+            if gap_end - cursor >= pause_threshold_seconds:
+                compress_pause(cursor, gap_end, PAUSE_EDGE_PADDING_SECONDS, PAUSE_EDGE_PADDING_SECONDS)
 
         trailing_gap = clip_end - spoken_words[-1]["end"]
         if trailing_gap >= pause_threshold_seconds:
@@ -1072,25 +1227,23 @@ def build_keep_ranges_from_source_ranges(
 
 
 def get_words_for_keep_ranges(
-    transcript_data: Dict, keep_ranges: List[Tuple[float, float]]
+    transcript_data: Dict, keep_ranges: List[Tuple[float, float]], output_offsets: Optional[List[float]] = None
 ) -> List[Dict[str, Any]]:
     """Project transcript word timings into the output timeline after cuts.
 
-    When the kept ranges are stitched with crossfades (see
-    ``crossfade_fade_for_ranges``) each junction shortens the timeline by the
-    fade duration, so word offsets are pulled earlier by the same amount to keep
-    captions locked to the spoken audio.
+    When the kept ranges are stitched with crossfades each junction shortens
+    the timeline by the fade duration; ``output_offsets_for_ranges`` applies
+    the same shift the renderer does, keeping captions locked to the audio.
     """
     if not transcript_data or not transcript_data.get("words") or not keep_ranges:
         return []
 
-    fade = crossfade_fade_for_ranges(keep_ranges)
+    keep_ranges = normalize_source_ranges(keep_ranges)
     relevant_words: List[Dict[str, Any]] = []
-    timeline_offset = 0.0
 
-    for index, (keep_start, keep_end) in enumerate(keep_ranges):
-        if index > 0:
-            timeline_offset -= fade  # account for the crossfade overlap
+    for (keep_start, keep_end), timeline_offset in zip(
+        keep_ranges, output_offsets if output_offsets is not None else output_offsets_for_ranges(keep_ranges)
+    ):
         range_words = get_absolute_words_in_range(transcript_data, keep_start, keep_end)
         for word in range_words:
             relevant_words.append(
@@ -1102,6 +1255,5 @@ def get_words_for_keep_ranges(
                     "speaker": word.get("speaker"),
                 }
             )
-        timeline_offset += keep_end - keep_start
 
     return relevant_words

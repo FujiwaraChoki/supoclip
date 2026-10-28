@@ -6,21 +6,30 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
+  ChevronDown,
   CloudOff,
   Download,
   Film,
   Keyboard,
   Layers,
   Loader2,
+  MoreHorizontal,
   Redo2,
   RotateCcw,
   Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -29,21 +38,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
 import { downloadBlob } from "@/lib/clip-actions";
 import {
   clamp,
+  outputTime,
   splitSegment,
   timecode,
   type CaptionStyle,
 } from "@/lib/editor/document";
 import { cn } from "@/lib/utils";
+import type { TextDraft } from "@/lib/editor/render";
 import { editorRequest, useEditor } from "./use-editor";
 import { Preview } from "./preview";
 import { Timeline } from "./timeline";
 import { Inspector, type InspectorTab } from "./inspector";
 import { ExportPanel, readyEditor, type ClipSummary } from "./export-panel";
-import { editorMessage, editorStatus, Keys, Panel, PanelHeader, ToolButton } from "./studio-ui";
+import { AIPrompt } from "./ai-prompt";
+import { editorMessage, editorStatus, Keys, Panel, ToolButton } from "./studio-ui";
 
 const SHORTCUTS: [string[], string][] = [
   [["space"], "shortcuts.playPause"],
@@ -52,6 +63,8 @@ const SHORTCUTS: [string[], string][] = [
   [["I"], "shortcuts.setIn"],
   [["O"], "shortcuts.setOut"],
   [["S"], "shortcuts.split"],
+  [["Delete"], "shortcuts.removeBroll"],
+  [["mod", "J"], "shortcuts.aiPrompt"],
   [["mod", "Z"], "shortcuts.undo"],
   [["mod", "shift", "Z"], "shortcuts.redo"],
   [["mod", "S"], "shortcuts.save"],
@@ -87,6 +100,8 @@ export function EditorWorkspace({
   const [tab, setTab] = useState<InspectorTab>("captions"),
     [segmentIndex, setSegmentIndex] = useState(0),
     [time, setTime] = useState(0);
+  // Paint timeline typing immediately without adding a history/save entry per key.
+  const [timelineTextDraft, setTimelineTextDraft] = useState<TextDraft>();
   const [seekRequest, setSeekRequest] = useState({ time: 0, nonce: 0 });
   const [exportOpen, setExportOpen] = useState(false),
     [helpOpen, setHelpOpen] = useState(false),
@@ -94,11 +109,28 @@ export function EditorWorkspace({
     [reloadOpen, setReloadOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>([]),
     [combining, setCombining] = useState(false);
+  const [brollId, setBrollId] = useState<string | null>(null);
+  const [clipsOpen, setClipsOpen] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const index = doc ? Math.min(segmentIndex, doc.segments.length - 1) : 0;
   const seek = useCallback((value: number) => {
     setTime(value);
     setSeekRequest({ time: value, nonce: Date.now() });
+  }, []);
+  // Jump to a source time from B-roll, playing it in the segment that contains it.
+  const seekSource = useCallback(
+    (value: number) => {
+      if (doc && !(doc.segments[index]?.start <= value && value < doc.segments[index]?.end)) {
+        const containing = doc.segments.findIndex((s) => s.start <= value && value < s.end);
+        if (containing >= 0) setSegmentIndex(containing);
+      }
+      seek(value);
+    },
+    [doc, index, seek],
+  );
+  const selectBroll = useCallback((id: string | null) => {
+    setBrollId(id);
+    if (id) setTab("broll");
   }, []);
   const switchClip = async (id: string) => {
     if (id === clip.id) return;
@@ -252,11 +284,17 @@ export function EditorWorkspace({
         event.preventDefault();
         editor.update((d) => splitSegment(d, index, time));
       }
+      if ((key === "delete" || key === "backspace") && brollId) {
+        event.preventDefault();
+        editor.update((d) => ({ ...d, broll: (d.broll ?? []).filter((b) => b.id !== brollId) }));
+        setBrollId(null);
+      }
       if (key === "?") setHelpOpen(true);
     };
     window.addEventListener("keydown", handle);
     return () => window.removeEventListener("keydown", handle);
   }, [
+    brollId,
     asset,
     doc,
     editor,
@@ -274,276 +312,240 @@ export function EditorWorkspace({
   const shortcutKey = (key: string) =>
     key === "space" ? t("keys.space") : key === "shift" ? t("keys.shift") : key === "mod" ? t("keys.mod") : key;
   return (
-    <div className="min-h-[calc(100dvh-73px)] bg-muted/40">
-      <div className="border-b bg-background">
-        <div className="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-4 sm:px-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <Button variant="outline" size="icon" asChild>
-              <Link href={`/tasks/${taskId}`} aria-label={t("editPage.back")}>
-                <ArrowLeft />
-              </Link>
-            </Button>
-            <div className="min-w-0">
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Link
-                  href={`/tasks/${taskId}`}
-                  className="truncate hover:text-foreground"
-                >
-                  {t("workspace.generation")}
-                </Link>
-                <span aria-hidden>/</span>
-                <span className="text-foreground">{t("clipLabel", { order: clip.clip_order })}</span>
-              </p>
-              <h1 className="truncate font-display text-xl font-bold tracking-tight">
-                {title}
-              </h1>
-            </div>
-          </div>
-          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-            <span
-              role="status"
-              aria-live="polite"
-              className={cn(
-                "mr-auto flex items-center gap-1.5 text-xs text-muted-foreground sm:mr-2",
-                editor.error && "text-destructive",
-              )}
-            >
-              {saved ? (
-                <Check className="size-3.5" />
-              ) : saving ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : editor.error ? (
-                <CloudOff className="size-3.5" />
-              ) : null}
-              {editorStatus(t, editor.status)}
-            </span>
-            <div className="flex items-center rounded-md border bg-background shadow-xs">
-              <ToolButton
-                label={t("workspace.undo")}
-                shortcut={[t("keys.mod"), "Z"]}
-                className="rounded-r-none"
-                disabled={!editor.canUndo}
-                onClick={editor.undo}
-              >
-                <Undo2 />
-              </ToolButton>
-              <Separator orientation="vertical" className="!h-5" />
-              <ToolButton
-                label={t("workspace.redo")}
-                shortcut={[t("keys.mod"), t("keys.shift"), "Z"]}
-                className="rounded-l-none"
-                disabled={!editor.canRedo}
-                onClick={editor.redo}
-              >
-                <Redo2 />
-              </ToolButton>
-            </div>
-            <ToolButton
-              label={t("workspace.shortcuts")}
-              shortcut="?"
-              onClick={() => setHelpOpen(true)}
-            >
-              <Keyboard />
-            </ToolButton>
-            <Button disabled={!doc} onClick={() => setExportOpen(true)}>
-              <Download />
-              {t("workspace.export")}
-            </Button>
-          </div>
+    // data-editor-studio hides the app's floating feedback button, which would cover the timeline.
+    <div data-editor-studio="" className="flex min-h-dvh flex-col bg-stone-100 lg:h-dvh lg:overflow-hidden dark:bg-stone-950">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 lg:h-14 lg:flex-nowrap lg:py-0">
+        <Button variant="ghost" size="icon" className="rounded-full" asChild>
+          <Link href={`/tasks/${taskId}`} aria-label={t("editPage.back")}>
+            <ArrowLeft />
+          </Link>
+        </Button>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <h1 className="min-w-0 truncate text-sm font-semibold">{title}</h1>
+          <span aria-hidden className="text-muted-foreground">/</span>
+          <Popover open={clipsOpen} onOpenChange={setClipsOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 shrink-0 gap-1.5 rounded-full bg-background px-3 shadow-[0_1px_2px_rgb(0_0_0/0.05)] ring-1 ring-black/[0.06] hover:bg-background/80 dark:ring-white/10" aria-label={t("workspace.switchClip")}>
+                <span
+                  aria-hidden
+                  className="h-5 w-3 shrink-0 rounded-[2px] bg-muted"
+                  style={{
+                    backgroundImage: `url(${endpoint}/media/thumbnails.jpg)`,
+                    backgroundSize: "auto 100%",
+                  }}
+                />
+                {t("clipLabel", { order: clip.clip_order })}
+                <span className="text-muted-foreground tabular-nums">
+                  {t("workspace.clipOf", { count: clips.length })}
+                </span>
+                <ChevronDown className="opacity-60" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-80 p-0">
+              <div className="border-b px-3 py-2 text-xs font-semibold">
+                {t("workspace.clips")} <span className="font-normal text-muted-foreground">{clips.length}</span>
+              </div>
+              <ul aria-label={t("workspace.yourClips")} className="max-h-80 overflow-y-auto p-1">
+                {clips.map((c) => {
+                  const current = c.id === clip.id,
+                    order = selected.indexOf(c.id);
+                  return (
+                    <li
+                      key={c.id}
+                      className={cn(
+                        "group relative flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent",
+                        current && "bg-accent",
+                      )}
+                    >
+                      <span
+                        aria-hidden
+                        className="h-10 w-6 shrink-0 rounded-[3px] bg-muted"
+                        style={{
+                          backgroundImage: `url(/api/tasks/${taskId}/clips/${c.id}/editor/media/thumbnails.jpg)`,
+                          backgroundSize: "auto 100%",
+                        }}
+                      />
+                      <button
+                        className="min-w-0 flex-1 text-left outline-none after:absolute after:inset-0 after:rounded-md focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
+                        onClick={() => {
+                          setClipsOpen(false);
+                          void switchClip(c.id);
+                        }}
+                        aria-pressed={current}
+                        aria-label={t("workspace.editClip", { order: c.clip_order })}
+                      >
+                        <span className="flex items-center justify-between gap-2 text-xs">
+                          <span className="font-medium">{t("clipLabel", { order: c.clip_order })}</span>
+                          <span className="text-muted-foreground tabular-nums">{timecode(c.duration)}</span>
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {c.text || t("workspace.storyFallback")}
+                        </span>
+                      </button>
+                      <Checkbox
+                        aria-label={t("workspace.selectClip", { order: c.clip_order })}
+                        title={t("workspace.selectToCombine")}
+                        checked={order >= 0}
+                        onCheckedChange={(checked) =>
+                          setSelected((ids) => (checked ? [...ids, c.id] : ids.filter((id) => id !== c.id)))
+                        }
+                        className="relative z-10 bg-background"
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="space-y-2 border-t p-3">
+                {selected.length >= 2 ? (
+                  <Button size="sm" className="w-full" disabled={combining} onClick={() => void combine()}>
+                    {combining ? <Loader2 className="animate-spin" /> : <Layers />}
+                    {combining ? t("workspace.combining") : t("workspace.combine", { count: selected.length })}
+                  </Button>
+                ) : null}
+                <p className="text-xs text-muted-foreground">
+                  {selected.length >= 2
+                    ? t("workspace.combineHint")
+                    : selected.length === 1
+                      ? t("workspace.combineOneMore")
+                      : t("workspace.combineEmpty")}
+                </p>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
-      </div>
-      <div className="mx-auto max-w-[1800px] space-y-3 px-4 pt-4 sm:px-6 empty:hidden">
-        {editor.error && (
-          <Alert variant="destructive">
-            <AlertCircle />
-            <AlertDescription className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <span className="mr-auto">{editorMessage(t, editor.error)}</span>
-              <span className="flex flex-wrap gap-1">
-                {doc ? (
-                  <>
+        <span
+          role="status"
+          aria-live="polite"
+          className={cn(
+            "flex items-center gap-1.5 text-xs text-muted-foreground",
+            editor.error && "text-destructive",
+          )}
+        >
+          {saved ? (
+            <Check className="size-3.5" />
+          ) : saving ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : editor.error ? (
+            <CloudOff className="size-3.5" />
+          ) : null}
+          <span className="max-sm:sr-only">{editorStatus(t, editor.status)}</span>
+        </span>
+        <div className="flex items-center">
+          <ToolButton
+            label={t("workspace.undo")}
+            shortcut={[t("keys.mod"), "Z"]}
+            disabled={!editor.canUndo}
+            onClick={editor.undo}
+          >
+            <Undo2 />
+          </ToolButton>
+          <ToolButton
+            label={t("workspace.redo")}
+            shortcut={[t("keys.mod"), t("keys.shift"), "Z"]}
+            disabled={!editor.canRedo}
+            onClick={editor.redo}
+          >
+            <Redo2 />
+          </ToolButton>
+          <ToolButton
+            label={t("workspace.shortcuts")}
+            shortcut="?"
+            onClick={() => setHelpOpen(true)}
+          >
+            <Keyboard />
+          </ToolButton>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label={t("workspace.more")}>
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuItem disabled={!doc} onSelect={() => setRestoreOpen(true)}>
+                <RotateCcw />
+                {t("workspace.restore")}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("workspace.draftNote")}</p>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <Button className="rounded-full px-4" disabled={!doc} onClick={() => setExportOpen(true)}>
+          <Download />
+          {t("workspace.export")}
+        </Button>
+      </header>
+      {(editor.error || editor.storageError) && (
+        <div className="shrink-0 space-y-2 border-b px-3 py-2 sm:px-4">
+          {editor.error && (
+            <Alert variant="destructive" className="border-0 bg-destructive/5 py-2">
+              <AlertCircle />
+              <AlertDescription className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <span className="mr-auto">{editorMessage(t, editor.error)}</span>
+                <span className="flex flex-wrap gap-1">
+                  {doc ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void editor.save().catch(() => {})}
+                      >
+                        {t("workspace.retrySave")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          downloadBlob(
+                            new Blob([JSON.stringify(doc, null, 2)], {
+                              type: "application/json",
+                            }),
+                            `supoclip-draft-${clip.id}.json`,
+                          )
+                        }
+                      >
+                        {t("workspace.backup")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setReloadOpen(true)}
+                      >
+                        {t("workspace.reloadSaved")}
+                      </Button>
+                    </>
+                  ) : (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => void editor.save().catch(() => {})}
+                      onClick={async () => {
+                        try {
+                          await editorRequest(`${endpoint}/prepare`, "POST");
+                          window.location.reload();
+                        } catch (e) {
+                          toast.error(editorMessage(t, (e as Error).message));
+                        }
+                      }}
                     >
-                      {t("workspace.retrySave")}
+                      {t("workspace.retryPreparation")}
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        downloadBlob(
-                          new Blob([JSON.stringify(doc, null, 2)], {
-                            type: "application/json",
-                          }),
-                          `supoclip-draft-${clip.id}.json`,
-                        )
-                      }
-                    >
-                      {t("workspace.backup")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setReloadOpen(true)}
-                    >
-                      {t("workspace.reloadSaved")}
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      try {
-                        await editorRequest(`${endpoint}/prepare`, "POST");
-                        window.location.reload();
-                      } catch (e) {
-                        toast.error(editorMessage(t, (e as Error).message));
-                      }
-                    }}
-                  >
-                    {t("workspace.retryPreparation")}
-                  </Button>
-                )}
-              </span>
-            </AlertDescription>
-          </Alert>
-        )}
-        {editor.storageError && (
-          <Alert variant="destructive">
-            <AlertCircle />
-            <AlertDescription>
-              {t("workspace.storageFull")}
-            </AlertDescription>
-          </Alert>
-        )}
-      </div>
-      <div className="mx-auto grid max-w-[1800px] grid-cols-1 items-start gap-4 p-4 sm:px-6 md:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[232px_minmax(0,1fr)_340px] 2xl:grid-cols-[260px_minmax(0,1fr)_380px]">
-        <Panel
-          aria-label={t("workspace.yourClips")}
-          className="md:col-span-2 xl:col-span-1 xl:sticky xl:top-4"
-        >
-          <PanelHeader title={t("workspace.clips")}>
-            <Badge variant="secondary" className="tabular-nums">
-              {clips.length}
-            </Badge>
-          </PanelHeader>
-          <ul className="flex gap-2 overflow-x-auto p-2 xl:max-h-[calc(100dvh-330px)] xl:flex-col xl:overflow-x-visible xl:overflow-y-auto">
-            {clips.map((c) => {
-              const active = c.id === clip.id,
-                order = selected.indexOf(c.id);
-              return (
-                <li
-                  key={c.id}
-                  className={cn(
-                    "group relative flex w-60 shrink-0 gap-3 rounded-lg border border-transparent p-2 transition-colors hover:bg-accent xl:w-auto",
-                    active && "border-border bg-accent",
                   )}
-                >
-                  <span
-                    aria-hidden
-                    className="relative flex h-16 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-muted-foreground"
-                    style={{
-                      backgroundImage: `url(/api/tasks/${taskId}/clips/${c.id}/editor/media/thumbnails.jpg)`,
-                      backgroundSize: "auto 100%",
-                    }}
-                  >
-                    <Film className="size-4" />
-                    {active && (
-                      <span className="absolute inset-0 ring-2 ring-primary ring-inset rounded-md" />
-                    )}
-                  </span>
-                  <button
-                    className="min-w-0 flex-1 text-left outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50"
-                    onClick={() => void switchClip(c.id)}
-                    aria-pressed={active}
-                    aria-label={t("workspace.editClip", { order: c.clip_order })}
-                  >
-                    <span className="flex items-center justify-between gap-2 text-xs">
-                      <span className="font-medium">{t("clipLabel", { order: c.clip_order })}</span>
-                      <span className="text-muted-foreground tabular-nums">
-                        {timecode(c.duration)}
-                      </span>
-                    </span>
-                    <span className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                      {c.text || t("workspace.storyFallback")}
-                    </span>
-                  </button>
-                  <span className="relative z-10 flex flex-col items-center justify-between">
-                    <Checkbox
-                      aria-label={t("workspace.selectClip", { order: c.clip_order })}
-                      title={t("workspace.selectToCombine")}
-                      checked={order >= 0}
-                      onCheckedChange={(checked) =>
-                        setSelected((ids) =>
-                          checked
-                            ? [...ids, c.id]
-                            : ids.filter((id) => id !== c.id),
-                        )
-                      }
-                      className={cn(
-                        "bg-background transition-opacity",
-                        order < 0 &&
-                          "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100",
-                      )}
-                    />
-                    {order >= 0 && (
-                      <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
-                        #{order + 1}
-                      </span>
-                    )}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-          <div className="space-y-2 border-t p-3">
-            {selected.length >= 2 ? (
-              <>
-                <Button
-                  size="sm"
-                  className="w-full"
-                  disabled={combining}
-                  onClick={() => void combine()}
-                >
-                  {combining ? (
-                    <Loader2 className="animate-spin" />
-                  ) : (
-                    <Layers />
-                  )}
-                  {combining ? t("workspace.combining") : t("workspace.combine", { count: selected.length })}
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  {t("workspace.combineHint")}
-                </p>
-              </>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                {selected.length === 1
-                  ? t("workspace.combineOneMore")
-                  : t("workspace.combineEmpty")}
-              </p>
-            )}
-            <Separator />
-            <Button
-              size="sm"
-              variant="ghost"
-              className="-ml-2"
-              disabled={!doc}
-              onClick={() => setRestoreOpen(true)}
-            >
-              <RotateCcw />
-              {t("workspace.restore")}
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              {t("workspace.draftNote")}
-            </p>
-          </div>
-        </Panel>
+                </span>
+              </AlertDescription>
+            </Alert>
+          )}
+          {editor.storageError && (
+            <Alert variant="destructive" className="border-0 bg-destructive/5 py-2">
+              <AlertCircle />
+              <AlertDescription>{t("workspace.storageFull")}</AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
+      <div className="flex flex-1 flex-col gap-2 px-2 lg:min-h-0 lg:flex-row">
         {doc && asset?.status === "ready" ? (
           <>
-            <main className="flex min-w-0 flex-col gap-4">
+            <main className="flex min-w-0 flex-col lg:min-h-0 lg:flex-1">
               <Preview
                 doc={doc}
                 asset={asset}
@@ -553,34 +555,43 @@ export function EditorWorkspace({
                 time={time}
                 onTime={setTime}
                 seekRequest={seekRequest}
+                textDraft={timelineTextDraft}
                 tab={tab}
                 update={editor.update}
                 videoRef={videoRef}
-              />
-              <Timeline
-                doc={doc}
-                asset={asset}
-                endpoint={endpoint}
-                currentTime={time}
-                index={index}
-                select={setSegmentIndex}
-                seek={seek}
-                update={editor.update}
+                footer={
+                  asset.aiEditing ? (
+                    <AIPrompt
+                      endpoint={endpoint}
+                      basis={asset.basis}
+                      doc={doc}
+                      playhead={time}
+                      update={editor.update}
+                      undo={editor.undo}
+                    />
+                  ) : null
+                }
               />
             </main>
-            <Inspector
-              doc={doc}
-              asset={asset}
-              tab={tab}
-              setTab={setTab}
-              time={time}
-              seek={seek}
-              update={editor.update}
-              applyAll={applyAll}
-            />
+            <div className="shrink-0 lg:w-[320px] xl:w-[360px] 2xl:w-[400px]">
+              <Inspector
+                doc={doc}
+                asset={asset}
+                tab={tab}
+                setTab={setTab}
+                time={time}
+                editTime={outputTime(doc, Math.min(index, doc.segments.length - 1), time)}
+                seek={seekSource}
+                update={editor.update}
+                applyAll={applyAll}
+                endpoint={endpoint}
+                brollId={brollId}
+                selectBroll={selectBroll}
+              />
+            </div>
           </>
         ) : (
-          <Panel className="flex min-h-[420px] flex-col items-center justify-center p-8 text-center md:col-span-2 xl:min-h-[640px]">
+          <Panel className="flex min-h-[420px] flex-1 flex-col items-center justify-center p-8 text-center">
             <div className="mb-5 flex size-14 items-center justify-center rounded-full bg-muted">
               {editor.error ? (
                 <AlertCircle className="size-6 text-destructive" />
@@ -604,22 +615,26 @@ export function EditorWorkspace({
           </Panel>
         )}
       </div>
-      <footer className="mx-auto hidden max-w-[1800px] flex-wrap items-center justify-end gap-x-4 gap-y-2 px-6 pb-6 text-xs text-muted-foreground md:flex">
-        {(
-          [
-            [t("keys.space"), t("preview.play")],
-            ["I", t("timeline.in")],
-            ["O", t("timeline.out")],
-            ["S", t("workspace.splitShort")],
-            ["?", t("workspace.allShortcuts")],
-          ] as const
-        ).map(([key, label]) => (
-          <span key={key} className="flex items-center gap-1.5">
-            <Keys keys={key} />
-            {label}
-          </span>
-        ))}
-      </footer>
+      {doc && asset?.status === "ready" && (
+        <div className={cn("shrink-0 p-2 lg:h-[252px]", doc.hookTitle?.trim() && "lg:h-[284px]")}>
+          <Timeline
+            pause={() => videoRef.current?.pause()}
+            doc={doc}
+            asset={asset}
+            endpoint={endpoint}
+            currentTime={time}
+            onTextDraft={setTimelineTextDraft}
+            index={index}
+            select={setSegmentIndex}
+            seek={seek}
+            update={editor.update}
+            brollId={brollId}
+            selectBroll={selectBroll}
+            seekBroll={seekSource}
+            addBroll={() => setTab("broll")}
+          />
+        </div>
+      )}
       {doc && asset && (
         <ExportPanel
           open={exportOpen}

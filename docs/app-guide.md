@@ -264,6 +264,22 @@ With B-roll on, each rendered clip gets its own plan (`backend/src/broll.py`):
 
 Placements are stored on the clip's `.source_map.json` sidecar (`broll`, in clip seconds). Caption edits and "apply settings" regenerations re-use them; trims, splits and merges shift them. Recomputed pause/filler cleanup re-plans. Clips exported from the clip studio are rebuilt from the source and do not include B-roll yet; the generated clip keeps it. Footage is cached under `{TEMP_DIR}/broll_cache` (unused for 24 hours or over 2 GB is pruned, and is re-downloaded on demand). If planning, Pexels or a download fails, the clip renders without B-roll.
 
+### Clip studio
+
+The clip studio (`/tasks/{id}/edit`) is a full-screen editor laid out like a classic NLE: a clip picker (and clip combining) in the header, the
+preview in the middle, the Captions / Framing / B-roll / Audio / Effects tools on the right, and a full-width timeline
+underneath with Video, B-roll, Captions and Audio tracks. Drag a clip's edges on the Video track to trim it. Every change is a draft;
+generated clips are never overwritten.
+
+- **B-roll** has its own track in the timeline (drag to move, drag an edge to resize) and a tab with AI auto-fill and
+  Pexels search. It follows cuts like captions and is included in both browser and server exports.
+- **AI editing:** type a request in the "AI edit" field under the preview (or press ⌘J), e.g. "remove the filler words", "make it under
+  30 seconds", "bigger yellow captions", "add B-roll where he talks about biking". The AI worker asks Claude Sonnet 5.5
+  for edit operations, applies them to the draft, and the change arrives as one step you can undo. Requests it can't
+  do (music, voiceover, transitions) are explained instead. Defaults to Sonnet with `ANTHROPIC_API_KEY`;
+  for local editing set `AI_EDIT_MODEL=ollama:qwen3.8:27b` on the API and AI worker, using the existing
+  `OLLAMA_BASE_URL` setting. Local requests do not fall back to a hosted model. Both modes are limited by `AI_EDIT_DAILY_LIMIT`.
+
 ### Output format
 
 The home screen exposes at least:

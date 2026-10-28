@@ -27,6 +27,7 @@ from ..youtube_source import (
     resolve_full_youtube_download,
     copy_transcript_sidecar,
     load_time_map,
+    local_ranges_for,
     persist_cache_sidecar,
 )
 from ..video_utils import (
@@ -53,18 +54,26 @@ from ..clip_source_map import (
     save_clip_source_ranges,
     source_range_bounds,
 )
-from ..ai import get_most_relevant_parts_by_transcript
+from ..ai import get_most_relevant_parts_by_transcript, max_final_clips_for_duration
+from ..clip_openings import OPENING_HOOK_PENALTY, opening_text_issue, review_opening
 from ..clip_duration import clip_duration
 from ..config import get_config
 from ..media.source_limits import normalize_source_media
 from ..media_storage import MediaStorage
 from ..media.ffmpeg import (
     cap_video_short_side,
-    crossfade_fade_for_ranges,
     ffprobe_duration,
     ffprobe_video_size,
+    rendered_clip_duration,
+    rendered_ranges_duration,
 )
 from ..media.timeline import get_words_for_keep_ranges
+from ..media.visual_suitability import (
+    is_visually_static,
+    segment_static_fraction,
+    segment_shows_interruption_notice,
+    still_picture_shows_face,
+)
 from ..stream_source import (
     PROCESSING_OPERATION,
     StreamSourceError,
@@ -76,6 +85,7 @@ from ..stream_source import (
 
 logger = logging.getLogger(__name__)
 UPLOAD_URL_PREFIX = "upload://"
+OPENING_CONTEXT_SECONDS = 10.0
 
 
 class VideoService:
@@ -126,6 +136,181 @@ class VideoService:
             end_seconds,
         ).strip()
         return grounded_text or str(segment_payload.get("text") or "").strip()
+
+    @staticmethod
+    def _segment_words(
+        transcript_data: Optional[Dict[str, Any]], start: float, end: float
+    ) -> List[Dict[str, Any]]:
+        """Transcript words in source seconds from ``start`` to ``end``.
+
+        Zero-length words are kept: the opening review needs every token.
+        """
+        words = []
+        for word in (transcript_data or {}).get("words") or []:
+            word_start = float(word.get("start", 0)) / 1000.0
+            if start <= word_start < end:
+                words.append(
+                    {
+                        "text": str(word.get("text", "")),
+                        "start": word_start,
+                        "end": max(word_start, float(word.get("end", 0)) / 1000.0),
+                    }
+                )
+        return sorted(words, key=lambda word: word["start"])
+
+    @staticmethod
+    def _refine_segment_openings(
+        segments: List[Dict[str, Any]],
+        transcript_data: Optional[Dict[str, Any]],
+        clip_length: str = "auto",
+    ) -> List[Dict[str, Any]]:
+        """Trim lead-in banter or fragments off each opening, or demote the clip.
+
+        A start that only moves within limits keeps the clip's point; an
+        opening that still leans on missing context loses hook points, and the
+        list is re-sorted so the demoted clip no longer leads.
+        """
+        min_duration = clip_duration(clip_length).minimum
+        penalised = False
+        for segment in segments:
+            # Cached analyses were reviewed when first stored; a second pass
+            # would apply the penalty again.
+            if segment.get("opening_reviewed"):
+                continue
+            segment["opening_reviewed"] = True
+            try:
+                start = parse_timestamp_to_seconds(str(segment.get("start_time") or ""))
+                end = parse_timestamp_to_seconds(str(segment.get("end_time") or ""))
+            except Exception:
+                continue
+            if end <= start:
+                continue
+            # Earlier words show where the opening sentence really starts.
+            words = VideoService._segment_words(transcript_data, start - OPENING_CONTEXT_SECONDS, end)
+            if words:
+                review = review_opening(words, start, end, min_duration)
+                issue, should_penalise = review.issue, review.penalise
+                if review.start is not None and review.start <= start:
+                    # The trim target is not after the stored start, so the
+                    # opening stays as it is; rank it like an untrimmable one.
+                    should_penalise = True
+            else:
+                issue = opening_text_issue(str(segment.get("text") or ""))
+                review = None
+                should_penalise = issue is not None
+            if review is not None and review.start is not None and review.start > start:
+                new_start = seconds_to_mmss(review.start)
+                logger.info(
+                    "Opening of %s-%s is %s (%r); starting at %s instead",
+                    segment.get("start_time"),
+                    segment.get("end_time"),
+                    issue,
+                    review.skipped_text,
+                    new_start,
+                )
+                segment["start_time"] = new_start
+                kept_words = VideoService._segment_words(
+                    transcript_data, review.first_word_start or review.start, end
+                )
+                segment["text"] = " ".join(word["text"] for word in kept_words) or segment.get("text", "")
+                hook_start = segment.get("hook_start_time")
+                try:
+                    if hook_start and parse_timestamp_to_seconds(str(hook_start)) < review.start:
+                        segment["hook_start_time"] = None
+                        segment["hook_end_time"] = None
+                except Exception:
+                    segment["hook_start_time"] = None
+                    segment["hook_end_time"] = None
+            if should_penalise:
+                hook_score = int(segment.get("hook_score") or 0)
+                reduced = max(0, hook_score - OPENING_HOOK_PENALTY)
+                segment["hook_score"] = reduced
+                segment["virality_score"] = max(
+                    0, int(segment.get("virality_score") or 0) - (hook_score - reduced)
+                )
+                penalised = True
+                logger.info(
+                    "Opening of %s-%s still depends on missing context (%s); hook score %d -> %d",
+                    segment.get("start_time"),
+                    segment.get("end_time"),
+                    issue,
+                    hook_score,
+                    reduced,
+                )
+        if penalised:
+            # Analysis output is already best-first; a stable sort only moves
+            # the demoted clips.
+            segments = sorted(
+                segments, key=lambda segment: int(segment.get("virality_score") or 0), reverse=True
+            )
+        return segments
+
+    @staticmethod
+    def _drop_static_segments(
+        video_path: Path, segments: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Leave out segments whose picture is one still frame (slate, card, black).
+
+        Selection only reads the transcript, so a strong passage spoken over a
+        "footage unavailable" card would otherwise lead the results. When every
+        segment is static (an audio podcast with cover art), all are kept.
+        """
+        notices = [False] * len(segments)
+        fractions: List[Optional[float]] = []
+        static: List[bool] = []
+        for segment, notice in zip(segments, notices):
+            fraction: Optional[float] = None
+            is_static = False
+            try:
+                start = parse_timestamp_to_seconds(str(segment.get("start_time") or ""))
+                end = parse_timestamp_to_seconds(str(segment.get("end_time") or ""))
+                ranges = local_ranges_for(video_path, [(start, end)])
+                fraction = segment_static_fraction(video_path, ranges)
+                notice = segment_shows_interruption_notice(video_path, ranges)
+                notices[len(static)] = notice
+                is_static = is_visually_static(fraction) or notice
+                # A presenter in front of a fixed backdrop barely moves either;
+                # only a held picture without a face is a card or placeholder.
+                if is_static and still_picture_shows_face(video_path, ranges):
+                    logger.info(
+                        "Segment %s-%s holds one picture for %.0f%% but shows a face; keeping it",
+                        segment.get("start_time"),
+                        segment.get("end_time"),
+                        (fraction or 0.0) * 100,
+                    )
+                    is_static = False
+            except Exception as exc:
+                logger.warning(
+                    "Visual check unavailable for segment %s-%s: %s",
+                    segment.get("start_time"),
+                    segment.get("end_time"),
+                    exc,
+                )
+                is_static = False
+            fractions.append(fraction)
+            static.append(is_static)
+
+        if not any(static):
+            return segments
+        if all(static) and not any(notices):
+            logger.warning(
+                "Every selected segment shows a still picture; keeping them all "
+                "because the whole source looks static"
+            )
+            return segments
+        kept = []
+        for segment, fraction, is_static in zip(segments, fractions, static):
+            if is_static:
+                logger.warning(
+                    "Dropping segment %s-%s: one still picture covers %.0f%% of it "
+                    "(interruption card, placeholder or black)",
+                    segment.get("start_time"),
+                    segment.get("end_time"),
+                    (fraction or 0.0) * 100,
+                )
+                continue
+            kept.append(segment)
+        return kept
 
     @staticmethod
     def _get_file_duration(path: Path) -> Optional[float]:
@@ -338,6 +523,7 @@ class VideoService:
             clip_signals=clip_signals,
             performance_context=performance_context,
             clip_length=clip_length,
+            include_reserve=True,
         )
         logger.info(
             f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"
@@ -359,8 +545,7 @@ class VideoService:
             transcript = await run_in_thread(load_cached_transcript_data, video_path)
             words = get_words_for_keep_ranges(transcript, keep_ranges) if transcript else []
             # The renderer crossfades between kept ranges, which shortens the clip.
-            fade = crossfade_fade_for_ranges(keep_ranges)
-            clip_seconds = sum(end - start for start, end in keep_ranges) - fade * (len(keep_ranges) - 1)
+            clip_seconds = rendered_ranges_duration(keep_ranges)
             orientation = "portrait"
             target_short_side = 1080
             if output_format == "original":
@@ -446,6 +631,12 @@ class VideoService:
             for clip_info in clips_info:
                 try:
                     await run_in_thread(cap_video_short_side, Path(clip_info["path"]), max_short_side)
+                    # The re-encode can shift the length by a frame.
+                    clip_info["duration"] = await run_in_thread(
+                        rendered_clip_duration,
+                        Path(clip_info["path"]),
+                        clip_info.get("keep_ranges") or [],
+                    )
                 except Exception as e:
                     logger.warning(f"Keeping full-size clip {clip_info.get('filename')}: {e}")
 
@@ -569,9 +760,16 @@ class VideoService:
                     # A higher-resolution clip beats losing the clip entirely.
                     logger.warning(f"Keeping full-size clip {clip_index + 1}: {e}")
 
-            save_clip_source_ranges(clip_path, keep_ranges)
+            from ..media.ffmpeg import output_offsets_for_ranges
+            save_clip_source_ranges(clip_path, keep_ranges, output_offsets_for_ranges(keep_ranges))
             save_clip_broll(clip_path, broll_placements)
-            cleaned_duration = sum(end - start for start, end in keep_ranges)
+            if render_report.get("caption_y") is not None:
+                from ..clip_source_map import save_clip_caption_settings
+                save_clip_caption_settings(clip_path, {"position_y": render_report["caption_y"], "position_is_center": True})
+            # Store what plays, after crossfades and the resolution cap.
+            cleaned_duration = await run_in_thread(
+                rendered_clip_duration, clip_path, keep_ranges
+            )
             logger.info(
                 f"Created clip {clip_index + 1}: {cleaned_duration:.1f}s"
                 + (f" with {len(broll_placements)} B-roll cutaways" if broll_placements else "")
@@ -888,6 +1086,8 @@ class VideoService:
                         "hook_start_time": segment.get("hook_start_time"),
                         "hook_end_time": segment.get("hook_end_time"),
                     }
+                    if segment.get("opening_reviewed"):
+                        segment_payload["opening_reviewed"] = True
                 else:
                     virality = segment.virality.model_dump() if segment.virality else {}
                     segment_payload = {
@@ -913,10 +1113,20 @@ class VideoService:
                 )
                 segments_json.append(segment_payload)
 
-            clip_limit = runtime_config.max_clips
+            try:
+                segments_json = VideoService._refine_segment_openings(
+                    segments_json, transcript_data, clip_length
+                )
+            except Exception:
+                # A heuristic must never fail the task; keep the AI's openings.
+                logger.exception("Opening review failed; keeping the selected openings")
+
+            clip_limit = max_final_clips_for_duration(file_duration, runtime_config.max_clips)
             if processing_mode == "fast":
                 clip_limit = min(clip_limit, runtime_config.fast_mode_max_clips)
-            segments_json = segments_json[: max(1, clip_limit)]
+            # Retain a bounded reserve until picture checks finish, so a rejected
+            # slate can be replaced by the next already-ranked candidate.
+            segments_json = segments_json[: min(24, max(1, clip_limit) * 2)]
 
             if not segments_json:
                 logger.warning(
@@ -977,6 +1187,19 @@ class VideoService:
                 if should_cancel and await should_cancel():
                     raise Exception("Task cancelled")
                 video_path = await VideoService.prepare_source(video_path)
+
+            # The picture is only available now when analysis ran on audio.
+            if segments_json:
+                try:
+                    segments_json = await run_in_thread(
+                        VideoService._drop_static_segments, video_path, segments_json
+                    )
+                except Exception:
+                    logger.exception("Visual suitability check failed; keeping every segment")
+
+            segments_json = segments_json[:max(1, clip_limit)]
+            if not segments_json:
+                raise ValueError("No usable footage remains after excluding interruption notices.")
 
             return {
                 "segments": segments_json,

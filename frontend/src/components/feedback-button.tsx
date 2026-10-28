@@ -74,7 +74,7 @@ export function FeedbackButton() {
         <Button
           size="icon"
           aria-label={t("feedback.title")}
-          className="fixed bottom-5 right-5 z-50 h-11 w-11 rounded-full shadow-lg max-md:[body:has([data-app-shell])_&]:bottom-[calc(5rem+env(safe-area-inset-bottom))]"
+          className="fixed bottom-5 right-5 z-50 h-11 w-11 rounded-full shadow-lg max-md:[body:has([data-app-shell])_&]:bottom-[calc(5rem+env(safe-area-inset-bottom))] [body:has([data-editor-studio])_&]:hidden"
         >
           <MessageSquare className="h-5 w-5" />
         </Button>

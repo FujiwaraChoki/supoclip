@@ -42,6 +42,7 @@
   "tabs": {
     "captions": "Caption",
     "framing": "Framing",
+    "broll": "B-roll",
     "audio": "Audio",
     "effects": "Efek"
   },
@@ -80,7 +81,7 @@
     "applying": "Menerapkan…",
     "applyAll": "Terapkan ke semua clip",
     "hookTitle": "Judul hook",
-    "hookDescription": "Ditampilkan di atas selama beberapa detik pertama. Kosongkan untuk menghapusnya.",
+    "hookDescription": "Tarik tepi judul di linimasa untuk mengatur kapan judul muncul. Kosongkan untuk menghapusnya.",
     "hookPlaceholder": "Tanpa judul hook",
     "transcript": "Transkrip",
     "wordCount": "{count} kata",
@@ -117,7 +118,10 @@
     "zoom": "Zoom",
     "horizontal": "Posisi horizontal",
     "vertical": "Posisi vertikal",
-    "center": "Pusatkan subjek"
+    "center": "Pusatkan subjek",
+    "landscapeHint": "Klip ini berisi detail yang melebar. Versi lanskap menjaga detail tetap terbaca tanpa memotong konten.",
+    "useLandscape": "Gunakan versi lanskap",
+    "autoLayout": "Tata letak hasil pembuatan"
   },
   "audioPanel": {
     "title": "Audio",
@@ -140,7 +144,7 @@
   "preview": {
     "fontError": "Font caption tidak bisa dimuat. Periksa koneksimu sebelum mengekspor.",
     "framingHint": "Seret video untuk mengatur framing · caption tetap di tempatnya",
-    "captionHint": "Seret vertikal untuk memosisikan caption",
+    "captionHint": "Seret teks untuk memindahkan · seret sudut untuk mengubah ukuran · klik untuk mengedit",
     "region": "Pratinjau video",
     "title": "Pratinjau",
     "size": "{width} × {height} · {fps} fps",
@@ -157,7 +161,14 @@
     "nextFrame": "Frame berikutnya",
     "pause": "Jeda",
     "play": "Putar",
-    "muted": "Dibisukan"
+    "muted": "Dibisukan",
+    "resizeText": "Ubah ukuran {layer}, {corner}",
+    "corners": {
+      "nw": "kiri atas",
+      "ne": "kanan atas",
+      "sw": "kiri bawah",
+      "se": "kanan bawah"
+    }
   },
   "timeline": {
     "region": "Timeline clip",
@@ -180,7 +191,21 @@
     "moveEarlier": "Geser segmen lebih awal",
     "moveLater": "Geser segmen lebih akhir",
     "duplicate": "Duplikat segmen yang dipilih",
-    "remove": "Hapus segmen yang dipilih"
+    "remove": "Hapus segmen yang dipilih",
+    "zoomIn": "Perbesar",
+    "zoomOut": "Perkecil",
+    "tracks": {
+      "video": "Video",
+      "broll": "B-roll",
+      "captions": "Caption",
+      "audio": "Audio",
+      "hideCaptions": "Sembunyikan caption",
+      "showCaptions": "Tampilkan caption",
+      "mute": "Bisukan",
+      "unmute": "Bunyikan"
+    },
+    "hookStart": "Awal judul, detik",
+    "hookEnd": "Akhir judul, detik"
   },
   "export": {
     "exported": "Video diekspor",
@@ -269,7 +294,10 @@
     "reloadTitle": "Muat versi tersimpan?",
     "reloadDescription": "Ini mengganti perubahan lokal dan riwayat urung dengan draf server. Cadangkan drafmu dulu kalau kamu ingin menyimpan perubahan lokal.",
     "keepLocalDraft": "Simpan draf lokal",
-    "loadSaved": "Muat versi tersimpan"
+    "loadSaved": "Muat versi tersimpan",
+    "switchClip": "Ganti klip",
+    "clipOf": "dari {count}",
+    "more": "Lainnya"
   },
   "shortcuts": {
     "playPause": "Putar / jeda",
@@ -278,8 +306,67 @@
     "setIn": "Set titik in",
     "setOut": "Set titik out",
     "split": "Pisah di playhead",
+    "removeBroll": "Hapus B-roll terpilih",
     "undo": "Urungkan",
     "redo": "Ulangi",
-    "save": "Simpan draf"
+    "save": "Simpan draf",
+    "aiPrompt": "Edit dengan AI"
+  },
+  "broll": {
+    "lane": "B-roll",
+    "laneLabel": "Trek B-roll",
+    "clipLabel": "B-roll {query}, {start} sampai {end}",
+    "untitled": "Stok video",
+    "laneEmpty": "Klik untuk menambahkan B-roll di sini",
+    "title": "B-roll",
+    "description": "Stok video yang tampil di atas klip saat pembicara terus berbicara. Caption tetap di atas.",
+    "suggest": "Isi otomatis",
+    "listLabel": "B-roll di klip ini",
+    "empty": "Belum ada B-roll. Isi otomatis memilih momen dari yang diucapkan, atau cari di bawah.",
+    "selectedTitle": "B-roll terpilih",
+    "remove": "Hapus",
+    "credit": "Video oleh {name} di <link>Pexels</link>",
+    "creditUnknown": "kreator Pexels",
+    "footageLength": "Durasi stok video {duration}",
+    "start": "Mulai",
+    "end": "Selesai",
+    "startSeconds": "Awal B-roll, detik",
+    "endSeconds": "Akhir B-roll, detik",
+    "footageStart": "Stok video mulai dari",
+    "jump": "Lompat ke",
+    "replace": "Ganti video",
+    "replaceTitle": "Ganti video",
+    "replaceDescription": "Pilih video lain. Waktunya tetap sama.",
+    "searchTitle": "Tambah video",
+    "searchDescription": "Cari stok video dan pilih satu untuk ditambahkan di playhead ({time}).",
+    "searchPlaceholder": "mis. kota malam hari, tuang kopi",
+    "searchLabel": "Cari stok video",
+    "searchButton": "Cari",
+    "resultsLabel": "Hasil stok video",
+    "useResult": "Gunakan video oleh {credit}",
+    "addResult": "Tambahkan video oleh {credit} di playhead",
+    "more": "Tampilkan lagi",
+    "noResults": "Tidak ada hasil untuk “{query}”. Coba kata yang lebih sederhana dan visual.",
+    "attribution": "Stok video dari <link>Pexels</link>.",
+    "searchFailed": "Gagal mencari stok video.",
+    "noRoom": "Sudah ada B-roll di playhead. Pindahkan playhead ke tempat kosong.",
+    "suggested": "{count} klip B-roll ditambahkan.",
+    "nothingSuggested": "Tidak ada yang baru: tidak ada momen lain yang menyebut sesuatu yang bisa difilmkan.",
+    "suggestFailed": "Gagal menyarankan B-roll.",
+    "unavailable": "Stok video belum diatur di server ini, jadi B-roll tidak bisa ditambahkan."
+  },
+  "ai": {
+    "label": "Minta AI mengedit klip ini",
+    "placeholder": "Edit dengan AI, mis. hapus kata pengisi",
+    "working": "Mengedit klipmu…",
+    "send": "Jalankan",
+    "dismiss": "Tutup",
+    "undo": "Urungkan",
+    "apply": "Terapkan",
+    "editedMeanwhile": "Kamu mengedit klip saat AI bekerja, jadi perubahannya belum diterapkan.",
+    "length": "Sekarang {duration} (sebelumnya {was})",
+    "timeout": "AI terlalu lama. Coba lagi.",
+    "failed": "Tidak bisa terhubung ke AI. Coba lagi.",
+    "title": "Edit AI"
   }
 }

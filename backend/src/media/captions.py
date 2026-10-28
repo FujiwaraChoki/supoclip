@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import Tuple
 from ..emoji_captions import annotate_caption_words
 from ..font_registry import find_font_path
+from ..font_registry import get_font_advance_metrics
 from ..font_registry import get_font_codepoints
 from ..font_registry import get_font_family_name
 from ..caption_templates import get_template
-from ..clip_source_map import normalize_source_ranges
 from ..emoji_captions import normalize_token
 import cv2
 import numpy as np
@@ -29,7 +29,7 @@ from .common import (
     logger,
 )
 from .ffmpeg import (
-    crossfade_fade_for_ranges,
+    rendered_ranges_duration,
     run_ffmpeg_command,
     subtitles_filter_fragment,
 )
@@ -58,6 +58,47 @@ def get_subtitle_max_width(video_width: int) -> int:
     return max(200, video_width - (horizontal_padding * 2))
 
 
+def caption_text_measurer(font_family: Optional[str], font_px: int):
+    """Return ``measure(text) -> px`` for text rendered by libass at ``font_px``.
+
+    Uses the font's own advance widths when the font file is available, and a
+    deliberately wide per-character estimate otherwise.
+    """
+    font_path = (
+        find_font_path(font_family, allow_all_user_fonts=True) if font_family else None
+    )
+    metrics = get_font_advance_metrics(font_path) if font_path else None
+    if metrics is None:
+        return lambda text: len(text) * font_px * 0.62
+    return lambda text: metrics.text_width(text, font_px)
+
+
+def split_caption_chunk(
+    widths: List[float], space_width: float, max_width: float
+) -> List[Tuple[int, int]]:
+    """Split one caption chunk into ``(start, end)`` runs that fit ``max_width``.
+
+    A chunk that fits stays whole. Otherwise it is cut where the wider part is
+    narrowest, and each part again, so "5,000 MILLIAMP-HOUR RECHARGEABLE
+    BATTERY" becomes two balanced lines instead of one that leaves the frame.
+    A single word wider than the line stays alone; the caller scales it down.
+    """
+
+    def width(start: int, end: int) -> float:
+        return sum(widths[start:end]) + space_width * max(0, end - start - 1)
+
+    def split(start: int, end: int) -> List[Tuple[int, int]]:
+        if end - start <= 1 or width(start, end) <= max_width:
+            return [(start, end)]
+        cut = min(
+            range(start + 1, end),
+            key=lambda index: (max(width(start, index), width(index, end)), -index),
+        )
+        return split(start, cut) + split(cut, end)
+
+    return split(0, len(widths)) if widths else []
+
+
 def get_safe_vertical_position(
     video_height: int, text_height: int, position_y: float
 ) -> int:
@@ -68,6 +109,36 @@ def get_safe_vertical_position(
     desired_y = int(video_height * position_y - text_height // 2)
     max_y = video_height - min_bottom_padding - text_height
     return max(min_top_padding, min(desired_y, max_y))
+
+
+# Spoken captions moved off burned-in source captions stay below this height,
+# so they do not land on the speaker's face or under the hook title.
+MIN_MOVED_CAPTION_CENTER = 0.45
+
+
+def caption_center_clear_of_band(
+    center_y: int, text_height: int, band: Tuple[float, float], video_height: int
+) -> int:
+    """Move a caption centre so its line does not overlap ``band``.
+
+    Returns ``center_y`` unchanged when there is no overlap. Otherwise the
+    caption goes just above the band, or just below it when there is no room
+    above, keeping the bottom safe area clear.
+    """
+    gap = max(12, int(video_height * 0.015))
+    half = text_height // 2
+    band_top, band_bottom = int(band[0] * video_height), int(band[1] * video_height)
+    if center_y + half + gap <= band_top or center_y - half - gap >= band_bottom:
+        return center_y
+
+    above = band_top - gap - half
+    if above >= video_height * MIN_MOVED_CAPTION_CENTER:
+        return above
+    below = band_bottom + gap + half
+    bottom_limit = video_height - max(120, int(video_height * 0.10)) - half
+    if below <= bottom_limit:
+        return below
+    return max(above, int(video_height * MIN_MOVED_CAPTION_CENTER))
 
 
 def emoji_rendering_supported() -> bool:
@@ -257,6 +328,7 @@ def build_hook_title_ass(
     font_name: str,
     caption_font_px: int,
     position_y: Optional[float] = None,
+    editor_style: Optional[Dict[str, Any]] = None,
 ) -> Tuple[str, List[str]]:
     """Build the (style_line, dialogue_events) for a burned-in hook title.
 
@@ -280,6 +352,8 @@ def build_hook_title_ass(
     # still does not fit (a long compound word, or two long lines) shrinks
     # below the preferred size so it is not clipped at the frame edge.
     base_px = min(96, max(caption_font_px + 8, int(round(caption_font_px * 1.35))))
+    if editor_style is not None:
+        base_px = int(editor_style["base_px"])
     usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_SIDE_MARGIN_FRAC))
     max_chars = max(10, int(usable_width / (base_px * 0.52)))
     lines = _balance_title_lines(title_text.split(), max_chars)
@@ -288,6 +362,11 @@ def build_hook_title_ass(
     if longest > max_chars:
         fitted = int(usable_width / (longest * 0.52))
         hook_px = min(base_px, max(1, fitted))
+        if editor_style is not None:
+            hook_px = max(30, hook_px)
+    original_px = hook_px
+    if editor_style is not None:
+        hook_px *= float(editor_style.get("scale", 1))
 
     base_stroke = int(template.get("stroke_width", 3) or 0)
     has_outline = template.get("stroke_color") is not None and base_stroke > 0
@@ -323,11 +402,20 @@ def build_hook_title_ass(
     end = min(HOOK_TITLE_SECONDS, max(HOOK_TITLE_MIN_SECONDS, output_duration - 0.25))
     if output_duration <= HOOK_TITLE_MIN_SECONDS:
         start, end = 0.0, max(0.5, output_duration)
-    entrance = "\\fad(160,240)"
-    if position_y is not None:
+    if editor_style is not None and "start" in editor_style:
+        start = max(0.0, min(float(editor_style["start"]), max(0.0, output_duration - .04)))
+        end = max(start + min(.04, output_duration), min(float(editor_style["end"]), output_duration))
+    span = max(0.001, end - start)
+    fade_in, fade_out = min(.16, span / 3), min(.24, span / 3)
+    entrance = f"\\fad({round(fade_in * 1000)},{round(fade_out * 1000)})"
+    if editor_style is not None:
+        x = video_width * (0.5 + float(editor_style.get("x", 0)))
+        y = margin_v + original_px * 1.2 * len(lines) / 2 + video_height * float(editor_style.get("y", 0))
+        entrance += f"\\an5\\pos({round(x)},{round(y)})"
+    elif position_y is not None:
         entrance += f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})"
     if template.get("word_pop", True):
-        entrance += "\\fscx90\\fscy90\\t(0,160,\\fscx100\\fscy100)"
+        entrance += f"\\fscx90\\fscy90\\t(0,{round(fade_in * 1000)},\\fscx100\\fscy100)"
     events = [
         f"Dialogue: 1,{ass_timestamp(start)},{ass_timestamp(end)},Hook,,0,0,0,,"
         f"{{{entrance}}}{text}"
@@ -358,6 +446,11 @@ def build_assemblyai_ass_subtitles(
     center_y_override: Optional[int] = None,
     emphasis_indices: Optional[Iterable[int]] = None,
     wrap_lines: bool = False,
+    center_x_override: Optional[int] = None,
+    hook_editor_style: Optional[Dict[str, Any]] = None,
+    caption_placements: Optional[List[Optional[Dict[str, Any]]]] = None,
+    avoid_band: Optional[Tuple[float, float]] = None,
+    caption_layout_report: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -373,6 +466,8 @@ def build_assemblyai_ass_subtitles(
     ``center_y_override`` places the caption centre without the safe-area
     clamp, ``emphasis_indices`` replaces automatic emphasis with exactly those
     words, and ``wrap_lines`` lets libass wrap lines wider than the frame.
+    ``avoid_band`` is a (top, bottom) height fraction holding captions burned
+    into the source; the spoken captions move clear of it.
     """
     transcript_data = load_cached_transcript_data(video_path)
 
@@ -448,6 +543,10 @@ def build_assemblyai_ass_subtitles(
         if center_y_override is not None
         else get_safe_vertical_position(video_height, est_text_height, pos_y)
     )
+    if avoid_band is not None and center_y_override is None:
+        y_pos = caption_center_clear_of_band(y_pos, est_text_height, avoid_band, video_height)
+    if caption_layout_report is not None:
+        caption_layout_report["caption_y"] = y_pos / video_height
     font_name = ass_font_name(effective_font_family)
     border_style = (
         3
@@ -464,11 +563,7 @@ def build_assemblyai_ass_subtitles(
     hook_events: List[str] = []
     if hook_title:
         if keep_ranges:
-            ranges = normalize_source_ranges(keep_ranges)
-            fade = crossfade_fade_for_ranges(ranges)
-            output_duration = sum(end - start for start, end in ranges) - fade * max(
-                0, len(ranges) - 1
-            )
+            output_duration = rendered_ranges_duration(keep_ranges)
         else:
             output_duration = max(0.0, clip_end - clip_start)
         hook_style_line, hook_events = build_hook_title_ass(
@@ -482,6 +577,7 @@ def build_assemblyai_ass_subtitles(
             # An upper-third caption seam belongs to a reaction stack. Keep
             # the headline below the source subject, off the reactor's face.
             position_y=0.94 if position_y_override is not None and position_y_override < .4 else None,
+            editor_style=hook_editor_style,
         )
         hook_style_block = f"{hook_style_line}\n"
 
@@ -508,6 +604,35 @@ def build_assemblyai_ass_subtitles(
     max_words = max(1, int(template.get("max_words_per_line", 4) or 4))
     chunk_size = max_words
 
+    # Word-count chunks can be far wider than the frame ("5,000 MILLIAMP-HOUR
+    # RECHARGEABLE BATTERY"). Measure each chunk as libass will draw it, split
+    # the ones that overflow the side margins, and shrink a single word that
+    # still does not fit. The editor lets libass wrap instead (``wrap_lines``).
+    measure = caption_text_measurer(effective_font_family, font_px)
+    space_width = measure(" ")
+    edge_px = max(style_bord, box_bord if word_box else 0) + shadow_px
+    peak_scale = {"pop": 1.06, "bounce": 1.12}.get(animation, 1.0)
+    available_width = (get_subtitle_max_width(video_width) - 2 * edge_px) / peak_scale
+    emoji_width = space_width + font_px * 1.2
+
+    def display_width(index: int, word: Dict[str, Any]) -> float:
+        text = str(word.get("text", ""))
+        width = measure(text.upper() if uppercase else text)
+        return width + (emoji_width if emoji_by_idx.get(index) else 0.0)
+
+    word_widths = [display_width(index, word) for index, word in enumerate(relevant_words)]
+    chunk_spans: List[Tuple[int, int, float]] = []
+    for chunk_start in range(0, len(relevant_words), chunk_size):
+        chunk_stop = min(len(relevant_words), chunk_start + chunk_size)
+        if wrap_lines:
+            chunk_spans.append((chunk_start, chunk_stop, 1.0))
+            continue
+        widths = word_widths[chunk_start:chunk_stop]
+        for start, end in split_caption_chunk(widths, space_width, available_width):
+            line_width = sum(widths[start:end]) + space_width * (end - start - 1)
+            scale = min(1.0, available_width / line_width) if line_width > 0 else 1.0
+            chunk_spans.append((chunk_start + start, chunk_start + end, scale))
+
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {video_width}
@@ -523,7 +648,15 @@ Style: Default,{font_name},{font_px},{primary},&H000000FF,{style_outline},{back_
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
-    line_prefix = f"{{\\pos({video_width // 2},{y_pos})" + ("\\blur4" if glow else "") + "}"
+    x_pos = video_width // 2 if center_x_override is None else center_x_override
+    def scaled(percent: int, scale: float) -> int:
+        return max(1, round(percent * scale))
+
+    def line_prefix(scale: float) -> str:
+        tags = f"\\pos({x_pos},{y_pos})" + ("\\blur4" if glow else "")
+        if scale < 1.0:
+            tags += f"\\fscx{scaled(100, scale)}\\fscy{scaled(100, scale)}"
+        return f"{{{tags}}}"
 
     # Every word span re-declares the caption font, so an emoji's \fn override
     # can never leak into the following word.
@@ -562,14 +695,30 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     # Subtle one-shot entrance for the whole line (uniform scale, centred), shown
     # only as the first word of a chunk appears — gives a pop without any
     # per-word reflow/vibration.
-    line_entrance = "\\fscx92\\fscy92\\t(0,140,\\fscx100\\fscy100)" if word_pop else ""
+    def line_entrance(scale: float) -> str:
+        if not word_pop:
+            return ""
+        small, full = scaled(92, scale), scaled(100, scale)
+        return f"\\fscx{small}\\fscy{small}\\t(0,140,\\fscx{full}\\fscy{full})"
 
     events: List[str] = []
-    total = len(relevant_words)
-    for chunk_start in range(0, total, chunk_size):
-        chunk = relevant_words[chunk_start : chunk_start + chunk_size]
-        indices = list(range(chunk_start, chunk_start + len(chunk)))
+    original_geometry = (outline_px, shadow_px, box_bord)
+    for chunk_start, chunk_stop, chunk_scale in chunk_spans:
+        chunk = relevant_words[chunk_start:chunk_stop]
+        indices = list(range(chunk_start, chunk_stop))
         chunk_end = float(chunk[-1]["end"])
+        prefix = line_prefix(chunk_scale)
+        entrance_tags = line_entrance(chunk_scale)
+        outline_px, shadow_px, box_bord = original_geometry
+        placement = (caption_placements[chunk_start // chunk_size]
+                     if caption_placements and chunk_start // chunk_size < len(caption_placements) else None)
+        if placement is not None:
+            px = placement["font_px"]
+            outline_px = max(base_stroke, round(px * base_stroke / 26)) if has_outline else 0
+            shadow_px = max(2, px // 20) if template.get("shadow") else 0
+            box_bord = max(outline_px + 2, px // 5)
+            border = max(outline_px, px // 6) if border_style == 3 else outline_px
+            prefix = f"{{\\pos({placement['x']},{placement['y']})\\fs{px}\\bord{border}\\shad{shadow_px}" + ("\\blur4" if glow else "") + "}"
 
         if animation == "karaoke":
             for local_i, word in enumerate(chunk):
@@ -589,9 +738,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 line = " ".join(parts)
                 # Entrance only on the first word's event so it plays once, not
                 # once per word.
-                entrance = f"{{{line_entrance}}}" if (line_entrance and local_i == 0) else ""
+                entrance = f"{{{entrance_tags}}}" if (entrance_tags and local_i == 0) else ""
                 events.append(
-                    f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{line_prefix}{entrance}{line}"
+                    f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{prefix}{entrance}{line}"
                 )
         else:
             start = float(chunk[0]["start"])
@@ -607,20 +756,19 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             chunk_text = " ".join(spans)
 
             effect = ""
+            # (from %, peak %, ms to peak, ms to settle) of the scale animation
+            scale_steps = {"pop": (88, 106, 130, 250), "bounce": (70, 112, 120, 240)}
             if animation == "fade":
                 effect = "{\\fad(120,120)}"
-            elif animation == "pop":
+            elif animation in scale_steps:
+                low, peak, rise, settle = scale_steps[animation]
+                low, peak, full = (scaled(p, chunk_scale) for p in (low, peak, 100))
                 effect = (
-                    "{\\fscx88\\fscy88\\t(0,130,\\fscx106\\fscy106)"
-                    "\\t(130,250,\\fscx100\\fscy100)}"
-                )
-            elif animation == "bounce":
-                effect = (
-                    "{\\fscx70\\fscy70\\t(0,120,\\fscx112\\fscy112)"
-                    "\\t(120,240,\\fscx100\\fscy100)}"
+                    f"{{\\fscx{low}\\fscy{low}\\t(0,{rise},\\fscx{peak}\\fscy{peak})"
+                    f"\\t({rise},{settle},\\fscx{full}\\fscy{full})}}"
                 )
             events.append(
-                f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{line_prefix}{effect}{chunk_text}"
+                f"Dialogue: 0,{ass_timestamp(start)},{ass_timestamp(end)},Default,,0,0,0,,{prefix}{effect}{chunk_text}"
             )
 
     all_events = hook_events + events

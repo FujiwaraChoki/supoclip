@@ -26,7 +26,8 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "
       component: { status: "operational", headline: "Resolved", description: "Downloads are working normally." },
     } }));
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /Good .*Alex/ })).toBeVisible();
+    // The greeting also says "Up late" between midnight and 5am.
+    await expect(page.getByRole("heading", { name: /^(?:Good (?:morning|afternoon|evening)|Up late), Alex$/ })).toBeVisible();
     await expect(page.getByRole("status", { name: "YouTube import status" })).toHaveCount(0);
     await expect(page.getByText("Checking YouTube import status…")).toHaveCount(0);
   });

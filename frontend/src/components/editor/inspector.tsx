@@ -5,6 +5,7 @@ import {
   AlignCenter,
   Bookmark,
   Captions,
+  Clapperboard,
   Crop,
   Highlighter,
   Info,
@@ -27,27 +28,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   DEFAULT_EFFECTS,
+  captionAt,
+  captionKey,
+  captionTransform,
   clamp,
   replaceWords,
+  setCaptionVisualSize,
+  textTransform,
   uid,
   type EditDocument,
   type CaptionStyle,
+  type CaptionTransform,
   type EditorState,
 } from "@/lib/editor/document";
 import { cn } from "@/lib/utils";
 import { editorMessage, Field, Panel, Range, Section } from "./studio-ui";
-export type InspectorTab = "captions" | "framing" | "audio" | "effects";
+import { BRollPanel } from "./broll-panel";
+export type InspectorTab = "captions" | "framing" | "broll" | "audio" | "effects";
 
 const TABS = [
   ["captions", Captions],
   ["framing", Crop],
+  ["broll", Clapperboard],
   ["audio", Volume2],
   ["effects", Palette],
 ] as const;
@@ -108,9 +116,13 @@ interface Props {
   tab: InspectorTab;
   setTab: (tab: InspectorTab) => void;
   time: number;
+  editTime: number;
   seek: (value: number) => void;
   update: (change: (doc: EditDocument) => EditDocument, group?: string) => void;
   applyAll: (style: CaptionStyle) => Promise<void>;
+  endpoint: string;
+  brollId: string | null;
+  selectBroll: (id: string | null) => void;
 }
 export function Inspector({
   doc,
@@ -118,11 +130,19 @@ export function Inspector({
   tab,
   setTab,
   time,
+  editTime,
   seek,
   update,
   applyAll,
+  endpoint,
+  brollId,
+  selectBroll,
 }: Props) {
   const t = useTranslations("editor");
+  const activeCaption = captionAt(doc, editTime);
+  const captionId = activeCaption ? captionKey(doc, activeCaption) : undefined;
+  const placement: CaptionTransform = activeCaption ? captionTransform(doc, activeCaption) : textTransform(doc, "captions");
+  const captionSize = (placement.size ?? doc.captions.size) * placement.scale;
   const scriptWords = useRef(doc.words);
   const [script, setScript] = useState<string | null>(null),
     [applying, setApplying] = useState(false);
@@ -131,20 +151,20 @@ export function Inspector({
   return (
     <Panel
       aria-label={t("inspector.tools")}
-      className="md:sticky md:top-4 xl:col-start-3"
+      className="flex flex-col lg:h-full lg:min-h-0"
     >
       <Tabs
         value={tab}
         onValueChange={(value) => setTab(value as InspectorTab)}
-        className="gap-0"
+        className="gap-0 lg:min-h-0 lg:flex-1"
       >
-        <div className="border-b p-2">
-          <TabsList className="grid w-full grid-cols-4 group-data-[orientation=horizontal]/tabs:h-auto">
+        <div className="p-2">
+          <TabsList className="grid w-full grid-cols-5 rounded-xl bg-stone-100 p-1 group-data-[orientation=horizontal]/tabs:h-auto dark:bg-stone-900">
             {TABS.map(([id, Icon]) => (
               <TabsTrigger
                 key={id}
                 value={id}
-                className="h-auto flex-col gap-1 py-2 text-xs"
+                className="h-auto flex-col gap-1 rounded-lg py-1.5 text-[11px] text-muted-foreground data-[state=active]:text-foreground data-[state=active]:shadow-[0_1px_2px_rgb(0_0_0/0.08)]"
               >
                 <Icon />
                 {t(`tabs.${id}`)}
@@ -152,7 +172,7 @@ export function Inspector({
             ))}
           </TabsList>
         </div>
-        <div className="md:max-h-[calc(100dvh-250px)] md:overflow-y-auto">
+        <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
           <TabsContent value="captions" className="space-y-6 p-4">
             <Section
               title={t("captions.styleTitle")}
@@ -226,18 +246,21 @@ export function Inspector({
               </Field>
               <Range
                 label={t("captions.size")}
-                value={doc.captions.size}
-                min={20}
-                max={132}
-                onChange={(size) => caption({ size })}
+                value={Math.round(captionSize)}
+                min={Math.min(20, Math.round(captionSize))}
+                max={Math.max(132, Math.round(captionSize))}
+                onChange={(size) => update(current => setCaptionVisualSize(current, size, captionId), `caption-size:${captionId ?? "all"}`)}
               />
               <Range
                 label={t("captions.position")}
-                value={doc.captions.y * 100}
-                min={10}
-                max={90}
+                value={(doc.captions.y + placement.y) * 100}
+                min={0}
+                max={100}
                 unit="%"
-                onChange={(y) => caption({ y: y / 100 })}
+                onChange={(y) => update(current => {
+                  const transform = { ...(captionId ? current.captionTransforms?.[captionId] : undefined) ?? textTransform(current, "captions"), y: y / 100 - current.captions.y };
+                  return captionId ? { ...current, captionTransforms: { ...current.captionTransforms, [captionId]: transform } } : { ...current, textTransforms: { ...current.textTransforms, captions: transform } };
+                }, `caption-position:${captionId ?? "all"}`)}
               />
               <div className="grid grid-cols-2 gap-3">
                 <ColorField
@@ -348,7 +371,6 @@ export function Inspector({
                 </Button>
               </div>
             </Section>
-            <Separator />
             <Section
               title={t("captions.hookTitle")}
               description={t("captions.hookDescription")}
@@ -364,7 +386,6 @@ export function Inspector({
                 }}
               />
             </Section>
-            <Separator />
             <Section
               title={
                 <>
@@ -621,6 +642,10 @@ export function Inspector({
               title={t("framing.title")}
               description={t("framing.description")}
             >
+              {asset.landscapeRecommended && doc.framing.aspect !== "original" && <Alert><Info /><AlertDescription>
+                {t("framing.landscapeHint")}
+                <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => update(current => ({ ...current, framing: { ...current.framing, aspect: "original", fit: "contain", zoom: 1, x: .5, y: .5 } }))}>{t("framing.useLandscape")}</Button>
+              </AlertDescription></Alert>}
               <Field label={t("framing.aspect")}>
                 <ToggleGroup
                   type="single"
@@ -678,6 +703,7 @@ export function Inspector({
                     }))
                   }
                 >
+                  {asset.hasLayout && <ToggleGroupItem value="auto" className="flex-1 text-xs">{t("framing.autoLayout")}</ToggleGroupItem>}
                   <ToggleGroupItem value="cover" className="flex-1 text-xs">
                     {t("framing.fill")}
                   </ToggleGroupItem>
@@ -687,7 +713,6 @@ export function Inspector({
                 </ToggleGroup>
               </Field>
             </Section>
-            <Separator />
             <Section title={t("framing.position")}>
               <Range
                 label={t("framing.zoom")}
@@ -744,6 +769,18 @@ export function Inspector({
                 {t("framing.center")}
               </Button>
             </Section>
+          </TabsContent>
+          <TabsContent value="broll" className="p-4">
+            <BRollPanel
+              doc={doc}
+              asset={asset}
+              endpoint={endpoint}
+              time={time}
+              seek={seek}
+              update={update}
+              selected={brollId}
+              select={selectBroll}
+            />
           </TabsContent>
           <TabsContent value="audio" className="space-y-6 p-4">
             <Section

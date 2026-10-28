@@ -42,6 +42,7 @@
   "tabs": {
     "captions": "字幕",
     "framing": "构图",
+    "broll": "B-roll",
     "audio": "音频",
     "effects": "效果"
   },
@@ -80,7 +81,7 @@
     "applying": "正在应用…",
     "applyAll": "应用到所有片段",
     "hookTitle": "开场标题",
-    "hookDescription": "在开头几秒显示在顶部。留空即可移除。",
+    "hookDescription": "拖动时间轴上标题的边缘，设置显示时间。留空即可移除。",
     "hookPlaceholder": "无开场标题",
     "transcript": "文字稿",
     "wordCount": "{count} 个词",
@@ -117,7 +118,10 @@
     "zoom": "缩放",
     "horizontal": "水平位置",
     "vertical": "垂直位置",
-    "center": "将主体居中"
+    "center": "将主体居中",
+    "landscapeHint": "此片段包含横向细节。横屏版本可完整保留内容，方便阅读。",
+    "useLandscape": "使用横屏版本",
+    "autoLayout": "生成的布局"
   },
   "audioPanel": {
     "title": "音频",
@@ -140,7 +144,7 @@
   "preview": {
     "fontError": "字幕字体无法加载。导出前请检查网络。",
     "framingHint": "拖动视频重新构图 · 字幕保持不动",
-    "captionHint": "上下拖动来调整字幕位置",
+    "captionHint": "拖动文字以移动 · 拖动角点以调整大小 · 点击以编辑",
     "region": "视频预览",
     "title": "预览",
     "size": "{width} × {height} · {fps} fps",
@@ -157,7 +161,14 @@
     "nextFrame": "下一帧",
     "pause": "暂停",
     "play": "播放",
-    "muted": "已静音"
+    "muted": "已静音",
+    "resizeText": "调整{layer}大小，{corner}",
+    "corners": {
+      "nw": "左上角",
+      "ne": "右上角",
+      "sw": "左下角",
+      "se": "右下角"
+    }
   },
   "timeline": {
     "region": "片段时间线",
@@ -180,7 +191,21 @@
     "moveEarlier": "将片段前移",
     "moveLater": "将片段后移",
     "duplicate": "复制所选片段",
-    "remove": "删除所选片段"
+    "remove": "删除所选片段",
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "tracks": {
+      "video": "视频",
+      "broll": "B-roll",
+      "captions": "字幕",
+      "audio": "音频",
+      "hideCaptions": "隐藏字幕",
+      "showCaptions": "显示字幕",
+      "mute": "静音",
+      "unmute": "取消静音"
+    },
+    "hookStart": "标题开始时间（秒）",
+    "hookEnd": "标题结束时间（秒）"
   },
   "export": {
     "exported": "视频已导出",
@@ -269,7 +294,10 @@
     "reloadTitle": "加载已保存的版本？",
     "reloadDescription": "这会用服务器草稿替换本地更改和撤销历史。如果想保留本地更改，请先备份草稿。",
     "keepLocalDraft": "保留本地草稿",
-    "loadSaved": "加载已保存的版本"
+    "loadSaved": "加载已保存的版本",
+    "switchClip": "切换剪辑",
+    "clipOf": "共 {count} 个",
+    "more": "更多"
   },
   "shortcuts": {
     "playPause": "播放 / 暂停",
@@ -278,8 +306,67 @@
     "setIn": "设置入点",
     "setOut": "设置出点",
     "split": "在播放头处分割",
+    "removeBroll": "移除所选 B-roll",
     "undo": "撤销",
     "redo": "重做",
-    "save": "保存草稿"
+    "save": "保存草稿",
+    "aiPrompt": "AI 编辑"
+  },
+  "broll": {
+    "lane": "B-roll",
+    "laneLabel": "B-roll 轨道",
+    "clipLabel": "B-roll {query}，{start} 至 {end}",
+    "untitled": "素材视频",
+    "laneEmpty": "点击在此添加 B-roll",
+    "title": "B-roll",
+    "description": "在说话者继续讲话时覆盖在剪辑上的素材视频，字幕始终显示在最上层。",
+    "suggest": "自动添加",
+    "listLabel": "此剪辑中的 B-roll",
+    "empty": "还没有 B-roll。“自动添加”会根据讲话内容挑选时刻，也可以在下方搜索。",
+    "selectedTitle": "已选 B-roll",
+    "remove": "移除",
+    "credit": "视频作者 {name}，来自 <link>Pexels</link>",
+    "creditUnknown": "Pexels 创作者",
+    "footageLength": "素材时长 {duration}",
+    "start": "开始",
+    "end": "结束",
+    "startSeconds": "B-roll 开始时间（秒）",
+    "endSeconds": "B-roll 结束时间（秒）",
+    "footageStart": "素材起点",
+    "jump": "跳转",
+    "replace": "替换素材",
+    "replaceTitle": "替换素材",
+    "replaceDescription": "选择要替换的素材，时间位置保持不变。",
+    "searchTitle": "添加素材",
+    "searchDescription": "搜索素材视频，选择后添加到播放头位置（{time}）。",
+    "searchPlaceholder": "例如：夜晚城市、倒咖啡",
+    "searchLabel": "搜索素材视频",
+    "searchButton": "搜索",
+    "resultsLabel": "素材搜索结果",
+    "useResult": "使用 {credit} 的素材",
+    "addResult": "在播放头添加 {credit} 的素材",
+    "more": "显示更多",
+    "noResults": "未找到“{query}”的结果。试试更简单、更具画面感的词。",
+    "attribution": "素材视频来自 <link>Pexels</link>。",
+    "searchFailed": "无法搜索素材。",
+    "noRoom": "播放头位置已有 B-roll，请将播放头移到空白处。",
+    "suggested": "已添加 {count} 个 B-roll 片段。",
+    "nothingSuggested": "没有可新增的内容：其他时刻没有提到可拍摄的事物。",
+    "suggestFailed": "无法推荐 B-roll。",
+    "unavailable": "此服务器未配置素材视频，无法添加 B-roll。"
+  },
+  "ai": {
+    "label": "让 AI 编辑这个剪辑",
+    "placeholder": "用 AI 编辑，例如去掉口头禅",
+    "working": "正在编辑你的剪辑…",
+    "send": "执行",
+    "dismiss": "关闭",
+    "undo": "撤销",
+    "apply": "应用",
+    "editedMeanwhile": "AI 处理期间你修改了剪辑，因此尚未应用它的更改。",
+    "length": "现在 {duration}（之前 {was}）",
+    "timeout": "AI 响应超时，请重试。",
+    "failed": "无法连接 AI，请重试。",
+    "title": "AI 编辑"
   }
 }

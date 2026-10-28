@@ -16,6 +16,12 @@ from .common import (
     FACE_PRESENCE_MIN_AREA,
     FACE_PRESENCE_RATE,
     FACE_RATE_WINDOW,
+    KENBURNS_FOCUS_Y,
+    FIT_DETAIL_MARGIN_FRAC,
+    FIT_MAX_FOREGROUND_H,
+    FIT_MAX_ZOOM_LEVELS,
+    FIT_VISIBLE_LEVELS,
+    FIT_ZOOM_HOLD_SECONDS,
     KENBURNS_MIN_SECONDS,
     KENBURNS_SUPERSAMPLE_H,
     KENBURNS_SUPERSAMPLE_W,
@@ -1162,20 +1168,218 @@ def kenburns_zoom_fragment(duration: float) -> Optional[str]:
     return (
         f"scale={KENBURNS_SUPERSAMPLE_W}:{KENBURNS_SUPERSAMPLE_H}:flags=lanczos,"
         f"fps={OUTPUT_FPS},"
-        f"zoompan=z='{z_expr}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)*0.35'"
+        f"zoompan=z='{z_expr}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)*{KENBURNS_FOCUS_Y}'"
         f":d=1:s=1080x1920:fps={OUTPUT_FPS},{UPSCALE_SHARPEN_FILTER},setsar=1"
     )
 
 
-def build_full_frame_filter(blur_sigma: int = 14) -> str:
-    """Preserve the complete source on a vertical canvas, without a crop branch."""
-    return (
-        "[0:v]split=2[bgsrc][ftsrc];"
+FIT_CHAIN = (
+    "scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,"
+    "scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1"
+)
+
+
+FitWindow = Tuple[float, float, Optional[int], int]
+
+
+def plan_fit_windows(
+    plan: List[Dict[str, Any]],
+    samples: List[SceneEvidence],
+    width: int,
+    height: int,
+) -> List[FitWindow]:
+    """Readable crops for the fitted (full-frame) shots of a layout plan.
+
+    Returns [(start, end, crop_w, x)], with crop_w None where the whole frame
+    stays visible, or [] when nothing zooms. Each window contains all detail
+    measured during it (for text cut by a face crop: the faces and the text
+    lines), so text is never pushed off the edge. Zoom sizes come from
+    FIT_VISIBLE_LEVELS. A zoom shorter than FIT_ZOOM_HOLD_SECONDS joins a
+    neighbour that already shows its detail, otherwise it shows the full frame;
+    a fitted shot with no fitted neighbour keeps its zoom.
+    """
+    if width <= 0 or height <= 0:
+        return []
+    min_visible = height * 1080 / FIT_MAX_FOREGROUND_H / width
+    levels = [level for level in FIT_VISIBLE_LEVELS if level >= min_visible]
+
+    def needed(left: float, right: float) -> float:
+        return next((level for level in levels if right - left <= level), 1.0)
+
+    runs: List[Dict[str, Any]] = []
+
+    def add(start: float, end: float, left: float, right: float) -> None:
+        if end <= start:
+            return
+        if right <= left:
+            left = right = (left + right) / 2
+        left = max(0.0, left - FIT_DETAIL_MARGIN_FRAC)
+        right = min(1.0, right + FIT_DETAIL_MARGIN_FRAC)
+        if runs and runs[-1]["end"] == start:
+            run = runs[-1]
+            union = (min(run["left"], left), max(run["right"], right))
+            if needed(left, right) == run["level"] and needed(*union) == run["level"]:
+                run.update(end=end, left=union[0], right=union[1])
+                return
+        runs.append({"start": start, "end": end, "left": left, "right": right,
+                     "level": needed(left, right), "settled": False})
+
+    for shot in plan:
+        if shot["kind"] != "fit":
+            continue
+        cut_text = shot.get("reason") == "text_cut_by_crop"
+        inside = [s for s in samples if shot["start"] <= s.time < shot["end"]]
+        if not inside:
+            add(shot["start"], shot["end"], 0.0, 1.0)
+            continue
+        for index, sample in enumerate(inside):
+            start = shot["start"] if index == 0 else sample.time
+            end = inside[index + 1].time if index + 1 < len(inside) else shot["end"]
+            if cut_text:
+                add(start, end, sample.protect_left, sample.protect_right)
+            else:
+                add(start, end, sample.detail_left, sample.detail_right)
+
+    def touching(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
+        return abs(a["end"] - b["start"]) < 1e-6 or abs(b["end"] - a["start"]) < 1e-6
+
+    while True:
+        short = [r for r in runs if not r["settled"] and r["end"] - r["start"] < FIT_ZOOM_HOLD_SECONDS]
+        if not short:
+            break
+        run = min(short, key=lambda r: r["end"] - r["start"])
+        index = runs.index(run)
+        neighbours = [
+            runs[j] for j in (index - 1, index + 1)
+            if 0 <= j < len(runs) and touching(runs[j], run)
+        ]
+        neighbours.sort(key=lambda r: r["end"] - r["start"], reverse=True)
+        host = next((
+            n for n in neighbours
+            if max(n["right"], run["right"]) - min(n["left"], run["left"]) <= n["level"]
+        ), None)
+        if not neighbours:
+            # A whole fitted shot between crops (or the whole clip) changes
+            # layout at its edges anyway, so its zoom causes no extra jump.
+            run["settled"] = True
+        elif host is not None:
+            host.update(
+                start=min(host["start"], run["start"]), end=max(host["end"], run["end"]),
+                left=min(host["left"], run["left"]), right=max(host["right"], run["right"]),
+            )
+            runs.remove(run)
+        elif run["level"] < 1.0:
+            run["level"] = 1.0
+        else:
+            run["settled"] = True
+
+    # Each size is its own filter branch, so cap how many a clip may use.
+    while len({r["level"] for r in runs}) > FIT_MAX_ZOOM_LEVELS:
+        smallest, next_size = sorted({r["level"] for r in runs})[:2]
+        for run in runs:
+            if run["level"] == smallest:
+                run["level"] = next_size
+
+    if all(r["level"] >= 1.0 for r in runs):
+        return []
+    merged: List[Dict[str, Any]] = []
+    for run in runs:
+        last = merged[-1] if merged else None
+        if (
+            last is not None and touching(last, run) and last["level"] == run["level"]
+            and max(last["right"], run["right"]) - min(last["left"], run["left"]) <= run["level"]
+        ):
+            last.update(end=run["end"], left=min(last["left"], run["left"]),
+                        right=max(last["right"], run["right"]))
+        else:
+            merged.append(dict(run))
+    windows: List[FitWindow] = []
+    for run in merged:
+        if run["level"] >= 1.0:
+            windows.append((run["start"], run["end"], None, 0))
+            continue
+        crop_w = round_to_even(int(width * run["level"]))
+        centre = (run["left"] + run["right"]) / 2 * width
+        x = clamp_even(int(centre - crop_w / 2), 0, width - crop_w)
+        windows.append((run["start"], run["end"], crop_w, x))
+    return windows
+
+
+def build_fit_layers(
+    fit_intervals: List[Tuple[float, float]],
+    windows: Optional[List[FitWindow]] = None,
+) -> List[Tuple[str, List[Tuple[float, float]]]]:
+    """Fitted foreground layers as (filter chain, intervals), one per crop size."""
+    if not windows:
+        return [(FIT_CHAIN, fit_intervals)]
+    layers = []
+    for crop_w in sorted({w for _, _, w, _ in windows}, key=lambda w: w or 0):
+        mine = [window for window in windows if window[2] == crop_w]
+        intervals = [(start, end) for start, end, _, _ in mine]
+        if crop_w is None:
+            layers.append((FIT_CHAIN, intervals))
+            continue
+        x_expr = str(mine[-1][3])
+        for _, end, _, x in reversed(mine[:-1]):
+            x_expr = f"if(lt(t\\,{end:.3f})\\,{x}\\,{x_expr})"
+        sharpen = f"{UPSCALE_SHARPEN_FILTER}," if crop_w < 1080 else ""
+        layers.append((
+            f"crop={crop_w}:ih:x='{x_expr}':y=0,scale=1080:-2:flags=lanczos,{sharpen}setsar=1",
+            intervals,
+        ))
+    return layers
+
+
+def _enable_expr(intervals: List[Tuple[float, float]]) -> str:
+    if not intervals:
+        return "0"
+    return "+".join(f"between(t\\,{a:.3f}\\,{b:.3f})" for a, b in intervals)
+
+
+def _fit_overlays(base: str, layers: List[Tuple[str, List[Tuple[float, float]]]], gated: bool) -> str:
+    """Chain [ft0].. into [fit0].. and overlay them on ``base`` into [vout]."""
+    parts = [f"[ft{i}]{chain}[fit{i}]" for i, (chain, _) in enumerate(layers)]
+    current = base
+    for i, (_, intervals) in enumerate(layers):
+        out = "[vout]" if i == len(layers) - 1 else f"[f{i}]"
+        enable = f":enable='{_enable_expr(intervals)}'" if gated else ""
+        parts.append(f"{current}[fit{i}]overlay=(W-w)/2:(H-h)/2{enable}{out}")
+        current = out
+    return ";".join(parts)
+
+
+def build_full_frame_filter(
+    blur_sigma: int = 14, fit_windows: Optional[List[FitWindow]] = None
+) -> str:
+    """Preserve the complete source on a vertical canvas, without a crop branch.
+
+    ``fit_windows`` (see ``plan_fit_windows``) enlarges content whose detail
+    leaves empty margins; without them the whole frame is letterboxed.
+    """
+    background = (
         "[bgsrc]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,"
         f"gblur=sigma={blur_sigma}:steps=2,scale=1080:1920:flags=bilinear,setsar=1[bg];"
-        "[ftsrc]scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,"
-        "scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[fit];"
-        "[bg][fit]overlay=(W-w)/2:(H-h)/2[vout]"
+    )
+    if not fit_windows:
+        return (
+            "[0:v]split=2[bgsrc][ftsrc];"
+            f"{background}"
+            f"[ftsrc]{FIT_CHAIN}[fit];"
+            "[bg][fit]overlay=(W-w)/2:(H-h)/2[vout]"
+        )
+    # Nothing but the fit is shown here, so the last window stays on to the
+    # final frame even if the stream runs past the probed duration.
+    last = max(range(len(fit_windows)), key=lambda i: fit_windows[i][1])
+    fit_windows = [
+        (start, max(end, 1e6) if i == last else end, crop_w, x)
+        for i, (start, end, crop_w, x) in enumerate(fit_windows)
+    ]
+    layers = build_fit_layers([(0.0, fit_windows[last][1])], fit_windows)
+    sources = "".join(f"[ft{i}]" for i in range(len(layers)))
+    return (
+        f"[0:v]split={1 + len(layers)}[bgsrc]{sources};"
+        f"{background}"
+        + _fit_overlays("[bg]", layers, gated=len(layers) > 1)
     )
 
 
@@ -1184,35 +1388,41 @@ def build_vertical_compositor_filter(
     face_intervals: List[Tuple[float, float]],
     fit_intervals: List[Tuple[float, float]],
     blur_sigma: int = 14,
+    fit_windows: Optional[List[FitWindow]] = None,
 ) -> str:
     """filter_complex switching between a tracked face crop and a blurred-
     background full-frame fit over time. Produces a labelled [vout] stream.
 
     Layers: a blurred fill background (always), the face crop on top during face
     shots (covers the frame), and the centred full-frame fit during content
-    shots (background shows around it).
+    shots (background shows around it). ``fit_windows`` splits the fit into
+    readable zoomed crops (see ``plan_fit_windows``).
     """
-    def enable_expr(intervals: List[Tuple[float, float]]) -> str:
-        if not intervals:
-            return "0"
-        return "+".join(
-            f"between(t\\,{a:.3f}\\,{b:.3f})" for a, b in intervals
-        )
-
-    face_en = enable_expr(face_intervals)
-    fit_en = enable_expr(fit_intervals)
+    face_en = _enable_expr(face_intervals)
     # Smooth Gaussian background: blur at half resolution (plenty of detail for a
     # heavy blur) with multiple passes for a true Gaussian falloff, then upscale
     # 2x with bilinear so there's no lanczos ringing/blockiness — a creamy blur.
-    return (
-        "[0:v]split=3[bgsrc][crsrc][ftsrc];"
+    head = (
         "[bgsrc]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,"
         f"gblur=sigma={blur_sigma}:steps=2,scale=1080:1920:flags=bilinear,setsar=1[bg];"
         f"[crsrc]{crop_chain}[face];"
-        "[ftsrc]scale=1080:1920:force_original_aspect_ratio=decrease:flags=lanczos,"
-        "scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1[fit];"
+    )
+    if not fit_windows:
+        fit_en = _enable_expr(fit_intervals)
+        return (
+            "[0:v]split=3[bgsrc][crsrc][ftsrc];"
+            f"{head}"
+            f"[ftsrc]{FIT_CHAIN}[fit];"
+            f"[bg][face]overlay=0:0:enable='{face_en}'[t1];"
+            f"[t1][fit]overlay=(W-w)/2:(H-h)/2:enable='{fit_en}'[vout]"
+        )
+    layers = build_fit_layers(fit_intervals, fit_windows)
+    sources = "".join(f"[ft{i}]" for i in range(len(layers)))
+    return (
+        f"[0:v]split={2 + len(layers)}[bgsrc][crsrc]{sources};"
+        f"{head}"
         f"[bg][face]overlay=0:0:enable='{face_en}'[t1];"
-        f"[t1][fit]overlay=(W-w)/2:(H-h)/2:enable='{fit_en}'[vout]"
+        + _fit_overlays("[t1]", layers, gated=True)
     )
 
 
@@ -1305,6 +1515,13 @@ def describe_vertical_layout(
         if context else build_layout_plan(track, scene_cuts, duration)
     )
     logger.info("Vertical scene layout: %s", plan)
+    try:
+        fit_windows = plan_fit_windows(plan, context, width, height) if context else []
+    except Exception as exc:
+        logger.warning("Readable fit planning failed (%s); keeping the plain fit", exc)
+        fit_windows = []
+    if fit_windows:
+        logger.info("Readable fit windows (start, end, crop_w, x): %s", fit_windows)
     fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "fit"]
     # Two people who cannot share a 9:16 crop are not slide or sports content.
     # Call/stage layouts and speaker framing still apply; if both decline, that
@@ -1348,7 +1565,7 @@ def describe_vertical_layout(
         return _described("reaction", reaction["video_filter"], "complex", reaction["caption_y"])
 
     if all(s["kind"] == "fit" for s in plan) and content_fits:
-        return _described("fit", build_full_frame_filter(), "complex", 0.80)
+        return _described("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
 
     # choose_talking_head_layout already refuses cut-heavy clips (more than
     # four cuts). One jump cut must not drop stage, stack, or gallery layouts.
@@ -1387,7 +1604,7 @@ def describe_vertical_layout(
             talking["kind"], talking["video_filter"], "complex", talking["caption_y"]
         )
     if all(s["kind"] == "fit" for s in plan):
-        return _described("fit", build_full_frame_filter(), "complex", 0.80)
+        return _described("fit", build_full_frame_filter(fit_windows=fit_windows), "complex", 0.80)
 
     keys = build_crop_trajectory(track, width, crop_w) if track else []
     # A cut by itself is not camera motion. Ken Burns stays available unless
@@ -1432,7 +1649,9 @@ def describe_vertical_layout(
     )
     return _described(
         "compositor",
-        build_vertical_compositor_filter(crop_chain, face_intervals, fit_intervals),
+        build_vertical_compositor_filter(
+            crop_chain, face_intervals, fit_intervals, fit_windows=fit_windows
+        ),
         "complex",
         bleed_caption(face_samples),
     )
@@ -1641,3 +1860,21 @@ def render_reframed_clip_ffmpeg(
         str(output_path),
     ]
     return run_ffmpeg_command(command).returncode == 0, 1080, 1920
+
+
+def caption_probe_plan(input_path: Path, output_format: str, vertical_plan=None) -> Tuple[str, str]:
+    """The same composition as the final render, without subtitles or stock footage."""
+    if output_format == "vertical_fit":
+        return build_full_frame_filter(), "complex"
+    if output_format in {"vertical_split", "vertical_pan"}:
+        plan = detect_speaker_reframe_plan(input_path, output_format)
+        if plan and plan["mode"] == "split":
+            left, right = plan["regions"]["left"], plan["regions"]["right"]
+            return (f"[0:v]split=2[a][b];[a]crop={left['tile_w']}:{left['tile_h']}:{left['tile_x']}:{left['tile_y']},scale=1080:960:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[top];[b]crop={right['tile_w']}:{right['tile_h']}:{right['tile_x']}:{right['tile_y']},scale=1080:960:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1[bottom];[top][bottom]vstack,setsar=1[vout]", "complex")
+        if plan and plan["mode"] == "pan":
+            return f"crop={plan['crop_w']}:{plan['crop_h']}:x='{plan['x_expression']}':y=0,{VERTICAL_SCALE_CHAIN}", "vf"
+    if vertical_plan is not None:
+        return vertical_plan
+    width, height = ffprobe_video_size(input_path)
+    video_filter, mode, _ = build_vertical_filter_plan(input_path, width, height)
+    return video_filter, mode

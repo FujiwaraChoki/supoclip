@@ -253,16 +253,20 @@ def get_font_family_name(font_path: Path) -> str | None:
     return None
 
 
-def _parse_cmap_codepoints(data: bytes) -> frozenset[int] | None:
+def _table_offsets(data: bytes) -> dict[bytes, int]:
     num_tables = struct.unpack_from(">H", data, 4)[0]
-    cmap_offset = None
+    offsets: dict[bytes, int] = {}
     for table_index in range(num_tables):
         tag, _checksum, table_offset, _length = struct.unpack_from(
             ">4sIII", data, 12 + table_index * 16
         )
-        if tag == b"cmap":
-            cmap_offset = table_offset
-            break
+        offsets[tag] = table_offset
+    return offsets
+
+
+def _parse_cmap(data: bytes) -> dict[int, int] | None:
+    """Map Unicode codepoints to glyph ids from the font's cmap table."""
+    cmap_offset = _table_offsets(data).get(b"cmap")
     if cmap_offset is None:
         return None
 
@@ -277,7 +281,7 @@ def _parse_cmap_codepoints(data: bytes) -> frozenset[int] | None:
             fmt = struct.unpack_from(">H", data, cmap_offset + offset)[0]
             subtables.setdefault(fmt, cmap_offset + offset)
 
-    codepoints: set[int] = set()
+    glyphs: dict[int, int] = {}
     if 12 in subtables:
         start = subtables[12]
         group_count = struct.unpack_from(">I", data, start + 12)[0]
@@ -286,8 +290,9 @@ def _parse_cmap_codepoints(data: bytes) -> frozenset[int] | None:
                 ">III", data, start + 16 + group * 12
             )
             if first_glyph:
-                codepoints.update(range(first, last + 1))
-        return frozenset(codepoints)
+                for code in range(first, last + 1):
+                    glyphs[code] = first_glyph + code - first
+        return glyphs
 
     if 4 not in subtables:
         return None
@@ -313,8 +318,13 @@ def _parse_cmap_codepoints(data: bytes) -> frozenset[int] | None:
                 if glyph:
                     glyph = (glyph + delta) & 0xFFFF
             if glyph:
-                codepoints.add(code)
-    return frozenset(codepoints)
+                glyphs[code] = glyph
+    return glyphs
+
+
+def _parse_cmap_codepoints(data: bytes) -> frozenset[int] | None:
+    glyphs = _parse_cmap(data)
+    return None if glyphs is None else frozenset(glyphs)
 
 
 @lru_cache(maxsize=128)
@@ -338,6 +348,74 @@ def get_font_codepoints(font_path: Path) -> frozenset[int] | None:
     except OSError:
         return None
     return _cached_font_codepoints(str(font_path), stat.st_mtime_ns, stat.st_size)
+
+
+class FontAdvanceMetrics:
+    """Horizontal advances of a font, scaled the way libass sizes ASS fonts.
+
+    libass treats an ASS ``Fontsize`` as the font's usWinAscent + usWinDescent
+    height, not its em size, so ``em_per_size`` converts one to the other.
+    Kerning is ignored: it only tightens text, keeping widths conservative.
+    """
+
+    def __init__(self, em_per_size: float, advances: dict[int, float], fallback: float):
+        self.em_per_size = em_per_size
+        self.advances = advances  # codepoint -> advance in em
+        self.fallback = fallback  # average advance, in em, for unmapped codepoints
+
+    def text_width(self, text: str, size: float) -> float:
+        em = sum(self.advances.get(ord(ch), self.fallback) for ch in text)
+        return em * self.em_per_size * size
+
+
+def _parse_advance_metrics(data: bytes) -> FontAdvanceMetrics | None:
+    tables = _table_offsets(data)
+    if not {b"head", b"hhea", b"hmtx"} <= tables.keys():
+        return None
+    units_per_em = struct.unpack_from(">H", data, tables[b"head"] + 18)[0]
+    ascender, descender = struct.unpack_from(">hh", data, tables[b"hhea"] + 4)
+    metric_count = struct.unpack_from(">H", data, tables[b"hhea"] + 34)[0]
+    if not units_per_em or not metric_count:
+        return None
+    height = ascender - descender
+    if b"OS/2" in tables:
+        win_ascent, win_descent = struct.unpack_from(">HH", data, tables[b"OS/2"] + 74)
+        if win_ascent + win_descent:
+            height = win_ascent + win_descent
+    if height <= 0:
+        height = units_per_em
+
+    hmtx = tables[b"hmtx"]
+    glyph_advances = [
+        struct.unpack_from(">H", data, hmtx + index * 4)[0] for index in range(metric_count)
+    ]
+    glyphs = _parse_cmap(data) or {}
+    advances = {
+        code: glyph_advances[min(glyph, metric_count - 1)] / units_per_em
+        for code, glyph in glyphs.items()
+    }
+    letters = [advances[ord(ch)] for ch in "abcdefghijklmnopqrstuvwxyz" if ord(ch) in advances]
+    fallback = sum(letters) / len(letters) if letters else 0.6
+    return FontAdvanceMetrics(units_per_em / height, advances, fallback)
+
+
+@lru_cache(maxsize=32)
+def _cached_advance_metrics(
+    path: str, modified_ns: int, size: int
+) -> FontAdvanceMetrics | None:
+    try:
+        return _parse_advance_metrics(Path(path).read_bytes())
+    except Exception:
+        return None
+
+
+def get_font_advance_metrics(font_path: Path) -> FontAdvanceMetrics | None:
+    """Advance widths for measuring rendered text (None if unreadable)."""
+    try:
+        stat = Path(font_path).stat()
+    except OSError:
+        return None
+    return _cached_advance_metrics(str(font_path), stat.st_mtime_ns, stat.st_size)
 
 
 def sanitize_font_stem(file_name: str) -> str:

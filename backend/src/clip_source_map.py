@@ -57,6 +57,7 @@ def source_range_bounds(
 def save_clip_source_ranges(
     clip_path: Path,
     ranges: Iterable[tuple[float, float]] | None,
+    output_offsets: Iterable[float] | None = None,
 ) -> None:
     normalized = normalize_source_ranges(ranges)
     path = clip_source_map_path(clip_path)
@@ -74,6 +75,13 @@ def save_clip_source_ranges(
             for start, end in normalized
         ],
     })
+    if output_offsets is None:
+        cursor = 0.0
+        output_offsets = []
+        for a, b in normalized:
+            output_offsets.append(cursor)
+            cursor += b - a
+    payload["output_offsets"] = [round(float(value), 6) for value in output_offsets]
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
@@ -117,7 +125,7 @@ def copy_clip_source_ranges(source_path: Path, target_path: Path) -> None:
     if ranges is None:
         clip_source_map_path(target_path).unlink(missing_ok=True)
         return
-    save_clip_source_ranges(target_path, ranges)
+    save_clip_source_ranges(target_path, ranges, load_clip_output_offsets(source_path, ranges))
 
 
 def save_clip_caption_settings(clip_path: Path, settings: dict) -> None:
@@ -156,6 +164,36 @@ def load_clip_broll(clip_path: Path) -> list[dict]:
     if not isinstance(placements, list):
         return []
     return [p for p in placements if isinstance(p, dict) and {"start", "duration"} <= p.keys()]
+
+
+def load_clip_output_offsets(clip_path: Path, ranges: Iterable[SourceRange]) -> List[float]:
+    """Actual source contributions on the rendered timeline, including crossfade overlaps."""
+    import math
+    normalized = normalize_source_ranges(ranges)
+    values = _read_payload(clip_source_map_path(clip_path)).get("output_offsets")
+    if isinstance(values, list) and len(values) == len(normalized):
+        try:
+            offsets = [float(value) for value in values]
+            if offsets and abs(offsets[0]) < 1e-6 and all(math.isfinite(v) and v >= 0 for v in offsets) and all(offsets[i] >= offsets[i-1] and offsets[i] <= offsets[i-1] + normalized[i-1][1] - normalized[i-1][0] + 1e-6 for i in range(1, len(offsets))):
+                return offsets
+        except (ValueError, TypeError):
+            pass
+    from .media.ffmpeg import output_offsets_for_ranges
+    return output_offsets_for_ranges(normalized)
+
+
+def slice_source_timeline(ranges: Iterable[SourceRange], output_start: float, output_end: float, output_offsets: Iterable[float]) -> tuple[List[SourceRange], List[float]]:
+    normalized = normalize_source_ranges(ranges)
+    offsets = list(output_offsets)
+    total = max((offset + end - start for offset, (start, end) in zip(offsets, normalized)), default=0.0)
+    window_start, window_end = max(0.0, min(output_start, total)), max(0.0, min(output_end, total))
+    sliced, mapped = [], []
+    for (source_start, source_end), offset in zip(normalized, offsets):
+        a, b = max(window_start, offset), min(window_end, offset + source_end - source_start)
+        if b - a > MIN_RANGE_SECONDS:
+            sliced.append((source_start + a - offset, source_start + b - offset))
+            mapped.append(a - window_start)
+    return sliced, mapped
 
 
 def slice_source_ranges(

@@ -72,6 +72,8 @@
   "captionTemplate": "Template caption",
   "selectStyle": "Pilih gaya",
   "defaultTemplate": "Bawaan",
+  "brollTitle": "B-roll",
+  "brollBody": "Tambahkan stok video saat pembicara menyebut sesuatu yang bisa ditampilkan. Saat diterapkan, B-roll yang ada tetap dan klip tanpa B-roll diisi; jika dimatikan, B-roll dihapus.",
   "cleanupTitle": "Pembersihan clip",
   "cleanupBody": "Terapkan potongan keheningan dan kata pengisi ke clip yang dibuat ulang.",
   "shortenPauses": "Perpendek jeda panjang",

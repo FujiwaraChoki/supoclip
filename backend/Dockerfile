@@ -6,6 +6,8 @@ FROM python:3.11.17-slim-trixie
 # and colour emoji. libass/fontconfig selects them when a chosen font lacks glyphs.
 RUN apt-get update && apt-get install -y \
     ffmpeg \
+    tesseract-ocr \
+    tesseract-ocr-eng \
     curl \
     unzip \
     fonts-noto-core \

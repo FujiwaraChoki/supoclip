@@ -193,6 +193,8 @@ services:
       - RERANK_LLM=${RERANK_LLM:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AI_EDIT_MODEL=${AI_EDIT_MODEL:-claude-sonnet-5-5}
+      - AI_EDIT_DAILY_LIMIT=${AI_EDIT_DAILY_LIMIT:-150}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
       - TRANSCRIPTION_PROVIDER=${TRANSCRIPTION_PROVIDER:-assemblyai}
@@ -299,7 +301,7 @@ services:
       - clips:/app/clips
       - ./backend/fonts:/app/fonts
       - ./backend/transitions:/app/transitions
-    environment:
+    environment: &worker-environment
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - SUPOCLIP_SERVICE=worker
@@ -374,6 +376,8 @@ services:
       - RERANK_LLM=${RERANK_LLM:-}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AI_EDIT_MODEL=${AI_EDIT_MODEL:-claude-sonnet-5-5}
+      - AI_EDIT_DAILY_LIMIT=${AI_EDIT_DAILY_LIMIT:-150}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-}
       - OLLAMA_API_KEY=${OLLAMA_API_KEY:-}
       - TRANSCRIPTION_PROVIDER=${TRANSCRIPTION_PROVIDER:-assemblyai}
@@ -430,6 +434,35 @@ services:
 
     healthcheck:
       test: ["CMD", ".venv/bin/arq", "--check", "src.workers.tasks.WorkerSettings"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # AI editing: turns an editor instruction into draft changes with Claude.
+  # Its own queue and container, so edits answer in seconds while the main
+  # worker renders. Light: no video pipeline is imported.
+  ai-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        BACKEND_CPU_ONLY: ${BACKEND_CPU_ONLY:-false}
+    container_name: supoclip-ai-worker
+    platform: "${BACKEND_PLATFORM:-linux/amd64}"
+    command: [".venv/bin/arq", "src.workers.ai_worker.AIWorkerSettings"]
+    volumes:
+      - ./backend/src:/app/src
+      - uploads:/app/uploads
+    environment: *worker-environment
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", ".venv/bin/arq", "--check", "src.workers.ai_worker.AIWorkerSettings"]
       interval: 30s
       timeout: 10s
       retries: 3

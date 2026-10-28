@@ -259,6 +259,137 @@ async def test_plan_clip_broll_is_off_without_a_pexels_key(pexels_config, monkey
     assert await plan_clip_broll(_words("word " * 30), 12.0) == []
 
 
+# --- relevance and tone -----------------------------------------------------
+
+# Real Pexels results from the 2026-10-27 audit (Huberman Lab sleep clip, #293).
+DEPRESSED_ON_BED = "https://www.pexels.com/video/a-depressed-woman-lying-on-bed-with-pills-7279741/"
+ORANGE_HAT = "https://www.pexels.com/video/a-stylish-man-in-street-fashion-wear-8126383/"
+THERAPIST = "https://www.pexels.com/video/therapist-writing-notes-7698897/"
+TREES = "https://www.pexels.com/video/sunlight-streaming-through-lush-green-tree-branches-32109629/"
+# What the speaker says around the "dark bedroom at night" cutaway.
+MELATONIN_LINE = (
+    "inhibits the pineal. It prevents it from releasing melatonin. Darkness allows "
+    "the pineal to release melatonin. So the pineal is not"
+)
+
+
+def _described(video_id, url, **extra):
+    return {**_video(video_id), "url": url, **extra}
+
+
+def test_footage_description_reads_the_pexels_slug_and_tags():
+    video = _described(7279741, DEPRESSED_ON_BED, tags=["bed", {"name": "night"}])
+
+    assert broll.footage_description(video) == "bed night a depressed woman lying on bed with pills"
+    assert broll.footage_description(_video(5)) == ""
+
+
+def test_footage_with_a_sensitive_tone_is_rejected_for_a_neutral_line():
+    video = _described(7279741, DEPRESSED_ON_BED)
+
+    assert broll.footage_mismatch(video, "dark bedroom at night bed", MELATONIN_LINE) == (
+        "implies distress, medical"
+    )
+
+
+def test_sensitive_footage_is_allowed_when_the_speaker_talks_about_it():
+    video = _described(7279741, DEPRESSED_ON_BED)
+    context = "when I was depressed I could not sleep and the doctor gave me sleeping pills"
+
+    assert broll.footage_mismatch(video, "woman lying on bed", context) is None
+
+
+def test_footage_sharing_no_descriptive_word_with_the_query_is_off_topic():
+    hat = _described(8126383, ORANGE_HAT)
+    therapist = _described(7698897, THERAPIST)
+
+    # "person" and "wearing" say nothing about the picture.
+    assert broll.footage_mismatch(hat, "person wearing orange glasses") == "off-topic"
+    # A "light therapy lamp" is not a therapist, whatever the shared stem.
+    assert broll.footage_mismatch(therapist, "bright light therapy lamp") is not None
+    assert broll.footage_mismatch(_described(1, TREES), "sunlight through trees") is None
+    # Results without a description cannot be judged and stay usable.
+    assert broll.footage_mismatch(_video(2), "sunlight through trees") is None
+
+
+def test_choose_video_skips_wrong_tone_and_prefers_the_closest_match():
+    videos = [
+        _described(7279741, DEPRESSED_ON_BED),
+        _described(2, "https://www.pexels.com/video/cozy-bedroom-2/"),
+        _described(3, "https://www.pexels.com/video/dark-bedroom-at-night-with-lamp-off-3/"),
+    ]
+
+    chosen = choose_video(
+        videos, 3.0, "portrait", query="dark bedroom at night", context=MELATONIN_LINE
+    )
+
+    assert chosen["id"] == 3
+    assert choose_video(videos[:1], 3.0, "portrait", query="dark bedroom at night") is None
+
+
+@pytest.mark.asyncio
+async def test_plan_clip_broll_leaves_a_neutral_line_uncovered_rather_than_misleading(
+    pexels_config, monkeypatch
+):
+    async def fake_plan(*_args):
+        return [
+            SimpleNamespace(start=4.0, duration=3.0, query="dark bedroom at night", fallback_query="bedroom"),
+            SimpleNamespace(start=9.5, duration=3.0, query="sunlight through trees", fallback_query="sunlight"),
+        ]
+
+    async def fake_search(query, orientation):
+        if query in ("dark bedroom at night", "bedroom"):
+            return [_described(7279741, DEPRESSED_ON_BED)]
+        return [_described(32109629, TREES)]
+
+    async def fake_ensure(placement):
+        return Path("/tmp/footage.mp4")
+
+    monkeypatch.setattr("src.ai.plan_broll_cues", fake_plan)
+    monkeypatch.setattr(broll, "search_pexels_videos", fake_search)
+    monkeypatch.setattr(broll, "ensure_broll_file", fake_ensure)
+    words = _words(f"Sunlight {MELATONIN_LINE} {MELATONIN_LINE}", step=0.3)
+
+    placements = await plan_clip_broll(words, 24.0)
+
+    assert [p["pexels_id"] for p in placements] == [32109629]
+
+
+def test_everyday_words_sharing_a_sensitive_stem_are_not_flagged():
+    # "pillow" is bedding, not medication; "hospitality" is not a hospital.
+    pillow = _described(9, "https://www.pexels.com/video/woman-sleeping-on-a-white-pillow-9/")
+    hotel = _described(10, "https://www.pexels.com/video/hospitality-staff-at-a-hotel-desk-10/")
+
+    assert broll.sensitive_themes("woman sleeping on a white pillow") == set()
+    assert broll.footage_mismatch(pillow, "person sleeping pillow", MELATONIN_LINE) is None
+    assert broll.footage_mismatch(hotel, "hotel desk") is None
+
+
+def test_a_compound_still_matches_its_first_word():
+    texting = _described(11, "https://www.pexels.com/video/a-woman-texting-while-lying-on-the-bed-11/")
+
+    # The audit's "bedroom night phone scrolling" cue picked this bed shot.
+    assert broll.footage_mismatch(texting, "bedroom night phone scrolling") is None
+    assert broll.footage_mismatch(_described(1, TREES), "sun through trees") is None
+
+
+def test_choose_video_uses_a_result_it_cannot_judge(monkeypatch):
+    def broken(*_args, **_kwargs):
+        raise TypeError("unexpected metadata")
+
+    monkeypatch.setattr(broll, "footage_mismatch", broken)
+
+    chosen = choose_video([_described(1, TREES)], 3.0, "portrait", query="sunlight through trees")
+
+    assert chosen["id"] == 1
+
+
+def test_cue_context_is_the_speech_around_the_cutaway():
+    words = _words("one two three four five six seven eight nine ten", step=1.0)
+
+    assert broll.cue_context(words, 6.0, 1.0) == "two three four five six seven eight nine ten"
+
+
 # --- Pexels client ---------------------------------------------------------
 
 
@@ -400,7 +531,8 @@ def test_overlay_graph_dissolves_each_cutaway_in_place():
     assert "setpts=PTS-STARTPTS+4.000/TB" in graph
     assert "fade=t=in:st=4.000:d=0.250:alpha=1" in graph
     assert "fade=t=out:st=6.750:d=0.250:alpha=1" in graph
-    assert "[base][broll0]overlay=0:0:eof_action=pass:enable='between(t,4.000,7.000)'" in graph
+    assert "settb=AVTB,trim=start=0.000:duration=3.100" in graph
+    assert "[base][broll0]overlay=0:0:eof_action=repeat:enable='between(t,4.000,7.000)'" in graph
 
 
 
@@ -517,7 +649,7 @@ def test_trimming_into_a_cutaway_resumes_its_footage():
     graph, _ = broll_overlay_graph(
         "[base]", [{"path": "a", "start": 0.0, "duration": 3.0, "offset": 1.0}], 1080, 1920
     )
-    assert "trim=start=1.000:duration=3.000" in graph
+    assert "trim=start=1.000:duration=3.100" in graph
 
 
 @requires_ffmpeg
@@ -614,3 +746,32 @@ async def test_regeneration_that_renders_nothing_keeps_the_existing_clips(isolat
         await service.regenerate_all_clips_for_task("task", None, None, None, "default")
 
     service.clip_repo.delete_clips_by_task.assert_not_awaited()
+
+
+@requires_ffmpeg
+def test_cutaway_from_coarse_timebase_footage_covers_its_whole_window(tmp_path):
+    """Pexels files use a 1/25 stream time base; the cutaway must still reach its end."""
+    from src.media.reframing import render_reframed_clip_ffmpeg
+
+    main, footage, output = tmp_path / "main.mp4", tmp_path / "footage.mp4", tmp_path / "out.mp4"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=320x240:r=24:d=4",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", str(main)],
+        check=True,
+    )
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:s=180x320:r=25:d=4",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-video_track_timescale", "25", str(footage)],
+        check=True,
+    )
+
+    ok, _, _ = render_reframed_clip_ffmpeg(
+        main, output, "original",
+        broll_overlays=[{"path": footage, "start": 0.98, "duration": 1.25, "fade_in": False, "fade_out": False}],
+    )
+
+    assert ok
+    # Frames at 24 fps from 1.0 s up to the cutaway's end at 2.23 s.
+    covered = [_pixel(output, 1.0 + i / 24) for i in range(29)]
+    assert all(c[2] > 200 and c[0] < 60 for c in covered)
+    assert _pixel(output, 2.30)[0] > 200

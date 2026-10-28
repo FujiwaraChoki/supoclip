@@ -11,14 +11,15 @@ SupoClip is an open-source alternative to OpusClip — an AI-powered video clipp
 ### Docker (recommended)
 
 ```bash
-docker-compose up -d              # Start all 5 services
+docker-compose up -d              # Start all 6 services
 docker-compose up -d --build      # Rebuild after changes
 docker-compose logs -f backend    # Debug backend
 docker-compose logs -f worker     # Debug video processing
+docker-compose logs -f ai-worker  # Debug AI editing in the clip studio
 docker-compose down               # Stop all services
 ```
 
-Services: Frontend (:3107), Backend API (:8000, docs at /docs), Worker (ARQ), PostgreSQL (:5432), Redis (:6379)
+Services: Frontend (:3107), Backend API (:8000, docs at /docs), Worker (ARQ), AI worker (ARQ, `supoclip_ai` queue), PostgreSQL (:5432), Redis (:6379)
 
 ### Backend (local)
 
@@ -130,6 +131,9 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 | `src/ai.py` | Pydantic AI agents, system prompt, segment validation |
 | `src/video_utils.py` | Video processing, cropping, subtitles (~820 lines) |
 | `src/clip_editor.py` | Clip trim, split, merge, export presets |
+| `src/editor_document.py` | Clip studio draft model (segments, words, captions, framing, B-roll) and server render |
+| `src/services/ai_edit_service.py` | Studio AI editing: Sonnet 5.5 plans typed operations, applied and validated here |
+| `src/workers/ai_worker.py` | Light ARQ worker for AI edits (`supoclip_ai` queue, own container) |
 | `src/broll.py` | Pexels API B-roll integration |
 | `src/caption_templates.py` | Caption template system |
 | `src/config.py` | Environment variable configuration |
@@ -263,6 +267,7 @@ SOCIAL_PUBLISHING_ALLOWED_EMAILS=    # Comma-separated beta emails when access=a
 REDIS_HOST=localhost                 # Default: localhost
 REDIS_PORT=6379                      # Default: 6379
 QUEUED_TASK_TIMEOUT_SECONDS=180      # Fail-safe for stuck tasks
+AI_EDIT_DAILY_LIMIT=150              # Studio AI edits per user per day (needs ANTHROPIC_API_KEY)
 TEMP_DIR=/tmp                        # Temp file storage
 DATABASE_URL=postgresql+asyncpg://...
 BETTER_AUTH_SECRET=...               # Frontend auth secret
@@ -296,6 +301,19 @@ Personalized analyses skip the shared `processing_cache` analysis entry.
 - **Platform approvals gate real users:** TikTok only allows sandbox target users until its audit,
   Instagram only app testers until Meta review, and YouTube uploads from an unaudited project stay
   private. Provider app IDs and setup notes are in `docs/configuration.md`.
+
+### Clip studio (editor)
+
+Full-screen, classic NLE layout at `/tasks/{id}/edit` (`frontend/src/components/editor/`): clip picker in the header, viewer and
+inspector on top, a full-width sequence timeline (`timeline.tsx`: V1 segments, B-roll, captions and audio tracks, in
+edit time) below. Drafts are `EditDocument`s on the `clean.mp4` (source) timeline; `sequence`/`locate` map between
+edit and source time. Preview and browser export draw through `lib/editor/render.ts`, the server export through
+`render_document`. Generated clips' B-roll opens as editable items (`broll-panel.tsx`).
+
+**AI editing:** the "AI edit" field under the viewer (`ai-prompt.tsx`, ⌘J) posts `POST .../editor/ai` → Redis → `ai_edit_job` on the
+AI worker → Claude Sonnet 5.5 returns typed operations (`keep_ranges`, `remove_words`, `set`, `add_broll`, ...) →
+`apply_plan` clamps and validates → the browser applies the result as one undoable change (never over edits made
+meanwhile). Keep the output schema free of optional fields: the API rejects schemas whose grammar is too large.
 
 ### Modifying AI clip selection
 

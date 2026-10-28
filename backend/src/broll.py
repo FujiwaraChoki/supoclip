@@ -16,6 +16,7 @@ import asyncio
 import logging
 import math
 import os
+import re
 import time
 import uuid
 from pathlib import Path
@@ -28,6 +29,7 @@ from .config import get_config
 logger = logging.getLogger(__name__)
 
 PEXELS_SEARCH_URL = "https://api.pexels.com/videos/search"
+PEXELS_VIDEO_URL = "https://api.pexels.com/videos/videos/{id}"
 
 # Cutaway placement. The opening seconds stay on the speaker (and the hook
 # title), and the clip ends on the speaker too.
@@ -40,6 +42,9 @@ MAX_COVERAGE = 0.4
 SECONDS_PER_CUE = 12.0
 MAX_CUES_PER_CLIP = 4
 WORD_SNAP_SECONDS = 1.0
+# Spoken words around a cutaway that its footage is judged against.
+CONTEXT_BEFORE_SECONDS = 5.0
+CONTEXT_AFTER_SECONDS = 2.0
 
 SEARCH_RESULTS_PER_QUERY = 10
 SEARCH_CACHE_TTL_SECONDS = 6 * 3600
@@ -53,7 +58,7 @@ CACHE_MAX_BYTES = 2 * 1024 * 1024 * 1024
 CACHE_IN_USE_SECONDS = 2 * 3600
 HTTP_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 
-_search_cache: Dict[tuple[str, str], tuple[float, List[Dict[str, Any]]]] = {}
+_search_cache: Dict[tuple, tuple[float, List[Dict[str, Any]]]] = {}
 _rate_limited_until = 0.0
 _download_locks: Dict[str, asyncio.Lock] = {}
 
@@ -72,7 +77,10 @@ def broll_cache_dir() -> Path:
 
 
 async def search_pexels_videos(
-    query: str, orientation: str = "portrait", per_page: int = SEARCH_RESULTS_PER_QUERY
+    query: str,
+    orientation: str = "portrait",
+    per_page: int = SEARCH_RESULTS_PER_QUERY,
+    page: int = 1,
 ) -> List[Dict[str, Any]]:
     """Pexels results for ``query`` in relevance order; empty on any failure.
 
@@ -85,7 +93,7 @@ async def search_pexels_videos(
     if not api_key or not query:
         return []
 
-    key = (query.lower(), orientation)
+    key = (query.lower(), orientation, per_page, page)
     cached = _search_cache.get(key)
     if cached and time.time() - cached[0] < SEARCH_CACHE_TTL_SECONDS:
         return cached[1]
@@ -96,7 +104,7 @@ async def search_pexels_videos(
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
             response = await client.get(
                 PEXELS_SEARCH_URL,
-                params={"query": query, "orientation": orientation, "per_page": per_page},
+                params={"query": query, "orientation": orientation, "per_page": per_page, "page": page},
                 headers={"Authorization": api_key},
             )
     except httpx.HTTPError as exc:
@@ -126,6 +134,8 @@ async def search_pexels_videos(
 
 
 def _matches_orientation(width: int, height: int, orientation: str) -> bool:
+    if orientation == "square":
+        return True
     if orientation == "portrait":
         return height > width
     if orientation == "landscape":
@@ -170,9 +180,17 @@ def choose_video(
     min_duration: float,
     orientation: str,
     used_ids: Iterable[int] = (),
+    query: str = "",
+    context: str = "",
 ) -> Optional[Dict[str, Any]]:
-    """First relevant result that is long enough, oriented right and unused."""
+    """The most on-topic result that is long enough, oriented right and unused.
+
+    With a ``query``, results whose description is off-topic or carries a tone
+    the spoken ``context`` does not (see ``footage_mismatch``) are skipped, and
+    the one sharing the most words with the query wins; ties keep Pexels' order.
+    """
     used = set(used_ids)
+    best, best_score = None, -1
     for video in videos:
         if video.get("id") in used:
             continue
@@ -185,7 +203,154 @@ def choose_video(
             continue
         if width and height and not _matches_orientation(width, height, orientation):
             continue
-        return video
+        if not query:
+            return video
+        try:
+            reason = footage_mismatch(video, query, context)
+            score = footage_relevance(video, query)
+        except Exception:
+            # Judging is a refinement: an odd result must not cost the clip its B-roll.
+            logger.warning("Could not judge B-roll %s; using it unjudged", video.get("id"), exc_info=True)
+            reason, score = None, 0
+        if reason:
+            logger.info("Skipping B-roll %s for %r: %s", video.get("id"), query, reason)
+            continue
+        if score > best_score:
+            best, best_score = video, score
+    return best
+
+
+# --------------------------------------------------------------------------
+# Relevance and tone
+# --------------------------------------------------------------------------
+
+# Footage whose description carries one of these themes is used only when the
+# spoken context is about the same theme: a neutral line about a dark bedroom
+# must not cut to "a depressed woman lying on bed with pills". Terms ending in
+# "*" match any word they start.
+SENSITIVE_THEMES: Dict[str, tuple[str, ...]] = {
+    "distress": (
+        "depress*", "anxi*", "lonel*", "grief", "griev*", "cry", "cries", "crying", "tears",
+        "sad", "sadness", "sorrow*", "despair*", "stress", "stressed", "upset", "panic*",
+        "suicid*", "frustrat*", "heartbr*", "mourn*",
+    ),
+    "medical": (
+        "pill", "pills", "medic*", "drug*", "hospital", "hospitals", "hospitalized",
+        "patient", "patients", "syringe*", "inject*",
+        "surgery", "surgical", "sick*", "illness", "disease*", "overdos*", "ambulance*",
+        "injur*", "wound*", "therapist*", "psychiatr*",
+    ),
+    "substances": (
+        "alcohol*", "drunk*", "cigarett*", "smoking", "vape", "vaping", "cocaine",
+        "heroin", "marijuana", "cannabis", "addict*", "hangover*",
+    ),
+    "violence": (
+        "violen*", "blood*", "gun", "guns", "weapon*", "knife", "knives", "assault*",
+        "abus*", "murder*", "kill*", "crime*", "criminal*", "arrest*", "prison*",
+        "explosion*", "war", "fighting",
+    ),
+    "death": (
+        "death", "dead", "die", "dying", "funeral*", "coffin*", "grave", "graves",
+        "cemetery", "corpse*",
+    ),
+    "accident": ("accident*", "crash*", "disaster*", "wreck*"),
+    "adult": ("sexy", "lingerie", "naked", "nude", "erotic*", "seductive*"),
+}
+
+# Words that say nothing about what footage shows, so sharing one is no match.
+_GENERIC_WORDS = frozenset(
+    """a an and are as at be by for from in into is it its of on or over the this to
+    under up with while near off out close shot view video footage stock clip scene
+    background person people man men woman women guy girl boy someone wearing holding
+    using doing looking""".split()
+)
+
+
+def _tokens(text: str) -> List[str]:
+    return re.findall(r"[a-z0-9]+", (text or "").lower())
+
+
+def _content_words(text: str) -> set[str]:
+    words = set()
+    for token in _tokens(text):
+        if token in _GENERIC_WORDS or token.isdigit():
+            continue
+        for suffix in ("ing", "ed", "s", "y"):
+            if token.endswith(suffix) and len(token) - len(suffix) >= 3:
+                token = token[: -len(suffix)]
+                break
+        words.add(token)
+    return words
+
+
+# Second halves of compounds that still show their first word ("bed" -> "bedroom").
+_COMPOUND_TAILS = frozenset({"room", "time", "side", "light", "shine", "rise", "set"})
+
+
+def _same_word(a: str, b: str) -> bool:
+    short, long = sorted((a, b), key=len)
+    if a == b:
+        return True
+    if len(short) < 3 or not long.startswith(short):
+        return False
+    tail = long[len(short):]
+    return (len(short) >= 4 and len(tail) <= 2) or tail in _COMPOUND_TAILS
+
+
+def footage_description(video: Dict[str, Any]) -> str:
+    """What a stock result shows: its title/alt/tags, else the slug of its page URL.
+
+    Pexels page URLs read like ``/video/a-depressed-woman-lying-on-bed-with-pills-7279741/``.
+    """
+    parts = [str(video.get(key) or "") for key in ("title", "alt", "description")]
+    tags = video.get("tags")
+    if isinstance(tags, (list, tuple)):
+        parts += [str(tag.get("name") if isinstance(tag, dict) else tag) for tag in tags if tag]
+    match = re.search(r"/video/([^/?#]+)", str(video.get("url") or ""))
+    if match:
+        parts.append(re.sub(r"-?\d+$", "", match.group(1)).replace("-", " "))
+    return " ".join(part for part in parts if part.strip())
+
+
+def sensitive_themes(text: str) -> set[str]:
+    themes = set()
+    tokens = _tokens(text)
+    for theme, terms in SENSITIVE_THEMES.items():
+        for term in terms:
+            if term.endswith("*"):
+                hit = any(token.startswith(term[:-1]) for token in tokens)
+            else:
+                hit = term in tokens
+            if hit:
+                themes.add(theme)
+                break
+    return themes
+
+
+def footage_relevance(video: Dict[str, Any], query: str) -> int:
+    """How many of the query's descriptive words the footage's description shares."""
+    described = _content_words(footage_description(video))
+    return sum(1 for word in _content_words(query) if any(_same_word(word, d) for d in described))
+
+
+def footage_mismatch(video: Dict[str, Any], query: str, context: str = "") -> Optional[str]:
+    """Why a stock result does not fit the cue, or None when it does.
+
+    Footage is rejected when its description brings a sensitive theme that
+    neither the query nor the spoken ``context`` is about, or when it is
+    described and shares no descriptive word with the query. Results without a
+    description cannot be judged and are allowed.
+    """
+    description = footage_description(video)
+    if not description:
+        return None
+    unwanted = sensitive_themes(description) - sensitive_themes(f"{query} {context}")
+    if unwanted:
+        return f"implies {', '.join(sorted(unwanted))}"
+    described = _content_words(description)
+    wanted = _content_words(query)
+    if described and wanted and not any(_same_word(w, d) for w in wanted for d in described):
+        return "off-topic"
     return None
 
 
@@ -383,6 +548,16 @@ def select_cues(
     return selected
 
 
+def cue_context(words: Sequence[Dict[str, Any]], start: float, duration: float) -> str:
+    """What the speaker says around a cutaway, for judging its footage."""
+    first, last = start - CONTEXT_BEFORE_SECONDS, start + duration + CONTEXT_AFTER_SECONDS
+    return " ".join(
+        str(word.get("text") or "").strip()
+        for word in words
+        if isinstance(word.get("start"), (int, float)) and first <= word["start"] <= last
+    )
+
+
 class BRollSession:
     """Per-task state, so one task never repeats the same stock clip."""
 
@@ -398,7 +573,14 @@ async def _source_cue(
 ) -> Optional[Dict[str, Any]]:
     for query in dict.fromkeys(q for q in (cue["query"], cue.get("fallback_query")) if q):
         videos = await search_pexels_videos(query, orientation)
-        video = choose_video(videos, cue["duration"] + 0.5, orientation, session.used_ids)
+        video = choose_video(
+            videos,
+            cue["duration"] + 0.5,
+            orientation,
+            session.used_ids,
+            query=" ".join(dict.fromkeys((query, cue["query"]))),
+            context=cue.get("context", ""),
+        )
         if not video:
             continue
         chosen = pick_video_file(video, target_short_side, orientation)
@@ -416,6 +598,8 @@ async def _source_cue(
             "file_url": chosen["link"],
             "width": chosen["width"],
             "height": chosen["height"],
+            "footage_duration": float(video.get("duration") or 0),
+            "thumbnail": video.get("image"),
             "credit": user.get("name"),
         }
     return None
@@ -453,6 +637,8 @@ async def plan_clip_broll(
         return []
 
     cues = select_cues(raw_cues, words, clip_duration, max_cues)
+    for cue in cues:
+        cue["context"] = cue_context(words, cue["start"], cue["duration"])
     if not cues:
         logger.info("No B-roll moments in this clip")
         return []
@@ -519,3 +705,157 @@ def shift_broll_placements(
             moved["footage_offset"] = round(footage_offset, 3)
         shifted.append(moved)
     return shifted
+
+
+# --------------------------------------------------------------------------
+# Editor: search, lookup and conversion between placements and editor clips
+# --------------------------------------------------------------------------
+
+
+def footage_from_video(video: Dict[str, Any], target_short_side: int, orientation: str) -> Optional[Dict[str, Any]]:
+    """Editor footage (``BRollFootage`` fields) for a Pexels video, or None."""
+    chosen = pick_video_file(video, target_short_side, orientation)
+    if not chosen or not str(chosen["link"]).startswith("https://videos.pexels.com/"):
+        return None
+    try:
+        duration = float(video.get("duration") or 0)
+    except (TypeError, ValueError):
+        return None
+    if duration <= 0:
+        return None
+    user = video.get("user") or {}
+    return {
+        "provider": "pexels",
+        "id": int(video["id"]),
+        "width": chosen["width"],
+        "height": chosen["height"],
+        "duration": duration,
+        "fileUrl": chosen["link"],
+        "pageUrl": str(video.get("url") or "")[:500],
+        "thumbnail": str(video.get("image") or "")[:500],
+        "credit": str(user.get("name") or "")[:200],
+    }
+
+
+async def search_footage(
+    query: str, orientation: str = "portrait", target_short_side: int = 1080, page: int = 1
+) -> List[Dict[str, Any]]:
+    videos = await search_pexels_videos(query, orientation, per_page=18, page=page)
+    results = []
+    for video in videos:
+        footage = footage_from_video(video, target_short_side, orientation)
+        if footage:
+            results.append(footage)
+    return results
+
+
+async def fetch_pexels_video(video_id: int) -> Optional[Dict[str, Any]]:
+    """One Pexels video by id (to re-resolve a rendition's download link)."""
+    api_key = get_config().pexels_api_key
+    if not api_key or time.time() < _rate_limited_until:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+            response = await client.get(
+                PEXELS_VIDEO_URL.format(id=int(video_id)), headers={"Authorization": api_key}
+            )
+    except httpx.HTTPError:
+        return None
+    if response.status_code != 200:
+        return None
+    try:
+        video = response.json()
+    except ValueError:
+        return None
+    return video if isinstance(video, dict) else None
+
+
+async def ensure_footage_file(footage: Dict[str, Any]) -> Optional[Path]:
+    """Local copy of editor footage; re-resolves the link if the stored one fails."""
+    entry = {
+        "pexels_id": footage["id"],
+        "width": footage["width"],
+        "height": footage["height"],
+        "file_url": footage.get("fileUrl"),
+    }
+    path = await ensure_broll_file(entry)
+    if path is not None:
+        return path
+    video = await fetch_pexels_video(int(footage["id"]))
+    for item in (video or {}).get("video_files") or []:
+        link = str(item.get("link") or "")
+        if (
+            item.get("width") == footage["width"]
+            and item.get("height") == footage["height"]
+            and link.startswith("https://videos.pexels.com/")
+        ):
+            return await ensure_broll_file({**entry, "file_url": link})
+    return None
+
+
+def placement_to_editor_clip(placement: Dict[str, Any], index: int, clip_duration: float) -> Optional[Dict[str, Any]]:
+    """An editor B-roll clip from a generated clip's stored placement.
+
+    The editor's clean.mp4 is rendered from the same ranges as the generated
+    clip, so placement seconds are already on its timeline.
+    """
+    from .editor_document import BROLL_CONTINUATION_MIN_SECONDS, BROLL_MIN_SECONDS, TIME_EPSILON
+
+    try:
+        start = max(0.0, float(placement["start"]))
+        end = min(clip_duration, start + float(placement["duration"]))
+        offset = float(placement.get("footage_offset") or 0.0)
+        file_url = str(placement.get("file_url") or "")
+        duration = float(placement.get("footage_duration") or 0) or offset + end - start
+        fade_in = placement.get("fade_in", True) is not False
+        fade_out = placement.get("fade_out", True) is not False
+        minimum = BROLL_MIN_SECONDS if fade_in and fade_out else BROLL_CONTINUATION_MIN_SECONDS
+        if end - start < minimum - TIME_EPSILON or not file_url.startswith("https://videos.pexels.com/"):
+            return None
+        return {
+            "id": f"broll-{index}-{int(placement['pexels_id'])}",
+            "start": round(start, 3),
+            "end": round(end, 3),
+            "offset": round(offset, 3),
+            "query": str(placement.get("query") or "")[:120],
+            "fadeIn": fade_in,
+            "fadeOut": fade_out,
+            "fadeDuration": placement.get("fade_duration"),
+            "footage": {
+                "provider": "pexels",
+                "id": int(placement["pexels_id"]),
+                "width": int(placement["width"]),
+                "height": int(placement["height"]),
+                "duration": round(duration, 3),
+                "fileUrl": file_url,
+                "pageUrl": str(placement.get("pexels_url") or "")[:500],
+                "thumbnail": str(placement.get("thumbnail") or "")[:500],
+                "credit": str(placement.get("credit") or "")[:200],
+            },
+        }
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def editor_piece_to_placement(piece: Dict[str, Any]) -> Dict[str, Any]:
+    """A clip placement (sidecar format) for a rendered editor B-roll piece."""
+    footage = piece["footage"]
+    footage = footage.model_dump() if hasattr(footage, "model_dump") else footage
+    return {
+        "start": round(piece["start"], 3),
+        "duration": round(piece["duration"], 3),
+        "footage_offset": round(piece.get("offset") or 0.0, 3),
+        "query": piece.get("query") or "",
+        "provider": "pexels",
+        "pexels_id": footage["id"],
+        "pexels_url": footage.get("pageUrl"),
+        "file_url": footage["fileUrl"],
+        "width": footage["width"],
+        "height": footage["height"],
+        "footage_duration": footage["duration"],
+        "thumbnail": footage.get("thumbnail"),
+        "credit": footage.get("credit"),
+        "fade_in": piece.get("fade_in", True),
+        "fade_out": piece.get("fade_out", True),
+        "fade_duration": piece.get("fade_duration"),
+    }

@@ -42,6 +42,8 @@ pnpm run lint
 
 ## Backend
 
+Install ffmpeg and Tesseract with English language data (`tesseract-ocr`, `tesseract-ocr-eng` on Debian/Ubuntu). The Docker image includes both. Tesseract checks on-screen interruption notices locally; it does not call an AI service.
+
 ```bash
 cd backend
 uv venv .venv

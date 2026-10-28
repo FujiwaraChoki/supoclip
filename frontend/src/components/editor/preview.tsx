@@ -25,18 +25,27 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
+  brollAlpha,
+  brollAt,
+  brollOf,
   clamp,
   editDuration,
+  footageKey,
+  footageUrl,
   frameRect,
   outputSize,
   outputTime,
   timecode,
+  type BRollFootage,
   type EditDocument,
   type EditorState,
 } from "@/lib/editor/document";
-import { drawEditorFrame, loadEditorFont } from "@/lib/editor/render";
+import { drawEditorFrame, loadEditorFont, type TextDraft, type BRollLayer } from "@/lib/editor/render";
 import type { InspectorTab } from "./inspector";
+import { cn } from "@/lib/utils";
 import { Panel, ToolButton } from "./studio-ui";
+import { TextLayers } from "./text-layers";
+import { usePreviewResolution } from "./use-preview-resolution";
 
 interface Props {
   doc: EditDocument;
@@ -47,9 +56,12 @@ interface Props {
   time: number;
   onTime: (time: number) => void;
   seekRequest: { time: number; nonce: number };
+  textDraft?: TextDraft;
   tab: InspectorTab;
   update: (change: (doc: EditDocument) => EditDocument, group?: string) => void;
   videoRef: React.RefObject<HTMLVideoElement | null>;
+  /** Shown under the transport, inside the viewer card (the AI edit field). */
+  footer?: React.ReactNode;
 }
 export function Preview({
   doc,
@@ -60,15 +72,23 @@ export function Preview({
   time,
   onTime,
   seekRequest,
+  textDraft,
   tab,
   update,
   videoRef,
+  footer,
 }: Props) {
   const t = useTranslations("editor");
   const stageRef = useRef<HTMLDivElement>(null);
+  const pictureRef = useRef<HTMLDivElement>(null);
   const [previewWidth, setPreviewWidth] = useState(270);
   const canvasRef = useRef<HTMLCanvasElement>(null),
     audioRef = useRef<{ context: AudioContext; gain: GainNode } | null>(null);
+  // One hidden, muted player per stock video, kept in step with the clip.
+  const brollPlayers = useRef(new Map<string, HTMLVideoElement>());
+  const footage = [
+    ...new Map(brollOf(doc).map((b) => [footageKey(b.footage), b.footage])).entries(),
+  ] as [string, BRollFootage][];
   const [playing, setPlaying] = useState(false),
     [loop, setLoop] = useState(true),
     [guides, setGuides] = useState(false),
@@ -80,9 +100,9 @@ export function Preview({
     y: number;
     startX: number;
     startY: number;
-    captionY: number;
   } | null>(null);
   const size = outputSize(doc, asset.width, asset.height);
+  const resolution = usePreviewResolution(pictureRef, size);
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -168,6 +188,30 @@ export function Preview({
           }
         }
         const context = canvas.getContext("2d");
+        const sourceTime = video.currentTime,
+          active = brollAt(doc, sourceTime),
+          activeKey = active ? footageKey(active.footage) : null;
+        let layer: BRollLayer | null = null;
+        for (const [key, player] of brollPlayers.current) {
+          if (key !== activeKey || !active) {
+            if (!player.paused) player.pause();
+            continue;
+          }
+          const wanted = active.offset + sourceTime - active.start;
+          // Paused scrubbing seeks precisely; playback only corrects real drift.
+          if (Math.abs(player.currentTime - wanted) > (video.paused ? 0.04 : 0.3))
+            player.currentTime = wanted;
+          player.playbackRate = video.playbackRate;
+          if (!video.paused && player.paused) void player.play().catch(() => {});
+          if (video.paused && !player.paused) player.pause();
+          if (player.readyState >= 2)
+            layer = {
+              width: player.videoWidth,
+              height: player.videoHeight,
+              alpha: brollAlpha(active, sourceTime),
+              draw: (x, y, w, h) => context?.drawImage(player, x, y, w, h),
+            };
+        }
         if (context)
           drawEditorFrame(
             context,
@@ -182,6 +226,8 @@ export function Preview({
             (rect) =>
               context.drawImage(video, rect.x, rect.y, rect.width, rect.height),
             asset.captionLooks,
+            layer,
+            "none",
           );
       }
       frame = requestAnimationFrame(draw);
@@ -217,39 +263,41 @@ export function Preview({
         ? t("preview.captionHint")
         : null;
   return (
-    <Panel aria-label={t("preview.region")}>
-      <div className="flex items-center justify-between gap-3 border-b px-4 py-2">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          {t("preview.title")}
-          <span className="text-xs font-normal text-muted-foreground tabular-nums">
+    <Panel
+      aria-label={t("preview.region")}
+      className="flex flex-col lg:min-h-0 lg:flex-1"
+    >
+      <div
+        ref={stageRef}
+        className="relative flex h-[clamp(360px,calc(100dvh-560px),560px)] items-center justify-center px-6 pt-10 pb-3 max-md:h-[440px] lg:h-auto lg:min-h-0 lg:flex-1"
+      >
+        <div className="absolute inset-x-3 top-2.5 flex items-center justify-between gap-3">
+          <span className="pl-1 text-xs text-muted-foreground tabular-nums">
             {t("preview.size", {
               width: size.width,
               height: size.height,
               fps: Math.round(asset.fps),
             })}
           </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Toggle
+                size="sm"
+                pressed={guides}
+                onPressedChange={setGuides}
+                aria-label={t("preview.safeArea")}
+                className="h-7 rounded-full px-2.5 text-xs text-muted-foreground data-[state=on]:text-foreground"
+              >
+                <Scan />
+                <span className="hidden sm:inline">{t("preview.safeArea")}</span>
+              </Toggle>
+            </TooltipTrigger>
+            <TooltipContent>{t("preview.safeAreaTip")}</TooltipContent>
+          </Tooltip>
         </div>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Toggle
-              size="sm"
-              pressed={guides}
-              onPressedChange={setGuides}
-              aria-label={t("preview.safeArea")}
-            >
-              <Scan />
-              <span className="hidden sm:inline">{t("preview.safeArea")}</span>
-            </Toggle>
-          </TooltipTrigger>
-          <TooltipContent>{t("preview.safeAreaTip")}</TooltipContent>
-        </Tooltip>
-      </div>
-      <div
-        ref={stageRef}
-        className="relative flex h-[clamp(340px,calc(100dvh-640px),520px)] items-center justify-center bg-stone-950 bg-[radial-gradient(ellipse_at_50%_40%,var(--color-stone-800),transparent_70%)] px-6 py-5 max-md:h-[415px] max-md:px-4"
-      >
         <div
-          className="relative max-h-full max-w-full overflow-hidden rounded-md bg-black shadow-2xl ring-1 ring-white/10"
+          ref={pictureRef}
+          className="relative max-h-full max-w-full overflow-hidden rounded-xl bg-black shadow-[0_8px_30px_rgb(0_0_0/0.12)] ring-1 ring-black/5"
           style={{
             aspectRatio: `${size.width}/${size.height}`,
             width: `${previewWidth}px`,
@@ -258,17 +306,20 @@ export function Preview({
           <video
             ref={videoRef}
             crossOrigin="anonymous"
-            src={`${endpoint}/media/clean.mp4`}
+            src={`${endpoint}/media/${asset.hasLayout && doc.framing.fit === "auto" && doc.framing.aspect === "vertical" ? "layout" : "clean"}.mp4`}
             preload="auto"
             playsInline
             className="hidden"
             onLoadedMetadata={() => {
               if (videoRef.current)
-                videoRef.current.currentTime = seekRequest.nonce
-                  ? seekRequest.time
-                  : doc.segments[0].start;
+                videoRef.current.currentTime = Math.min(videoRef.current.duration, Math.max(0, time));
             }}
-            onTimeUpdate={(e) => onTime(e.currentTarget.currentTime)}
+            onTimeUpdate={(e) => {
+              // Changing between the generated composition and raw landscape
+              // resets the element to 0 before metadata loads. Keep the playhead
+              // until that new source is ready to seek.
+              if (e.currentTarget.readyState >= 2) onTime(e.currentTarget.currentTime);
+            }}
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
             onEnded={() => {
@@ -280,20 +331,34 @@ export function Preview({
             }}
             onError={() => setMediaError(true)}
           />
+          {footage.map(([key, item]) => (
+            <video
+              key={key}
+              ref={(player) => {
+                if (player) brollPlayers.current.set(key, player);
+                else brollPlayers.current.delete(key);
+              }}
+              crossOrigin="anonymous"
+              src={footageUrl(endpoint, item)}
+              preload="auto"
+              muted
+              playsInline
+              className="hidden"
+            />
+          ))}
           <canvas
             ref={canvasRef}
-            width={Math.round((size.width / size.height) * 640)}
-            height={640}
+            width={resolution.width}
+            height={resolution.height}
             aria-label={t("preview.canvas")}
-            className={`block h-full w-full touch-none ${tab === "framing" || tab === "captions" ? "cursor-move" : "cursor-default"}`}
+            className={`block h-full w-full touch-none ${tab === "framing" ? "cursor-move" : "cursor-default"}`}
             onPointerDown={(e) => {
-              if (tab !== "framing" && tab !== "captions") return;
+              if (tab !== "framing") return;
               drag.current = {
                 x: e.clientX,
                 y: e.clientY,
                 startX: doc.framing.x,
                 startY: doc.framing.y,
-                captionY: doc.captions.y,
               };
               e.currentTarget.setPointerCapture(e.pointerId);
             }}
@@ -302,17 +367,6 @@ export function Preview({
               const box = e.currentTarget.getBoundingClientRect(),
                 deltaX = e.clientX - drag.current.x,
                 deltaY = e.clientY - drag.current.y;
-              if (tab === "captions") {
-                const y = clamp(
-                  drag.current.captionY + deltaY / box.height,
-                  0.1,
-                  0.9,
-                );
-                update(
-                  (d) => ({ ...d, captions: { ...d.captions, y } }),
-                  "drag-caption",
-                );
-              } else {
                 const rect = frameRect(
                   doc.framing,
                   asset.width,
@@ -340,7 +394,6 @@ export function Preview({
                   (d) => ({ ...d, framing: { ...d.framing, x, y } }),
                   "drag-frame",
                 );
-              }
             }}
             onPointerUp={() => {
               drag.current = null;
@@ -349,6 +402,7 @@ export function Preview({
               drag.current = null;
             }}
           />
+          <TextLayers doc={doc} asset={asset} time={time} index={segmentIndex} videoRef={videoRef} update={update} resolution={resolution} timelineDraft={textDraft} />
           {guides && (
             <div className="pointer-events-none absolute inset-x-[8%] top-[10%] bottom-[20%] rounded-lg border border-dashed border-white/60">
               <span className="absolute -top-5 text-[10px] text-white/70">
@@ -374,13 +428,16 @@ export function Preview({
         </div>
         {hint && (
           <p
-            className={`absolute inset-x-0 bottom-1.5 px-4 text-center text-[11px] ${fontError ? "text-amber-300" : "text-stone-400"}`}
+            className={cn(
+              "pointer-events-none absolute inset-x-0 top-3.5 px-40 text-center text-[11px] max-md:hidden",
+              fontError ? "text-amber-600" : "text-muted-foreground",
+            )}
           >
             {hint}
           </p>
         )}
       </div>
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 border-t px-3 py-2.5 sm:px-4">
+      <div className="grid shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 pb-2 sm:px-4">
         <div className="flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -402,7 +459,7 @@ export function Preview({
             <SelectTrigger
               size="sm"
               aria-label={t("preview.speed")}
-              className="h-8 w-[4.5rem] border-transparent shadow-none hover:bg-accent tabular-nums"
+              className="h-8 w-[4.5rem] rounded-full border-transparent shadow-none hover:bg-accent tabular-nums"
             >
               <SelectValue />
             </SelectTrigger>
@@ -425,7 +482,7 @@ export function Preview({
           </ToolButton>
           <Button
             size="icon-lg"
-            className="rounded-full"
+            className="size-11 rounded-full shadow-sm"
             aria-label={playing ? t("preview.pause") : t("preview.play")}
             onClick={() => void play()}
           >
@@ -446,7 +503,7 @@ export function Preview({
               className="size-3.5 text-muted-foreground"
             />
           )}
-          <span className="whitespace-nowrap font-medium">
+          <span className="whitespace-nowrap font-mono text-[13px] font-medium">
             {timecode(
               clamp(
                 outputTime(
@@ -465,6 +522,7 @@ export function Preview({
           </span>
         </div>
       </div>
+      {footer}
     </Panel>
   );
 }

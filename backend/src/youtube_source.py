@@ -212,10 +212,17 @@ class TimeMap:
     def to_original_ranges(self, ranges: Iterable[tuple[float, float]]) -> list[tuple[float, float]]:
         converted = []
         for start, end in ranges:
-            original_start = self.to_original(float(start))
-            original_end = self.to_original(float(end))
-            if original_end > original_start:
-                converted.append((original_start, original_end))
+            if not self.spans:
+                if end > start:
+                    converted.append((float(start), float(end)))
+                continue
+            # A local range may cross a stitched-section boundary. Map each
+            # intersection, never the omitted source interval between them.
+            for span in self.spans:
+                a, b = max(float(start), span.local_start), min(float(end), span.local_end)
+                if b > a:
+                    converted.append((span.original_start + a - span.local_start,
+                                      span.original_start + b - span.local_start))
         return converted
 
 
@@ -344,12 +351,19 @@ def localize_segment(segment: dict, time_map: TimeMap) -> dict:
 def restore_clip_timeline(clip_info: dict, time_map: Optional[TimeMap], original: dict) -> dict:
     if not clip_info or time_map is None:
         return clip_info
-    from .clip_source_map import load_clip_source_ranges, save_clip_source_ranges
+    from .clip_source_map import load_clip_source_ranges, load_clip_output_offsets, save_clip_source_ranges
 
     path = Path(clip_info["path"])
     local_ranges = load_clip_source_ranges(path)
     if local_ranges:
-        save_clip_source_ranges(path, time_map.to_original_ranges(local_ranges))
+        original_ranges, original_offsets = [], []
+        for local_range, offset in zip(local_ranges, load_clip_output_offsets(path, local_ranges)):
+            cursor = offset
+            for start, end in time_map.to_original_ranges([local_range]):
+                original_ranges.append((start, end))
+                original_offsets.append(cursor)
+                cursor += end - start
+        save_clip_source_ranges(path, original_ranges, original_offsets)
     if original.get("start_time") is not None:
         clip_info["start_time"] = original["start_time"]
     if original.get("end_time") is not None:

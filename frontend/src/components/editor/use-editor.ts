@@ -1,16 +1,18 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
-import type { EditDocument, EditorState } from "@/lib/editor/document";
+import { remapCaptionTransforms, type EditDocument, type EditorState } from "@/lib/editor/document";
 
 export async function editorRequest<T>(
   url: string,
   method = "GET",
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
   const response = await fetch(url, {
     method,
     cache: "no-store",
+    ...(signal ? { signal } : {}),
     ...(body === undefined
       ? {}
       : {
@@ -30,6 +32,28 @@ interface History {
   past: EditDocument[];
   present: EditDocument;
   future: EditDocument[];
+}
+
+function upgradeCachedHistory(history: History, server: EditDocument): History {
+  const upgrade = (document: EditDocument): EditDocument => ({
+    ...server,
+    ...document,
+    // Missing means this cache predates editable B-roll; [] is an intentional removal.
+    broll: structuredClone(document.broll ?? server.broll ?? []),
+    ...(document.hookTiming !== undefined || server.hookTiming !== undefined
+      ? { hookTiming: structuredClone(document.hookTiming ?? null) } : {}),
+    // Missing placement fields mean the original layout, including in old undo
+    // snapshots. Inheriting today's server placement would corrupt undo.
+    ...(document.textTransforms !== undefined || server.textTransforms !== undefined
+      ? { textTransforms: structuredClone(document.textTransforms ?? {}) } : {}),
+    ...(document.captionTransforms !== undefined || server.captionTransforms !== undefined
+      ? { captionTransforms: Object.fromEntries(Object.entries(document.captionTransforms ?? {}).map(([key, value]) => [key, { ...value, size: value.size ?? null }])) } : {}),
+  });
+  return {
+    past: history.past.map(upgrade),
+    present: upgrade(history.present),
+    future: history.future.map(upgrade),
+  };
 }
 export function useEditor(endpoint: string) {
   const [asset, setAsset] = useState<EditorState | null>(null);
@@ -79,12 +103,14 @@ export function useEditor(endpoint: string) {
     (change: (doc: EditDocument) => EditDocument, group = "") => {
       const current = historyRef.current;
       if (!current) return;
-      const next = change(current.present);
+      const changed = change(current.present);
+      const next = changed.words !== current.present.words || changed.captions.wordsPerLine !== current.present.captions.wordsPerLine
+        ? remapCaptionTransforms(current.present, changed) : changed;
       if (JSON.stringify(next) === JSON.stringify(current.present)) return;
       const coalesce =
         group &&
         lastEdit.current.group === group &&
-        Date.now() - lastEdit.current.at < 700;
+        (group.startsWith("gesture:") || Date.now() - lastEdit.current.at < 700);
       publish({
         past: coalesce
           ? current.past
@@ -195,13 +221,14 @@ export function useEditor(endpoint: string) {
             local?.basis === state.basis &&
             local.history?.present?.version === 1
           ) {
+            const restored = upgradeCachedHistory(local.history, state.draft.document);
             if (
               local.revision === state.draft.revision ||
-              JSON.stringify(local.history.present) === saved.current
+              JSON.stringify(restored.present) === saved.current
             )
-              h = local.history;
+              h = restored;
             else if (JSON.stringify(local.history.present) !== local.saved) {
-              h = local.history;
+              h = restored;
               revision.current = local.revision;
               setError(
                 "A newer draft exists on the server. Your local changes are retained. Download a draft backup, then reload the saved version to resolve the conflict.",

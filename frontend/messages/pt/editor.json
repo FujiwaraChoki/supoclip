@@ -42,6 +42,7 @@
   "tabs": {
     "captions": "Legendas",
     "framing": "Enquadramento",
+    "broll": "B-roll",
     "audio": "Áudio",
     "effects": "Efeitos"
   },
@@ -80,7 +81,7 @@
     "applying": "Aplicando…",
     "applyAll": "Aplicar a todos os clipes",
     "hookTitle": "Título de gancho",
-    "hookDescription": "Aparece no topo nos primeiros segundos. Deixe vazio para remover.",
+    "hookDescription": "Arraste as bordas do título na linha do tempo para definir quando ele aparece. Deixe vazio para removê-lo.",
     "hookPlaceholder": "Sem título de gancho",
     "transcript": "Transcrição",
     "wordCount": "{count} palavras",
@@ -117,7 +118,10 @@
     "zoom": "Zoom",
     "horizontal": "Posição horizontal",
     "vertical": "Posição vertical",
-    "center": "Centralizar assunto"
+    "center": "Centralizar assunto",
+    "landscapeHint": "Este clipe contém detalhes em toda a largura. A versão horizontal mantém a leitura sem cortar conteúdo.",
+    "useLandscape": "Usar versão horizontal",
+    "autoLayout": "Layout gerado"
   },
   "audioPanel": {
     "title": "Áudio",
@@ -140,7 +144,7 @@
   "preview": {
     "fontError": "Não foi possível carregar a fonte das legendas. Verifique sua conexão antes de exportar.",
     "framingHint": "Arraste o vídeo para reenquadrar · as legendas ficam no lugar",
-    "captionHint": "Arraste na vertical para posicionar as legendas",
+    "captionHint": "Arraste o texto para mover · arraste um canto para redimensionar · clique para editar",
     "region": "Prévia do vídeo",
     "title": "Prévia",
     "size": "{width} × {height} · {fps} fps",
@@ -157,7 +161,14 @@
     "nextFrame": "Próximo quadro",
     "pause": "Pausar",
     "play": "Reproduzir",
-    "muted": "Sem som"
+    "muted": "Sem som",
+    "resizeText": "Redimensionar {layer}, {corner}",
+    "corners": {
+      "nw": "superior esquerdo",
+      "ne": "superior direito",
+      "sw": "inferior esquerdo",
+      "se": "inferior direito"
+    }
   },
   "timeline": {
     "region": "Linha do tempo do clipe",
@@ -180,7 +191,21 @@
     "moveEarlier": "Mover o segmento para antes",
     "moveLater": "Mover o segmento para depois",
     "duplicate": "Duplicar o segmento selecionado",
-    "remove": "Remover o segmento selecionado"
+    "remove": "Remover o segmento selecionado",
+    "zoomIn": "Aproximar",
+    "zoomOut": "Afastar",
+    "tracks": {
+      "video": "Vídeo",
+      "broll": "B-roll",
+      "captions": "Legendas",
+      "audio": "Áudio",
+      "hideCaptions": "Ocultar legendas",
+      "showCaptions": "Mostrar legendas",
+      "mute": "Silenciar",
+      "unmute": "Ativar som"
+    },
+    "hookStart": "Início do título, segundos",
+    "hookEnd": "Fim do título, segundos"
   },
   "export": {
     "exported": "Vídeo exportado",
@@ -269,7 +294,10 @@
     "reloadTitle": "Carregar a versão salva?",
     "reloadDescription": "Isso substitui as alterações locais e o histórico de desfazer pelo rascunho do servidor. Faça backup do rascunho antes se quiser manter as alterações locais.",
     "keepLocalDraft": "Manter o rascunho local",
-    "loadSaved": "Carregar versão salva"
+    "loadSaved": "Carregar versão salva",
+    "switchClip": "Trocar de clipe",
+    "clipOf": "de {count}",
+    "more": "Mais"
   },
   "shortcuts": {
     "playPause": "Reproduzir / pausar",
@@ -278,8 +306,67 @@
     "setIn": "Marcar ponto de entrada",
     "setOut": "Marcar ponto de saída",
     "split": "Dividir no cursor",
+    "removeBroll": "Remover o B-roll selecionado",
     "undo": "Desfazer",
     "redo": "Refazer",
-    "save": "Salvar rascunho"
+    "save": "Salvar rascunho",
+    "aiPrompt": "Editar com IA"
+  },
+  "broll": {
+    "lane": "B-roll",
+    "laneLabel": "Faixa de B-roll",
+    "clipLabel": "B-roll {query}, de {start} a {end}",
+    "untitled": "Imagens de banco",
+    "laneEmpty": "Clique para adicionar B-roll aqui",
+    "title": "B-roll",
+    "description": "Imagens de banco sobre o clipe enquanto a pessoa continua falando. As legendas ficam por cima.",
+    "suggest": "Preencher",
+    "listLabel": "B-roll deste clipe",
+    "empty": "Ainda sem B-roll. Preencher escolhe momentos pelo que é dito, ou busque abaixo.",
+    "selectedTitle": "B-roll selecionado",
+    "remove": "Remover",
+    "credit": "Vídeo de {name} no <link>Pexels</link>",
+    "creditUnknown": "um criador do Pexels",
+    "footageLength": "Duração das imagens {duration}",
+    "start": "Início",
+    "end": "Fim",
+    "startSeconds": "Início do B-roll, segundos",
+    "endSeconds": "Fim do B-roll, segundos",
+    "footageStart": "As imagens começam em",
+    "jump": "Ir",
+    "replace": "Trocar imagens",
+    "replaceTitle": "Trocar imagens",
+    "replaceDescription": "Escolha outras imagens. O tempo continua o mesmo.",
+    "searchTitle": "Adicionar imagens",
+    "searchDescription": "Busque vídeos de banco e escolha um para adicionar no cursor ({time}).",
+    "searchPlaceholder": "ex.: cidade à noite, café",
+    "searchLabel": "Buscar imagens de banco",
+    "searchButton": "Buscar",
+    "resultsLabel": "Resultados de imagens",
+    "useResult": "Usar imagens de {credit}",
+    "addResult": "Adicionar imagens de {credit} no cursor",
+    "more": "Mostrar mais",
+    "noResults": "Nada encontrado para “{query}”. Tente uma busca mais simples e visual.",
+    "attribution": "Imagens de banco do <link>Pexels</link>.",
+    "searchFailed": "Não foi possível buscar imagens.",
+    "noRoom": "Já há B-roll no cursor. Mova o cursor para um espaço livre.",
+    "suggested": "{count, plural, one {# clipe de B-roll adicionado} other {# clipes de B-roll adicionados}}.",
+    "nothingSuggested": "Nada novo: nenhum outro momento cita algo filmável.",
+    "suggestFailed": "Não foi possível sugerir B-roll.",
+    "unavailable": "As imagens de banco não estão configuradas neste servidor, então não dá para adicionar B-roll."
+  },
+  "ai": {
+    "label": "Pedir à IA para editar este clipe",
+    "placeholder": "Edite com IA, ex.: remova os vícios de linguagem",
+    "working": "Editando seu clipe…",
+    "send": "Executar",
+    "dismiss": "Fechar",
+    "undo": "Desfazer",
+    "apply": "Aplicar",
+    "editedMeanwhile": "Você editou o clipe enquanto a IA trabalhava, então a mudança dela ainda não foi aplicada.",
+    "length": "Agora {duration} (antes {was})",
+    "timeout": "A IA demorou demais. Tente de novo.",
+    "failed": "Não foi possível falar com a IA. Tente de novo.",
+    "title": "Edição com IA"
   }
 }

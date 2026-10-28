@@ -72,6 +72,8 @@
   "captionTemplate": "Caption Template",
   "selectStyle": "Select style",
   "defaultTemplate": "Default",
+  "brollTitle": "B-roll",
+  "brollBody": "Add stock footage where the speaker names something you can show. Applying keeps existing B-roll and fills clips that have none; turning it off removes it.",
   "cleanupTitle": "Clip cleanup",
   "cleanupBody": "Apply silence and filler-word cuts to regenerated clips.",
   "shortenPauses": "Shorten long pauses",

@@ -72,6 +72,8 @@
   "captionTemplate": "Plantilla de subtítulos",
   "selectStyle": "Elegir estilo",
   "defaultTemplate": "Predeterminado",
+  "brollTitle": "B-roll",
+  "brollBody": "Añade metraje de archivo cuando se menciona algo que se puede mostrar. Al aplicar se conserva el B-roll existente y se completa en clips sin él; al desactivarlo se quita.",
   "cleanupTitle": "Limpieza del clip",
   "cleanupBody": "Aplica cortes de silencio y muletillas a los clips regenerados.",
   "shortenPauses": "Acortar pausas largas",

@@ -42,6 +42,7 @@
   "tabs": {
     "captions": "Subtítulos",
     "framing": "Encuadre",
+    "broll": "B-roll",
     "audio": "Audio",
     "effects": "Efectos"
   },
@@ -80,7 +81,7 @@
     "applying": "Aplicando…",
     "applyAll": "Aplicar a todos los clips",
     "hookTitle": "Título gancho",
-    "hookDescription": "Se muestra arriba durante los primeros segundos. Déjalo vacío para quitarlo.",
+    "hookDescription": "Arrastra los bordes del título en la línea de tiempo para ajustar cuándo aparece. Déjalo vacío para eliminarlo.",
     "hookPlaceholder": "Sin título gancho",
     "transcript": "Transcripción",
     "wordCount": "{count} palabras",
@@ -117,7 +118,10 @@
     "zoom": "Zoom",
     "horizontal": "Posición horizontal",
     "vertical": "Posición vertical",
-    "center": "Centrar sujeto"
+    "center": "Centrar sujeto",
+    "landscapeHint": "Este clip contiene detalles a lo ancho. La versión horizontal los mantiene legibles sin recortar contenido.",
+    "useLandscape": "Usar versión horizontal",
+    "autoLayout": "Composición generada"
   },
   "audioPanel": {
     "title": "Audio",
@@ -140,7 +144,7 @@
   "preview": {
     "fontError": "No se pudo cargar la fuente de los subtítulos. Revisa tu conexión antes de exportar.",
     "framingHint": "Arrastra el video para reencuadrar · los subtítulos se quedan en su lugar",
-    "captionHint": "Arrastra en vertical para colocar los subtítulos",
+    "captionHint": "Arrastra el texto para moverlo · arrastra una esquina para cambiar el tamaño · haz clic para editar",
     "region": "Vista previa del video",
     "title": "Vista previa",
     "size": "{width} × {height} · {fps} fps",
@@ -157,7 +161,14 @@
     "nextFrame": "Fotograma siguiente",
     "pause": "Pausa",
     "play": "Reproducir",
-    "muted": "Silenciado"
+    "muted": "Silenciado",
+    "resizeText": "Cambiar tamaño de {layer}, {corner}",
+    "corners": {
+      "nw": "arriba a la izquierda",
+      "ne": "arriba a la derecha",
+      "sw": "abajo a la izquierda",
+      "se": "abajo a la derecha"
+    }
   },
   "timeline": {
     "region": "Línea de tiempo del clip",
@@ -180,7 +191,21 @@
     "moveEarlier": "Mover el segmento antes",
     "moveLater": "Mover el segmento después",
     "duplicate": "Duplicar el segmento seleccionado",
-    "remove": "Quitar el segmento seleccionado"
+    "remove": "Quitar el segmento seleccionado",
+    "zoomIn": "Acercar",
+    "zoomOut": "Alejar",
+    "tracks": {
+      "video": "Vídeo",
+      "broll": "B-roll",
+      "captions": "Subtítulos",
+      "audio": "Audio",
+      "hideCaptions": "Ocultar subtítulos",
+      "showCaptions": "Mostrar subtítulos",
+      "mute": "Silenciar",
+      "unmute": "Activar sonido"
+    },
+    "hookStart": "Inicio del título, segundos",
+    "hookEnd": "Fin del título, segundos"
   },
   "export": {
     "exported": "Video exportado",
@@ -269,7 +294,10 @@
     "reloadTitle": "¿Cargar la versión guardada?",
     "reloadDescription": "Esto reemplaza los cambios locales y el historial de deshacer con el borrador del servidor. Respalda tu borrador primero si quieres conservar los cambios locales.",
     "keepLocalDraft": "Conservar el borrador local",
-    "loadSaved": "Cargar versión guardada"
+    "loadSaved": "Cargar versión guardada",
+    "switchClip": "Cambiar de clip",
+    "clipOf": "de {count}",
+    "more": "Más"
   },
   "shortcuts": {
     "playPause": "Reproducir / pausar",
@@ -278,8 +306,67 @@
     "setIn": "Marcar punto de entrada",
     "setOut": "Marcar punto de salida",
     "split": "Dividir en el cursor",
+    "removeBroll": "Quitar el B-roll seleccionado",
     "undo": "Deshacer",
     "redo": "Rehacer",
-    "save": "Guardar borrador"
+    "save": "Guardar borrador",
+    "aiPrompt": "Editar con IA"
+  },
+  "broll": {
+    "lane": "B-roll",
+    "laneLabel": "Pista de B-roll",
+    "clipLabel": "B-roll {query}, de {start} a {end}",
+    "untitled": "Metraje de archivo",
+    "laneEmpty": "Haz clic para añadir B-roll aquí",
+    "title": "B-roll",
+    "description": "Metraje de archivo sobre el clip mientras la persona sigue hablando. Los subtítulos quedan encima.",
+    "suggest": "Autocompletar",
+    "listLabel": "B-roll de este clip",
+    "empty": "Aún no hay B-roll. Autocompletar elige momentos según lo que se dice, o busca abajo.",
+    "selectedTitle": "B-roll seleccionado",
+    "remove": "Quitar",
+    "credit": "Video de {name} en <link>Pexels</link>",
+    "creditUnknown": "un creador de Pexels",
+    "footageLength": "Duración del metraje {duration}",
+    "start": "Inicio",
+    "end": "Fin",
+    "startSeconds": "Inicio del B-roll, segundos",
+    "endSeconds": "Fin del B-roll, segundos",
+    "footageStart": "El metraje empieza en",
+    "jump": "Ir",
+    "replace": "Reemplazar metraje",
+    "replaceTitle": "Reemplazar metraje",
+    "replaceDescription": "Elige otro metraje. El tiempo se mantiene.",
+    "searchTitle": "Añadir metraje",
+    "searchDescription": "Busca videos de archivo y elige uno para añadirlo en el cabezal ({time}).",
+    "searchPlaceholder": "p. ej. ciudad de noche, café",
+    "searchLabel": "Buscar metraje de archivo",
+    "searchButton": "Buscar",
+    "resultsLabel": "Resultados de metraje",
+    "useResult": "Usar metraje de {credit}",
+    "addResult": "Añadir metraje de {credit} en el cabezal",
+    "more": "Ver más",
+    "noResults": "No hay resultados para «{query}». Prueba una búsqueda más simple y visual.",
+    "attribution": "Metraje de archivo de <link>Pexels</link>.",
+    "searchFailed": "No se pudo buscar metraje.",
+    "noRoom": "Ya hay B-roll en el cabezal. Muévelo a un espacio libre.",
+    "suggested": "{count, plural, one {Se añadió # clip de B-roll} other {Se añadieron # clips de B-roll}}.",
+    "nothingSuggested": "Nada nuevo: ningún otro momento menciona algo filmable.",
+    "suggestFailed": "No se pudo sugerir B-roll.",
+    "unavailable": "El metraje de archivo no está configurado en este servidor, así que no se puede añadir B-roll."
+  },
+  "ai": {
+    "label": "Pedir a la IA que edite este clip",
+    "placeholder": "Edita con IA, p. ej. quita las muletillas",
+    "working": "Editando tu clip…",
+    "send": "Ejecutar",
+    "dismiss": "Cerrar",
+    "undo": "Deshacer",
+    "apply": "Aplicar",
+    "editedMeanwhile": "Editaste el clip mientras la IA trabajaba, así que su cambio aún no se aplicó.",
+    "length": "Ahora {duration} (antes {was})",
+    "timeout": "La IA tardó demasiado. Inténtalo de nuevo.",
+    "failed": "No se pudo contactar con la IA. Inténtalo de nuevo.",
+    "title": "Edición con IA"
   }
 }

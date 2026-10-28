@@ -15,7 +15,7 @@ const backendBaseUrl = `http://127.0.0.1:${backendPort}`;
 
 export default defineConfig({
   testDir: "./e2e",
-  testIgnore: ["polish.spec.ts", "broll.spec.ts", "editor-studio.spec.ts", "local-workflow.spec.ts"],
+  testIgnore: ["polish.spec.ts", "broll.spec.ts", "editor-broll.spec.ts", "editor-ai.spec.ts", "editor-studio.spec.ts", "local-workflow.spec.ts"],
   fullyParallel: false,
   retries: 0,
   // `next dev` compiles each route on first visit, which can outlast the 5s default.

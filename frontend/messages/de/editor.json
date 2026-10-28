@@ -42,6 +42,7 @@
   "tabs": {
     "captions": "Untertitel",
     "framing": "Bildausschnitt",
+    "broll": "B-Roll",
     "audio": "Audio",
     "effects": "Effekte"
   },
@@ -80,7 +81,7 @@
     "applying": "Wird angewendet…",
     "applyAll": "Auf alle Clips anwenden",
     "hookTitle": "Hook-Titel",
-    "hookDescription": "Erscheint oben in den ersten Sekunden. Leer lassen, um ihn zu entfernen.",
+    "hookDescription": "Ziehe die Kanten des Titels in der Zeitleiste, um die Anzeigedauer festzulegen. Leer lassen, um ihn zu entfernen.",
     "hookPlaceholder": "Kein Hook-Titel",
     "transcript": "Transkript",
     "wordCount": "{count} Wörter",
@@ -117,7 +118,10 @@
     "zoom": "Zoom",
     "horizontal": "Horizontale Position",
     "vertical": "Vertikale Position",
-    "center": "Person zentrieren"
+    "center": "Person zentrieren",
+    "landscapeHint": "Dieser Clip enthält breite Bilddetails. Eine Querformatversion zeigt sie gut lesbar, ohne Inhalte abzuschneiden.",
+    "useLandscape": "Querformat verwenden",
+    "autoLayout": "Generiertes Layout"
   },
   "audioPanel": {
     "title": "Audio",
@@ -140,7 +144,7 @@
   "preview": {
     "fontError": "Die Untertitelschrift konnte nicht geladen werden. Prüfe deine Verbindung vor dem Export.",
     "framingHint": "Zieh das Video zum Neuausschnitt · Untertitel bleiben an Ort und Stelle",
-    "captionHint": "Zieh vertikal, um die Untertitel zu positionieren",
+    "captionHint": "Text zum Verschieben ziehen · Ecke zum Skalieren ziehen · zum Bearbeiten klicken",
     "region": "Videovorschau",
     "title": "Vorschau",
     "size": "{width} × {height} · {fps} fps",
@@ -157,7 +161,14 @@
     "nextFrame": "Nächstes Bild",
     "pause": "Pause",
     "play": "Wiedergabe",
-    "muted": "Stumm"
+    "muted": "Stumm",
+    "resizeText": "{layer} skalieren, {corner}",
+    "corners": {
+      "nw": "oben links",
+      "ne": "oben rechts",
+      "sw": "unten links",
+      "se": "unten rechts"
+    }
   },
   "timeline": {
     "region": "Clip-Timeline",
@@ -180,7 +191,21 @@
     "moveEarlier": "Segment nach vorn",
     "moveLater": "Segment nach hinten",
     "duplicate": "Ausgewähltes Segment duplizieren",
-    "remove": "Ausgewähltes Segment entfernen"
+    "remove": "Ausgewähltes Segment entfernen",
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "tracks": {
+      "video": "Video",
+      "broll": "B-Roll",
+      "captions": "Untertitel",
+      "audio": "Audio",
+      "hideCaptions": "Untertitel ausblenden",
+      "showCaptions": "Untertitel einblenden",
+      "mute": "Stumm",
+      "unmute": "Ton an"
+    },
+    "hookStart": "Titelanfang, Sekunden",
+    "hookEnd": "Titelende, Sekunden"
   },
   "export": {
     "exported": "Video exportiert",
@@ -269,7 +294,10 @@
     "reloadTitle": "Die gespeicherte Version laden?",
     "reloadDescription": "Das ersetzt lokale Änderungen und den Rückgängig-Verlauf durch den Server-Entwurf. Sichere deinen Entwurf zuerst, wenn du die lokalen Änderungen behalten willst.",
     "keepLocalDraft": "Lokalen Entwurf behalten",
-    "loadSaved": "Gespeicherte Version laden"
+    "loadSaved": "Gespeicherte Version laden",
+    "switchClip": "Clip wechseln",
+    "clipOf": "von {count}",
+    "more": "Mehr"
   },
   "shortcuts": {
     "playPause": "Wiedergabe / Pause",
@@ -278,8 +306,67 @@
     "setIn": "In-Punkt setzen",
     "setOut": "Out-Punkt setzen",
     "split": "An Abspielposition teilen",
+    "removeBroll": "Ausgewähltes B-Roll entfernen",
     "undo": "Rückgängig",
     "redo": "Wiederholen",
-    "save": "Entwurf speichern"
+    "save": "Entwurf speichern",
+    "aiPrompt": "KI-Bearbeitung"
+  },
+  "broll": {
+    "lane": "B-Roll",
+    "laneLabel": "B-Roll-Spur",
+    "clipLabel": "B-Roll {query}, {start} bis {end}",
+    "untitled": "Stock-Footage",
+    "laneEmpty": "Klicken, um hier B-Roll hinzuzufügen",
+    "title": "B-Roll",
+    "description": "Stock-Footage über dem Clip, während der Sprecher weiterredet. Untertitel bleiben im Vordergrund.",
+    "suggest": "Automatisch",
+    "listLabel": "B-Roll in diesem Clip",
+    "empty": "Noch kein B-Roll. „Automatisch“ wählt Momente anhand des Gesagten, oder suche unten.",
+    "selectedTitle": "Ausgewähltes B-Roll",
+    "remove": "Entfernen",
+    "credit": "Video von {name} auf <link>Pexels</link>",
+    "creditUnknown": "einem Pexels-Creator",
+    "footageLength": "Länge des Footage {duration}",
+    "start": "Start",
+    "end": "Ende",
+    "startSeconds": "B-Roll-Start in Sekunden",
+    "endSeconds": "B-Roll-Ende in Sekunden",
+    "footageStart": "Footage beginnt bei",
+    "jump": "Hinspringen",
+    "replace": "Footage ersetzen",
+    "replaceTitle": "Footage ersetzen",
+    "replaceDescription": "Wähle anderes Footage. Das Timing bleibt gleich.",
+    "searchTitle": "Footage hinzufügen",
+    "searchDescription": "Suche Stock-Videos und wähle eines, um es am Abspielkopf ({time}) einzufügen.",
+    "searchPlaceholder": "z. B. Stadt bei Nacht, Kaffee",
+    "searchLabel": "Stock-Footage suchen",
+    "searchButton": "Suchen",
+    "resultsLabel": "Stock-Footage-Ergebnisse",
+    "useResult": "Footage von {credit} verwenden",
+    "addResult": "Footage von {credit} am Abspielkopf einfügen",
+    "more": "Mehr anzeigen",
+    "noResults": "Nichts gefunden für „{query}“. Versuche eine einfachere, bildhafte Suche.",
+    "attribution": "Stock-Footage von <link>Pexels</link>.",
+    "searchFailed": "Stock-Footage konnte nicht gesucht werden.",
+    "noRoom": "Am Abspielkopf liegt schon B-Roll. Setze den Abspielkopf an eine freie Stelle.",
+    "suggested": "{count, plural, one {# B-Roll-Clip} other {# B-Roll-Clips}} hinzugefügt.",
+    "nothingSuggested": "Nichts Neues: Kein weiterer Moment nennt etwas Filmbares.",
+    "suggestFailed": "B-Roll konnte nicht vorgeschlagen werden.",
+    "unavailable": "Stock-Footage ist auf diesem Server nicht eingerichtet, daher kann kein B-Roll hinzugefügt werden."
+  },
+  "ai": {
+    "label": "KI bitten, diesen Clip zu bearbeiten",
+    "placeholder": "Mit KI bearbeiten, z. B. Füllwörter entfernen",
+    "working": "Dein Clip wird bearbeitet…",
+    "send": "Ausführen",
+    "dismiss": "Schließen",
+    "undo": "Rückgängig",
+    "apply": "Übernehmen",
+    "editedMeanwhile": "Du hast den Clip bearbeitet, während die KI gearbeitet hat. Ihre Änderung wurde daher noch nicht übernommen.",
+    "length": "Jetzt {duration} (vorher {was})",
+    "timeout": "Die KI hat zu lange gebraucht. Versuche es noch einmal.",
+    "failed": "Die KI war nicht erreichbar. Versuche es noch einmal.",
+    "title": "KI-Bearbeitung"
   }
 }

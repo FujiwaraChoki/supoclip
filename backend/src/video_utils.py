@@ -57,6 +57,10 @@ from .media.captions import (
 from .media.reframing import (
     render_reframed_clip_ffmpeg,
 )
+from .media.source_captions import (
+    band_through_full_height_crop,
+    detect_burned_caption_band,
+)
 from .media.speaker_framing import (
     build_clip_speaker_turns,
 )
@@ -70,6 +74,7 @@ from .media.ffmpeg import (
     ffmpeg_escape_filter_value,
     ffprobe_has_audio,
     render_ranges_crossfade_ffmpeg,
+    rendered_clip_duration,
     subtitles_filter_fragment,
 )
 from .media.transcription import (
@@ -404,6 +409,23 @@ def create_optimized_clip(
             if layout_report is not None and caption_y is not None:
                 layout_report["caption_y"] = caption_y
 
+            # Detect source captions in both polarities, then inspect their
+            # actual composed positions for fit, reaction, stack and split layouts.
+            source_caption_band = None
+            if add_subtitles:
+                try:
+                    source_caption_band = detect_burned_caption_band(source_clip_path)
+                    if source_caption_band and reframe_format != "original":
+                        from .media.source_captions import detect_rendered_caption_band
+                        from .media.reframing import caption_probe_plan
+                        probe_filter, probe_mode = caption_probe_plan(source_clip_path, reframe_format, vertical_plan)
+                        source_caption_band = detect_rendered_caption_band(source_clip_path, probe_filter, probe_mode, ffprobe_duration(source_clip_path))
+                except Exception as exc:
+                    logger.warning("Burned-in caption detection failed: %s", exc)
+                    source_caption_band = None
+            if layout_report is not None and source_caption_band is not None:
+                layout_report["source_caption_band"] = source_caption_band
+
             burn_ass_path: Optional[Path] = None
             fonts_dir: Optional[Path] = None
             if (add_subtitles or hook_title) and build_assemblyai_ass_subtitles(
@@ -421,6 +443,8 @@ def create_optimized_clip(
                 hook_title=hook_title,
                 include_captions=add_subtitles,
                 position_y_override=caption_y,
+                avoid_band=source_caption_band,
+                caption_layout_report=layout_report,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
@@ -564,16 +588,19 @@ def create_clips_from_segments(
             )
 
             if success:
-                save_clip_source_ranges(clip_path, keep_ranges)
+                from .media.ffmpeg import output_offsets_for_ranges
+                save_clip_source_ranges(clip_path, keep_ranges, output_offsets_for_ranges(keep_ranges))
                 save_clip_broll(
                     clip_path,
                     segment.get("broll") if layout_report.get("broll_applied") else [],
                 )
                 if layout_report.get("caption_y") is not None:
                     save_clip_caption_settings(
-                        clip_path, {"position_y": layout_report["caption_y"]}
+                        clip_path, {"position_y": layout_report["caption_y"], "position_is_center": True}
                     )
-                cleaned_duration = sum(end - start for start, end in keep_ranges)
+                # Crossfades overlap neighbouring ranges, so the file is
+                # shorter than the kept source; store what actually plays.
+                cleaned_duration = rendered_clip_duration(clip_path, keep_ranges)
                 clip_info = {
                     "clip_id": i + 1,
                     "filename": clip_filename,

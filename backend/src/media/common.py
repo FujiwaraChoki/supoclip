@@ -74,6 +74,14 @@ MAX_RENDERED_CLIP_SECONDS = 60.0
 
 CLIP_END_PADDING_SECONDS = 0.35
 
+# The end padding stops this far before the next spoken word, so a finished
+# sentence never picks up the first syllable of the next one.
+CLIP_END_NEXT_WORD_GUARD_SECONDS = 0.03
+
+# When the duration cap lands mid-sentence, the end may back off this share of
+# the cap (at least 3s) to the previous sentence end instead of cutting mid-thought.
+CLIP_CAP_SENTENCE_BACKOFF_FRACTION = 0.25
+
 CLIP_START_SNAP_WINDOW_SECONDS = 3.0
 
 CLIP_START_LEAD_IN_SECONDS = 0.1
@@ -156,7 +164,27 @@ MIN_LAYOUT_SECONDS = 1.5
 
 LAYOUT_SNAP_WINDOW = 0.6
 
+# Readable fit: while a content shot's detail sits inside part of the width
+# (code in an editor window, a diagram on a plain background), the fitted
+# foreground crops the empty margins and grows instead of staying a 16:9 strip.
+# Zoom steps through FIT_VISIBLE_LEVELS (fraction of the width kept), each zoom
+# holds for at least FIT_ZOOM_HOLD_SECONDS, and a clip uses at most
+# FIT_MAX_ZOOM_LEVELS sizes. FIT_DETAIL_MARGIN_FRAC pads the detail per side.
+FIT_VISIBLE_LEVELS = (0.6, 0.7, 0.8, 0.9)
+
+FIT_DETAIL_MARGIN_FRAC = 0.03
+
+FIT_ZOOM_HOLD_SECONDS = 5.0
+
+FIT_MAX_ZOOM_LEVELS = 3
+
+# Tallest zoomed foreground: clears the hook title above and captions at 0.80.
+FIT_MAX_FOREGROUND_H = 1040
+
 KENBURNS_ZOOM_DELTA = 0.05
+# Vertical point the punch-in zooms toward (0 = top, 1 = bottom): slightly
+# above centre, where faces sit.
+KENBURNS_FOCUS_Y = 0.35
 
 KENBURNS_MIN_SECONDS = 3.0
 

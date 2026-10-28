@@ -1,8 +1,11 @@
 """Authenticated draft, preview and background export endpoints."""
 
+from datetime import datetime, timezone
 from pathlib import Path
 import logging
+import math
 import json
+import os
 import re
 import uuid
 
@@ -47,6 +50,16 @@ async def context(request, db, task_id, clip_id):
     return clip, directory
 
 
+def _clip_broll(clip: dict) -> list:
+    from ...clip_source_map import load_clip_broll
+
+    try:
+        return load_clip_broll(MediaStorage().local_path(clip["file_path"], metadata_only=True))
+    except Exception:
+        logging.getLogger(__name__).warning("Could not read the clip's B-roll", exc_info=True)
+        return []
+
+
 def job_path(directory: Path, job_id: str):
     if not re.fullmatch(r"[a-f0-9]{32}", job_id):
         raise HTTPException(404, "Export not found")
@@ -64,9 +77,15 @@ async def get_editor(
     state = await run_in_thread(read_state, directory)
     if state.get("status") == "ready":
         draft = state["draft"]
-        draft["document"] = upgrade_document(draft["document"], clip, task)
-        state["original"] = upgrade_document(state["original"], clip, task)
+        placements = []
+        if "broll" not in draft["document"] or "broll" not in state["original"]:
+            placements = await run_in_thread(_clip_broll, clip)
+        draft["document"] = upgrade_document(draft["document"], clip, task, placements, state["duration"])
+        state["original"] = upgrade_document(state["original"], clip, task, placements, state["duration"])
         state["captionLooks"] = caption_looks()
+        from ...services.ai_edit_service import ai_editing_configured
+
+        state["aiEditing"] = ai_editing_configured()
     state["basis"] = clip["filename"]
     state["jobs"] = [
         {"id": p.stem[4:], **json.loads(p.read_text())}
@@ -161,7 +180,7 @@ async def media(
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
     _, directory = await context(request, db, task_id, clip_id)
-    if asset not in {"clean.mp4", "thumbnails.jpg"}:
+    if asset not in {"clean.mp4", "layout.mp4", "thumbnails.jpg"}:
         raise HTTPException(404, "Preview not ready")
     storage = MediaStorage()
     try:
@@ -327,13 +346,23 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
         state = read_state(directory)
         if state["status"] != "ready":
             raise HTTPException(409, "Prepare each selected clip before combining")
+        placements = (
+            await run_in_thread(_clip_broll, clip)
+            if "broll" not in state["draft"]["document"] else []
+        )
+        from ...clip_source_map import load_clip_output_offsets
+        source_ranges = await run_in_thread(service._get_clip_source_ranges, clip)
+        source_offsets = load_clip_output_offsets(MediaStorage().local_path(clip["file_path"], metadata_only=True), source_ranges)
         entries.append(
             {
                 "id": clip_id,
                 "filename": clip["filename"],
-                "document": upgrade_document(state["draft"]["document"], clip, task),
+                "document": upgrade_document(
+                    state["draft"]["document"], clip, task, placements, state["duration"]
+                ),
                 "state": {k: state[k] for k in ("width", "height", "hasAudio")},
-                "ranges": await run_in_thread(service._get_clip_source_ranges, clip),
+                "ranges": source_ranges,
+                "source_offsets": source_offsets,
             }
         )
     await db.close()
@@ -371,3 +400,232 @@ async def combine(task_id: str, request: Request, db: AsyncSession = Depends(get
         )
         raise HTTPException(503, "The rendering worker is unavailable")
     return {"id": job_id, "anchor_clip_id": anchor["id"]}
+
+
+def _broll_target(aspect: str, state: dict) -> tuple[str, int]:
+    """Pexels orientation and minimum short side for the draft's output frame."""
+    if aspect == "square":
+        return "square", 1080
+    if aspect == "original":
+        width, height = int(state.get("width") or 0), int(state.get("height") or 0)
+        short_side = min(1080, min(width, height) or 1080)
+        return ("landscape" if width > height else "portrait"), short_side
+    return "portrait", 1080
+
+
+def _require_broll():
+    from ...broll import broll_configured
+
+    if not broll_configured():
+        raise HTTPException(503, "Stock footage isn't configured on this server.")
+
+
+@router.get("/{task_id}/clips/{clip_id}/editor/broll/search")
+async def broll_search(
+    task_id: str,
+    clip_id: str,
+    request: Request,
+    q: str = "",
+    page: int = 1,
+    aspect: str = "vertical",
+    db: AsyncSession = Depends(get_db, scope="function"),
+):
+    """Pexels footage for the B-roll panel, sized for the draft's frame."""
+    from ...broll import search_footage
+
+    _require_broll()
+    query = " ".join(q.split())[:80]
+    if not query:
+        raise HTTPException(400, "Enter something to search for")
+    if not 1 <= page <= 20 or aspect not in {"vertical", "square", "original"}:
+        raise HTTPException(400, "Invalid search")
+    _, directory = await context(request, db, task_id, clip_id)
+    orientation, short_side = _broll_target(aspect, read_state(directory))
+    results = await search_footage(query, orientation, short_side, page)
+    return {"results": results, "provider": "pexels"}
+
+
+@router.post("/{task_id}/clips/{clip_id}/editor/broll/suggest")
+async def broll_suggest(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """AI-picked cutaways for the draft's spoken words, avoiding existing B-roll."""
+    from ...broll import BRollSession, placement_to_editor_clip, plan_clip_broll
+
+    _require_broll()
+    payload = await _read_json_object(request)
+    _, directory = await context(request, db, task_id, clip_id)
+    state = read_state(directory)
+    if state["status"] != "ready":
+        raise HTTPException(409, "Wait for the editor preview to finish preparing")
+    try:
+        document = EditDocument.model_validate(payload.get("document")).validate_duration(state["duration"])
+    except (ValueError, ValidationError) as exc:
+        raise HTTPException(400, str(exc))
+    kept = [s for s in document.segments]
+    words = [
+        {"text": w.text, "start": w.start, "end": w.end}
+        for w in sorted(document.words, key=lambda w: w.start)
+        if any(s.start <= w.start < s.end for s in kept)
+    ]
+    if not words:
+        return {"broll": []}
+    session = BRollSession()
+    session.used_ids.update(b.footage.id for b in document.broll)
+    orientation, short_side = _broll_target(document.framing.aspect, state)
+    placements = await plan_clip_broll(words, state["duration"], orientation, short_side, session)
+    suggestions = []
+    for index, placement in enumerate(placements):
+        clip = placement_to_editor_clip(placement, index, state["duration"])
+        if not clip:
+            continue
+        clip["id"] = uuid.uuid4().hex
+        overlaps = any(
+            clip["start"] < b.end and b.start < clip["end"] for b in document.broll
+        )
+        if not overlaps:
+            suggestions.append(clip)
+    return {"broll": suggestions}
+
+
+@router.get("/{task_id}/clips/{clip_id}/editor/broll/footage/{video_id}/{size}")
+async def broll_footage(
+    task_id: str,
+    clip_id: str,
+    video_id: int,
+    size: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db, scope="function"),
+):
+    """Stream a cached Pexels rendition so the preview can draw it on its canvas."""
+    from ...broll import ensure_footage_file
+
+    match = re.fullmatch(r"(\d{2,5})x(\d{2,5})\.mp4", size)
+    if not match or video_id <= 0:
+        raise HTTPException(404, "Footage not found")
+    service = TaskService(db)
+    await _require_task_owner(request, service, db, task_id)
+    clip = await service.clip_repo.get_clip_by_id(db, clip_id)
+    if not clip or clip["task_id"] != task_id:
+        raise HTTPException(404, "Clip not found")
+    await db.close()
+    path = await ensure_footage_file(
+        {"id": video_id, "width": int(match[1]), "height": int(match[2]), "fileUrl": None}
+    )
+    if path is None:
+        raise HTTPException(404, "Footage not found")
+    return FileResponse(
+        path,
+        media_type="video/mp4",
+        # A rendition never changes; the browser can keep it.
+        headers={"Cache-Control": "private, max-age=86400, immutable"},
+    )
+
+
+AI_EDIT_DAILY_LIMIT = int(os.getenv("AI_EDIT_DAILY_LIMIT", "150"))
+
+
+@router.post("/{task_id}/clips/{clip_id}/editor/ai", status_code=202)
+async def start_ai_edit(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Queue a plain-language edit for the AI worker."""
+    from ...services.ai_edit_service import (
+        AI_EDIT_QUEUE,
+        AI_EDIT_RESULT_TTL_SECONDS,
+        MAX_INSTRUCTION_CHARS,
+        ai_editing_configured,
+        request_key,
+    )
+
+    if not ai_editing_configured():
+        raise HTTPException(503, "AI editing isn't set up on this server.")
+    payload = await _read_json_object(request)
+    task, clip, directory = await owned_context(request, db, task_id, clip_id)
+    state = read_state(directory)
+    if state["status"] != "ready":
+        raise HTTPException(409, "Wait for the editor preview to finish preparing")
+    if payload.get("basis") != clip["filename"]:
+        raise HTTPException(409, "The original clip changed. Reopen the editor.")
+    if not isinstance(payload.get("instruction"), str):
+        raise HTTPException(400, "Describe the change as text")
+    instruction = " ".join(payload["instruction"].split())
+    if not instruction:
+        raise HTTPException(400, "Describe the change you want")
+    if len(instruction) > MAX_INSTRUCTION_CHARS:
+        raise HTTPException(400, f"Keep it under {MAX_INSTRUCTION_CHARS} characters")
+    try:
+        document = EditDocument.model_validate(payload.get("document")).validate_duration(state["duration"])
+    except (ValueError, ValidationError) as exc:
+        raise HTTPException(400, str(exc))
+    playhead = payload.get("playhead")
+    if isinstance(playhead, bool) or not isinstance(playhead, (int, float)):
+        playhead = None
+    elif isinstance(playhead, float) and not math.isfinite(playhead):
+        playhead = None
+    else:
+        # Clamp integers before converting: an arbitrarily large JSON integer
+        # must not overflow float() and turn a harmless cursor hint into a 500.
+        playhead = float(min(state["duration"], max(0, playhead)))
+
+    pool = await JobQueue.get_pool()
+    day = datetime.now(timezone.utc).strftime("%Y%m%d")
+    counter = f"ai_edit:count:{task['user_id']}:{day}"
+    used = await pool.incr(counter)
+    if used == 1:
+        await pool.expire(counter, 2 * 86400)
+    if used > AI_EDIT_DAILY_LIMIT:
+        raise HTTPException(429, "You've reached today's limit for AI edits. It resets tomorrow.")
+
+    job_id = uuid.uuid4().hex
+    try:
+        await pool.set(
+            request_key(job_id),
+            json.dumps(
+                {
+                    "document": document.model_dump(),
+                    "instruction": instruction,
+                    "playhead": playhead,
+                    "duration": state["duration"],
+                    "width": state.get("width"),
+                    "height": state.get("height"),
+                }
+            ),
+            ex=600,
+        )
+        await pool.set(f"ai_edit:owner:{job_id}", f"{task_id}:{clip_id}", ex=AI_EDIT_RESULT_TTL_SECONDS)
+        await JobQueue.enqueue_job("ai_edit_job", job_id, _queue_name=AI_EDIT_QUEUE)
+    except Exception:
+        try:
+            await pool.decr(counter)
+            await pool.delete(request_key(job_id))
+            await pool.delete(f"ai_edit:owner:{job_id}")
+        except Exception:
+            logging.getLogger(__name__).warning("Could not clean up failed AI request %s", job_id, exc_info=True)
+        raise HTTPException(503, "The AI service is unavailable. Your draft is safe.")
+    return {"id": job_id, "status": "queued"}
+
+
+@router.get("/{task_id}/clips/{clip_id}/editor/ai/{job_id}")
+async def ai_edit_status(
+    task_id: str,
+    clip_id: str,
+    job_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db, scope="function"),
+):
+    from ...services.ai_edit_service import result_key
+
+    if not re.fullmatch(r"[a-f0-9]{32}", job_id):
+        raise HTTPException(404, "AI edit not found")
+    service = TaskService(db)
+    await _require_task_owner(request, service, db, task_id)
+    await db.close()
+    pool = await JobQueue.get_pool()
+    owner = await pool.get(f"ai_edit:owner:{job_id}")
+    if (owner.decode() if isinstance(owner, bytes) else owner) != f"{task_id}:{clip_id}":
+        raise HTTPException(404, "AI edit not found")
+    result = await pool.get(result_key(job_id))
+    if not result:
+        return {"id": job_id, "status": "queued"}
+    return {"id": job_id, **json.loads(result)}

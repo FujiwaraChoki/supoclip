@@ -49,8 +49,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [billing] = useBillingSummary(Boolean(session?.user));
-  // The editor needs every pixel — collapse the sidebar to an icon rail there.
-  const compact = /^\/tasks\/[^/]+\/edit/.test(pathname);
+  // The editor is a full-screen workspace with its own back button: no app
+  // chrome there. Elements stay in place (hidden) so children keep their position.
+  const immersive = /^\/tasks\/[^/]+\/edit/.test(pathname);
+  const compact = immersive;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -84,7 +86,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div data-app-shell={user ? "" : undefined} className={cn(user && "flex min-h-dvh bg-canvas")}>
       {user ? <aside
         className={cn(
-          "sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex",
+          "sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar",
+          !immersive && "md:flex",
           compact ? "w-16 items-center px-2" : "w-60 px-3",
         )}
       >
@@ -128,8 +131,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside> : null}
 
-      <div className={cn(user && "flex min-w-0 flex-1 flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0")}>
-        {user ? <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur md:hidden">
+      <div className={cn(user && "flex min-w-0 flex-1 flex-col", user && !immersive && "pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0")}>
+        {user && !immersive ? <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur md:hidden">
           <Link href="/" className="flex items-center gap-2 font-display text-lg font-bold tracking-tight">
             <Image src="/logo.png" alt="" width={22} height={22} className="size-[22px]" />SupoClip
           </Link>
@@ -143,7 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </div>
 
-      {user ? <nav aria-label={t("search.mobileNav")} style={{ gridTemplateColumns: `repeat(${mobileNav.length}, minmax(0, 1fr))` }} className="fixed inset-x-0 bottom-0 z-40 grid border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+      {user && !immersive ? <nav aria-label={t("search.mobileNav")} style={{ gridTemplateColumns: `repeat(${mobileNav.length}, minmax(0, 1fr))` }} className="fixed inset-x-0 bottom-0 z-40 grid border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {mobileNav.map((item) => {
           const active = item.match(pathname);
           return (

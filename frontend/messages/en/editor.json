@@ -42,6 +42,7 @@
   "tabs": {
     "captions": "Captions",
     "framing": "Framing",
+    "broll": "B-roll",
     "audio": "Audio",
     "effects": "Effects"
   },
@@ -80,7 +81,7 @@
     "applying": "Applying…",
     "applyAll": "Apply to all clips",
     "hookTitle": "Hook title",
-    "hookDescription": "Shown at the top for the first few seconds. Leave empty to remove it.",
+    "hookDescription": "Drag the title’s timeline edges to set when it appears. Leave empty to remove it.",
     "hookPlaceholder": "No hook title",
     "transcript": "Transcript",
     "wordCount": "{count} words",
@@ -117,7 +118,10 @@
     "zoom": "Zoom",
     "horizontal": "Horizontal position",
     "vertical": "Vertical position",
-    "center": "Center subject"
+    "center": "Center subject",
+    "landscapeHint": "This clip contains wide detail. A landscape version keeps it readable without cropping content.",
+    "useLandscape": "Use landscape version",
+    "autoLayout": "Generated layout"
   },
   "audioPanel": {
     "title": "Audio",
@@ -140,7 +144,7 @@
   "preview": {
     "fontError": "Caption font could not load. Check your connection before exporting.",
     "framingHint": "Drag the video to reframe · captions stay in place",
-    "captionHint": "Drag vertically to position captions",
+    "captionHint": "Drag text to move · drag a corner to resize · click to edit",
     "region": "Video preview",
     "title": "Preview",
     "size": "{width} × {height} · {fps} fps",
@@ -157,7 +161,14 @@
     "nextFrame": "Next frame",
     "pause": "Pause",
     "play": "Play",
-    "muted": "Muted"
+    "muted": "Muted",
+    "resizeText": "Resize {layer}, {corner}",
+    "corners": {
+      "nw": "top left",
+      "ne": "top right",
+      "sw": "bottom left",
+      "se": "bottom right"
+    }
   },
   "timeline": {
     "region": "Clip timeline",
@@ -180,7 +191,21 @@
     "moveEarlier": "Move segment earlier",
     "moveLater": "Move segment later",
     "duplicate": "Duplicate selected segment",
-    "remove": "Remove selected segment"
+    "remove": "Remove selected segment",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "tracks": {
+      "video": "Video",
+      "broll": "B-roll",
+      "captions": "Captions",
+      "audio": "Audio",
+      "hideCaptions": "Hide captions",
+      "showCaptions": "Show captions",
+      "mute": "Mute",
+      "unmute": "Unmute"
+    },
+    "hookStart": "Title start, seconds",
+    "hookEnd": "Title end, seconds"
   },
   "export": {
     "exported": "Video exported",
@@ -269,7 +294,10 @@
     "reloadTitle": "Load the saved version?",
     "reloadDescription": "This replaces local changes and undo history with the server draft. Back up your draft first if you want to keep your local changes.",
     "keepLocalDraft": "Keep local draft",
-    "loadSaved": "Load saved version"
+    "loadSaved": "Load saved version",
+    "switchClip": "Switch clip",
+    "clipOf": "of {count}",
+    "more": "More"
   },
   "shortcuts": {
     "playPause": "Play / pause",
@@ -278,8 +306,67 @@
     "setIn": "Set in point",
     "setOut": "Set out point",
     "split": "Split at playhead",
+    "removeBroll": "Remove selected B-roll",
     "undo": "Undo",
     "redo": "Redo",
-    "save": "Save draft"
+    "save": "Save draft",
+    "aiPrompt": "Ask AI to edit"
+  },
+  "broll": {
+    "lane": "B-roll",
+    "laneLabel": "B-roll track",
+    "clipLabel": "B-roll {query}, {start} to {end}",
+    "untitled": "Stock footage",
+    "laneEmpty": "Click to add B-roll here",
+    "title": "B-roll",
+    "description": "Stock footage shown over the clip while the speaker keeps talking. Captions stay on top.",
+    "suggest": "Auto-fill",
+    "listLabel": "B-roll in this clip",
+    "empty": "No B-roll yet. Auto-fill picks moments from what's said, or search below.",
+    "selectedTitle": "Selected B-roll",
+    "remove": "Remove",
+    "credit": "Video by {name} on <link>Pexels</link>",
+    "creditUnknown": "a Pexels creator",
+    "footageLength": "Footage length {duration}",
+    "start": "Start",
+    "end": "End",
+    "startSeconds": "B-roll start, seconds",
+    "endSeconds": "B-roll end, seconds",
+    "footageStart": "Footage starts at",
+    "jump": "Jump to",
+    "replace": "Replace footage",
+    "replaceTitle": "Replace footage",
+    "replaceDescription": "Pick footage to use instead. The timing stays the same.",
+    "searchTitle": "Add footage",
+    "searchDescription": "Search stock videos and pick one to add at the playhead ({time}).",
+    "searchPlaceholder": "e.g. city at night, coffee pour",
+    "searchLabel": "Search stock footage",
+    "searchButton": "Search",
+    "resultsLabel": "Stock footage results",
+    "useResult": "Use footage by {credit}",
+    "addResult": "Add footage by {credit} at the playhead",
+    "more": "Show more",
+    "noResults": "Nothing found for “{query}”. Try a simpler, more visual search.",
+    "attribution": "Stock footage from <link>Pexels</link>.",
+    "searchFailed": "Couldn't search stock footage.",
+    "noRoom": "There's B-roll at the playhead already. Move the playhead to a free spot.",
+    "suggested": "Added {count, plural, one {# B-roll clip} other {# B-roll clips}}.",
+    "nothingSuggested": "Nothing new to add: no other moment names something filmable.",
+    "suggestFailed": "Couldn't suggest B-roll.",
+    "unavailable": "Stock footage isn't set up on this server, so B-roll can't be added."
+  },
+  "ai": {
+    "label": "Ask AI to edit this clip",
+    "placeholder": "Edit with AI, e.g. remove the filler words",
+    "working": "Editing your clip…",
+    "send": "Run",
+    "dismiss": "Dismiss",
+    "undo": "Undo",
+    "apply": "Apply",
+    "editedMeanwhile": "You edited the clip while the AI worked, so its change wasn't applied yet.",
+    "length": "Now {duration} (was {was})",
+    "timeout": "The AI took too long. Try again.",
+    "failed": "Couldn't reach the AI. Try again.",
+    "title": "AI edit"
   }
 }

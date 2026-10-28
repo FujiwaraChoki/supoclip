@@ -1,11 +1,16 @@
 import { downloadBlob } from "@/lib/clip-actions";
 import {
+  clamp,
   editDuration,
+  footageKey,
+  footageUrl,
+  mappedBroll,
   outputSize,
+  renderSegments,
   type EditDocument,
   type EditorState,
 } from "./document";
-import { drawEditorFrame, loadEditorFont } from "./render";
+import { drawEditorFrame, loadEditorFont, type BRollLayer } from "./render";
 
 export async function exportDraft(
   url: string,
@@ -15,6 +20,8 @@ export async function exportDraft(
   signal: AbortSignal,
   progress: (value: number) => void,
 ) {
+  // Preserve a continuous dissolve (and frame timestamps) through UI splits.
+  doc = { ...doc, segments: renderSegments(doc.segments) };
   const m = await import("mediabunny");
   const size = outputSize(doc, asset.width, asset.height);
   const bitrate = preset === "reels" ? 12_000_000 : 10_000_000;
@@ -31,7 +38,8 @@ export async function exportDraft(
       "This browser cannot encode this video. Choose background export to render it on the server.",
     );
   await loadEditorFont(doc.captions.font);
-  const response = await fetch(url, { signal });
+  const mediaUrl = asset.hasLayout && doc.framing.fit === "auto" && doc.framing.aspect === "vertical" ? url.replace(/clean\.mp4$/, "layout.mp4") : url;
+  const response = await fetch(mediaUrl, { signal });
   if (!response.ok) throw new Error("Could not load the source video.");
   const input = new m.Input({
     source: new m.BlobSource(await response.blob()),
@@ -50,7 +58,27 @@ export async function exportDraft(
     throw new Error("Canvas is unavailable. Use background export.");
   }
   let finalized = false;
+  // Stock footage is decoded alongside the clip and drawn under the captions.
+  const pieces = mappedBroll(doc);
+  const footage = new Map<string, { input: InstanceType<typeof m.Input>; sink: InstanceType<typeof m.VideoSampleSink> }>();
+  const endpoint = url.replace(/\/media\/clean\.mp4$/, "");
   try {
+    for (const piece of pieces) {
+      const key = footageKey(piece.clip.footage);
+      if (footage.has(key)) continue;
+      const response = await fetch(footageUrl(endpoint, piece.clip.footage), { signal });
+      if (!response.ok) throw new Error("Could not load B-roll footage. Use background export.");
+      const footageInput = new m.Input({
+        source: new m.BlobSource(await response.blob()),
+        formats: m.ALL_FORMATS,
+      });
+      const track = await footageInput.getPrimaryVideoTrack();
+      if (!track || !(await track.canDecode())) {
+        footageInput.dispose();
+        throw new Error("This browser cannot decode the B-roll. Use background export.");
+      }
+      footage.set(key, { input: footageInput, sink: new m.VideoSampleSink(track) });
+    }
     const video = await input.getPrimaryVideoTrack(),
       audio = await input.getPrimaryAudioTrack();
     if (
@@ -83,16 +111,45 @@ export async function exportDraft(
               end = Math.min(segment.end, sample.timestamp + sample.duration);
             if (end <= start) continue;
             const at = cursor + start - segment.start;
-            drawEditorFrame(
-              ctx,
-              doc,
-              sample.displayWidth,
-              sample.displayHeight,
-              at,
-              (rect) =>
-                sample.draw(ctx, rect.x, rect.y, rect.width, rect.height),
-              asset.captionLooks,
-            );
+            const piece = pieces.find((p) => at >= p.start && at < p.end);
+            const brollSample = piece
+              ? await footage
+                  .get(footageKey(piece.clip.footage))
+                  ?.sink.getSample(piece.offset + at - piece.start)
+              : null;
+            let layer: BRollLayer | null = null;
+            if (piece && brollSample) {
+              const fade = piece.fadeDuration;
+              const alpha = clamp(
+                Math.min(
+                  piece.fadeIn && fade > 0 ? (at - piece.start) / fade : 1,
+                  piece.fadeOut && fade > 0 ? (piece.end - at) / fade : 1,
+                ),
+                0,
+                1,
+              );
+              layer = {
+                width: brollSample.displayWidth,
+                height: brollSample.displayHeight,
+                alpha,
+                draw: (x, y, w, h) => brollSample.draw(ctx, x, y, w, h),
+              };
+            }
+            try {
+              drawEditorFrame(
+                ctx,
+                doc,
+                sample.displayWidth,
+                sample.displayHeight,
+                at,
+                (rect) =>
+                  sample.draw(ctx, rect.x, rect.y, rect.width, rect.height),
+                asset.captionLooks,
+                layer,
+              );
+            } finally {
+              brollSample?.close();
+            }
             await videoSource.add(at, end - start);
             progress(
               Math.min(99, Math.round(((at + end - start) / duration) * 100)),
@@ -175,5 +232,6 @@ export async function exportDraft(
   } finally {
     if (!finalized) await output.cancel().catch(() => {});
     input.dispose();
+    for (const { input: footageInput } of footage.values()) footageInput.dispose();
   }
 }

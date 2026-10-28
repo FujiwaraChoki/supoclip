@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 import fcntl
 import hashlib
 import json
@@ -18,6 +18,11 @@ import time
 import uuid
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+BROLL_MIN_SECONDS = 0.2
+BROLL_CONTINUATION_MIN_SECONDS = 0.04
+BROLL_FADE_SECONDS = 0.25
+TIME_EPSILON = 1e-9
 
 
 class Model(BaseModel):
@@ -31,7 +36,7 @@ class Segment(Model):
 
     @model_validator(mode="after")
     def ordered(self):
-        if self.end - self.start < 0.04:
+        if self.end - self.start < 0.04 - TIME_EPSILON:
             raise ValueError("Each segment must be at least one frame long")
         return self
 
@@ -72,7 +77,7 @@ class CaptionStyle(Model):
 
 class Framing(Model):
     aspect: Literal["vertical", "square", "original"] = "vertical"
-    fit: Literal["contain", "cover"] = "cover"
+    fit: Literal["contain", "cover", "auto"] = "cover"
     zoom: float = Field(default=1, ge=1, le=3)
     x: float = Field(default=0.5, ge=0, le=1)
     y: float = Field(default=0.5, ge=0, le=1)
@@ -86,6 +91,71 @@ class Effects(Model):
     hue: float = Field(default=0, ge=-180, le=180)
 
 
+class BRollFootage(Model):
+    """A stock video rendition. Only Pexels' video CDN is ever downloaded."""
+
+    provider: Literal["pexels"] = "pexels"
+    id: int = Field(gt=0)
+    width: int = Field(gt=0, le=8192)
+    height: int = Field(gt=0, le=8192)
+    duration: float = Field(gt=0, le=3600)
+    fileUrl: str = Field(pattern=r"^https://videos\.pexels\.com/[^\s]{1,500}$")
+    pageUrl: str = Field(default="", max_length=500)
+    thumbnail: str = Field(default="", max_length=500)
+    credit: str = Field(default="", max_length=200)
+
+    @property
+    def key(self) -> str:
+        return f"{self.id}/{self.width}x{self.height}"
+
+
+class BRollClip(Model):
+    """Stock footage shown over the clip from ``start`` to ``end`` (clean.mp4 time).
+
+    Like caption words, it lives on the source timeline, so cuts, reorders and
+    duplicated segments carry it along. ``offset`` is where in the footage it begins.
+    """
+
+    id: str = Field(min_length=1, max_length=100)
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+    offset: float = Field(default=0, ge=0, le=3600)
+    query: str = Field(default="", max_length=120)
+    footage: BRollFootage
+    # Combined cuts remain separate footage ranges, without adding dissolves at the join.
+    fadeIn: bool = True
+    fadeOut: bool = True
+    fadeDuration: float | None = Field(default=None, gt=0, le=BROLL_FADE_SECONDS)
+
+    @model_validator(mode="after")
+    def ordered(self):
+        minimum = BROLL_MIN_SECONDS if self.fadeIn and self.fadeOut else BROLL_CONTINUATION_MIN_SECONDS
+        if self.end - self.start < minimum - TIME_EPSILON:
+            raise ValueError(f"B-roll must be at least {minimum} seconds long")
+        return self
+
+
+class HookTiming(Model):
+    start: float = Field(ge=0, le=86400)
+    end: float = Field(gt=0, le=86400)
+
+    @model_validator(mode="after")
+    def ordered(self):
+        if self.end <= self.start:
+            raise ValueError("Title end must follow its start")
+        return self
+
+
+class TextTransform(Model):
+    x: float = Field(default=0, ge=-1, le=1)
+    y: float = Field(default=0, ge=-1, le=1)
+    scale: float = Field(default=1, ge=0.25, le=4)
+
+
+class CaptionTransform(TextTransform):
+    size: float | None = Field(default=None, ge=5, le=528)
+
+
 class EditDocument(Model):
     version: Literal[1] = 1
     segments: list[Segment] = Field(min_length=1, max_length=100)
@@ -97,16 +167,25 @@ class EditDocument(Model):
     muted: bool = False
     # AI headline burned into the top safe area for the first seconds, as generated.
     hookTitle: str = Field(default="", max_length=200)
+    hookTiming: HookTiming | None = None
+    textTransforms: dict[Literal["hook", "captions"], TextTransform] = Field(default_factory=dict)
+    captionTransforms: dict[Annotated[str, Field(max_length=300)], CaptionTransform] = Field(default_factory=dict, max_length=5000)
+    broll: list[BRollClip] = Field(default_factory=list, max_length=60)
 
     def validate_duration(self, duration: float):
         if any(s.end > duration + 0.05 for s in self.segments):
             raise ValueError("An edit extends past the original clip")
         if any(w.end > duration + 0.05 for w in self.words):
             raise ValueError("A caption extends past the original clip")
+        if any(b.end > duration + 0.05 for b in self.broll):
+            raise ValueError("B-roll extends past the original clip")
         if len({s.id for s in self.segments}) != len(self.segments) or len(
             {w.id for w in self.words}
-        ) != len(self.words):
+        ) != len(self.words) or len({b.id for b in self.broll}) != len(self.broll):
             raise ValueError("Editor item IDs must be unique")
+        ordered = sorted(self.broll, key=lambda b: b.start)
+        if any(later.start < earlier.end - 0.01 for earlier, later in zip(ordered, ordered[1:])):
+            raise ValueError("B-roll clips can't overlap")
         return self
 
 
@@ -169,20 +248,82 @@ def output_size(document: EditDocument, width: int, height: int):
 def mapped_words(document: EditDocument):
     result = []
     cursor = 0.0
+    previous_end = None
+    previous_words = {}
     ordered_words = sorted(document.words, key=lambda w: w.start)
     for segment in document.segments:
+        continuous = previous_end is not None and abs(segment.start - previous_end) < 1e-6
+        current_words = {}
         for word in ordered_words:
             start, end = max(segment.start, word.start), min(segment.end, word.end)
             if end > start and word.text.strip():
-                result.append(
+                piece = {
+                    **word.model_dump(),
+                    "start": cursor + start - segment.start,
+                    "end": cursor + end - segment.start,
+                }
+                previous = previous_words.get(word.id) if continuous else None
+                if previous is not None and abs(previous["end"] - piece["start"]) < 1e-6:
+                    previous["end"] = piece["end"]
+                    current_words[word.id] = previous
+                else:
+                    result.append(piece)
+                    current_words[word.id] = piece
+        cursor += segment.end - segment.start
+        previous_end = segment.end
+        previous_words = current_words
+    return result
+
+
+def continuous_segments(segments: list[Segment]) -> list[Segment]:
+    result = []
+    for segment in segments:
+        if result and abs(result[-1].end - segment.start) < TIME_EPSILON:
+            result[-1] = result[-1].model_copy(update={"end": segment.end})
+        else:
+            result.append(segment)
+    return result
+
+
+def caption_key(document: EditDocument, words: list[dict]) -> str:
+    cursor = 0.0
+    segment = document.segments[-1]
+    for segment in continuous_segments(document.segments):
+        cursor += segment.end - segment.start
+        if words[0]["start"] < cursor - TIME_EPSILON:
+            break
+    return json.dumps([segment.id, words[0]["id"]], separators=(",", ":"), ensure_ascii=False)
+
+
+def mapped_broll(document: EditDocument) -> list[dict]:
+    """B-roll pieces on the output timeline, following segments like captions do.
+
+    A clip cut by a segment boundary becomes several pieces; only a piece that
+    starts (or ends) where the clip does fades in (or out), so a cutaway keeps
+    playing across a cut instead of dissolving at it.
+    """
+    pieces = []
+    cursor = 0.0
+    ordered = sorted(document.broll, key=lambda b: b.start)
+    for segment in document.segments:
+        for clip in ordered:
+            start, end = max(segment.start, clip.start), min(segment.end, clip.end)
+            if end - start >= BROLL_CONTINUATION_MIN_SECONDS - TIME_EPSILON:
+                pieces.append(
                     {
-                        **word.model_dump(),
+                        "id": clip.id,
+                        "footage": clip.footage,
+                        "query": clip.query,
                         "start": cursor + start - segment.start,
-                        "end": cursor + end - segment.start,
+                        "duration": end - start,
+                        "offset": clip.offset + start - clip.start,
+                        "fade_in": clip.fadeIn and start - clip.start < 0.02,
+                        "fade_out": clip.fadeOut and clip.end - end < 0.02,
+                        "fade_duration": clip.fadeDuration or min(BROLL_FADE_SECONDS, (clip.end - clip.start) / 3),
                     }
                 )
         cursor += segment.end - segment.start
-    return result
+    return pieces
 
 
 def editor_caption_template(style: CaptionStyle) -> dict:
@@ -218,7 +359,19 @@ def write_ass(path: Path, document: EditDocument, width: int, height: int):
 
     style = document.captions
     words = mapped_words(document) if style.enabled else []
-    font_px = max(1, round(style.size * width / 1080))
+    caption_transform = document.textTransforms.get("captions", TextTransform())
+    hook_transform = document.textTransforms.get("hook", TextTransform())
+    original_font_px = max(1, round(style.size * width / 1080))
+    font_px = max(1, round(style.size * width * caption_transform.scale / 1080))
+    placements = []
+    for index in range(0, len(words), style.wordsPerLine):
+        group = words[index:index + style.wordsPerLine]
+        placement = document.captionTransforms.get(caption_key(document, group))
+        placements.append(None if placement is None else {
+            "font_px": max(1, round((placement.size if placement.size is not None else style.size) * width * placement.scale / 1080)),
+            "x": round((0.5 + placement.x) * width),
+            "y": round((style.y + placement.y) * height),
+        })
     written = build_assemblyai_ass_subtitles(
         path,
         0,
@@ -232,11 +385,18 @@ def write_ass(path: Path, document: EditDocument, width: int, height: int):
         template_override=editor_caption_template(style),
         font_px_override=font_px,
         # The editor's position is the caption centre, already kept in range.
-        center_y_override=round(style.y * height),
+        center_y_override=round((style.y + caption_transform.y) * height),
+        center_x_override=round((0.5 + caption_transform.x) * width),
+        hook_editor_style={
+            **hook_transform.model_dump(),
+            "base_px": max(34, min(66, int(original_font_px * 0.82))),
+            **(document.hookTiming.model_dump() if document.hookTiming else {}),
+        },
         # Highlights are per occurrence and already include the generated emphasis.
         emphasis_indices=[i for i, w in enumerate(words) if w["highlight"]],
         wrap_lines=True,
         hook_title=document.hookTitle.strip() or None,
+        caption_placements=placements,
     )
     if not written:
         # Nothing to show (no captions or hook title): keep ffmpeg's ass filter valid.
@@ -300,11 +460,25 @@ def run_render(command: list[str], directory: Path, job_id: str, duration: float
             log_path.unlink(missing_ok=True)
 
 
-def render_document(directory: Path, job_id: str, document: EditDocument, preset: str):
+def render_document(
+    directory: Path,
+    job_id: str,
+    document: EditDocument,
+    preset: str,
+    broll_files: dict[str, Path] | None = None,
+):
+    """Render a draft. ``broll_files`` maps footage keys to local files; B-roll
+    whose footage is missing is left out rather than failing the export."""
     from .clip_editor import _ffprobe_size, _escape_filter_path
+    from .media.broll_overlay import broll_input_args, broll_overlay_graph, normalize_broll_overlays
     from .video_utils import ass_fonts_dir
 
-    source = directory / "clean.mp4"
+    # A split without a source-time jump is one continuous picture. Render it
+    # as such so a split inside a dissolve cannot reset its opacity or discard
+    # a sub-frame B-roll fragment. Keep the editable draft and its IDs intact.
+    document = document.model_copy(update={"segments": continuous_segments(document.segments)})
+
+    source = directory / ("layout.mp4" if document.framing.fit == "auto" and document.framing.aspect == "vertical" and (directory / "layout.mp4").exists() else "clean.mp4")
     sw, sh = _ffprobe_size(source)
     width, height = output_size(document, sw, sh)
     framing, fx = document.framing, document.effects
@@ -358,9 +532,28 @@ def render_document(directory: Path, job_id: str, document: EditDocument, preset
     ass = directory / f"captions-{job_id}.ass"
     write_ass(ass, document, width, height)
     fonts = ass_fonts_dir(document.captions.font)
-    filters.append(
-        f"[video]{geometry},{effects},ass={_escape_filter_path(ass)}:fontsdir={_escape_filter_path(fonts or Path('fonts'))}[outv]"
+    subtitles = f"ass={_escape_filter_path(ass)}:fontsdir={_escape_filter_path(fonts or Path('fonts'))}"
+    total = sum(s.end - s.start for s in document.segments)
+    overlays = normalize_broll_overlays(
+        [
+            {**piece, "path": broll_files[piece["footage"].key]}
+            for piece in mapped_broll(document)
+            if broll_files and piece["footage"].key in broll_files
+        ],
+        total,
+        min_duration=BROLL_MIN_SECONDS,
     )
+    if overlays:
+        # Footage fills the output frame over the framed, graded picture and
+        # under the captions, as in the preview.
+        filters.append(f"[video]{geometry},{effects}[framed]")
+        graph, label = broll_overlay_graph("[framed]", overlays, width, height)
+        filters.append(graph)
+        filters.append(f"{label}{subtitles}[outv]")
+    else:
+        filters.append(f"[video]{geometry},{effects},{subtitles}[outv]")
+    # Mixed source/stock frame rates must not make ffmpeg duplicate tail frames.
+    filters.append("[outv]fps=30[finalv]")
     if audio:
         filters.append(
             f"[audio]volume={0 if document.muted else document.volume}[outa]"
@@ -372,10 +565,11 @@ def render_document(directory: Path, job_id: str, document: EditDocument, preset
         "-y",
         "-i",
         str(source),
+        *broll_input_args(overlays),
         "-filter_complex",
         ";".join(filters),
         "-map",
-        "[outv]",
+        "[finalv]",
     ]
     if audio:
         command += ["-map", "[outa]", "-c:a", "aac", "-b:a", "192k"]
@@ -394,6 +588,8 @@ def render_document(directory: Path, job_id: str, document: EditDocument, preset
         "yuv420p",
         "-movflags",
         "+faststart",
+        "-t",
+        f"{total:.6f}",
         str(temporary),
     ]
     try:
