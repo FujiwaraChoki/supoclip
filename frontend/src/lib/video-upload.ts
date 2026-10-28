@@ -1,4 +1,5 @@
 import { parseApiError, formatSupportMessage } from "@/lib/api-error";
+import { isYouTubeHost, youtubeVideoId } from "@/lib/youtube-url";
 
 /** Default upload cap: 4 GB. Matches the backend MAX_VIDEO_UPLOAD_BYTES default. */
 export const DEFAULT_MAX_VIDEO_UPLOAD_BYTES = 4_000_000_000;
@@ -37,7 +38,7 @@ export function validateVideoSourceUrl(value: string): { source?: SupportedVideo
   let parsed: URL; try { parsed = new URL(value.trim()); } catch { return { error: "Enter a valid YouTube, Twitch VOD/clip, or Kick VOD/clip URL." }; }
   if (!["http:", "https:"].includes(parsed.protocol)) return { error: "Enter a valid video URL." };
   const host = parsed.hostname.toLowerCase().replace(/^www\./, ""), path = parsed.pathname.replace(/\/$/, "");
-  if (["youtu.be", "youtube.com", "m.youtube.com", "music.youtube.com"].includes(host)) return extractYouTubeVideoId(value) ? { source: "youtube" } : { error: "Enter a valid YouTube video URL." };
+  if (isYouTubeHost(host)) return youtubeVideoId(value) ? { source: "youtube" } : { error: "Enter a valid YouTube video URL." };
   if (host === "clips.twitch.tv" && /^\/[A-Za-z0-9_-]+$/.test(path)) return { source: "twitch" };
   if (["twitch.tv", "m.twitch.tv", "go.twitch.tv"].includes(host)) {
     if (/^\/videos\/\d+$/.test(path) || /^\/[A-Za-z0-9_]+\/clip\/[A-Za-z0-9_-]+$/.test(path)) return { source: "twitch" };
@@ -77,40 +78,8 @@ type S3UploadAuthorization = {
 
 type UploadAuthorization = DirectUploadAuthorization | ProxyUploadAuthorization | S3UploadAuthorization;
 
-const extractYouTubeVideoId = (value: string): string | null => {
-  const input = value.trim();
-  if (!input) return null;
-
-  try {
-    const parsed = new URL(input);
-    const host = parsed.hostname.replace(/^www\./, "");
-
-    if (host === "youtu.be") {
-      const id = parsed.pathname.split("/").filter(Boolean)[0];
-      return id && id.length === 11 ? id : null;
-    }
-
-    if (host === "youtube.com" || host === "m.youtube.com" || host === "music.youtube.com") {
-      const fromSearch = parsed.searchParams.get("v");
-      if (fromSearch && fromSearch.length === 11) {
-        return fromSearch;
-      }
-
-      const pathParts = parsed.pathname.split("/").filter(Boolean);
-      const embedId = pathParts[0] === "embed" ? pathParts[1] : null;
-      if (embedId && embedId.length === 11) {
-        return embedId;
-      }
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-};
-
 export const getYouTubeThumbnailUrl = (value: string): string | null => {
-  const videoId = extractYouTubeVideoId(value);
+  const videoId = youtubeVideoId(value);
   return videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null;
 };
 

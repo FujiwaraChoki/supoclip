@@ -234,47 +234,60 @@ def _remove_cached_downloads(temp_dir: Path, video_id: str) -> None:
             logger.warning("Failed to remove stale cache file %s: %s", cached_file, exc)
 
 
+_YOUTUBE_ID = re.compile(r"[A-Za-z0-9_-]{11}")
+_YOUTUBE_PATH_MARKERS = {"embed", "shorts", "live", "v"}
+
+
+def _is_youtube_host(host: str) -> bool:
+    host = host.lower().removeprefix("www.")
+    return (
+        host in {"youtu.be", "youtube.com", "youtube-nocookie.com"}
+        or host.endswith(".youtube.com")
+        or host.endswith(".youtube-nocookie.com")
+    )
+
+
 def get_youtube_video_id(url: str) -> Optional[str]:
     """
-    Extract YouTube video ID from various URL formats.
-    Supports standard, short, embed, and mobile URLs.
+    Extract the 11-character video id from a YouTube link.
+
+    Mirrors ``frontend/src/lib/youtube-url.ts``: watch (``v=`` anywhere in the
+    query), youtu.be share, shorts, live, embed and ``/v/`` paths on
+    youtube.com, its subdomains (www, m, music) and youtube-nocookie.com.
+    Only the host decides, so a YouTube link inside another site's query
+    string is not a YouTube source.
     """
     if not isinstance(url, str) or not url.strip():
         return None
 
     url = url.strip()
-
-    # Comprehensive regex patterns for different YouTube URL formats
-    patterns = [
-        r"(?:youtube\.com/(?:.*v=|v/|embed/|shorts/)|youtu\.be/)([A-Za-z0-9_-]{11})",
-        r"youtube\.com/watch\?v=([A-Za-z0-9_-]{11})",
-        r"youtube\.com/embed/([A-Za-z0-9_-]{11})",
-        r"youtube\.com/v/([A-Za-z0-9_-]{11})",
-        r"youtu\.be/([A-Za-z0-9_-]{11})",
-        r"youtube\.com/shorts/([A-Za-z0-9_-]{11})",
-        r"m\.youtube\.com/watch\?v=([A-Za-z0-9_-]{11})",
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, url, re.IGNORECASE)
-        if match:
-            video_id = match.group(1)
-            # Validate video ID length (YouTube IDs are always 11 characters)
-            if len(video_id) == 11:
-                return video_id
-
-    # Fallback: parse query parameters
+    if "://" not in url:
+        url = f"https://{url}"
     try:
-        parsed_url = urlparse(url)
-        if "youtube.com" in parsed_url.netloc.lower():
-            query = parse_qs(parsed_url.query)
-            video_ids = query.get("v")
-            if video_ids and len(video_ids[0]) == 11:
-                return video_ids[0]
-    except Exception as e:
-        logger.warning(f"Error parsing URL query parameters: {e}")
+        parsed = urlparse(url)
+        host = parsed.hostname or ""
+    except ValueError:
+        return None
+    if parsed.scheme.lower() not in {"http", "https"} or not _is_youtube_host(host):
+        return None
 
-    return None
+    parts = [part for part in parsed.path.split("/") if part]
+    if host.lower().removeprefix("www.") == "youtu.be":
+        candidate = parts[0] if parts else None
+    else:
+        candidate = next(
+            (value for value in parse_qs(parsed.query).get("v", []) if _YOUTUBE_ID.fullmatch(value)),
+            None,
+        )
+        if not candidate and len(parts) >= 2 and parts[0].lower() in _YOUTUBE_PATH_MARKERS:
+            candidate = parts[1]
+    return candidate if candidate and _YOUTUBE_ID.fullmatch(candidate) else None
+
+
+def canonical_youtube_url(url: str) -> Optional[str]:
+    """``https://www.youtube.com/watch?v=ID`` for any supported YouTube link, else None."""
+    video_id = get_youtube_video_id(url)
+    return f"https://www.youtube.com/watch?v={video_id}" if video_id else None
 
 
 def validate_youtube_url(url: str) -> bool:

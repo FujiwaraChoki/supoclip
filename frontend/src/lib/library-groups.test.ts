@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GenerationSummary } from "./generations";
-import { groupByOriginalVideo, originalFileName, originalVideoKey, youtubeVideoId } from "./library-groups";
+import { groupByOriginalVideo, originalFileName, originalVideoKey } from "./library-groups";
 
 function generation(overrides: Partial<GenerationSummary> & Pick<GenerationSummary, "id" | "created_at">): GenerationSummary {
   return {
@@ -14,22 +14,6 @@ function generation(overrides: Partial<GenerationSummary> & Pick<GenerationSumma
     ...overrides,
   };
 }
-
-describe("youtubeVideoId", () => {
-  it("reads the same id from watch, share, shorts, and embed urls", () => {
-    const id = "dQw4w9WgXcQ";
-    expect(youtubeVideoId(`https://www.youtube.com/watch?v=${id}&t=30`)).toBe(id);
-    expect(youtubeVideoId(`https://youtu.be/${id}`)).toBe(id);
-    expect(youtubeVideoId(`https://www.youtube.com/shorts/${id}`)).toBe(id);
-    expect(youtubeVideoId(`https://www.youtube.com/embed/${id}`)).toBe(id);
-    expect(youtubeVideoId(`https://m.youtube.com/live/${id}`)).toBe(id);
-  });
-
-  it("ignores non-youtube urls", () => {
-    expect(youtubeVideoId("upload://s3/owner/file.mp4")).toBeNull();
-    expect(youtubeVideoId("https://example.com/watch?v=dQw4w9WgXcQ")).toBeNull();
-  });
-});
 
 describe("groupByOriginalVideo", () => {
   const video = "dQw4w9WgXcQ";

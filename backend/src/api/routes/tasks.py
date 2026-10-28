@@ -34,7 +34,7 @@ from ...auth_headers import resolve_authenticated_user_id
 from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import get_config
-from ...youtube_utils import async_get_youtube_video_info
+from ...youtube_utils import async_get_youtube_video_info, canonical_youtube_url
 from ...stream_source import (
     PREFLIGHT_DEADLINE_SECONDS as STREAM_PREFLIGHT_DEADLINE_SECONDS,
     StreamSourceError,
@@ -486,6 +486,10 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             if not str(raw_source["url"]).strip().lower().startswith(("http://", "https://")):
                 raise
             raise HTTPException(status_code=422, detail=str(exc)) from None
+        if source_type == "youtube":
+            # Shorts, live, share and embed links all become watch?v=ID, so the
+            # stored source, downloads and caches see one form per video.
+            raw_source["url"] = canonical_youtube_url(raw_source["url"]) or raw_source["url"]
         source_title = raw_source.get("title")
         stream_metadata: Dict[str, Any] | None = None
         if source_type == "youtube":
