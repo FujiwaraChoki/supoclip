@@ -466,6 +466,159 @@ describe("/api/billing/webhook", () => {
     );
   });
 
+  describe("scheduled cancellation emails", () => {
+    function mockCancellationUpdate(
+      changes: Record<string, unknown> = {},
+      previousAttributes: Record<string, unknown> = {
+        cancel_at_period_end: false,
+        cancel_at: null,
+      },
+    ) {
+      const createEvent = vi.fn().mockResolvedValue({});
+      const deleteEvent = vi.fn().mockResolvedValue({});
+      const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+      const findFirst = vi.fn().mockResolvedValue({
+        id: "user-1",
+        plan: "pro",
+        subscription_provider: "stripe",
+        subscription_status: "active",
+      });
+      vi.mocked(getPrismaClient).mockReturnValue({
+        stripeWebhookEvent: { create: createEvent, delete: deleteEvent },
+        user: { updateMany, findFirst },
+      } as never);
+      const subscription = {
+        id: "sub_123",
+        customer: "cus_123",
+        status: "active",
+        cancel_at_period_end: true,
+        cancel_at: 1772592000,
+        trial_end: null,
+        items: {
+          data: [{
+            price: { id: "price_pro" },
+            current_period_start: 1770000000,
+            current_period_end: 1772592000,
+          }],
+        },
+        ...changes,
+      };
+      const retrieveSubscription = vi.fn().mockResolvedValue(subscription);
+      vi.mocked(getServerStripeClient).mockReturnValue({
+        webhooks: {
+          constructEvent: vi.fn().mockReturnValue({
+            id: "evt_scheduled_cancellation",
+            type: "customer.subscription.updated",
+            data: { previous_attributes: previousAttributes, object: subscription },
+          }),
+        },
+        subscriptions: { retrieve: retrieveSubscription },
+      } as never);
+      vi.mocked(fetchBackend).mockResolvedValue(new Response("{}", { status: 200 }));
+      const deliver = () => POST(new Request("http://localhost/api/billing/webhook", {
+        method: "POST",
+        headers: { "stripe-signature": "sig" },
+        body: "{}",
+      }));
+      return { deliver, createEvent, deleteEvent, updateMany, findFirst, retrieveSubscription };
+    }
+
+    it.each([
+      { cancel_at_period_end: true, cancel_at: 1772592000 },
+      { cancel_at_period_end: true, cancel_at: null },
+      { cancel_at_period_end: false, cancel_at: 1772592000 },
+    ])("emails immediately when cancellation is newly scheduled: %j", async (changes) => {
+      const { deliver, updateMany, findFirst } = mockCancellationUpdate(changes);
+
+      expect((await deliver()).status).toBe(200);
+
+      expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ plan: "pro", subscription_status: "active" }),
+      }));
+      expect(findFirst).toHaveBeenLastCalledWith({
+        where: {
+          stripe_customer_id: "cus_123",
+          stripe_subscription_id: "sub_123",
+          subscription_provider: "stripe",
+          subscription_cancel_at: { not: null },
+        },
+        select: { id: true },
+      });
+      expect(fetchBackend).toHaveBeenCalledExactlyOnceWith("/billing/subscription-email", expect.objectContaining({
+        userId: "user-1",
+        body: JSON.stringify({ event: "cancellation_scheduled" }),
+      }));
+      expect(updateMany.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(fetchBackend).mock.invocationCallOrder[0]);
+    });
+
+    it.each([
+      { changes: { cancel_at_period_end: false, cancel_at: null }, previous: { cancel_at_period_end: true, cancel_at: 1772592000 } },
+      { changes: {}, previous: { metadata: {} } },
+      { changes: {}, previous: {} },
+      { changes: {}, previous: { cancel_at: 1772500000 } },
+      { changes: {}, previous: { cancel_at_period_end: false } },
+      { changes: { status: "canceled" }, previous: { cancel_at_period_end: false, cancel_at: null } },
+    ])("does not email for a resumed, existing, rescheduled, or ended cancellation: %j", async ({ changes, previous }) => {
+      const { deliver } = mockCancellationUpdate(changes, previous);
+
+      expect((await deliver()).status).toBe(200);
+      expect(fetchBackend).not.toHaveBeenCalled();
+    });
+
+    it("does not email when the user no longer owns this Stripe subscription", async () => {
+      const { deliver, findFirst } = mockCancellationUpdate();
+      findFirst.mockResolvedValueOnce({ plan: "pro" }).mockResolvedValueOnce(null);
+
+      expect((await deliver()).status).toBe(200);
+      expect(fetchBackend).not.toHaveBeenCalled();
+    });
+
+    it("does not resend a successfully processed event", async () => {
+      const { deliver, createEvent } = mockCancellationUpdate();
+
+      expect((await deliver()).status).toBe(200);
+      createEvent.mockRejectedValueOnce({ code: "P2002" });
+      expect((await deliver()).status).toBe(200);
+      expect(fetchBackend).toHaveBeenCalledTimes(1);
+    });
+
+    it("allows Stripe to retry if the email service fails after the state is synced", async () => {
+      const { deliver, deleteEvent } = mockCancellationUpdate();
+      vi.mocked(fetchBackend).mockResolvedValueOnce(new Response("SES unavailable", { status: 503 }));
+
+      await expect(deliver()).rejects.toThrow("Backend subscription email failed with 503");
+      expect(deleteEvent).toHaveBeenCalledWith({ where: { id: "evt_scheduled_cancellation" } });
+      expect((await deliver()).status).toBe(200);
+      expect(fetchBackend).toHaveBeenCalledTimes(2);
+    });
+
+    it("syncs the live subscription and skips the email when a retry arrives after a resume", async () => {
+      const { deliver, updateMany, retrieveSubscription } = mockCancellationUpdate();
+      retrieveSubscription.mockResolvedValueOnce({
+        id: "sub_123",
+        customer: "cus_123",
+        status: "active",
+        cancel_at_period_end: false,
+        cancel_at: null,
+        trial_end: null,
+        items: {
+          data: [{
+            price: { id: "price_pro" },
+            current_period_start: 1770000000,
+            current_period_end: 1772592000,
+          }],
+        },
+      });
+
+      expect((await deliver()).status).toBe(200);
+      expect(retrieveSubscription).toHaveBeenCalledWith("sub_123");
+      expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ subscription_cancel_at: null }),
+      }));
+      expect(fetchBackend).not.toHaveBeenCalled();
+    });
+  });
+
   it("scopes non-paid subscription updates so they cannot clobber an Apple entitlement", async () => {
     const updateMany = vi.fn().mockResolvedValue({ count: 0 });
     const stripe = {

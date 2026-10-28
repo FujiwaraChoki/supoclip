@@ -45,6 +45,7 @@
   "disableShare": "Nonaktifkan tautan berbagi",
   "openEditor": "Buka editor",
   "deleteGeneration": "Hapus generasi",
+  "moreActions": "Tindakan lainnya",
   "reconnectingOwn": "Menyambung ulang ke pembaruan langsung. Videomu masih diproses.",
   "reconnectingOther": "Menyambung ulang ke pembaruan langsung. Generasi ini masih diproses.",
   "cancelledTitle": "Generasi dibatalkan",
@@ -118,10 +119,15 @@
     "finding": "Mencari momen",
     "rendering": "Merender clip"
   },
-  "waiting": "Menunggu di antrean",
-  "processing": "Memproses",
-  "clipsReady": "{count, plural, one {# clip sudah siap di bawah — masih ada yang menyusul.} other {# clip sudah siap di bawah — masih ada yang menyusul.}}",
-  "grabCoffee": "Sambil ngopi dulu — clip muncul di sini begitu selesai di-render.",
+  "eta": {
+    "queued": "Menunggu worker",
+    "estimating": "Memperkirakan sisa waktu…",
+    "underMinute": "Kurang dari satu menit lagi",
+    "minutes": "Sekitar {count} menit lagi"
+  },
+  "clipOf": "Clip {current} dari {total}",
+  "leavePage": "Kamu boleh meninggalkan halaman ini — clip-mu akan menunggu di pustaka.",
+  "sourceLength": "Video sumber {duration}",
   "percentComplete": "{progress}% selesai",
   "transcript": {
     "heading": "Transkrip",

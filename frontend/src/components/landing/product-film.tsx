@@ -11,7 +11,7 @@ import {
 import Image from "next/image";
 
 import { ClipCover, ScoreRing } from "@/components/app/clip-cover";
-import { ProcessingPanel } from "@/components/app/clip-wall";
+import { ProcessingPanel, ProcessingSlots } from "@/components/app/clip-wall";
 import { StatusBadge } from "@/components/app/status-badge";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
 import { Button } from "@/components/ui/button";
@@ -311,9 +311,9 @@ function TaskScene({ frame }: { frame: Frame }) {
       <span className="inline-flex items-center gap-1 text-sm text-muted-foreground"><ArrowLeft className="size-3.5" />{t("back")}</span>
       <header className="mt-3 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className={cn("min-w-0 font-display text-3xl font-bold tracking-tight", !frame.complete && "shimmer")}>{DEMO_SOURCE.title}</h1>
+          <h1 className={cn("min-w-0 font-display text-3xl font-bold tracking-tight", !frame.complete && "title-sheen")}>{DEMO_SOURCE.title}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
-            <StatusBadge status={status} />
+            {frame.complete && <StatusBadge status={status} />}
             <span className="flex items-center gap-1.5"><VideoSourceIcon source="youtube" className="size-3.5" aria-hidden />YouTube</span>
             <span className="flex items-center gap-1.5"><Clock className="size-3.5" />{new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(0, "minute")}</span>
             {frame.complete && <span className="tabular-nums">{t("clipsTotal", { count: 2, duration: formatClipDuration(total) })}</span>}
@@ -359,12 +359,12 @@ function TaskScene({ frame }: { frame: Frame }) {
           </motion.div>
         ) : (
           <div className="space-y-8">
-            <ProcessingPanel status="processing" progress={frame.progress} message={message} readyCount={frame.ready} />
-            {frame.ready > 0 && (
-              <div className="grid grid-cols-5 gap-x-4 gap-y-6">
-                {Array.from({ length: frame.ready }, (_, i) => <FilmTile key={i} index={i} />)}
-              </div>
-            )}
+            <ProcessingPanel status="processing" progress={frame.progress} message={message}
+              elapsedSeconds={frame.progress * 2.4}
+              clipProgress={frame.progress >= 65 ? { current: Math.min(frame.ready + 1, 2), total: 2 } : null} />
+            <ProcessingSlots status="processing" progress={frame.progress} message={message} total={2} className="grid-cols-5 sm:grid-cols-5 lg:grid-cols-5">
+              {Array.from({ length: frame.ready }, (_, i) => <FilmTile key={i} index={i} />)}
+            </ProcessingSlots>
           </div>
         )}
       </div>

@@ -49,6 +49,7 @@ import {
   ExternalLink,
   Link2Off,
   Loader2,
+  MoreHorizontal,
   PauseCircle,
   RotateCcw,
   Settings2,
@@ -57,10 +58,11 @@ import {
   X,
 } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
-import { ClipTile, ClipFocus, ProcessingPanel, EmptyState } from "@/components/app/clip-wall";
+import { ClipTile, ClipFocus, ProcessingPanel, ProcessingSlots, EmptyState, clipProgressFromMessage, expectedClipCount } from "@/components/app/clip-wall";
 import { intlLocale } from "@/i18n/config";
-import { timeAgo } from "@/lib/generations";
+import { timeAgoLabel } from "@/lib/generations";
 import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind, type VideoSourceKind } from "@/components/video-source-icon";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
@@ -106,6 +108,7 @@ interface TaskDetails {
   progress?: number;
   progress_message?: string;
   clips_count: number;
+  source_duration_seconds?: number | null;
   created_at: string;
   updated_at: string;
   font_family?: string | null;
@@ -648,6 +651,7 @@ export default function TaskPage() {
 
   const readOnly = Boolean(session?.user?.id && task?.user_id && session.user.id !== task.user_id);
   const sourceVideoUrl = task ? originalVideoUrl(task) : null;
+  const hasClips = task?.status === "completed" && clips.length > 0;
   const isActive = task?.status === "processing" || task?.status === "queued";
   const sortedClips = sortBy === "score"
     ? [...clips].sort((a, b) => (b.virality_score ?? 0) - (a.virality_score ?? 0) || a.clip_order - b.clip_order)
@@ -677,15 +681,15 @@ export default function TaskPage() {
       </Link>
 
       {task && (
-        <header className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 flex-1">
+        <header className="mt-3 flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
+          <div className="min-w-0 flex-[1_1_32rem]">
             {isEditing ? (
               <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); void handleEditTitle(); }}>
                 <Input
                   value={editedTitle}
                   onChange={(e) => setEditedTitle(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Escape") { setIsEditing(false); setEditedTitle(task.source_title); } }}
-                  className="h-auto py-1 font-display text-2xl font-bold md:text-3xl"
+                  className="h-auto py-1 font-display text-xl font-bold md:text-2xl"
                   aria-label={t("titleLabel")}
                   autoFocus
                 />
@@ -694,7 +698,7 @@ export default function TaskPage() {
               </form>
             ) : (
               <div className="group flex items-start gap-2">
-                <h1 className={cn("min-w-0 break-words font-display text-2xl font-bold tracking-tight md:text-3xl", isActive && "shimmer")}>{task.source_title}</h1>
+                <h1 className={cn("min-w-0 break-words font-display text-xl font-bold tracking-tight md:text-2xl", isActive && "title-sheen")}>{task.source_title}</h1>
                 {!readOnly && (
                   <Button size="icon-sm" variant="ghost" aria-label={t("editTitle")} className="mt-0.5 shrink-0 text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                     onClick={() => { setIsEditing(true); setEditedTitle(task.source_title); }}>
@@ -704,30 +708,30 @@ export default function TaskPage() {
               </div>
             )}
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
-              <StatusBadge status={task.status} />
-              <span className="flex items-center gap-1.5"><VideoSourceIcon source={videoSourceKind(task.source_type)} className="size-3.5" aria-hidden />{sourceLabel(videoSourceKind(task.source_type), tLibrary("card.upload"))}</span>
+              {!isActive && <StatusBadge status={task.status} />}
+              {sourceVideoUrl ? (
+                <a href={sourceVideoUrl} target="_blank" rel="noopener noreferrer" title={t("originalVideo")} className="flex items-center gap-1.5 hover:text-foreground">
+                  <VideoSourceIcon source={videoSourceKind(task.source_type)} className="size-3.5" aria-hidden />{sourceLabel(videoSourceKind(task.source_type), tLibrary("card.upload"))}<ExternalLink className="size-3" aria-hidden />
+                </a>
+              ) : (
+                <span className="flex items-center gap-1.5"><VideoSourceIcon source={videoSourceKind(task.source_type)} className="size-3.5" aria-hidden />{sourceLabel(videoSourceKind(task.source_type), tLibrary("card.upload"))}</span>
+              )}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="flex cursor-default items-center gap-1.5"><Clock className="size-3.5" />{timeAgo(task.created_at, locale)}</span>
+                  <span className="flex cursor-default items-center gap-1.5"><Clock className="size-3.5" />{timeAgoLabel(task.created_at, locale)}</span>
                 </TooltipTrigger>
                 <TooltipContent>
                   {new Date(task.created_at).toLocaleString(intlLocale(locale), { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}
                 </TooltipContent>
               </Tooltip>
+              {isActive && task.source_duration_seconds ? <span className="tabular-nums">{t("sourceLength", { duration: formatDuration(task.source_duration_seconds) })}</span> : null}
               {clips.length > 0 && <span className="tabular-nums">{t("clipsTotal", { count: clips.length, duration: formatDuration(totalSeconds) })}</span>}
               {readOnly && <span>{t("readOnly")}</span>}
             </div>
           </div>
 
           {!readOnly && (
-          <div className="flex flex-wrap items-center gap-2">
-            {sourceVideoUrl && (
-              <Button size="sm" variant="outline" asChild>
-                <a href={sourceVideoUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="size-4" />{t("originalVideo")}
-                </a>
-              </Button>
-            )}
+          <div className="flex shrink-0 items-center gap-2">
             {isActive && (
               <Button size="sm" variant="outline" disabled={pendingAction !== null}
                 onClick={() => void runAction("cancel", async () => {
@@ -755,40 +759,42 @@ export default function TaskPage() {
                 <RotateCcw className="size-4" />{t("resume")}
               </Button>
             )}
-            {task.status === "completed" && clips.length > 0 && (
+            {hasClips && (
               <>
-                <Button size="sm" variant="outline" onClick={() => setSettingsSheetOpen(true)}>
-                  <Settings2 className="size-4" /><span className="hidden sm:inline">{t("restyle")}</span>
+                <Button size="sm" variant="outline" onClick={handleCopyShareLink} disabled={shareState === "copying"} aria-live="polite">
+                  {shareState === "copied" ? <Check className="size-4" /> : <Share2 className="size-4" />}
+                  <span className="max-sm:sr-only">{shareState === "copying" ? t("creatingLink") : shareState === "copied" ? t("linkCopied") : t("copyShare")}</span>
                 </Button>
-                <div className="inline-flex items-center rounded-md border shadow-xs">
-                  <Button size="sm" variant="ghost" className="rounded-r-none" onClick={handleCopyShareLink} disabled={shareState === "copying"} aria-live="polite">
-                    {shareState === "copied" ? <Check className="size-4" /> : <Share2 className="size-4" />}
-                    <span className="max-sm:sr-only">{shareState === "copying" ? t("creatingLink") : shareState === "copied" ? t("linkCopied") : t("copyShare")}</span>
-                  </Button>
-                  {task.share_enabled && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button size="icon-sm" variant="ghost" className="rounded-l-none border-l" onClick={handleRevokeShareLink} disabled={isRevokingShare} aria-label={isRevokingShare ? t("disabling") : t("disableShare")}>
-                          <Link2Off className="size-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>{t("disableShare")}</TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
                 <Button size="sm" asChild>
                   <Link href={`/tasks/${task.id}/edit`}><Clapperboard className="size-4" />{t("openEditor")}</Link>
                 </Button>
               </>
             )}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="icon-sm" variant="ghost" aria-label={t("deleteGeneration")} className="text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={() => setShowDeleteDialog(true)}>
-                  <Trash2 className="size-4" />
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon-sm" variant="ghost" aria-label={t("moreActions")}>
+                  <MoreHorizontal className="size-4" />
                 </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t("deleteGeneration")}</TooltipContent>
-            </Tooltip>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {hasClips && (
+                  <>
+                    <DropdownMenuItem onSelect={() => setSettingsSheetOpen(true)}>
+                      <Settings2 />{t("restyle")}
+                    </DropdownMenuItem>
+                    {task.share_enabled && (
+                      <DropdownMenuItem onSelect={() => void handleRevokeShareLink()} disabled={isRevokingShare}>
+                        <Link2Off />{isRevokingShare ? t("disabling") : t("disableShare")}
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuItem variant="destructive" onSelect={() => setShowDeleteDialog(true)}>
+                  <Trash2 />{t("deleteGeneration")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           )}
         </header>
@@ -799,12 +805,11 @@ export default function TaskPage() {
 
         {isActive && task ? (
           <div className="space-y-8">
-            <ProcessingPanel status={task.status} progress={progress} message={progressMessage} readyCount={clips.length} />
-            {clips.length > 0 && (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {sortedClips.map(renderTile)}
-              </div>
-            )}
+            <ProcessingPanel status={task.status} progress={progress} message={progressMessage} startedAt={Date.parse(task.created_at)} />
+            <ProcessingSlots status={task.status} progress={progress} message={progressMessage}
+              total={clipProgressFromMessage(progressMessage)?.total ?? Math.max(clips.length, expectedClipCount(task.source_duration_seconds))}>
+              {sortedClips.map(renderTile)}
+            </ProcessingSlots>
           </div>
         ) : !task ? (
           <div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>

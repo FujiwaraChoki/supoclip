@@ -59,7 +59,7 @@ const FALLBACK_LOOK: CaptionLook = {
   glow: false,
   backgroundColor: null,
 };
-const HOOK_MARGIN = 0.07;
+const HOOK_SIDE_MARGIN = 0.07, HOOK_TOP_MARGIN = 0.12;
 
 /** libass sizes fonts by ascender + descender, not the em box CSS uses. */
 function setAssFont(ctx: CanvasRenderingContext2D, font: string, size: number) {
@@ -352,14 +352,14 @@ export function hookTitleLayout(doc: EditDocument, width: number, height: number
   const text = doc.captions.uppercase ? title.toUpperCase() : title;
   const captionPx = Math.max(1, Math.round((doc.captions.size * width) / 1080));
   const basePx = Math.max(34, Math.min(66, Math.floor(captionPx * 0.82)));
-  const usable = width - 2 * Math.max(48, Math.floor(width * HOOK_MARGIN));
+  const usable = width - 2 * Math.max(48, Math.floor(width * HOOK_SIDE_MARGIN));
   const maxChars = Math.max(10, Math.floor(usable / (basePx * 0.52)));
   const lines = balanceTitle(text.split(/\s+/), maxChars);
   const longest = Math.max(...lines.map(line => line.length));
   const originalPx = longest > maxChars ? Math.max(30, Math.min(basePx, Math.floor(usable / (longest * 0.52)))) : basePx;
   const transform = textTransform(doc, "hook");
   const px = originalPx * transform.scale;
-  const top = Math.max(48, Math.floor(height * HOOK_MARGIN)) + transform.y * height + (originalPx - px) * lines.length * 0.6;
+  const top = Math.max(48, Math.floor(height * HOOK_TOP_MARGIN)) + transform.y * height + (originalPx - px) * lines.length * 0.6;
   return { lines, px, usable, top, x: width * (0.5 + transform.x) };
 }
 

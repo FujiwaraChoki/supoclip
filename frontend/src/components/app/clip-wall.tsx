@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
-  AudioLines, Check, ChevronLeft, ChevronRight, Clapperboard, Download, Flame, Loader2, MessageSquare,
-  Play, Scissors, Share2, Sparkles, Star, Trash2, TrendingUp,
+  Check, ChevronLeft, ChevronRight, Download, Flame, Loader2, MessageSquare,
+  Play, Scissors, Share2, Star, Trash2, TrendingUp,
 } from "lucide-react";
 import { ClipCover, ScoreRing } from "@/components/app/clip-cover";
 import DynamicVideoPlayer from "@/components/dynamic-video-player";
@@ -219,60 +219,128 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
   );
 }
 
+/** Pipeline steps, the share of the progress bar each one covers, and the hue its glow takes. */
 const STEPS = [
-  { id: "fetching", icon: Download, until: 20 },
-  { id: "transcribing", icon: AudioLines, until: 45 },
-  { id: "finding", icon: Sparkles, until: 65 },
-  { id: "rendering", icon: Clapperboard, until: 100 },
+  { id: "fetching", until: 20, hue: 245 },
+  { id: "transcribing", until: 45, hue: 305 },
+  { id: "finding", until: 65, hue: 80 },
+  { id: "rendering", until: 100, hue: 25 },
 ] as const;
 
-function stepFromMessage(message: string) {
+function activeStep(status: string, progress: number, message: string) {
+  if (status === "queued") return -1;
   const text = message.toLowerCase();
-  if (/render|clip \d|saving/.test(text)) return 3;
+  if (/render|creating clip|clip \d|saving/.test(text)) return 3;
   if (/analy|moment|segment|ai /.test(text)) return 2;
   if (/transcri/.test(text)) return 1;
-  if (/download|fetch/.test(text)) return 0;
-  return null;
+  if (/download|fetch|preparing/.test(text)) return 0;
+  const byProgress = STEPS.findIndex((step) => progress < step.until);
+  return byProgress === -1 ? STEPS.length - 1 : byProgress;
 }
 
-export function ProcessingPanel({ status, progress, message, readyCount }: { status: string; progress: number; message: string; readyCount: number }) {
+/** "Creating clip 3/5..." → { current: 3, total: 5 } */
+export function clipProgressFromMessage(message: string) {
+  const match = /clip (\d+)\s*\/\s*(\d+)/i.exec(message);
+  return match ? { current: Number(match[1]), total: Number(match[2]) } : null;
+}
+
+function stepHue(step: number) {
+  return step < 0 ? 270 : STEPS[Math.min(step, STEPS.length - 1)].hue;
+}
+
+/** Seconds since `since`, ticking every few seconds. */
+function useElapsed(since: number | undefined) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (since === undefined) return;
+    const id = window.setInterval(() => setNow(Date.now()), 5000);
+    return () => window.clearInterval(id);
+  }, [since]);
+  return since === undefined ? 0 : Math.max(0, (now - since) / 1000);
+}
+
+export function ProcessingPanel({ status, progress, message, startedAt, elapsedSeconds, clipProgress }: {
+  status: string;
+  progress: number;
+  message: string;
+  /** Epoch ms the task started; drives the time-left estimate. */
+  startedAt?: number;
+  /** Overrides the clock (landing demo). */
+  elapsedSeconds?: number;
+  /** Overrides parsing "clip x/y" out of the message. */
+  clipProgress?: { current: number; total: number } | null;
+}) {
   const t = useTranslations("task");
-  const byProgress = STEPS.findIndex((step) => progress < step.until);
-  const activeStep = status === "queued" ? -1 : stepFromMessage(message) ?? (byProgress === -1 ? STEPS.length - 1 : byProgress);
+  const ticking = useElapsed(elapsedSeconds === undefined ? startedAt : undefined);
+  const elapsed = elapsedSeconds ?? ticking;
+  const step = activeStep(status, progress, message);
+  const clip = clipProgress === undefined ? clipProgressFromMessage(message) : clipProgress;
+  const remaining = progress > 0 ? (elapsed * (100 - progress)) / progress : Infinity;
+  const eta = status === "queued" ? t("eta.queued")
+    : progress < 10 || elapsed < 5 ? t("eta.estimating")
+      : remaining < 50 ? t("eta.underMinute")
+        : t("eta.minutes", { count: Math.round(remaining / 60) });
   return (
-    <section className="overflow-hidden rounded-2xl border bg-background" aria-live="polite">
-      <div className="relative h-1 bg-muted">
-        <div className="absolute inset-y-0 left-0 overflow-hidden bg-brand transition-[width] duration-700 ease-out progress-sheen" style={{ width: `${Math.max(progress, status === "queued" ? 2 : 6)}%` }} />
+    <section className="relative isolate" aria-live="polite">
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 -inset-y-16 -z-10 overflow-hidden [mask-image:radial-gradient(60%_70%_at_30%_50%,black,transparent)]">
+        <div className="aura-blob absolute -top-10 left-[-5%] h-72 w-[60%] rounded-full opacity-45 blur-3xl"
+          style={{ background: `radial-gradient(circle at 40% 50%, oklch(0.87 0.06 ${stepHue(step)}), transparent 65%)` }} />
       </div>
-      <div className="flex flex-col gap-6 p-5 sm:p-6 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
-          <p className="shimmer text-lg font-semibold">{message || (status === "queued" ? t("waiting") : t("processing"))}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {readyCount > 0 ? t("clipsReady", { count: readyCount }) : t("grabCoffee")}
-          </p>
-        </div>
-        <ol className="grid grid-cols-4 gap-2 md:flex md:gap-1">
-          {STEPS.map((step, index) => {
-            const done = activeStep > index;
-            const active = activeStep === index;
-            return (
-              <li key={step.id} className="flex flex-col items-center gap-1.5 md:w-24">
-                <span className={cn(
-                  "flex size-9 items-center justify-center rounded-full border transition-colors",
-                  done && "border-foreground bg-foreground text-background",
-                  active && "border-brand bg-brand-soft text-brand",
-                  !done && !active && "text-muted-foreground",
-                )}>
-                  {done ? <Check className="size-4" /> : active ? <step.icon className="size-4 motion-safe:animate-pulse" /> : <step.icon className="size-4" />}
-                </span>
-                <span className={cn("text-center text-[11px] leading-tight", active ? "font-medium text-foreground" : "text-muted-foreground")}>{t(`steps.${step.id}`)}</span>
-              </li>
-            );
-          })}
-        </ol>
+      <div className="flex items-baseline justify-between gap-6">
+        <p className="font-display text-2xl font-bold tracking-tight tabular-nums">{eta}</p>
+        {clip && <p className="text-sm tabular-nums text-muted-foreground">{t("clipOf", clip)}</p>}
       </div>
-      {progress > 0 && <p className="sr-only">{t("percentComplete", { progress })}</p>}
+      <div className="mt-4 h-2 rounded-full bg-stone-200/60 dark:bg-stone-800/60" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-label={t("percentComplete", { progress })}>
+        <div className="metal-flow h-full rounded-full transition-[width] duration-700 ease-out" style={{ width: `${Math.max(progress, 1)}%` }} />
+      </div>
+      <ol className="mt-2.5 grid text-xs" style={{ gridTemplateColumns: STEPS.map((s, i) => `${s.until - (i ? STEPS[i - 1].until : 0)}fr`).join(" ") }}>
+        {STEPS.map((s, i) => (
+          <li key={s.id} className={cn("flex items-center gap-1 truncate pr-2", i < step ? "text-foreground/60" : i === step ? "font-medium text-foreground" : "text-foreground/35")}>
+            {i < step && <Check className="size-3 shrink-0" />}
+            <span className="truncate">{t(`steps.${s.id}`)}</span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 text-xs text-muted-foreground">{t("leavePage")}</p>
     </section>
+  );
+}
+
+/** ~1 clip per 5 minutes of source, capped like the backend's MAX_CLIPS default. */
+export function expectedClipCount(sourceSeconds?: number | null) {
+  if (!sourceSeconds) return 4;
+  return Math.min(10, Math.max(1, Math.round(sourceSeconds / 300)));
+}
+
+/** The clip grid while processing: finished clips, then 9:16 placeholders for the rest. */
+export function ProcessingSlots({ status, progress, message, total, className, children }: {
+  status: string;
+  progress: number;
+  message: string;
+  total: number;
+  className?: string;
+  children: React.ReactNode[];
+}) {
+  const empty = Math.max(0, total - children.length);
+  const hue = stepHue(activeStep(status, progress, message));
+  return (
+    <div className={cn("grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5", className)}>
+      {children}
+      {Array.from({ length: empty }, (_, i) => (
+        <div key={`slot-${i}`} aria-hidden className="animate-rise" style={{ animationDelay: `${i * 60}ms` }}>
+          <div className="relative aspect-[9/16] overflow-hidden rounded-xl bg-stone-100/70 ring-1 ring-black/[0.04] dark:bg-stone-900/60 dark:ring-white/5">
+            {i === 0 && (
+              <span className="absolute inset-[-30%] opacity-40 blur-2xl transition-[background] duration-1000"
+                style={{ background: `radial-gradient(circle at 50% 60%, oklch(0.87 0.05 ${hue}), transparent 60%)` }} />
+            )}
+          </div>
+          <div className="mt-2.5 space-y-1.5 px-0.5">
+            <div className="h-3 w-4/5 rounded bg-muted" />
+            <div className="h-2.5 w-2/5 rounded bg-muted/70" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

@@ -17,7 +17,7 @@ router = APIRouter(prefix="/billing", tags=["billing"])
 
 
 class SubscriptionEmailRequest(BaseModel):
-    event: Literal["subscribed", "unsubscribed"]
+    event: Literal["subscribed", "unsubscribed", "cancellation_scheduled"]
 
 
 def _get_user_id_from_headers(request: Request) -> str:
@@ -46,6 +46,16 @@ async def send_subscription_email(
     try:
         if body.event == "subscribed":
             email_result = await service.send_subscribed_email(user)
+        elif body.event == "cancellation_scheduled":
+            # Re-check current state so a resumed or ended subscription does not
+            # receive an outdated cancellation notice.
+            if (
+                not user.subscription_cancel_at
+                or user.subscription_provider != "stripe"
+                or user.subscription_status not in {"active", "trialing", "past_due"}
+            ):
+                return {"status": "skipped", "reason": "no_scheduled_cancellation"}
+            email_result = await service.send_cancellation_scheduled_email(user, db)
         else:
             email_result = await service.send_unsubscribed_email(user)
     except RuntimeError as exc:

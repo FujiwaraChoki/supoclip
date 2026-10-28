@@ -15,7 +15,7 @@ import {
 } from "@/server/stripe-subscription-sync";
 import Stripe from "stripe";
 
-type SubscriptionEmailEvent = "subscribed" | "unsubscribed";
+type SubscriptionEmailEvent = "subscribed" | "unsubscribed" | "cancellation_scheduled";
 
 async function sendBackendSubscriptionEmail(userId: string, event: SubscriptionEmailEvent) {
   const response = await fetchBackend("/billing/subscription-email", {
@@ -129,6 +129,52 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   }
 }
 
+const LIVE_SUBSCRIPTION_STATUSES = ["active", "trialing", "past_due"];
+
+function hasScheduledCancellation(subscription: Pick<Stripe.Subscription, "cancel_at_period_end" | "cancel_at">) {
+  return subscription.cancel_at_period_end || subscription.cancel_at != null;
+}
+
+function isNewlyScheduledCancellation(
+  subscription: Stripe.Subscription,
+  previousAttributes: Partial<Stripe.Subscription> | undefined,
+) {
+  if (!previousAttributes || !LIVE_SUBSCRIPTION_STATUSES.includes(subscription.status)) {
+    return false;
+  }
+  // Stripe also sends updates for discounts, plan changes, and resumed subscriptions.
+  // Only the transition into a scheduled cancellation should send this email.
+  return hasScheduledCancellation(subscription)
+    && !hasScheduledCancellation({ ...subscription, ...previousAttributes });
+}
+
+async function sendCancellationScheduledEmail(subscription: Stripe.Subscription) {
+  if (
+    !LIVE_SUBSCRIPTION_STATUSES.includes(subscription.status)
+    || !hasScheduledCancellation(subscription)
+  ) {
+    return;
+  }
+
+  const customerId = typeof subscription.customer === "string"
+    ? subscription.customer
+    : subscription.customer.id;
+  const user = await getPrismaClient().user.findFirst({
+    where: {
+      stripe_customer_id: customerId,
+      stripe_subscription_id: subscription.id,
+      subscription_provider: "stripe",
+      subscription_cancel_at: { not: null },
+    },
+    select: { id: true },
+  });
+  if (!user) return;
+
+  // Let Stripe retry delivery failures. The event record suppresses successful
+  // redeliveries, and previous_attributes still identifies the transition on retry.
+  await sendBackendSubscriptionEmail(user.id, "cancellation_scheduled");
+}
+
 export async function POST(request: Request) {
   if (!monetizationEnabled) {
     return NextResponse.json({ ok: true });
@@ -179,7 +225,16 @@ export async function POST(request: Request) {
     }
 
     if (event.type === "customer.subscription.updated") {
-      await syncSubscriptionUpdate(event.data.object as Stripe.Subscription);
+      const subscription = event.data.object as Stripe.Subscription;
+      if (isNewlyScheduledCancellation(subscription, event.data.previous_attributes)) {
+        // A retry after a failed email can arrive after the customer resumed. Sync and
+        // decide from the live subscription so the old snapshot can't overwrite that.
+        const current = await stripe.subscriptions.retrieve(subscription.id);
+        await syncSubscriptionUpdate(current);
+        await sendCancellationScheduledEmail(current);
+      } else {
+        await syncSubscriptionUpdate(subscription);
+      }
     }
 
     // Enable these on the Stripe webhook endpoint. invoice.paid covers

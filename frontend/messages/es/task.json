@@ -45,6 +45,7 @@
   "disableShare": "Desactivar enlace para compartir",
   "openEditor": "Abrir editor",
   "deleteGeneration": "Eliminar generación",
+  "moreActions": "Más acciones",
   "reconnectingOwn": "Reconectando a las actualizaciones en vivo. Tu video sigue procesándose.",
   "reconnectingOther": "Reconectando a las actualizaciones en vivo. Esta generación sigue procesándose.",
   "cancelledTitle": "Generación cancelada",
@@ -118,10 +119,15 @@
     "finding": "Buscando momentos",
     "rendering": "Renderizando clips"
   },
-  "waiting": "Esperando en la cola",
-  "processing": "Procesando",
-  "clipsReady": "{count, plural, one {# clip listo abajo — vienen más.} other {# clips listos abajo — vienen más.}}",
-  "grabCoffee": "Tómate un café — los clips aparecen aquí en cuanto se renderizan.",
+  "eta": {
+    "queued": "Esperando a un worker",
+    "estimating": "Calculando el tiempo restante…",
+    "underMinute": "Menos de un minuto",
+    "minutes": "Unos {count} min restantes"
+  },
+  "clipOf": "Clip {current} de {total}",
+  "leavePage": "Puedes salir de esta página — tus clips te esperarán en tu biblioteca.",
+  "sourceLength": "{duration} de video original",
   "percentComplete": "{progress}% completo",
   "transcript": {
     "heading": "Transcripción",

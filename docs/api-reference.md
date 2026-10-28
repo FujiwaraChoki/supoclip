@@ -229,6 +229,9 @@ Routes:
 
 - `POST /subscription-email`
   - Send or trigger subscription-related email behavior
+  - Events: `subscribed`, `unsubscribed`, `cancellation_scheduled`. Scheduled
+    cancellation mail reads the user's current Stripe state and access end date
+    from the database, and skips if the cancellation is no longer scheduled.
 
 ## Feedback Routes
 

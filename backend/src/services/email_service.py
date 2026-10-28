@@ -26,6 +26,7 @@ class EmailContent:
     text: str
     headers: tuple[tuple[str, str], ...] = ()
     category: str = TRANSACTIONAL
+    reply_to: tuple[str, ...] = ()
 
 
 class SesEmailService:
@@ -59,6 +60,7 @@ class SesEmailService:
         return self._client.send_email(
             FromEmailAddress=self.from_email,
             Destination={"ToAddresses": [recipient]},
+            **({"ReplyToAddresses": list(content.reply_to)} if content.reply_to else {}),
             Content={
                 "Simple": {
                     **({"Headers": headers} if headers else {}),

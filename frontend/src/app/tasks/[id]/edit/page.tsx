@@ -1,18 +1,24 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { PageError, PageLoading } from "@/components/app/page-state";
 import { Button } from "@/components/ui/button";
 import { EditorWorkspace } from "@/components/editor/editor-workspace";
 import { editorRequest } from "@/components/editor/use-editor";
+import { useSession } from "@/lib/auth-client";
+import { signInPath } from "@/lib/auth-redirect";
 import type { ClipSummary } from "@/components/editor/export-panel";
 
 export default function TaskEditPage() {
   const t = useTranslations("editor");
   const { id } = useParams<{ id: string }>();
   const requested = useSearchParams().get("clip");
+  const router = useRouter();
+  const { data: session, isPending } = useSession();
+  const signedIn = Boolean(session?.user);
+  const signedOut = !isPending && !signedIn;
   const [task, setTask] = useState<{
     source_title: string;
     status: string;
@@ -53,10 +59,17 @@ export default function TaskEditPage() {
     },
     [id, requested],
   );
+  // The iOS app links here in Safari, which may not have a session yet.
   useEffect(() => {
-    void load();
-  }, [load]);
-  if (loading) return <PageLoading />;
+    if (signedOut) {
+      router.replace(
+        signInPath(window.location.pathname + window.location.search),
+      );
+    } else if (signedIn) {
+      void load();
+    }
+  }, [signedOut, signedIn, load, router]);
+  if (loading || signedOut) return <PageLoading />;
   if (error) return <PageError message={error} retry={() => void load()} />;
   const clip = clips.find((c) => c.id === selected);
   if (!clip || task?.status !== "completed")

@@ -23,6 +23,7 @@ from .common import (
     EMOJI_FONT_NAME,
     HOOK_TITLE_MIN_SECONDS,
     HOOK_TITLE_SECONDS,
+    HOOK_TITLE_SIDE_MARGIN_FRAC,
     HOOK_TITLE_TOP_MARGIN_FRAC,
     _EMOJI_SUPPORT_CACHE,
     logger,
@@ -282,7 +283,7 @@ def build_hook_title_ass(
     base_px = min(96, max(caption_font_px + 8, int(round(caption_font_px * 1.35))))
     if editor_style is not None:
         base_px = int(editor_style["base_px"])
-    usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_TOP_MARGIN_FRAC))
+    usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_SIDE_MARGIN_FRAC))
     max_chars = max(10, int(usable_width / (base_px * 0.52)))
     lines = _balance_title_lines(title_text.split(), max_chars)
     longest = max(len(line) for line in lines)

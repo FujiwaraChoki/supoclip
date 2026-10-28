@@ -226,6 +226,39 @@ Required when `SELF_HOST=false` and you want subscription management:
 | `AWS_SECRET_ACCESS_KEY` | AWS secret access key used to send hosted billing lifecycle emails |
 | `SES_FROM_EMAIL` | Verified sender address for subscription emails, default `SupoClip <onboarding@example.com>` |
 
+#### Scheduled cancellation emails
+
+The frontend Stripe webhook at `/api/billing/webhook` handles
+`customer.subscription.updated`. When `cancel_at_period_end` becomes true or a
+`cancel_at` date is first set, it saves the subscription state and calls the
+authenticated backend `/billing/subscription-email` endpoint with
+`{"event":"cancellation_scheduled"}`. The backend sends the customer an immediate
+email with their access end date, a request for feedback, and an invitation to
+reply to `support@supoclip.com` for 30% off for three months. The sender uses
+`SES_FROM_EMAIL`; the signature is Team SupoClip.
+
+The discount message uses the existing [product-email preferences and unsubscribe
+links](product-update-emails.md). Opted-out customers receive a cancellation
+confirmation without the offer. Routine updates, date changes to an existing
+cancellation, and undoing a cancellation do not send another email. Successfully
+processed Stripe event IDs suppress redelivery; failed email attempts return an
+error so Stripe can retry. The existing end-of-subscription email remains.
+
+Deploy both frontend and backend, ensure the Stripe webhook endpoint subscribes
+to `customer.subscription.updated`, and configure the existing SES credentials,
+an HTTPS `NEXT_PUBLIC_APP_URL` on the backend, and `BACKEND_AUTH_SECRET`. This
+change adds no new environment variables or migrations; the existing email
+preference migration must already be applied. Verify a scheduled cancellation
+using a sandbox subscription and test inbox before enabling it in production.
+
+The email does not apply a discount automatically. When the customer replies,
+support must apply the 30%-off, three-month Stripe coupon and, if the subscription
+has not yet ended, remove the scheduled cancellation. If it has ended, arrange a
+new subscription with the coupon. Check annual-plan behavior separately: a
+classic repeating coupon can discount an entire annual renewal within its
+discount period. It does not enforce a once-per-customer offer limit; support
+must check previous use before applying it.
+
 ### Discord feedback forwarding
 
 | Variable | Purpose |
