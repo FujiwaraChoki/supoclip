@@ -613,6 +613,10 @@ class ClipEditingMixin:
             "highlight_words": highlight_words,
         })
         save_clip_broll(output_path, broll)
+        # Re-rendering also corrects durations stored before they were probed.
+        rendered_duration = await run_in_thread(
+            rendered_clip_duration, output_path, source_ranges
+        )
 
         await self.clip_repo.update_clip(
             self.db,
@@ -621,7 +625,7 @@ class ClipEditingMixin:
             str(output_path),
             clip["start_time"],
             clip["end_time"],
-            clip["duration"],
+            rendered_duration if rendered_duration > 0 else clip["duration"],
             caption_text,
         )
         return (await self.clip_repo.get_clip_by_id(self.db, clip_id)) or {}

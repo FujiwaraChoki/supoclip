@@ -434,6 +434,7 @@ def rendered_clip_duration(
     fallback when the file cannot be probed.
     """
     try:
+        clip_path = Path(clip_path)
         probed = ffprobe_duration(clip_path) if clip_path.exists() else 0.0
     except Exception:
         probed = 0.0

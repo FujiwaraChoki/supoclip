@@ -257,6 +257,38 @@ def test_gap_check_without_media_keeps_old_behaviour(tmp_path):
     assert gap_activity.active_gaps(tmp_path / "missing.mp4", GAP, SPEECH) == [False]
 
 
+def test_gap_check_failure_never_fails_the_clip(tmp_path, monkeypatch):
+    video = tmp_path / "source.mp4"
+    video.write_bytes(b"not a video")
+
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("decoder exploded")
+
+    monkeypatch.setattr(gap_activity, "select_audio_stream_index", broken)
+    monkeypatch.setattr(gap_activity, "gap_motion_score", broken)
+    assert gap_activity.active_gaps(str(video), GAP, SPEECH) == [False]
+
+    monkeypatch.setattr(gap_activity, "_active_gaps", broken)
+    assert gap_activity.active_gaps(video, GAP + GAP, SPEECH) == [False, False]
+
+
+def test_long_gap_motion_check_samples_only_the_middle(tmp_path, monkeypatch):
+    video = tmp_path / "source.mp4"
+    video.write_bytes(b"")
+    monkeypatch.setattr(gap_activity, "select_audio_stream_index", lambda _p: None)
+    sampled = []
+
+    def fake_motion(_path, start, end):
+        sampled.append((start, end))
+        return 0.0
+
+    monkeypatch.setattr(gap_activity, "gap_motion_score", fake_motion)
+    assert gap_activity.active_gaps(video, [(10.0, 70.0)], [(0.0, 10.0)]) == [False]
+    assert sampled == [
+        (pytest.approx(36.0), pytest.approx(44.0))
+    ]
+
+
 # --- #285: stored duration ----------------------------------------------------
 
 # Fortnite clip 1's stored source map: 19.594s of source, a 19.1s MP4.

@@ -37,6 +37,10 @@ GAP_LOUD_FRACTION = 0.15
 # Word timings blur into the gap edges; judge only its inside.
 GAP_EDGE_INSET_SECONDS = 0.15
 
+# The motion check samples at most this much from the middle of a long gap, so
+# a minute-long pause in a 4K source never means a minute of decoding.
+GAP_MOTION_MAX_SAMPLE_SECONDS = 8.0
+
 _AUDIO_RATE = 8000
 
 _AUDIO_WINDOW_SECONDS = 0.05
@@ -109,8 +113,20 @@ def active_gaps(
 
     ``speech`` is the clip's spoken word spans; their loudness is the reference
     for "loud". Any failure (no file, no audio, decoder error) reports the gap
-    as inactive so cleanup behaves as it did before.
+    as inactive so cleanup behaves as it did before; it never fails the clip.
     """
+    try:
+        return _active_gaps(Path(video_path), gaps, speech)
+    except Exception as exc:
+        logger.warning("Gap activity check failed for %s; cutting pauses as before: %s", video_path, exc)
+        return [False] * len(gaps)
+
+
+def _active_gaps(
+    video_path: Path,
+    gaps: Sequence[Tuple[float, float]],
+    speech: Sequence[Tuple[float, float]],
+) -> List[bool]:
     flags = [False] * len(gaps)
     if not gaps or not video_path.exists():
         return flags
@@ -131,7 +147,7 @@ def active_gaps(
             levels = _window_levels_db(video_path, audio_stream, origin, span_end)
             speech_db = _speech_level_db(levels, origin, speech)
     except Exception as exc:
-        logger.debug("Gap audio check unavailable for %s: %s", video_path, exc)
+        logger.warning("Gap audio check unavailable for %s: %s", video_path, exc)
 
     for index, (start, end) in enumerate(inner):
         if end - start < 0.25:
@@ -144,8 +160,12 @@ def active_gaps(
             if len(window) and float(np.mean(window >= loud_db)) >= GAP_LOUD_FRACTION:
                 flags[index] = True
                 continue
+        if end - start > GAP_MOTION_MAX_SAMPLE_SECONDS:
+            middle = (start + end) / 2.0
+            start = middle - GAP_MOTION_MAX_SAMPLE_SECONDS / 2.0
+            end = middle + GAP_MOTION_MAX_SAMPLE_SECONDS / 2.0
         try:
             flags[index] = gap_motion_score(video_path, start, end) >= GAP_MOTION_THRESHOLD
         except Exception as exc:
-            logger.debug("Gap motion check unavailable for %s: %s", video_path, exc)
+            logger.warning("Gap motion check unavailable for %s: %s", video_path, exc)
     return flags
