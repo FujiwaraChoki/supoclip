@@ -390,20 +390,139 @@ def pick_video_format(formats: list[dict], height: int | None = None) -> Optiona
     return max(candidates, key=score)
 
 
-def _prefer_original_audio(candidates: list[dict]) -> list[dict]:
-    originals = [fmt for fmt in candidates
-                 if (fmt.get("language_preference") or 0) > 0
-                 or re.search(r"\boriginal\b", fmt.get("format_note") or "", re.IGNORECASE)]
-    if originals:
-        return originals
-    return [fmt for fmt in candidates if "dubbed" not in (fmt.get("format_note") or "").lower()]
+_DUB_MARK = re.compile(r"dubbed|auto-dub", re.IGNORECASE)
+_ORIGINAL_MARK = re.compile(r"\boriginal\b", re.IGNORECASE)
 
 
-def pick_audio_format(formats: list[dict], *, modest: bool = True) -> Optional[dict]:
+def _is_dubbed_audio(fmt: dict) -> bool:
+    """True for auto-dub renditions, even when language_preference prefers them."""
+    text = " ".join(str(fmt.get(key) or "") for key in ("format_note", "format_id", "format"))
+    return _DUB_MARK.search(text) is not None
+
+
+def _primary_language(value) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    text = value.strip().lower().replace("_", "-")
+    if not text or text in {"und", "none", "null"}:
+        return None
+    primary = text.split("-", 1)[0]
+    if not primary.isalpha() or not 2 <= len(primary) <= 3:
+        return None
+    return primary
+
+
+def _format_language(fmt: dict) -> Optional[str]:
+    return _primary_language(fmt.get("language"))
+
+
+def _note_says_original(fmt: dict) -> bool:
+    return _ORIGINAL_MARK.search(fmt.get("format_note") or "") is not None
+
+
+def _audio_variant_index(fmt: dict) -> Optional[str]:
+    """Numeric YouTube track suffix, such as ``0`` in ``233-0``. Protocol tags are not tracks."""
+    _, sep, rest = str(fmt.get("format_id") or "").partition("-")
+    if sep and rest.isdigit():
+        return rest
+    return None
+
+
+def _resolved_original_language(
+    candidates: list[dict], source_language: Optional[str]
+) -> tuple[Optional[str], bool]:
+    """Language to keep, and whether a track is explicitly labeled original.
+
+    A labeled original track wins over the info-dict language. Client locale
+    can mark an auto-dub as the video language; that must not redefine original.
+    """
+    labeled = [fmt for fmt in candidates if _note_says_original(fmt)]
+    if labeled:
+        for fmt in labeled:
+            lang = _format_language(fmt)
+            if lang:
+                return lang, True
+        return None, True
+    return _primary_language(source_language), False
+
+
+def _is_identifiable_original(fmt: dict, original_language: Optional[str], labeled: bool) -> bool:
+    if _note_says_original(fmt):
+        return True
+    if labeled and not original_language:
+        return False
+    lang = _format_language(fmt)
+    return bool(original_language and lang == original_language)
+
+
+def _without_language_mismatches(
+    candidates: list[dict], original_language: Optional[str], labeled: bool
+) -> list[dict]:
+    if not original_language:
+        return candidates
+    if not any(_is_identifiable_original(fmt, original_language, labeled) for fmt in candidates):
+        return candidates
+    kept = [
+        fmt for fmt in candidates
+        if _note_says_original(fmt) or _format_language(fmt) in (None, original_language)
+    ]
+    return kept or candidates
+
+
+def _video_language(info: dict) -> Optional[str]:
+    language = info.get("language")
+    if isinstance(language, str) and language.strip():
+        return language.strip()
+    return None
+
+
+def _prefer_original_audio(
+    candidates: list[dict], source_language: Optional[str] = None
+) -> list[dict]:
+    """Drop dubs first, then keep the original-language tracks.
+
+    ``language_preference`` is only a fallback. YouTube raises it for the
+    client locale, so an English auto-dub can outrank the source track.
+    """
+    remaining = [fmt for fmt in candidates if not _is_dubbed_audio(fmt)]
+    if not remaining:
+        return []
+    original_language, labeled = _resolved_original_language(remaining, source_language)
+    remaining = _without_language_mismatches(remaining, original_language, labeled)
+    identifiable = [
+        fmt for fmt in remaining if _is_identifiable_original(fmt, original_language, labeled)
+    ]
+    if identifiable:
+        # Non-dubbed tracks that only carry language_preference stay available so
+        # modest itag selection still sees them. HLS ranking prefers a track that
+        # is actually identifiable as original over those extras.
+        chosen = {id(fmt) for fmt in identifiable}
+        extras = [
+            fmt for fmt in remaining
+            if (fmt.get("language_preference") or 0) > 0 and id(fmt) not in chosen
+        ]
+        return identifiable + extras
+    if any(_audio_variant_index(fmt) is not None for fmt in remaining):
+        plain = [
+            fmt for fmt in remaining
+            if fmt.get("format_id") not in (None, "") and _audio_variant_index(fmt) is None
+        ]
+        if plain:
+            return plain
+    preferred = [fmt for fmt in remaining if (fmt.get("language_preference") or 0) > 0]
+    return preferred or remaining
+
+
+def pick_audio_format(
+    formats: list[dict],
+    *,
+    modest: bool = True,
+    source_language: Optional[str] = None,
+) -> Optional[dict]:
     candidates = [fmt for fmt in formats if _is_audio_only(fmt)]
     if not candidates:
         return None
-    candidates = _prefer_original_audio(candidates)
+    candidates = _prefer_original_audio(candidates, source_language)
     if not candidates:
         return None
     if modest:
@@ -431,17 +550,43 @@ def pick_audio_format(formats: list[dict], *, modest: bool = True) -> Optional[d
     return max(candidates, key=score)
 
 
+def _log_hls_audio_choice(fmt: dict, candidates: int) -> None:
+    preference = fmt.get("language_preference")
+    logger.info(
+        "hls_audio_selected format_id=%s format_note=%s language=%s language_preference=%s candidates=%s",
+        fmt.get("format_id") or "-",
+        (fmt.get("format_note") or "-").replace("\n", " ")[:200],
+        fmt.get("language") or "-",
+        "-" if preference is None else preference,
+        candidates,
+    )
+
+
+def _hls_audio_rank(fmt: dict, original_language: Optional[str], labeled: bool, prefer_plain: bool) -> tuple:
+    note = fmt.get("format_note") or ""
+    return (
+        0 if _is_identifiable_original(fmt, original_language, labeled) else 1,
+        0 if prefer_plain and _audio_variant_index(fmt) is None else 1,
+        fmt.get("abr") or fmt.get("tbr") or 10**6,
+        0 if "low" in note.lower() else 1,
+        fmt.get("filesize") or 0,
+        str(fmt.get("format_id") or ""),
+    )
+
+
 def pick_hls_audio_format(
     formats: list[dict],
     *,
     exclude_ids: Optional[set[str]] = None,
+    source_language: Optional[str] = None,
 ) -> Optional[dict]:
-    """Modest audio-only HLS, or the lowest muxed HLS rendition under the height cap.
+    """Modest original-language HLS audio, or the lowest muxed HLS rendition under the height cap.
 
     The choice stays in-process. A yt-dlp format string such as
     ``bestaudio[protocol^=m3u8]`` can hand the playlist to ffmpeg, and ffmpeg
     does not use this job's proxy. ``m3u8`` matches yt-dlp's ``m3u8_native``
-    protocol as well (the same rule as ``protocol^=m3u8``).
+    protocol as well (the same rule as ``protocol^=m3u8``). Dubbed tracks are
+    removed before bitrate ranking so a low-abr auto-dub cannot win.
     """
     excluded = {str(item) for item in (exclude_ids or set()) if item not in (None, "")}
 
@@ -450,17 +595,18 @@ def pick_hls_audio_format(
 
     hls_audio = [fmt for fmt in formats if allowed(fmt) and _is_audio_only(fmt)]
     if hls_audio:
-        pool = _prefer_original_audio(hls_audio)
+        pool = _prefer_original_audio(hls_audio, source_language)
         if pool:
-            return min(
-                pool,
-                key=lambda fmt: (
-                    fmt.get("abr") or fmt.get("tbr") or 10**6,
-                    0 if "low" in (fmt.get("format_note") or "").lower() else 1,
-                    fmt.get("filesize") or 0,
-                    str(fmt.get("format_id") or ""),
-                ),
+            original_language, labeled = _resolved_original_language(pool, source_language)
+            prefer_plain = not any(
+                _is_identifiable_original(fmt, original_language, labeled) for fmt in pool
             )
+            chosen = min(
+                pool,
+                key=lambda fmt: _hls_audio_rank(fmt, original_language, labeled, prefer_plain),
+            )
+            _log_hls_audio_choice(chosen, len(hls_audio))
+            return chosen
     limit = capped_height()
     muxed = [
         fmt for fmt in formats
@@ -469,17 +615,21 @@ def pick_hls_audio_format(
         and fmt.get("acodec") not in (None, "none")
         and 0 < (fmt.get("height") or 0) <= limit
     ]
-    muxed = _prefer_original_audio(muxed)
-    if not muxed:
+    muxed_pool = _prefer_original_audio(muxed, source_language)
+    if not muxed_pool:
         return None
-    return min(
-        muxed,
+    original_language, labeled = _resolved_original_language(muxed_pool, source_language)
+    chosen = min(
+        muxed_pool,
         key=lambda fmt: (
+            0 if _is_identifiable_original(fmt, original_language, labeled) else 1,
             fmt.get("height") or limit,
             fmt.get("tbr") or fmt.get("abr") or 10**9,
             str(fmt.get("format_id") or ""),
         ),
     )
+    _log_hls_audio_choice(chosen, len(muxed))
+    return chosen
 
 
 def resolve_fragments(fmt: dict) -> Optional[list]:
@@ -813,7 +963,8 @@ def download_audio(
     try:
         info = extract_video_info(url, options)
         formats = info.get("formats") or []
-        fmt = pick_audio_format(formats, modest=True)
+        source_language = _video_language(info)
+        fmt = pick_audio_format(formats, modest=True, source_language=source_language)
         if not fmt:
             raise YouTubeDownloadError("No audio format is available")
         attempt_started = counter.snapshot()
@@ -828,7 +979,9 @@ def download_audio(
             excluded: set[str] = set()
             if "m3u8" in (fmt.get("protocol") or ""):
                 excluded.add(str(fmt.get("format_id") or ""))
-            hls = pick_hls_audio_format(formats, exclude_ids=excluded)
+            hls = pick_hls_audio_format(
+                formats, exclude_ids=excluded, source_language=source_language
+            )
             if hls is None:
                 raise AudioDownloadForbidden("No HLS audio format is available") from exc
             hls_retry = True
@@ -891,8 +1044,9 @@ def download_section_file(
     try:
         info = extract_video_info(url, options)
         formats = info.get("formats") or []
+        source_language = _video_language(info)
         video_fmt = pick_video_format(formats)
-        audio_fmt = pick_audio_format(formats, modest=False)
+        audio_fmt = pick_audio_format(formats, modest=False, source_language=source_language)
         if not video_fmt or not audio_fmt:
             raise PartialDownloadUnavailable("No capped video or audio format is available")
         duration = info.get("duration") or 0

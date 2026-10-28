@@ -272,7 +272,7 @@ def test_extending_a_range_fetches_only_the_gap(tmp_path, monkeypatch):
         "audio": None,
         "full": None,
         "ranges": [{"start": 0, "end": 30, "file": piece.name, "bytes": 6}],
-        "audio_policy": "original-v1",
+        "audio_policy": "original-v2",
     }))
     calls = []
 

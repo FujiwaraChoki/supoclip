@@ -2,6 +2,7 @@
 import functools
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
+import logging
 from pathlib import Path
 import shutil
 import subprocess
@@ -141,6 +142,56 @@ def test_original_audio_wins_over_first_dub_and_analysis_uses_128k_track():
     assert mod.pick_audio_format(formats[:1], modest=False) is None
 
 
+def _hls_audio(format_id, format_note, **extra):
+    fmt = {
+        'format_id': format_id,
+        'protocol': 'm3u8_native',
+        'vcodec': 'none',
+        'acodec': None,
+        'format_note': format_note,
+    }
+    fmt.update(extra)
+    return fmt
+
+
+def test_hls_audio_prefers_polish_original_over_english_dub_with_language_preference(caplog):
+    caplog.set_level(logging.INFO)
+    formats = [
+        _hls_audio('233-0', 'English - dubbed-auto', language='en', language_preference=10, abr=48),
+        _hls_audio('233', 'Polish - original', language='pl', language_preference=-1, abr=130),
+    ]
+    picked = mod.pick_hls_audio_format(formats, source_language='pl')
+    assert picked['format_id'] == '233'
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if 'hls_audio_selected' in record.getMessage()
+    ]
+    assert len(messages) == 1
+    assert 'format_id=233' in messages[0]
+    assert 'format_note=Polish - original' in messages[0]
+    assert 'language=pl' in messages[0]
+    assert 'language_preference=-1' in messages[0]
+    assert 'candidates=2' in messages[0]
+
+
+def test_hls_audio_rejects_suffixed_track_when_note_omits_dubbed_but_language_mismatches():
+    formats = [
+        _hls_audio('233-0', 'English', language='en-US', language_preference=10, abr=48),
+        _hls_audio('233-1', 'Polish', language='pl-PL', abr=130),
+    ]
+    picked = mod.pick_hls_audio_format(formats, source_language='pl')
+    assert picked['format_id'] == '233-1'
+
+
+def test_hls_audio_prefers_unsuffixed_id_when_original_is_unlabeled():
+    formats = [
+        _hls_audio('233-0', 'English', language_preference=10, abr=48),
+        _hls_audio('233', 'Polish', abr=130),
+    ]
+    assert mod.pick_hls_audio_format(formats)['format_id'] == '233'
+
+
 def test_legacy_audio_cache_is_invalidated_without_losing_full_source(tmp_path):
     (tmp_path / source.MANIFEST_NAME).write_text(json.dumps({
         'version': 1, 'audio': 'audio.m4a', 'ranges': [{'file': 'old.mp4'}], 'full': 'full.mp4',
@@ -149,6 +200,17 @@ def test_legacy_audio_cache_is_invalidated_without_losing_full_source(tmp_path):
     assert manifest['audio'] is None and manifest['ranges'] == []
     assert manifest['full'] == 'full.mp4'
     assert manifest['audio_policy'] == source.AUDIO_POLICY
+
+
+def test_v1_audio_policy_drops_cached_audio_and_ranges(tmp_path):
+    (tmp_path / source.MANIFEST_NAME).write_text(json.dumps({
+        'version': 1, 'video_id': 'abcdefghijk', 'audio_policy': 'original-v1',
+        'audio': 'audio.m4a', 'ranges': [{'file': 'old.mp4'}], 'full': 'full.mp4',
+    }))
+    manifest = source._load_manifest(tmp_path, 'abcdefghijk')
+    assert manifest['audio'] is None and manifest['ranges'] == []
+    assert manifest['full'] == 'full.mp4'
+    assert manifest['audio_policy'] == 'original-v2'
 
 
 @pytest.fixture(params=['mpegts', 'fmp4'])
