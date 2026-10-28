@@ -28,7 +28,7 @@ import { useBillingSummary } from "@/hooks/use-billing-summary";
 import { billingPlanMessageKey, isPaidBillingPlan } from "@/lib/billing-plans";
 import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
-import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
+import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE, hydrateFontPreferenceState } from "@/lib/font-options";
 import { fetchGenerations, type GenerationSummary } from "@/lib/generations";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
@@ -139,6 +139,26 @@ export default function HomeApp() {
       .then((data) => { if (data) setAvailableTemplates(data.templates || []); })
       .catch((error) => console.error("Failed to load caption templates:", error));
   }, []);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    let isCurrent = true;
+    fetch("/api/preferences", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (!isCurrent || !data) return;
+        const hydrated = hydrateFontPreferenceState(data);
+        setFontFamily(hydrated.fontFamily);
+        setFontSize(hydrated.fontSize);
+        setFontColor(hydrated.fontColor);
+      })
+      .catch((error) => {
+        console.error("Failed to load saved caption preferences:", error);
+      });
+
+    return () => { isCurrent = false; };
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -302,9 +322,9 @@ export default function HomeApp() {
 
   const limitNote = billingSummary?.max_youtube_duration_seconds
     ? t("limitNote", {
-        plan: tCommon(`plans.${billingPlanMessageKey(billingSummary.plan)}`),
-        minutes: billingSummary.max_youtube_duration_seconds / 60,
-      })
+      plan: tCommon(`plans.${billingPlanMessageKey(billingSummary.plan)}`),
+      minutes: billingSummary.max_youtube_duration_seconds / 60,
+    })
     : null;
 
   return (

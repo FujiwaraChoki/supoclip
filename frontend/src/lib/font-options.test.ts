@@ -1,6 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { buildFontOptionsPayload } from "./font-options";
+import { buildFontOptionsPayload, hydrateFontPreferenceState } from "./font-options";
+
+describe("hydrateFontPreferenceState", () => {
+  it("hydrates the saved defaults into the generation form", () => {
+    expect(
+      hydrateFontPreferenceState({
+        fontFamily: "Roboto",
+        fontSize: 28,
+        fontColor: "#123456",
+      }),
+    ).toEqual({
+      fontFamily: "Roboto",
+      fontSize: 28,
+      fontColor: "#123456",
+    });
+  });
+
+  it("falls back to template defaults when the user has no saved preferences", () => {
+    expect(hydrateFontPreferenceState(null)).toEqual({
+      fontFamily: null,
+      fontSize: null,
+      fontColor: null,
+    });
+  });
+});
 
 describe("buildFontOptionsPayload", () => {
   it("sends null for every field left at the template default", () => {
