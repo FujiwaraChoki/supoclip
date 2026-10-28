@@ -1,4 +1,5 @@
 import type { GenerationSummary } from "@/lib/generations";
+import { youtubeVideoId } from "@/lib/youtube-url";
 
 export type LibrarySort = "newest" | "video";
 
@@ -6,48 +7,6 @@ export interface OriginalVideoGroup {
   key: string;
   title: string;
   tasks: GenerationSummary[];
-}
-
-const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
-
-function youtubeHost(hostname: string) {
-  const host = hostname.replace(/^www\./, "").toLowerCase();
-  return host === "youtu.be"
-    || host === "youtube.com"
-    || host === "youtube-nocookie.com"
-    || host.endsWith(".youtube.com")
-    || host.endsWith(".youtube-nocookie.com");
-}
-
-/** Canonical 11-character id for watch, share, shorts, live, and embed URLs. */
-export function youtubeVideoId(value: string): string | null {
-  const input = value.trim();
-  if (!input) return null;
-
-  try {
-    const parsed = new URL(input);
-    const host = parsed.hostname.replace(/^www\./, "").toLowerCase();
-    if (!youtubeHost(host)) return null;
-
-    if (host === "youtu.be") {
-      const id = parsed.pathname.split("/").filter(Boolean)[0];
-      return id && YOUTUBE_ID.test(id) ? id : null;
-    }
-
-    const fromSearch = parsed.searchParams.get("v");
-    if (fromSearch && YOUTUBE_ID.test(fromSearch)) return fromSearch;
-
-    const parts = parsed.pathname.split("/").filter(Boolean);
-    const marker = parts[0];
-    const id = parts[1];
-    if ((marker === "embed" || marker === "shorts" || marker === "live" || marker === "v") && id && YOUTUBE_ID.test(id)) {
-      return id;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
 }
 
 /**

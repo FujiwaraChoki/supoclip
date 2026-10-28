@@ -82,6 +82,17 @@ describe("S3 video uploads", () => {
 
 describe("supported video source URLs", () => {
   it.each([["https://www.youtube.com/watch?v=abcdefghijk", "youtube"], ["https://www.twitch.tv/videos/12345", "twitch"], ["https://clips.twitch.tv/FancyClip-abc", "twitch"], ["https://kick.com/creator/videos/12345678-1234-1234-1234-123456789abc", "kick"], ["https://kick.com/video/12345678-1234-1234-1234-123456789abc", "kick"], ["https://kick.com/creator/clips/clip_abc", "kick"]])("accepts %s", (url, source) => expect(validateVideoSourceUrl(url)).toEqual({ source }));
+  // Issue #287: Shorts and other share links were rejected by a narrower copy of the parser.
+  it.each([
+    "https://www.youtube.com/shorts/ai1gIWacf0I",
+    "https://youtube.com/shorts/ai1gIWacf0I?si=abc",
+    "https://m.youtube.com/watch?v=ai1gIWacf0I",
+    "https://music.youtube.com/watch?v=ai1gIWacf0I",
+    "https://youtu.be/ai1gIWacf0I?t=3",
+    "https://www.youtube.com/live/ai1gIWacf0I",
+    "https://www.youtube.com/embed/ai1gIWacf0I",
+  ])("accepts YouTube link %s", (url) => expect(validateVideoSourceUrl(url)).toEqual({ source: "youtube" }));
+  it("rejects a YouTube page that is not a video", () => expect(validateVideoSourceUrl("https://www.youtube.com/@creator").error).toBe("Enter a valid YouTube video URL."));
   it.each(["https://twitch.tv/creator", "https://kick.com/creator"])("rejects live URL %s", (url) => expect(validateVideoSourceUrl(url).error).toContain("Live streams aren't supported"));
   it.each([
     ["https://www.twitch.tv/videos", "Enter a valid Twitch VOD or clip URL."],
