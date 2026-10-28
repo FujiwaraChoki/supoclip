@@ -696,6 +696,7 @@ Rules:
 - "start" is the timestamp of the line that names the subject, so the footage appears as the word is spoken.
 - "duration" is 2 to 4 seconds and must end before the next cutaway starts.
 - "query" is a 2-4 word English description of what the footage shows ("man cycling city street", "mountain summit hikers", "hands typing laptop"), even when the clip is in another language. No people's names, brands, logos, text, charts or screenshots: stock libraries do not have them.
+- Match the tone of what is said. Describe the scene literally and neutrally ("dark quiet bedroom", not "lonely night"), and never imply illness, pills, drugs, distress, violence or death unless the speaker is talking about exactly that: stock footage tagged that way changes what the clip seems to say.
 - "fallback_query" is a broader 1-2 word English search ("cycling", "mountain").
 - Never place a cutaway in the opening seconds or the final second: the viewer needs to see the speaker.
 - Return valid JSON only, with a "cues" list. Return an empty list when no moment has a concrete, filmable subject."""
