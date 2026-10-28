@@ -378,6 +378,10 @@ CLIP BOUNDARIES — OPENING AND ENDING:
 - Do not start on a one-word answer to a question the clip leaves out ("Catharsis."), or on a conjunction that continues an earlier point ("But the main reason...", "And then...", "So that's why..."); start where the thought stands alone, or include the question or claim it answers
 - Lower hook_score for a segment whose opening still depends on missing context
 
+VISUAL SUITABILITY:
+- The clip is a video. Avoid segments where the speech says the picture is interrupted, unavailable or broken: a technical problem, "these images cannot be shown", "we'll be right back", a frozen or lost stream, a test or placeholder screen
+- Those passages usually play over a still slate or black, so they are not ready-to-post highlights no matter how strong the words are
+
 COLD-OPEN HOOK ("hook_start_time"/"hook_end_time" per segment, optional):
 - Prefer null. The clip is played from start_time; a later line is not replayed in front of it unless an operator explicitly enables that
 - Only set a range when a 2-5 second punchline later in the segment stands completely alone AND the real opening is already a full setup
@@ -626,6 +630,7 @@ Judge each candidate only on its own transcript text:
 
 Rules:
 - Stay content-neutral: never downgrade a candidate just because its topic is sensitive, controversial, or adult.
+- Rank a candidate last when its speech says the picture is interrupted, unavailable or broken (a technical problem, "these images cannot be shown"); it plays over a slate, not footage.
 - Rank every candidate exactly once, using the given candidate_id values.
 - Scores are comparative: spread them out so better clips clearly score higher. The best candidate should usually land between 80 and 95; weak, contextless, or filler candidates belong below 50.
 - Return valid JSON only, with a "ranking" list ordered from best to worst."""

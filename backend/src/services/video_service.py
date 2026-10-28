@@ -27,6 +27,7 @@ from ..youtube_source import (
     resolve_full_youtube_download,
     copy_transcript_sidecar,
     load_time_map,
+    local_ranges_for,
     persist_cache_sidecar,
 )
 from ..video_utils import (
@@ -66,6 +67,7 @@ from ..media.ffmpeg import (
     ffprobe_video_size,
 )
 from ..media.timeline import get_words_for_keep_ranges
+from ..media.visual_suitability import is_visually_static, segment_static_fraction
 from ..stream_source import (
     PROCESSING_OPERATION,
     StreamSourceError,
@@ -232,6 +234,55 @@ class VideoService:
                 segments, key=lambda segment: int(segment.get("virality_score") or 0), reverse=True
             )
         return segments
+
+    @staticmethod
+    def _drop_static_segments(
+        video_path: Path, segments: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Leave out segments whose picture is one still frame (slate, card, black).
+
+        Selection only reads the transcript, so a strong passage spoken over a
+        "footage unavailable" card would otherwise lead the results. When every
+        segment is static (an audio podcast with cover art), all are kept.
+        """
+        fractions: List[Optional[float]] = []
+        for segment in segments:
+            try:
+                start = parse_timestamp_to_seconds(str(segment.get("start_time") or ""))
+                end = parse_timestamp_to_seconds(str(segment.get("end_time") or ""))
+                ranges = local_ranges_for(video_path, [(start, end)])
+                fractions.append(segment_static_fraction(video_path, ranges))
+            except Exception as exc:
+                logger.warning(
+                    "Visual check unavailable for segment %s-%s: %s",
+                    segment.get("start_time"),
+                    segment.get("end_time"),
+                    exc,
+                )
+                fractions.append(None)
+
+        static = [is_visually_static(fraction) for fraction in fractions]
+        if not any(static):
+            return segments
+        if all(static):
+            logger.warning(
+                "Every selected segment shows a still picture; keeping them all "
+                "because the whole source looks static"
+            )
+            return segments
+        kept = []
+        for segment, fraction, is_static in zip(segments, fractions, static):
+            if is_static:
+                logger.warning(
+                    "Dropping segment %s-%s: one still picture covers %.0f%% of it "
+                    "(interruption card, placeholder or black)",
+                    segment.get("start_time"),
+                    segment.get("end_time"),
+                    (fraction or 0.0) * 100,
+                )
+                continue
+            kept.append(segment)
+        return kept
 
     @staticmethod
     def _get_file_duration(path: Path) -> Optional[float]:
@@ -1089,6 +1140,12 @@ class VideoService:
                 if should_cancel and await should_cancel():
                     raise Exception("Task cancelled")
                 video_path = await VideoService.prepare_source(video_path)
+
+            # The picture is only available now when analysis ran on audio.
+            if len(segments_json) > 1:
+                segments_json = await run_in_thread(
+                    VideoService._drop_static_segments, video_path, segments_json
+                )
 
             return {
                 "segments": segments_json,
