@@ -33,7 +33,6 @@ from ..clip_source_map import (
     load_clip_caption_settings,
     source_range_bounds,
     split_source_ranges,
-    total_source_duration,
     trim_source_ranges,
 )
 
@@ -45,7 +44,7 @@ from ..youtube_source import (
     ranges_from_segments,
     restore_clip_timeline,
 )
-from ..media.ffmpeg import cap_video_short_side, ffprobe_duration
+from ..media.ffmpeg import cap_video_short_side, ffprobe_duration, rendered_clip_duration
 from ..stream_source import download_stream_sections
 
 logger = logging.getLogger(__name__)
@@ -307,7 +306,9 @@ class ClipEditingMixin:
         )
         source_ranges = await run_in_thread(self._get_clip_source_ranges, clip)
         trimmed_ranges = trim_source_ranges(source_ranges, start_offset, end_offset)
-        clip_duration = max(0.1, total_source_duration(trimmed_ranges))
+        clip_duration = max(
+            0.1, await run_in_thread(rendered_clip_duration, output_path, trimmed_ranges)
+        )
         bounds = source_range_bounds(trimmed_ranges)
         if not bounds:
             raise ValueError("Trimmed clip has no remaining source mapping")
@@ -364,8 +365,12 @@ class ClipEditingMixin:
             save_clip_caption_settings(second_path, settings)
         if broll := load_clip_broll(input_path):
             await self._carry_broll(broll, [(first_path, 0.0), (second_path, clamped_split)])
-        first_duration = max(0.1, total_source_duration(first_ranges))
-        second_duration = max(0.1, total_source_duration(second_ranges))
+        first_duration = max(
+            0.1, await run_in_thread(rendered_clip_duration, first_path, first_ranges)
+        )
+        second_duration = max(
+            0.1, await run_in_thread(rendered_clip_duration, second_path, second_ranges)
+        )
 
         await self.clip_repo.update_clip(
             self.db,
@@ -433,7 +438,7 @@ class ClipEditingMixin:
         if merged_bounds:
             start_time = self._seconds_to_mmss(merged_bounds[0])
             end_time = self._seconds_to_mmss(merged_bounds[1])
-            duration = total_source_duration(merged_ranges)
+            duration = await run_in_thread(rendered_clip_duration, merged_path, merged_ranges)
             save_clip_source_ranges(merged_path, merged_ranges)
         else:
             start_time = ordered[0]["start_time"]

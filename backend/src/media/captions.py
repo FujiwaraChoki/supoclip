@@ -14,7 +14,6 @@ from ..font_registry import find_font_path
 from ..font_registry import get_font_codepoints
 from ..font_registry import get_font_family_name
 from ..caption_templates import get_template
-from ..clip_source_map import normalize_source_ranges
 from ..emoji_captions import normalize_token
 import cv2
 import numpy as np
@@ -29,7 +28,7 @@ from .common import (
     logger,
 )
 from .ffmpeg import (
-    crossfade_fade_for_ranges,
+    rendered_ranges_duration,
     run_ffmpeg_command,
     subtitles_filter_fragment,
 )
@@ -464,11 +463,7 @@ def build_assemblyai_ass_subtitles(
     hook_events: List[str] = []
     if hook_title:
         if keep_ranges:
-            ranges = normalize_source_ranges(keep_ranges)
-            fade = crossfade_fade_for_ranges(ranges)
-            output_duration = sum(end - start for start, end in ranges) - fade * max(
-                0, len(ranges) - 1
-            )
+            output_duration = rendered_ranges_duration(keep_ranges)
         else:
             output_duration = max(0.0, clip_end - clip_start)
         hook_style_line, hook_events = build_hook_title_ass(

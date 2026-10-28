@@ -70,6 +70,7 @@ from .media.ffmpeg import (
     ffmpeg_escape_filter_value,
     ffprobe_has_audio,
     render_ranges_crossfade_ffmpeg,
+    rendered_clip_duration,
     subtitles_filter_fragment,
 )
 from .media.transcription import (
@@ -573,7 +574,9 @@ def create_clips_from_segments(
                     save_clip_caption_settings(
                         clip_path, {"position_y": layout_report["caption_y"]}
                     )
-                cleaned_duration = sum(end - start for start, end in keep_ranges)
+                # Crossfades overlap neighbouring ranges, so the file is
+                # shorter than the kept source; store what actually plays.
+                cleaned_duration = rendered_clip_duration(clip_path, keep_ranges)
                 clip_info = {
                     "clip_id": i + 1,
                     "filename": clip_filename,

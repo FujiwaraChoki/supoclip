@@ -396,6 +396,50 @@ def crossfade_fade_for_ranges(keep_ranges: List[Tuple[float, float]]) -> float:
     return fade if fade >= 0.06 else 0.0
 
 
+def output_offsets_for_ranges(keep_ranges: List[Tuple[float, float]]) -> List[float]:
+    """Where each kept range starts on the rendered clip timeline.
+
+    Each crossfade overlaps the two neighbouring ranges, so every junction
+    pulls the following ranges ``fade`` seconds earlier. Captions, headline
+    timing and stored durations all read the timeline through this mapping.
+    """
+    ranges = normalize_source_ranges(keep_ranges)
+    fade = crossfade_fade_for_ranges(ranges)
+    offsets: List[float] = []
+    cursor = 0.0
+    for index, (start, end) in enumerate(ranges):
+        if index > 0:
+            cursor -= fade
+        offsets.append(cursor)
+        cursor += end - start
+    return offsets
+
+
+def rendered_ranges_duration(keep_ranges: List[Tuple[float, float]]) -> float:
+    """Length of the clip render_source_ranges_ffmpeg produces for these ranges."""
+    ranges = normalize_source_ranges(keep_ranges)
+    if not ranges:
+        return 0.0
+    offsets = output_offsets_for_ranges(ranges)
+    return max(0.0, offsets[-1] + ranges[-1][1] - ranges[-1][0])
+
+
+def rendered_clip_duration(
+    clip_path: Path, keep_ranges: List[Tuple[float, float]]
+) -> float:
+    """Playback length of a finished clip, probed from the file when possible.
+
+    Teasers, crossfades, frame rounding and resolution caps all change the
+    final length, so the file is the authority; the range mapping is only the
+    fallback when the file cannot be probed.
+    """
+    try:
+        probed = ffprobe_duration(clip_path) if clip_path.exists() else 0.0
+    except Exception:
+        probed = 0.0
+    return probed if probed > 0 else rendered_ranges_duration(keep_ranges)
+
+
 def render_ranges_crossfade_ffmpeg(
     video_path: Path,
     keep_ranges: List[Tuple[float, float]],

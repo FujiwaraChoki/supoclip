@@ -28,8 +28,8 @@ from .common import (
     logger,
 )
 from .ffmpeg import (
-    crossfade_fade_for_ranges,
     ffprobe_duration,
+    output_offsets_for_ranges,
     run_ffmpeg_command,
     select_audio_stream_index,
 )
@@ -1076,21 +1076,19 @@ def get_words_for_keep_ranges(
 ) -> List[Dict[str, Any]]:
     """Project transcript word timings into the output timeline after cuts.
 
-    When the kept ranges are stitched with crossfades (see
-    ``crossfade_fade_for_ranges``) each junction shortens the timeline by the
-    fade duration, so word offsets are pulled earlier by the same amount to keep
-    captions locked to the spoken audio.
+    When the kept ranges are stitched with crossfades each junction shortens
+    the timeline by the fade duration; ``output_offsets_for_ranges`` applies
+    the same shift the renderer does, keeping captions locked to the audio.
     """
     if not transcript_data or not transcript_data.get("words") or not keep_ranges:
         return []
 
-    fade = crossfade_fade_for_ranges(keep_ranges)
+    keep_ranges = normalize_source_ranges(keep_ranges)
     relevant_words: List[Dict[str, Any]] = []
-    timeline_offset = 0.0
 
-    for index, (keep_start, keep_end) in enumerate(keep_ranges):
-        if index > 0:
-            timeline_offset -= fade  # account for the crossfade overlap
+    for (keep_start, keep_end), timeline_offset in zip(
+        keep_ranges, output_offsets_for_ranges(keep_ranges)
+    ):
         range_words = get_absolute_words_in_range(transcript_data, keep_start, keep_end)
         for word in range_words:
             relevant_words.append(
@@ -1102,6 +1100,5 @@ def get_words_for_keep_ranges(
                     "speaker": word.get("speaker"),
                 }
             )
-        timeline_offset += keep_end - keep_start
 
     return relevant_words
