@@ -14,6 +14,10 @@ import pytest
 
 from src import video_utils
 from src.media import timeline
+from src.media.common import (
+    CLIP_END_NEXT_WORD_GUARD_SECONDS,
+    CLIP_END_PADDING_SECONDS,
+)
 from src.media.ffmpeg import (
     crossfade_fade_for_ranges,
     ffprobe_duration,
@@ -91,6 +95,75 @@ def _video(tmp_path, words, name="source.mp4"):
         encoding="utf-8",
     )
     return path
+
+
+@pytest.fixture
+def long_source(monkeypatch):
+    monkeypatch.setattr(timeline, "ffprobe_duration", lambda _path: 3600.0)
+
+
+# --- #280: clip ends ---------------------------------------------------------
+
+
+def test_end_padding_stops_before_the_next_sentence(tmp_path, long_source):
+    # Production ended at 761.645 ("won't." + 0.35s), inside "All right, it's".
+    video = _video(tmp_path, FORTNITE_WORDS)
+    ranges = timeline.extend_keep_ranges_to_sentence_boundary(video, [(756.101, 761.0)])
+
+    assert ranges == [(756.101, pytest.approx(761.344 - CLIP_END_NEXT_WORD_GUARD_SECONDS))]
+    text = timeline.keep_ranges_transcript_text(video, ranges)
+    assert text.endswith("Say it won't. Say it won't.")
+    assert "All" not in text
+
+
+def test_end_padding_does_not_leak_the_outro(tmp_path, long_source):
+    # "today." is followed immediately by "This has been React in 100 Seconds."
+    video = _video(tmp_path, REACT_WORDS)
+    ranges = timeline.extend_keep_ranges_to_sentence_boundary(video, [(107.7, 110.5)])
+
+    assert ranges == [(107.7, pytest.approx(110.91))]
+    assert timeline.keep_ranges_transcript_text(video, ranges).endswith("developers today.")
+
+
+def test_end_padding_is_unchanged_when_the_next_word_is_far(tmp_path, long_source):
+    video = _video(tmp_path, HUBERMAN_WORDS)
+    ranges = timeline.extend_keep_ranges_to_sentence_boundary(video, [(253.5, 260.6)])
+    assert ranges == [(253.5, pytest.approx(260.803 + CLIP_END_PADDING_SECONDS))]
+
+
+def test_fragment_just_after_a_finished_sentence_is_dropped(tmp_path, long_source):
+    # The next sentence starts 50ms after the payoff and never finishes inside
+    # the extension window; a range ending 0.3s later used to keep "Before".
+    video = _video(
+        tmp_path,
+        _ms_words(
+            ("That", 10000, 10300), ("move", 10300, 10600), ("is", 10600, 10800),
+            ("the", 10800, 11000), ("whole", 11000, 11300), ("game.", 11300, 11800),
+            ("Before", 11850, 12100), ("we", 12100, 12300), ("started", 12900, 13300),
+            ("recording", 13300, 13800),
+        ),
+    )
+    ranges = timeline.extend_keep_ranges_to_sentence_boundary(video, [(10.0, 12.1)])
+    assert ranges == [(10.0, pytest.approx(11.85 - CLIP_END_NEXT_WORD_GUARD_SECONDS))]
+
+
+def test_duration_cap_backs_off_to_the_last_full_sentence(tmp_path):
+    # 205.326 + 60s lands in "...when you want to be asleep and when you want".
+    video = _video(tmp_path, HUBERMAN_WORDS)
+    ranges = timeline.clamp_keep_ranges_to_max_duration(video, [(205.326, 267.9)], 60.0)
+
+    assert ranges == [(205.326, pytest.approx(260.803 + CLIP_END_PADDING_SECONDS))]
+    assert timeline.keep_ranges_transcript_text(video, ranges).endswith(
+        "governed by a number of different things."
+    )
+
+
+def test_duration_cap_backs_off_only_a_share_of_the_cap(tmp_path):
+    # With a 15s cap the full stop 4.5s back is too far; end on the last word,
+    # still clear of the next one.
+    video = _video(tmp_path, HUBERMAN_WORDS)
+    ranges = timeline.clamp_keep_ranges_to_max_duration(video, [(250.326, 267.9)], 15.0)
+    assert ranges == [(250.326, pytest.approx(265.315 - CLIP_END_NEXT_WORD_GUARD_SECONDS))]
 
 
 # --- #285: stored duration ----------------------------------------------------

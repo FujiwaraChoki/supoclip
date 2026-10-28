@@ -74,6 +74,14 @@ MAX_RENDERED_CLIP_SECONDS = 60.0
 
 CLIP_END_PADDING_SECONDS = 0.35
 
+# The end padding stops this far before the next spoken word, so a finished
+# sentence never picks up the first syllable of the next one.
+CLIP_END_NEXT_WORD_GUARD_SECONDS = 0.03
+
+# When the duration cap lands mid-sentence, the end may back off this share of
+# the cap (at least 3s) to the previous sentence end instead of cutting mid-thought.
+CLIP_CAP_SENTENCE_BACKOFF_FRACTION = 0.25
+
 CLIP_START_SNAP_WINDOW_SECONDS = 3.0
 
 CLIP_START_LEAD_IN_SECONDS = 0.1
