@@ -1366,8 +1366,14 @@ def build_full_frame_filter(
             f"[ftsrc]{FIT_CHAIN}[fit];"
             "[bg][fit]overlay=(W-w)/2:(H-h)/2[vout]"
         )
-    end = max(e for _, e, _, _ in fit_windows)
-    layers = build_fit_layers([(0.0, end)], fit_windows)
+    # Nothing but the fit is shown here, so the last window stays on to the
+    # final frame even if the stream runs past the probed duration.
+    last = max(range(len(fit_windows)), key=lambda i: fit_windows[i][1])
+    fit_windows = [
+        (start, max(end, 1e6) if i == last else end, crop_w, x)
+        for i, (start, end, crop_w, x) in enumerate(fit_windows)
+    ]
+    layers = build_fit_layers([(0.0, fit_windows[last][1])], fit_windows)
     sources = "".join(f"[ft{i}]" for i in range(len(layers)))
     return (
         f"[0:v]split={1 + len(layers)}[bgsrc]{sources};"
@@ -1508,7 +1514,11 @@ def describe_vertical_layout(
         if context else build_layout_plan(track, scene_cuts, duration)
     )
     logger.info("Vertical scene layout: %s", plan)
-    fit_windows = plan_fit_windows(plan, context, width, height) if context else []
+    try:
+        fit_windows = plan_fit_windows(plan, context, width, height) if context else []
+    except Exception as exc:
+        logger.warning("Readable fit planning failed (%s); keeping the plain fit", exc)
+        fit_windows = []
     if fit_windows:
         logger.info("Readable fit windows (start, end, crop_w, x): %s", fit_windows)
     fit_intervals = [(s["start"], s["end"]) for s in plan if s["kind"] == "fit"]

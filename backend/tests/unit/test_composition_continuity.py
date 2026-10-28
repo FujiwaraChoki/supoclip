@@ -74,6 +74,19 @@ def test_brief_wide_shot_of_the_same_speaker_keeps_the_face_crop():
     assert layout(plan) == [(0.0, 40.0, "face")]
 
 
+def test_fast_close_and_wide_cutting_of_one_speaker_stays_cropped():
+    # Two-second close-ups alternating with two-second wide shots of the same
+    # host: widening every short crop would letterbox the entire clip.
+    plan = [
+        shot(0, 2, "face", "confident_subject"),
+        shot(2, 4, "fit", "no_reliable_close_subject", soft=True),
+        shot(4, 6, "face", "confident_subject"),
+        shot(6, 8, "fit", "no_reliable_close_subject", soft=True),
+        shot(8, 10, "face", "confident_subject"),
+    ]
+    assert layout(stabilize_layout_plan(plan)) == [(0, 10, "face")]
+
+
 def test_brief_content_shot_between_close_ups_stays_full_frame():
     close = [subject(i / 3) for i in range(0, 78)]
     slide = [SceneEvidence(i / 3, text_rows=6) for i in range(78, 84)]
@@ -228,6 +241,39 @@ def test_zoomed_fit_graph_has_one_branch_per_size():
     compositor = reframing.build_vertical_compositor_filter(
         "crop=606:1080:0:0,scale=1080:1920", [(20.0, 30.0)], [(0.0, 20.0)], fit_windows=windows)
     assert "split=4[bgsrc][crsrc][ft0][ft1]" in compositor and compositor.endswith("[vout]")
+
+
+def test_full_frame_fit_stays_on_past_the_probed_duration():
+    # The stream can run a frame past ffprobe's duration; the full-frame graph
+    # has no other foreground, so the last window must not switch off.
+    windows = [(0.0, 6.0, 1344, 332), (6.0, 12.0, None, 0)]
+    graph = reframing.build_full_frame_filter(fit_windows=windows)
+    assert "between(t\\,6.000\\,1000000.000)" in graph
+    assert "between(t\\,0.000\\,6.000)" in graph
+
+
+def test_text_measurement_failure_keeps_the_face_crop(monkeypatch):
+    def boom(_gray):
+        raise RuntimeError("bad frame")
+
+    monkeypatch.setattr(ContextAnalyzer, "_text_lines", staticmethod(boom))
+    frame = np.full((270, 480, 3), 40, np.uint8)
+    evidence = ContextAnalyzer().measure(frame, [(200, 60, 80, 100)], 0.0)
+    assert evidence.cut_text_lines == 0
+    assert (evidence.detail_left, evidence.detail_right) == (0.0, 1.0)
+
+
+def test_fit_window_failure_falls_back_to_the_plain_fit(monkeypatch):
+    def boom(*_args):
+        raise RuntimeError("bad windows")
+
+    monkeypatch.setattr(reframing, "plan_fit_windows", boom)
+    monkeypatch.setattr(reframing, "ffprobe_duration", lambda _p: 10.0)
+    monkeypatch.setattr(reframing, "analyze_vertical_clip",
+                        lambda _p: ([], [], [], [SceneEvidence(t / 2) for t in range(20)]))
+    described = reframing.describe_vertical_layout(Path("unused.mp4"), 1920, 1080)
+    assert described["kind"] == "fit"
+    assert described["video_filter"] == reframing.build_full_frame_filter()
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="FFmpeg required")

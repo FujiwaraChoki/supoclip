@@ -6,12 +6,15 @@ are normalized, and motion is measured after compensating for camera movement.
 No network/model downloads or additional runtime dependencies are required.
 """
 
+import logging
 from dataclasses import dataclass
 from collections import Counter
 from typing import Optional, Sequence
 
 import cv2
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # Lines of text a face crop may slice through before the shot keeps the full
 # frame. One line is often a stray texture; a sign or lower third has two.
@@ -234,17 +237,27 @@ class ContextAnalyzer:
                 spread = sum(float(column.mean()) > 0.035 for column in columns) / 6
         self.previous, self.histogram = gray, hist
         components = self._text_components(gray)
-        lines = self._text_lines(gray)
-        margin = max(2, int(w * 0.005))
-        cut_lines = sum(
-            any(x0 < edge - margin and x1 > edge + margin for edge in (left, right) if 0 < edge < w)
-            for x0, _, x1, _ in lines
-        )
-        protected = [(x0, x1) for x0, _, x1, _ in lines]
-        protected += [(b[0], b[0] + b[2]) for b in significant]
-        protect_left = min((a for a, _ in protected), default=w / 2) / w
-        protect_right = max((b for _, b in protected), default=w / 2) / w
-        detail_left, detail_right = self._detail_span(gray)
+        # Text-line and detail extents only refine the layout. If they fail,
+        # fall back to "no cut text, full-width detail" (the previous behaviour)
+        # instead of discarding the whole clip analysis.
+        cut_lines, protect_left, protect_right = 0, 0.0, 1.0
+        detail_left, detail_right = 0.0, 1.0
+        try:
+            lines = self._text_lines(gray)
+            margin = max(2, int(w * 0.005))
+            cut_lines = sum(
+                any(x0 < edge - margin and x1 > edge + margin for edge in (left, right) if 0 < edge < w)
+                for x0, _, x1, _ in lines
+            )
+            protected = [(x0, x1) for x0, _, x1, _ in lines]
+            protected += [(b[0], b[0] + b[2]) for b in significant]
+            protect_left = min((a for a, _ in protected), default=w / 2) / w
+            protect_right = max((b for _, b in protected), default=w / 2) / w
+            detail_left, detail_right = self._detail_span(gray)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Text/detail measurement failed at %.2fs (%s); ignoring it", time, exc)
+            cut_lines, protect_left, protect_right = 0, 0.0, 1.0
+            detail_left, detail_right = 0.0, 1.0
         return SceneEvidence(
             time, area, span, len(significant), center, motion, outside, spread, camera,
             self._text_rows(components, w, left, right), cut, delta,
@@ -333,17 +346,22 @@ def stabilize_layout_plan(plan: list[dict]) -> list[dict]:
                 continue
             neighbours = [runs[j] for j in (index - 1, index + 1) if 0 <= j < len(runs)]
             if plan[a]["kind"] == "face":
-                flip = True
+                flip, rank = True, 1
             else:
                 soft = all(p.get("soft") for p in plan[a:b])
                 flip = soft or length < LAYOUT_FLASH_SECONDS
+                # A brief wide shot of the lone speaker between two crops
+                # joins them; otherwise fast close/wide cutting would widen
+                # every crop and letterbox the whole clip.
+                rank = 0 if soft and len(neighbours) == 2 else 2
             if flip:
                 donor = max(neighbours, key=lambda r: plan[r[1] - 1]["end"] - plan[r[0]]["start"])
-                candidates.append((plan[a]["kind"] == "fit", length, a, b, donor))
+                candidates.append((rank, length, a, b, donor))
         if not candidates:
             break
-        # Widen short crops first: a short fit only inherits a crop once the
-        # surrounding crops are known to hold.
+        # Soft wide shots between crops become crops first; then short crops
+        # widen; other short fits only inherit a crop once the crops around
+        # them are known to hold.
         *_, a, b, donor = min(candidates)
         # Continue the composition of the shot right next to the flipped run.
         source = plan[donor[1] - 1] if donor[1] <= a else plan[donor[0]]
@@ -394,4 +412,8 @@ def build_context_layout_plan(samples: Sequence[SceneEvidence], scene_cuts: Sequ
             plan[-1]["soft"] = plan[-1]["soft"] and soft
         else:
             plan.append({"start": start, "end": end, "kind": kind, "reason": reason, "soft": soft})
-    return stabilize_layout_plan(plan)
+    try:
+        return stabilize_layout_plan(plan)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Layout hysteresis failed (%s); keeping per-shot layout", exc)
+        return plan
