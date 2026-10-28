@@ -23,7 +23,6 @@ import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import {
-  brollOf,
   captionGroups,
   clamp,
   editDuration,
@@ -32,7 +31,7 @@ import {
   mappedBroll,
   mappedWords,
   outputTime,
-  placeBroll,
+  placeBrollOnTimeline,
   replaceCaptionGroup,
   sequence,
   splitSegment,
@@ -589,20 +588,23 @@ function BRollTrack({
     id: string;
     mode: "move" | "start" | "end";
     x: number;
-    start: number;
-    end: number;
-    offset: number;
+    document: EditDocument;
+    piece: ReturnType<typeof mappedBroll>[number];
+    group: string;
     scale: number;
     moved: boolean;
   } | null>(null);
+  const laneRef = useRef<HTMLDivElement>(null);
+  const ignoreClick = useRef(false);
   const pct = (seconds: number) => `${(seconds / total) * 100}%`;
-  const begin = (e: React.PointerEvent, id: string, mode: "move" | "start" | "end") => {
-    const clip = brollOf(doc).find((b) => b.id === id);
-    if (!clip) return;
+  const begin = (e: React.PointerEvent, piece: ReturnType<typeof mappedBroll>[number], mode: "move" | "start" | "end") => {
+    const clip = piece.clip;
     e.stopPropagation();
-    select(id);
-    drag.current = { id, mode, x: e.clientX, start: clip.start, end: clip.end, offset: clip.offset, scale: secondsPerPixel(), moved: false };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    select(clip.id);
+    ignoreClick.current = true;
+    drag.current = { id: clip.id, mode, x: e.clientX, document: doc, piece, group: `gesture:${uid()}`, scale: secondsPerPixel(), moved: false };
+    // Crossing a cut changes the piece's segment/key. Capture on the stable lane.
+    laneRef.current?.setPointerCapture(e.pointerId);
   };
   const move = (e: React.PointerEvent) => {
     const d = drag.current;
@@ -613,20 +615,9 @@ function BRollTrack({
     }
     if (Math.abs(e.clientX - d.x) > 2) d.moved = true;
     if (!d.moved) return;
-    // An edit-time distance moves the clip by the same source-time distance.
     const delta = (e.clientX - d.x) * d.scale;
-    update((current) => {
-      if (d.mode === "move") return placeBroll(current, d.id, d.start + delta, d.end + delta, duration);
-      if (d.mode === "end") return placeBroll(current, d.id, d.start, d.end + delta, duration);
-      // Trimming the head keeps the rest of the footage where it was.
-      const placed = placeBroll(current, d.id, d.start + delta, d.end, duration);
-      return {
-        ...placed,
-        broll: brollOf(placed).map((b) =>
-          b.id === d.id ? { ...b, offset: Math.max(0, d.offset + b.start - d.start) } : b,
-        ),
-      };
-    }, "broll-drag");
+    const placed = placeBrollOnTimeline(d.document, d.id, d.piece, d.mode, delta, duration);
+    update(current => ({ ...current, broll: placed.broll }), d.group);
   };
   const end = (e: React.PointerEvent) => {
     const d = drag.current;
@@ -637,8 +628,15 @@ function BRollTrack({
     <div
       role="group"
       aria-label={t("broll.laneLabel")}
+      ref={laneRef}
+      onPointerDown={e => { if (e.target === e.currentTarget) ignoreClick.current = false; }}
+      onPointerMove={move}
+      onPointerUp={end}
+      onPointerCancel={() => (drag.current = null)}
+      onLostPointerCapture={() => (drag.current = null)}
       className={cn("relative cursor-copy rounded-lg", TRACK.broll, pieces.length === 0 && "bg-stone-50 dark:bg-stone-900/50")}
       onClick={(e) => {
+        if (ignoreClick.current) { ignoreClick.current = false; return; }
         if (e.target !== e.currentTarget) return;
         const time = at(e.clientX);
         select(null);
@@ -668,11 +666,7 @@ function BRollTrack({
               width: pct(piece.end - piece.start),
               backgroundImage: clip.footage.thumbnail ? `url(${clip.footage.thumbnail})` : undefined,
             }}
-            onPointerDown={(e) => begin(e, clip.id, "move")}
-            onPointerMove={move}
-            onPointerUp={end}
-            onPointerCancel={() => (drag.current = null)}
-            onLostPointerCapture={() => (drag.current = null)}
+            onPointerDown={(e) => begin(e, piece, "move")}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
@@ -690,9 +684,7 @@ function BRollTrack({
                 key={edge}
                 aria-hidden
                 className={cn("absolute inset-y-0 w-2 cursor-ew-resize hover:bg-white/40", edge === "start" ? "left-0" : "right-0")}
-                onPointerDown={(e) => begin(e, clip.id, edge)}
-                onPointerMove={move}
-                onPointerUp={end}
+                onPointerDown={(e) => begin(e, piece, edge)}
               />
             ))}
           </div>

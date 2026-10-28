@@ -254,6 +254,46 @@ for (const mode of ["move", "trim"] as const) {
   });
 }
 
+for (const reordered of [false, true]) test(`B-roll drag crosses ${reordered ? "reordered" : "removed"} source time without losing capture, undo or export`, async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const cuts = [{ id: "one", start: 0, end: 1 }, { id: "two", start: 2, end: 3 }];
+  const initial: EditDocument = { ...structuredClone(draft), segments: reordered ? [...cuts].reverse() : cuts,
+    framing: { ...draft.framing, aspect: "original" }, broll: [{ ...generated, start: reordered ? 2.3 : .3, end: reordered ? 2.7 : .7 }] };
+  const { saved } = await setup(page, { document: initial });
+  const lane = page.getByRole("group", { name: "B-roll track" });
+  const block = lane.getByRole("button", { name: /B-roll mountain summit/ });
+  const box = (await block.boundingBox())!, track = (await lane.boundingBox())!;
+  const x = box.x + box.width / 2, y = box.y + box.height / 2, step = track.width / 2;
+  await page.mouse.move(x, y); await page.mouse.down();
+  // The block is replaced when its destination switches to a different segment.
+  await page.mouse.move(x + step * .8, y, { steps: 10 });
+  await page.mouse.move(x + step, y, { steps: 5 });
+  await page.mouse.move(x + step, box.y - 20); await page.mouse.up();
+  const expected = reordered ? .3 : 2.3;
+  await expect.poll(() => saved().document.broll![0].start).toBeCloseTo(expected, 2);
+  expect(saved().document.broll![0].end).toBeCloseTo(expected + .4, 2);
+  await expect(block).toBeVisible();
+  await seekTo(page, 1.5);
+  await expect.poll(async () => (await canvasColor(page)).blue).toBeGreaterThan(200);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(() => saved().document.broll![0].start).toBeCloseTo(initial.broll![0].start, 2);
+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Redo", exact: true }).click();
+  await expect.poll(() => saved().document.broll![0].start).toBeCloseTo(expected, 2);
+  await page.reload();
+  await expect(block).toBeVisible();
+  if (!reordered) {
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    await page.getByRole("button", { name: /On this device/ }).click();
+    const download = page.waitForEvent("download", { timeout: 60000 });
+    await page.getByRole("button", { name: "Export clip", exact: true }).click();
+    const file = info.outputPath("cross-cut-broll.mp4"); await (await download).saveAs(file);
+    const pixel = (time: number) => execFileSync("ffmpeg", ["-v", "error", "-ss", String(time), "-i", file, "-frames:v", "1", "-vf", "crop=40:40:0:150,scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]);
+    expect(pixel(1.5)[2]).toBeGreaterThan(200);
+    expect(pixel(.5)[0]).toBeGreaterThan(150);
+  }
+});
+
 const exportCases: { name: string; broll: BRollClip[]; at: number[]; segments?: EditDocument["segments"]; blue?: [number, number] }[] = [
   { name: "generated", broll: [generated], at: [1.5] },
   { name: "minimum-length", broll: [{ ...generated, end: 1.2 }], at: [1.0834] },

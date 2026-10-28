@@ -500,6 +500,35 @@ export function placeBroll(
   };
 }
 
+/** Map a track edge back to source time; a right edge belongs to the preceding segment. */
+function sourceAtTrackTime(doc: EditDocument, time: number, edge: "start" | "end") {
+  const items = sequence(doc);
+  const at = clamp(time, 0, editDuration(doc));
+  const item = items.find(item => at >= item.start && (edge === "end" ? at <= item.end : at < item.end)) ?? items.at(-1)!;
+  return { source: item.segment.start + at - item.start, segment: item.segment };
+}
+
+/** Timeline gestures use edit seconds; persisted B-roll stays anchored to source footage. */
+export function placeBrollOnTimeline(
+  doc: EditDocument, id: string, piece: { start: number; end: number; offset: number },
+  mode: "move" | "start" | "end", delta: number, duration: number,
+): EditDocument {
+  const clip = brollOf(doc).find(clip => clip.id === id);
+  if (!clip) return doc;
+  const edge = mode === "end" ? "end" : "start";
+  const origin = clip.start + piece.offset - clip.offset + (edge === "end" ? piece.end - piece.start : 0);
+  const target = sourceAtTrackTime(doc, piece[edge] + delta, edge);
+  // At a cut, keep the grabbed piece inside the destination's kept source
+  // range instead of leaving only a sliver before a removed interval.
+  const visible = Math.min(piece.end - piece.start, target.segment.end - target.segment.start);
+  const destination = mode === "move" ? clamp(target.source, target.segment.start, target.segment.end - visible) : target.source;
+  const shift = destination - origin;
+  const placed = placeBroll(doc, id, clip.start + (mode === "end" ? 0 : shift), clip.end + (mode === "start" ? 0 : shift), duration);
+  if (mode !== "start") return placed;
+  // Head trimming keeps the remaining stock frames in place.
+  return { ...placed, broll: brollOf(placed).map(b => b.id === id ? { ...b, offset: Math.max(0, clip.offset + b.start - clip.start) } : b) };
+}
+
 /** B-roll pieces on the output timeline, mirroring the server's mapped_broll. */
 export function mappedBroll(doc: EditDocument) {
   const pieces: {
