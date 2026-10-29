@@ -285,6 +285,40 @@ def _delete_finished_local_upload(storage, video_path: str) -> None:
     storage.delete(str(path.with_name(f"{path.stem}.capped.mp4")))
 
 
+async def _upload_still_unreferenced(db, video_path: str | None) -> bool:
+    if not video_path:
+        return True
+    referenced = await db.execute(text("""
+        SELECT EXISTS (
+            SELECT 1 FROM sources s
+            JOIN tasks t ON t.source_id = s.id
+            WHERE s.url = :path
+        )
+    """), {"path": video_path})
+    return not bool(referenced.scalar())
+
+
+async def _expire_one_upload_session(db, storage, row) -> None:
+    """Delete one finished session unless a task source appears while we wait.
+
+    Task creation holds ``source_guard`` across the source insert and its
+    commit. Taking that same lock here, then checking again, means expiry
+    cannot remove a file whose task source has already committed, and cannot
+    pass a task create that is still inside the guard.
+    """
+    video_path = row.video_path or ""
+    guard = source_guard(db, video_path) if video_path.startswith("upload://") else nullcontext()
+    async with guard:
+        if not await _upload_still_unreferenced(db, video_path):
+            return
+        try:
+            await run_in_thread(_delete_finished_local_upload, storage, video_path)
+        except (OSError, ValueError):
+            return
+        await db.execute(text("DELETE FROM media_upload_sessions WHERE id = :id"), {"id": row.id})
+        await db.commit()
+
+
 async def _expire_finished_upload_sessions(db, storage) -> None:
     """Drop completed and aborted sessions after two days, and their local files.
 
@@ -302,13 +336,12 @@ async def _expire_finished_upload_sessions(db, storage) -> None:
               WHERE s.url = media_upload_sessions.video_path
           )
     """))).all()
+    # Release this read before waiting on a task create. The locked re-check
+    # below is what decides whether the file is still free.
+    await db.rollback()
     for row in rows:
-        try:
-            await run_in_thread(_delete_finished_local_upload, storage, row.video_path)
-        except (OSError, ValueError):
-            continue
-        await db.execute(text("DELETE FROM media_upload_sessions WHERE id = :id"), {"id": row.id})
-    await db.commit()
+        await _expire_one_upload_session(db, storage, row)
+    await db.rollback()
 
 
 async def cleanup_upload_sessions(db, storage):

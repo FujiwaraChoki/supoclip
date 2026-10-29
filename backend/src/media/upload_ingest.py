@@ -168,6 +168,7 @@ async def persist_local_upload(video_path: str) -> None:
             if row.storage_reference:
                 if path.is_file():
                     await run_in_thread(_write_sidecar, path, row.storage_reference)
+                    await run_in_thread(storage.save_source_metadata, path)
                 return
             if not path.is_file():
                 logger.warning("Stored upload is missing; object storage copy skipped")
@@ -185,6 +186,7 @@ async def persist_local_upload(video_path: str) -> None:
                 await save_storage_reference(db, session_id, video_path, reference)
         if path.is_file():
             await run_in_thread(_write_sidecar, path, reference)
+            await run_in_thread(storage.save_source_metadata, path)
     finally:
         def release(open_handle) -> None:
             fcntl.flock(open_handle, fcntl.LOCK_UN)

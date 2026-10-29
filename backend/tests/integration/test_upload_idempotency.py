@@ -1,12 +1,15 @@
 """Retries of one upload reuse the stored file and the in-progress task."""
 
+import asyncio
 import hashlib
 import hmac
 import json
 import time
+from contextlib import asynccontextmanager
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.media_storage import MediaStorage
 from src.repositories.task_repository import TaskRepository
@@ -365,3 +368,48 @@ async def test_upload_task_dedupe_uses_completed_at(db_session):
     await db_session.commit()
     found = await TaskRepository.find_recent_upload_task(db_session, "user-1", key)
     assert found is not None and found.id == task["id"]
+
+
+@pytest.mark.asyncio
+async def test_expiry_keeps_an_upload_claimed_while_cleanup_waits(
+    app, db_session, tmp_path, monkeypatch, initialized_database,
+):
+    from src.repositories.media_repository import source_guard
+    from src.workers import media_cleanup
+
+    await create_user(db_session, user_id="user-1")
+    app.state.config.temp_dir = str(tmp_path)
+    video_path = "upload://claimed.mp4"
+    saved = tmp_path / "uploads" / "claimed.mp4"
+    saved.parent.mkdir()
+    saved.write_bytes(b"claimed-video")
+    await db_session.execute(text("""
+        INSERT INTO media_upload_sessions (id, user_id, video_path, size, state, created_at)
+        VALUES ('claimed-session', 'user-1', :path, 14, 'completed', NOW() - INTERVAL '3 days')
+    """), {"path": video_path})
+    await db_session.commit()
+
+    waiting = asyncio.Event()
+
+    @asynccontextmanager
+    async def _wait_for_the_task_lock(db, url):
+        waiting.set()
+        async with source_guard(db, url):
+            yield
+
+    monkeypatch.setattr(media_cleanup, "source_guard", _wait_for_the_task_lock)
+    storage = MediaStorage(config=app.state.config)
+    storage.bucket = None
+    sessions = async_sessionmaker(initialized_database, class_=AsyncSession, expire_on_commit=False)
+    async with sessions() as holder, sessions() as cleaner:
+        async with source_guard(holder, video_path):
+            job = asyncio.create_task(media_cleanup.cleanup_upload_sessions(cleaner, storage))
+            await asyncio.wait_for(waiting.wait(), timeout=5)
+            source = await create_source(db_session, source_type="video_url", url=video_path)
+            await create_task(db_session, user_id="user-1", source_id=source["id"])
+        await asyncio.wait_for(job, timeout=5)
+
+    assert saved.read_bytes() == b"claimed-video"
+    assert (await db_session.execute(text(
+        "SELECT COUNT(*) FROM media_upload_sessions WHERE video_path = :path"
+    ), {"path": video_path})).scalar_one() == 1
