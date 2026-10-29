@@ -85,7 +85,9 @@ above 1080p or 60 fps is still scaled in the worker (`Preparing video...` at
 15%), and the capped master is stored beside the original.
 
 A retry of the same bytes returns the same `video_path` and does not keep a
-second file or use another daily upload slot. Clients may send
+second file or use another daily upload slot. If that local file is gone and
+object storage has no copy, the retry writes the bytes back to that path.
+Clients may send
 `Idempotency-Key` (`8–200` characters: letters, digits, `.`, `_`, `:`, `-`).
 Reusing that key for different bytes is `409`. A later key for the same bytes
 is kept as well, and each earlier key still returns `409` for a different file.

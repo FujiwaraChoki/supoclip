@@ -79,6 +79,59 @@ async def test_upload_stores_bytes_without_normalizing_and_retries_reuse_the_fil
 
 
 @pytest.mark.asyncio
+async def test_reupload_restores_missing_bytes_without_a_durable_object(
+    client, app, auth_headers, db_session, tmp_path,
+):
+    await create_user(db_session, user_id="user-1")
+    app.state.config.temp_dir = str(tmp_path)
+    payload = b"restore-me"
+    first = await _upload(client, auth_headers, payload)
+    assert first.status_code == 200, first.text
+    video_path = first.json()["video_path"]
+    saved = tmp_path / "uploads" / video_path.removeprefix("upload://")
+    saved.unlink()
+
+    again = await _upload(client, auth_headers, payload)
+    assert again.status_code == 200, again.text
+    assert again.json()["video_path"] == video_path
+    assert saved.read_bytes() == payload
+    assert list((tmp_path / "uploads").glob("*.mp4")) == [saved]
+
+    keyed = b"restore-with-key"
+    key = "client-retry-9"
+    keyed_first = await _upload(client, auth_headers, keyed, key=key)
+    assert keyed_first.status_code == 200, keyed_first.text
+    keyed_path = keyed_first.json()["video_path"]
+    keyed_file = tmp_path / "uploads" / keyed_path.removeprefix("upload://")
+    keyed_file.unlink()
+    keyed_again = await _upload(client, auth_headers, keyed, key=key)
+    assert keyed_again.status_code == 200, keyed_again.text
+    assert keyed_again.json()["video_path"] == keyed_path
+    assert keyed_file.read_bytes() == keyed
+
+    durable = b"kept-in-object-storage"
+    durable_first = await _upload(client, auth_headers, durable)
+    assert durable_first.status_code == 200, durable_first.text
+    durable_path = durable_first.json()["video_path"]
+    await db_session.execute(text("""
+        UPDATE media_upload_sessions
+        SET storage_reference = 'sources/user/original.mp4'
+        WHERE video_path = :path
+    """), {"path": durable_path})
+    await db_session.commit()
+    durable_file = tmp_path / "uploads" / durable_path.removeprefix("upload://")
+    durable_file.unlink()
+    durable_again = await _upload(client, auth_headers, durable)
+    assert durable_again.status_code == 200, durable_again.text
+    assert durable_again.json()["video_path"] == durable_path
+    assert not durable_file.exists()
+    assert sorted(path.name for path in (tmp_path / "uploads").glob("*.mp4")) == sorted([
+        saved.name,
+        keyed_file.name,
+    ])
+
+
+@pytest.mark.asyncio
 async def test_idempotency_key_reuses_one_file_and_rejects_a_different_file(
     client, app, auth_headers, db_session, tmp_path,
 ):
