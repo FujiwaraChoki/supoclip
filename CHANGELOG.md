@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-10-29
 
-- **Fixed:** A large video upload finishes once the file is stored, instead of waiting on a copy that can time out. Uploading the same file again reuses it.
+- **Fixed:** A large video upload finishes once the file is stored, instead of waiting on a copy that can time out. Uploading the same file again reuses it. ([#306](https://github.com/FujiwaraChoki/supoclip/pull/306))
 
 ## 2026-10-28
 
