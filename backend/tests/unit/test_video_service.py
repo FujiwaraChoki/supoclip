@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.services import video_service as video_service_module
-from src.services.video_service import VideoService
+from src.services.video_service import VideoService, resolve_upload_for_edit
 
 
 class _EmptyAnalysis:
@@ -145,3 +145,54 @@ async def test_picture_review_backfills_before_enforcing_one_clip_limit(monkeypa
     assert len(seen) == 2
     assert len(result["segments_to_render"]) == 1
     assert result["segments_to_render"][0]["start_time"] == "00:50"
+
+
+@pytest.mark.asyncio
+async def test_resolve_stored_upload_keeps_a_local_file(monkeypatch, tmp_path):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+
+    async def fail_materialize(_url):
+        raise AssertionError("durable lookup is unused when the local file exists")
+
+    monkeypatch.setattr(video_service_module, "materialize_stored_upload", fail_materialize)
+    service = VideoService()
+    service.resolve_local_video_path = lambda _url: source
+    assert await service.resolve_stored_upload("upload://source.mp4") == source
+
+
+@pytest.mark.asyncio
+async def test_resolve_stored_upload_uses_the_durable_object(monkeypatch, tmp_path):
+    missing = tmp_path / "missing.mp4"
+    restored = tmp_path / "restored.mp4"
+    restored.write_bytes(b"from-s3")
+
+    async def materialize(url):
+        assert url == "upload://missing.mp4"
+        return restored
+
+    monkeypatch.setattr(video_service_module, "materialize_stored_upload", materialize)
+    service = VideoService()
+    service.resolve_local_video_path = lambda _url: missing
+    assert await service.resolve_stored_upload("upload://missing.mp4") == restored
+
+
+@pytest.mark.asyncio
+async def test_resolve_stored_upload_leaves_s3_urls_on_the_local_resolver(monkeypatch, tmp_path):
+    remote = tmp_path / "remote.mp4"
+
+    async def fail_materialize(_url):
+        raise AssertionError("upload://s3/ is resolved by the storage client")
+
+    monkeypatch.setattr(video_service_module, "materialize_stored_upload", fail_materialize)
+    service = VideoService()
+    service.resolve_local_video_path = lambda _url: remote
+    assert await service.resolve_stored_upload("upload://s3/user/source.mp4") == remote
+
+
+@pytest.mark.asyncio
+async def test_resolve_upload_for_edit_keeps_a_local_only_fake(tmp_path):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+    fake = SimpleNamespace(resolve_local_video_path=lambda _url: source)
+    assert await resolve_upload_for_edit(fake, "upload://source.mp4") == source

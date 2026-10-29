@@ -94,6 +94,18 @@ UPLOAD_URL_PREFIX = "upload://"
 OPENING_CONTEXT_SECONDS = 10.0
 
 
+async def resolve_upload_for_edit(video_service, url: str) -> Path:
+    """Open an uploaded source for an existing clip.
+
+    A real video service falls back to the session storage reference. Fakes
+    that only implement the local resolver stay on that path.
+    """
+    opener = getattr(video_service, "resolve_stored_upload", None)
+    if opener is None:
+        return await run_in_thread(video_service.resolve_local_video_path, url)
+    return await opener(url)
+
+
 class VideoService:
     """Service for video processing operations."""
 
@@ -387,6 +399,16 @@ class VideoService:
                     return path
             return path
         raise ValueError("Only upload:// references are allowed for local video sources")
+
+    async def resolve_stored_upload(self, url: str) -> Path:
+        """Resolve an upload for editing, including its durable object when the local file is gone."""
+        local = await run_in_thread(self.resolve_local_video_path, url)
+        if local.is_file() or str(url).startswith("upload://s3/"):
+            return local
+        materialized = await materialize_stored_upload(url)
+        if materialized is not None and materialized.is_file():
+            return materialized
+        return local
 
     @staticmethod
     def probe_upload_duration(url: str, user_id: str, storage_reference: str | None = None) -> float:

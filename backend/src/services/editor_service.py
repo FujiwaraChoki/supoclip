@@ -500,7 +500,9 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                     )
                     downloaded_source = source
                 else:
-                    source = await run_in_thread(service.video_service.resolve_local_video_path, source_url)
+                    from .video_service import resolve_upload_for_edit
+
+                    source = await resolve_upload_for_edit(service.video_service, source_url)
             if not source or not source.exists():
                 raise ValueError(
                     "The original source is unavailable. Restore the source file to edit this clip."

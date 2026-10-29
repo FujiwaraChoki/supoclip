@@ -87,7 +87,9 @@ above 1080p or 60 fps is still scaled in the worker (`Preparing video...` at
 A retry of the same bytes returns the same `video_path` and does not keep a
 second file or use another daily upload slot. Clients may send
 `Idempotency-Key` (`8–200` characters: letters, digits, `.`, `_`, `:`, `-`).
-Reusing that key for different bytes is `409`. Creating a task for the same
+Reusing that key for different bytes is `409`. A later key for the same bytes
+is kept as well, and each earlier key still returns `409` for a different file.
+Creating a task for the same
 upload and the same options (fonts, captions, clip length, cleanup, and so on)
 returns the task that is already queued or processing, or one that completed
 in the last two minutes, and does not enqueue a second job. A lost response

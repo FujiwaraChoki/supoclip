@@ -48,6 +48,7 @@ from ..youtube_source import (
 )
 from ..media.ffmpeg import cap_video_short_side, ffprobe_duration, rendered_clip_duration
 from ..stream_source import download_stream_sections
+from .video_service import resolve_upload_for_edit
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +211,7 @@ class ClipEditingMixin:
                 task.get("source_duration_seconds"), task_id,
             )
         else:
-            video_path = await run_in_thread(self.video_service.resolve_local_video_path, source_url)
+            video_path = await resolve_upload_for_edit(self.video_service, source_url)
             if not video_path.exists():
                 raise ValueError("Source video file no longer exists")
 
@@ -529,8 +530,8 @@ class ClipEditingMixin:
                 transcript_video_path = await run_in_thread(MediaStorage().local_path, cached_video_path)
             elif source_type not in {"youtube", "twitch", "kick"}:
                 try:
-                    transcript_video_path = await run_in_thread(self.video_service.resolve_local_video_path,
-                        source_url
+                    transcript_video_path = await resolve_upload_for_edit(
+                        self.video_service, source_url
                     )
                 except ValueError:
                     transcript_video_path = None
@@ -557,7 +558,7 @@ class ClipEditingMixin:
                 )
                 downloaded_source = transcript_video_path
             elif source_url:
-                transcript_video_path = await run_in_thread(self.video_service.resolve_local_video_path, source_url)
+                transcript_video_path = await resolve_upload_for_edit(self.video_service, source_url)
         if not transcript_video_path or not transcript_video_path.exists():
             raise ValueError("The source video is no longer available. Upload it again to edit captions.")
 

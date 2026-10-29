@@ -93,6 +93,12 @@ async def test_idempotency_key_reuses_one_file_and_rejects_a_different_file(
     first = await _upload(client, auth_headers, b"keyed-video", key=key)
     assert first.status_code == 200, first.text
     video_path = first.json()["video_path"]
+    assert (await db_session.execute(text("""
+        SELECT k.idempotency_key
+        FROM media_upload_idempotency_keys k
+        JOIN media_upload_sessions s ON s.id = k.session_id
+        WHERE s.video_path = :path
+    """), {"path": video_path})).scalar_one() == key
 
     replay = await _upload(client, auth_headers, b"keyed-video", key=key)
     assert replay.status_code == 200
@@ -325,7 +331,16 @@ async def test_content_hash_reuse_binds_a_new_idempotency_key(
     assert switched.json()["video_path"] == video_path
     assert (await db_session.execute(text(
         "SELECT idempotency_key FROM media_upload_sessions WHERE video_path = :path"
-    ), {"path": video_path})).scalar_one() == "client-retry-2"
+    ), {"path": video_path})).scalar_one() == "client-retry-1"
+    bound_keys = (await db_session.execute(text("""
+        SELECT k.idempotency_key
+        FROM media_upload_idempotency_keys k
+        JOIN media_upload_sessions s ON s.id = k.session_id
+        WHERE s.video_path = :path
+        ORDER BY k.idempotency_key
+    """), {"path": video_path})).scalars().all()
+    assert bound_keys == ["client-retry-1", "client-retry-2"]
+    assert (await _upload(client, auth_headers, b"other-bytes", key="client-retry-1")).status_code == 409
     assert (await _upload(client, auth_headers, b"other-bytes", key="client-retry-2")).status_code == 409
     assert list((tmp_path / "uploads").glob("*.mp4")) == [
         tmp_path / "uploads" / video_path.removeprefix("upload://"),

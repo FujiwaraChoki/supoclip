@@ -73,23 +73,65 @@ def _admission_counts():
     """)
 
 
-async def _reuse_completed_upload(db, row, idempotency_key: str | None):
-    """Return a completed upload, recording a new idempotency key on that row."""
-    if idempotency_key and idempotency_key != row.idempotency_key:
-        try:
-            await db.execute(text("""
-                UPDATE media_upload_sessions
-                SET idempotency_key = :key
-                WHERE id = :id AND state = 'completed'
-            """), {"id": row.id, "key": idempotency_key})
-            await db.commit()
-        except IntegrityError:
-            await db.rollback()
-            raise UploadIdempotencyConflict(
-                "This idempotency key was already used for a different file."
-            )
-    else:
+_COMPLETED_KEY_LOOKUP = text("""
+    SELECT s.video_path, s.content_sha256
+    FROM media_upload_sessions s
+    WHERE s.user_id = :owner AND s.state = 'completed'
+      AND (
+        s.idempotency_key = :key
+        OR EXISTS (
+            SELECT 1 FROM media_upload_idempotency_keys k
+            WHERE k.user_id = s.user_id
+              AND k.idempotency_key = :key
+              AND k.session_id = s.id
+        )
+      )
+    ORDER BY s.created_at DESC
+    LIMIT 1
+""")
+
+
+async def _remember_idempotency_key(db, user_id: str, session_id: str, idempotency_key: str | None) -> None:
+    """Bind a key without replacing keys already recorded for this upload."""
+    if not idempotency_key:
+        return
+    await db.execute(text("""
+        INSERT INTO media_upload_idempotency_keys (user_id, idempotency_key, session_id)
+        VALUES (:owner, :key, :session)
+        ON CONFLICT (user_id, idempotency_key) DO NOTHING
+    """), {"owner": user_id, "key": idempotency_key, "session": session_id})
+    bound = (await db.execute(text("""
+        SELECT session_id FROM media_upload_idempotency_keys
+        WHERE user_id = :owner AND idempotency_key = :key
+    """), {"owner": user_id, "key": idempotency_key})).scalar_one()
+    if bound != session_id:
+        raise UploadIdempotencyConflict(
+            "This idempotency key was already used for a different file."
+        )
+    # The session column holds the first key. Later keys stay in the mapping table.
+    await db.execute(text("""
+        UPDATE media_upload_sessions
+        SET idempotency_key = :key
+        WHERE id = :id AND state = 'completed' AND idempotency_key IS NULL
+    """), {"id": session_id, "key": idempotency_key})
+
+
+async def _reuse_completed_upload(db, user_id: str, row, idempotency_key: str | None):
+    """Return a completed upload and keep every key bound to that session."""
+    if not idempotency_key:
         await db.rollback()
+        return row.video_path, False
+    try:
+        await _remember_idempotency_key(db, user_id, row.id, idempotency_key)
+        await db.commit()
+    except UploadIdempotencyConflict:
+        await db.rollback()
+        raise
+    except IntegrityError:
+        await db.rollback()
+        raise UploadIdempotencyConflict(
+            "This idempotency key was already used for a different file."
+        )
     return row.video_path, False
 
 
@@ -112,11 +154,9 @@ async def claim_stored_upload(db, user_id: str, size: int, digest: str, video_pa
 
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:owner, 113463))"), {"owner": user_id})
     if idempotency_key:
-        existing = (await db.execute(text("""
-            SELECT video_path, content_sha256 FROM media_upload_sessions
-            WHERE user_id = :owner AND idempotency_key = :key AND state = 'completed'
-            ORDER BY created_at DESC LIMIT 1
-        """), {"owner": user_id, "key": idempotency_key})).first()
+        existing = (await db.execute(
+            _COMPLETED_KEY_LOOKUP, {"owner": user_id, "key": idempotency_key}
+        )).first()
         if existing is not None:
             await db.rollback()
             if existing.content_sha256 != digest:
@@ -128,7 +168,7 @@ async def claim_stored_upload(db, user_id: str, size: int, digest: str, video_pa
         ORDER BY created_at DESC LIMIT 1
     """), {"owner": user_id, "digest": digest})).first()
     if existing is not None:
-        return await _reuse_completed_upload(db, existing, idempotency_key)
+        return await _reuse_completed_upload(db, user_id, existing, idempotency_key)
 
     counts = (await db.execute(_admission_counts(), {"owner": user_id})).one()
     if counts.active >= config.media_upload_concurrency or counts.daily >= config.media_upload_daily_limit:
@@ -149,10 +189,25 @@ async def claim_stored_upload(db, user_id: str, size: int, digest: str, video_pa
             "digest": digest,
             "key": idempotency_key,
         })
+        await _remember_idempotency_key(db, user_id, session_id, idempotency_key)
         await db.commit()
+    except UploadIdempotencyConflict:
+        await db.rollback()
+        raise
     except IntegrityError:
         await db.rollback()
         await db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:owner, 113463))"), {"owner": user_id})
+        if idempotency_key:
+            existing_key = (await db.execute(
+                _COMPLETED_KEY_LOOKUP, {"owner": user_id, "key": idempotency_key}
+            )).first()
+            if existing_key is not None:
+                await db.rollback()
+                if existing_key.content_sha256 != digest:
+                    raise UploadIdempotencyConflict(
+                        "This idempotency key was already used for a different file."
+                    )
+                return existing_key.video_path, False
         existing = (await db.execute(text("""
             SELECT id, video_path, idempotency_key FROM media_upload_sessions
             WHERE user_id = :owner AND content_sha256 = :digest AND state = 'completed'
@@ -161,7 +216,7 @@ async def claim_stored_upload(db, user_id: str, size: int, digest: str, video_pa
         if existing is None:
             await db.rollback()
             raise
-        return await _reuse_completed_upload(db, existing, idempotency_key)
+        return await _reuse_completed_upload(db, user_id, existing, idempotency_key)
     return video_path, True
 
 
