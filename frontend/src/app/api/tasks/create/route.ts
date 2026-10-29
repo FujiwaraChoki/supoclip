@@ -16,12 +16,14 @@ export async function POST(request: Request) {
     process.env.BACKEND_INTERNAL_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
     "http://localhost:8000";
+  const idempotencyKey = request.headers.get("idempotency-key");
   const upstream = await fetch(`${apiUrl}/tasks/`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...buildBackendAuthHeaders(session.user.id),
       ...(await backendTraceHeaders()),
+      ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
     },
     body: payload,
   });

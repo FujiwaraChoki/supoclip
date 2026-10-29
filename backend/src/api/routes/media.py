@@ -3,17 +3,32 @@ Media API routes (fonts, transitions, uploads).
 """
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
 from typing import Any, cast
 import logging
 import asyncio
+import re
 import uuid
 import aiofiles
+from starlette.background import BackgroundTask
 
 from ...config import get_config
 from ...media_storage import MediaStorage, STORAGE_ERRORS, media_work
-from ...repositories.upload_repository import reserve_upload, bind_upload, get_upload, finish_upload, UploadLimitReached
+from ...media.upload_ingest import (
+    UploadRejected,
+    persist_upload_after_response,
+    publish_spooled_upload,
+)
+from ...repositories.upload_repository import (
+    reserve_upload,
+    bind_upload,
+    get_upload,
+    finish_upload,
+    claim_stored_upload,
+    UploadIdempotencyConflict,
+    UploadLimitReached,
+)
 from ...utils.async_helpers import run_in_thread
 from ...database import get_db
 from ...auth_headers import resolve_authenticated_user_id
@@ -351,67 +366,80 @@ async def get_broll_status():
     }
 
 
+def _idempotency_key(request: Request) -> str | None:
+    raw = request.headers.get("idempotency-key")
+    if raw is None or not raw.strip():
+        return None
+    key = raw.strip()
+    if not re.fullmatch(r"[A-Za-z0-9._:-]{8,200}", key):
+        raise HTTPException(status_code=400, detail="Invalid idempotency key")
+    return key
+
+
 @router.post("/upload")
 @media_work
 async def upload_video(request: Request, db: AsyncSession = Depends(get_db)):
-    """Upload a video to the server."""
+    """Store an uploaded video and respond once the bytes are durable locally.
+
+    The same bytes (or the same Idempotency-Key) reuse the stored file.
+    Object storage copy and 1080p scaling both happen after this response.
+    """
+    published: Path | None = None
+    keep_published = False
+    form_data = None
     try:
         user_id = await _get_authenticated_user_id(request, db)
         config = get_config()
         max_bytes = config.max_video_upload_bytes
+        idempotency_key = _idempotency_key(request)
         form_data = await _read_limited_upload_form(request, max_bytes)
-        try:
-            video_file = cast(Any, form_data.get("video"))
+        video_file = cast(Any, form_data.get("video"))
 
-            if not getattr(video_file, "filename", None) or not hasattr(video_file, "read"):
-                raise HTTPException(status_code=400, detail="No video file provided")
+        if not getattr(video_file, "filename", None) or not hasattr(video_file, "read"):
+            raise HTTPException(status_code=400, detail="No video file provided")
 
-            upload = cast(UploadFile, video_file)
-            upload_filename = upload.filename or "upload.mp4"
+        upload = cast(UploadFile, video_file)
+        uploads_dir = Path(config.temp_dir) / "uploads"
+        extension = MediaStorage.video_extension(
+            upload.filename or "upload.mp4",
+            upload.content_type or "",
+        )
+        unique_filename = f"{uuid.uuid4()}{extension}"
+        published = uploads_dir / unique_filename
+        video_path = f"upload://{unique_filename}"
 
-            # Create uploads directory
-            uploads_dir = Path(config.temp_dir) / "uploads"
-            uploads_dir.mkdir(parents=True, exist_ok=True)
-
-            # Generate unique filename
-            file_extension = Path(upload_filename).suffix
-            unique_filename = f"{uuid.uuid4()}{file_extension}"
-            video_path = uploads_dir / unique_filename
-
-            # Save the uploaded file
-            await _write_upload_to_disk(upload, video_path, max_bytes)
-
-            storage = MediaStorage()
-            if storage.enabled:
-                session_id = None
-                try:
-                    session_id = await reserve_upload(db, user_id, video_path.stat().st_size, config)
-                    url, _ = await run_in_thread(storage.persist_source, video_path, user_id)
-                    await finish_upload(db, session_id, 'completed')
-                except BaseException:
-                    if session_id:
-                        await db.rollback()
-                        await finish_upload(db, session_id, 'aborted')
-                    raise
-                finally:
-                    video_path.unlink(missing_ok=True)
-                return {"message": "Video uploaded successfully", "video_path": url}
-
-            logger.info(f"✅ Video uploaded successfully to: {video_path}")
-
-            return {
-                "message": "Video uploaded successfully",
-                "video_path": f"upload://{unique_filename}",
-            }
-        finally:
-            await form_data.close()
+        digest, size = await publish_spooled_upload(upload, published, max_bytes)
+        video_path, created = await claim_stored_upload(
+            db, user_id, size, digest, video_path, idempotency_key, config,
+        )
+        if not created and published is not None:
+            published.unlink(missing_ok=True)
+            published = None
+        keep_published = True
+        logger.info("Video stored as %s", video_path.removeprefix("upload://"))
+        payload = {"message": "Video uploaded successfully", "video_path": video_path}
+        if created and MediaStorage().enabled:
+            return JSONResponse(
+                payload,
+                background=BackgroundTask(persist_upload_after_response, video_path),
+            )
+        return payload
+    except UploadRejected as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from None
+    except UploadIdempotencyConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
     except UploadLimitReached as exc:
         raise HTTPException(429, str(exc)) from None
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error uploading video: {str(e)}")
+        logger.error("Error uploading video: %s", e)
         raise HTTPException(status_code=500, detail=f"Error uploading video: {str(e)}")
+    finally:
+        if form_data is not None:
+            await form_data.close()
+        if published is not None and not keep_published:
+            published.unlink(missing_ok=True)
 
 
 @router.post("/upload/authorize")

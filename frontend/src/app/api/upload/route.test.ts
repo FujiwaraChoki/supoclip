@@ -47,4 +47,39 @@ describe("/api/upload", () => {
     expect(response.status).toBe(411);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("streams the raw body to the backend without parsing it", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      video_path: "upload://stored.mp4",
+    }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const request = new Request("http://app/api/upload", {
+      method: "POST",
+      headers: {
+        "content-length": "10",
+        "content-type": "multipart/form-data; boundary=abc",
+        "idempotency-key": "retry-key-1",
+      },
+      body: "file-bytes",
+    });
+    const formData = vi.spyOn(request, "formData");
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(formData).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit & { duplex?: string }];
+    expect(url).toMatch(/\/upload$/);
+    expect(init.duplex).toBe("half");
+    expect(init.body).toBe(request.body);
+    expect(init.headers).toEqual(expect.objectContaining({
+      "content-type": "multipart/form-data; boundary=abc",
+      "content-length": "10",
+      "idempotency-key": "retry-key-1",
+    }));
+  });
 });

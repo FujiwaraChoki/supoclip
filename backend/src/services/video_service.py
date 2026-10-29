@@ -59,6 +59,12 @@ from ..clip_openings import OPENING_HOOK_PENALTY, opening_text_issue, review_ope
 from ..clip_duration import clip_duration
 from ..config import get_config
 from ..media.source_limits import normalize_source_media
+from ..media.upload_ingest import (
+    materialize_stored_upload,
+    persist_local_upload,
+    read_upload_reference,
+    upload_needs_remote_copy,
+)
 from ..media_storage import MediaStorage
 from ..media.ffmpeg import (
     cap_video_short_side,
@@ -370,7 +376,16 @@ class VideoService:
                 storage = MediaStorage()
                 return storage.local_path(storage.source_reference(url))
             filename = Path(url.removeprefix(UPLOAD_URL_PREFIX)).name
-            return Path(get_config().temp_dir) / "uploads" / filename
+            path = Path(get_config().temp_dir) / "uploads" / filename
+            if path.is_file():
+                return path
+            reference = read_upload_reference(path)
+            if reference:
+                try:
+                    return MediaStorage().local_path(reference)
+                except (ValueError, OSError):
+                    return path
+            return path
         raise ValueError("Only upload:// references are allowed for local video sources")
 
     @staticmethod
@@ -463,8 +478,13 @@ class VideoService:
         """Scale a local source down to at most 1080p and 60 fps.
 
         Plan-specific output (for example 720p) is applied later, when clips
-        are rendered. This only enforces the absolute ceiling.
+        are rendered. This only enforces the absolute ceiling. An uploaded
+        original is copied to object storage first, so the capped file can
+        be stored beside that original.
         """
+        from ..media.upload_ingest import ensure_local_upload_durable
+
+        await ensure_local_upload_durable(Path(path))
         prepared = await run_in_thread(normalize_source_media, path)
         return prepared if isinstance(prepared, Path) else path
 
@@ -948,12 +968,13 @@ class VideoService:
                         max_duration=duration_limit, operation=PROCESSING_OPERATION,
                     )
             else:
-                video_path = (
-                    await run_in_thread(VideoService.resolve_local_video_path, url)
-                    if url.startswith("upload://s3/")
-                    else VideoService.resolve_local_video_path(url)
-                )
-                if not video_path.exists():
+                if url.startswith("upload://s3/"):
+                    video_path = await run_in_thread(VideoService.resolve_local_video_path, url)
+                else:
+                    video_path = await materialize_stored_upload(url)
+                    if video_path is None or not video_path.exists():
+                        video_path = VideoService.resolve_local_video_path(url)
+                if video_path is None or not video_path.exists():
                     raise Exception("Video file not found")
 
             # Post-download duration guard (catches cases where preflight info was unavailable)
@@ -967,6 +988,11 @@ class VideoService:
 
             if should_cancel and await should_cancel():
                 raise Exception("Task cancelled")
+            # Uploads only. YouTube and streams already downloaded above.
+            if source_type not in {"youtube", "twitch", "kick"} and await upload_needs_remote_copy(url):
+                if progress_callback:
+                    await progress_callback(12, "Storing upload...", "processing")
+                await persist_local_upload(url)
             if progress_callback:
                 await progress_callback(15, "Preparing video...", "processing")
             video_path = await VideoService.prepare_source(video_path)

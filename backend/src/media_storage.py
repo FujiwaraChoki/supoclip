@@ -418,10 +418,16 @@ class MediaStorage:
         downloads use the capped object so the worker does not transcode the
         same oversized upload on every edit.
         """
+        # A cache directory has one `.reference`. An uploads directory holds many
+        # files, so each one keeps its own sidecar written at ingest time.
         marker = path.parent / ".reference"
-        if not self.enabled or not marker.is_file():
+        reference = marker.read_text().strip() if marker.is_file() else ""
+        if not reference:
+            sidecar = path.with_name(f".{path.name}.s3ref")
+            reference = sidecar.read_text().strip() if sidecar.is_file() else ""
+        if not self.enabled or not reference:
             return
-        key = self.parse(marker.read_text())
+        key = self.parse(reference)
         capped = self.capped_source_key(key)
         if not capped:
             return
@@ -585,6 +591,8 @@ class MediaStorage:
             for suffix in SIDECARS:
                 path.with_suffix(suffix).unlink(missing_ok=True)
             path.with_name(f"{path.stem}.transcription.mp3").unlink(missing_ok=True)
+            path.with_name(f".{path.name}.s3ref").unlink(missing_ok=True)
+            path.with_name(f".{path.name}.persist.lock").unlink(missing_ok=True)
 
     def editor_reference(self, directory: Path, filename: str = "") -> str:
         return self.reference(self.key("editor", directory.name, filename).rstrip("/"))

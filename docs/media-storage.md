@@ -73,8 +73,70 @@ Uploads authorized before the session-tracking upgrade must be restarted; their
 abort endpoint remains available. Previously issued URLs keep their original
 expiry, and bucket lifecycle cleanup still reclaims abandoned multipart data.
 
-The existing `/upload` endpoint continues to accept REST/MCP uploads. In S3 mode
-it uploads the temporary incoming file to the bucket and removes the local copy.
+The existing `/upload` endpoint continues to accept REST/MCP uploads, including
+the shipped iOS app, which posts the file to the web app's `/api/upload` route.
+That route streams the body to the API and does not buffer it first. The API
+answers as soon as the file is fsynced under `TEMP_DIR/uploads` and returns
+`upload://{id}.ext`. It does not transcode on this request. In S3 mode the
+original is copied to the bucket after the response, and again at the start of
+processing if that copy has not finished (`Storing upload...` at 12%). The
+local file stays on the shared uploads volume so the worker can read it. Video
+above 1080p or 60 fps is still scaled in the worker (`Preparing video...` at
+15%), and the capped master is stored beside the original.
+
+A retry of the same bytes returns the same `video_path` and does not keep a
+second file or use another daily upload slot. Clients may send
+`Idempotency-Key` (`8–200` characters: letters, digits, `.`, `_`, `:`, `-`).
+Reusing that key for different bytes is `409`. Creating a task for the same
+upload and the same options (fonts, captions, clip length, cleanup, and so on)
+returns the task that is already queued or processing, or one that completed
+in the last two minutes, and does not enqueue a second job. A lost response
+can be retried safely. Changing an option starts a new task.
+
+### Direct upload
+
+Large files should not depend on the Next.js hop. The web app already does
+this. A later iOS build can too; 1.0.5 keeps calling `/api/upload` and needs
+no change for the fix above.
+
+1. `POST /api/upload/authorization` with the session cookie, or
+   `POST /upload/authorize` on the API, with
+   `{"filename", "size", "contentType"}`.
+2. When the JSON has `storage: "s3"`, PUT each part to its presigned `url`
+   (`partSize` is 64 MiB, up to three at a time) using that part's
+   `Content-Length`, then `POST /upload/complete` with
+   `{"video_path", "uploadId", "parts": [{"partNumber", "etag"}]}`.
+   `POST /api/upload/parts` and `POST /api/upload/complete` proxy the same
+   calls. Refresh expired part URLs with `POST /upload/parts` during the
+   session's one-day lifetime.
+3. When object storage is off and the JSON has `directUpload: true`, POST the
+   multipart body to `uploadUrl` (the API host, not the Next.js app) with the
+   returned `headers`. Optional `Idempotency-Key` is honored.
+4. Pass the returned `video_path` as `source.url` to task creation. The same
+   `Idempotency-Key` on that request dedupes a retry of the same options.
+
+### Proxy timeouts
+
+The production nginx config is not in this repo. It runs on the host in front
+of the web and API containers (`docs/observability.md`). A ~2 GB upload that
+has already been accepted by `client_max_body_size` can still fail when
+`proxy_read_timeout` is about 150 seconds, because the proxy is waiting for
+response headers while the body is still moving. On the `www` server, the
+`/api/upload` location (and on the `api` server, `POST /upload`, for clients
+that upload directly) should stream the body and wait long enough to cover a
+slow connection plus the short local fsync:
+
+```nginx
+client_max_body_size 4g;
+client_body_timeout 1h;
+proxy_request_buffering off;
+proxy_read_timeout 1h;
+proxy_send_timeout 1h;
+```
+
+`4g` matches the default `MAX_VIDEO_UPLOAD_BYTES`. Then
+`sudo nginx -t && sudo systemctl reload nginx`. Presigned S3 uploads do not
+pass through these locations; only the small authorize and complete requests do.
 
 Database `file_path` fields contain `s3://bucket/key`, never expiring signed URLs.
 Clip IDs and API routes remain stable. Ownership checks or enabled share tokens

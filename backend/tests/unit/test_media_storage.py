@@ -132,6 +132,32 @@ def test_capped_source_is_preferred_and_removed_with_the_original(storage, tmp_p
     assert capped not in storage.client.objects
 
 
+def test_capped_source_reads_the_per_file_sidecar(storage, tmp_path):
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mov"
+    key = storage.parse(storage.source_reference(url))
+    capped = storage.capped_source_key(key)
+    uploads = tmp_path / "uploads"
+    uploads.mkdir()
+    prepared = uploads / "clip.mov"
+    prepared.write_bytes(b"fresh-cap")
+    sidecar = prepared.with_name(".clip.mov.s3ref")
+    sidecar.write_text(storage.reference(key))
+    storage.store_capped_source(prepared)
+    assert storage.client.objects[capped] == b"fresh-cap"
+
+    local = Path(storage.config.temp_dir) / "uploads" / "clip.mov"
+    local.parent.mkdir(parents=True, exist_ok=True)
+    local.write_bytes(b"video")
+    local_sidecar = local.with_name(".clip.mov.s3ref")
+    local_sidecar.write_text(storage.reference(key))
+    lock = local.with_name(".clip.mov.persist.lock")
+    lock.write_text("")
+    storage.delete(str(local))
+    assert not local.exists()
+    assert not local_sidecar.exists()
+    assert not lock.exists()
+
+
 def test_completion_rejects_a_part_larger_than_the_signed_length(storage):
     storage._client = Mock()
     url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"

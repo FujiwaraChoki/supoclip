@@ -44,7 +44,44 @@ async def reference_index(db, storage):
     rows = list(rows)
     sources = {row.url for row in rows}
     videos = {get_youtube_video_id(row.url) for row in rows if row.type == "youtube" and row.url}
-    return {"editors": editors, "videos": videos, "clips": clips, "sources": sources}
+    # A stored upload can be turned into a task during the session lifetime.
+    # Its local file and object copy stay until that window closes or a task
+    # records the same reference.
+    rows = await db.execute(text("""
+        SELECT video_path FROM media_upload_sessions
+        WHERE state = 'completed' AND video_path IS NOT NULL
+    """))
+    sources |= {row.video_path for row in rows}
+    rows = await db.execute(text("""
+        SELECT storage_reference FROM media_upload_sessions
+        WHERE state = 'completed' AND storage_reference IS NOT NULL
+        UNION
+        SELECT source_metadata->>'storage_reference' FROM tasks
+        WHERE source_metadata->>'storage_reference' IS NOT NULL
+    """))
+    storage_refs = _with_capped_companions(storage, {row.storage_reference for row in rows})
+    return {
+        "editors": editors,
+        "videos": videos,
+        "clips": clips,
+        "sources": sources,
+        "storage": storage_refs,
+    }
+
+
+def _with_capped_companions(storage: MediaStorage, references: set[str]) -> set[str]:
+    """Keep a 1080p master that sits beside a still-referenced original."""
+    expanded = set(references)
+    for reference in references:
+        if not is_s3(reference):
+            continue
+        try:
+            capped = storage.capped_source_key(storage.parse(reference))
+        except ValueError:
+            continue
+        if capped:
+            expanded.add(storage.reference(capped))
+    return expanded
 
 
 async def referenced(db, reference: str, storage: MediaStorage, *, prefix=False, index=None) -> bool:
@@ -69,13 +106,46 @@ async def referenced(db, reference: str, storage: MediaStorage, *, prefix=False,
         return video_id in live["videos"]
     url = source_url(reference, storage)
     if index is not None:
-        return reference in index["clips"] or url in index["sources"]
+        return (
+            reference in index["clips"]
+            or url in index["sources"]
+            or reference in index.get("storage", ())
+        )
+    candidates = _companion_originals(storage, reference)
     result = await db.execute(text("""
         SELECT EXISTS(SELECT 1 FROM generated_clips WHERE file_path = :path)
             OR EXISTS(SELECT 1 FROM sources s JOIN tasks t ON t.source_id = s.id WHERE s.url = :url)
             OR EXISTS(SELECT 1 FROM social_posts WHERE status = 'publishing' AND source_file_path = :path)
-    """), {"path": reference, "url": url})
+            OR EXISTS(
+                SELECT 1 FROM media_upload_sessions
+                WHERE state = 'completed' AND (video_path = :url OR storage_reference = ANY(CAST(:candidates AS text[])))
+            )
+            OR EXISTS(
+                SELECT 1 FROM tasks
+                WHERE source_metadata->>'storage_reference' = ANY(CAST(:candidates AS text[]))
+            )
+    """), {"path": reference, "url": url, "candidates": candidates})
     return bool(result.scalar())
+
+
+def _companion_originals(storage: MediaStorage, reference: str) -> list[str]:
+    """The object itself, plus the original when this is its capped master."""
+    found = [reference]
+    if not is_s3(reference):
+        return found
+    try:
+        key = storage.parse(reference)
+    except ValueError:
+        return found
+    name = PurePosixPath(key).name
+    marker = ".capped.mp4"
+    if not name.endswith(marker):
+        return found
+    stem = name[: -len(marker)]
+    parent = PurePosixPath(key).parent
+    for suffix in VIDEO_SUFFIXES:
+        found.append(storage.reference(str(parent / f"{stem}{suffix}")))
+    return found
 
 
 async def drain_deletions(db, storage: MediaStorage, *, limit=100):
