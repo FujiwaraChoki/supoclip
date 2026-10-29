@@ -59,6 +59,12 @@ from ..clip_openings import OPENING_HOOK_PENALTY, opening_text_issue, review_ope
 from ..clip_duration import clip_duration
 from ..config import get_config
 from ..media.source_limits import normalize_source_media
+from ..media.upload_ingest import (
+    materialize_stored_upload,
+    persist_local_upload,
+    read_upload_reference,
+    upload_needs_remote_copy,
+)
 from ..media_storage import MediaStorage
 from ..media.ffmpeg import (
     cap_video_short_side,
@@ -86,6 +92,18 @@ from ..stream_source import (
 logger = logging.getLogger(__name__)
 UPLOAD_URL_PREFIX = "upload://"
 OPENING_CONTEXT_SECONDS = 10.0
+
+
+async def resolve_upload_for_edit(video_service, url: str) -> Path:
+    """Open an uploaded source for an existing clip.
+
+    A real video service falls back to the session storage reference. Fakes
+    that only implement the local resolver stay on that path.
+    """
+    opener = getattr(video_service, "resolve_stored_upload", None)
+    if opener is None:
+        return await run_in_thread(video_service.resolve_local_video_path, url)
+    return await opener(url)
 
 
 class VideoService:
@@ -370,18 +388,46 @@ class VideoService:
                 storage = MediaStorage()
                 return storage.local_path(storage.source_reference(url))
             filename = Path(url.removeprefix(UPLOAD_URL_PREFIX)).name
-            return Path(get_config().temp_dir) / "uploads" / filename
+            path = Path(get_config().temp_dir) / "uploads" / filename
+            if path.is_file():
+                return path
+            reference = read_upload_reference(path)
+            if reference:
+                try:
+                    return MediaStorage().local_path(reference)
+                except (ValueError, OSError):
+                    return path
+            return path
         raise ValueError("Only upload:// references are allowed for local video sources")
 
+    async def resolve_stored_upload(self, url: str) -> Path:
+        """Resolve an upload for editing, including its durable object when the local file is gone."""
+        local = await run_in_thread(self.resolve_local_video_path, url)
+        if local.is_file() or str(url).startswith("upload://s3/"):
+            return local
+        materialized = await materialize_stored_upload(url)
+        if materialized is not None and materialized.is_file():
+            return materialized
+        return local
+
     @staticmethod
-    def probe_upload_duration(url: str, user_id: str) -> float:
+    def probe_upload_duration(url: str, user_id: str, storage_reference: str | None = None) -> float:
         """Read an uploaded video's length without downloading it."""
         if url.startswith("upload://s3/"):
             storage = MediaStorage()
             reference = storage.validate_source(url, user_id)
             # ffprobe reads only the container headers through ranged requests.
             return ffprobe_duration(storage.signed_url(reference, "source.mp4", expires_in=300))
-        return ffprobe_duration(VideoService.resolve_local_video_path(url))
+        path = VideoService.resolve_local_video_path(url)
+        if path.is_file():
+            return ffprobe_duration(path)
+        # Local file and sidecar are both gone. The upload session still names
+        # the durable object; ffprobe reads its headers through a signed URL.
+        if storage_reference:
+            storage = MediaStorage()
+            if storage.enabled:
+                return ffprobe_duration(storage.signed_url(storage_reference, "source.mp4", expires_in=300))
+        return ffprobe_duration(path)
 
     @staticmethod
     async def download_video(
@@ -463,8 +509,13 @@ class VideoService:
         """Scale a local source down to at most 1080p and 60 fps.
 
         Plan-specific output (for example 720p) is applied later, when clips
-        are rendered. This only enforces the absolute ceiling.
+        are rendered. This only enforces the absolute ceiling. An uploaded
+        original is copied to object storage first, so the capped file can
+        be stored beside that original.
         """
+        from ..media.upload_ingest import ensure_local_upload_durable
+
+        await ensure_local_upload_durable(Path(path))
         prepared = await run_in_thread(normalize_source_media, path)
         return prepared if isinstance(prepared, Path) else path
 
@@ -948,12 +999,13 @@ class VideoService:
                         max_duration=duration_limit, operation=PROCESSING_OPERATION,
                     )
             else:
-                video_path = (
-                    await run_in_thread(VideoService.resolve_local_video_path, url)
-                    if url.startswith("upload://s3/")
-                    else VideoService.resolve_local_video_path(url)
-                )
-                if not video_path.exists():
+                if url.startswith("upload://s3/"):
+                    video_path = await run_in_thread(VideoService.resolve_local_video_path, url)
+                else:
+                    video_path = await materialize_stored_upload(url)
+                    if video_path is None or not video_path.exists():
+                        video_path = VideoService.resolve_local_video_path(url)
+                if video_path is None or not video_path.exists():
                     raise Exception("Video file not found")
 
             # Post-download duration guard (catches cases where preflight info was unavailable)
@@ -967,6 +1019,11 @@ class VideoService:
 
             if should_cancel and await should_cancel():
                 raise Exception("Task cancelled")
+            # Uploads only. YouTube and streams already downloaded above.
+            if source_type not in {"youtube", "twitch", "kick"} and await upload_needs_remote_copy(url):
+                if progress_callback:
+                    await progress_callback(12, "Storing upload...", "processing")
+                await persist_local_upload(url)
             if progress_callback:
                 await progress_callback(15, "Preparing video...", "processing")
             video_path = await VideoService.prepare_source(video_path)

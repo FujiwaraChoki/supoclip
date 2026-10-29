@@ -46,10 +46,18 @@ async def test_concurrent_admissions_cannot_claim_the_same_allowance_slot(
     )
     monkeypatch.setattr(tasks, "_get_user_id_from_headers", AsyncMock(return_value=user_id))
     monkeypatch.setattr(tasks, "_save_task_source_metadata", AsyncMock())
+    # Identical upload creates reuse one task. These admissions are separate files.
+    monkeypatch.setattr(tasks.VideoService, "probe_upload_duration", lambda _url, _user: 60.0)
     request = SimpleNamespace(
         json=AsyncMock(return_value={"source": {"url": "upload://source.mp4"}}),
         app=app,
     )
+
+    def upload_request(name: str):
+        return SimpleNamespace(
+            json=AsyncMock(return_value={"source": {"url": f"upload://{name}.mp4"}}),
+            app=app,
+        )
     checked = asyncio.Event()
     release = asyncio.Event()
     source = await create_source(db_session, source_type="video_url", url="upload://source.mp4")
@@ -81,16 +89,16 @@ async def test_concurrent_admissions_cannot_claim_the_same_allowance_slot(
 
     monkeypatch.setattr(BillingService, "assert_can_create_task", pause_after_first_check)
     monkeypatch.setattr(BillingService, "assert_can_resume_task", pause_after_first_check)
-    async def admit(action, db, retry):
+    async def admit(action, db, retry, name):
         if action == "create":
-            return await tasks.create_task(request, db)
+            return await tasks.create_task(upload_request(name), db)
         return await tasks.resume_task(retry["id"], request, db)
 
     sessions = async_sessionmaker(initialized_database, class_=AsyncSession, expire_on_commit=False)
     async with sessions() as first_db, sessions() as second_db:
-        first = asyncio.create_task(admit(first_action, first_db, retry_tasks[0]))
+        first = asyncio.create_task(admit(first_action, first_db, retry_tasks[0], "first"))
         await asyncio.wait_for(checked.wait(), 5)
-        second = asyncio.create_task(admit(second_action, second_db, retry_tasks[1]))
+        second = asyncio.create_task(admit(second_action, second_db, retry_tasks[1], "second"))
         try:
             await wait_for_admission_waiter(initialized_database)
             assert not second.done()
@@ -111,7 +119,7 @@ async def test_concurrent_admissions_cannot_claim_the_same_allowance_slot(
     if limit == 1:
         async with sessions() as db:
             with pytest.raises(HTTPException) as sequential:
-                await tasks.create_task(request, db)
+                await tasks.create_task(upload_request("another"), db)
             assert sequential.value.status_code == 402
 
 

@@ -57,6 +57,8 @@ class TaskService(ClipEditingMixin):
         self.cache_repo = CacheRepository()
         self.video_service = VideoService()
         self.config = config or get_config()
+        self.reused_upload_task = False
+        self.reused_upload_job_id = None
 
     @staticmethod
     def _build_cache_key(
@@ -217,14 +219,26 @@ class TaskService(ClipEditingMixin):
         include_broll: bool = False,
         processing_mode: str = "fast",
         source_duration_seconds: Optional[int] = None,
+        upload_request_key: Optional[str] = None,
     ) -> str:
         """
         Create a new task with associated source.
         Returns the task ID.
         """
+        self.reused_upload_task = False
+        self.reused_upload_job_id = None
         # Validate user exists
         if not await self.task_repo.user_exists(self.db, user_id):
             raise ValueError(f"User {user_id} not found")
+
+        if upload_request_key and url.startswith("upload://"):
+            existing = await self.task_repo.find_recent_upload_task(
+                self.db, user_id, upload_request_key,
+            )
+            if existing is not None:
+                self.reused_upload_task = True
+                self.reused_upload_job_id = existing.job_id or existing.id
+                return str(existing.id)
 
         # Determine source type
         source_type = self.video_service.determine_source_type(url)
@@ -265,6 +279,15 @@ class TaskService(ClipEditingMixin):
             source_duration_seconds=source_duration_seconds,
             charge_minutes=self.config.monetization_enabled,
         )
+
+        if upload_request_key and url.startswith("upload://"):
+            metadata: Dict[str, Any] = {"upload_request_key": upload_request_key}
+            from ..repositories.upload_repository import get_stored_upload
+
+            stored = await get_stored_upload(self.db, url)
+            if stored is not None and stored.storage_reference:
+                metadata["storage_reference"] = stored.storage_reference
+            await self.task_repo.save_source_metadata(self.db, task_id, metadata)
 
         logger.info(f"Created task {task_id} for user {user_id}")
         return task_id

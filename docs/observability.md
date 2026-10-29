@@ -71,7 +71,10 @@ On the production host nginx runs outside Docker and serves several sites into
 one shared `access.log`. The SupoClip vhosts (`www` and `api`, port 443) also
 write their own files, which Vector picks up. They show what the backend never
 sees: 413s for oversized uploads, 502s while a container restarts, 504s on slow
-uploads, and frontend page/asset requests.
+uploads, and frontend page/asset requests. Upload body size and the
+response-header timeout for `/api/upload` and `POST /upload` are also set in
+that host config; the values that keep a multi-gigabyte upload from ending in
+504 are in `docs/media-storage.md`.
 
 `/etc/nginx/conf.d/supoclip-log.conf`:
 

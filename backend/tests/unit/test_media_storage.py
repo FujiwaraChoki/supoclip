@@ -132,6 +132,80 @@ def test_capped_source_is_preferred_and_removed_with_the_original(storage, tmp_p
     assert capped not in storage.client.objects
 
 
+def test_per_upload_s3ref_stores_and_restores_source_metadata(storage, tmp_path):
+    from pathlib import PurePosixPath
+
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    key = storage.parse(storage.source_reference(url))
+    reference = storage.reference(key)
+    storage.client.objects[key] = b"video-bytes"
+    path = tmp_path / "uploads" / "clip.mp4"
+    path.parent.mkdir()
+    path.write_bytes(b"video-bytes")
+    path.with_name(".clip.mp4.s3ref").write_text(reference + "\n")
+    path.with_suffix(".transcript_cache.json").write_text('{"words": [{"text": "kept"}]}')
+
+    storage.save_source_metadata(path)
+
+    stored = str(PurePosixPath(key).with_suffix(".transcript_cache.json"))
+    assert b'"kept"' in storage.client.objects[stored]
+    path.unlink()
+    path.with_suffix(".transcript_cache.json").unlink()
+    path.with_name(".clip.mp4.s3ref").unlink()
+    restored = storage.local_path(reference)
+    assert '"kept"' in restored.with_suffix(".transcript_cache.json").read_text()
+
+
+def test_per_upload_metadata_retries_from_its_pending_marker(storage, tmp_path):
+    from boto3.exceptions import S3UploadFailedError
+    from pathlib import PurePosixPath
+
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"
+    key = storage.parse(storage.source_reference(url))
+    path = tmp_path / "uploads" / "clip.mp4"
+    path.parent.mkdir()
+    path.write_bytes(b"video")
+    path.with_name(".clip.mp4.s3ref").write_text(storage.reference(key))
+    path.with_suffix(".transcript_cache.json").write_text('{"words": [{"text": "retry"}]}')
+    upload = storage.client.upload_file
+    storage.client.upload_file = Mock(side_effect=S3UploadFailedError("SlowDown"))
+    with pytest.raises(S3UploadFailedError):
+        storage.save_source_metadata(path)
+    assert path.with_name(".clip.mp4.metadata-pending").is_file()
+
+    storage.client.upload_file = upload
+    storage.sync_source_metadata()
+    stored = str(PurePosixPath(key).with_suffix(".transcript_cache.json"))
+    assert b'"retry"' in storage.client.objects[stored]
+    assert not path.with_name(".clip.mp4.metadata-pending").exists()
+
+
+def test_capped_source_reads_the_per_file_sidecar(storage, tmp_path):
+    url = f"upload://s3/{owner_key('owner')}/upload/video.mov"
+    key = storage.parse(storage.source_reference(url))
+    capped = storage.capped_source_key(key)
+    uploads = tmp_path / "uploads"
+    uploads.mkdir()
+    prepared = uploads / "clip.mov"
+    prepared.write_bytes(b"fresh-cap")
+    sidecar = prepared.with_name(".clip.mov.s3ref")
+    sidecar.write_text(storage.reference(key))
+    storage.store_capped_source(prepared)
+    assert storage.client.objects[capped] == b"fresh-cap"
+
+    local = Path(storage.config.temp_dir) / "uploads" / "clip.mov"
+    local.parent.mkdir(parents=True, exist_ok=True)
+    local.write_bytes(b"video")
+    local_sidecar = local.with_name(".clip.mov.s3ref")
+    local_sidecar.write_text(storage.reference(key))
+    lock = local.with_name(".clip.mov.persist.lock")
+    lock.write_text("")
+    storage.delete(str(local))
+    assert not local.exists()
+    assert not local_sidecar.exists()
+    assert not lock.exists()
+
+
 def test_completion_rejects_a_part_larger_than_the_signed_length(storage):
     storage._client = Mock()
     url = f"upload://s3/{owner_key('owner')}/upload/video.mp4"

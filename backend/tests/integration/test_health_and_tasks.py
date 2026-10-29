@@ -329,8 +329,11 @@ async def test_shared_clip_file_requires_an_enabled_share_token(
 
 @pytest.mark.asyncio
 async def test_upload_video_uses_runtime_config_temp_dir(
-    client, app, auth_headers, tmp_path
+    client, app, auth_headers, db_session, tmp_path
 ):
+    from tests.fixtures.factories import create_user
+
+    await create_user(db_session, user_id="user-1")
     app.state.config.temp_dir = str(tmp_path)
 
     response = await client.post(

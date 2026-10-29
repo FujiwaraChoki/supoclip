@@ -19,6 +19,7 @@ import re
 import secrets
 import math
 import asyncio
+import hashlib
 import time
 from ...utils.async_helpers import run_in_thread
 
@@ -29,6 +30,8 @@ from ...database import get_db
 from ...database import AsyncSessionLocal
 from ...services.task_service import TaskService
 from ...services.video_service import VideoService
+from ...media.upload_ingest import foreign_upload
+from ...repositories.upload_repository import get_stored_upload
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
 from ...workers.job_queue import JobQueue
@@ -149,10 +152,17 @@ def _stream_resolution_metadata(metadata: Dict[str, Any] | None) -> Dict[str, An
     }
 
 
-async def _preflight_upload_source(url: str, user_id: str, duration_limit: int) -> float:
+async def _preflight_upload_source(url: str, user_id: str, duration_limit: int, db=None) -> float:
     """Read an uploaded video's length so its minutes are charged up front."""
+    reference = None
+    if db is not None and isinstance(url, str) and url.startswith("upload://") and not url.startswith("upload://s3/"):
+        row = await get_stored_upload(db, url)
+        reference = row.storage_reference if row is not None else None
     try:
-        duration = await run_in_thread(VideoService.probe_upload_duration, url, user_id)
+        if reference:
+            duration = await run_in_thread(VideoService.probe_upload_duration, url, user_id, reference)
+        else:
+            duration = await run_in_thread(VideoService.probe_upload_duration, url, user_id)
         if not math.isfinite(duration) or duration <= 0:
             raise ValueError("Invalid video duration")
     except Exception:
@@ -416,6 +426,41 @@ async def list_tasks(
         raise HTTPException(status_code=500, detail=f"Error retrieving tasks: {str(e)}")
 
 
+def _request_idempotency_key(request: Request) -> str:
+    headers = getattr(request, "headers", None)
+    getter = getattr(headers, "get", None)
+    if getter is None:
+        return ""
+    raw = getter("idempotency-key")
+    if raw is None or not str(raw).strip():
+        return ""
+    key = str(raw).strip()
+    if not re.fullmatch(r"[A-Za-z0-9._:-]{8,200}", key):
+        raise HTTPException(status_code=400, detail="Invalid idempotency key")
+    return key
+
+
+def _upload_request_key(request: Request, url: str, options: Dict[str, Any]) -> str | None:
+    """Stable id for one upload plus the options that change the job.
+
+    A missing header still matches an identical retry. YouTube and other
+    links are not deduped here.
+    """
+    header = _request_idempotency_key(request)
+    if not isinstance(url, str) or not url.startswith("upload://"):
+        return None
+    payload = json.dumps(options, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(f"{header}\n{payload}".encode()).hexdigest()
+
+
+def _queued_upload_task(task_id: str, job_id: str | None) -> Dict[str, Any]:
+    return {
+        "task_id": task_id,
+        "job_id": job_id or task_id,
+        "message": "Task already queued",
+    }
+
+
 @router.post("/")
 async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     """
@@ -472,6 +517,28 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
+    upload_request_key = _upload_request_key(
+        request,
+        raw_source["url"],
+        {
+            "url": raw_source["url"],
+            "font_family": font_family,
+            "font_size": font_size,
+            "font_color": font_color,
+            "caption_template": caption_template,
+            "include_broll": include_broll,
+            "processing_mode": processing_mode,
+            "output_format": output_format,
+            "add_subtitles": add_subtitles,
+            "clip_length": clip_length,
+            "cleanup_settings": cleanup_settings,
+        },
+    )
+    if upload_request_key and db is not None:
+        existing = await TaskRepository.find_recent_upload_task(db, user_id, upload_request_key)
+        if existing is not None:
+            return _queued_upload_task(existing.id, existing.job_id)
+
     try:
         billing_service = BillingService(db)
         billing = await billing_service.assert_can_create_task(user_id)
@@ -503,8 +570,10 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             source_title = source_title or stream_metadata.get("title") or f"{source_type.title()} Video"
             duration_seconds = float(stream_metadata["duration"])
         else:
+            if await foreign_upload(db, raw_source["url"], user_id):
+                raise HTTPException(status_code=404, detail="Video file not found")
             duration_seconds = await _preflight_upload_source(
-                raw_source["url"], user_id, billing["max_upload_duration_seconds"]
+                raw_source["url"], user_id, billing["max_upload_duration_seconds"], db
             )
 
         async with generation_allowance_guard(
@@ -523,7 +592,12 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                 include_broll=include_broll,
                 processing_mode=processing_mode,
                 source_duration_seconds=math.ceil(duration_seconds),
+                upload_request_key=upload_request_key,
             )
+            if getattr(task_service, "reused_upload_task", False):
+                return _queued_upload_task(
+                    task_id, getattr(task_service, "reused_upload_job_id", None)
+                )
 
             try:
                 # Persist retry options before submitting the job; Redis remains a legacy cache.

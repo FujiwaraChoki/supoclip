@@ -81,6 +81,31 @@ describe("/api/tasks/create", () => {
       }),
     );
     expect(response.status).toBe(200);
+    const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
+    expect(init.headers).not.toEqual(expect.objectContaining({
+      "idempotency-key": expect.anything(),
+    }));
+  });
+
+  it("forwards an idempotency key when the client sends one", async () => {
+    vi.mocked(auth.api.getSession).mockResolvedValue({
+      user: { id: "user-1" },
+    } as never);
+    vi.mocked(buildBackendAuthHeaders).mockReturnValue({
+      "x-supoclip-user-id": "user-1",
+    });
+    vi.mocked(fetch).mockResolvedValue(new Response("{}", { status: 200 }));
+
+    await POST(new Request("http://localhost/api/tasks/create", {
+      method: "POST",
+      headers: { "idempotency-key": "retry-key-1" },
+      body: JSON.stringify({ source: { url: "upload://clip.mp4" } }),
+    }));
+
+    const init = vi.mocked(fetch).mock.calls[0][1] as RequestInit;
+    expect(init.headers).toEqual(expect.objectContaining({
+      "idempotency-key": "retry-key-1",
+    }));
   });
 
   it("preserves the duration rejection and actionable message for the form", async () => {

@@ -44,7 +44,44 @@ async def reference_index(db, storage):
     rows = list(rows)
     sources = {row.url for row in rows}
     videos = {get_youtube_video_id(row.url) for row in rows if row.type == "youtube" and row.url}
-    return {"editors": editors, "videos": videos, "clips": clips, "sources": sources}
+    # A stored upload can be turned into a task during the session lifetime.
+    # Its local file and object copy stay until that window closes or a task
+    # records the same reference.
+    rows = await db.execute(text("""
+        SELECT video_path FROM media_upload_sessions
+        WHERE state = 'completed' AND video_path IS NOT NULL
+    """))
+    sources |= {row.video_path for row in rows}
+    rows = await db.execute(text("""
+        SELECT storage_reference FROM media_upload_sessions
+        WHERE state = 'completed' AND storage_reference IS NOT NULL
+        UNION
+        SELECT source_metadata->>'storage_reference' FROM tasks
+        WHERE source_metadata->>'storage_reference' IS NOT NULL
+    """))
+    storage_refs = _with_capped_companions(storage, {row.storage_reference for row in rows})
+    return {
+        "editors": editors,
+        "videos": videos,
+        "clips": clips,
+        "sources": sources,
+        "storage": storage_refs,
+    }
+
+
+def _with_capped_companions(storage: MediaStorage, references: set[str]) -> set[str]:
+    """Keep a 1080p master that sits beside a still-referenced original."""
+    expanded = set(references)
+    for reference in references:
+        if not is_s3(reference):
+            continue
+        try:
+            capped = storage.capped_source_key(storage.parse(reference))
+        except ValueError:
+            continue
+        if capped:
+            expanded.add(storage.reference(capped))
+    return expanded
 
 
 async def referenced(db, reference: str, storage: MediaStorage, *, prefix=False, index=None) -> bool:
@@ -69,13 +106,46 @@ async def referenced(db, reference: str, storage: MediaStorage, *, prefix=False,
         return video_id in live["videos"]
     url = source_url(reference, storage)
     if index is not None:
-        return reference in index["clips"] or url in index["sources"]
+        return (
+            reference in index["clips"]
+            or url in index["sources"]
+            or reference in index.get("storage", ())
+        )
+    candidates = _companion_originals(storage, reference)
     result = await db.execute(text("""
         SELECT EXISTS(SELECT 1 FROM generated_clips WHERE file_path = :path)
             OR EXISTS(SELECT 1 FROM sources s JOIN tasks t ON t.source_id = s.id WHERE s.url = :url)
             OR EXISTS(SELECT 1 FROM social_posts WHERE status = 'publishing' AND source_file_path = :path)
-    """), {"path": reference, "url": url})
+            OR EXISTS(
+                SELECT 1 FROM media_upload_sessions
+                WHERE state = 'completed' AND (video_path = :url OR storage_reference = ANY(CAST(:candidates AS text[])))
+            )
+            OR EXISTS(
+                SELECT 1 FROM tasks
+                WHERE source_metadata->>'storage_reference' = ANY(CAST(:candidates AS text[]))
+            )
+    """), {"path": reference, "url": url, "candidates": candidates})
     return bool(result.scalar())
+
+
+def _companion_originals(storage: MediaStorage, reference: str) -> list[str]:
+    """The object itself, plus the original when this is its capped master."""
+    found = [reference]
+    if not is_s3(reference):
+        return found
+    try:
+        key = storage.parse(reference)
+    except ValueError:
+        return found
+    name = PurePosixPath(key).name
+    marker = ".capped.mp4"
+    if not name.endswith(marker):
+        return found
+    stem = name[: -len(marker)]
+    parent = PurePosixPath(key).parent
+    for suffix in VIDEO_SUFFIXES:
+        found.append(storage.reference(str(parent / f"{stem}{suffix}")))
+    return found
 
 
 async def drain_deletions(db, storage: MediaStorage, *, limit=100):
@@ -197,9 +267,90 @@ async def cleanup_media(ctx):
     await run_in_thread(storage.sweep_editor_cache)
 
 
-async def cleanup_upload_sessions(db, storage):
-    if not storage.bucket:
+def _finished_local_upload(storage, video_path: str) -> Path | None:
+    """Uploads-directory file for a local ``upload://`` path, using this storage's temp dir."""
+    if not isinstance(video_path, str) or not video_path.startswith("upload://") or video_path.startswith("upload://s3/"):
+        return None
+    name = video_path.removeprefix("upload://")
+    if not name or name != Path(name).name or name in {".", ".."}:
+        return None
+    return Path(storage.config.temp_dir) / "uploads" / name
+
+
+def _delete_finished_local_upload(storage, video_path: str) -> None:
+    path = _finished_local_upload(storage, video_path)
+    if path is None:
         return
+    storage.delete(str(path))
+    storage.delete(str(path.with_name(f"{path.stem}.capped.mp4")))
+
+
+async def _upload_still_unreferenced(db, video_path: str | None) -> bool:
+    if not video_path:
+        return True
+    referenced = await db.execute(text("""
+        SELECT EXISTS (
+            SELECT 1 FROM sources s
+            JOIN tasks t ON t.source_id = s.id
+            WHERE s.url = :path
+        )
+    """), {"path": video_path})
+    return not bool(referenced.scalar())
+
+
+async def _expire_one_upload_session(db, storage, row) -> None:
+    """Delete one finished session unless a task source appears while we wait.
+
+    Task creation holds ``source_guard`` across the source insert and its
+    commit. Taking that same lock here, then checking again, means expiry
+    cannot remove a file whose task source has already committed, and cannot
+    pass a task create that is still inside the guard.
+    """
+    video_path = row.video_path or ""
+    guard = source_guard(db, video_path) if video_path.startswith("upload://") else nullcontext()
+    async with guard:
+        if not await _upload_still_unreferenced(db, video_path):
+            return
+        try:
+            await run_in_thread(_delete_finished_local_upload, storage, video_path)
+        except (OSError, ValueError):
+            return
+        await db.execute(text("DELETE FROM media_upload_sessions WHERE id = :id"), {"id": row.id})
+        await db.commit()
+
+
+async def _expire_finished_upload_sessions(db, storage) -> None:
+    """Drop completed and aborted sessions after two days, and their local files.
+
+    A session whose ``video_path`` is still a task source stays. That row is the
+    ownership record, and the file is still in use. Local storage has no bucket,
+    so this expiry runs even when the multipart-abort loop does not.
+    """
+    rows = (await db.execute(text("""
+        SELECT id, video_path FROM media_upload_sessions
+        WHERE state IN ('completed', 'aborted')
+          AND created_at < NOW() - INTERVAL '2 days'
+          AND NOT EXISTS (
+              SELECT 1 FROM sources s
+              JOIN tasks t ON t.source_id = s.id
+              WHERE s.url = media_upload_sessions.video_path
+          )
+    """))).all()
+    # Release this read before waiting on a task create. The locked re-check
+    # below is what decides whether the file is still free.
+    await db.rollback()
+    for row in rows:
+        await _expire_one_upload_session(db, storage, row)
+    await db.rollback()
+
+
+async def cleanup_upload_sessions(db, storage):
+    if storage.bucket:
+        await _abort_expired_multipart_uploads(db, storage)
+    await _expire_finished_upload_sessions(db, storage)
+
+
+async def _abort_expired_multipart_uploads(db, storage):
     for _ in range(100):
         row = (await db.execute(text("""
             SELECT id, user_id, upload_id, video_path FROM media_upload_sessions
@@ -223,8 +374,6 @@ async def cleanup_upload_sessions(db, storage):
             await db.rollback()
             logger.warning("Expired multipart upload retained for abort retry")
             break
-    await db.execute(text("DELETE FROM media_upload_sessions WHERE state IN ('completed', 'aborted') AND created_at < NOW() - INTERVAL '2 days'"))
-    await db.commit()
 
 
 async def sweep_orphaned_media(ctx):

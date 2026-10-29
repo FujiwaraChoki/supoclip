@@ -104,6 +104,28 @@ class TaskRepository:
         return metadata if isinstance(metadata, dict) else {}
 
     @staticmethod
+    async def find_recent_upload_task(db: AsyncSession, user_id: str, key: str):
+        """In-progress upload task for this request, or one completed in the last 2 minutes."""
+        if not key:
+            return None
+        result = await db.execute(
+            text("""
+                SELECT t.id, t.source_metadata->>'processing_job_id' AS job_id
+                FROM tasks t
+                WHERE t.user_id = :user
+                  AND t.source_metadata->>'upload_request_key' = :key
+                  AND (
+                    t.status IN ('queued', 'processing', 'pending')
+                    OR (t.status = 'completed' AND t.completed_at > NOW() - INTERVAL '2 minutes')
+                  )
+                ORDER BY t.created_at DESC
+                LIMIT 1
+            """),
+            {"user": user_id, "key": key},
+        )
+        return result.first()
+
+    @staticmethod
     async def get_task_by_id(
         db: AsyncSession, task_id: str
     ) -> Optional[Dict[str, Any]]:

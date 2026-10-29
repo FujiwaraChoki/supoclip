@@ -314,27 +314,51 @@ class MediaStorage:
             yield self.local_path(reference, metadata_only=metadata_only)
 
     def save_source_metadata(self, path: Path):
+        # A media-cache directory has one `.reference`. An uploads directory
+        # holds many videos, each with its own `.s3ref` written at ingest.
         marker = path.parent / ".reference"
+        per_file = not marker.exists()
+        if per_file:
+            marker = path.with_name(f".{path.name}.s3ref")
         if not self.bucket or not marker.exists():
             return
-        key = self.parse(marker.read_text())
+        raw = marker.read_text() if not per_file else marker.read_text().strip()
+        key = self.parse(raw)
         if not key.startswith(self.key("sources") + "/"):
             return
         sidecars = [path.with_suffix(s) for s in SIDECARS if path.with_suffix(s).exists()]
+        pending = path.parent / ".metadata-pending" if not per_file else path.with_name(f".{path.name}.metadata-pending")
         if not sidecars:
+            if per_file:
+                pending.unlink(missing_ok=True)
             return
-        pending = path.parent / ".metadata-pending"
         pending.touch()
-        with (path.parent / ".download").open("a") as handle:
+        lock = path.parent / ".download" if not per_file else path.with_name(f".{path.name}.metadata.lock")
+        with lock.open("a") as handle:
             fcntl.flock(handle, fcntl.LOCK_EX)
             for sidecar in sidecars:
                 self.upload_file(sidecar, str(PurePosixPath(key).with_suffix(sidecar.name.removeprefix(path.stem))))
             pending.unlink(missing_ok=True)
 
     def sync_source_metadata(self):
-        root = Path(self.config.temp_dir) / "media-cache"
-        if not self.bucket or not root.exists():
+        if not self.bucket:
             return
+        root = Path(self.config.temp_dir) / "media-cache"
+        if root.exists():
+            self._sync_cached_source_metadata(root)
+        uploads = Path(self.config.temp_dir) / "uploads"
+        if not uploads.is_dir():
+            return
+        for pending in uploads.glob(".*.metadata-pending"):
+            filename = pending.name[1:].removesuffix(".metadata-pending")
+            if not filename or filename != Path(filename).name:
+                continue
+            try:
+                self.save_source_metadata(uploads / filename)
+            except STORAGE_ERRORS + (ValueError,):
+                logging.getLogger(__name__).warning("Source metadata upload will retry")
+
+    def _sync_cached_source_metadata(self, root: Path):
         for directory in root.iterdir():
             marker = directory / ".reference"
             if not (directory / ".metadata-pending").exists() or not marker.exists():
@@ -418,10 +442,16 @@ class MediaStorage:
         downloads use the capped object so the worker does not transcode the
         same oversized upload on every edit.
         """
+        # A cache directory has one `.reference`. An uploads directory holds many
+        # files, so each one keeps its own sidecar written at ingest time.
         marker = path.parent / ".reference"
-        if not self.enabled or not marker.is_file():
+        reference = marker.read_text().strip() if marker.is_file() else ""
+        if not reference:
+            sidecar = path.with_name(f".{path.name}.s3ref")
+            reference = sidecar.read_text().strip() if sidecar.is_file() else ""
+        if not self.enabled or not reference:
             return
-        key = self.parse(marker.read_text())
+        key = self.parse(reference)
         capped = self.capped_source_key(key)
         if not capped:
             return
@@ -585,6 +615,10 @@ class MediaStorage:
             for suffix in SIDECARS:
                 path.with_suffix(suffix).unlink(missing_ok=True)
             path.with_name(f"{path.stem}.transcription.mp3").unlink(missing_ok=True)
+            path.with_name(f".{path.name}.s3ref").unlink(missing_ok=True)
+            path.with_name(f".{path.name}.persist.lock").unlink(missing_ok=True)
+            path.with_name(f".{path.name}.metadata-pending").unlink(missing_ok=True)
+            path.with_name(f".{path.name}.metadata.lock").unlink(missing_ok=True)
 
     def editor_reference(self, directory: Path, filename: str = "") -> str:
         return self.reference(self.key("editor", directory.name, filename).rstrip("/"))

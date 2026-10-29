@@ -100,6 +100,7 @@ def create_app(
             "x-supoclip-signature",
             "x-trace-id",
             "user_id",
+            "Idempotency-Key",
         ],
         expose_headers=["x-trace-id"],
     )
