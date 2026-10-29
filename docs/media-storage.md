@@ -93,28 +93,6 @@ returns the task that is already queued or processing, or one that completed
 in the last two minutes, and does not enqueue a second job. A lost response
 can be retried safely. Changing an option starts a new task.
 
-### Direct upload
-
-Large files should not depend on the Next.js hop. The web app already does
-this. A later iOS build can too; 1.0.5 keeps calling `/api/upload` and needs
-no change for the fix above.
-
-1. `POST /api/upload/authorization` with the session cookie, or
-   `POST /upload/authorize` on the API, with
-   `{"filename", "size", "contentType"}`.
-2. When the JSON has `storage: "s3"`, PUT each part to its presigned `url`
-   (`partSize` is 64 MiB, up to three at a time) using that part's
-   `Content-Length`, then `POST /upload/complete` with
-   `{"video_path", "uploadId", "parts": [{"partNumber", "etag"}]}`.
-   `POST /api/upload/parts` and `POST /api/upload/complete` proxy the same
-   calls. Refresh expired part URLs with `POST /upload/parts` during the
-   session's one-day lifetime.
-3. When object storage is off and the JSON has `directUpload: true`, POST the
-   multipart body to `uploadUrl` (the API host, not the Next.js app) with the
-   returned `headers`. Optional `Idempotency-Key` is honored.
-4. Pass the returned `video_path` as `source.url` to task creation. The same
-   `Idempotency-Key` on that request dedupes a retry of the same options.
-
 ### Proxy timeouts
 
 The production nginx config is not in this repo. It runs on the host in front
