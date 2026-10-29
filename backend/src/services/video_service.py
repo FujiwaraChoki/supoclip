@@ -389,14 +389,23 @@ class VideoService:
         raise ValueError("Only upload:// references are allowed for local video sources")
 
     @staticmethod
-    def probe_upload_duration(url: str, user_id: str) -> float:
+    def probe_upload_duration(url: str, user_id: str, storage_reference: str | None = None) -> float:
         """Read an uploaded video's length without downloading it."""
         if url.startswith("upload://s3/"):
             storage = MediaStorage()
             reference = storage.validate_source(url, user_id)
             # ffprobe reads only the container headers through ranged requests.
             return ffprobe_duration(storage.signed_url(reference, "source.mp4", expires_in=300))
-        return ffprobe_duration(VideoService.resolve_local_video_path(url))
+        path = VideoService.resolve_local_video_path(url)
+        if path.is_file():
+            return ffprobe_duration(path)
+        # Local file and sidecar are both gone. The upload session still names
+        # the durable object; ffprobe reads its headers through a signed URL.
+        if storage_reference:
+            storage = MediaStorage()
+            if storage.enabled:
+                return ffprobe_duration(storage.signed_url(storage_reference, "source.mp4", expires_in=300))
+        return ffprobe_duration(path)
 
     @staticmethod
     async def download_video(

@@ -116,7 +116,7 @@ class TaskRepository:
                   AND t.source_metadata->>'upload_request_key' = :key
                   AND (
                     t.status IN ('queued', 'processing', 'pending')
-                    OR (t.status = 'completed' AND t.created_at > NOW() - INTERVAL '2 minutes')
+                    OR (t.status = 'completed' AND t.completed_at > NOW() - INTERVAL '2 minutes')
                   )
                 ORDER BY t.created_at DESC
                 LIMIT 1

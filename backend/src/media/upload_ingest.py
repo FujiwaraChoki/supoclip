@@ -247,9 +247,20 @@ def read_upload_reference(path: Path) -> str | None:
 
 
 async def foreign_upload(db, video_path: str, user_id: str) -> bool:
-    """True when this upload was stored for a different account."""
+    """True when this account does not own the stored upload.
+
+    A file that is still on disk without a completed session is rejected too.
+    Session cleanup used to drop the ownership row while the video remained,
+    and any account that knew the ``upload://`` path could then start a task.
+    """
     if db is None or not isinstance(video_path, str) or not video_path.startswith("upload://") or video_path.startswith("upload://s3/"):
         return False
     row = await get_stored_upload(db, video_path)
-    return bool(row and row.user_id != user_id)
+    if row is not None:
+        return row.user_id != user_id
+    try:
+        path = local_upload_path(video_path)
+    except ValueError:
+        return True
+    return path.is_file()
 

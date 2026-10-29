@@ -2,13 +2,16 @@
 
 import hashlib
 import hmac
+import json
 import time
 
 import pytest
 from sqlalchemy import text
 
 from src.media_storage import MediaStorage
-from tests.fixtures.factories import create_user
+from src.repositories.task_repository import TaskRepository
+from src.workers.media_cleanup import cleanup_upload_sessions
+from tests.fixtures.factories import create_source, create_task, create_user
 
 
 def _headers_for(user_id: str) -> dict[str, str]:
@@ -106,7 +109,7 @@ async def test_task_retry_reuses_the_upload_until_options_change(
     await create_user(db_session, user_id="user-1")
     app.state.config.temp_dir = str(tmp_path)
 
-    async def _duration(_url, _user_id, _limit):
+    async def _duration(*_args):
         return 12.0
 
     monkeypatch.setattr("src.api.routes.tasks._preflight_upload_source", _duration)
@@ -166,3 +169,199 @@ async def test_another_account_cannot_use_a_stored_upload(
         json={"source": {"url": uploaded.json()["video_path"]}},
     )
     assert response.status_code == 404, response.text
+
+
+@pytest.mark.asyncio
+async def test_upload_ownership_outlives_session_cleanup(
+    client, app, auth_headers, db_session, tmp_path, monkeypatch,
+):
+    await create_user(db_session, user_id="user-1")
+    await create_user(db_session, user_id="user-2", email="user-2@example.com")
+    app.state.config.temp_dir = str(tmp_path)
+
+    async def _duration(*_args):
+        return 12.0
+
+    monkeypatch.setattr("src.api.routes.tasks._preflight_upload_source", _duration)
+    uploaded = await _upload(client, auth_headers, b"owned-video")
+    assert uploaded.status_code == 200, uploaded.text
+    video_path = uploaded.json()["video_path"]
+    source = await create_source(db_session, source_type="video_url", url=video_path)
+    await create_task(db_session, user_id="user-1", source_id=source["id"])
+    await db_session.execute(text("""
+        UPDATE media_upload_sessions
+        SET created_at = NOW() - INTERVAL '3 days'
+        WHERE video_path = :path
+    """), {"path": video_path})
+    await db_session.commit()
+
+    storage = MediaStorage(config=app.state.config)
+    storage.bucket = None
+    await cleanup_upload_sessions(db_session, storage)
+
+    saved = tmp_path / "uploads" / video_path.removeprefix("upload://")
+    assert saved.read_bytes() == b"owned-video"
+    owner = (await db_session.execute(text(
+        "SELECT user_id FROM media_upload_sessions WHERE video_path = :path AND state = 'completed'"
+    ), {"path": video_path})).scalar_one()
+    assert owner == "user-1"
+
+    reused = await client.post("/tasks/", headers=auth_headers, json={"source": {"url": video_path}})
+    assert reused.status_code == 200, reused.text
+    foreign = await client.post(
+        "/tasks/",
+        headers=_headers_for("user-2"),
+        json={"source": {"url": video_path}},
+    )
+    assert foreign.status_code == 404, foreign.text
+
+    await db_session.execute(text(
+        "DELETE FROM media_upload_sessions WHERE video_path = :path"
+    ), {"path": video_path})
+    await db_session.commit()
+    # A new option does not match the task already queued above, so ownership
+    # is checked again. The file is still on disk and has no owner row.
+    fresh_options = {"source": {"url": video_path}, "clip_length": "short"}
+    for headers in (auth_headers, _headers_for("user-2")):
+        rejected = await client.post("/tasks/", headers=headers, json=fresh_options)
+        assert rejected.status_code == 404, rejected.text
+
+
+@pytest.mark.asyncio
+async def test_local_cleanup_expires_orphaned_uploads_and_keeps_referenced_files(
+    client, app, auth_headers, db_session, tmp_path, monkeypatch,
+):
+    await create_user(db_session, user_id="user-1")
+    app.state.config.temp_dir = str(tmp_path)
+    orphan = await _upload(client, auth_headers, b"orphan-video")
+    kept = await _upload(client, auth_headers, b"kept-video")
+    fresh = await _upload(client, auth_headers, b"fresh-video")
+    assert orphan.status_code == kept.status_code == fresh.status_code == 200
+    orphan_path = orphan.json()["video_path"]
+    kept_path = kept.json()["video_path"]
+    fresh_path = fresh.json()["video_path"]
+    orphan_file = tmp_path / "uploads" / orphan_path.removeprefix("upload://")
+    kept_file = tmp_path / "uploads" / kept_path.removeprefix("upload://")
+    orphan_capped = orphan_file.with_name(f"{orphan_file.stem}.capped.mp4")
+    kept_capped = kept_file.with_name(f"{kept_file.stem}.capped.mp4")
+    orphan_capped.write_bytes(b"orphan-capped")
+    kept_capped.write_bytes(b"kept-capped")
+    source = await create_source(db_session, source_type="video_url", url=kept_path)
+    await create_task(db_session, user_id="user-1", source_id=source["id"])
+    await db_session.execute(text("""
+        UPDATE media_upload_sessions
+        SET created_at = NOW() - INTERVAL '3 days'
+        WHERE video_path = :orphan OR video_path = :kept
+    """), {"orphan": orphan_path, "kept": kept_path})
+    await db_session.commit()
+
+    storage = MediaStorage(config=app.state.config)
+    storage.bucket = None
+    await cleanup_upload_sessions(db_session, storage)
+
+    assert not orphan_file.exists()
+    assert not orphan_capped.exists()
+    assert kept_file.read_bytes() == b"kept-video"
+    assert kept_capped.read_bytes() == b"kept-capped"
+    assert (tmp_path / "uploads" / fresh_path.removeprefix("upload://")).read_bytes() == b"fresh-video"
+    remaining = {
+        row.video_path
+        for row in await db_session.execute(text(
+            "SELECT video_path FROM media_upload_sessions WHERE user_id = 'user-1'"
+        ))
+    }
+    assert remaining == {kept_path, fresh_path}
+
+    def _refuse_delete(self, reference, *, prefix=False):
+        raise OSError("disk busy")
+
+    monkeypatch.setattr(MediaStorage, "delete", _refuse_delete)
+    await db_session.execute(text("""
+        UPDATE media_upload_sessions
+        SET created_at = NOW() - INTERVAL '3 days'
+        WHERE video_path = :path
+    """), {"path": fresh_path})
+    await db_session.commit()
+    await cleanup_upload_sessions(db_session, storage)
+    assert (tmp_path / "uploads" / fresh_path.removeprefix("upload://")).is_file()
+    assert (await db_session.execute(text(
+        "SELECT COUNT(*) FROM media_upload_sessions WHERE video_path = :path"
+    ), {"path": fresh_path})).scalar_one() == 1
+
+
+@pytest.mark.asyncio
+async def test_content_hash_reuse_binds_a_new_idempotency_key(
+    client, app, auth_headers, db_session, tmp_path,
+):
+    await create_user(db_session, user_id="user-1")
+    app.state.config.temp_dir = str(tmp_path)
+    payload = b"hashed-video"
+    first = await _upload(client, auth_headers, payload)
+    assert first.status_code == 200, first.text
+    video_path = first.json()["video_path"]
+
+    bound = await _upload(client, auth_headers, payload, key="client-retry-1")
+    assert bound.status_code == 200, bound.text
+    assert bound.json()["video_path"] == video_path
+    assert (await db_session.execute(text(
+        "SELECT idempotency_key FROM media_upload_sessions WHERE video_path = :path"
+    ), {"path": video_path})).scalar_one() == "client-retry-1"
+
+    replay = await _upload(client, auth_headers, payload)
+    assert replay.status_code == 200
+    assert replay.json()["video_path"] == video_path
+    assert (await db_session.execute(text(
+        "SELECT idempotency_key FROM media_upload_sessions WHERE video_path = :path"
+    ), {"path": video_path})).scalar_one() == "client-retry-1"
+
+    conflict = await _upload(client, auth_headers, b"other-bytes", key="client-retry-1")
+    assert conflict.status_code == 409
+
+    switched = await _upload(client, auth_headers, payload, key="client-retry-2")
+    assert switched.status_code == 200, switched.text
+    assert switched.json()["video_path"] == video_path
+    assert (await db_session.execute(text(
+        "SELECT idempotency_key FROM media_upload_sessions WHERE video_path = :path"
+    ), {"path": video_path})).scalar_one() == "client-retry-2"
+    assert (await _upload(client, auth_headers, b"other-bytes", key="client-retry-2")).status_code == 409
+    assert list((tmp_path / "uploads").glob("*.mp4")) == [
+        tmp_path / "uploads" / video_path.removeprefix("upload://"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_upload_task_dedupe_uses_completed_at(db_session):
+    await create_user(db_session, user_id="user-1")
+    source = await create_source(db_session, source_type="video_url", url="upload://clip.mp4")
+    task = await create_task(db_session, user_id="user-1", source_id=source["id"], status="completed")
+    key = "same-upload-request"
+    await db_session.execute(text("""
+        UPDATE tasks
+        SET created_at = NOW() - INTERVAL '30 minutes',
+            source_metadata = CAST(:meta AS jsonb)
+        WHERE id = :id
+    """), {"id": task["id"], "meta": json.dumps({"upload_request_key": key})})
+    await db_session.commit()
+    assert await TaskRepository.find_recent_upload_task(db_session, "user-1", key) is None
+
+    await db_session.execute(text(
+        "UPDATE tasks SET completed_at = NOW() WHERE id = :id"
+    ), {"id": task["id"]})
+    await db_session.commit()
+    found = await TaskRepository.find_recent_upload_task(db_session, "user-1", key)
+    assert found is not None and found.id == task["id"]
+
+    await db_session.execute(text(
+        "UPDATE tasks SET completed_at = NOW() - INTERVAL '30 minutes' WHERE id = :id"
+    ), {"id": task["id"]})
+    await db_session.commit()
+    assert await TaskRepository.find_recent_upload_task(db_session, "user-1", key) is None
+
+    await db_session.execute(text("""
+        UPDATE tasks
+        SET status = 'processing', completed_at = NULL
+        WHERE id = :id
+    """), {"id": task["id"]})
+    await db_session.commit()
+    found = await TaskRepository.find_recent_upload_task(db_session, "user-1", key)
+    assert found is not None and found.id == task["id"]

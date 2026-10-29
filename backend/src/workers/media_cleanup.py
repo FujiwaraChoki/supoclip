@@ -267,9 +267,57 @@ async def cleanup_media(ctx):
     await run_in_thread(storage.sweep_editor_cache)
 
 
-async def cleanup_upload_sessions(db, storage):
-    if not storage.bucket:
+def _finished_local_upload(storage, video_path: str) -> Path | None:
+    """Uploads-directory file for a local ``upload://`` path, using this storage's temp dir."""
+    if not isinstance(video_path, str) or not video_path.startswith("upload://") or video_path.startswith("upload://s3/"):
+        return None
+    name = video_path.removeprefix("upload://")
+    if not name or name != Path(name).name or name in {".", ".."}:
+        return None
+    return Path(storage.config.temp_dir) / "uploads" / name
+
+
+def _delete_finished_local_upload(storage, video_path: str) -> None:
+    path = _finished_local_upload(storage, video_path)
+    if path is None:
         return
+    storage.delete(str(path))
+    storage.delete(str(path.with_name(f"{path.stem}.capped.mp4")))
+
+
+async def _expire_finished_upload_sessions(db, storage) -> None:
+    """Drop completed and aborted sessions after two days, and their local files.
+
+    A session whose ``video_path`` is still a task source stays. That row is the
+    ownership record, and the file is still in use. Local storage has no bucket,
+    so this expiry runs even when the multipart-abort loop does not.
+    """
+    rows = (await db.execute(text("""
+        SELECT id, video_path FROM media_upload_sessions
+        WHERE state IN ('completed', 'aborted')
+          AND created_at < NOW() - INTERVAL '2 days'
+          AND NOT EXISTS (
+              SELECT 1 FROM sources s
+              JOIN tasks t ON t.source_id = s.id
+              WHERE s.url = media_upload_sessions.video_path
+          )
+    """))).all()
+    for row in rows:
+        try:
+            await run_in_thread(_delete_finished_local_upload, storage, row.video_path)
+        except (OSError, ValueError):
+            continue
+        await db.execute(text("DELETE FROM media_upload_sessions WHERE id = :id"), {"id": row.id})
+    await db.commit()
+
+
+async def cleanup_upload_sessions(db, storage):
+    if storage.bucket:
+        await _abort_expired_multipart_uploads(db, storage)
+    await _expire_finished_upload_sessions(db, storage)
+
+
+async def _abort_expired_multipart_uploads(db, storage):
     for _ in range(100):
         row = (await db.execute(text("""
             SELECT id, user_id, upload_id, video_path FROM media_upload_sessions
@@ -293,8 +341,6 @@ async def cleanup_upload_sessions(db, storage):
             await db.rollback()
             logger.warning("Expired multipart upload retained for abort retry")
             break
-    await db.execute(text("DELETE FROM media_upload_sessions WHERE state IN ('completed', 'aborted') AND created_at < NOW() - INTERVAL '2 days'"))
-    await db.commit()
 
 
 async def sweep_orphaned_media(ctx):

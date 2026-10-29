@@ -31,6 +31,7 @@ from ...database import AsyncSessionLocal
 from ...services.task_service import TaskService
 from ...services.video_service import VideoService
 from ...media.upload_ingest import foreign_upload
+from ...repositories.upload_repository import get_stored_upload
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
 from ...workers.job_queue import JobQueue
@@ -151,10 +152,17 @@ def _stream_resolution_metadata(metadata: Dict[str, Any] | None) -> Dict[str, An
     }
 
 
-async def _preflight_upload_source(url: str, user_id: str, duration_limit: int) -> float:
+async def _preflight_upload_source(url: str, user_id: str, duration_limit: int, db=None) -> float:
     """Read an uploaded video's length so its minutes are charged up front."""
+    reference = None
+    if db is not None and isinstance(url, str) and url.startswith("upload://") and not url.startswith("upload://s3/"):
+        row = await get_stored_upload(db, url)
+        reference = row.storage_reference if row is not None else None
     try:
-        duration = await run_in_thread(VideoService.probe_upload_duration, url, user_id)
+        if reference:
+            duration = await run_in_thread(VideoService.probe_upload_duration, url, user_id, reference)
+        else:
+            duration = await run_in_thread(VideoService.probe_upload_duration, url, user_id)
         if not math.isfinite(duration) or duration <= 0:
             raise ValueError("Invalid video duration")
     except Exception:
@@ -565,7 +573,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             if await foreign_upload(db, raw_source["url"], user_id):
                 raise HTTPException(status_code=404, detail="Video file not found")
             duration_seconds = await _preflight_upload_source(
-                raw_source["url"], user_id, billing["max_upload_duration_seconds"]
+                raw_source["url"], user_id, billing["max_upload_duration_seconds"], db
             )
 
         async with generation_allowance_guard(

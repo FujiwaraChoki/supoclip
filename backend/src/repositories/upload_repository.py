@@ -73,6 +73,26 @@ def _admission_counts():
     """)
 
 
+async def _reuse_completed_upload(db, row, idempotency_key: str | None):
+    """Return a completed upload, recording a new idempotency key on that row."""
+    if idempotency_key and idempotency_key != row.idempotency_key:
+        try:
+            await db.execute(text("""
+                UPDATE media_upload_sessions
+                SET idempotency_key = :key
+                WHERE id = :id AND state = 'completed'
+            """), {"id": row.id, "key": idempotency_key})
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            raise UploadIdempotencyConflict(
+                "This idempotency key was already used for a different file."
+            )
+    else:
+        await db.rollback()
+    return row.video_path, False
+
+
 async def claim_stored_upload(db, user_id: str, size: int, digest: str, video_path: str, idempotency_key: str | None, config):
     """Record a finished local upload, or return the path already stored for these bytes.
 
@@ -103,13 +123,12 @@ async def claim_stored_upload(db, user_id: str, size: int, digest: str, video_pa
                 raise UploadIdempotencyConflict("This idempotency key was already used for a different file.")
             return existing.video_path, False
     existing = (await db.execute(text("""
-        SELECT video_path FROM media_upload_sessions
+        SELECT id, video_path, idempotency_key FROM media_upload_sessions
         WHERE user_id = :owner AND content_sha256 = :digest AND state = 'completed'
         ORDER BY created_at DESC LIMIT 1
     """), {"owner": user_id, "digest": digest})).first()
     if existing is not None:
-        await db.rollback()
-        return existing.video_path, False
+        return await _reuse_completed_upload(db, existing, idempotency_key)
 
     counts = (await db.execute(_admission_counts(), {"owner": user_id})).one()
     if counts.active >= config.media_upload_concurrency or counts.daily >= config.media_upload_daily_limit:
@@ -133,14 +152,16 @@ async def claim_stored_upload(db, user_id: str, size: int, digest: str, video_pa
         await db.commit()
     except IntegrityError:
         await db.rollback()
+        await db.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:owner, 113463))"), {"owner": user_id})
         existing = (await db.execute(text("""
-            SELECT video_path FROM media_upload_sessions
+            SELECT id, video_path, idempotency_key FROM media_upload_sessions
             WHERE user_id = :owner AND content_sha256 = :digest AND state = 'completed'
             ORDER BY created_at DESC LIMIT 1
         """), {"owner": user_id, "digest": digest})).first()
         if existing is None:
+            await db.rollback()
             raise
-        return existing.video_path, False
+        return await _reuse_completed_upload(db, existing, idempotency_key)
     return video_path, True
 
 
