@@ -40,7 +40,8 @@ logger = logging.getLogger(__name__)
 CACHE_DIRNAME = "youtube-cache"
 WORK_DIRNAME = "youtube-work"
 MANIFEST_NAME = "manifest.json"
-AUDIO_POLICY = "original-v1"
+# v2 rejects auto-dub tracks before language_preference. Cached v1 audio is discarded.
+AUDIO_POLICY = "original-v2"
 
 
 def parse_clock(value) -> Optional[float]:

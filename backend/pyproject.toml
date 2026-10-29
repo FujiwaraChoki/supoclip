@@ -60,6 +60,8 @@ constraint-dependencies = [
     "pyasn1>=0.6.4",
     "python-multipart>=0.0.30",
     "starlette>=1.3.1,<2",
+    # temporalio 1.27–1.34 ship Rust zip < 9.0.5 (CVE-2026-115905). 1.35.0 vendors zip 9.1.2.
+    "temporalio>=1.35.0",
     "wheel>=0.46.2",
     "urllib3>=2.8.0,<3",
 ]
