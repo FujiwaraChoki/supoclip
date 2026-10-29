@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-10-28
 
-- **Fixed:** When a YouTube download has to fall back to HLS audio, clips stay in the video's original language instead of an automatic dub. ([#303](https://github.com/FujiwaraChoki/supoclip/pull/303))
+- **Fixed:** When a YouTube download has to fall back to HLS audio, clips stay in the video's original language instead of an automatic dub or an audio-description track. ([#303](https://github.com/FujiwaraChoki/supoclip/pull/303))
 
 ## 2026-10-25
 

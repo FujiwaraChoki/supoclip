@@ -192,6 +192,37 @@ def test_hls_audio_prefers_unsuffixed_id_when_original_is_unlabeled():
     assert mod.pick_hls_audio_format(formats)['format_id'] == '233'
 
 
+def test_hls_audio_uses_progressive_original_label_not_client_language():
+    formats = [
+        {
+            'format_id': '140',
+            'protocol': 'https',
+            'vcodec': 'none',
+            'acodec': 'aac',
+            'ext': 'm4a',
+            'abr': 128,
+            'format_note': 'Polish - original',
+            'language': 'pl',
+        },
+        _hls_audio('233-0', 'English', language='en', language_preference=10, abr=48),
+        _hls_audio('233-1', 'Polish', language='pl', language_preference=1, abr=64),
+    ]
+    assert mod.pick_hls_audio_format(formats, source_language='en')['format_id'] == '233-1'
+
+
+def test_audio_description_does_not_beat_spoken_original():
+    described = [
+        _hls_audio('233-1', 'English', language='en', language_preference=10, abr=64),
+        _hls_audio('233-0', 'English descriptive', language='en-desc', language_preference=-10, abr=48),
+    ]
+    assert mod.pick_hls_audio_format(described, source_language='en')['format_id'] == '233-1'
+    noted = [
+        _hls_audio('234-1', 'English', language='en', language_preference=5, abr=64),
+        _hls_audio('234-0', 'English (audio description)', language='en', language_preference=-10, abr=48),
+    ]
+    assert mod.pick_hls_audio_format(noted, source_language='en')['format_id'] == '234-1'
+
+
 def test_legacy_audio_cache_is_invalidated_without_losing_full_source(tmp_path):
     (tmp_path / source.MANIFEST_NAME).write_text(json.dumps({
         'version': 1, 'audio': 'audio.m4a', 'ranges': [{'file': 'old.mp4'}], 'full': 'full.mp4',
