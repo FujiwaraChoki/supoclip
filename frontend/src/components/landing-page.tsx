@@ -289,17 +289,6 @@ export default function LandingPage() {
               className="mb-8 flex flex-wrap items-center justify-center gap-2"
               style={{ animation: "landing-fade-in-up 0.7s ease-out both" }}
             >
-              <a
-                href="#publish"
-                className="group inline-flex items-center gap-2 rounded-full border bg-background py-1 pl-1 pr-3 text-xs font-medium shadow-sm transition-colors hover:border-foreground/20"
-              >
-                <span className="flex items-center gap-1 rounded-full bg-foreground px-2 py-0.5 text-background">
-                  <SocialProviderIcon provider="youtube" className="size-3" />
-                  {t("hero.newLabel")}
-                </span>
-                {t("hero.announcement")}
-                <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
-              </a>
               <Announcements landing />
             </div>
 
