@@ -8,6 +8,10 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 - **Improved:** The footer, terms, and privacy policy now identify the company operating SupoClip. ([#314](https://github.com/FujiwaraChoki/supoclip/pull/314))
 
+## 2026-10-30
+
+- **New:** Switch between a light and dark theme from the sidebar (or the header on mobile). SupoClip follows your system setting until you pick one, and remembers your choice. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+
 ## 2026-10-29
 
 - **Fixed:** A large video upload finishes once the file is stored, instead of waiting on a copy that can time out. Uploading the same file again reuses it. ([#306](https://github.com/FujiwaraChoki/supoclip/pull/306))

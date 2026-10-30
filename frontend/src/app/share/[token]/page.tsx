@@ -86,7 +86,7 @@ export default function SharedGenerationPage() {
     <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-8">
         <Link href="/" className="flex items-center gap-2 font-display text-lg font-bold tracking-tight">
-          <Image src="/logo.png" alt="" width={22} height={22} className="size-[22px]" priority />{t("brand")}
+          <Image src="/logo.png" alt="" width={22} height={22} className="size-[22px] dark:invert" priority />{t("brand")}
         </Link>
         <Button asChild size="sm" className="rounded-full">
           <Link href="/"><Sparkles className="size-4" />{t("makeYourOwn")}</Link>

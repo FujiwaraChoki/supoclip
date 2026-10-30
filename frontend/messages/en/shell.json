@@ -43,6 +43,9 @@
     "signingOut": "Signing out…",
     "signOutError": "Could not sign out. Please try again."
   },
+  "theme": {
+    "toggle": "Switch light/dark theme"
+  },
   "announcements": {
     "whatsNew": "What's new",
     "whatsNewUnread": "What's new, {count, plural, one {# unread announcement} other {# unread announcements}}",
