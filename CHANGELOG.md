@@ -10,7 +10,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-10-30
 
-- **New:** Switch between a light and dark theme from the sidebar (or the header on mobile). SupoClip follows your system setting until you pick one, and remembers your choice. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+- **New:** Switch between a light and dark theme from the sidebar (or the header on mobile). SupoClip follows your system setting until you pick one, and remembers your choice. ([#312](https://github.com/FujiwaraChoki/supoclip/pull/312))
 
 ## 2026-10-29
 
