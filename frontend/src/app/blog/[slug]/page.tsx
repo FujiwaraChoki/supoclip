@@ -2,6 +2,7 @@ import { formatArticleDate } from "@/components/articles/article-shell";
 import { CreatorGuideArticle } from "@/components/articles/creator-guide-article";
 import { OpusClipComparisonArticle } from "@/components/articles/opusclip-comparison-article";
 import { SelfHostingGuideArticle } from "@/components/articles/self-hosting-guide-article";
+import { TikTokPublishingArticle } from "@/components/articles/tiktok-publishing-article";
 import { RelatedGuides } from "@/components/marketing/related-guides";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SupoLiveArticle } from "@/components/supo-live-article";
@@ -67,6 +68,10 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
 
   if (!basePost) {
     notFound();
+  }
+
+  if (slug === "tiktok-publishing-is-live") {
+    return <TikTokPublishingArticle post={basePost} />;
   }
 
   const guide = getCreatorGuide(slug);

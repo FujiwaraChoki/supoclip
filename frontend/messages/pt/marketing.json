@@ -47,6 +47,12 @@
     "read": "Ler"
   },
   "links": {
+    "blog_tiktok_publishing_is_live": {
+      "eyebrow": "Product update",
+      "title": "TikTok publishing is now live in SupoClip",
+      "label": "TikTok publishing",
+      "description": "Connect TikTok, publish to TikTok and YouTube together on the web, and schedule ahead on Creator."
+    },
     "demo": {
       "label": "Demo",
       "eyebrow": "Demo",
