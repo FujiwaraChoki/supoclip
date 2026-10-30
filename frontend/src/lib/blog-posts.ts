@@ -22,6 +22,20 @@ export interface BlogPost {
 }
 
 export const blogPosts: BlogPost[] = [
+  {
+    language: "en",
+    slug: "tiktok-publishing-is-live",
+    title: "TikTok publishing is now live in SupoClip",
+    description: "Publish clips straight to TikTok, select TikTok and YouTube together on the web, and schedule ahead on Creator. Here’s how to get started.",
+    eyebrow: "Product update",
+    category: "Product updates",
+    publishedAt: "2026-10-30",
+    updatedAt: "2026-10-30",
+    readingTime: "3 min read",
+    author: "SupoClip",
+    keywords: ["SupoClip TikTok publishing", "publish clips to TikTok", "TikTok and YouTube publishing", "schedule TikTok posts"],
+    summary: "Your finished clips can now go straight to TikTok. Connect your account, pick a clip, and publish from SupoClip—without downloading and uploading it again.",
+  },
   ...creatorGuides.map((guide) => guide.post),
   {
     slug: "supoclip-vs-supo-live",

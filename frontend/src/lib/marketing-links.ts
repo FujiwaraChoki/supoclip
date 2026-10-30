@@ -23,6 +23,12 @@ export const OPUSCLIP_COMPARISON_HREF = "/blog/supoclip-vs-opusclip";
 
 export const marketingLinks: MarketingLink[] = [
   {
+    href: "/blog/tiktok-publishing-is-live", language: "en", group: "guide", eyebrow: "Product update",
+    title: "TikTok publishing is now live in SupoClip", label: "TikTok publishing",
+    description: "Connect TikTok, publish to TikTok and YouTube together on the web, and schedule ahead on Creator.",
+    related: ["/blog/schedule-week-of-youtube-shorts", "/blog/word-by-word-video-captions", "/youtube-shorts-clipper"],
+  },
+  {
     href: "/demo",
     group: "product",
     eyebrow: "Demo",
@@ -98,7 +104,7 @@ export const marketingLinks: MarketingLink[] = [
     href: "/blog/podcast-to-shorts", language: "en", group: "guide", eyebrow: "Podcast clips",
     title: "Turn a video podcast into Shorts and Reels", label: "Podcast to Shorts",
     description: "Choose complete ideas, correct captions, and follow real clips back to the source.",
-    related: ["/blog/find-best-moments-in-video", "/blog/word-by-word-video-captions", "/youtube-shorts-clipper"],
+    related: ["/blog/tiktok-publishing-is-live", "/blog/word-by-word-video-captions", "/youtube-shorts-clipper"],
   },
   {
     href: "/blog/find-best-moments-in-video", language: "en", group: "guide", eyebrow: "Highlight selection",
