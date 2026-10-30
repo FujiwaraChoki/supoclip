@@ -32,7 +32,8 @@
       "compare": "Bandingkan",
       "product": "Produk"
     },
-    "columnLinks": "Tautan {heading}"
+    "columnLinks": "Tautan {heading}",
+    "operator": "Produk dari {company}."
   },
   "creator": {
     "codeLead": "Kode",

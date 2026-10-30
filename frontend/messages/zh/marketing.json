@@ -32,7 +32,8 @@
       "compare": "对比",
       "product": "产品"
     },
-    "columnLinks": "{heading}链接"
+    "columnLinks": "{heading}链接",
+    "operator": "由 {company} 提供的产品。"
   },
   "creator": {
     "codeLead": "优惠码",

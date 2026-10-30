@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 
 import { HomeRouter } from "@/components/home-router";
 import { getLandingFaqs } from "@/lib/landing-faq";
-import { APP_STORE_URL, getSiteUrl } from "@/lib/site";
+import { APP_STORE_URL, COMPANY_NAME, getSiteUrl } from "@/lib/site";
 
 const siteUrl = getSiteUrl();
 
@@ -48,6 +48,7 @@ export default async function HomePage() {
       "@context": "https://schema.org",
       "@type": "Organization",
       name: "SupoClip",
+      legalName: COMPANY_NAME,
       url: siteUrl,
       logo: `${siteUrl}/logo.png`,
       sameAs: ["https://github.com/FujiwaraChoki/supoclip", APP_STORE_URL],
