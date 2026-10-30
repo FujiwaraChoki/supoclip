@@ -225,6 +225,26 @@ def test_tiktok_rejects_privacy_levels_the_account_cannot_use(clip_file):
             ),
         )
     assert "private" in str(exc.value)
+    assert "unaudited" not in str(exc.value).lower()
+
+
+def test_tiktok_does_not_upload_without_current_privacy_options(clip_file):
+    from src.social.base import PublishRequest
+    session = FakeSession({("POST", "creator_info/query"): FakeResponse(200, {"data": {}, "error": {"code": "ok"}})})
+    with pytest.raises(SocialProviderError, match="did not return any"):
+        TikTokProvider(_config(), session=session).publish(
+            "token", PublishRequest(file_path=clip_file, title="t", caption="c", hashtags=[], privacy_level="private")
+        )
+    assert len(session.calls) == 1
+
+
+def test_legacy_privacy_error_keeps_actual_failure_without_guessed_audit_status():
+    from src.repositories.social_repository import present_post_error
+    actual = "TikTok does not allow 'public' posts for this account right now. Allowed: followers, friends, private."
+    suffix = " (Unaudited TikTok apps can only post privately until TikTok approves the app.)"
+    assert present_post_error("tiktok", actual + suffix) == actual
+    real_api_error = "unaudited_client_can_only_post_to_private_accounts"
+    assert present_post_error("tiktok", real_api_error) == real_api_error
 
 
 def test_tiktok_publish_persists_handle_before_checking_status(clip_file):

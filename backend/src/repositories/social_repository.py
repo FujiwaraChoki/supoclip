@@ -84,6 +84,15 @@ def _iso(value: Any) -> Optional[str]:
     return str(value)
 
 
+def present_post_error(provider: str, message: Optional[str]) -> Optional[str]:
+    # Older privacy-validation failures guessed the app's audit state. Preserve
+    # the actual failure and its history, but do not display that unsupported claim.
+    suffix = " (Unaudited TikTok apps can only post privately until TikTok approves the app.)"
+    if provider == "tiktok" and message and message.startswith("TikTok does not allow '"):
+        return message.removesuffix(suffix)
+    return message
+
+
 def _json_value(value: Any) -> Any:
     if value is None:
         return None
@@ -871,7 +880,7 @@ class SocialRepository:
             "pending_handle": row.pending_handle,
             "external_post_id": row.external_post_id,
             "external_url": row.external_url,
-            "error_message": row.error_message,
+            "error_message": present_post_error(row.provider, row.error_message),
             "attempts": row.attempts,
             "claimed_at": _iso(row.claimed_at),
             "hook_type": row.hook_type,

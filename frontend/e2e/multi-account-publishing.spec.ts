@@ -23,6 +23,7 @@ async function mockClip(page: Page) {
   await page.route("**/api/tasks/one/clips/clip-1/file**", route => route.fulfill({ status: 404 }));
   await page.route("**/api/social/providers", route => route.fulfill({ json: { enabled: true, can_schedule: true, providers } }));
   await page.route("**/api/social/connections", route => route.fulfill({ json: { connections } }));
+  await page.route("**/api/social/connections/*/publishing-options", route => route.fulfill({ json: { privacy_levels: ["public", "private"] } }));
   await page.route("**/api/social/captions", route => route.fulfill({ json: { caption: "Want a clutter-free desk? Start with less. The creator’s rule is simple: keep only what earns its place." } }));
 }
 
@@ -51,7 +52,7 @@ for (const width of [390, 1280]) {
     const youtubeVisibility = dialog.getByLabel("Visibility · YouTube Shorts · DevBySami");
     const tiktokVisibility = dialog.getByLabel("Visibility · TikTok · DevBySami");
     await expect(youtubeVisibility).toHaveText("Public");
-    await expect(tiktokVisibility).toHaveText("Private (only me)");
+    await expect(tiktokVisibility).toHaveText("Choose visibility");
     await tiktokVisibility.click();
     await expect(page.getByRole("option", { name: "Unlisted", exact: true })).toHaveCount(0);
     await page.getByRole("option", { name: "Public", exact: true }).click();
@@ -66,5 +67,30 @@ for (const width of [390, 1280]) {
       expect.objectContaining({ social_account_id: "youtube-1", privacy_level: "unlisted" }),
       expect.objectContaining({ social_account_id: "tiktok-1", privacy_level: "public" }),
     ]));
+  });
+}
+
+for (const width of [390, 1280]) {
+  test(`private TikTok account cannot select public at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await mockClip(page);
+    await page.route("**/api/social/connections/*/publishing-options", route => route.fulfill({ json: { privacy_levels: ["private"] } }));
+    await page.route("**/api/social/posts**", route => route.fulfill({ json: { posts: [] } }));
+    await page.goto("/tasks/one");
+    await page.getByRole("button", { name: "Preview The one rule for a clean desk setup" }).click();
+    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Publish clip 1", exact: true });
+    await dialog.getByRole("checkbox", { name: "TikTok · DevBySami" }).check();
+    await dialog.getByRole("checkbox", { name: "YouTube Shorts · DevBySami" }).uncheck();
+    const visibility = dialog.getByLabel("Visibility", { exact: true });
+    await expect(visibility).toBeEnabled();
+    await expect(visibility).toHaveText("Choose visibility");
+    await expect(dialog.getByRole("button", { name: "Publish now", exact: true })).toBeDisabled();
+    await expect(dialog.getByText(/Public isn’t available/)).toBeVisible();
+    await visibility.click();
+    await expect(page.getByRole("option", { name: "Public", exact: true })).toHaveCount(0);
+    await page.getByRole("option", { name: "Private (only me)", exact: true }).click();
+    await expect(dialog.getByRole("button", { name: "Publish now", exact: true })).toBeEnabled();
+    await dialog.screenshot({ path: `test-results/tiktok-private-options-${width}.png` });
   });
 }

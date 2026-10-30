@@ -94,6 +94,15 @@ async def list_connections(request: Request, db: AsyncSession = Depends(get_db))
     return {"connections": connections, "total": len(connections)}
 
 
+@router.get("/connections/{account_id}/publishing-options")
+async def publishing_options(account_id: str, request: Request, db: AsyncSession = Depends(get_db)):
+    user_id = await _allowed_user_id(request, db)
+    try:
+        return await _service(request, db).publishing_options(user_id, account_id)
+    except SocialError as exc:
+        raise _http_error(exc)
+
+
 @router.post("/connections/{provider}/authorize")
 async def start_connection(
     provider: str, request: Request, db: AsyncSession = Depends(get_db)

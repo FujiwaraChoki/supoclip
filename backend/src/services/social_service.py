@@ -174,6 +174,32 @@ class SocialService:
     async def list_connections(self, user_id: str) -> List[Dict[str, Any]]:
         return await self.repo.list_accounts(self.db, user_id)
 
+    async def publishing_options(self, user_id: str, account_id: str) -> Dict[str, Any]:
+        """Current account-specific choices; never expose credentials to the client."""
+        account = await self.repo.get_account_with_tokens(self.db, account_id)
+        if not account or account.get("user_id") != user_id or account.get("revoked_at"):
+            raise SocialNotFound("Connected account not found")
+        if account.get("status") == "reauth_required":
+            raise SocialValidationError("Reconnect this account before publishing.")
+        provider = self._provider(account["provider"])
+        levels = list(provider.supported_privacy_levels)
+        if provider.name == "tiktok":
+            from ..social.tiktok import PRIVACY_MAP
+            try:
+                token = await self._get_valid_access_token(account)
+                info = await self._call_provider(provider.query_creator_info, token)
+            except SocialProviderError as exc:
+                if exc.reauth:
+                    await self.repo.set_account_status(self.db, account_id, "reauth_required", str(exc))
+                raise SocialValidationError(str(exc)) from exc
+            allowed = info.get("privacy_level_options") or []
+            if not isinstance(allowed, list):
+                raise SocialValidationError("TikTok returned invalid publishing options. Try refreshing the account.")
+            levels = [level for level in levels if PRIVACY_MAP.get(level) in allowed]
+            if not levels:
+                raise SocialValidationError("TikTok did not return any supported posting privacy options. Try refreshing or reconnecting the account.")
+        return {"privacy_levels": levels, "requires_privacy_selection": provider.name == "tiktok"}
+
     async def start_connection(
         self, user_id: str, provider_name: str, *, client: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -425,6 +451,14 @@ class SocialService:
                 f"{', '.join(provider.supported_privacy_levels)}"
             )
 
+        if provider.name == "tiktok":
+            options = await self.publishing_options(user_id, account["id"])
+            if normalized_privacy not in options["privacy_levels"]:
+                raise SocialValidationError(
+                    "This TikTok account does not currently allow that visibility. "
+                    "Refresh its publishing options or check its privacy settings in TikTok."
+                )
+
         clean_title = (title or clip.get("hook_title") or f"Clip {clip.get('clip_order', '')}").strip()
         clean_title = clean_title[:MAX_TITLE_LENGTH]
         clean_caption = (caption if caption is not None else (clip.get("text") or "")).strip()
@@ -535,6 +569,13 @@ class SocialService:
         if not post.get("social_account_id"):
             raise SocialValidationError("The account for this post was disconnected.")
         self._provider(post["provider"])
+        if post["provider"] == "tiktok":
+            options = await self.publishing_options(user_id, post["social_account_id"])
+            if post.get("privacy_level") not in options["privacy_levels"]:
+                raise SocialValidationError(
+                    "This TikTok account no longer allows the post’s visibility. "
+                    "Open Publish to choose an available visibility, or check the account’s privacy settings in TikTok."
+                )
         attempts = await self.repo.requeue_post(
             self.db, user_id, post_id, media_token=secrets.token_urlsafe(32)
         )

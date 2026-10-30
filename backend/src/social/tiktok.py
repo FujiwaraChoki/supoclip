@@ -71,7 +71,7 @@ class TikTokProvider(SocialProvider):
     name = "tiktok"
     display_name = "TikTok"
     supported_privacy_levels = ("public", "private")
-    # Unaudited apps (every app until TikTok reviews it) can only post privately.
+    # Legacy API fallback; the web publisher requires an explicit selection.
     default_privacy_level = "private"
 
     def __init__(self, config: Optional[Config] = None, session=None):
@@ -235,6 +235,8 @@ class TikTokProvider(SocialProvider):
     def publish(self, access_token: str, request: PublishRequest) -> PublishResult:
         creator_info = self.query_creator_info(access_token)
         allowed_levels: List[str] = creator_info.get("privacy_level_options") or []
+        if not isinstance(allowed_levels, list) or not allowed_levels:
+            raise SocialProviderError("TikTok did not return any posting privacy options. Refresh the account’s publishing options and try again.")
         privacy = PRIVACY_MAP.get(request.privacy_level, "SELF_ONLY")
         if allowed_levels and privacy not in allowed_levels:
             readable = ", ".join(
@@ -242,8 +244,8 @@ class TikTokProvider(SocialProvider):
             )
             raise SocialProviderError(
                 f"TikTok does not allow '{request.privacy_level}' posts for this account "
-                f"right now. Allowed: {readable}. (Unaudited TikTok apps can only post "
-                "privately until TikTok approves the app.)"
+                f"right now. Allowed: {readable}. Check this account’s privacy settings "
+                "in TikTok, then refresh its publishing options."
             )
         max_duration = creator_info.get("max_video_post_duration_sec")
 

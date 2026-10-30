@@ -120,5 +120,10 @@
   "scheduleToAccounts": "Für {count} Konten planen",
   "submittedHint": "Bereits übermittelte Beiträge werden nicht erneut gesendet.",
   "submissionUnknown": "Die Anfrage konnte nicht bestätigt werden. Prüfe vor einem erneuten Versuch die Beitragsliste des Clips.",
-  "titleTooLong": "Der Titel darf höchstens {limit} Zeichen lang sein."
+  "titleTooLong": "Der Titel darf höchstens {limit} Zeichen lang sein.",
+  "chooseVisibility": "Sichtbarkeit wählen",
+  "refreshPrivacy": "Optionen aktualisieren",
+  "loadingPrivacy": "TikTok-Veröffentlichungsoptionen werden geprüft…",
+  "privacyLoadFailed": "Veröffentlichungsoptionen konnten nicht geladen werden. Bitte aktualisieren.",
+  "tiktokPublicUnavailable": "Öffentlich ist für dieses TikTok-Konto nicht verfügbar. Prüfe die Datenschutzeinstellungen in TikTok und aktualisiere die Optionen."
 }
