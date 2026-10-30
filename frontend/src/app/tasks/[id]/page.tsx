@@ -890,7 +890,7 @@ export default function TaskPage() {
           </SheetHeader>
             <div className="space-y-5 px-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-500">{t("font")}</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("font")}</label>
                 <Select
                   value={projectFontFamily ?? FONT_TEMPLATE_DEFAULT_VALUE}
                   onValueChange={(value) =>
@@ -918,8 +918,8 @@ export default function TaskPage() {
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-gray-500">{t("color")}</label>
-                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+                  <label className="text-xs font-medium text-muted-foreground">{t("color")}</label>
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
                     <input
                       type="checkbox"
                       checked={projectFontColor === null}
@@ -947,7 +947,7 @@ export default function TaskPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-gray-500">{t("captionTemplate")}</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("captionTemplate")}</label>
                 <Select value={projectCaptionTemplate} onValueChange={setProjectCaptionTemplate}>
                   <SelectTrigger>
                     <SelectValue>
@@ -959,7 +959,7 @@ export default function TaskPage() {
                       <SelectItem key={template.id} value={template.id}>
                         <div>
                           <div className="font-medium">{template.name}</div>
-                          <div className="text-xs text-gray-500">{template.description}</div>
+                          <div className="text-xs text-muted-foreground">{template.description}</div>
                         </div>
                       </SelectItem>
                     ))}
@@ -969,8 +969,8 @@ export default function TaskPage() {
               </div>
 
               {brollAvailable && (
-                <div className="rounded-lg border bg-gray-50 p-3 space-y-2">
-                  <label className="flex items-start gap-2 text-sm text-gray-700">
+                <div className="rounded-lg border bg-muted p-3 space-y-2">
+                  <label className="flex items-start gap-2 text-sm text-foreground/80">
                     <input
                       type="checkbox"
                       checked={projectIncludeBroll}
@@ -978,20 +978,20 @@ export default function TaskPage() {
                       className="mt-0.5 rounded"
                     />
                     <span>
-                      <span className="block font-medium text-gray-900">{t("brollTitle")}</span>
-                      <span className="block text-xs text-gray-500">{t("brollBody")}</span>
+                      <span className="block font-medium text-foreground">{t("brollTitle")}</span>
+                      <span className="block text-xs text-muted-foreground">{t("brollBody")}</span>
                     </span>
                   </label>
                 </div>
               )}
 
-              <div className="rounded-lg border bg-gray-50 p-3 space-y-3">
+              <div className="rounded-lg border bg-muted p-3 space-y-3">
                 <div>
-                  <div className="text-sm font-medium text-gray-900">{t("cleanupTitle")}</div>
-                  <div className="text-xs text-gray-500">{t("cleanupBody")}</div>
+                  <div className="text-sm font-medium text-foreground">{t("cleanupTitle")}</div>
+                  <div className="text-xs text-muted-foreground">{t("cleanupBody")}</div>
                 </div>
 
-                <label className="flex items-center gap-2 text-sm text-gray-700">
+                <label className="flex items-center gap-2 text-sm text-foreground/80">
                   <input
                     type="checkbox"
                     checked={projectCutLongPauses}
@@ -1002,7 +1002,7 @@ export default function TaskPage() {
                 </label>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-gray-500">{t("pauseThreshold")}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("pauseThreshold")}</label>
                   <Input
                     type="number"
                     min={250}
@@ -1014,7 +1014,7 @@ export default function TaskPage() {
                   />
                 </div>
 
-                <label className="flex items-center gap-2 text-sm text-gray-700">
+                <label className="flex items-center gap-2 text-sm text-foreground/80">
                   <input
                     type="checkbox"
                     checked={projectRemoveFillerWords}
@@ -1025,7 +1025,7 @@ export default function TaskPage() {
                 </label>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-gray-500">{t("extraWords")}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{t("extraWords")}</label>
                   <Input
                     value={projectFilteredWords}
                     onChange={(e) => setProjectFilteredWords(e.target.value)}

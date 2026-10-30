@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
+import { ThemeProvider } from "next-themes";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { Geist, Geist_Mono, Syne } from "next/font/google";
 import Script from "next/script";
@@ -91,7 +92,7 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={intlLocale(locale)}>
+    <html lang={intlLocale(locale)} suppressHydrationWarning>
       <head>
         {isDataFastEnabled ? (
           <>
@@ -131,16 +132,18 @@ export default async function RootLayout({
         ) : null}
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${syne.variable} antialiased`}>
-        <NextIntlClientProvider locale={locale} messages={messages}>
-          <TooltipProvider>
-            {children}
-            <DataFastIdentity />
-            <PostHogIdentity />
-            <AttributionTracker />
-            <FeedbackButton />
-            <Toaster />
-          </TooltipProvider>
-        </NextIntlClientProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <NextIntlClientProvider locale={locale} messages={messages}>
+            <TooltipProvider>
+              {children}
+              <DataFastIdentity />
+              <PostHogIdentity />
+              <AttributionTracker />
+              <FeedbackButton />
+              <Toaster />
+            </TooltipProvider>
+          </NextIntlClientProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

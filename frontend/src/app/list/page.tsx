@@ -303,10 +303,10 @@ export default function ListPage() {
 
   if (!session?.user) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-background">
         <div className="max-w-4xl mx-auto px-4 py-24 text-center">
-          <h1 className="text-3xl font-bold text-black mb-4">{t("signInTitle")}</h1>
-          <p className="text-gray-600 mb-8">
+          <h1 className="text-3xl font-bold text-foreground mb-4">{t("signInTitle")}</h1>
+          <p className="text-muted-foreground mb-8">
             {t("signInBody")}
           </p>
           <Link href="/sign-in">

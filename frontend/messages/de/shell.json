@@ -43,6 +43,9 @@
     "signingOut": "Du wirst abgemeldet…",
     "signOutError": "Abmelden hat nicht geklappt. Versuch es noch einmal."
   },
+  "theme": {
+    "toggle": "Zwischen hellem und dunklem Design wechseln"
+  },
   "announcements": {
     "whatsNew": "Neuigkeiten",
     "whatsNewUnread": "Neuigkeiten, {count, plural, one {# ungelesene Ankündigung} other {# ungelesene Ankündigungen}}",
