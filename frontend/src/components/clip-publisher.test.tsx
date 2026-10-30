@@ -135,8 +135,7 @@ it("starts TikTok posts as private", async () => {
 });
 
 it("excludes an old TikTok connection when only YouTube is enabled", async () => {
-  // jsdom has no scrolling implementation; Radix scrolls the selected item.
-  HTMLElement.prototype.scrollIntoView = vi.fn();
+
   render(
     <ClipPublishButton
       taskId="task-1"
@@ -153,10 +152,8 @@ it("excludes an old TikTok connection when only YouTube is enabled", async () =>
     />,
   );
   fireEvent.click(screen.getByRole("button", { name: /publish/i }));
-  expect(await screen.findByLabelText("Account")).toHaveTextContent("My Channel");
-  fireEvent.keyDown(screen.getByLabelText("Account"), { key: "Enter" });
-  expect(await screen.findByRole("option", { name: /My Channel/ })).toBeInTheDocument();
-  expect(screen.queryByRole("option", { name: /Disabled account/ })).toBeNull();
+  expect(await screen.findByRole("checkbox", { name: /My Channel/ })).toBeChecked();
+  expect(screen.queryByRole("checkbox", { name: /Disabled account/ })).toBeNull();
 });
 
 it("reports failed post actions with a toast", async () => {
@@ -196,4 +193,134 @@ it("shows a spinner while a post is uploading and offers no actions", () => {
   render(<ClipPostList posts={[post]} onChanged={vi.fn()} />);
   expect(screen.getByText("Uploading…")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Post actions" })).toBeNull();
+});
+
+const tikTokConnection = () => connection({ id: "tt-1", provider: "tiktok", display_name: "My TikTok" });
+const tikTokProvider = () => provider({ provider: "tiktok", display_name: "TikTok", supported_privacy_levels: ["public", "private"], default_privacy_level: "private" });
+
+type PostBody = { social_account_id: string; privacy_level: string; title: string; caption: string; scheduled_for?: string };
+function mockPublishing(reply?: (body: PostBody, attempt: number) => Response | Promise<Response>) {
+  const requests: PostBody[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === "/api/social/captions") return Response.json({ caption: "A shared caption" });
+    const body = JSON.parse(options!.body as string) as PostBody;
+    requests.push(body);
+    if (reply) return reply(body, requests.filter((item) => item.social_account_id === body.social_account_id).length);
+    return Response.json({ post: { id: `post-${body.social_account_id}`, status: body.scheduled_for ? "scheduled" : "queued", scheduled_for: body.scheduled_for } });
+  }));
+  return requests;
+}
+
+async function openMultiPublisher(onChanged = vi.fn()) {
+  render(<ClipPublishButton taskId="task-1" clip={clip} connections={[connection(), tikTokConnection()]} providers={[provider(), tikTokProvider()]} onChanged={onChanged} />);
+  fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+  await waitFor(() => expect(screen.getByLabelText("Caption")).toHaveValue("A shared caption"));
+  fireEvent.click(screen.getByRole("checkbox", { name: /TikTok · My TikTok/ }));
+  return onChanged;
+}
+
+it("publishes to both selected accounts with independent platform defaults", async () => {
+  const requests = mockPublishing();
+  const changed = await openMultiPublisher();
+  expect(screen.getByRole("checkbox", { name: /YouTube Shorts · My Channel/ })).toBeChecked();
+  expect(screen.getByLabelText("Visibility · YouTube Shorts · My Channel")).toHaveTextContent("Public");
+  expect(screen.getByLabelText("Visibility · TikTok · My TikTok")).toHaveTextContent("Private (only me)");
+  fireEvent.click(screen.getByRole("button", { name: "Publish to 2 accounts" }));
+  await waitFor(() => expect(changed).toHaveBeenCalledOnce());
+  expect(requests).toEqual([
+    expect.objectContaining({ social_account_id: "acc-1", caption: "A shared caption", privacy_level: "public" }),
+    expect.objectContaining({ social_account_id: "tt-1", caption: "A shared caption", privacy_level: "private" }),
+  ]);
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+it("schedules a separate post for every selected account at the same time", async () => {
+  const requests = mockPublishing();
+  const changed = await openMultiPublisher();
+  fireEvent.click(screen.getByRole("switch", { name: "Schedule for later" }));
+  const future = new Date(Date.now() + 86400000);
+  const local = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, "0")}-${String(future.getDate()).padStart(2, "0")}T12:00`;
+  fireEvent.change(screen.getByLabelText("Publish at"), { target: { value: local } });
+  fireEvent.click(screen.getByRole("button", { name: "Schedule for 2 accounts" }));
+  await waitFor(() => expect(changed).toHaveBeenCalledOnce());
+  expect(requests).toHaveLength(2);
+  expect(requests.every((body) => body.scheduled_for === new Date(local).toISOString())).toBe(true);
+  expect(toast.success).toHaveBeenCalledTimes(2);
+});
+
+it("retries only a rejected account after another account accepts its post", async () => {
+  const requests = mockPublishing((body, attempt) => body.social_account_id === "tt-1" && attempt === 1
+    ? Response.json({ detail: "Reconnect TikTok first" }, { status: 400 })
+    : Response.json({ post: { id: `post-${body.social_account_id}`, status: "queued" } }));
+  const changed = await openMultiPublisher();
+  fireEvent.click(screen.getByRole("button", { name: "Publish to 2 accounts" }));
+  expect(await screen.findByText("Reconnect TikTok first")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Publish now" })).toBeEnabled());
+  expect(screen.getByRole("checkbox", { name: /YouTube Shorts · My Channel/ })).toBeDisabled();
+  expect(screen.getByText("Already submitted accounts won’t be sent again.")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Publish now" }));
+  await waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
+  expect(requests.map((body) => body.social_account_id)).toEqual(["acc-1", "tt-1", "tt-1"]);
+});
+
+it.each(["network", "server"])("does not resend an account when its %s result is uncertain", async (failure) => {
+  const requests = mockPublishing((body) => {
+    if (body.social_account_id === "tt-1") {
+      if (failure === "network") throw new TypeError("Connection lost");
+      return Response.json({ detail: "Gateway error" }, { status: 502 });
+    }
+    return Response.json({ post: { id: "post-youtube", status: "queued" } });
+  });
+  const changed = await openMultiPublisher();
+  fireEvent.click(screen.getByRole("button", { name: "Publish to 2 accounts" }));
+  expect(await screen.findByText(/Check the clip’s post list/)).toBeInTheDocument();
+  await waitFor(() => expect(changed).toHaveBeenCalledOnce());
+  expect(screen.getByRole("checkbox", { name: /TikTok · My TikTok/ })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Publish now" })).toBeDisabled();
+  expect(requests).toHaveLength(2);
+});
+
+it("requires at least one selected account", async () => {
+  const requests = mockPublishing();
+  await openMultiPublisher();
+  fireEvent.click(screen.getByRole("checkbox", { name: /YouTube Shorts · My Channel/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /TikTok · My TikTok/ }));
+  expect(screen.getByRole("button", { name: "Publish now" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Generate caption" })).toBeDisabled();
+  expect(requests).toHaveLength(0);
+});
+
+it("does not choose an account that requires reconnection", async () => {
+  mockPublishing();
+  render(<ClipPublishButton taskId="task-1" clip={clip} connections={[connection({ status: "reauth_required" }), tikTokConnection()]} providers={[provider(), tikTokProvider()]} onChanged={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+  expect(screen.getByRole("checkbox", { name: /YouTube Shorts · My Channel/ })).toBeDisabled();
+  expect(screen.getByRole("checkbox", { name: /TikTok · My TikTok/ })).toBeChecked();
+  await waitFor(() => expect(screen.getByLabelText("Caption")).toHaveValue("A shared caption"));
+  expect(fetch).toHaveBeenCalledWith("/api/social/captions", expect.objectContaining({ body: JSON.stringify({ task_id: "task-1", clip_id: "clip-1", provider: "tiktok" }) }));
+});
+
+it("validates a shared title before sending any selected account", async () => {
+  const requests = mockPublishing();
+  await openMultiPublisher();
+  fireEvent.change(screen.getByLabelText("Title"), { target: { value: "x".repeat(101) } });
+  fireEvent.click(screen.getByRole("button", { name: "Publish to 2 accounts" }));
+  expect(await screen.findByText("Keep the title to 100 characters or fewer.")).toBeInTheDocument();
+  expect(requests).toHaveLength(0);
+});
+
+
+it("does not submit twice while the first multi-account request is pending", async () => {
+  const finish: Array<() => void> = [];
+  const requests = mockPublishing(body => new Promise<Response>(resolve => {
+    finish.push(() => resolve(Response.json({ post: { id: `post-${body.social_account_id}`, status: "queued" } })));
+  }));
+  const changed = await openMultiPublisher();
+  const submit = screen.getByRole("button", { name: "Publish to 2 accounts" });
+  fireEvent.click(submit);
+  fireEvent.click(submit);
+  expect(requests).toHaveLength(2);
+  expect(screen.getByRole("button", { name: "Publishing…" })).toBeDisabled();
+  finish.forEach(resolve => resolve());
+  await waitFor(() => expect(changed).toHaveBeenCalledOnce());
 });

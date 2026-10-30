@@ -52,7 +52,7 @@
   "publishFailed": "Failed to publish clip",
   "publish": "Publish",
   "publishTitle": "Publish clip {order}",
-  "publishBody": "Post this clip straight to a connected account, or schedule it for later.",
+  "publishBody": "Post this clip to one or more connected accounts, now or later.",
   "emptyAccounts": "No social accounts connected yet. <link>Connect YouTube, TikTok or Instagram</link> to publish from here.",
   "account": "Account",
   "chooseAccountPlaceholder": "Choose an account",
@@ -63,7 +63,7 @@
   "hashtags": "Hashtags",
   "hashtagsPlaceholder": "podcast, clips, shorts",
   "visibilityLabel": "Visibility",
-  "tiktokPrivate": "Until TikTok audits the app, posts can only be private.",
+  "tiktokPrivate": "TikTok checks which visibility options your connected account allows.",
   "scheduleLater": "Schedule for later",
   "scheduleHint": "Publish at a specific time.",
   "publishAt": "Publish at",
@@ -100,7 +100,7 @@
     "comingSoon": "Coming Soon",
     "verificationNote": "We are in the process of verifying SupoClip with this platform.",
     "instagramNote": "Instagram needs a professional (Business or Creator) account.",
-    "tiktokNote": "TikTok posts stay private until TikTok has audited this app.",
+    "tiktokNote": "TikTok checks which visibility options your connected account allows.",
     "youtubeNote": "YouTube uploads from an unverified app are private until Google's review completes.",
     "platformDetails": "{platform} information",
     "connectedHeading": "Connected accounts",
@@ -112,5 +112,13 @@
     "disconnect": "Disconnect",
     "analytics": "Analytics",
     "analyticsHint": "Views, likes and comments from your published clips, by platform, hook and length."
-  }
+  },
+  "accounts": "Accounts",
+  "accountsHint": "Select one or more accounts. Your title, caption and hashtags are shared.",
+  "visibilityForAccount": "Visibility · {account}",
+  "publishToAccounts": "Publish to {count} accounts",
+  "scheduleToAccounts": "Schedule for {count} accounts",
+  "submittedHint": "Already submitted accounts won’t be sent again.",
+  "submissionUnknown": "We couldn’t confirm this request. Check the clip’s post list before trying again.",
+  "titleTooLong": "Keep the title to {limit} characters or fewer."
 }

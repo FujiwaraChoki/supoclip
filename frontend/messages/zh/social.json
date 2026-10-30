@@ -52,7 +52,7 @@
   "publishFailed": "片段发布失败",
   "publish": "发布",
   "publishTitle": "发布片段 {order}",
-  "publishBody": "把这个片段直接发到已连接的账号，或排期稍后发布。",
+  "publishBody": "现在或稍后将此片段发布到一个或多个已连接的账号。",
   "emptyAccounts": "还没有连接社交账号。<link>连接 YouTube、TikTok 或 Instagram</link>后即可在这里发布。",
   "account": "账号",
   "chooseAccountPlaceholder": "选择账号",
@@ -63,7 +63,7 @@
   "hashtags": "话题标签",
   "hashtagsPlaceholder": "播客, 片段, 短视频",
   "visibilityLabel": "可见性",
-  "tiktokPrivate": "在 TikTok 审核此应用之前，帖子只能设为私密。",
+  "tiktokPrivate": "TikTok 会检查你的已连接账号允许的可见性选项。",
   "scheduleLater": "稍后发布",
   "scheduleHint": "在指定时间发布。",
   "publishAt": "发布时间",
@@ -100,7 +100,7 @@
     "comingSoon": "即将推出",
     "verificationNote": "我们正在此平台上完成 SupoClip 的验证。",
     "instagramNote": "Instagram 需要专业账号（企业或创作者）。",
-    "tiktokNote": "在 TikTok 审核此应用之前，帖子会保持私密。",
+    "tiktokNote": "TikTok 会检查你的已连接账号允许的可见性选项。",
     "youtubeNote": "未验证应用上传到 YouTube 的视频在 Google 审核完成前是私密的。",
     "platformDetails": "{platform} 信息",
     "connectedHeading": "已连接的账号",
@@ -112,5 +112,13 @@
     "disconnect": "断开连接",
     "analytics": "数据分析",
     "analyticsHint": "已发布片段的观看、点赞和评论，按平台、钩子和时长查看。"
-  }
+  },
+  "accounts": "账号",
+  "accountsHint": "选择一个或多个账号。标题、文案和话题标签将共用。",
+  "visibilityForAccount": "可见性 · {account}",
+  "publishToAccounts": "发布到 {count} 个账号",
+  "scheduleToAccounts": "为 {count} 个账号定时发布",
+  "submittedHint": "已提交的账号不会再次发送。",
+  "submissionUnknown": "无法确认此请求。重试前请先检查该片段的发布列表。",
+  "titleTooLong": "标题请勿超过 {limit} 个字符。"
 }
