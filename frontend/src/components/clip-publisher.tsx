@@ -314,7 +314,10 @@ export function ClipPublishButton({
   const [title, setTitle] = useState("");
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
-  const [privacyByAccount, setPrivacyByAccount] = useState<Record<string, SocialPrivacyLevel>>({});
+  const [privacyByAccount, setPrivacyByAccount] = useState<Record<string, SocialPrivacyLevel | "">>({});
+  const [accountPrivacy, setAccountPrivacy] = useState<Record<string, { levels: SocialPrivacyLevel[]; loading?: boolean; error?: string }>>({});
+  const optionsEpoch = useRef(0);
+  const optionRequests = useRef<Record<string, number>>({});
   const [schedule, setSchedule] = useState(false);
   const [scheduledFor, setScheduledFor] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -346,11 +349,39 @@ export function ClipPublishButton({
   const hasTikTok = selectedConnections.some((connection) => connection.provider === "tiktok");
   const titleMaxLength = selectedConnections.some((connection) => connection.provider === "youtube") ? 100 : 255;
   const privacyFor = (id: string) => {
+    if (activeConnections.find((c) => c.id === id)?.provider === "tiktok") return privacyByAccount[id] ?? "";
     const provider = providerForAccount(id);
     const chosen = privacyByAccount[id];
     return chosen && privacyOptionsFor(provider).includes(chosen) ? chosen : defaultPrivacyFor(provider);
   };
   const anyProviderConfigured = providers.some((provider) => provider.configured);
+  const privacyOptionsForAccount = (id: string) => activeConnections.find((c) => c.id === id)?.provider === "tiktok"
+    ? accountPrivacy[id]?.levels ?? [] : privacyOptionsFor(providerForAccount(id));
+  const privacyReady = pendingConnections.every((connection) => {
+    const level = privacyFor(connection.id);
+    return level !== "" && privacyOptionsForAccount(connection.id).includes(level);
+  });
+
+  const loadPrivacyOptions = async (id: string, epoch: number) => {
+    const request = (optionRequests.current[id] ?? 0) + 1;
+    optionRequests.current[id] = request;
+    setAccountPrivacy((previous) => ({ ...previous, [id]: { levels: [], loading: true } }));
+    setPrivacyByAccount((previous) => ({ ...previous, [id]: "" }));
+    try {
+      const response = await fetch(`/api/social/connections/${encodeURIComponent(id)}/publishing-options`, { cache: "no-store", signal: AbortSignal.timeout(15_000) });
+      if (!response.ok) throw new Error(await readError(response, t("privacyLoadFailed")));
+      const data = await response.json();
+      const levels = ALL_PRIVACY_LEVELS.filter((level) => Array.isArray(data?.privacy_levels) && data.privacy_levels.includes(level));
+      if (levels.length === 0) throw new Error(t("privacyLoadFailed"));
+      if (epoch === optionsEpoch.current && request === optionRequests.current[id]) {
+        setAccountPrivacy((previous) => ({ ...previous, [id]: { levels } }));
+      }
+    } catch (error) {
+      if (epoch === optionsEpoch.current && request === optionRequests.current[id]) {
+        setAccountPrivacy((previous) => ({ ...previous, [id]: { levels: [], error: error instanceof Error ? error.message : t("privacyLoadFailed") } }));
+      }
+    }
+  };
 
   const generateCaption = async (id: string) => {
     const connection = activeConnections.find((item) => item.id === id);
@@ -384,6 +415,7 @@ export function ClipPublishButton({
   const changeOpen = (value: boolean) => {
     if (submitting.current) return;
     if (!value) {
+      optionsEpoch.current++;
       captionRequest.current++;
       setIsGeneratingCaption(false);
     }
@@ -404,9 +436,14 @@ export function ClipPublishButton({
     setSchedule(false);
     setScheduledFor(toLocalDateTimeInput(new Date(Date.now() + 60 * 60 * 1000)));
     setAccountIds(nextIds);
+    const epoch = ++optionsEpoch.current;
+    setAccountPrivacy({});
     setPrivacyByAccount(Object.fromEntries(activeConnections.map((connection) => [
-      connection.id, defaultPrivacyFor(providerForAccount(connection.id)),
+      connection.id, connection.provider === "tiktok" ? "" : defaultPrivacyFor(providerForAccount(connection.id)),
     ])));
+    for (const connection of available) {
+      if (connection.provider === "tiktok") void loadPrivacyOptions(connection.id, epoch);
+    }
     setOpen(true);
     if (nextIds[0]) void generateCaption(nextIds[0]);
   };
@@ -421,7 +458,7 @@ export function ClipPublishButton({
   if (!anyProviderConfigured) return null;
 
   const handleSubmit = async () => {
-    if (submitting.current || pendingConnections.length === 0) return;
+    if (submitting.current || pendingConnections.length === 0 || !privacyReady) return;
     if (title.length > titleMaxLength) {
       setError(t("titleTooLong", { limit: titleMaxLength }));
       return;
@@ -617,16 +654,22 @@ export function ClipPublishButton({
                   const privacyId = `publish-privacy-${clip.id}-${connection.id}`;
                   return (
                     <div key={connection.id} className="space-y-2">
-                      <Label htmlFor={privacyId}>{selectedConnections.length === 1 ? t("visibilityLabel") : t("visibilityForAccount", { account: `${PROVIDER_LABELS[connection.provider]} · ${connectionLabel(connection)}` })}</Label>
-                      <Select value={privacyFor(connection.id)} disabled={isSubmitting || locked} onValueChange={(value) => setPrivacyByAccount((previous) => ({ ...previous, [connection.id]: value as SocialPrivacyLevel }))}>
-                        <SelectTrigger id={privacyId} className="w-full"><SelectValue /></SelectTrigger>
+                      <div className="flex items-center justify-between gap-2">
+                        <Label htmlFor={privacyId}>{selectedConnections.length === 1 ? t("visibilityLabel") : t("visibilityForAccount", { account: `${PROVIDER_LABELS[connection.provider]} · ${connectionLabel(connection)}` })}</Label>
+                        {connection.provider === "tiktok" && <Button type="button" variant="ghost" size="sm" disabled={isSubmitting || locked || accountPrivacy[connection.id]?.loading} onClick={() => void loadPrivacyOptions(connection.id, optionsEpoch.current)}>{t("refreshPrivacy")}</Button>}
+                      </div>
+                      <Select value={privacyFor(connection.id)} disabled={isSubmitting || locked || privacyOptionsForAccount(connection.id).length === 0} onValueChange={(value) => setPrivacyByAccount((previous) => ({ ...previous, [connection.id]: value as SocialPrivacyLevel }))}>
+                        <SelectTrigger id={privacyId} className="w-full"><SelectValue placeholder={t("chooseVisibility")} /></SelectTrigger>
                         <SelectContent>
-                          {privacyOptionsFor(providerForAccount(connection.id)).map((option) => (
+                          {privacyOptionsForAccount(connection.id).map((option) => (
                             <SelectItem key={option} value={option}>{t(`privacy.${option}`)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       {connection.provider === "tiktok" && <p className="text-xs text-muted-foreground">{t("tiktokPrivate")}</p>}
+                      {connection.provider === "tiktok" && accountPrivacy[connection.id]?.loading && <p className="text-xs text-muted-foreground">{t("loadingPrivacy")}</p>}
+                      {accountPrivacy[connection.id]?.error && <p role="alert" className="text-xs text-destructive">{accountPrivacy[connection.id].error}</p>}
+                      {connection.provider === "tiktok" && !accountPrivacy[connection.id]?.loading && !accountPrivacy[connection.id]?.error && accountPrivacy[connection.id]?.levels.length && !accountPrivacy[connection.id].levels.includes("public") ? <p className="text-xs text-muted-foreground">{t("tiktokPublicUnavailable")}</p> : null}
                     </div>
                   );
                 })}
@@ -660,7 +703,7 @@ export function ClipPublishButton({
               {t("cancel")}
             </Button>
             {activeConnections.length > 0 && (
-              <Button onClick={handleSubmit} disabled={isSubmitting || isGeneratingCaption || pendingConnections.length === 0}>
+              <Button onClick={handleSubmit} disabled={isSubmitting || isGeneratingCaption || pendingConnections.length === 0 || !privacyReady}>
                 {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : schedule ? <Clock className="size-4" /> : <Send className="size-4" />}
                 {isSubmitting ? (schedule ? t("scheduling") : t("publishing")) : schedule ? (pendingConnections.length > 1 ? t("scheduleToAccounts", { count: pendingConnections.length }) : t("schedule")) : (pendingConnections.length > 1 ? t("publishToAccounts", { count: pendingConnections.length }) : t("publishNow"))}
               </Button>

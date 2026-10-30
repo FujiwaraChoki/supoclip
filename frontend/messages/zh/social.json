@@ -120,5 +120,10 @@
   "scheduleToAccounts": "为 {count} 个账号定时发布",
   "submittedHint": "已提交的账号不会再次发送。",
   "submissionUnknown": "无法确认此请求。重试前请先检查该片段的发布列表。",
-  "titleTooLong": "标题请勿超过 {limit} 个字符。"
+  "titleTooLong": "标题请勿超过 {limit} 个字符。",
+  "chooseVisibility": "选择可见性",
+  "refreshPrivacy": "刷新选项",
+  "loadingPrivacy": "正在检查 TikTok 发布选项…",
+  "privacyLoadFailed": "无法加载发布选项，请刷新后重试。",
+  "tiktokPublicUnavailable": "此 TikTok 账号不支持公开发布。请在 TikTok 中检查隐私设置，然后刷新这些选项。"
 }

@@ -39,7 +39,8 @@ function connection(overrides: Partial<SocialConnection> = {}): SocialConnection
 
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ caption: "An engaging caption" }))));
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => Response.json(url.includes("publishing-options") ? { privacy_levels: ["public", "private"] } : { caption: "An engaging caption" })));
 });
 
 it("drafts a social caption when opening the scheduling form", async () => {
@@ -113,7 +114,7 @@ it("keeps the form when connections refresh while the sheet is open", async () =
   expect(screen.getByLabelText("Title")).toHaveValue("My edited title");
 });
 
-it("starts TikTok posts as private", async () => {
+it("requires a deliberate TikTok visibility choice after loading account permissions", async () => {
   render(
     <ClipPublishButton
       taskId="task-1"
@@ -131,7 +132,9 @@ it("starts TikTok posts as private", async () => {
     />,
   );
   fireEvent.click(screen.getByRole("button", { name: /publish/i }));
-  expect(await screen.findByLabelText("Visibility")).toHaveTextContent("Private (only me)");
+  await waitFor(() => expect(screen.getByLabelText("Visibility")).toBeEnabled());
+  expect(screen.getByLabelText("Visibility")).toHaveTextContent("Choose visibility");
+  expect(screen.getByRole("button", { name: "Publish now" })).toBeDisabled();
 });
 
 it("excludes an old TikTok connection when only YouTube is enabled", async () => {
@@ -203,6 +206,7 @@ function mockPublishing(reply?: (body: PostBody, attempt: number) => Response | 
   const requests: PostBody[] = [];
   vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
     if (url === "/api/social/captions") return Response.json({ caption: "A shared caption" });
+    if (url.includes("publishing-options")) return Response.json({ privacy_levels: ["public", "private"] });
     const body = JSON.parse(options!.body as string) as PostBody;
     requests.push(body);
     if (reply) return reply(body, requests.filter((item) => item.social_account_id === body.social_account_id).length);
@@ -216,6 +220,10 @@ async function openMultiPublisher(onChanged = vi.fn()) {
   fireEvent.click(screen.getByRole("button", { name: "Publish" }));
   await waitFor(() => expect(screen.getByLabelText("Caption")).toHaveValue("A shared caption"));
   fireEvent.click(screen.getByRole("checkbox", { name: /TikTok · My TikTok/ }));
+  const visibility = screen.getByLabelText("Visibility · TikTok · My TikTok");
+  await waitFor(() => expect(visibility).toBeEnabled());
+  fireEvent.keyDown(visibility, { key: "Enter" });
+  fireEvent.click(await screen.findByRole("option", { name: "Private (only me)" }));
   return onChanged;
 }
 
@@ -323,4 +331,62 @@ it("does not submit twice while the first multi-account request is pending", asy
   expect(screen.getByRole("button", { name: "Publishing…" })).toBeDisabled();
   finish.forEach(resolve => resolve());
   await waitFor(() => expect(changed).toHaveBeenCalledOnce());
+});
+
+it("never offers public when TikTok reports only private for the account", async () => {
+  const requests: PostBody[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.includes("publishing-options")) return Response.json({ privacy_levels: ["private"] });
+    if (url.endsWith("captions")) return Response.json({ caption: "Caption" });
+    requests.push(JSON.parse(options!.body as string));
+    return Response.json({ post: { id: "private-post", status: "queued" } });
+  }));
+  render(<ClipPublishButton taskId="task-1" clip={clip} connections={[tikTokConnection()]} providers={[tikTokProvider()]} onChanged={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+  const visibility = await screen.findByLabelText("Visibility");
+  await waitFor(() => expect(visibility).toBeEnabled());
+  expect(screen.getByRole("button", { name: "Publish now" })).toBeDisabled();
+  expect(screen.getByText(/Public isn’t available/)).toBeInTheDocument();
+  fireEvent.keyDown(visibility, { key: "Enter" });
+  expect(screen.queryByRole("option", { name: "Public" })).toBeNull();
+  fireEvent.click(await screen.findByRole("option", { name: "Private (only me)" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Publish now" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Publish now" }));
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0].privacy_level).toBe("private");
+});
+
+it("blocks posting if current TikTok permissions cannot be loaded", async () => {
+  const fetcher = vi.fn(async (url: string) => url.includes("publishing-options")
+    ? Response.json({ detail: "TikTok is unavailable" }, { status: 503 })
+    : Response.json({ caption: "Caption" }));
+  vi.stubGlobal("fetch", fetcher);
+  render(<ClipPublishButton taskId="task-1" clip={clip} connections={[tikTokConnection()]} providers={[tikTokProvider()]} onChanged={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+  expect(await screen.findByText("TikTok is unavailable")).toBeInTheDocument();
+  expect(screen.getByLabelText("Visibility")).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Publish now" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Publish now" }));
+  expect(fetcher.mock.calls.some(([url]) => url === "/api/social/posts")).toBe(false);
+});
+
+it("refreshing account permissions clears an earlier visibility choice", async () => {
+  let checks = 0;
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => url.includes("publishing-options")
+    ? Response.json({ privacy_levels: ++checks === 1 ? ["public", "private"] : ["private"] })
+    : Response.json({ caption: "Caption" })));
+  render(<ClipPublishButton taskId="task-1" clip={clip} connections={[tikTokConnection()]} providers={[tikTokProvider()]} onChanged={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+  const visibility = await screen.findByLabelText("Visibility");
+  await waitFor(() => expect(visibility).toBeEnabled());
+  fireEvent.keyDown(visibility, { key: "Enter" });
+  fireEvent.click(await screen.findByRole("option", { name: "Public" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Publish now" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Refresh options" }));
+  await waitFor(() => expect(checks).toBe(2));
+  await waitFor(() => expect(visibility).toBeEnabled());
+  expect(visibility).toHaveTextContent("Choose visibility");
+  expect(screen.getByRole("button", { name: "Publish now" })).toBeDisabled();
+  fireEvent.keyDown(visibility, { key: "Enter" });
+  expect(screen.queryByRole("option", { name: "Public" })).toBeNull();
 });

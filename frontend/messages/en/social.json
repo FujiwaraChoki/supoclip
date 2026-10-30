@@ -120,5 +120,10 @@
   "scheduleToAccounts": "Schedule for {count} accounts",
   "submittedHint": "Already submitted accounts won’t be sent again.",
   "submissionUnknown": "We couldn’t confirm this request. Check the clip’s post list before trying again.",
-  "titleTooLong": "Keep the title to {limit} characters or fewer."
+  "titleTooLong": "Keep the title to {limit} characters or fewer.",
+  "chooseVisibility": "Choose visibility",
+  "refreshPrivacy": "Refresh options",
+  "loadingPrivacy": "Checking TikTok publishing options…",
+  "privacyLoadFailed": "Couldn’t load publishing options. Refresh and try again.",
+  "tiktokPublicUnavailable": "Public isn’t available for this TikTok account. Check its privacy settings in TikTok, then refresh these options."
 }

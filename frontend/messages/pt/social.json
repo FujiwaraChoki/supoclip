@@ -120,5 +120,10 @@
   "scheduleToAccounts": "Agendar para {count} contas",
   "submittedHint": "As publicações já enviadas não serão enviadas novamente.",
   "submissionUnknown": "Não foi possível confirmar esta solicitação. Confira a lista de publicações do clipe antes de tentar novamente.",
-  "titleTooLong": "O título deve ter no máximo {limit} caracteres."
+  "titleTooLong": "O título deve ter no máximo {limit} caracteres.",
+  "chooseVisibility": "Escolher visibilidade",
+  "refreshPrivacy": "Atualizar opções",
+  "loadingPrivacy": "Verificando as opções do TikTok…",
+  "privacyLoadFailed": "Não foi possível carregar as opções. Atualize e tente novamente.",
+  "tiktokPublicUnavailable": "A visibilidade pública não está disponível para esta conta do TikTok. Verifique a privacidade no TikTok e atualize as opções."
 }

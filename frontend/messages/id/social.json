@@ -120,5 +120,10 @@
   "scheduleToAccounts": "Jadwalkan untuk {count} akun",
   "submittedHint": "Postingan yang sudah dikirim tidak akan dikirim ulang.",
   "submissionUnknown": "Permintaan ini belum dapat dikonfirmasi. Periksa daftar postingan klip sebelum mencoba lagi.",
-  "titleTooLong": "Batasi judul hingga {limit} karakter."
+  "titleTooLong": "Batasi judul hingga {limit} karakter.",
+  "chooseVisibility": "Pilih visibilitas",
+  "refreshPrivacy": "Perbarui opsi",
+  "loadingPrivacy": "Memeriksa opsi publikasi TikTok…",
+  "privacyLoadFailed": "Opsi publikasi tidak dapat dimuat. Perbarui dan coba lagi.",
+  "tiktokPublicUnavailable": "Visibilitas publik tidak tersedia untuk akun TikTok ini. Periksa pengaturan privasi di TikTok, lalu perbarui opsi."
 }
