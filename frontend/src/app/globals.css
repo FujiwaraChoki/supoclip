@@ -242,6 +242,11 @@
 .scrollbar-none { scrollbar-width: none; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 
+/* Toast surfaces follow app tokens; descriptions must not follow the OS theme. */
+.toaster [data-sonner-toast][data-styled="true"]:not([data-rich-colors="true"]) [data-description] {
+  color: var(--muted-foreground);
+}
+
 /* Landing: the reframing crop drifting to follow the speaker */
 @keyframes landing-pan {
   0%, 100% { transform: translateX(-14%); }
