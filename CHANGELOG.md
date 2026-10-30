@@ -22,6 +22,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-10-24
 
+- **Under the hood:** When a YouTube download needs a paid backup, Apify runs before the other paid downloader. ([#251](https://github.com/FujiwaraChoki/supoclip/pull/251))
 - **Fixed:** A YouTube video whose direct audio link is blocked is retried over HLS before a paid download. ([#250](https://github.com/FujiwaraChoki/supoclip/pull/250))
 - **New:** The site is available in Bahasa Indonesia. ([#243](https://github.com/FujiwaraChoki/supoclip/pull/243))
 - **Fixed:** Phone videos recorded in portrait no longer fail to render. ([#241](https://github.com/FujiwaraChoki/supoclip/pull/241))

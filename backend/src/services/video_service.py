@@ -470,6 +470,7 @@ class VideoService:
                     raise
                 except Exception as exc:
                     # Only unsupported slicing warrants a full proxy attempt.
+                    # Paid backups after that attempt are Apify, then API Router.
                     bypass_proxy = skip_proxy or not isinstance(exc, PartialDownloadUnavailable)
                     logger.warning(
                         "Section download unavailable for %s, using a full file: %s",
@@ -955,6 +956,9 @@ class VideoService:
                                 ),
                                 task_id=task_id,
                                 budget=job_budget,
+                                # Audio, HLS, and section retries already ran.
+                                # Skip a second full-file proxy attempt. The
+                                # chain continues at Apify, then API Router.
                                 skip_proxy=True,
                             )
 

@@ -620,7 +620,7 @@ def test_cleanup_removes_completed_rapidapi_directory(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize('router_outcome', ['success', 'failed', 'missing'])
 @pytest.mark.parametrize('apify_succeeds', [True, False])
-def test_router_primary_leaves_ytdlp_until_all_paid_options_fail(
+def test_rapidapi_primary_still_tries_apify_first(
     tmp_path, monkeypatch, router_outcome, apify_succeeds
 ):
     from src.rapidapi_youtube_downloader import RapidAPIDownloadError
@@ -653,10 +653,11 @@ def test_router_primary_leaves_ytdlp_until_all_paid_options_fail(
     set_config_override(config)
     try:
         assert download_youtube_video('https://www.youtube.com/watch?v=abcdefghijk') == target
-        expected = [] if router_outcome == 'missing' else ['rapidapi']
-        if router_outcome != 'success':
-            expected.append('apify-pool')
-            if not apify_succeeds:
+        expected = ['apify-pool']
+        if not apify_succeeds:
+            if router_outcome != 'missing':
+                expected.append('rapidapi')
+            if router_outcome != 'success':
                 expected.append('yt_dlp')
         assert calls == expected
     finally:

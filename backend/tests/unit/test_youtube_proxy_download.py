@@ -120,7 +120,7 @@ def test_format_selector_never_exceeds_1080(tmp_path):
         set_config_override(None)
 
 
-def test_provider_order_puts_proxy_first():
+def test_provider_order_puts_apify_before_rapidapi():
     class Settings:
         youtube_proxy_url = ""
         youtube_download_provider = YOUTUBE_DOWNLOAD_PROVIDER_YTDLP
@@ -128,12 +128,19 @@ def test_provider_order_puts_proxy_first():
     settings = Settings()
     assert _provider_order(settings, skip_proxy=False) == [
         YOUTUBE_DOWNLOAD_PROVIDER_YTDLP,
-        "rapidapi",
         YOUTUBE_DOWNLOAD_PROVIDER_APIFY,
+        "rapidapi",
     ]
+    settings.youtube_download_provider = "rapidapi"
+    assert _provider_order(settings, skip_proxy=False) == ["apify", "rapidapi", "yt_dlp"]
+    settings.youtube_download_provider = YOUTUBE_DOWNLOAD_PROVIDER_APIFY
+    assert _provider_order(settings, skip_proxy=False) == ["apify", "rapidapi", "yt_dlp"]
+
     settings.youtube_proxy_url = PROXY
-    assert _provider_order(settings, skip_proxy=False) == ["yt_dlp_proxy", "rapidapi", "apify", "yt_dlp"]
-    assert _provider_order(settings, skip_proxy=True) == ["rapidapi", "apify", "yt_dlp"]
+    for primary in (YOUTUBE_DOWNLOAD_PROVIDER_YTDLP, "rapidapi", YOUTUBE_DOWNLOAD_PROVIDER_APIFY):
+        settings.youtube_download_provider = primary
+        assert _provider_order(settings, skip_proxy=False) == ["yt_dlp_proxy", "apify", "rapidapi", "yt_dlp"]
+        assert _provider_order(settings, skip_proxy=True) == ["apify", "rapidapi", "yt_dlp"]
 
 
 def test_timed_fragments_win_over_byte_range_chunks():
@@ -367,44 +374,166 @@ def test_assemble_timeline_uses_local_files_only(tmp_path):
     assert time_map.to_local(40.5) == pytest.approx(1.5)
 
 
-def test_proxy_failure_then_router_timeout_reaches_apify_before_direct(tmp_path, monkeypatch):
+@pytest.mark.parametrize("apify_outcome", ["success", "failure"])
+@pytest.mark.parametrize("skip_proxy", [False, True])
+def test_apify_runs_before_rapidapi_after_proxy(tmp_path, monkeypatch, caplog, apify_outcome, skip_proxy):
+    from src import youtube_utils as utils
+    from src.youtube_proxy import DownloadDeadlineExceeded
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    config.youtube_proxy_url = PROXY
+    config.youtube_download_provider = "yt_dlp"  # Legacy setting cannot reorder backups.
+    config.rapidapi_youtube_api_key = "test-key"
+    config.apify_api_token = "test-token"
+    calls = []
+
+    def fail_proxy(*a, **kw):
+        calls.append("proxy")
+        raise DownloadDeadlineExceeded("proxy timed out")
+
+    def apify(*a, **kw):
+        calls.append("apify")
+        if apify_outcome == "failure":
+            raise utils.ApifyDownloadError("actors failed")
+        target = tmp_path / "complete.mp4"
+        target.write_bytes(b"complete")
+        return target
+
+    def router(*a, **kw):
+        calls.append("rapidapi")
+        assert kw["timeout_seconds"] == 300
+        if apify_outcome == "success":
+            pytest.fail("API Router ran after Apify succeeded")
+        target = tmp_path / "router.mp4"
+        target.write_bytes(b"router")
+        return target
+
+    monkeypatch.setattr(utils, "download_full_with_proxy", fail_proxy)
+    monkeypatch.setattr(utils, "download_video_via_rapidapi", router)
+    monkeypatch.setattr(utils, "_resolve_apify_quality", lambda *a: "1080")
+    monkeypatch.setattr(utils, "download_youtube_video_with_apify", apify)
+    monkeypatch.setattr(utils, "_get_local_video_dimensions", lambda *a: (1920, 1080))
+    monkeypatch.setattr(
+        utils,
+        "_download_youtube_video_with_ytdlp",
+        lambda *a, **kw: pytest.fail("Direct yt-dlp ran before the paid backups"),
+    )
+    set_config_override(config)
+    caplog.set_level(logging.INFO)
+    try:
+        result = utils.download_youtube_video(
+            "https://youtube.com/watch?v=abcdefghijk", skip_proxy=skip_proxy,
+        )
+        assert result is not None and result.is_file()
+        expected = [] if skip_proxy else ["proxy"]
+        expected.append("apify")
+        if apify_outcome == "failure":
+            expected.append("rapidapi")
+        assert calls == expected
+        assert "rapidapi" not in calls or apify_outcome == "failure"
+        success = [
+            record for record in caplog.records
+            if getattr(record, "youtube_outcome", None) == "success"
+        ]
+        assert len(success) == 1
+        winner = "apify" if apify_outcome == "success" else "rapidapi"
+        assert success[0].youtube_provider == winner
+        assert f"provider={winner}" in success[0].getMessage()
+        assert f"via {winner}" in caplog.text
+    finally:
+        set_config_override(None)
+
+
+@pytest.mark.parametrize("skip_proxy", [False, True])
+def test_rapidapi_failure_still_reaches_direct_ytdlp(tmp_path, monkeypatch, skip_proxy):
     from src import youtube_utils as utils
     from src.rapidapi_youtube_downloader import RapidAPIDownloadError
     from src.youtube_proxy import DownloadDeadlineExceeded
     config = Config()
     config.temp_dir = str(tmp_path)
     config.youtube_proxy_url = PROXY
-    config.youtube_download_provider = 'yt_dlp'  # Legacy setting cannot reorder backups.
-    config.rapidapi_youtube_api_key = 'test-key'
-    config.apify_api_token = 'test-token'
+    config.rapidapi_youtube_api_key = "test-key"
+    config.apify_api_token = "test-token"
     calls = []
+    target = tmp_path / "direct.mp4"
+    target.write_bytes(b"direct")
 
     def fail_proxy(*a, **kw):
-        calls.append('proxy')
-        raise DownloadDeadlineExceeded('proxy timed out')
-
-    def fail_router(*a, **kw):
-        calls.append('router')
-        assert kw['timeout_seconds'] == 300
-        raise RapidAPIDownloadError('router timed out')
+        calls.append("proxy")
+        raise DownloadDeadlineExceeded("proxy timed out")
 
     def apify(*a, **kw):
-        calls.append('apify')
-        target = tmp_path / 'complete.mp4'
-        target.write_bytes(b'complete')
+        calls.append("apify")
+        raise utils.ApifyDownloadError("actors failed")
+
+    def router(*a, **kw):
+        calls.append("rapidapi")
+        raise RapidAPIDownloadError("HTTP 403")
+
+    def ytdlp(*a, **kw):
+        calls.append("yt_dlp")
         return target
 
-    monkeypatch.setattr(utils, 'download_full_with_proxy', fail_proxy)
-    monkeypatch.setattr(utils, 'download_video_via_rapidapi', fail_router)
-    monkeypatch.setattr(utils, '_resolve_apify_quality', lambda *a: '1080')
-    monkeypatch.setattr(utils, 'download_youtube_video_with_apify', apify)
-    monkeypatch.setattr(utils, '_get_local_video_dimensions', lambda *a: (1920, 1080))
-    monkeypatch.setattr(utils, '_download_youtube_video_with_ytdlp',
-                        lambda *a, **kw: pytest.fail('Direct yt-dlp ran before the paid backups'))
+    monkeypatch.setattr(utils, "download_full_with_proxy", fail_proxy)
+    monkeypatch.setattr(utils, "download_video_via_rapidapi", router)
+    monkeypatch.setattr(utils, "download_youtube_video_with_apify", apify)
+    monkeypatch.setattr(utils, "_download_youtube_video_with_ytdlp", ytdlp)
+    monkeypatch.setattr(utils, "_get_local_video_dimensions", lambda *a: (1920, 1080))
     set_config_override(config)
     try:
-        assert utils.download_youtube_video('https://youtube.com/watch?v=abcdefghijk').is_file()
-        assert calls == ['proxy', 'router', 'apify']
+        assert utils.download_youtube_video(
+            "https://youtube.com/watch?v=abcdefghijk", skip_proxy=skip_proxy,
+        ) == target
+        expected = [] if skip_proxy else ["proxy"]
+        assert calls == [*expected, "apify", "rapidapi", "yt_dlp"]
+    finally:
+        set_config_override(None)
+
+
+def test_apify_budget_and_permanent_failure_skip_rapidapi(tmp_path, monkeypatch):
+    from src import youtube_utils as utils
+    from src.youtube_proxy import DownloadBudgetExceeded
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    config.youtube_proxy_url = PROXY
+    config.rapidapi_youtube_api_key = "test-key"
+    config.apify_api_token = "test-token"
+    calls = []
+
+    def apify_budget(*a, **kw):
+        calls.append("apify")
+        raise DownloadBudgetExceeded("over budget")
+
+    def rapidapi(*a, **kw):
+        calls.append("rapidapi")
+        pytest.fail("API Router ran after an abort")
+
+    monkeypatch.setattr(utils, "download_video_via_rapidapi", rapidapi)
+    monkeypatch.setattr(utils, "download_youtube_video_with_apify", apify_budget)
+    monkeypatch.setattr(
+        utils,
+        "_download_youtube_video_with_ytdlp",
+        lambda *a, **kw: pytest.fail("Direct yt-dlp ran after an abort"),
+    )
+    set_config_override(config)
+    try:
+        with pytest.raises(DownloadBudgetExceeded):
+            utils.download_youtube_video(
+                "https://youtube.com/watch?v=abcdefghijk", skip_proxy=True,
+            )
+        assert calls == ["apify"]
+
+        calls.clear()
+
+        def apify_permanent(*a, **kw):
+            calls.append("apify")
+            raise utils.ApifyDownloadError("unavailable", permanent=True)
+
+        monkeypatch.setattr(utils, "download_youtube_video_with_apify", apify_permanent)
+        assert utils.download_youtube_video(
+            "https://youtube.com/watch?v=abcdefghijk", skip_proxy=True,
+        ) is None
+        assert calls == ["apify"]
     finally:
         set_config_override(None)
 

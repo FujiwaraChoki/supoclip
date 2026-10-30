@@ -631,19 +631,27 @@ def _download_youtube_video_with_ytdlp(
 
 
 def _provider_order(config, *, skip_proxy: bool) -> list[str]:
-    """Proxy, API Router, bounded Apify pool, then direct yt-dlp."""
+    """Proxy when it still applies, then Apify, API Router, then direct yt-dlp.
+
+    Audio, HLS, and section retries run before this full-file chain. A
+    configured proxy puts the paid backups ahead of a direct datacenter
+    retry, and ``skip_proxy`` omits a second full-file proxy attempt. API
+    Router always follows the Apify pool. Without a proxy, the legacy
+    provider still decides whether direct yt-dlp runs first.
+    """
     order: list[str] = []
     if proxy_configured(config) and not skip_proxy:
         order.append(YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY)
     # A configured proxy always uses the independent paid backups before
     # retrying yt-dlp from the same datacenter that YouTube already blocks.
     primary = config.youtube_download_provider
-    paid = [YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI, YOUTUBE_DOWNLOAD_PROVIDER_APIFY]
-    if proxy_configured(config) or primary == YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI:
+    # Apify keeps its actor caps and retries inside this one step.
+    paid = [YOUTUBE_DOWNLOAD_PROVIDER_APIFY, YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI]
+    if proxy_configured(config) or primary in {
+        YOUTUBE_DOWNLOAD_PROVIDER_APIFY,
+        YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI,
+    }:
         rest = [*paid, YOUTUBE_DOWNLOAD_PROVIDER_YTDLP]
-    elif primary == YOUTUBE_DOWNLOAD_PROVIDER_APIFY:
-        rest = [YOUTUBE_DOWNLOAD_PROVIDER_APIFY, YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI,
-                YOUTUBE_DOWNLOAD_PROVIDER_YTDLP]
     else:
         rest = [YOUTUBE_DOWNLOAD_PROVIDER_YTDLP, *paid]
     order.extend(rest)
@@ -675,8 +683,10 @@ def download_youtube_video(
     Download a full YouTube video using the configured provider chain.
 
     When ``YOUTUBE_PROXY_URL`` is set, a 1080p yt-dlp download through that
-    proxy is attempted first. The clip pipeline prefers audio-then-sections
-    and uses this full-file chain only as a fallback.
+    proxy is attempted first unless ``skip_proxy`` is set. Apify runs next,
+    then API Router, then direct yt-dlp. The clip pipeline prefers
+    audio-then-sections (including the HLS and full-timeline retries) and
+    uses this full-file chain only as a fallback.
     """
     logger.info("Starting YouTube download: %s", url)
 

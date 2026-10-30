@@ -644,7 +644,8 @@ def _full_timeline_via_sections(
 
     The section downloader prefers timed HLS fragments and refuses an ffmpeg
     network cut. A missing duration, or formats that cannot be sliced, raise
-    ``PartialDownloadUnavailable`` so the caller can continue to the paid chain.
+    ``PartialDownloadUnavailable`` so the caller can continue to Apify, then
+    API Router.
     """
     length = _positive_duration(duration)
     if length is None:
@@ -699,7 +700,8 @@ def download_analysis_source(
     with HTTP 403 (the HLS retry lives inside ``download_audio``), the full
     timeline is fetched through the section downloader when a duration is
     known and the formats can be sliced. Anything else uses ``download_full``,
-    the existing full-file / API Router / Apify chain.
+    the full-file chain: Apify, then API Router, then direct yt-dlp. With a
+    proxy configured, that call still skips a second full-file proxy attempt.
     """
     try:
         return download_audio_for_job(url, video_id, task_id=task_id, budget=budget), True
@@ -1022,7 +1024,8 @@ def resolve_full_youtube_download(
 ) -> Optional[Path]:
     """Return a cached full file, or download one and store it.
 
-    ``download_full`` is the existing provider chain (proxy first unless skipped).
+    ``download_full`` is the full-file provider chain: proxy first unless
+    skipped, then Apify, API Router, and direct yt-dlp.
     """
     runtime = get_config()
     if getattr(runtime, "youtube_source_cache", True):
