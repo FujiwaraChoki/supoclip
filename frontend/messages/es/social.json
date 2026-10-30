@@ -52,7 +52,7 @@
   "publishFailed": "No se pudo publicar el clip",
   "publish": "Publicar",
   "publishTitle": "Publicar clip {order}",
-  "publishBody": "Publica este clip directo en una cuenta conectada, o prográmalo para más tarde.",
+  "publishBody": "Publica este clip en una o varias cuentas conectadas, ahora o más tarde.",
   "emptyAccounts": "Aún no hay cuentas sociales conectadas. <link>Conecta YouTube, TikTok o Instagram</link> para publicar desde aquí.",
   "account": "Cuenta",
   "chooseAccountPlaceholder": "Elige una cuenta",
@@ -63,7 +63,7 @@
   "hashtags": "Hashtags",
   "hashtagsPlaceholder": "podcast, clips, shorts",
   "visibilityLabel": "Visibilidad",
-  "tiktokPrivate": "Hasta que TikTok audite la app, las publicaciones solo pueden ser privadas.",
+  "tiktokPrivate": "TikTok comprueba qué opciones de visibilidad permite tu cuenta conectada.",
   "scheduleLater": "Programar para más tarde",
   "scheduleHint": "Publicar a una hora específica.",
   "publishAt": "Publicar el",
@@ -100,7 +100,7 @@
     "comingSoon": "Próximamente",
     "verificationNote": "Estamos en proceso de verificar SupoClip con esta plataforma.",
     "instagramNote": "Instagram necesita una cuenta profesional (Business o Creator).",
-    "tiktokNote": "Las publicaciones de TikTok siguen privadas hasta que TikTok audite esta app.",
+    "tiktokNote": "TikTok comprueba qué opciones de visibilidad permite tu cuenta conectada.",
     "youtubeNote": "Las subidas de YouTube desde una app no verificada son privadas hasta que termine la revisión de Google.",
     "platformDetails": "Información de {platform}",
     "connectedHeading": "Cuentas conectadas",
@@ -112,5 +112,13 @@
     "disconnect": "Desconectar",
     "analytics": "Analítica",
     "analyticsHint": "Vistas, me gusta y comentarios de tus clips publicados, por plataforma, gancho y duración."
-  }
+  },
+  "accounts": "Cuentas",
+  "accountsHint": "Selecciona una o varias cuentas. El título, la descripción y los hashtags se comparten.",
+  "visibilityForAccount": "Visibilidad · {account}",
+  "publishToAccounts": "Publicar en {count} cuentas",
+  "scheduleToAccounts": "Programar para {count} cuentas",
+  "submittedHint": "Las publicaciones ya enviadas no se volverán a enviar.",
+  "submissionUnknown": "No pudimos confirmar esta solicitud. Revisa la lista de publicaciones del clip antes de volver a intentarlo.",
+  "titleTooLong": "El título debe tener {limit} caracteres o menos."
 }

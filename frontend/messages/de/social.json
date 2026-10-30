@@ -52,7 +52,7 @@
   "publishFailed": "Clip konnte nicht veröffentlicht werden",
   "publish": "Veröffentlichen",
   "publishTitle": "Clip {order} veröffentlichen",
-  "publishBody": "Stell diesen Clip direkt auf ein verbundenes Konto oder plan ihn für später.",
+  "publishBody": "Veröffentliche diesen Clip jetzt oder später auf einem oder mehreren verbundenen Konten.",
   "emptyAccounts": "Noch keine Social-Konten verbunden. <link>Verbinde YouTube, TikTok oder Instagram</link>, um von hier zu veröffentlichen.",
   "account": "Konto",
   "chooseAccountPlaceholder": "Konto wählen",
@@ -63,7 +63,7 @@
   "hashtags": "Hashtags",
   "hashtagsPlaceholder": "podcast, clips, shorts",
   "visibilityLabel": "Sichtbarkeit",
-  "tiktokPrivate": "Bis TikTok die App geprüft hat, können Beiträge nur privat sein.",
+  "tiktokPrivate": "TikTok prüft, welche Sichtbarkeitsoptionen dein verbundenes Konto erlaubt.",
   "scheduleLater": "Für später planen",
   "scheduleHint": "Zu einer bestimmten Zeit veröffentlichen.",
   "publishAt": "Veröffentlichen am",
@@ -100,7 +100,7 @@
     "comingSoon": "Demnächst verfügbar",
     "verificationNote": "Wir sind dabei, SupoClip bei dieser Plattform verifizieren zu lassen.",
     "instagramNote": "Instagram braucht ein professionelles Konto (Business oder Creator).",
-    "tiktokNote": "TikTok-Beiträge bleiben privat, bis TikTok diese App geprüft hat.",
+    "tiktokNote": "TikTok prüft, welche Sichtbarkeitsoptionen dein verbundenes Konto erlaubt.",
     "youtubeNote": "YouTube-Uploads aus einer ungeprüften App sind privat, bis die Prüfung von Google fertig ist.",
     "platformDetails": "Informationen zu {platform}",
     "connectedHeading": "Verbundene Konten",
@@ -112,5 +112,13 @@
     "disconnect": "Trennen",
     "analytics": "Analysen",
     "analyticsHint": "Aufrufe, Likes und Kommentare deiner veröffentlichten Clips, nach Plattform, Hook und Länge."
-  }
+  },
+  "accounts": "Konten",
+  "accountsHint": "Wähle ein oder mehrere Konten. Titel, Beschreibung und Hashtags gelten für alle.",
+  "visibilityForAccount": "Sichtbarkeit · {account}",
+  "publishToAccounts": "Auf {count} Konten veröffentlichen",
+  "scheduleToAccounts": "Für {count} Konten planen",
+  "submittedHint": "Bereits übermittelte Beiträge werden nicht erneut gesendet.",
+  "submissionUnknown": "Die Anfrage konnte nicht bestätigt werden. Prüfe vor einem erneuten Versuch die Beitragsliste des Clips.",
+  "titleTooLong": "Der Titel darf höchstens {limit} Zeichen lang sein."
 }

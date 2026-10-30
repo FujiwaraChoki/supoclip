@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import {
   AlertCircle,
+  Check,
   Clock,
   ExternalLink,
   Loader2,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -87,8 +89,7 @@ function privacyOptionsFor(provider: SocialProviderStatus | undefined): SocialPr
   return provider?.supported_privacy_levels ?? ALL_PRIVACY_LEVELS;
 }
 
-// Each platform starts at its own default (TikTok: private, since unaudited
-// apps cannot post publicly).
+// Keep each platform’s default when selecting several destinations.
 function defaultPrivacyFor(provider: SocialProviderStatus | undefined): SocialPrivacyLevel {
   const options = privacyOptionsFor(provider);
   const preferred = provider?.default_privacy_level;
@@ -307,11 +308,13 @@ export function ClipPublishButton({
 }: ClipPublishButtonProps) {
   const t = useTranslations("social");
   const [open, setOpen] = useState(false);
-  const [accountId, setAccountId] = useState<string>("");
+  const [accountIds, setAccountIds] = useState<string[]>([]);
+  const [submissions, setSubmissions] = useState<Record<string, { status: "accepted" | "failed" | "unknown"; message?: string; scheduled?: boolean }>>({});
+  const submitting = useRef(false);
   const [title, setTitle] = useState("");
   const [caption, setCaption] = useState("");
   const [hashtags, setHashtags] = useState("");
-  const [privacy, setPrivacy] = useState<SocialPrivacyLevel>("private");
+  const [privacyByAccount, setPrivacyByAccount] = useState<Record<string, SocialPrivacyLevel>>({});
   const [schedule, setSchedule] = useState(false);
   const [scheduledFor, setScheduledFor] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -333,8 +336,20 @@ export function ClipPublishButton({
       (provider) =>
         provider.provider === activeConnections.find((connection) => connection.id === id)?.provider,
     );
-  const selectedConnection = activeConnections.find((connection) => connection.id === accountId);
-  const privacyOptions = privacyOptionsFor(providerForAccount(accountId));
+  const selectedConnections = activeConnections.filter(
+    (connection) => accountIds.includes(connection.id) && connection.status !== "reauth_required",
+  );
+  const pendingConnections = selectedConnections.filter(
+    (connection) => !submissions[connection.id] || submissions[connection.id].status === "failed",
+  );
+  const hasAccepted = Object.values(submissions).some((result) => result.status === "accepted");
+  const hasTikTok = selectedConnections.some((connection) => connection.provider === "tiktok");
+  const titleMaxLength = selectedConnections.some((connection) => connection.provider === "youtube") ? 100 : 255;
+  const privacyFor = (id: string) => {
+    const provider = providerForAccount(id);
+    const chosen = privacyByAccount[id];
+    return chosen && privacyOptionsFor(provider).includes(chosen) ? chosen : defaultPrivacyFor(provider);
+  };
   const anyProviderConfigured = providers.some((provider) => provider.configured);
 
   const generateCaption = async (id: string) => {
@@ -367,6 +382,7 @@ export function ClipPublishButton({
   };
 
   const changeOpen = (value: boolean) => {
+    if (submitting.current) return;
     if (!value) {
       captionRequest.current++;
       setIsGeneratingCaption(false);
@@ -377,80 +393,109 @@ export function ClipPublishButton({
   // The form resets only when the sheet opens, so connections refreshing in
   // the background never wipe what the user is typing.
   const openSheet = () => {
-    const nextAccountId = activeConnections.some((connection) => connection.id === accountId)
-      ? accountId
-      : (activeConnections[0]?.id ?? "");
+    const available = activeConnections.filter((connection) => connection.status !== "reauth_required");
+    const retained = accountIds.filter((id) => available.some((connection) => connection.id === id));
+    const nextIds = retained.length ? retained : available.slice(0, 1).map((connection) => connection.id);
     setError(null);
+    setSubmissions({});
     setTitle(clip.hook_title || t("clipFallback", { order: clip.clip_order }));
     setCaption(clip.text || "");
     setHashtags("");
     setSchedule(false);
     setScheduledFor(toLocalDateTimeInput(new Date(Date.now() + 60 * 60 * 1000)));
-    setAccountId(nextAccountId);
-    setPrivacy(defaultPrivacyFor(providerForAccount(nextAccountId)));
+    setAccountIds(nextIds);
+    setPrivacyByAccount(Object.fromEntries(activeConnections.map((connection) => [
+      connection.id, defaultPrivacyFor(providerForAccount(connection.id)),
+    ])));
     setOpen(true);
-    void generateCaption(nextAccountId);
+    if (nextIds[0]) void generateCaption(nextIds[0]);
   };
 
-  const selectAccount = (id: string) => {
+  const toggleAccount = (id: string) => {
     captionRequest.current++;
     setIsGeneratingCaption(false);
-    setAccountId(id);
-    setPrivacy(defaultPrivacyFor(providerForAccount(id)));
+    setAccountIds((ids) => ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id]);
   };
 
   // Without a configured platform there is nothing to publish to.
   if (!anyProviderConfigured) return null;
 
   const handleSubmit = async () => {
-    if (!accountId) {
-      setError(t("chooseAccount"));
+    if (submitting.current || pendingConnections.length === 0) return;
+    if (title.length > titleMaxLength) {
+      setError(t("titleTooLong", { limit: titleMaxLength }));
       return;
     }
+    let when: string | undefined;
+    if (schedule) {
+      const date = new Date(scheduledFor);
+      if (!scheduledFor || Number.isNaN(date.getTime()) || date.getTime() <= Date.now()) {
+        setError(t("invalidDate"));
+        return;
+      }
+      when = date.toISOString();
+    }
+    submitting.current = true;
     setIsSubmitting(true);
     setError(null);
     try {
-      const body: Record<string, unknown> = {
-        task_id: taskId,
-        clip_id: clip.id,
-        social_account_id: accountId,
-        title: title.trim(),
-        caption,
-        hashtags: parseHashtagInput(hashtags),
-        privacy_level: privacy,
-      };
-      if (schedule && scheduledFor) {
-        const when = new Date(scheduledFor);
-        if (Number.isNaN(when.getTime())) {
-          throw new Error(t("invalidDate"));
+      const results = await Promise.all(pendingConnections.map(async (connection) => {
+        const record = (result: typeof submissions[string]) => {
+          setSubmissions((previous) => ({ ...previous, [connection.id]: result }));
+          return result.status === "accepted";
+        };
+        let response: Response;
+        try {
+          response = await fetch("/api/social/posts", {
+            signal: AbortSignal.timeout(30_000),
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              task_id: taskId,
+              clip_id: clip.id,
+              social_account_id: connection.id,
+              title: title.trim(),
+              caption,
+              hashtags: parseHashtagInput(hashtags),
+              privacy_level: privacyFor(connection.id),
+              ...(when ? { scheduled_for: when } : {}),
+            }),
+          });
+        } catch {
+          // The server may have accepted the request. Never retry it automatically.
+          return record({ status: "unknown", message: t("submissionUnknown") });
         }
-        body.scheduled_for = when.toISOString();
+        if (!response.ok) {
+          return record(response.status >= 500 || response.status === 408
+            ? { status: "unknown", message: t("submissionUnknown") }
+            : { status: "failed", message: await readError(response, t("publishFailed")) });
+        }
+        const payload = await response.json().catch(() => null) as { post?: SocialPost } | null;
+        if (!payload?.post?.id) return record({ status: "unknown", message: t("submissionUnknown") });
+        const post = payload.post;
+        const isScheduled = post.status === "scheduled";
+        record({ status: "accepted", scheduled: isScheduled });
+        const platform = PROVIDER_LABELS[connection.provider];
+        if (isScheduled && post.scheduled_for) {
+          toast.success(t("toasts.scheduled", { when: formatDateTime(post.scheduled_for) }), {
+            description: t("toasts.scheduledDetail", { platform, account: connectionLabel(connection) }),
+          });
+        } else {
+          toast.loading(t("toasts.publishing", { platform }), {
+            id: postToastId(post.id), description: t("toasts.keepWorking"),
+          });
+        }
+        return true;
+      }));
+      if (results.every(Boolean)) setOpen(false);
+      // Always refresh: a failed/ambiguous response can still have created a post.
+      try {
+        await onChanged();
+      } catch {
+        toast.error(t("toasts.actionFailed"));
       }
-      const response = await fetch("/api/social/posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) {
-        throw new Error(await readError(response, t("publishFailed")));
-      }
-      const { post } = (await response.json().catch(() => ({}))) as { post?: SocialPost };
-      const platform = PROVIDER_LABELS[selectedConnection?.provider ?? "youtube"];
-      if (body.scheduled_for) {
-        toast.success(t("toasts.scheduled", { when: formatDateTime(String(body.scheduled_for)) }), {
-          description: t("toasts.scheduledDetail", { platform, account: selectedConnection ? connectionLabel(selectedConnection) : "" }),
-        });
-      } else if (post?.id) {
-        toast.loading(t("toasts.publishing", { platform }), {
-          id: postToastId(post.id),
-          description: t("toasts.keepWorking"),
-        });
-      }
-      setOpen(false);
-      await onChanged();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("publishFailed"));
     } finally {
+      submitting.current = false;
       setIsSubmitting(false);
     }
   };
@@ -463,7 +508,7 @@ export function ClipPublishButton({
       </Button>
 
       <Sheet open={open} onOpenChange={changeOpen}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+        <SheetContent className="w-full sm:max-w-lg overflow-y-auto" showCloseButton={!isSubmitting}>
           <SheetHeader>
             <SheetTitle>{t("publishTitle", { order: clip.clip_order })}</SheetTitle>
             <SheetDescription>
@@ -491,37 +536,45 @@ export function ClipPublishButton({
               </div>
             ) : (
               <>
-                <div className="space-y-2">
-                  <Label htmlFor={`publish-account-${clip.id}`}>{t("account")}</Label>
-                  <Select value={accountId} onValueChange={selectAccount}>
-                    <SelectTrigger id={`publish-account-${clip.id}`} className="w-full">
-                      <SelectValue placeholder={t("chooseAccountPlaceholder")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {activeConnections.map((connection) => (
-                        <SelectItem
-                          key={connection.id}
-                          value={connection.id}
-                          disabled={connection.status === "reauth_required"}
-                        >
-                          <SocialProviderIcon provider={connection.provider} />
-                          {PROVIDER_LABELS[connection.provider]} · {connectionLabel(connection)}
-                          {connection.status === "reauth_required" ? t("reconnectRequired") : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <fieldset className="space-y-2" disabled={isSubmitting}>
+                  <legend className="text-sm font-medium">{t("accounts")}</legend>
+                  <p className="text-xs text-muted-foreground">{t("accountsHint")}</p>
+                  <div className="grid gap-2">
+                    {activeConnections.map((connection) => {
+                      const selected = accountIds.includes(connection.id);
+                      const result = submissions[connection.id];
+                      const locked = result?.status === "accepted" || result?.status === "unknown";
+                      const unavailable = connection.status === "reauth_required";
+                      const inputId = `publish-account-${clip.id}-${connection.id}`;
+                      return (
+                        <div key={connection.id}>
+                          <label htmlFor={inputId} className={`flex items-center gap-3 rounded-xl border p-3 transition-colors ${selected ? "border-foreground/40 bg-muted/50" : "hover:bg-muted/30"} ${unavailable || locked || isSubmitting ? "cursor-default opacity-70" : "cursor-pointer"}`}>
+                            <SocialProviderIcon provider={connection.provider} className="size-5 shrink-0" />
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-sm font-medium">{PROVIDER_LABELS[connection.provider]}</span>
+                              <span className="block truncate text-xs text-muted-foreground">{connectionLabel(connection)}{unavailable ? t("reconnectRequired") : ""}</span>
+                              {result?.status === "accepted" && <span className="mt-1 flex items-center gap-1 text-xs"><Check className="size-3" />{result.scheduled ? t("postStatus.scheduled") : t("postStatus.queued")}</span>}
+                            </span>
+                            <Checkbox id={inputId} checked={selected} onCheckedChange={() => toggleAccount(connection.id)} disabled={unavailable || locked || isSubmitting} aria-label={`${PROVIDER_LABELS[connection.provider]} · ${connectionLabel(connection)}`} />
+                          </label>
+                          {result?.message && <p role="alert" className="mt-1 px-1 text-xs text-destructive">{result.message}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {hasAccepted && <p className="text-xs text-muted-foreground">{t("submittedHint")}</p>}
+                </fieldset>
 
                 <div className="space-y-2">
                   <Label htmlFor={`publish-title-${clip.id}`}>{t("title")}</Label>
                   <Input
                     id={`publish-title-${clip.id}`}
                     value={title}
-                    maxLength={selectedConnection?.provider === "youtube" ? 100 : 255}
+                    maxLength={titleMaxLength}
+                    disabled={isSubmitting}
                     onChange={(event) => setTitle(event.target.value)}
                   />
-                  {selectedConnection?.provider === "tiktok" && (
+                  {hasTikTok && (
                     <p className="text-xs text-muted-foreground">{t("tiktokTitle")}</p>
                   )}
                 </div>
@@ -529,7 +582,7 @@ export function ClipPublishButton({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <Label htmlFor={`publish-caption-${clip.id}`}>{t("caption")}</Label>
-                    <Button type="button" size="sm" variant="ghost" disabled={isGeneratingCaption || isSubmitting} onClick={() => void generateCaption(accountId)}>
+                    <Button type="button" size="sm" variant="ghost" disabled={isGeneratingCaption || isSubmitting || pendingConnections.length === 0} onClick={() => void generateCaption(pendingConnections[0].id)}>
                       {isGeneratingCaption ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
                       {isGeneratingCaption ? t("generatingCaption") : t("generateCaption")}
                     </Button>
@@ -538,6 +591,7 @@ export function ClipPublishButton({
                     id={`publish-caption-${clip.id}`}
                     value={caption}
                     rows={5}
+                    disabled={isSubmitting}
                     maxLength={2200}
                     onChange={(event) => {
                       captionRevision.current++;
@@ -551,38 +605,38 @@ export function ClipPublishButton({
                   <Input
                     id={`publish-hashtags-${clip.id}`}
                     value={hashtags}
+                    disabled={isSubmitting}
                     placeholder={t("hashtagsPlaceholder")}
                     onChange={(event) => setHashtags(event.target.value)}
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor={`publish-privacy-${clip.id}`}>{t("visibilityLabel")}</Label>
-                  <Select value={privacy} onValueChange={(value) => setPrivacy(value as SocialPrivacyLevel)}>
-                    <SelectTrigger id={`publish-privacy-${clip.id}`} className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {privacyOptions.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {t(`privacy.${option}`)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedConnection?.provider === "tiktok" && (
-                    <p className="text-xs text-muted-foreground">
-                      {t("tiktokPrivate")}
-                    </p>
-                  )}
-                </div>
+                {selectedConnections.map((connection) => {
+                  const result = submissions[connection.id];
+                  const locked = result?.status === "accepted" || result?.status === "unknown";
+                  const privacyId = `publish-privacy-${clip.id}-${connection.id}`;
+                  return (
+                    <div key={connection.id} className="space-y-2">
+                      <Label htmlFor={privacyId}>{selectedConnections.length === 1 ? t("visibilityLabel") : t("visibilityForAccount", { account: `${PROVIDER_LABELS[connection.provider]} · ${connectionLabel(connection)}` })}</Label>
+                      <Select value={privacyFor(connection.id)} disabled={isSubmitting || locked} onValueChange={(value) => setPrivacyByAccount((previous) => ({ ...previous, [connection.id]: value as SocialPrivacyLevel }))}>
+                        <SelectTrigger id={privacyId} className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {privacyOptionsFor(providerForAccount(connection.id)).map((option) => (
+                            <SelectItem key={option} value={option}>{t(`privacy.${option}`)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {connection.provider === "tiktok" && <p className="text-xs text-muted-foreground">{t("tiktokPrivate")}</p>}
+                    </div>
+                  );
+                })}
 
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <p className="text-sm font-medium">{t("scheduleLater")}</p>
                     <p className="text-xs text-muted-foreground">{t("scheduleHint")}</p>
                   </div>
-                  <Switch checked={schedule} onCheckedChange={setSchedule} />
+                  <Switch checked={schedule} onCheckedChange={setSchedule} disabled={isSubmitting} aria-label={t("scheduleLater")} />
                 </div>
                 {schedule && (
                   <div className="space-y-2">
@@ -590,6 +644,7 @@ export function ClipPublishButton({
                     <Input
                       id={`publish-when-${clip.id}`}
                       type="datetime-local"
+                      disabled={isSubmitting}
                       value={scheduledFor}
                       min={toLocalDateTimeInput(new Date())}
                       onChange={(event) => setScheduledFor(event.target.value)}
@@ -605,9 +660,9 @@ export function ClipPublishButton({
               {t("cancel")}
             </Button>
             {activeConnections.length > 0 && (
-              <Button onClick={handleSubmit} disabled={isSubmitting || isGeneratingCaption || !accountId}>
+              <Button onClick={handleSubmit} disabled={isSubmitting || isGeneratingCaption || pendingConnections.length === 0}>
                 {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : schedule ? <Clock className="size-4" /> : <Send className="size-4" />}
-                {isSubmitting ? (schedule ? t("scheduling") : t("publishing")) : schedule ? t("schedule") : t("publishNow")}
+                {isSubmitting ? (schedule ? t("scheduling") : t("publishing")) : schedule ? (pendingConnections.length > 1 ? t("scheduleToAccounts", { count: pendingConnections.length }) : t("schedule")) : (pendingConnections.length > 1 ? t("publishToAccounts", { count: pendingConnections.length }) : t("publishNow"))}
               </Button>
             )}
           </SheetFooter>

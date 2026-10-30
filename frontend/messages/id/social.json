@@ -52,7 +52,7 @@
   "publishFailed": "Gagal memublikasikan clip",
   "publish": "Publikasikan",
   "publishTitle": "Publikasikan clip {order}",
-  "publishBody": "Posting clip ini langsung ke akun yang terhubung, atau jadwalkan untuk nanti.",
+  "publishBody": "Publikasikan klip ini ke satu atau beberapa akun terhubung, sekarang atau nanti.",
   "emptyAccounts": "Belum ada akun sosial yang terhubung. <link>Hubungkan YouTube, TikTok, atau Instagram</link> untuk memublikasikan dari sini.",
   "account": "Akun",
   "chooseAccountPlaceholder": "Pilih akun",
@@ -63,7 +63,7 @@
   "hashtags": "Hashtag",
   "hashtagsPlaceholder": "podcast, clips, shorts",
   "visibilityLabel": "Visibilitas",
-  "tiktokPrivate": "Sampai TikTok mengaudit aplikasi, postingan hanya bisa privat.",
+  "tiktokPrivate": "TikTok memeriksa opsi visibilitas yang diizinkan akun terhubungmu.",
   "scheduleLater": "Jadwalkan untuk nanti",
   "scheduleHint": "Publikasikan pada waktu tertentu.",
   "publishAt": "Publikasikan pada",
@@ -100,7 +100,7 @@
     "comingSoon": "Segera Hadir",
     "verificationNote": "Kami sedang dalam proses memverifikasi SupoClip dengan platform ini.",
     "instagramNote": "Instagram membutuhkan akun profesional (Business atau Creator).",
-    "tiktokNote": "Postingan TikTok tetap privat sampai TikTok mengaudit aplikasi ini.",
+    "tiktokNote": "TikTok memeriksa opsi visibilitas yang diizinkan akun terhubungmu.",
     "youtubeNote": "Unggahan YouTube dari aplikasi yang belum diverifikasi bersifat privat sampai peninjauan Google selesai.",
     "platformDetails": "Informasi {platform}",
     "connectedHeading": "Akun terhubung",
@@ -112,5 +112,13 @@
     "disconnect": "Putuskan",
     "analytics": "Analitik",
     "analyticsHint": "Penayangan, suka, dan komentar dari clip yang kamu publikasikan, menurut platform, hook, dan durasi."
-  }
+  },
+  "accounts": "Akun",
+  "accountsHint": "Pilih satu atau beberapa akun. Judul, keterangan, dan tagar digunakan bersama.",
+  "visibilityForAccount": "Visibilitas · {account}",
+  "publishToAccounts": "Publikasikan ke {count} akun",
+  "scheduleToAccounts": "Jadwalkan untuk {count} akun",
+  "submittedHint": "Postingan yang sudah dikirim tidak akan dikirim ulang.",
+  "submissionUnknown": "Permintaan ini belum dapat dikonfirmasi. Periksa daftar postingan klip sebelum mencoba lagi.",
+  "titleTooLong": "Batasi judul hingga {limit} karakter."
 }
