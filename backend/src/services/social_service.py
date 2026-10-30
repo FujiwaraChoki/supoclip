@@ -569,6 +569,13 @@ class SocialService:
         if not post.get("social_account_id"):
             raise SocialValidationError("The account for this post was disconnected.")
         self._provider(post["provider"])
+        if post["provider"] == "tiktok":
+            options = await self.publishing_options(user_id, post["social_account_id"])
+            if post.get("privacy_level") not in options["privacy_levels"]:
+                raise SocialValidationError(
+                    "This TikTok account no longer allows the post’s visibility. "
+                    "Open Publish to choose an available visibility, or check the account’s privacy settings in TikTok."
+                )
         attempts = await self.repo.requeue_post(
             self.db, user_id, post_id, media_token=secrets.token_urlsafe(32)
         )

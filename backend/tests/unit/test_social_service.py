@@ -1485,3 +1485,18 @@ async def test_tiktok_public_is_rejected_before_post_or_job_is_created(service, 
         await service.create_post('user-1', task_id='task-1', clip_id='clip-1', social_account_id=account['id'], title=None, caption=None, hashtags=[], privacy_level='public', scheduled_for=None)
     assert service.repo.posts == {}
     assert service.queue_adapter.jobs == []
+
+
+async def test_tiktok_retry_does_not_queue_a_visibility_the_account_no_longer_allows(service, provider):
+    account = await _connect(service)
+    post = await service.create_post('user-1', task_id='task-1', clip_id='clip-1', social_account_id=account['id'], title=None, caption=None, hashtags=[], privacy_level='public', scheduled_for=None)
+    service.repo.posts[post['id']].update(provider='tiktok', status='failed')
+    service.repo.accounts[account['id']]['provider'] = 'tiktok'
+    provider.name = 'tiktok'
+    provider.supported_privacy_levels = ('public', 'private')
+    provider.query_creator_info = lambda token: {'privacy_level_options': ['SELF_ONLY']}
+    before_jobs = list(service.queue_adapter.jobs)
+    with pytest.raises(SocialValidationError, match='Open Publish'):
+        await service.retry_post('user-1', post['id'])
+    assert service.repo.posts[post['id']]['status'] == 'failed'
+    assert service.queue_adapter.jobs == before_jobs
