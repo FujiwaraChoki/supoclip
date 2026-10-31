@@ -4,9 +4,9 @@ Task API routes using refactored architecture.
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from starlette.background import BackgroundTask
-from ...media_storage import MediaStorage, is_s3, media_work
+from ...media_storage import MediaStorage, STORAGE_ERRORS, is_s3, media_work
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 from pathlib import Path
@@ -22,6 +22,7 @@ import asyncio
 import hashlib
 import time
 from ...utils.async_helpers import run_in_thread
+from ... import clip_archive
 
 from ...repositories.generation_allowance_guard import generation_allowance_guard, GenerationAllowanceBusy
 from ...repositories.task_run_guard import task_run_guard, TaskRunBusy
@@ -348,20 +349,28 @@ async def _require_task_owner(
     return task
 
 
+async def _authorize_task_reader(
+    request: Request, task_service: TaskService, db: AsyncSession, task_id: str
+):
+    """Owner, or an admin reading a task that is still active. Returns (user_id, task)."""
+    user_id, task = await _load_task_for_user(request, task_service, db, task_id)
+
+    if task.get("user_id") == user_id:
+        return user_id, task
+    if task.get("status") in ADMIN_READABLE_TASK_STATUSES and await user_is_admin(
+        db, user_id
+    ):
+        return user_id, task
+
+    raise HTTPException(status_code=403, detail="Not authorized for this task")
+
+
 async def _require_task_reader(
     request: Request, task_service: TaskService, db: AsyncSession, task_id: str
 ):
     """Owner, or an admin reading a task that is still active."""
-    user_id, task = await _load_task_for_user(request, task_service, db, task_id)
-
-    if task.get("user_id") == user_id:
-        return task
-    if task.get("status") in ADMIN_READABLE_TASK_STATUSES and await user_is_admin(
-        db, user_id
-    ):
-        return task
-
-    raise HTTPException(status_code=403, detail="Not authorized for this task")
+    _user_id, task = await _authorize_task_reader(request, task_service, db, task_id)
+    return task
 
 
 PUBLIC_TASK_FIELDS = {
@@ -1028,6 +1037,75 @@ async def get_clip_file(
     except Exception as e:
         logger.error(f"Error serving clip file: {e}")
         raise HTTPException(status_code=500, detail=f"Error serving clip file: {str(e)}")
+
+
+async def _prepare_clip_archive(request: Request, db: AsyncSession, task_id: str):
+    """Authorize like a single-clip download and list the clip files that exist."""
+    task_service = TaskService(db)
+    user_id, task = await _authorize_task_reader(request, task_service, db, task_id)
+    clips = await task_service.clip_repo.get_clips_by_task(db, task_id)
+    # Release the DB connection before storage lookups and the long stream;
+    # see get_clip_file.
+    await db.close()
+    try:
+        entries = await run_in_thread(clip_archive.resolve_entries, clips, MediaStorage())
+    except STORAGE_ERRORS:
+        logger.exception("Could not list clip files for task %s", task_id)
+        raise HTTPException(
+            status_code=503,
+            detail="Clip storage is unavailable right now. Please try again shortly.",
+        ) from None
+    if not entries:
+        raise HTTPException(
+            status_code=404,
+            detail="This generation has no clip files to download.",
+        )
+    return user_id, task, entries
+
+
+@router.get("/{task_id}/clips/zip/preflight")
+async def preflight_clip_archive(
+    task_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db, scope="function"),
+):
+    """Check a ZIP download would start, so a browser can surface errors first."""
+    user_id, task, entries = await _prepare_clip_archive(request, db, task_id)
+    if await clip_archive.archive_in_progress(user_id):
+        raise HTTPException(
+            status_code=429,
+            detail="A ZIP download of your clips is already in progress. Wait for it to finish, then try again.",
+        )
+    return {
+        "filename": clip_archive.archive_filename(task.get("source_title")),
+        "clip_count": len(entries),
+        "total_bytes": sum(entry.size for entry in entries),
+    }
+
+
+@router.get("/{task_id}/clips/zip")
+async def download_clip_archive(
+    task_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db, scope="function"),
+):
+    """Stream every existing clip of the task as one ZIP, built on the fly."""
+    user_id, task, entries = await _prepare_clip_archive(request, db, task_id)
+    try:
+        slot = await clip_archive.ArchiveSlot(user_id).acquire()
+    except clip_archive.ClipArchiveBusy as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from None
+    filename = clip_archive.archive_filename(task.get("source_title"))
+    return StreamingResponse(
+        clip_archive.stream_with_slot(entries, MediaStorage(), slot),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": clip_archive.content_disposition(filename),
+            "Cache-Control": "private, no-store",
+            # Let nginx pass chunks through instead of buffering the archive.
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.patch("/{task_id}/clips/{clip_id}")

@@ -392,6 +392,23 @@ class MediaStorage:
             "ResponseContentDisposition": f'{"attachment" if attachment else "inline"}; filename="{safe_name}"',
         }, ExpiresIn=expires_in or self.config.media_url_ttl_seconds)
 
+    def object_size(self, reference: str) -> int | None:
+        """Byte size of a stored object, or None when it is missing."""
+        try:
+            key = self.parse(reference)
+        except ValueError:
+            return None
+        try:
+            return int(self.client.head_object(Bucket=self.bucket, Key=key)["ContentLength"])
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] in {"404", "NoSuchKey", "NotFound"}:
+                return None
+            raise
+
+    def open_object(self, reference: str):
+        """Streaming body of a stored object (``read(n)``/``close()``), not cached locally."""
+        return self.client.get_object(Bucket=self.bucket, Key=self.parse(reference))["Body"]
+
     def exists(self, reference: str) -> bool:
         try:
             self.client.head_object(Bucket=self.bucket, Key=self.parse(reference))

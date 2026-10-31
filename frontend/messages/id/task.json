@@ -11,7 +11,8 @@
     "deleteFont": "Gagal menghapus font",
     "exportClip": "Gagal mengekspor clip",
     "share": "Gagal membuat tautan berbagi",
-    "disableShare": "Gagal menonaktifkan tautan berbagi"
+    "disableShare": "Gagal menonaktifkan tautan berbagi",
+    "downloadAll": "Tidak dapat mengunduh klip. Silakan coba lagi."
   },
   "toasts": {
     "settingsApplied": "Pengaturan generasi diterapkan",
@@ -63,6 +64,9 @@
   },
   "downloadAs": "Unduh sebagai",
   "downloadFormat": "Format unduhan",
+  "downloadAll": "Unduh semua",
+  "downloadAllHint": "Unduh semua klip sebagai ZIP berisi file asli",
+  "preparingDownload": "Menyiapkan…",
   "original": "Asli",
   "settingsTitle": "Pengaturan generasi",
   "settingsBody": "Atur font, caption, dan pembersihan untuk clip generasi ini.",

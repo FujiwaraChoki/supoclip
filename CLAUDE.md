@@ -159,6 +159,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 - `POST /tasks/{id}/clips/merge` — Merge selected clips
 - `PATCH /tasks/{id}/clips/{clip_id}/captions` — Update captions
 - `GET /tasks/{id}/clips/{clip_id}/export?preset=tiktok` — Export with platform preset
+- `GET /tasks/{id}/clips/zip` — Stream every existing clip as one ZIP, built on the fly (`clip_archive.py`); `GET .../clips/zip/preflight` runs the same checks first. One ZIP download per user at a time (Redis slot, 429)
 
 **Media:**
 - `GET /fonts`, `GET /transitions`, `GET /caption-templates`, `GET /broll/status`

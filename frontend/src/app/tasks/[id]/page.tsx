@@ -9,6 +9,7 @@ import { useTaskProgress } from "@/hooks/use-task-progress";
 import { StatusBadge, ACTIVE_TASK_STATUSES } from "@/components/app/status-badge";
 import { getClipUrl, requestAction, EXPORT_PRESETS } from "@/lib/clip-actions";
 import { clipExportFilePath, pollClipExport, triggerFileDownload } from "@/lib/clip-export";
+import { downloadAllClips } from "@/lib/clip-archive";
 import { trackClipExport } from "@/lib/clip-export-tracking";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ import {
   Check,
   Clapperboard,
   Clock,
+  Download,
   Edit2,
   ExternalLink,
   Link2Off,
@@ -194,6 +196,7 @@ export default function TaskPage() {
   const [upgradeReason, setUpgradeReason] = useState<UpgradeReason | null>(null);
   const [sortBy, setSortBy] = useState<"score" | "timeline">("score");
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
 
   const taskApiUrl = "/api/tasks";
 
@@ -595,6 +598,25 @@ export default function TaskPage() {
     void runAction(clip.id, () => handleExportClip(clip.id, clip.filename));
   };
 
+  const handleDownloadAll = async () => {
+    if (!task?.id || isDownloadingAll) return;
+
+    setIsDownloadingAll(true);
+    try {
+      await downloadAllClips({
+        taskApiUrl,
+        taskId: task.id,
+        readError: (response) => buildSupportError(response, t("errors.downloadAll")),
+        fallbackMessage: t("errors.downloadAll"),
+      });
+      if (session?.user?.id) void trackClipExport({ userId: session.user.id, surface: "task", format: "zip" });
+    } catch (downloadError) {
+      toast.error(downloadError instanceof Error ? downloadError.message : t("errors.downloadAll"));
+    } finally {
+      setIsDownloadingAll(false);
+    }
+  };
+
   const handleCopyShareLink = async () => {
     if (!task?.id || shareState === "copying") return;
 
@@ -835,6 +857,16 @@ export default function TaskPage() {
                 ))}
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="outline" className="h-8 bg-background" aria-busy={isDownloadingAll}
+                      disabled={isDownloadingAll} onClick={() => void handleDownloadAll()}>
+                      {isDownloadingAll ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+                      <span className="max-sm:sr-only">{isDownloadingAll ? t("preparingDownload") : t("downloadAll")}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("downloadAllHint")}</TooltipContent>
+                </Tooltip>
                 <span className="hidden sm:inline">{t("downloadAs")}</span>
                 <Select value={exportPreset} onValueChange={setExportPreset}>
                   <SelectTrigger size="sm" aria-label={t("downloadFormat")} className="h-8 min-w-[112px] bg-background"><SelectValue /></SelectTrigger>

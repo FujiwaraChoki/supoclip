@@ -11,7 +11,8 @@
     "deleteFont": "Falha ao excluir a fonte",
     "exportClip": "Falha ao exportar o clipe",
     "share": "Falha ao criar o link de compartilhamento",
-    "disableShare": "Falha ao desativar o link de compartilhamento"
+    "disableShare": "Falha ao desativar o link de compartilhamento",
+    "downloadAll": "Não foi possível baixar os clipes. Tente novamente."
   },
   "toasts": {
     "settingsApplied": "Configurações da geração aplicadas",
@@ -63,6 +64,9 @@
   },
   "downloadAs": "Baixar como",
   "downloadFormat": "Formato do download",
+  "downloadAll": "Baixar todos",
+  "downloadAllHint": "Baixe todos os clipes em um ZIP com os arquivos originais",
+  "preparingDownload": "Preparando…",
   "original": "Original",
   "settingsTitle": "Configurações da geração",
   "settingsBody": "Configure fonte, legendas e limpeza dos clipes desta geração.",
