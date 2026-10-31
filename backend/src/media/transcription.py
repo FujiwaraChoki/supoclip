@@ -1,5 +1,6 @@
 """Transcription helpers for the video pipeline."""
 
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from typing import Dict
 from typing import List
@@ -10,6 +11,7 @@ from ..config import get_config
 import httpx
 import json
 import re
+import threading
 import time
 from .common import (
     ANALYSIS_LONG_UTTERANCE_MAX_DURATION_MS,
@@ -323,7 +325,7 @@ def get_video_transcript(
 ) -> str:
     """Get a video transcript using the configured provider.
 
-    Dispatches to AssemblyAI, local Whisper, or YouTube captions based on
+    Dispatches to AssemblyAI, local Whisper, Khaya AI, or YouTube captions based on
     ``TRANSCRIPTION_PROVIDER``. ``source_url`` enables the youtube_captions
     provider, which needs the original URL rather than a local file path.
     """
@@ -333,6 +335,8 @@ def get_video_transcript(
 
     if provider == "whisper":
         return _get_transcript_with_whisper(video_path, runtime_config)
+    if provider == "khaya":
+        return _get_transcript_with_khaya(video_path, runtime_config)
     if provider == "youtube_captions":
         if not source_url:
             raise ValueError(
@@ -427,6 +431,404 @@ def _get_transcript_with_whisper(video_path: Path, runtime_config) -> str:
     result = "\n".join(formatted_lines)
     logger.info(
         "Whisper transcript formatted: %d segments, %d chars",
+        len(formatted_lines),
+        len(result),
+    )
+    return result
+
+
+KHAYA_SEGMENT_MAX_SECONDS = 12.0
+KHAYA_SEGMENT_MAX_WORDS = 30
+KHAYA_SEGMENT_MAX_GAP_SECONDS = 1.5
+KHAYA_MAX_ATTEMPTS = 4
+# Each attempt likely counts against the Khaya quota, so a chunk the server
+# keeps failing is split smaller instead of being retried at full length.
+KHAYA_SERVER_ERROR_ATTEMPTS = 2
+KHAYA_FALLBACK_PIECE_SECONDS = 120
+KHAYA_MAX_SKIPPED_FRACTION = 0.25
+# ffmpeg's segment muxer can leave a few-millisecond tail that Khaya cannot decode.
+KHAYA_MIN_PIECE_SECONDS = 1.0
+
+
+class KhayaTimestampsUnsupported(Exception):
+    """Khaya rejected the requested timestamp granularity for this language."""
+
+
+class KhayaServerError(RuntimeError):
+    """Khaya kept failing a chunk with 5xx responses or dropped connections."""
+
+
+class KhayaPieceRejected(RuntimeError):
+    """Khaya could not decode one piece's audio; other pieces are unaffected."""
+
+
+class _KhayaRateLimiter:
+    """Spaces request starts so all worker threads stay under a per-minute cap."""
+
+    def __init__(self, requests_per_minute: int):
+        self.interval = 60.0 / max(1, requests_per_minute)
+        self._lock = threading.Lock()
+        self._next_start = 0.0
+        self.calls = 0
+
+    def wait(self) -> None:
+        with self._lock:
+            now = time.monotonic()
+            start = max(now, self._next_start)
+            self._next_start = start + self.interval
+            self.calls += 1
+        if start > now:
+            time.sleep(start - now)
+
+
+def _split_audio_for_khaya(
+    audio_path: Path, chunk_seconds: int, chunk_dir: Optional[Path] = None
+) -> List[tuple]:
+    """Cut audio into MP3 chunks; returns [(chunk_path, offset_seconds), ...]."""
+    chunk_dir = chunk_dir or audio_path.with_name(f"{audio_path.stem}.khaya_chunks")
+    chunk_dir.mkdir(parents=True, exist_ok=True)
+    for stale in chunk_dir.glob("*"):
+        stale.unlink()
+    segment_list = chunk_dir / "segments.csv"
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(audio_path),
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-b:a",
+        "64k",
+        "-f",
+        "segment",
+        "-segment_time",
+        str(chunk_seconds),
+        "-segment_list",
+        str(segment_list),
+        "-segment_list_type",
+        "csv",
+        str(chunk_dir / "chunk_%05d.mp3"),
+    ]
+    result = run_ffmpeg_command(command, timeout=900)
+    if result.returncode != 0 or not segment_list.exists():
+        raise RuntimeError("Failed to split audio into chunks for Khaya transcription")
+
+    # Each CSV row is "filename,start,end"; the start is the chunk's true offset.
+    chunks = []
+    for line in segment_list.read_text().splitlines():
+        parts = line.strip().split(",")
+        if len(parts) < 3 or not parts[0]:
+            continue
+        start, end = float(parts[1]), float(parts[2])
+        if end - start < KHAYA_MIN_PIECE_SECONDS:
+            (chunk_dir / parts[0]).unlink(missing_ok=True)
+            continue
+        chunks.append((chunk_dir / parts[0], start))
+    return chunks
+
+
+def _khaya_transcribe_chunk(
+    client: httpx.Client,
+    runtime_config,
+    chunk_path: Path,
+    timestamps: str,
+    limiter: Optional[_KhayaRateLimiter] = None,
+) -> Dict[str, Any]:
+    """POST one audio chunk to Khaya, retrying on rate limits and server errors."""
+    url = f"{runtime_config.khaya_base_url}/transcribe"
+    params = {"language": runtime_config.khaya_language, "timestamps": timestamps}
+    audio_bytes = chunk_path.read_bytes()
+    server_failures = 0
+    for attempt in range(1, KHAYA_MAX_ATTEMPTS + 1):
+        if limiter:
+            limiter.wait()
+        try:
+            response = client.post(
+                url,
+                params=params,
+                content=audio_bytes,
+                headers={"Content-Type": "audio/mpeg"},
+            )
+        except httpx.TransportError as e:
+            server_failures += 1
+            if server_failures >= KHAYA_SERVER_ERROR_ATTEMPTS:
+                raise KhayaServerError(f"Khaya request failed: {e}") from e
+            time.sleep(2**attempt)
+            continue
+
+        if response.status_code == 200:
+            return response.json()
+        if response.status_code == 400:
+            body = response.text
+            if "UNSUPPORTED_TIMESTAMPS" in body:
+                raise KhayaTimestampsUnsupported(body)
+            if "INVALID_AUDIO_FORMAT" in body or "EMPTY_AUDIO" in body:
+                raise KhayaPieceRejected(f"Khaya could not decode {chunk_path.name}: {body[:300]}")
+            raise RuntimeError(f"Khaya rejected {chunk_path.name}: {body[:500]}")
+        if response.status_code in (401, 403):
+            raise RuntimeError(
+                "Khaya rejected the API key. Check KHAYA_API_KEY and your subscription."
+            )
+        if response.status_code >= 500:
+            server_failures += 1
+            if server_failures >= KHAYA_SERVER_ERROR_ATTEMPTS:
+                raise KhayaServerError(
+                    f"Khaya transcription failed ({response.status_code}): {response.text[:500]}"
+                )
+            time.sleep(2**attempt)
+            continue
+        if response.status_code == 429 and attempt < KHAYA_MAX_ATTEMPTS:
+            retry_after = response.headers.get("Retry-After", "")
+            time.sleep(int(retry_after) if retry_after.isdigit() else 2**attempt)
+            continue
+        raise RuntimeError(
+            f"Khaya transcription failed ({response.status_code}): {response.text[:500]}"
+        )
+    raise RuntimeError("Khaya transcription failed after retries")
+
+
+def _khaya_words_from_response(payload: Dict[str, Any], offset: float) -> List[Dict[str, Any]]:
+    """Return words with absolute float-second timings from one chunk response.
+
+    Segment-only responses get their duration spread evenly over their words.
+    """
+    timings = payload.get("timings") or {}
+    words = []
+    for word in timings.get("words") or []:
+        text = str(word.get("word", "")).strip()
+        if text:
+            words.append(
+                {
+                    "word": f" {text}",
+                    "start": float(word.get("start", 0)) + offset,
+                    "end": float(word.get("end", 0)) + offset,
+                    "probability": 1.0,
+                }
+            )
+    if words:
+        return words
+
+    for segment in timings.get("segments") or []:
+        tokens = str(segment.get("text", "")).split()
+        if not tokens:
+            continue
+        start = float(segment.get("start", 0)) + offset
+        end = max(start, float(segment.get("end", 0)) + offset)
+        step = (end - start) / len(tokens)
+        for index, token in enumerate(tokens):
+            words.append(
+                {
+                    "word": f" {token}",
+                    "start": start + index * step,
+                    "end": start + (index + 1) * step,
+                    "probability": 1.0,
+                }
+            )
+    return words
+
+
+def _transcribe_khaya_piece(
+    client: httpx.Client,
+    runtime_config,
+    limiter: _KhayaRateLimiter,
+    cache_dir: Path,
+    piece_path: Path,
+    offset: float,
+    piece_seconds: int,
+    timestamps: str,
+) -> tuple:
+    """Transcribe one piece; returns (words, skipped_ranges).
+
+    Successful responses are saved under ``cache_dir`` so a resumed task never
+    pays for the same audio twice. A piece Khaya keeps failing is re-split into
+    shorter pieces; a short piece that still fails is skipped and reported.
+    """
+    cache_path = cache_dir / (
+        f"{runtime_config.khaya_language}_{timestamps}_{round(offset * 1000)}_{piece_seconds}.json"
+    )
+    if cache_path.exists():
+        payload = json.loads(cache_path.read_text())
+        # A piece Khaya already failed is not retried (and re-billed) on resume;
+        # delete its cache file to try it again.
+        if payload.get("skipped"):
+            return [], [(offset, offset + piece_seconds)]
+        if not payload.get("split"):
+            return _khaya_words_from_response(payload, offset), []
+
+    try:
+        if cache_path.exists():
+            # Already split on an earlier run: go straight to its saved sub-pieces.
+            raise KhayaServerError("split on an earlier run")
+        payload = _khaya_transcribe_chunk(client, runtime_config, piece_path, timestamps, limiter)
+    except KhayaPieceRejected as e:
+        logger.warning("Skipping %.0fs-%.0fs: %s", offset, offset + piece_seconds, e)
+        cache_path.write_text(json.dumps({"skipped": True, "reason": str(e)[:300]}))
+        return [], [(offset, offset + piece_seconds)]
+    except KhayaServerError as e:
+        if piece_seconds > KHAYA_FALLBACK_PIECE_SECONDS:
+            logger.warning(
+                "Khaya kept failing the %ss piece at %.0fs (%s); retrying it in %ss pieces",
+                piece_seconds,
+                offset,
+                e,
+                KHAYA_FALLBACK_PIECE_SECONDS,
+            )
+            cache_path.write_text(json.dumps({"split": True}))
+            sub_pieces = _split_audio_for_khaya(
+                piece_path,
+                KHAYA_FALLBACK_PIECE_SECONDS,
+                cache_dir / f"split_{round(offset * 1000)}",
+            )
+            words: List[Dict[str, Any]] = []
+            skipped: List[tuple] = []
+            for sub_path, sub_offset in sub_pieces:
+                sub_words, sub_skipped = _transcribe_khaya_piece(
+                    client,
+                    runtime_config,
+                    limiter,
+                    cache_dir,
+                    sub_path,
+                    offset + sub_offset,
+                    KHAYA_FALLBACK_PIECE_SECONDS,
+                    timestamps,
+                )
+                words.extend(sub_words)
+                skipped.extend(sub_skipped)
+                sub_path.unlink(missing_ok=True)
+            return words, skipped
+        logger.warning(
+            "Skipping %.0fs-%.0fs: Khaya could not transcribe it (%s)",
+            offset,
+            offset + piece_seconds,
+            e,
+        )
+        cache_path.write_text(json.dumps({"skipped": True, "reason": str(e)[:300]}))
+        return [], [(offset, offset + piece_seconds)]
+
+    cache_path.write_text(json.dumps(payload))
+    return _khaya_words_from_response(payload, offset), []
+
+
+def _group_words_into_segments(words: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Group words into short Whisper-style segments for analysis and captions."""
+    segments: List[Dict[str, Any]] = []
+    current: List[Dict[str, Any]] = []
+    for word in words:
+        # A long pause (or a chunk boundary in silence) starts a new segment.
+        if current and word["start"] - current[-1]["end"] > KHAYA_SEGMENT_MAX_GAP_SECONDS:
+            segments.append(_words_to_segment(current))
+            current = []
+        current.append(word)
+        duration = current[-1]["end"] - current[0]["start"]
+        sentence_end = word["word"].rstrip().endswith((".", "?", "!"))
+        if sentence_end or duration >= KHAYA_SEGMENT_MAX_SECONDS or len(current) >= KHAYA_SEGMENT_MAX_WORDS:
+            segments.append(_words_to_segment(current))
+            current = []
+    if current:
+        segments.append(_words_to_segment(current))
+    return segments
+
+
+def _words_to_segment(words: List[Dict[str, Any]]) -> Dict[str, Any]:
+    return {
+        "text": "".join(w["word"] for w in words).strip(),
+        "start": words[0]["start"],
+        "end": words[-1]["end"],
+        "words": words,
+    }
+
+
+def transcribe_with_khaya(video_path: Path, runtime_config) -> Dict[str, Any]:
+    """Transcribe with Khaya AI ASR into a Whisper-shaped result dict."""
+    if not runtime_config.khaya_api_key:
+        raise RuntimeError("TRANSCRIPTION_PROVIDER=khaya requires KHAYA_API_KEY")
+
+    audio_path = _prepare_audio_for_transcription(video_path)
+    chunks = _split_audio_for_khaya(audio_path, runtime_config.khaya_chunk_seconds)
+    logger.info(
+        "Starting Khaya transcription: %d chunks of %ss (language: %s)",
+        len(chunks),
+        runtime_config.khaya_chunk_seconds,
+        runtime_config.khaya_language,
+    )
+
+    chunk_seconds = runtime_config.khaya_chunk_seconds
+    cache_dir = audio_path.with_name(f"{audio_path.stem}.khaya_cache")
+    cache_dir.mkdir(exist_ok=True)
+    limiter = _KhayaRateLimiter(runtime_config.khaya_requests_per_minute)
+    with httpx.Client(
+        timeout=runtime_config.khaya_request_timeout_seconds,
+        headers={"Ocp-Apim-Subscription-Key": runtime_config.khaya_api_key},
+    ) as client:
+
+        def transcribe(chunk: tuple, timestamps: str) -> tuple:
+            chunk_path, offset = chunk
+            return _transcribe_khaya_piece(
+                client, runtime_config, limiter, cache_dir, chunk_path, offset, chunk_seconds, timestamps
+            )
+
+        timestamps = "word"
+        try:
+            first = transcribe(chunks[0], timestamps)
+        except KhayaTimestampsUnsupported:
+            logger.warning(
+                "Khaya has no word timestamps for %s; using segment timings",
+                runtime_config.khaya_language,
+            )
+            timestamps = "segment"
+            first = transcribe(chunks[0], timestamps)
+
+        with ThreadPoolExecutor(max_workers=runtime_config.khaya_concurrency) as pool:
+            rest = list(pool.map(lambda chunk: transcribe(chunk, timestamps), chunks[1:]))
+    logger.info("Khaya API calls made: %d", limiter.calls)
+
+    words: List[Dict[str, Any]] = []
+    skipped: List[tuple] = []
+    for piece_words, piece_skipped in [first, *rest]:
+        words.extend(piece_words)
+        skipped.extend(piece_skipped)
+
+    for chunk_path, _ in chunks:
+        chunk_path.unlink(missing_ok=True)
+
+    total_seconds = chunks[-1][1] + chunk_seconds
+    skipped_seconds = sum(end - start for start, end in skipped)
+    if skipped_seconds > total_seconds * KHAYA_MAX_SKIPPED_FRACTION:
+        raise RuntimeError(
+            f"Khaya could not transcribe {skipped_seconds:.0f}s of audio; "
+            "finished pieces are saved and a resume will only retry the rest"
+        )
+    if skipped:
+        logger.warning(
+            "Khaya transcript has gaps where audio could not be transcribed: %s",
+            ", ".join(f"{start:.0f}s-{end:.0f}s" for start, end in skipped),
+        )
+
+    segments = _group_words_into_segments(words)
+    logger.info(
+        "Khaya transcription complete: %d words, %d segments (%s timings)",
+        len(words),
+        len(segments),
+        timestamps,
+    )
+    return {
+        "text": " ".join(segment["text"] for segment in segments),
+        "segments": segments,
+        "language": runtime_config.khaya_language,
+    }
+
+
+def _get_transcript_with_khaya(video_path: Path, runtime_config) -> str:
+    """Get transcript using Khaya AI ASR with word-level timestamps."""
+    khaya_result = transcribe_with_khaya(video_path, runtime_config)
+    formatted_lines = format_transcript_for_analysis(khaya_result)
+    cache_transcript_data(video_path, khaya_result)
+    result = "\n".join(formatted_lines)
+    logger.info(
+        "Khaya transcript formatted: %d segments, %d chars",
         len(formatted_lines),
         len(result),
     )
