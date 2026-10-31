@@ -11,6 +11,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 - **New:** Each finished clip has a "Titles & hashtags" panel that writes a title, description, and hashtags for TikTok, YouTube Shorts, and Instagram Reels, ready to copy.
 - **New:** Choose how many clips you want, from 1 to 20, when you start a new video.
 - **New:** Add optional instructions for the AI, such as "focus on the funny moments", when you start a new video.
+- **Improved:** Self-hosted servers can process long videos: set `WORKER_JOB_TIMEOUT_SECONDS` and `PROCESSING_TASK_TIMEOUT_SECONDS` alongside `MAX_VIDEO_DURATION` so multi-hour jobs are not cut off.
 - **Improved:** The footer, terms, and privacy policy now identify the company operating SupoClip. ([#314](https://github.com/FujiwaraChoki/supoclip/pull/314))
 
 ## 2026-10-29
