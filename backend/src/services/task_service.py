@@ -72,6 +72,9 @@ class TaskService(ClipEditingMixin):
         # request never reuses a 720p source. Full quality keeps the old key.
         if quality and source_type == "youtube":
             payload += f"|q{quality}"
+        # 4K is opt-in: keep full-quality 1080p and 4K sources apart.
+        elif not quality and getattr(get_config(), "max_output_height", 1080) == 2160:
+            payload += "|q2160"
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     @staticmethod

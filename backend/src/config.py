@@ -69,7 +69,9 @@ class Config:
         self.youtube_pot_provider_url = os.getenv("YOUTUBE_POT_PROVIDER_URL", "").strip()
         self.youtube_download_max_bytes = self._get_int_env("YOUTUBE_DOWNLOAD_MAX_BYTES", 2_000_000_000)
         self.youtube_section_padding_seconds = self._get_float_env("YOUTUBE_SECTION_PADDING_SECONDS", 10.0)
-        self.youtube_max_height = self._get_int_env("YOUTUBE_MAX_HEIGHT", 1080)
+        # Server-wide output ceiling; 2160 opts in to 4K, anything else is 1080.
+        self.max_output_height = 2160 if self._get_int_env("MAX_OUTPUT_HEIGHT", 1080) == 2160 else 1080
+        self.youtube_max_height = self._get_int_env("YOUTUBE_MAX_HEIGHT", self.max_output_height)
         self.youtube_source_cache = self._get_bool_env("YOUTUBE_SOURCE_CACHE", True)
         self.youtube_source_cache_ttl_seconds = self._get_int_env(
             "YOUTUBE_SOURCE_CACHE_TTL_SECONDS", 604800
@@ -83,7 +85,8 @@ class Config:
         self.apify_stream_timeout_seconds = self._get_int_env("APIFY_STREAM_TIMEOUT_SECONDS", 300)
         self.apify_kick_max_video_size_mb = self._get_int_env("APIFY_KICK_MAX_VIDEO_SIZE_MB", 2000)
         self.apify_youtube_default_quality = self._normalize_apify_quality(
-            os.getenv("APIFY_YOUTUBE_DEFAULT_QUALITY", "1080")
+            os.getenv("APIFY_YOUTUBE_DEFAULT_QUALITY", str(self.max_output_height)),
+            self.max_output_height,
         )
         self.apify_youtube_downloader_actor = os.getenv(
             "APIFY_YOUTUBE_DOWNLOADER_ACTOR", ""
@@ -378,11 +381,11 @@ class Config:
         return [item.strip() for item in value.split(",") if item.strip()]
 
     @staticmethod
-    def _normalize_apify_quality(value: str | None) -> str:
+    def _normalize_apify_quality(value: str | None, fallback: int = 1080) -> str:
         normalized = (value or "").strip()
         if normalized in {"360", "480", "720", "1080", "1440", "2160"}:
             return normalized
-        return "1080"
+        return str(fallback)
 
     @staticmethod
     def _normalize_transcription_provider(value: str | None) -> str:

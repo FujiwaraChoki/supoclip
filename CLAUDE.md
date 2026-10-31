@@ -253,7 +253,8 @@ YOUTUBE_DOWNLOAD_PROVIDER=yt_dlp     # yt_dlp | apify
 YOUTUBE_PROXY_URL=                   # Optional residential proxy template; empty = off
 YOUTUBE_POT_PROVIDER_URL=            # Optional bgutil base URL (http://bgutil:4416)
 YOUTUBE_DOWNLOAD_MAX_BYTES=2000000000
-YOUTUBE_MAX_HEIGHT=1080              # Hard cap; lower values are honored
+MAX_OUTPUT_HEIGHT=1080               # 2160 opts in to 4K sources and landscape output (vertical stays 1080x1920)
+YOUTUBE_MAX_HEIGHT=                  # Download cap; defaults to MAX_OUTPUT_HEIGHT, lower values are honored
 APIFY_EXPENSIVE_FALLBACKS=false      # Skip high-cap Apify fallback actors
 
 # Optional

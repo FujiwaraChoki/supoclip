@@ -62,8 +62,8 @@ class YouTubeDownloader:
 
         opts = {
             "outtmpl": str(output_path),
-            # Cap at 1080p. Vertical clips are 1080x1920, and a 4K source
-            # multiplies bandwidth without improving the export.
+            # Cap at the output height (1080p unless MAX_OUTPUT_HEIGHT opts in
+            # to 4K); a larger source only multiplies bandwidth.
             "format": video_format_selector(max_height),
             "format_sort": ["res", "fps"],
             "merge_output_format": "mp4",
@@ -472,17 +472,19 @@ async def async_get_youtube_video_title(url: str) -> Optional[str]:
     return video_info.get("title") if video_info else None
 
 
-APIFY_LONG_VIDEO_MAX_QUALITY = "1080"
+def _long_video_max_quality() -> str:
+    return str(get_config().max_output_height)
 
 
 def _resolve_apify_quality(url: str, requested: Optional[str] = None) -> str:
     """Pick the Apify quality: the plan's cap when lower than the default, and
     at most 1080p for long videos so the run finishes before its timeout."""
     config = get_config()
+    long_max = _long_video_max_quality()
     quality = config.apify_youtube_default_quality
     if requested and int(requested) < int(quality):
         quality = requested
-    if int(quality) <= int(APIFY_LONG_VIDEO_MAX_QUALITY):
+    if int(quality) <= int(long_max):
         return quality
 
     try:
@@ -496,10 +498,10 @@ def _resolve_apify_quality(url: str, requested: Optional[str] = None) -> str:
         logger.info(
             "Video is %ss long; capping Apify quality at %sp instead of %sp",
             duration,
-            APIFY_LONG_VIDEO_MAX_QUALITY,
+            long_max,
             quality,
         )
-        return APIFY_LONG_VIDEO_MAX_QUALITY
+        return long_max
     return quality
 
 
