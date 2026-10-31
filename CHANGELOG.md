@@ -6,6 +6,11 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-10-31
 
+- **New:** Self-hosted servers can opt in to 4K with `MAX_OUTPUT_HEIGHT=2160`, keeping 4K sources instead of scaling them down to 1080p. The default stays 1080p.
+- **New:** B-roll can also come from Pixabay when `PIXABAY_API_KEY` is set and there is no Pexels key.
+- **New:** Each finished clip has a "Titles & hashtags" panel that writes a title, description, and hashtags for TikTok, YouTube Shorts, and Instagram Reels, ready to copy.
+- **New:** Choose how many clips you want, from 1 to 20, when you start a new video.
+- **New:** Add optional instructions for the AI, such as "focus on the funny moments", when you start a new video.
 - **Improved:** The footer, terms, and privacy policy now identify the company operating SupoClip. ([#314](https://github.com/FujiwaraChoki/supoclip/pull/314))
 
 ## 2026-10-29
