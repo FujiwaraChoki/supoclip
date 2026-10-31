@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-10-31
 
+- **New:** Download all of a generation's clips at once as a ZIP from the task page. The download starts right away and streams the original files. ([#321](https://github.com/FujiwaraChoki/supoclip/pull/321))
 - **Improved:** The footer, terms, and privacy policy now identify the company operating SupoClip. ([#314](https://github.com/FujiwaraChoki/supoclip/pull/314))
 
 ## 2026-10-29
