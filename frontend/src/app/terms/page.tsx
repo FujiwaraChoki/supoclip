@@ -8,7 +8,7 @@ import { intlLocale } from "@/i18n/config";
 import { HOSTED_APP_URL, getSiteUrl } from "@/lib/blog-posts";
 import { COMPANY_NAME, COMPANY_REGISTERED_ADDRESS, COMPANY_REGISTRATION_NUMBER } from "@/lib/site";
 
-const LAST_UPDATED = "2026-10-30";
+const LAST_UPDATED = "2026-10-31";
 const CONTACT_EMAIL = "support@supoclip.com";
 
 function formatLegalDate(locale: string) {
