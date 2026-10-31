@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-10-31
 
-- **New:** Clips scoring below a virality floor (default 80%, set with `MIN_VIRALITY_SCORE`; 0 turns it off) are no longer generated. If nothing in a video reaches the floor, the task says so instead of returning weak clips.
+- **New:** Clips scoring below a virality floor (default 80%, set with `MIN_VIRALITY_SCORE`; 0 turns it off) are ranked first; when fewer than your clip count reach it, the best remaining moments fill the rest so you always get clips.
 - **Improved:** Clip selection now favours what holds viewers to the end: a hook in the first seconds, a clear payoff, clips that stand alone, emotional peaks, and endings that loop. The AI proposes extra candidates so the clip count you pick is easier to reach.
 - **Improved:** Transcription on self-hosted servers uses faster-whisper with the `large-v3-turbo` model by default, several times faster than before on CPU. Set `WHISPER_ENGINE=openai` to switch back.
 - **Improved:** Twitch VODs can be up to 48 hours long (`TWITCH_MAX_VIDEO_DURATION`).

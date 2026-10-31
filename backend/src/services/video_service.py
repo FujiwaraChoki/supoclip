@@ -264,21 +264,31 @@ class VideoService:
         return segments
 
     @staticmethod
-    def _apply_virality_floor(segments: list[dict], floor: int) -> list[dict]:
-        """Drop sub-floor segments (order kept); raise if none survive."""
+    def _apply_virality_floor(segments: list[dict], floor: int, limit: int) -> list[dict]:
+        """Prefer segments at or above the floor, then fill up to ``limit``.
+
+        Segments that reach the floor come first in their existing order. When
+        fewer than ``limit`` qualify, the highest-scoring remaining segments
+        fill the gap, so a video with no 80%+ moment still returns its best
+        clips instead of none.
+        """
+        limit = max(1, limit)
         if floor <= 0:
-            return segments
-        kept = [s for s in segments if int(s.get("virality_score") or 0) >= floor]
-        if len(kept) < len(segments):
-            logger.info(
-                "Virality floor %s dropped %s of %s segments",
-                floor, len(segments) - len(kept), len(segments),
-            )
-        if not kept:
-            raise ValueError(
-                f"No moments scored at least {floor}% virality. Try a longer video, "
-                "a different clip length, or lower MIN_VIRALITY_SCORE."
-            )
+            return segments[:limit]
+
+        def score(segment: dict) -> int:
+            return int(segment.get("virality_score") or 0)
+
+        kept = [s for s in segments if score(s) >= floor][:limit]
+        if len(kept) < limit:
+            below = sorted((s for s in segments if score(s) < floor), key=score, reverse=True)
+            fill = below[: limit - len(kept)]
+            if fill:
+                logger.info(
+                    "Virality floor %s: %s segment(s) qualified; filled %s below the floor "
+                    "(best %s)", floor, len(kept), len(fill), score(fill[0]),
+                )
+            kept += fill
         return kept
 
     @staticmethod
@@ -1292,9 +1302,8 @@ class VideoService:
                     logger.exception("Visual suitability check failed; keeping every segment")
 
             segments_json = VideoService._apply_virality_floor(
-                segments_json, runtime_config.min_virality_score
+                segments_json, runtime_config.min_virality_score, clip_limit
             )
-            segments_json = segments_json[:max(1, clip_limit)]
             if not segments_json:
                 raise ValueError("No usable footage remains after excluding interruption notices.")
 
