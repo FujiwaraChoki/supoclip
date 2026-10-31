@@ -66,7 +66,7 @@ export default async function StatusPage() {
       <header className="border-b bg-background">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="" width={24} height={24} className="rounded-lg" />
+            <Image src="/logo.png" alt="" width={24} height={24} className="rounded-lg dark:invert" />
             <span className="font-display text-lg font-bold">SupoClip</span>
           </Link>
           <span className="text-sm text-muted-foreground">{t("title")}</span>

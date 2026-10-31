@@ -43,6 +43,9 @@
     "signingOut": "Cerrando sesión…",
     "signOutError": "No se pudo cerrar la sesión. Inténtalo de nuevo."
   },
+  "theme": {
+    "toggle": "Cambiar tema claro/oscuro"
+  },
   "announcements": {
     "whatsNew": "Novedades",
     "whatsNewUnread": "Novedades, {count, plural, one {# anuncio sin leer} other {# anuncios sin leer}}",

@@ -7,6 +7,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 ## 2026-10-31
 
 - **Improved:** The footer, terms, and privacy policy now identify the company operating SupoClip. ([#314](https://github.com/FujiwaraChoki/supoclip/pull/314))
+- **New:** Switch between a light and dark theme from the sidebar (or the header on mobile). The app starts light and remembers your choice; the website and sign-in pages stay light. ([#312](https://github.com/FujiwaraChoki/supoclip/pull/312))
 
 ## 2026-10-29
 

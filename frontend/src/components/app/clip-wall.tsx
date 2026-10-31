@@ -93,7 +93,7 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
             </Button>
           )}
           {onDelete && (
-            <Button size="icon-sm" variant="ghost" className="size-7 text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={onDelete} aria-label={t("deleteClip")}>
+            <Button size="icon-sm" variant="ghost" className="size-7 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={onDelete} aria-label={t("deleteClip")}>
               <Trash2 className="size-3.5" />
             </Button>
           )}
@@ -206,7 +206,7 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                 )}
                 {actions}
                 {onDelete && (
-                  <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground hover:bg-red-50 hover:text-red-600" onClick={onDelete}>
+                  <Button size="sm" variant="ghost" className="ml-auto text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={onDelete}>
                     <Trash2 className="size-4" />{t("delete")}
                   </Button>
                 )}
@@ -347,7 +347,7 @@ export function ProcessingSlots({ status, progress, message, total, className, c
 export function EmptyState({ icon, title, body, tone, children }: { icon: React.ReactNode; title: string; body: string; tone?: "error"; children?: React.ReactNode }) {
   return (
     <div className="flex flex-col items-center rounded-2xl border border-dashed px-6 py-16 text-center">
-      <span className={cn("flex size-14 items-center justify-center rounded-2xl", tone === "error" ? "bg-red-50 text-red-600" : "bg-muted text-muted-foreground")}>{icon}</span>
+      <span className={cn("flex size-14 items-center justify-center rounded-2xl", tone === "error" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground")}>{icon}</span>
       <h2 className="mt-4 text-lg font-semibold">{title}</h2>
       <p className="mt-1 max-w-md text-sm text-muted-foreground">{body}</p>
       {children && <div className="mt-6 flex gap-2">{children}</div>}

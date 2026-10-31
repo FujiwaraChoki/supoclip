@@ -586,7 +586,7 @@ export default function HomeApp() {
                               {availableFonts.length > 0 && filteredFonts.length === 0 && <SelectItem value="__no_match__" disabled>{t("noFontMatch")}</SelectItem>}
                             </SelectContent>
                           </Select>
-                          {fontLoadError && <p className="text-xs text-amber-700">{fontLoadError}</p>}
+                          {fontLoadError && <p className="text-xs text-amber-700 dark:text-amber-400">{fontLoadError}</p>}
                         </div>
                         <CaptionSizeControl value={fontSize} onChange={setFontSize} disabled={controlsDisabled} />
                         <div className="space-y-2">
@@ -711,9 +711,9 @@ export default function HomeApp() {
           {isLoading && statusMessage && <p role="status" className="mt-3 text-center text-sm text-muted-foreground sm:hidden">{statusMessage}</p>}
 
           {error && (
-            <Alert className="mt-4 border-red-200 bg-red-50">
+            <Alert className="mt-4 border-red-200 bg-red-50 dark:border-red-900/60 dark:bg-red-950/40">
               <AlertCircle className="h-4 w-4 text-red-500" />
-              <AlertDescription className="text-sm text-red-700">{error}</AlertDescription>
+              <AlertDescription className="text-sm text-red-700 dark:text-red-300">{error}</AlertDescription>
             </Alert>
           )}
 
