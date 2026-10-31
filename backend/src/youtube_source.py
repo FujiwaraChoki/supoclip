@@ -27,6 +27,7 @@ from .youtube_proxy import (
     PartialDownloadUnavailable,
     YouTubeDownloadError,
     YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
+    capped_height,
     download_audio,
     download_section_file,
     log_youtube_attempt,
@@ -573,6 +574,50 @@ def _full_path(directory: Path, manifest: dict) -> Optional[Path]:
     return None
 
 
+def requested_height(quality: Optional[str] = None) -> int:
+    """Height cap a full download for this plan quality is fetched under."""
+    return capped_height(int(quality) if quality else None)
+
+
+def _full_height(path: Path, manifest: dict) -> int:
+    """Height cap the cached full file was downloaded under.
+
+    Entries stored before heights were recorded are probed. A file that reads
+    lower than a request (a 720p plan's download, or a source that is itself
+    below 1080p) is downloaded again once and then recorded.
+    """
+    try:
+        return int(manifest["full_height"])
+    except (KeyError, TypeError, ValueError):
+        pass
+    from .media.ffmpeg import ffprobe_video_size
+
+    try:
+        return ffprobe_video_size(path)[1]
+    except Exception:
+        return 0
+
+
+def _usable_full(directory: Path, manifest: dict, quality: Optional[str]) -> Optional[Path]:
+    """The cached full file, when it was downloaded at or above ``quality``.
+
+    A 1080p file can serve a 720p plan (clips are scaled down when rendered),
+    but a 720p plan's download must not serve a 1080p request.
+    """
+    path = _full_path(directory, manifest)
+    if path is None:
+        return None
+    stored = _full_height(path, manifest)
+    wanted = requested_height(quality)
+    if stored >= wanted:
+        return path
+    logger.info(
+        "Cached full source for %s is %sp; %sp requested, not reusing it",
+        manifest.get("video_id"), stored, wanted,
+    )
+    return None
+
+
 def _audio_path(directory: Path, manifest: dict) -> Optional[Path]:
     name = manifest.get("audio")
     if not name:
@@ -583,29 +628,63 @@ def _audio_path(directory: Path, manifest: dict) -> Optional[Path]:
     return None
 
 
-def adopt_full_download(video_id: str, source: Path, *, task_id: Optional[str] = None) -> Path:
-    """Move a full download into the durable cache and return that path."""
+def _discard_staged_download(video_id: str, source: Path, dest: Path) -> None:
+    if CACHE_DIRNAME in source.parts or not source.exists():
+        return
+    staging = source.parent
+    source.unlink(missing_ok=True)
+    transcript = source.with_suffix(".transcript_cache.json")
+    if transcript.exists() and transcript.resolve() != dest.with_suffix(".transcript_cache.json").resolve():
+        transcript.unlink(missing_ok=True)
+    if staging.name.startswith(f"apify-{video_id}-"):
+        shutil.rmtree(staging, ignore_errors=True)
+
+
+def adopt_full_download(
+    video_id: str,
+    source: Path,
+    *,
+    task_id: Optional[str] = None,
+    quality: Optional[str] = None,
+) -> Path:
+    """Move a full download into the durable cache and return that path.
+
+    ``quality`` is the plan quality the file was downloaded with. Each height
+    gets its own file, so a better download never rewrites a file another job
+    is reading, and an equal or lower one keeps the stored copy.
+    """
     runtime = get_config()
     if not getattr(runtime, "youtube_source_cache", True):
         return source
     directory = cache_dir_for(video_id, runtime)
+    height = requested_height(quality)
     with _cache_lock(directory):
         _restore_remote_cache(video_id, directory)
         manifest = _load_manifest(directory, video_id)
-        dest = directory / f"full{source.suffix.lower() or '.mp4'}"
-        if source.resolve() != dest.resolve():
-            shutil.copy2(source, dest)
-        manifest["full"] = dest.name
-        _save_manifest(directory, manifest)
+        previous = _full_path(directory, manifest)
+        existing = _usable_full(directory, manifest, quality)
+        if existing is not None and existing.resolve() != source.resolve():
+            kept = existing
+        else:
+            kept = None
+            dest = directory / f"full-{height}{source.suffix.lower() or '.mp4'}"
+            if source.resolve() != dest.resolve():
+                shutil.copy2(source, dest)
+            manifest["full"] = dest.name
+            manifest["full_height"] = height
+            _save_manifest(directory, manifest)
+    if kept is not None:
+        _discard_staged_download(video_id, source, kept)
+        log_youtube_attempt(
+            provider="cache", video_id=video_id, kind="full",
+            outcome="cache_hit", nbytes=0, task_id=task_id,
+        )
+        return kept
     copy_transcript_sidecar(source, dest)
-    if CACHE_DIRNAME not in source.parts and source.exists():
-        staging = source.parent
-        source.unlink(missing_ok=True)
-        transcript = source.with_suffix(".transcript_cache.json")
-        if transcript.exists() and transcript.resolve() != dest.with_suffix(".transcript_cache.json").resolve():
-            transcript.unlink(missing_ok=True)
-        if staging.name.startswith(f"apify-{video_id}-"):
-            shutil.rmtree(staging, ignore_errors=True)
+    if previous is not None and not dest.with_suffix(".transcript_cache.json").exists():
+        # Same source timeline, so an upgraded file keeps the word timings.
+        copy_transcript_sidecar(previous, dest)
+    _discard_staged_download(video_id, source, dest)
     _persist_named(video_id, dest)
     transcript = dest.with_suffix(".transcript_cache.json")
     if transcript.exists():
@@ -908,10 +987,12 @@ def materialize_clip_source(
     budget: Optional[ByteBudget] = None,
     duration: Optional[float] = None,
     audio_path: Optional[Path] = None,
+    quality: Optional[str] = None,
 ) -> Path:
     """Build a render file that covers the selected segments.
 
-    A cached full download is returned unchanged (original timestamps).
+    A cached full download at or above ``quality`` is returned unchanged
+    (original timestamps). Sections are always fetched at the global cap.
     Otherwise only missing padded ranges are fetched, then assembled into a
     local timeline with a ``.timeline.json`` sidecar.
     """
@@ -929,7 +1010,7 @@ def materialize_clip_source(
     with _cache_lock(directory):
         _restore_remote_cache(video_id, directory)
         manifest = _load_manifest(directory, video_id)
-        full = _full_path(directory, manifest)
+        full = _usable_full(directory, manifest, quality)
         if full:
             log_youtube_attempt(
                 provider="cache", video_id=video_id, kind="full",
@@ -997,8 +1078,8 @@ def materialize_clip_source(
     return render_path
 
 
-def cached_full_media(video_id: str) -> Optional[Path]:
-    """Return a fresh cached full download, if one is already stored."""
+def cached_full_media(video_id: str, quality: Optional[str] = None) -> Optional[Path]:
+    """Return a fresh cached full download at or above ``quality``, if stored."""
     runtime = get_config()
     if not getattr(runtime, "youtube_source_cache", True):
         return None
@@ -1008,7 +1089,7 @@ def cached_full_media(video_id: str) -> Optional[Path]:
         return None
     with _cache_lock(directory):
         _restore_remote_cache(video_id, directory)
-        return _full_path(directory, _load_manifest(directory, video_id))
+        return _usable_full(directory, _load_manifest(directory, video_id), quality)
 
 
 def resolve_full_youtube_download(
@@ -1019,10 +1100,13 @@ def resolve_full_youtube_download(
     task_id: Optional[str] = None,
     budget: Optional[ByteBudget] = None,
     skip_proxy: bool = False,
+    quality: Optional[str] = None,
 ) -> Optional[Path]:
     """Return a cached full file, or download one and store it.
 
-    ``download_full`` is the existing provider chain (proxy first unless skipped).
+    ``download_full`` is the existing provider chain (proxy first unless
+    skipped) and must download at ``quality``. A cached file below it is not
+    reused.
     """
     runtime = get_config()
     if getattr(runtime, "youtube_source_cache", True):
@@ -1030,7 +1114,7 @@ def resolve_full_youtube_download(
         directory = cache_dir_for(video_id, runtime)
         with _cache_lock(directory):
             _restore_remote_cache(video_id, directory)
-            full = _full_path(directory, _load_manifest(directory, video_id))
+            full = _usable_full(directory, _load_manifest(directory, video_id), quality)
         if full:
             log_youtube_attempt(
                 provider="cache", video_id=video_id, kind="full",
@@ -1041,7 +1125,7 @@ def resolve_full_youtube_download(
     if not downloaded:
         return None
     if getattr(runtime, "youtube_source_cache", True):
-        return adopt_full_download(video_id, Path(downloaded), task_id=task_id)
+        return adopt_full_download(video_id, Path(downloaded), task_id=task_id, quality=quality)
     return Path(downloaded)
 
 
