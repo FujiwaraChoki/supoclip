@@ -24,8 +24,10 @@ from .youtube_proxy import (
     DownloadBudgetExceeded,
     base_proxy_params,
     download_full_with_proxy,
+    YouTubeDownloadError,
     log_youtube_attempt,
     proxy_configured,
+    public_download_error,
     redact_secrets,
     video_format_selector,
 )
@@ -393,6 +395,8 @@ async def async_get_youtube_video_info(
 def get_youtube_video_info(
     url: str,
     task_id: Optional[str] = None,
+    *,
+    errors: Optional[list[str]] = None,
 ) -> Optional[Dict[str, Any]]:
     video_id = get_youtube_video_id(url)
     if not video_id:
@@ -453,6 +457,8 @@ def get_youtube_video_info(
 
     if last_error:
         logger.warning("YouTube video info fetch failed for %s: %s", video_id, last_error)
+        if errors is not None:
+            errors.append(public_download_error(last_error))
     return None
 
 
@@ -543,12 +549,17 @@ def _download_youtube_video_with_ytdlp(
         return None
 
     downloader = YouTubeDownloader()
+    info_errors: list[str] = []
     video_info = get_youtube_video_info(
         url,
         task_id=task_id,
+        errors=info_errors,
     )
     if not video_info:
         logger.error(f"Could not retrieve video information for: {url}")
+        if info_errors:
+            # Raised so the provider chain records why yt-dlp gave up.
+            raise YouTubeDownloadError(info_errors[-1])
         return None
 
     logger.info(f"Video: '{video_info.get('title')}' ({video_info.get('duration')}s)")
@@ -626,6 +637,7 @@ def _download_youtube_video_with_ytdlp(
 
     if last_error:
         logger.error("All download attempts failed for %s: %s", url, last_error)
+        raise YouTubeDownloadError(public_download_error(last_error))
 
     return None
 
@@ -670,13 +682,15 @@ def download_youtube_video(
     *,
     budget: Optional[ByteBudget] = None,
     skip_proxy: bool = False,
+    errors: Optional[list[str]] = None,
 ) -> Optional[Path]:
     """
     Download a full YouTube video using the configured provider chain.
 
     When ``YOUTUBE_PROXY_URL`` is set, a 1080p yt-dlp download through that
     proxy is attempted first. The clip pipeline prefers audio-then-sections
-    and uses this full-file chain only as a fallback.
+    and uses this full-file chain only as a fallback. ``errors`` collects each
+    provider's failure reason (redacted) for callers that report it.
     """
     logger.info("Starting YouTube download: %s", url)
 
@@ -718,6 +732,8 @@ def download_youtube_video(
             raise
         except ApifyDownloadError as exc:
             _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
+            if errors is not None:
+                errors.append(public_download_error(exc))
             if exc.permanent:
                 return None
             continue
@@ -726,6 +742,8 @@ def download_youtube_video(
             logger.warning(
                 "%s download failed for %s: %s", provider, url, redact_secrets(str(exc)),
             )
+            if errors is not None:
+                errors.append(public_download_error(exc))
             continue
 
         if not downloaded_path:
