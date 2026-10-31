@@ -423,7 +423,7 @@ async def apply_plan(
     Every operation is checked on its own; one bad step is skipped rather than
     failing the whole request.
     """
-    from ..broll import broll_configured, choose_video, footage_from_video, search_pexels_videos
+    from ..broll import broll_configured, choose_video, footage_from_video, search_stock_videos
 
     doc = document.model_dump()
     words = {w["id"]: w for w in doc["words"]}
@@ -505,7 +505,7 @@ async def apply_plan(
                 continue
             orientation, short_side = _broll_target(doc["framing"]["aspect"], width, height)
             used = {b["footage"]["id"] for b in doc["broll"]}
-            videos = await search_pexels_videos(op.query, orientation)
+            videos = await search_stock_videos(op.query, orientation)
             video = choose_video(videos, end - start, orientation, used)
             footage = footage_from_video(video, short_side, orientation) if video else None
             if not footage:

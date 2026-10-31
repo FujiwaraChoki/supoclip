@@ -92,14 +92,14 @@ class Effects(Model):
 
 
 class BRollFootage(Model):
-    """A stock video rendition. Only Pexels' video CDN is ever downloaded."""
+    """A stock video rendition. Only Pexels' and Pixabay's video CDNs are ever downloaded."""
 
-    provider: Literal["pexels"] = "pexels"
+    provider: Literal["pexels", "pixabay"] = "pexels"
     id: int = Field(gt=0)
     width: int = Field(gt=0, le=8192)
     height: int = Field(gt=0, le=8192)
     duration: float = Field(gt=0, le=3600)
-    fileUrl: str = Field(pattern=r"^https://videos\.pexels\.com/[^\s]{1,500}$")
+    fileUrl: str = Field(pattern=r"^https://(videos\.pexels\.com|cdn\.pixabay\.com)/[^\s]{1,500}$")
     pageUrl: str = Field(default="", max_length=500)
     thumbnail: str = Field(default="", max_length=500)
     credit: str = Field(default="", max_length=200)

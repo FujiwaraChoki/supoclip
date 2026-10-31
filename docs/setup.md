@@ -20,7 +20,7 @@ This guide covers the recommended Docker setup, local development mode, and the 
 
 ### Optional credentials
 
-- `PEXELS_API_KEY` for AI B-roll sourcing
+- `PEXELS_API_KEY` (or `PIXABAY_API_KEY`) for AI B-roll sourcing
 - `NEXT_PUBLIC_DATAFAST_WEBSITE_ID` and `NEXT_PUBLIC_DATAFAST_DOMAIN` for DataFast analytics
 - `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `SES_FROM_EMAIL` for hosted billing emails
 - Stripe keys if you are running with monetization enabled

@@ -151,6 +151,7 @@ Current code and defaults emphasize a `fast` mode. If you expose additional mode
 | Variable | Default | Purpose |
 |---|---|---|
 | `PEXELS_API_KEY` | unset | Enables AI B-roll sourcing from Pexels |
+| `PIXABAY_API_KEY` | unset | Enables AI B-roll sourcing from Pixabay when no Pexels key is set |
 
 Fonts and transitions are configured by mounted files rather than environment variables:
 

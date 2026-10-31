@@ -42,6 +42,7 @@ class Config:
             os.getenv("ASSEMBLY_AI_REQUEST_TIMEOUT_SECONDS", "60")
         )))
         self.pexels_api_key = self._get_runtime_setting("PEXELS_API_KEY")
+        self.pixabay_api_key = self._get_runtime_setting("PIXABAY_API_KEY")
         self.apify_api_token = self._get_runtime_setting("APIFY_API_TOKEN")
         self.rapidapi_youtube_api_key = self._get_optional_env("RAPIDAPI_YOUTUBE_API_KEY")
         self.rapidapi_youtube_timeout_seconds = int(
@@ -328,6 +329,7 @@ class Config:
             "YOUTUBE_DATA_API_KEY": self.youtube_data_api_key,
             "APIFY_API_TOKEN": self.apify_api_token,
             "PEXELS_API_KEY": self.pexels_api_key,
+            "PIXABAY_API_KEY": self.pixabay_api_key,
         }
 
     @staticmethod

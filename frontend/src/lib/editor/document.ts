@@ -57,9 +57,9 @@ export interface Effects {
   blur: number;
   hue: number;
 }
-/** A Pexels video rendition; the server only downloads from Pexels' CDN. */
+/** A stock video rendition; the server only downloads from Pexels' and Pixabay's CDNs. */
 export interface BRollFootage {
-  provider: "pexels";
+  provider: "pexels" | "pixabay";
   id: number;
   width: number;
   height: number;
@@ -426,7 +426,8 @@ export const brollOf = (doc: EditDocument) => doc.broll ?? [];
 export const footageKey = (footage: BRollFootage) =>
   `${footage.id}/${footage.width}x${footage.height}`;
 export const footageUrl = (endpoint: string, footage: BRollFootage) =>
-  `${endpoint}/broll/footage/${footage.id}/${footage.width}x${footage.height}.mp4`;
+  `${endpoint}/broll/footage/${footage.id}/${footage.width}x${footage.height}.mp4` +
+  (footage.provider === "pixabay" ? "?provider=pixabay" : "");
 
 /** The B-roll clip on screen at a source time, if any. */
 export function brollAt(doc: EditDocument, sourceTime: number) {

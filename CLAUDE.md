@@ -259,6 +259,7 @@ APIFY_EXPENSIVE_FALLBACKS=false      # Skip high-cap Apify fallback actors
 
 # Optional
 PEXELS_API_KEY=...                   # B-roll stock footage
+PIXABAY_API_KEY=...                  # B-roll alternative, used when PEXELS_API_KEY is unset
 YOUTUBE_OAUTH_CLIENT_ID=...          # Social publishing: Google OAuth client (+ _SECRET)
 TIKTOK_CLIENT_KEY=...                # Social publishing: TikTok app (+ TIKTOK_CLIENT_SECRET)
 INSTAGRAM_APP_ID=...                 # Social publishing: Meta app with Instagram Login (+ _SECRET)

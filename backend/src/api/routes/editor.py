@@ -430,8 +430,8 @@ async def broll_search(
     aspect: str = "vertical",
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
-    """Pexels footage for the B-roll panel, sized for the draft's frame."""
-    from ...broll import search_footage
+    """Stock footage for the B-roll panel, sized for the draft's frame."""
+    from ...broll import broll_provider, search_footage
 
     _require_broll()
     query = " ".join(q.split())[:80]
@@ -442,7 +442,7 @@ async def broll_search(
     _, directory = await context(request, db, task_id, clip_id)
     orientation, short_side = _broll_target(aspect, read_state(directory))
     results = await search_footage(query, orientation, short_side, page)
-    return {"results": results, "provider": "pexels"}
+    return {"results": results, "provider": broll_provider()}
 
 
 @router.post("/{task_id}/clips/{clip_id}/editor/broll/suggest")
@@ -495,13 +495,14 @@ async def broll_footage(
     video_id: int,
     size: str,
     request: Request,
+    provider: str = "pexels",
     db: AsyncSession = Depends(get_db, scope="function"),
 ):
-    """Stream a cached Pexels rendition so the preview can draw it on its canvas."""
+    """Stream a cached stock rendition so the preview can draw it on its canvas."""
     from ...broll import ensure_footage_file
 
     match = re.fullmatch(r"(\d{2,5})x(\d{2,5})\.mp4", size)
-    if not match or video_id <= 0:
+    if not match or video_id <= 0 or provider not in {"pexels", "pixabay"}:
         raise HTTPException(404, "Footage not found")
     service = TaskService(db)
     await _require_task_owner(request, service, db, task_id)
@@ -510,7 +511,7 @@ async def broll_footage(
         raise HTTPException(404, "Clip not found")
     await db.close()
     path = await ensure_footage_file(
-        {"id": video_id, "width": int(match[1]), "height": int(match[2]), "fileUrl": None}
+        {"provider": provider, "id": video_id, "width": int(match[1]), "height": int(match[2]), "fileUrl": None}
     )
     if path is None:
         raise HTTPException(404, "Footage not found")
