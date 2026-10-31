@@ -19,6 +19,7 @@ import { fetchGenerations, timeAgo, type GenerationSummary } from "@/lib/generat
 import { StatusBadge } from "@/components/app/status-badge";
 import { Announcements } from "@/components/announcements";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useAppTheme } from "@/components/theme-provider";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Kbd } from "@/components/ui/kbd";
@@ -76,6 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Children must keep the same tree position whether or not the session has
   // loaded — otherwise the page remounts and re-runs its initial fetches.
   const user = session?.user;
+  useAppTheme(Boolean(user));
   const admin = Boolean((user as { is_admin?: boolean } | undefined)?.is_admin);
   const socialAccess = useSocialAccess(Boolean(user));
   const labeled = NAV.map((item) => ({ ...item, label: t(`nav.${item.labelKey}`) }));

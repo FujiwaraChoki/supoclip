@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
-import { ThemeProvider } from "next-themes";
 import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import { Geist, Geist_Mono, Syne } from "next/font/google";
 import Script from "next/script";
@@ -11,6 +10,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FeedbackButton } from "@/components/feedback-button";
 import { PostHogIdentity } from "@/components/posthog-identity";
+import { ThemeProvider } from "@/components/theme-provider";
 import { intlLocale } from "@/i18n/config";
 import { APP_STORE_ID, COMPANY_NAME, getSiteUrl } from "@/lib/site";
 
@@ -132,7 +132,7 @@ export default async function RootLayout({
         ) : null}
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${syne.variable} antialiased`}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider>
           <NextIntlClientProvider locale={locale} messages={messages}>
             <TooltipProvider>
               {children}
