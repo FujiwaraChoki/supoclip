@@ -26,7 +26,19 @@
     "upload": "Upload",
     "clips": "{count, plural, one {# Clip} other {# Clips}}",
     "select": "{title} auswählen",
-    "deselect": "Auswahl von {title} aufheben"
+    "deselect": "Auswahl von {title} aufheben",
+    "workflow": {
+      "series": "Serie · {count, plural, one {# Teil} other {# Teile}}",
+      "topic": "Thema · {count, plural, one {# Moment} other {# Momente}}",
+      "recap": "Zusammenfassung",
+      "trailer": "Trailer"
+    },
+    "findingByWorkflow": {
+      "series": "Geschichte wird erfasst…",
+      "topic": "Momente zu deinem Thema werden gesucht…",
+      "recap": "Hauptpunkte werden ausgewählt…",
+      "trailer": "Trailer wird geschrieben…"
+    }
   },
   "title": "Bibliothek",
   "summary": "{count, plural, one {# Generierung} other {# Generierungen}} · zum Vorschauen darüberfahren, zum Verwalten auswählen",

@@ -11,7 +11,8 @@
     "deleteFont": "Schrift konnte nicht gelöscht werden",
     "exportClip": "Clip konnte nicht exportiert werden",
     "share": "Freigabelink konnte nicht erstellt werden",
-    "disableShare": "Freigabelink konnte nicht deaktiviert werden"
+    "disableShare": "Freigabelink konnte nicht deaktiviert werden",
+    "createTask": "Die neue Generierung konnte nicht gestartet werden"
   },
   "toasts": {
     "settingsApplied": "Generierungseinstellungen übernommen",
@@ -33,6 +34,7 @@
   "cancelTitle": "Titelbearbeitung abbrechen",
   "editTitle": "Titel bearbeiten",
   "clipsTotal": "{count, plural, one {# Clip} other {# Clips}} · {duration} insgesamt",
+  "outputLength": "{duration} insgesamt",
   "readOnly": "Nur-Lese-Ansicht einer Generierung von einem anderen Konto.",
   "cancel": "Abbrechen",
   "resume": "Fortsetzen",
@@ -135,5 +137,116 @@
     "full": "Vollständiges Transkript",
     "forTitle": "Transkript für {title}",
     "complete": "Vollständiges Transkript für diesen Clip"
-  }
+  },
+  "workflowBadge": {
+    "series": "Serie · {count, plural, one {# Teil} other {# Teile}}",
+    "topic": "Thema: {topic}",
+    "recap": "Zusammenfassung",
+    "trailer": "Trailer",
+    "seriesPending": "Serie"
+  },
+  "partOf": "Teil {n} von {total}",
+  "partLabel": "Teil {n}",
+  "endsOn": "Endet mit: {text}",
+  "postCaption": "Beitragstext",
+  "copyCaption": "Text kopieren",
+  "captionCopied": "Text kopiert",
+  "downloadAll": "Alle Teile herunterladen",
+  "incompleteSeries": "Bei Teil {done} von {total} gestoppt. Setz fort, um die Serie fertigzustellen.",
+  "coversPoints": "{count, plural, one {Deckt # Punkt ab} other {Deckt # Punkte ab}}",
+  "pointKinds": {
+    "opener": "Einstieg",
+    "closer": "Fazit"
+  },
+  "beatsTitle": "Aufbau",
+  "beatRoles": {
+    "cold_open": "Hook",
+    "context": "Kontext",
+    "escalation": "Steigerung",
+    "button": "Schluss"
+  },
+  "sourceMoment": "Ab {time} im Original",
+  "sourceMoments": "Stellen im Original",
+  "playFrom": "Ab {time} abspielen",
+  "topicHeader": "Über {topic} · {count, plural, one {# Moment} other {# Momente}}",
+  "instructionsUsed": "Anweisungen",
+  "stepsByWorkflow": {
+    "series": {
+      "finding": "Geschichte wird erfasst",
+      "rendering": "Teile werden geschnitten"
+    },
+    "topic": {
+      "finding": "Momente zu deinem Thema werden gesucht",
+      "rendering": "Clips werden gerendert"
+    },
+    "recap": {
+      "finding": "Hauptpunkte werden ausgewählt",
+      "rendering": "Zusammenfassung wird geschnitten"
+    },
+    "trailer": {
+      "finding": "Trailer wird geschrieben",
+      "rendering": "Trailer wird geschnitten"
+    }
+  },
+  "workflowNotes": {
+    "PART_COUNT_REDUCED": "Du wolltest {requested} Teile. Dieses Video gibt {actual} her.",
+    "STORY_ARC_SELECTED": "Aus dem stärksten Handlungsstrang gebaut ({start}–{end}). Mit Anweisungen kannst du einen anderen wählen.",
+    "NO_SINGLE_STORY": "Dieses Video erzählt keine durchgehende Geschichte. Die Serie folgt dem längsten zusammenhängenden Strang.",
+    "TOPIC_THIN": "Nur {count, plural, one {# Moment dreht} other {# Momente drehen}} sich wirklich um dieses Thema.",
+    "TARGET_SHORTENED": "Das Video ist kurz, deshalb ist auch die Zusammenfassung kürzer.",
+    "COARSE_TRANSCRIPT": "Dieses Transkript hat keine Wort-Zeitmarken, deshalb sind die Schnitte weniger genau.",
+    "SPONSOR_SKIPPED": "Einen Sponsorenteil haben wir weggelassen."
+  },
+  "workflowErrors": {
+    "topic_not_found": {
+      "title": "„{topic}“ kommt in diesem Video kaum vor",
+      "body": "Wir haben nur beiläufige Erwähnungen gefunden, keine ganzen Momente. Deine Minuten wurden erstattet.",
+      "suggestionsLabel": "In diesem Video geht es vor allem um:",
+      "mentions": "Kurz erwähnt bei {times}.",
+      "cta": "Stattdessen Highlights erstellen"
+    },
+    "source_too_short": {
+      "title": "Dieses Video ist zu kurz für eine Serie",
+      "body": "Eine Serie braucht genug Geschichte für mindestens zwei Teile. Deine Minuten wurden erstattet.",
+      "cta": "Stattdessen Highlights erstellen"
+    },
+    "no_story": {
+      "title": "Wir haben keine Geschichte gefunden, die sich in Teile aufteilen lässt",
+      "body": "Kein Handlungsstrang in diesem Video ist lang genug. Deine Minuten wurden erstattet.",
+      "cta": "Stattdessen eine Zusammenfassung erstellen"
+    },
+    "recap_unsupported": {
+      "title": "Zu wenige unterschiedliche Punkte für eine Zusammenfassung",
+      "body": "Deine Minuten wurden erstattet.",
+      "cta": "Stattdessen Highlights erstellen"
+    },
+    "trailer_unbuildable": {
+      "title": "Ein Trailer ging nicht, ohne das Ende zu verraten",
+      "body": "Deine Minuten wurden erstattet.",
+      "cta": "Stattdessen eine Zusammenfassung erstellen"
+    },
+    "analysis_incomplete": {
+      "title": "Wir konnten nicht das ganze Video auswerten",
+      "body": "Ein Teil der Analyse ist fehlgeschlagen. Deine Minuten wurden erstattet.",
+      "cta": "Erneut versuchen"
+    },
+    "plan_failed": {
+      "title": "Der KI-Editor konnte diesen Plan nicht fertigstellen",
+      "body": "Deine Minuten wurden erstattet.",
+      "cta": "Erneut versuchen"
+    },
+    "render_incomplete": {
+      "title": "Ein Teil des Videos konnte nicht gerendert werden",
+      "body": "Deine Minuten wurden erstattet.",
+      "cta": "Erneut versuchen"
+    },
+    "transcript_untimed": {
+      "title": "Dieses Transkript hat keine Zeitmarken",
+      "body": "Für genaue Schnitte brauchen wir Zeitmarken. Lade stattdessen die Datei hoch.",
+      "cta": "Zurück zur Startseite"
+    },
+    "highlightsInstead": "Stattdessen Highlights erstellen"
+  },
+  "clipLoadFailed": "Dieser Clip konnte nicht geladen werden.",
+  "retryPlayback": "Wiedergabe erneut versuchen"
 }

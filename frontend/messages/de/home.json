@@ -126,5 +126,132 @@
     "long": "Lang (1–2 Min.)",
     "hint": "Ziellänge vor dem Entfernen von Pausen und Füllwörtern. Deine Auswahl wird als Standard gespeichert.",
     "saveError": "Standard konnte nicht gespeichert werden. Dieses Video verwendet trotzdem deine Auswahl."
+  },
+  "whatToMake": "Was möchtest du erstellen?",
+  "workflows": {
+    "highlights": {
+      "label": "Highlights",
+      "hint": "Die besten Momente, jeder für sich"
+    },
+    "series": {
+      "label": "Serie",
+      "hint": "Aufeinanderfolgende Teile, die die ganze Geschichte erzählen"
+    },
+    "topic": {
+      "label": "Thema",
+      "hint": "Jeder starke Moment zu einem Thema"
+    },
+    "recap": {
+      "label": "Zusammen­fassung",
+      "hint": "Ein kurzes Video mit den wichtigsten Punkten"
+    },
+    "trailer": {
+      "label": "Trailer",
+      "hint": "Eine kurze Vorschau, die Lust auf das ganze Video macht"
+    }
+  },
+  "subtitleByWorkflow": {
+    "highlights": "Wirf ein langes Video rein. Hol dir untertitelte Clips, die du direkt posten kannst.",
+    "series": "Wirf ein langes Video rein. Hol dir eine nummerierte Serie, bei der die Leute dranbleiben.",
+    "topic": "Wirf ein langes Video rein. Hol dir jeden starken Moment zu deinem Thema.",
+    "recap": "Wirf ein langes Video rein. Hol dir ein kurzes Video mit den wichtigsten Punkten.",
+    "trailer": "Wirf ein langes Video rein. Hol dir eine kurze Vorschau, die Lust aufs ganze Video macht."
+  },
+  "generateByWorkflow": {
+    "highlights": "Clips erzeugen",
+    "series": "Serie erzeugen",
+    "topic": "Momente finden",
+    "recap": "Zusammenfassung erstellen",
+    "trailer": "Trailer erstellen"
+  },
+  "topic": {
+    "placeholder": "Welches Thema? z. B. ein Unternehmen aufbauen",
+    "required": "Gib ein Thema ein, nach dem wir suchen sollen.",
+    "label": "Thema"
+  },
+  "parts": {
+    "picker": "Teile: {value}",
+    "title": "Anzahl der Teile",
+    "auto": "Auto",
+    "autoHint": "Wir wählen so viele Teile, wie die Geschichte hergibt",
+    "count": "{count, plural, one {# Teil} other {# Teile}}"
+  },
+  "lengthByWorkflow": {
+    "series": {
+      "picker": "Länge pro Teil",
+      "auto": "Auto (1–1,5 Min.)",
+      "short": "Kurz (30–60 s)",
+      "medium": "Mittel (45–90 s)",
+      "long": "Lang (1,5–3 Min.)",
+      "hint": "Länge jedes Teils vor dem Entfernen von Pausen und Füllwörtern."
+    },
+    "recap": {
+      "picker": "Länge der Zusammenfassung",
+      "auto": "Auto (passend zum Video)",
+      "short": "Kurz (ca. 45 s)",
+      "medium": "Mittel (ca. 75 s)",
+      "long": "Lang (ca. 2 Min.)",
+      "hint": "Gesamtlänge der Zusammenfassung."
+    },
+    "trailer": {
+      "picker": "Trailerlänge",
+      "auto": "Auto (ca. 30 s)",
+      "short": "Kurz (ca. 20 s)",
+      "medium": "Mittel (ca. 40 s)",
+      "long": "Lang (ca. 1 Min.)",
+      "hint": "Gesamtlänge des Trailers."
+    }
+  },
+  "instructions": {
+    "chip": "Anweisungen",
+    "remove": "Anweisungen entfernen",
+    "counter": "{used}/{max}",
+    "placeholder": {
+      "highlights": "Etwas Bestimmtes? z. B. nur die lustigen Momente, ohne Werbeblock",
+      "series": "Etwas Bestimmtes? z. B. Fokus auf die Geschichte vom ersten Startup",
+      "topic": "Etwas Bestimmtes? z. B. nur praktische Tipps, keine persönlichen Geschichten",
+      "recap": "Etwas Bestimmtes? z. B. Fokus auf die Geldtipps",
+      "trailer": "Etwas Bestimmtes? z. B. geheimnisvoll halten, Fokus auf den Konflikt"
+    }
+  },
+  "urlRescue": {
+    "moved": "„{text}“ steht jetzt bei den Anweisungen.",
+    "undo": "Rückgängig",
+    "notALink": "Das sieht nach einer Anweisung aus, nicht nach einem Link. Füg hier den Videolink ein, den Text behalten wir als Anweisung.",
+    "moveToInstructions": "Zu den Anweisungen"
+  },
+  "suggestWorkflow": {
+    "series": "Lieber eine Serie daraus machen?",
+    "seriesCount": "Lieber eine Serie in {count} Teilen?",
+    "topic": "Lieber jeden Moment zu „{topic}“ finden?",
+    "recap": "Lieber eine Zusammenfassung?",
+    "trailer": "Lieber einen Trailer?"
+  },
+  "tooShort": {
+    "series": "Dieses Video ist {duration} lang. Eine Serie braucht mindestens 2 Minuten. Highlights passen hier super.",
+    "recap": "Dieses Video ist {duration} lang. Zusammenfassungen funktionieren bei Videos über 3 Minuten.",
+    "trailer": "Dieses Video ist {duration} lang. Trailer funktionieren bei Videos über 3 Minuten.",
+    "topic": "Dieses Video ist {duration} lang. Die Themensuche braucht mindestens 1 Minute.",
+    "useHighlights": "Highlights nehmen"
+  },
+  "workflowErrors": {
+    "INVALID_WORKFLOW": "Diese Option wird nicht unterstützt.",
+    "INVALID_WORKFLOW_OPTIONS": "Diese Einstellungen werden nicht unterstützt.",
+    "TOPIC_REQUIRED": "Gib ein Thema ein, nach dem wir suchen sollen.",
+    "TOPIC_TOO_LONG": "Halte das Thema unter 120 Zeichen.",
+    "INVALID_PART_COUNT": "Wähl Auto oder 2 bis 10 Teile.",
+    "INSTRUCTIONS_TOO_LONG": "Halte die Anweisungen unter 500 Zeichen.",
+    "SOURCE_TOO_SHORT_FOR_SERIES": "Dieses Video ist zu kurz für eine Serie. Probier stattdessen Highlights.",
+    "TOO_MANY_PARTS": "In dieses Video passen höchstens {max_parts} Teile. Wähl weniger Teile oder Auto.",
+    "SOURCE_TOO_SHORT_FOR_RECAP": "Dieses Video ist schon kurz. Zusammenfassungen funktionieren bei Videos über 3 Minuten.",
+    "SOURCE_TOO_SHORT_FOR_TRAILER": "Trailer funktionieren bei Videos über 3 Minuten.",
+    "SOURCE_TOO_SHORT_FOR_TOPIC": "Dieses Video ist zu kurz für eine Themensuche. Probier stattdessen Highlights.",
+    "WORKFLOW_NOT_AVAILABLE": "Diese Option ist für dein Konto noch nicht verfügbar."
+  },
+  "palette": {
+    "series": "Neue Serie",
+    "topic": "Neue Themensuche",
+    "recap": "Neue Zusammenfassung",
+    "trailer": "Neuer Trailer"
   }
 }

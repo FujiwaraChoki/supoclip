@@ -53,6 +53,14 @@ from ...clip_cleanup import (
 from ...video_utils import VALID_OUTPUT_FORMATS
 from ...admin_auth import require_admin_user, user_is_admin
 from ...source_submission import SourceAttempt
+from ...workflows.errors import WorkflowRequestError
+from ...workflows.options import (
+    check_source_duration,
+    parse_workflow_request,
+    workflow_not_available,
+    workflows_enabled_for,
+    workflows_info,
+)
 import redis.asyncio as redis
 from ...clip_editor import export_with_preset, EXPORT_PRESETS
 
@@ -369,6 +377,7 @@ PUBLIC_TASK_FIELDS = {
     "source_type",
     "status",
     "clips_count",
+    "workflow",
     "created_at",
     "updated_at",
 }
@@ -390,15 +399,60 @@ PUBLIC_CLIP_FIELDS = {
     "shareability_score",
     "hook_type",
     "hook_title",
+    "part_number",
+    "workflow_role",
 }
+
+
+def _pick(value: Any, keys: tuple[str, ...]) -> Dict[str, Any]:
+    if not isinstance(value, dict):
+        return {}
+    return {key: value[key] for key in keys if key in value}
+
+
+def _picked_list(value: Any, keys: tuple[str, ...]) -> list[Dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [_pick(item, keys) for item in value if isinstance(item, dict)]
+
+
+def _public_workflow_plan(plan: Any) -> Optional[Dict[str, Any]]:
+    """The share-safe subset of ``tasks.workflow_plan``: titles and labels, no
+    unit ids, ranges, summaries, captions or errors."""
+    if not isinstance(plan, dict):
+        return None
+    public = _pick(plan, ("version", "workflow", "title"))
+    if "notes" in plan:
+        public["notes"] = _picked_list(plan["notes"], ("code", "params"))
+    if "parts" in plan:
+        public["parts"] = _picked_list(plan["parts"], ("part_number", "title"))
+    if "points" in plan:
+        public["points"] = _picked_list(plan["points"], ("label",))
+    if "beats" in plan:
+        public["beats"] = _picked_list(plan["beats"], ("role",))
+    if "topic" in plan:
+        public["topic"] = _pick(plan["topic"], ("query", "canonical", "coverage", "found"))
+    return public
+
+
+def _public_workflow_meta(meta: Any) -> Dict[str, Any]:
+    """The share-safe subset of ``generated_clips.workflow_meta``."""
+    public = _pick(meta, ("title", "ends_on", "part_count"))
+    if isinstance(meta, dict) and "points" in meta:
+        public["points"] = _picked_list(meta["points"], ("label", "kind", "range_index", "output_start"))
+    if isinstance(meta, dict) and "beats" in meta:
+        public["beats"] = _picked_list(meta["beats"], ("role", "range_index", "output_start"))
+    return public
 
 
 def _build_public_task(task: Dict[str, Any], share_token: str) -> Dict[str, Any]:
     """Return only fields intended for anyone holding the share URL."""
     public_task = {key: task.get(key) for key in PUBLIC_TASK_FIELDS}
+    public_task["workflow_plan"] = _public_workflow_plan(task.get("workflow_plan"))
     public_task["clips"] = []
     for clip in task.get("clips", []):
         public_clip = {key: clip.get(key) for key in PUBLIC_CLIP_FIELDS}
+        public_clip["workflow_meta"] = _public_workflow_meta(clip.get("workflow_meta"))
         public_clip["video_url"] = (
             f"/tasks/shared/{share_token}/clips/{clip['id']}/file"
         )
@@ -487,6 +541,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         raise HTTPException(status_code=400, detail="Source URL is required")
     user_id = await _get_user_id_from_headers(request, db)
     attempt.note_user(user_id)
+    attempt.note_workflow(data.get("workflow"))
 
     # Get font options
     font_options = data.get("font_options", {})
@@ -513,27 +568,37 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         clip_length = validate_clip_length(data.get("clip_length", "auto"))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
+    try:
+        workflow_spec = parse_workflow_request(data, clip_length)
+    except WorkflowRequestError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.to_detail()) from None
+    if not workflow_spec.legacy and not await workflows_enabled_for(db, user_id):
+        error = workflow_not_available()
+        raise HTTPException(status_code=error.status, detail=error.to_detail())
+    workflow_options = workflow_spec.options.to_json()
     cleanup_settings = new_task_cleanup_settings(data)
     if not raw_source or not raw_source.get("url"):
         raise HTTPException(status_code=400, detail="Source URL is required")
 
-    upload_request_key = _upload_request_key(
-        request,
-        raw_source["url"],
-        {
-            "url": raw_source["url"],
-            "font_family": font_family,
-            "font_size": font_size,
-            "font_color": font_color,
-            "caption_template": caption_template,
-            "include_broll": include_broll,
-            "processing_mode": processing_mode,
-            "output_format": output_format,
-            "add_subtitles": add_subtitles,
-            "clip_length": clip_length,
-            "cleanup_settings": cleanup_settings,
-        },
-    )
+    upload_options = {
+        "url": raw_source["url"],
+        "font_family": font_family,
+        "font_size": font_size,
+        "font_color": font_color,
+        "caption_template": caption_template,
+        "include_broll": include_broll,
+        "processing_mode": processing_mode,
+        "output_format": output_format,
+        "add_subtitles": add_subtitles,
+        "clip_length": clip_length,
+        "cleanup_settings": cleanup_settings,
+    }
+    if not workflow_spec.legacy:
+        # Plain highlights keep their existing key. The key is a hash, so topic
+        # and instructions never leave the process.
+        upload_options["workflow"] = workflow_spec.workflow
+        upload_options["workflow_options"] = workflow_options
+    upload_request_key = _upload_request_key(request, raw_source["url"], upload_options)
     if upload_request_key and db is not None:
         existing = await TaskRepository.find_recent_upload_task(db, user_id, upload_request_key)
         if existing is not None:
@@ -576,6 +641,11 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                 raw_source["url"], user_id, billing["max_upload_duration_seconds"], db
             )
 
+        try:
+            check_source_duration(workflow_spec, duration_seconds)
+        except WorkflowRequestError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.to_detail()) from None
+
         async with generation_allowance_guard(
             db, user_id, enabled=runtime_config.monetization_enabled
         ):
@@ -593,6 +663,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                 processing_mode=processing_mode,
                 source_duration_seconds=math.ceil(duration_seconds),
                 upload_request_key=upload_request_key,
+                workflow=workflow_spec.workflow,
+                workflow_options=workflow_options,
             )
             if getattr(task_service, "reused_upload_task", False):
                 return _queued_upload_task(
@@ -693,6 +765,13 @@ async def get_billing_summary(request: Request, db: AsyncSession = Depends(get_d
             status_code=500,
             detail=f"Error retrieving billing summary: {str(e)}",
         )
+
+
+@router.get("/workflows")
+async def get_workflows(request: Request, db: AsyncSession = Depends(get_db)):
+    """What the authenticated user can make, with each workflow's limits."""
+    user_id = await _get_user_id_from_headers(request, db)
+    return workflows_info(await workflows_enabled_for(db, user_id))
 
 
 @router.get("/shared/{share_token}")

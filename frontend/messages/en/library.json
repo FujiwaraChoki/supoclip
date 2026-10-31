@@ -26,7 +26,19 @@
     "upload": "Upload",
     "clips": "{count, plural, one {# clip} other {# clips}}",
     "select": "Select {title}",
-    "deselect": "Deselect {title}"
+    "deselect": "Deselect {title}",
+    "workflow": {
+      "series": "Series · {count, plural, one {# part} other {# parts}}",
+      "topic": "Topic · {count, plural, one {# moment} other {# moments}}",
+      "recap": "Recap",
+      "trailer": "Trailer"
+    },
+    "findingByWorkflow": {
+      "series": "Mapping the story…",
+      "topic": "Finding moments about your topic…",
+      "recap": "Picking the main points…",
+      "trailer": "Writing the trailer…"
+    }
   },
   "title": "Library",
   "summary": "{count, plural, one {# generation} other {# generations}} · hover to preview, select to batch-manage",

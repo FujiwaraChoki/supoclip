@@ -1,4 +1,4 @@
-import { uploadTooLargeMessage, uploadVideoFile, validateVideoSourceUrl } from "./video-upload";
+import { readVideoDuration, uploadTooLargeMessage, uploadVideoFile, validateVideoSourceUrl } from "./video-upload";
 
 describe("S3 video uploads", () => {
   it("rejects a file over the upload limit before requesting authorization", async () => {
@@ -100,4 +100,50 @@ describe("supported video source URLs", () => {
     ["https://kick.com/creator/about", "Enter a valid Kick VOD or clip URL."],
     ["https://kick.com/video/not-a-uuid", "Enter a valid Kick VOD or clip URL."],
   ])("gives an unsupported-URL message for %s", (url, message) => expect(validateVideoSourceUrl(url).error).toBe(message));
+});
+
+describe("readVideoDuration", () => {
+  const file = new File(["x"], "talk.mp4", { type: "video/mp4" });
+  let video: HTMLVideoElement;
+
+  beforeEach(() => {
+    const create = document.createElement.bind(document);
+    vi.spyOn(document, "createElement").mockImplementation((tag: string, options?: ElementCreationOptions) => {
+      const element = create(tag, options);
+      if (tag === "video") video = element as HTMLVideoElement;
+      return element;
+    });
+    vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+    URL.createObjectURL = vi.fn(() => "blob:talk");
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("reads the length from the file's metadata and releases the file", async () => {
+    const pending = readVideoDuration(file);
+    Object.defineProperty(video, "duration", { value: 95.4 });
+    video.dispatchEvent(new Event("loadedmetadata"));
+    await expect(pending).resolves.toBe(95.4);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:talk");
+  });
+
+  it("gives up quietly when the browser cannot read the file", async () => {
+    const failing = readVideoDuration(file);
+    video.dispatchEvent(new Event("error"));
+    await expect(failing).resolves.toBeNull();
+
+    const endless = readVideoDuration(file);
+    Object.defineProperty(video, "duration", { value: Infinity });
+    video.dispatchEvent(new Event("loadedmetadata"));
+    await expect(endless).resolves.toBeNull();
+
+    vi.useFakeTimers();
+    const silent = readVideoDuration(file, 50);
+    vi.advanceTimersByTime(50);
+    await expect(silent).resolves.toBeNull();
+  });
 });

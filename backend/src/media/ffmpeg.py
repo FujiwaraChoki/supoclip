@@ -1,5 +1,7 @@
 """Ffmpeg helpers for the video pipeline."""
 
+from contextlib import contextmanager
+from typing import Iterator
 from typing import List
 from typing import Optional
 from pathlib import Path
@@ -9,6 +11,7 @@ from ..config import get_config
 import json
 import re
 import subprocess
+import tempfile
 from .common import (
     AUDIO_BITRATE,
     CROSSFADE_MAX_SECONDS,
@@ -425,20 +428,130 @@ def rendered_ranges_duration(keep_ranges: List[Tuple[float, float]]) -> float:
 
 
 def rendered_clip_duration(
-    clip_path: Path, keep_ranges: List[Tuple[float, float]]
+    clip_path: Path,
+    keep_ranges: List[Tuple[float, float]],
+    output_offsets: Optional[List[float]] = None,
 ) -> float:
     """Playback length of a finished clip, probed from the file when possible.
 
     Teasers, crossfades, frame rounding and resolution caps all change the
-    final length, so the file is the authority; the range mapping is only the
-    fallback when the file cannot be probed.
+    final length, so the file is the authority; the range mapping (with the
+    clip's explicit ``output_offsets`` when it has them) is only the fallback
+    when the file cannot be probed.
     """
     try:
         clip_path = Path(clip_path)
         probed = ffprobe_duration(clip_path) if clip_path.exists() else 0.0
     except Exception:
         probed = 0.0
-    return probed if probed > 0 else rendered_ranges_duration(keep_ranges)
+    if probed > 0:
+        return probed
+    ranges = normalize_source_ranges(keep_ranges)
+    if output_offsets is not None and ranges and len(output_offsets) == len(ranges):
+        return max(0.0, float(output_offsets[-1]) + ranges[-1][1] - ranges[-1][0])
+    return rendered_ranges_duration(keep_ranges)
+
+
+def junction_fades_for_offsets(
+    keep_ranges: List[Tuple[float, float]], output_offsets: List[float]
+) -> List[float]:
+    """Crossfade length at every junction implied by explicit output offsets (0 = hard cut)."""
+    ranges = normalize_source_ranges(keep_ranges)
+    return [
+        max(0.0, output_offsets[i - 1] + ranges[i - 1][1] - ranges[i - 1][0] - output_offsets[i])
+        for i in range(1, len(ranges))
+    ]
+
+
+# A clip whose ranges are spread thinly over a long stretch of source (a
+# trailer's beats, a recap's points) is decoded range by range; decoding the
+# whole window would read minutes of video to keep seconds of it.
+SPARSE_MIN_SPAN_SECONDS = 120.0
+SPARSE_SPAN_TO_KEPT_RATIO = 3.0
+SPARSE_MAX_INPUTS = 24
+SPARSE_INPUT_PADDING_SECONDS = 0.5
+# Ranges this close in the source (a point's cleanup pieces, neighbouring
+# beats) share one input: decoding the short gap is cheaper than another input.
+SPARSE_SHARED_INPUT_GAP_SECONDS = 15.0
+
+
+def _sparse(keep_ranges: List[Tuple[float, float]]) -> bool:
+    if len(keep_ranges) < 2:
+        return False
+    span = max(end for _, end in keep_ranges) - min(start for start, _ in keep_ranges)
+    kept = sum(end - start for start, end in keep_ranges)
+    return span > SPARSE_MIN_SPAN_SECONDS and span > SPARSE_SPAN_TO_KEPT_RATIO * kept
+
+
+def _sparse_windows(keep_ranges: List[Tuple[float, float]]) -> Tuple[List[Tuple[float, float]], List[int]]:
+    """Padded (origin, length) source windows, and the window each range is read from.
+
+    Ranges whose padded windows lie within ``SPARSE_SHARED_INPUT_GAP_SECONDS``
+    of each other share a window, whatever order they play in.
+    """
+    order = sorted(range(len(keep_ranges)), key=lambda index: keep_ranges[index][0])
+    spans: List[List[float]] = []
+    owners = [0] * len(keep_ranges)
+    for index in order:
+        start, end = keep_ranges[index]
+        origin = max(0.0, start - SPARSE_INPUT_PADDING_SECONDS)
+        stop = end + SPARSE_INPUT_PADDING_SECONDS
+        if spans and origin <= spans[-1][1] + SPARSE_SHARED_INPUT_GAP_SECONDS:
+            spans[-1][1] = max(spans[-1][1], stop)
+        else:
+            spans.append([origin, stop])
+        owners[index] = len(spans) - 1
+    return [(origin, stop - origin) for origin, stop in spans], owners
+
+
+@contextmanager
+def _range_inputs(
+    video_path: Path,
+    keep_ranges: List[Tuple[float, float]],
+    audio_stream: Optional[int],
+    scratch_dir: Path,
+) -> Iterator[Tuple[List[str], List[Tuple[int, float]], Optional[int]]]:
+    """Input arguments, then (input index, trim origin) per range, then the audio stream to read.
+
+    Dense ranges share one seeked input window. Sparse ranges are grouped
+    into padded windows of nearby ranges, one input each; past
+    ``SPARSE_MAX_INPUTS`` windows every window is first cut to its own small
+    file in ``scratch_dir`` so the stitch never opens the long source dozens
+    of times.
+    """
+    if not _sparse(keep_ranges):
+        seek_args, origin = _input_window_for_ranges(keep_ranges)
+        yield [*seek_args, "-i", str(video_path)], [(0, origin)] * len(keep_ranges), audio_stream
+        return
+
+    windows, owners = _sparse_windows(keep_ranges)
+    sources = [(owner, windows[owner][0]) for owner in owners]
+    if len(windows) <= SPARSE_MAX_INPUTS:
+        args: List[str] = []
+        for origin, length in windows:
+            args += ["-ss", f"{origin:.3f}", "-t", f"{length:.3f}", "-i", str(video_path)]
+        yield args, sources, audio_stream
+        return
+
+    with tempfile.TemporaryDirectory(prefix="ranges_", dir=scratch_dir) as work_dir:
+        args = []
+        for index, (origin, length) in enumerate(windows):
+            piece = Path(work_dir) / f"r{index}.mp4"
+            command = [
+                "ffmpeg", "-y", "-ss", f"{origin:.3f}", "-i", str(video_path),
+                *audio_stream_map_args(audio_stream),
+                "-t", f"{length:.3f}",
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF),
+                "-pix_fmt", "yuv420p",
+            ]
+            if audio_stream is not None:
+                command += ["-c:a", "aac", "-b:a", "192k"]
+            command.append(str(piece))
+            if run_ffmpeg_command(command).returncode != 0:
+                raise RuntimeError(f"Could not cut window {index + 1} of a sparse clip")
+            args += ["-i", str(piece)]
+        # Each piece holds only the chosen audio track.
+        yield args, sources, 0 if audio_stream is not None else None
 
 
 def render_ranges_crossfade_ffmpeg(
@@ -462,58 +575,60 @@ def render_ranges_crossfade_ffmpeg(
     durations = [end - start for start, end in keep_ranges]
     fade = crossfade_fade_for_ranges(keep_ranges)
     if output_offsets is not None:
-        fades = [max(0.0, output_offsets[i-1] + durations[i-1] - output_offsets[i]) for i in range(1, n)]
+        fades = junction_fades_for_offsets(keep_ranges, output_offsets)
     else:
         fades = [fade] * (n - 1)
     if not any(fades):
         return False
-    has_audio = audio_stream is not None
-    seek_args, origin = _input_window_for_ranges(keep_ranges)
+    with _range_inputs(video_path, keep_ranges, audio_stream, Path(output_path).parent) as (
+        input_args, sources, audio_stream,
+    ):
+        has_audio = audio_stream is not None
 
-    parts: List[str] = []
-    for idx, (start, end) in enumerate(keep_ranges):
-        rel_start, rel_end = start - origin, end - origin
-        parts.append(
-            f"[0:v]trim=start={rel_start:.3f}:end={rel_end:.3f},setpts=PTS-STARTPTS,"
-            f"fps={OUTPUT_FPS},format=yuv420p,setsar=1[v{idx}]"
-        )
-        if has_audio:
+        parts: List[str] = []
+        for idx, ((start, end), (source, origin)) in enumerate(zip(keep_ranges, sources)):
+            rel_start, rel_end = start - origin, end - origin
             parts.append(
-                f"[0:a:{audio_stream}]atrim=start={rel_start:.3f}:end={rel_end:.3f},asetpts=PTS-STARTPTS[a{idx}]"
+                f"[{source}:v]trim=start={rel_start:.3f}:end={rel_end:.3f},setpts=PTS-STARTPTS,"
+                f"fps={OUTPUT_FPS},format=yuv420p,setsar=1[v{idx}]"
             )
+            if has_audio:
+                parts.append(
+                    f"[{source}:a:{audio_stream}]atrim=start={rel_start:.3f}:end={rel_end:.3f},asetpts=PTS-STARTPTS[a{idx}]"
+                )
 
-    cur_v = "[v0]"
-    cumulative = durations[0]
-    for i in range(1, n):
-        fade = fades[i-1]
-        offset = cumulative - fade
-        out = f"[vx{i}]"
-        parts.append(f"{cur_v}[v{i}]concat=n=2:v=1:a=0{out}" if fade <= 1e-6 else
-            f"{cur_v}[v{i}]xfade=transition={transition}:duration={fade:.6f}:offset={offset:.6f}{out}")
-        cumulative = cumulative + durations[i] - fade
-        cur_v = out
-
-    map_args = ["-map", cur_v]
-    if has_audio:
-        cur_a = "[a0]"
+        cur_v = "[v0]"
+        cumulative = durations[0]
         for i in range(1, n):
-            out = f"[ax{i}]"
             fade = fades[i-1]
-            parts.append(f"{cur_a}[a{i}]concat=n=2:v=0:a=1{out}" if fade <= 1e-6 else f"{cur_a}[a{i}]acrossfade=d={fade:.6f}{out}")
-            cur_a = out
-        map_args += ["-map", cur_a]
+            offset = cumulative - fade
+            out = f"[vx{i}]"
+            parts.append(f"{cur_v}[v{i}]concat=n=2:v=1:a=0{out}" if fade <= 1e-6 else
+                f"{cur_v}[v{i}]xfade=transition={transition}:duration={fade:.6f}:offset={offset:.6f}{out}")
+            cumulative = cumulative + durations[i] - fade
+            cur_v = out
 
-    command = [
-        "ffmpeg", "-y", *seek_args, "-i", str(video_path),
-        "-filter_complex", ";".join(parts),
-        *map_args,
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF),
-        "-pix_fmt", "yuv420p",
-    ]
-    if has_audio:
-        command += ["-c:a", "aac", "-b:a", "192k"]
-    command += ["-movflags", "+faststart", str(output_path)]
-    return run_ffmpeg_command(command, timeout=1800).returncode == 0
+        map_args = ["-map", cur_v]
+        if has_audio:
+            cur_a = "[a0]"
+            for i in range(1, n):
+                out = f"[ax{i}]"
+                fade = fades[i-1]
+                parts.append(f"{cur_a}[a{i}]concat=n=2:v=0:a=1{out}" if fade <= 1e-6 else f"{cur_a}[a{i}]acrossfade=d={fade:.6f}{out}")
+                cur_a = out
+            map_args += ["-map", cur_a]
+
+        command = [
+            "ffmpeg", "-y", *input_args,
+            "-filter_complex", ";".join(parts),
+            *map_args,
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF),
+            "-pix_fmt", "yuv420p",
+        ]
+        if has_audio:
+            command += ["-c:a", "aac", "-b:a", "192k"]
+        command += ["-movflags", "+faststart", str(output_path)]
+        return run_ffmpeg_command(command, timeout=1800).returncode == 0
 
 
 def _input_window_for_ranges(
@@ -545,13 +660,22 @@ def render_source_ranges_ffmpeg(
     output_path: Path,
     output_offsets: Optional[List[float]] = None,
 ) -> bool:
-    """Render source ranges into one intermediate clip using ffmpeg only."""
+    """Render source ranges into one intermediate clip using ffmpeg only.
+
+    ``output_offsets`` (one per range) set where each range starts on the
+    clip timeline: a range starting before the previous one ends crossfades
+    into it, anything else is a hard cut. Ranges may play out of source order.
+    """
     keep_ranges = normalize_source_ranges(keep_ranges)
     if not keep_ranges:
         return False
+    if output_offsets is not None and len(output_offsets) != len(keep_ranges):
+        logger.error(
+            "Got %d output offsets for %d kept ranges", len(output_offsets), len(keep_ranges)
+        )
+        return False
 
     audio_stream = select_audio_stream_index(video_path)
-    has_audio = audio_stream is not None
 
     if len(keep_ranges) == 1:
         start, end = keep_ranges[0]
@@ -585,61 +709,67 @@ def render_source_ranges_ffmpeg(
 
     # Smooth a handful of substantial internal cuts with crossfades; fall back to
     # a hard concat for many tiny fragments (heavy filler edits) or on failure.
-    if output_offsets is not None or crossfade_fade_for_ranges(keep_ranges) > 0:
+    # Explicit offsets whose junctions are all hard cuts go straight to concat.
+    if output_offsets is not None:
+        wants_crossfade = any(junction_fades_for_offsets(keep_ranges, output_offsets))
+    else:
+        wants_crossfade = crossfade_fade_for_ranges(keep_ranges) > 0
+    if wants_crossfade:
         if render_ranges_crossfade_ffmpeg(
             video_path, keep_ranges, output_path, audio_stream, output_offsets=output_offsets
         ):
             return True
         logger.info("Crossfade stitch failed; falling back to hard concat")
 
-    seek_args, origin = _input_window_for_ranges(keep_ranges)
-    filter_parts: List[str] = []
-    concat_inputs: List[str] = []
-    for idx, (start, end) in enumerate(keep_ranges):
-        rel_start, rel_end = start - origin, end - origin
-        filter_parts.append(
-            f"[0:v]trim=start={rel_start:.3f}:end={rel_end:.3f},setpts=PTS-STARTPTS[v{idx}]"
-        )
-        concat_inputs.append(f"[v{idx}]")
+    with _range_inputs(video_path, keep_ranges, audio_stream, Path(output_path).parent) as (
+        input_args, sources, concat_audio,
+    ):
+        has_audio = concat_audio is not None
+        filter_parts: List[str] = []
+        concat_inputs: List[str] = []
+        for idx, ((start, end), (source, origin)) in enumerate(zip(keep_ranges, sources)):
+            rel_start, rel_end = start - origin, end - origin
+            filter_parts.append(
+                f"[{source}:v]trim=start={rel_start:.3f}:end={rel_end:.3f},setpts=PTS-STARTPTS[v{idx}]"
+            )
+            concat_inputs.append(f"[v{idx}]")
+            if has_audio:
+                filter_parts.append(
+                    f"[{source}:a:{concat_audio}]atrim=start={rel_start:.3f}:end={rel_end:.3f},asetpts=PTS-STARTPTS[a{idx}]"
+                )
+                concat_inputs.append(f"[a{idx}]")
+
         if has_audio:
             filter_parts.append(
-                f"[0:a:{audio_stream}]atrim=start={rel_start:.3f}:end={rel_end:.3f},asetpts=PTS-STARTPTS[a{idx}]"
+                f"{''.join(concat_inputs)}concat=n={len(keep_ranges)}:v=1:a=1[v][a]"
             )
-            concat_inputs.append(f"[a{idx}]")
+            map_args = ["-map", "[v]", "-map", "[a]"]
+        else:
+            filter_parts.append(
+                f"{''.join(concat_inputs)}concat=n={len(keep_ranges)}:v=1:a=0[v]"
+            )
+            map_args = ["-map", "[v]"]
 
-    if has_audio:
-        filter_parts.append(
-            f"{''.join(concat_inputs)}concat=n={len(keep_ranges)}:v=1:a=1[v][a]"
-        )
-        map_args = ["-map", "[v]", "-map", "[a]"]
-    else:
-        filter_parts.append(
-            f"{''.join(concat_inputs)}concat=n={len(keep_ranges)}:v=1:a=0[v]"
-        )
-        map_args = ["-map", "[v]"]
-
-    command = [
-        "ffmpeg",
-        "-y",
-        *seek_args,
-        "-i",
-        str(video_path),
-        "-filter_complex",
-        ";".join(filter_parts),
-        *map_args,
-        "-c:v",
-        "libx264",
-        "-preset",
-        "veryfast",
-        "-crf",
-        str(INTERMEDIATE_CRF),
-        "-pix_fmt",
-        "yuv420p",
-    ]
-    if has_audio:
-        command.extend(["-c:a", "aac", "-b:a", "192k"])
-    command.extend(["-movflags", "+faststart", str(output_path)])
-    return run_ffmpeg_command(command, timeout=1800).returncode == 0
+        command = [
+            "ffmpeg",
+            "-y",
+            *input_args,
+            "-filter_complex",
+            ";".join(filter_parts),
+            *map_args,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            str(INTERMEDIATE_CRF),
+            "-pix_fmt",
+            "yuv420p",
+        ]
+        if has_audio:
+            command.extend(["-c:a", "aac", "-b:a", "192k"])
+        command.extend(["-movflags", "+faststart", str(output_path)])
+        return run_ffmpeg_command(command, timeout=1800).returncode == 0
 
 
 def burn_ass_subtitles_ffmpeg(

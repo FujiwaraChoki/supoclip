@@ -11,7 +11,8 @@
     "deleteFont": "Failed to delete font",
     "exportClip": "Failed to export clip",
     "share": "Failed to create share link",
-    "disableShare": "Failed to disable share link"
+    "disableShare": "Failed to disable share link",
+    "createTask": "Couldn't start the new generation"
   },
   "toasts": {
     "settingsApplied": "Generation settings applied",
@@ -33,6 +34,7 @@
   "cancelTitle": "Cancel title edit",
   "editTitle": "Edit title",
   "clipsTotal": "{count, plural, one {# clip} other {# clips}} · {duration} total",
+  "outputLength": "{duration} total",
   "readOnly": "Read-only view of another account's generation.",
   "cancel": "Cancel",
   "resume": "Resume",
@@ -135,5 +137,116 @@
     "full": "Full transcript",
     "forTitle": "Transcript for {title}",
     "complete": "Complete transcript for this clip"
-  }
+  },
+  "workflowBadge": {
+    "series": "Series · {count, plural, one {# part} other {# parts}}",
+    "topic": "Topic: {topic}",
+    "recap": "Recap",
+    "trailer": "Trailer",
+    "seriesPending": "Series"
+  },
+  "partOf": "Part {n} of {total}",
+  "partLabel": "Part {n}",
+  "endsOn": "Ends on: {text}",
+  "postCaption": "Post caption",
+  "copyCaption": "Copy caption",
+  "captionCopied": "Caption copied",
+  "downloadAll": "Download all parts",
+  "incompleteSeries": "Stopped at part {done} of {total}. Resume to finish the series.",
+  "coversPoints": "{count, plural, one {Covers # point} other {Covers # points}}",
+  "pointKinds": {
+    "opener": "Intro",
+    "closer": "Takeaway"
+  },
+  "beatsTitle": "Beats",
+  "beatRoles": {
+    "cold_open": "Hook",
+    "context": "Context",
+    "escalation": "Build",
+    "button": "Ending"
+  },
+  "sourceMoment": "From {time} in the original",
+  "sourceMoments": "Source moments",
+  "playFrom": "Play from {time}",
+  "topicHeader": "About {topic} · {count, plural, one {# moment} other {# moments}}",
+  "instructionsUsed": "Instructions",
+  "stepsByWorkflow": {
+    "series": {
+      "finding": "Mapping the story",
+      "rendering": "Cutting parts"
+    },
+    "topic": {
+      "finding": "Finding moments about your topic",
+      "rendering": "Rendering clips"
+    },
+    "recap": {
+      "finding": "Picking the main points",
+      "rendering": "Editing your recap"
+    },
+    "trailer": {
+      "finding": "Writing the trailer",
+      "rendering": "Editing your trailer"
+    }
+  },
+  "workflowNotes": {
+    "PART_COUNT_REDUCED": "You asked for {requested} parts. This video supports {actual}.",
+    "STORY_ARC_SELECTED": "Built from the strongest storyline ({start}–{end}). Add instructions to pick another.",
+    "NO_SINGLE_STORY": "This video doesn't have one continuous story. This series follows its longest connected thread.",
+    "TOPIC_THIN": "Only {count, plural, one {# moment is} other {# moments are}} really about this topic.",
+    "TARGET_SHORTENED": "The video is short, so the recap is shorter too.",
+    "COARSE_TRANSCRIPT": "This transcript has no word timings, so cuts are less precise.",
+    "SPONSOR_SKIPPED": "We left out a sponsor read."
+  },
+  "workflowErrors": {
+    "topic_not_found": {
+      "title": "“{topic}” barely comes up in this video",
+      "body": "We only found passing mentions, not full moments. Your minutes were refunded.",
+      "suggestionsLabel": "This video talks most about:",
+      "mentions": "Mentioned in passing at {times}.",
+      "cta": "Make highlights instead"
+    },
+    "source_too_short": {
+      "title": "This video is too short for a series",
+      "body": "A series needs enough story for at least two parts. Your minutes were refunded.",
+      "cta": "Make highlights instead"
+    },
+    "no_story": {
+      "title": "We couldn't find a story to split into parts",
+      "body": "This video doesn't have one storyline that runs long enough. Your minutes were refunded.",
+      "cta": "Make a recap instead"
+    },
+    "recap_unsupported": {
+      "title": "Not enough distinct points for a recap",
+      "body": "Your minutes were refunded.",
+      "cta": "Make highlights instead"
+    },
+    "trailer_unbuildable": {
+      "title": "We couldn't build a trailer without giving away the ending",
+      "body": "Your minutes were refunded.",
+      "cta": "Make a recap instead"
+    },
+    "analysis_incomplete": {
+      "title": "We couldn't read the whole video",
+      "body": "Part of the analysis failed. Your minutes were refunded.",
+      "cta": "Try again"
+    },
+    "plan_failed": {
+      "title": "The AI editor couldn't finish this plan",
+      "body": "Your minutes were refunded.",
+      "cta": "Try again"
+    },
+    "render_incomplete": {
+      "title": "Part of the video couldn't be rendered",
+      "body": "Your minutes were refunded.",
+      "cta": "Try again"
+    },
+    "transcript_untimed": {
+      "title": "This transcript has no timings",
+      "body": "We need timings to cut precisely. Upload the file instead.",
+      "cta": "Back to home"
+    },
+    "highlightsInstead": "Make highlights instead"
+  },
+  "clipLoadFailed": "Couldn't load this clip.",
+  "retryPlayback": "Retry playback"
 }

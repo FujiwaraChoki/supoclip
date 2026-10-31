@@ -3,6 +3,7 @@ Video service - handles video processing business logic.
 """
 
 import asyncio
+import copy
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Callable, Awaitable
 import logging
@@ -36,14 +37,9 @@ from ..video_utils import (
     create_optimized_clip,
     load_cached_transcript_data,
     parse_timestamp_to_seconds,
-    build_clip_keep_ranges,
     build_keep_ranges_from_source_ranges,
     build_clip_signal_summary,
-    apply_segment_hook_teaser,
-    clamp_keep_ranges_to_max_duration,
-    extend_keep_ranges_to_sentence_boundary,
     keep_ranges_transcript_text,
-    snap_clip_start_to_sentence,
     seconds_to_mmss,
     get_transcript_text_in_range,
 )
@@ -52,12 +48,13 @@ from ..clip_source_map import (
     normalize_source_ranges,
     save_clip_broll,
     save_clip_source_ranges,
-    source_range_bounds,
 )
 from ..ai import get_most_relevant_parts_by_transcript, max_final_clips_for_duration
 from ..clip_openings import OPENING_HOOK_PENALTY, opening_text_issue, review_opening
 from ..clip_duration import clip_duration
 from ..config import get_config
+from ..workflows.contracts import PlanCache, PlanContext, WorkflowResult, WorkflowSpec
+from ..workflows.durations import workflow_budget
 from ..media.source_limits import normalize_source_media
 from ..media.upload_ingest import (
     materialize_stored_upload,
@@ -72,6 +69,13 @@ from ..media.ffmpeg import (
     ffprobe_video_size,
     rendered_clip_duration,
     rendered_ranges_duration,
+)
+from ..media.render_ranges import (
+    expand_ranges_with_groups,
+    output_offsets_for_junctions,
+    rendered_duration,
+    resolve_render_ranges,
+    segment_bounds,
 )
 from ..media.timeline import get_words_for_keep_ranges
 from ..media.visual_suitability import (
@@ -104,6 +108,27 @@ async def resolve_upload_for_edit(video_service, url: str) -> Path:
     if opener is None:
         return await run_in_thread(video_service.resolve_local_video_path, url)
     return await opener(url)
+
+
+def _sync_plan_ranges(plan: Dict[str, Any], segments: List[Dict[str, Any]]) -> None:
+    """Drop the plan's recap points / trailer beats whose ranges no longer play."""
+    playing = [
+        (float(start), float(end))
+        for segment in segments
+        for start, end in segment.get("source_ranges") or []
+    ]
+
+    def plays(item_range) -> bool:
+        start, end = float(item_range[0]), float(item_range[1])
+        return any(abs(start - a) < 1e-3 and abs(end - b) < 1e-3 for a, b in playing)
+
+    for key in ("points", "beats"):
+        items = plan.get(key)
+        if isinstance(items, list):
+            plan[key] = [
+                item for item in items
+                if not isinstance(item, dict) or all(plays(r) for r in item.get("ranges") or [])
+            ]
 
 
 class VideoService:
@@ -282,7 +307,9 @@ class VideoService:
             try:
                 start = parse_timestamp_to_seconds(str(segment.get("start_time") or ""))
                 end = parse_timestamp_to_seconds(str(segment.get("end_time") or ""))
-                ranges = local_ranges_for(video_path, [(start, end)])
+                # Planned (topic) segments are judged on what they play, not their labels.
+                planned = normalize_source_ranges(segment.get("source_ranges"))
+                ranges = local_ranges_for(video_path, planned or [(start, end)])
                 fraction = segment_static_fraction(video_path, ranges)
                 notice = segment_shows_interruption_notice(video_path, ranges)
                 notices[len(static)] = notice
@@ -329,6 +356,205 @@ class VideoService:
                 continue
             kept.append(segment)
         return kept
+
+    @staticmethod
+    def _range_picture(video_path: Path, ranges: List[tuple]) -> tuple[bool, bool]:
+        """(holds one still picture without a face, shows an interruption notice) over these source ranges."""
+        local = local_ranges_for(video_path, [(float(start), float(end)) for start, end in ranges])
+        fraction = segment_static_fraction(video_path, local)
+        notice = segment_shows_interruption_notice(video_path, local)
+        static = is_visually_static(fraction) or notice
+        return static and not still_picture_shows_face(video_path, local), notice
+
+    @staticmethod
+    def _picture_is_static(video_path: Path, ranges: List[tuple]) -> bool:
+        """One still picture (card, placeholder, black) over these source ranges, without a face."""
+        return VideoService._range_picture(video_path, ranges)[0]
+
+    @staticmethod
+    def _log_static_parts(video_path: Path, segments: List[Dict[str, Any]]) -> None:
+        """Warn about series parts that hold a still picture; parts are never dropped."""
+        for segment in segments:
+            try:
+                if VideoService._picture_is_static(video_path, segment.get("source_ranges") or []):
+                    logger.warning(
+                        "Part %s holds one still picture for most of its length; keeping it",
+                        segment.get("part_number"),
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Visual check unavailable for part %s: %s", segment.get("part_number"), exc
+                )
+
+    @staticmethod
+    def _planned_play_seconds(
+        video_path: Optional[Path],
+        ranges: List[tuple],
+        fades: List[float],
+        cleanup_settings: Optional[Dict[str, Any]],
+    ) -> float:
+        """How long these planned ranges play once rendered: cleanup cuts and junction fades included."""
+        if video_path is not None:
+            try:
+                local = local_ranges_for(video_path, [(float(start), float(end)) for start, end in ranges])
+                if len(local) == len(ranges):
+                    keep, groups = expand_ranges_with_groups(video_path, local, cleanup_settings)
+                    return rendered_duration(keep, output_offsets_for_junctions(keep, groups, fades))
+            except Exception as exc:
+                logger.warning("Could not measure the planned edit; estimating it: %s", exc)
+        return sum(float(end) - float(start) for start, end in ranges) - sum(fades)
+
+    @staticmethod
+    def _drop_static_ranges(
+        video_path: Path,
+        segment: Dict[str, Any],
+        min_seconds: float,
+        cleanup_settings: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Remove still-picture ranges from a recap or trailer when the edit can spare them.
+
+        Only a droppable point (recap) or an escalation/context beat (trailer)
+        goes, and only while at least two ranges and ``min_seconds`` of
+        rendered edit remain. Essential ranges stay even when static: the one
+        output is never left without its opening, its payoff or its button.
+        When every range shows a still picture (an audio podcast with cover
+        art) the picture says nothing about the passage, so all of them stay.
+        """
+        meta = dict(segment.get("workflow_meta") or {})
+        items_key = "points" if "points" in meta else "beats"
+        ranges = [tuple(item) for item in segment.get("source_ranges") or []]
+        fades = [float(value) for value in segment.get("junction_fades") or [0.0] * max(0, len(ranges) - 1)]
+        items = [dict(item) for item in meta.get(items_key) or []]
+        if len(ranges) <= 2:
+            return segment
+
+        checks: List[tuple[bool, bool]] = []
+        for index, item_range in enumerate(ranges):
+            try:
+                checks.append(VideoService._range_picture(video_path, [item_range]))
+            except Exception as exc:
+                logger.warning("Visual check unavailable for range %d: %s", index + 1, exc)
+                checks.append((False, False))
+        if not any(static for static, _ in checks):
+            return segment
+        if all(static for static, _ in checks) and not any(notice for _, notice in checks):
+            logger.warning(
+                "Every range of the edit shows a still picture; keeping them all "
+                "because the whole source looks static"
+            )
+            return segment
+
+        def droppable(index: int) -> bool:
+            owners = [item for item in items if item.get("range_index") == index]
+            if not owners:
+                return False
+            if items_key == "points":
+                return all(bool(item.get("droppable")) for item in owners)
+            return all(item.get("role") not in ("cold_open", "button") for item in owners)
+
+        dropped = False
+        for index in reversed(range(len(ranges))):
+            if len(ranges) <= 2 or not checks[index][0] or not droppable(index):
+                continue
+            if index == 0:
+                next_fades = fades[1:]
+            elif index == len(ranges) - 1:
+                next_fades = fades[:-1]
+            else:
+                # The neighbours now meet; keep the softer of the two junctions.
+                next_fades = [*fades[: index - 1], max(fades[index - 1], fades[index]), *fades[index + 1:]]
+            next_ranges = ranges[:index] + ranges[index + 1:]
+            remaining = VideoService._planned_play_seconds(
+                video_path, next_ranges, next_fades, cleanup_settings
+            )
+            if remaining < min_seconds:
+                logger.info(
+                    "Range %d holds a still picture but the edit needs it to stay in budget; keeping it",
+                    index + 1,
+                )
+                continue
+            logger.warning("Dropping range %d of the edit: it holds one still picture", index + 1)
+            ranges, fades = next_ranges, next_fades
+            checks = checks[:index] + checks[index + 1:]
+            items = [
+                {**item, "range_index": item["range_index"] - (1 if item["range_index"] > index else 0)}
+                for item in items
+                if item.get("range_index") != index
+            ]
+            dropped = True
+
+        if not dropped:
+            return segment
+        meta[items_key] = items
+        meta["ranges"] = [list(item) for item in ranges]
+        meta["junction_fades"] = fades
+        return {
+            **segment,
+            "source_ranges": [list(item) for item in ranges],
+            "junction_fades": fades,
+            "start_time": seconds_to_mmss(ranges[0][0]),
+            "end_time": seconds_to_mmss(ranges[0][1]),
+            "workflow_meta": meta,
+        }
+
+    @staticmethod
+    async def _plan_workflow_segments(
+        *,
+        workflow_spec: WorkflowSpec,
+        task_id: Optional[str],
+        transcript: str,
+        transcript_data: Optional[Dict[str, Any]],
+        source_seconds: float,
+        cached_analysis_json: Optional[str],
+        performance_context: Optional[str],
+        cleanup_settings: Optional[Dict[str, Any]],
+        plan_cache: Optional[PlanCache],
+        outline_cache_key: Optional[str],
+        progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]],
+        should_cancel: Optional[Callable[[], Awaitable[bool]]],
+    ) -> WorkflowResult:
+        """The workflow's locked segments: from the plan cache, else from the planner."""
+        from ..workflows import pipeline, units
+
+        if plan_cache is None or not outline_cache_key:
+            raise ValueError("Workflow planning needs a plan cache and an outline cache key")
+
+        # Planners cut on word timings; a plan cached for other timings is stale.
+        units_fingerprint = await run_in_thread(units.units_fingerprint, transcript_data, transcript)
+        cached = WorkflowResult.from_cache_json(
+            cached_analysis_json, workflow_spec.workflow, units_fingerprint
+        )
+        if cached is not None:
+            logger.info("Reusing the cached %s plan", workflow_spec.workflow)
+            return cached
+
+        # Planners may report from concurrent passes; one task session serves them all.
+        progress_lock = asyncio.Lock()
+
+        async def report(percent: int, message: str) -> None:
+            async with progress_lock:
+                if should_cancel and await should_cancel():
+                    raise Exception("Task cancelled")
+                if progress_callback:
+                    await progress_callback(percent, message, "processing")
+
+        context = PlanContext(
+            spec=workflow_spec,
+            task_id=task_id,
+            transcript_text=transcript,
+            transcript_data=transcript_data,
+            source_seconds=source_seconds,
+            cleanup_settings=cleanup_settings or {},
+            performance_context=performance_context,
+            progress=report,
+            plan_cache=plan_cache,
+            outline_cache_key=outline_cache_key,
+        )
+        result = await pipeline.plan_workflow(context)
+        logger.info(
+            "Planned %s: %d segment(s)", workflow_spec.workflow, len(result.segments)
+        )
+        return result
 
     @staticmethod
     def _get_file_duration(path: Path) -> Optional[float]:
@@ -563,10 +789,13 @@ class VideoService:
         clip_signals: Optional[str] = None,
         performance_context: Optional[str] = None,
         clip_length: str = "auto",
+        instructions: Optional[str] = None,
     ) -> Any:
         """
         Analyze transcript with AI to find relevant segments.
         This is already async, no need to wrap.
+        ``instructions`` (the user's steering text) reaches the prompt only
+        when set, so the call without them is unchanged.
         """
         logger.info("Starting AI analysis of transcript")
         relevant_parts = await get_most_relevant_parts_by_transcript(
@@ -575,6 +804,7 @@ class VideoService:
             performance_context=performance_context,
             clip_length=clip_length,
             include_reserve=True,
+            **({"instructions": instructions} if instructions else {}),
         )
         logger.info(
             f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"
@@ -588,15 +818,24 @@ class VideoService:
         output_format: str = "vertical",
         max_short_side: Optional[int] = None,
         session: Optional[BRollSession] = None,
+        output_offsets: Optional[List[float]] = None,
     ) -> List[Dict[str, Any]]:
-        """Plan and fetch stock cutaways for a clip rendered from ``keep_ranges``."""
+        """Plan and fetch stock cutaways for a clip rendered from ``keep_ranges``.
+
+        ``output_offsets`` places planned ranges on the clip timeline; without
+        them the renderer's default crossfades apply.
+        """
         if not broll_configured() or not keep_ranges:
             return []
         try:
             transcript = await run_in_thread(load_cached_transcript_data, video_path)
-            words = get_words_for_keep_ranges(transcript, keep_ranges) if transcript else []
+            words = get_words_for_keep_ranges(transcript, keep_ranges, output_offsets) if transcript else []
             # The renderer crossfades between kept ranges, which shortens the clip.
-            clip_seconds = rendered_ranges_duration(keep_ranges)
+            clip_seconds = (
+                rendered_duration(keep_ranges, output_offsets)
+                if output_offsets is not None
+                else rendered_ranges_duration(keep_ranges)
+            )
             orientation = "portrait"
             target_short_side = 1080
             if output_format == "original":
@@ -646,7 +885,20 @@ class VideoService:
             segments = [dict(segment) for segment in segments]
             for segment in segments:
                 placements = segment.get("broll") or []
-                if not placements:
+                if not placements and segment.get("planned"):
+                    # The same ranges and junction fades the render will use.
+                    resolved = await run_in_thread(
+                        resolve_render_ranges,
+                        video_path,
+                        segment,
+                        cleanup_settings,
+                        float(segment.get("max_seconds") or max_clip_seconds),
+                    )
+                    placements = await VideoService.plan_broll(
+                        video_path, resolved.keep_ranges, output_format, max_short_side, session,
+                        output_offsets=resolved.output_offsets,
+                    )
+                elif not placements:
                     keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
                     if not keep_ranges and segment.get("source_ranges"):
                         keep_ranges = await run_in_thread(
@@ -719,14 +971,7 @@ class VideoService:
         task's clips from reusing the same footage.
         """
         try:
-            provided_keep_ranges = normalize_source_ranges(segment.get("keep_ranges"))
-            source_ranges = normalize_source_ranges(segment.get("source_ranges"))
-            provided_bounds = source_range_bounds(provided_keep_ranges or source_ranges)
-            if provided_bounds:
-                start_seconds, end_seconds = provided_bounds
-            else:
-                start_seconds = parse_timestamp_to_seconds(segment["start_time"])
-                end_seconds = parse_timestamp_to_seconds(segment["end_time"])
+            start_seconds, end_seconds = segment_bounds(segment)
             duration = end_seconds - start_seconds
 
             if duration <= 0:
@@ -743,38 +988,19 @@ class VideoService:
                 f"{unique_suffix}.mp4"
             )
             clip_path = output_dir / clip_filename
-            if provided_keep_ranges:
-                keep_ranges = provided_keep_ranges
-            elif source_ranges:
-                keep_ranges = build_keep_ranges_from_source_ranges(
-                    video_path,
-                    source_ranges,
-                    cleanup_settings,
-                )
-            else:
-                start_seconds = snap_clip_start_to_sentence(
-                    video_path, start_seconds, end_seconds
-                )
-                keep_ranges = build_clip_keep_ranges(
-                    video_path,
-                    start_seconds,
-                    end_seconds,
-                    cleanup_settings,
-                )
-            keep_ranges = extend_keep_ranges_to_sentence_boundary(video_path, keep_ranges)
-            clip_text = segment.get("text", "")
-            if not provided_keep_ranges and not source_ranges:
-                keep_ranges = apply_segment_hook_teaser(video_path, keep_ranges, segment)
-            keep_ranges = clamp_keep_ranges_to_max_duration(video_path, keep_ranges, max_clip_seconds)
-            if not provided_keep_ranges and not source_ranges:
-                # Snapping, cleanup, the teaser and the cap change what is
-                # spoken; keep the stored text word-for-word with the timeline.
-                clip_text = keep_ranges_transcript_text(video_path, keep_ranges) or clip_text
+            resolved = resolve_render_ranges(
+                video_path, segment, cleanup_settings, max_clip_seconds
+            )
+            keep_ranges = resolved.keep_ranges
+            output_offsets = resolved.output_offsets
+            clip_text = resolved.text
+            start_seconds, end_seconds = resolved.bounds
 
             broll_placements: List[Dict[str, Any]] = []
             if include_broll:
                 broll_placements = await VideoService.plan_broll(
-                    video_path, keep_ranges, output_format, max_short_side, broll_session
+                    video_path, keep_ranges, output_format, max_short_side, broll_session,
+                    **({"output_offsets": output_offsets} if output_offsets is not None else {}),
                 )
             broll_overlays = await broll_overlays_for(broll_placements)
             render_report: Dict[str, Any] = {}
@@ -796,6 +1022,7 @@ class VideoService:
                 extend_to_sentence=False,
                 layout_report=render_report,
                 broll_overlays=broll_overlays,
+                **({"output_offsets": output_offsets} if output_offsets is not None else {}),
             )
 
             if not success:
@@ -812,14 +1039,16 @@ class VideoService:
                     logger.warning(f"Keeping full-size clip {clip_index + 1}: {e}")
 
             from ..media.ffmpeg import output_offsets_for_ranges
-            save_clip_source_ranges(clip_path, keep_ranges, output_offsets_for_ranges(keep_ranges))
+            save_clip_source_ranges(
+                clip_path, keep_ranges, output_offsets or output_offsets_for_ranges(keep_ranges)
+            )
             save_clip_broll(clip_path, broll_placements)
             if render_report.get("caption_y") is not None:
                 from ..clip_source_map import save_clip_caption_settings
                 save_clip_caption_settings(clip_path, {"position_y": render_report["caption_y"], "position_is_center": True})
             # Store what plays, after crossfades and the resolution cap.
             cleaned_duration = await run_in_thread(
-                rendered_clip_duration, clip_path, keep_ranges
+                rendered_clip_duration, clip_path, keep_ranges, output_offsets
             )
             logger.info(
                 f"Created clip {clip_index + 1}: {cleaned_duration:.1f}s"
@@ -843,6 +1072,8 @@ class VideoService:
                 "hook_type": segment.get("hook_type"),
                 "hook_title": segment.get("hook_title"),
                 "keep_ranges": keep_ranges,
+                "output_offsets": output_offsets,
+                "group_output_starts": resolved.group_output_starts,
             }
         except Exception as e:
             logger.error(f"Error creating clip {clip_index + 1}: {e}")
@@ -879,6 +1110,170 @@ class VideoService:
         return source
 
     @staticmethod
+    async def _select_highlight_segments(
+        *,
+        video_path: Path,
+        transcript: str,
+        cached_analysis_json: Optional[str],
+        performance_context: Optional[str],
+        clip_length: str,
+        processing_mode: str,
+        file_duration: Optional[float],
+        progress_callback: Optional[Callable[[int, str, str], Awaitable[None]]],
+        should_cancel: Optional[Callable[[], Awaitable[bool]]],
+        runtime_config: Any,
+        instructions: Optional[str] = None,
+    ) -> tuple[Any, List[Dict[str, Any]], int]:
+        """Pick standalone highlights: (analysis, ranked segments with reserve, clip limit).
+
+        ``instructions`` steers the analysis prompt; without them the
+        analysis is exactly the original highlights pipeline.
+        """
+        # Step 3: AI analysis
+        if should_cancel and await should_cancel():
+            raise Exception("Task cancelled")
+
+        if progress_callback:
+            await progress_callback(
+                50, "Analyzing content with AI...", "processing"
+            )
+
+        relevant_parts = None
+        if cached_analysis_json:
+            try:
+                cached_analysis = json.loads(cached_analysis_json)
+                segments = cached_analysis.get("most_relevant_segments", [])
+                if not segments:
+                    logger.info(
+                        "Ignoring cached transcript analysis with no clip segments"
+                    )
+                else:
+
+                    class _SimpleResult:
+                        def __init__(self, payload: Dict[str, Any]):
+                            self.summary = payload.get("summary")
+                            self.key_topics = payload.get("key_topics")
+                            self.most_relevant_segments = payload.get(
+                                "most_relevant_segments", []
+                            )
+
+                    relevant_parts = _SimpleResult(
+                        {
+                            "summary": cached_analysis.get("summary"),
+                            "key_topics": cached_analysis.get("key_topics", []),
+                            "most_relevant_segments": segments,
+                        }
+                    )
+            except Exception:
+                relevant_parts = None
+
+        if relevant_parts is None:
+            try:
+                clip_signals = await run_in_thread(
+                    build_clip_signal_summary,
+                    video_path,
+                    transcript,
+                )
+            except Exception as exc:
+                logger.warning("Clip signal extraction failed: %s", exc)
+                clip_signals = None
+            relevant_parts = await VideoService.analyze_transcript(
+                transcript,
+                clip_signals=clip_signals,
+                performance_context=performance_context,
+                clip_length=clip_length,
+                **({"instructions": instructions} if instructions else {}),
+            )
+
+        # Step 4: Create clips
+        if should_cancel and await should_cancel():
+            raise Exception("Task cancelled")
+
+        if progress_callback:
+            await progress_callback(70, "Creating video clips...", "processing")
+
+        raw_segments = relevant_parts.most_relevant_segments
+        segments_json: List[Dict[str, Any]] = []
+        transcript_data = load_cached_transcript_data(video_path)
+        for segment in raw_segments:
+            if isinstance(segment, dict):
+                virality = segment.get("virality") or {}
+                if hasattr(virality, "model_dump"):
+                    virality = virality.model_dump()
+                segment_payload = {
+                    "start_time": segment.get("start_time"),
+                    "end_time": segment.get("end_time"),
+                    "text": segment.get("text", ""),
+                    "relevance_score": segment.get("relevance_score", 0.0),
+                    "reasoning": segment.get("reasoning", ""),
+                    "virality_score": virality.get("total_score", 0),
+                    "hook_score": virality.get("hook_score", 0),
+                    "engagement_score": virality.get("engagement_score", 0),
+                    "value_score": virality.get("value_score", 0),
+                    "shareability_score": virality.get("shareability_score", 0),
+                    "hook_type": virality.get("hook_type"),
+                    "hook_title": segment.get("hook_title"),
+                    "hook_start_time": segment.get("hook_start_time"),
+                    "hook_end_time": segment.get("hook_end_time"),
+                }
+                if segment.get("opening_reviewed"):
+                    segment_payload["opening_reviewed"] = True
+            else:
+                virality = segment.virality.model_dump() if segment.virality else {}
+                segment_payload = {
+                    "start_time": segment.start_time,
+                    "end_time": segment.end_time,
+                    "text": segment.text,
+                    "relevance_score": segment.relevance_score,
+                    "reasoning": segment.reasoning,
+                    "virality_score": virality.get("total_score", 0),
+                    "hook_score": virality.get("hook_score", 0),
+                    "engagement_score": virality.get("engagement_score", 0),
+                    "value_score": virality.get("value_score", 0),
+                    "shareability_score": virality.get("shareability_score", 0),
+                    "hook_type": virality.get("hook_type"),
+                    "hook_title": getattr(segment, "hook_title", None),
+                    "hook_start_time": getattr(segment, "hook_start_time", None),
+                    "hook_end_time": getattr(segment, "hook_end_time", None),
+                }
+
+            segment_payload["text"] = VideoService._ground_segment_text(
+                segment_payload,
+                transcript_data,
+            )
+            segments_json.append(segment_payload)
+
+        try:
+            segments_json = VideoService._refine_segment_openings(
+                segments_json, transcript_data, clip_length
+            )
+        except Exception:
+            # A heuristic must never fail the task; keep the AI's openings.
+            logger.exception("Opening review failed; keeping the selected openings")
+
+        clip_limit = max_final_clips_for_duration(file_duration, runtime_config.max_clips)
+        if processing_mode == "fast":
+            clip_limit = min(clip_limit, runtime_config.fast_mode_max_clips)
+        # Retain a bounded reserve until picture checks finish, so a rejected
+        # slate can be replaced by the next already-ranked candidate.
+        segments_json = segments_json[: min(24, max(1, clip_limit) * 2)]
+
+        if not segments_json:
+            logger.warning(
+                "AI analysis selected no segments; using fallback clip window"
+            )
+            segments_json = [
+                VideoService._build_fallback_segment(
+                    file_duration,
+                    transcript,
+                    (runtime_config.clip_duration if clip_length == "auto"
+                     else clip_duration(clip_length).ideal_minimum),
+                )
+            ]
+
+        return relevant_parts, segments_json, clip_limit
+
+    @staticmethod
     async def process_video_complete(
         url: str,
         source_type: str,
@@ -898,10 +1293,21 @@ class VideoService:
         should_cancel: Optional[Callable[[], Awaitable[bool]]] = None,
         performance_context: Optional[str] = None,
         clip_length: str = "auto",
+        *,
+        workflow_spec: Optional[WorkflowSpec] = None,
+        plan_cache: Optional[PlanCache] = None,
+        outline_cache_key: Optional[str] = None,
+        cleanup_settings: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.
         Returns dict with segments and clips info.
+
+        Without ``workflow_spec`` (or for highlights) this picks standalone
+        highlights. Any other workflow is planned by ``plan_workflow`` from the
+        word-timed transcript, using ``plan_cache`` and ``outline_cache_key``
+        for its cached plan and outline, and returns locked segments plus the
+        ``workflow_plan`` to persist.
 
         progress_callback: Optional function to call with progress updates
                           Signature: async def callback(progress: int, message: str, status: str)
@@ -1057,146 +1463,57 @@ class VideoService:
                 logger.warning("Source word timings retained locally for upload retry")
             await run_in_thread(persist_cache_sidecar, video_path)
 
-            # Step 3: AI analysis
-            if should_cancel and await should_cancel():
-                raise Exception("Task cancelled")
-
-            if progress_callback:
-                await progress_callback(
-                    50, "Analyzing content with AI...", "processing"
-                )
-
-            relevant_parts = None
-            if cached_analysis_json:
-                try:
-                    cached_analysis = json.loads(cached_analysis_json)
-                    segments = cached_analysis.get("most_relevant_segments", [])
-                    if not segments:
-                        logger.info(
-                            "Ignoring cached transcript analysis with no clip segments"
-                        )
-                    else:
-
-                        class _SimpleResult:
-                            def __init__(self, payload: Dict[str, Any]):
-                                self.summary = payload.get("summary")
-                                self.key_topics = payload.get("key_topics")
-                                self.most_relevant_segments = payload.get(
-                                    "most_relevant_segments", []
-                                )
-
-                        relevant_parts = _SimpleResult(
-                            {
-                                "summary": cached_analysis.get("summary"),
-                                "key_topics": cached_analysis.get("key_topics", []),
-                                "most_relevant_segments": segments,
-                            }
-                        )
-                except Exception:
-                    relevant_parts = None
-
-            if relevant_parts is None:
-                try:
-                    clip_signals = await run_in_thread(
-                        build_clip_signal_summary,
-                        video_path,
-                        transcript,
-                    )
-                except Exception as exc:
-                    logger.warning("Clip signal extraction failed: %s", exc)
-                    clip_signals = None
-                relevant_parts = await VideoService.analyze_transcript(
-                    transcript,
-                    clip_signals=clip_signals,
+            workflow = workflow_spec.workflow if workflow_spec is not None else "highlights"
+            workflow_result: Optional[WorkflowResult] = None
+            if workflow == "highlights":
+                instructions = workflow_spec.options.instructions if workflow_spec is not None else ""
+                relevant_parts, segments_json, clip_limit = await VideoService._select_highlight_segments(
+                    video_path=video_path,
+                    transcript=transcript,
+                    cached_analysis_json=cached_analysis_json,
                     performance_context=performance_context,
                     clip_length=clip_length,
+                    processing_mode=processing_mode,
+                    file_duration=file_duration,
+                    progress_callback=progress_callback,
+                    should_cancel=should_cancel,
+                    runtime_config=runtime_config,
+                    **({"instructions": instructions} if instructions else {}),
                 )
-
-            # Step 4: Create clips
-            if should_cancel and await should_cancel():
-                raise Exception("Task cancelled")
-
-            if progress_callback:
-                await progress_callback(70, "Creating video clips...", "processing")
-
-            raw_segments = relevant_parts.most_relevant_segments
-            segments_json: List[Dict[str, Any]] = []
-            transcript_data = load_cached_transcript_data(video_path)
-            for segment in raw_segments:
-                if isinstance(segment, dict):
-                    virality = segment.get("virality") or {}
-                    if hasattr(virality, "model_dump"):
-                        virality = virality.model_dump()
-                    segment_payload = {
-                        "start_time": segment.get("start_time"),
-                        "end_time": segment.get("end_time"),
-                        "text": segment.get("text", ""),
-                        "relevance_score": segment.get("relevance_score", 0.0),
-                        "reasoning": segment.get("reasoning", ""),
-                        "virality_score": virality.get("total_score", 0),
-                        "hook_score": virality.get("hook_score", 0),
-                        "engagement_score": virality.get("engagement_score", 0),
-                        "value_score": virality.get("value_score", 0),
-                        "shareability_score": virality.get("shareability_score", 0),
-                        "hook_type": virality.get("hook_type"),
-                        "hook_title": segment.get("hook_title"),
-                        "hook_start_time": segment.get("hook_start_time"),
-                        "hook_end_time": segment.get("hook_end_time"),
-                    }
-                    if segment.get("opening_reviewed"):
-                        segment_payload["opening_reviewed"] = True
-                else:
-                    virality = segment.virality.model_dump() if segment.virality else {}
-                    segment_payload = {
-                        "start_time": segment.start_time,
-                        "end_time": segment.end_time,
-                        "text": segment.text,
-                        "relevance_score": segment.relevance_score,
-                        "reasoning": segment.reasoning,
-                        "virality_score": virality.get("total_score", 0),
-                        "hook_score": virality.get("hook_score", 0),
-                        "engagement_score": virality.get("engagement_score", 0),
-                        "value_score": virality.get("value_score", 0),
-                        "shareability_score": virality.get("shareability_score", 0),
-                        "hook_type": virality.get("hook_type"),
-                        "hook_title": getattr(segment, "hook_title", None),
-                        "hook_start_time": getattr(segment, "hook_start_time", None),
-                        "hook_end_time": getattr(segment, "hook_end_time", None),
-                    }
-
-                segment_payload["text"] = VideoService._ground_segment_text(
-                    segment_payload,
-                    transcript_data,
+            else:
+                if should_cancel and await should_cancel():
+                    raise Exception("Task cancelled")
+                if progress_callback:
+                    await progress_callback(50, "Reading the whole video...", "processing")
+                # Planners cut on these word timings, so they are read before planning.
+                transcript_data = await run_in_thread(load_cached_transcript_data, video_path)
+                source_seconds = float(file_duration or 0.0)
+                if source_seconds <= 0:
+                    words = (transcript_data or {}).get("words") or []
+                    source_seconds = max((float(word.get("end") or 0) for word in words), default=0.0) / 1000.0
+                workflow_result = await VideoService._plan_workflow_segments(
+                    workflow_spec=workflow_spec,
+                    task_id=task_id,
+                    transcript=transcript,
+                    transcript_data=transcript_data,
+                    source_seconds=source_seconds,
+                    cached_analysis_json=cached_analysis_json,
+                    performance_context=performance_context,
+                    cleanup_settings=cleanup_settings,
+                    plan_cache=plan_cache,
+                    outline_cache_key=outline_cache_key,
+                    progress_callback=progress_callback,
+                    should_cancel=should_cancel,
                 )
-                segments_json.append(segment_payload)
-
-            try:
-                segments_json = VideoService._refine_segment_openings(
-                    segments_json, transcript_data, clip_length
+                # Static checks below edit segments and plan; the cached result stays as planned.
+                segments_json = copy.deepcopy(workflow_result.segments)
+                workflow_plan = copy.deepcopy(workflow_result.plan)
+                # Topic plans list a few reserve moments after the selected ones.
+                clip_limit = sum(
+                    1 for segment in segments_json
+                    if not (segment.get("workflow_meta") or {}).get("reserve")
                 )
-            except Exception:
-                # A heuristic must never fail the task; keep the AI's openings.
-                logger.exception("Opening review failed; keeping the selected openings")
-
-            clip_limit = max_final_clips_for_duration(file_duration, runtime_config.max_clips)
-            if processing_mode == "fast":
-                clip_limit = min(clip_limit, runtime_config.fast_mode_max_clips)
-            # Retain a bounded reserve until picture checks finish, so a rejected
-            # slate can be replaced by the next already-ranked candidate.
-            segments_json = segments_json[: min(24, max(1, clip_limit) * 2)]
-
-            if not segments_json:
-                logger.warning(
-                    "AI analysis selected no segments; using fallback clip window"
-                )
-                segments_json = [
-                    VideoService._build_fallback_segment(
-                        file_duration,
-                        transcript,
-                        (runtime_config.clip_duration if clip_length == "auto"
-                         else clip_duration(clip_length).ideal_minimum),
-                    )
-                ]
+                relevant_parts = None
 
             if audio_first:
                 audio_path = video_path
@@ -1246,17 +1563,46 @@ class VideoService:
                 video_path = await VideoService.prepare_source(video_path)
 
             # The picture is only available now when analysis ran on audio.
-            if segments_json:
-                try:
-                    segments_json = await run_in_thread(
-                        VideoService._drop_static_segments, video_path, segments_json
-                    )
-                except Exception:
-                    logger.exception("Visual suitability check failed; keeping every segment")
+            if workflow in ("highlights", "topic"):
+                if segments_json:
+                    try:
+                        segments_json = await run_in_thread(
+                            VideoService._drop_static_segments, video_path, segments_json
+                        )
+                    except Exception:
+                        logger.exception("Visual suitability check failed; keeping every segment")
 
-            segments_json = segments_json[:max(1, clip_limit)]
-            if not segments_json:
-                raise ValueError("No usable footage remains after excluding interruption notices.")
+                segments_json = segments_json[:max(1, clip_limit)]
+                if not segments_json:
+                    raise ValueError("No usable footage remains after excluding interruption notices.")
+            elif workflow == "series":
+                # Parts tell one story in order; a still picture is never a reason to skip one.
+                await run_in_thread(VideoService._log_static_parts, video_path, segments_json)
+            else:
+                min_seconds = workflow_budget(workflow, workflow_spec.clip_length, source_seconds).min
+                segments_json = [
+                    await run_in_thread(
+                        VideoService._drop_static_ranges,
+                        video_path, segment, min_seconds, cleanup_settings,
+                    )
+                    for segment in segments_json
+                ]
+                _sync_plan_ranges(workflow_plan, segments_json)
+
+            if workflow_result is not None:
+                for segment in segments_json:
+                    (segment.get("workflow_meta") or {}).pop("reserve", None)
+                return {
+                    "segments": segments_json,
+                    "segments_to_render": segments_json,
+                    "video_path": str(video_path),
+                    "clips": [],
+                    "summary": workflow_result.summary,
+                    "key_topics": workflow_result.key_topics,
+                    "transcript": transcript,
+                    "analysis_json": workflow_result.to_cache_json(),
+                    "workflow_plan": workflow_plan,
+                }
 
             return {
                 "segments": segments_json,

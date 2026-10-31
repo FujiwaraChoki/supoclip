@@ -368,5 +368,7 @@
     "timeout": "A IA demorou demais. Tente de novo.",
     "failed": "Não foi possível falar com a IA. Tente de novo.",
     "title": "Edição com IA"
-  }
+  },
+  "partLabel": "Parte {n}",
+  "partClipLabel": "Parte {n} · {title}"
 }

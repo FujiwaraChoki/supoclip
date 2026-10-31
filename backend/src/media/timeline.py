@@ -956,8 +956,8 @@ def get_words_in_range(
     if not transcript_data or not transcript_data.get("words"):
         return []
 
-    clip_start_ms = int(clip_start * 1000)
-    clip_end_ms = int(clip_end * 1000)
+    clip_start_ms = int(round(clip_start * 1000))
+    clip_end_ms = int(round(clip_end * 1000))
 
     relevant_words = []
     for word_data in repair_word_timings(transcript_data["words"]):
@@ -991,8 +991,8 @@ def get_absolute_words_in_range(
     if not transcript_data or not transcript_data.get("words"):
         return []
 
-    clip_start_ms = int(clip_start * 1000)
-    clip_end_ms = int(clip_end * 1000)
+    clip_start_ms = int(round(clip_start * 1000))
+    clip_end_ms = int(round(clip_end * 1000))
 
     relevant_words: List[Dict[str, Any]] = []
     for word_data in repair_word_timings(transcript_data["words"]):
@@ -1186,14 +1186,23 @@ def build_clip_keep_ranges(
     if not merged_removals:
         return [(clip_start, clip_end)]
 
+    def worth_keeping(start: float, end: float) -> bool:
+        # Slivers between two cuts are dropped, unless a spoken word sits in
+        # one: a quick word between fillers is still part of the sentence.
+        if end - start >= 0.12:
+            return True
+        return end > start and any(
+            start <= (word["start"] + word["end"]) / 2 <= end for word in spoken_words
+        )
+
     keep_ranges: List[Tuple[float, float]] = []
     cursor = clip_start
     for removal_start, removal_end in merged_removals:
-        if removal_start - cursor >= 0.12:
+        if worth_keeping(cursor, removal_start):
             keep_ranges.append((cursor, removal_start))
         cursor = max(cursor, removal_end)
 
-    if clip_end - cursor >= 0.12:
+    if worth_keeping(cursor, clip_end):
         keep_ranges.append((cursor, clip_end))
 
     total_kept = sum(max(0.0, end - start) for start, end in keep_ranges)

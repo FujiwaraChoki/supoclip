@@ -11,11 +11,62 @@ from sqlalchemy.exc import DBAPIError
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text as sa_text
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Sequence, Tuple
+import json
 import logging
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
+
+
+async def _execute_newest_supported(
+    db: AsyncSession, attempts: Sequence[Tuple[str, Dict[str, Any]]]
+):
+    """Run the first statement the schema supports, newest first.
+
+    Each later statement drops columns added by a newer migration. A worker can
+    run ahead of the API's migrations, and sqlstate 42703 (undefined column)
+    then moves on to the next statement inside its own savepoint, so the outer
+    transaction and its task lock survive.
+    """
+    for statement, params in attempts[:-1]:
+        try:
+            async with db.begin_nested():
+                return await db.execute(sa_text(statement), params)
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) != "42703":
+                raise
+    statement, params = attempts[-1]
+    return await db.execute(sa_text(statement), params)
+
+
+def _workflow_meta(value: Any) -> Dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+_CLIP_COLUMNS = """id, task_id, filename, file_path, start_time, end_time, duration,
+       text, relevance_score, reasoning, clip_order, created_at"""
+_SCORE_COLUMNS = """virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
+       hook_title"""
+_WORKFLOW_COLUMNS = "workflow_role, part_number, workflow_meta"
+
+
+def _clip_select(where: str, *, scores: bool, workflow: bool) -> str:
+    columns = [_CLIP_COLUMNS]
+    if scores:
+        columns.append(_SCORE_COLUMNS)
+    if workflow:
+        columns.append(_WORKFLOW_COLUMNS)
+    return f"SELECT {', '.join(columns)} FROM generated_clips WHERE {where}"
+
+
+def _clip_selects(where: str) -> List[str]:
+    """Newest schema first: workflow columns, then scores, then the base columns."""
+    return [
+        _clip_select(where, scores=True, workflow=True),
+        _clip_select(where, scores=True, workflow=False),
+        _clip_select(where, scores=False, workflow=False),
+    ]
 
 
 class ClipRepository:
@@ -42,6 +93,9 @@ class ClipRepository:
         hook_type: Optional[str] = None,
         hook_title: Optional[str] = None,
         clip_id: Optional[str] = None,
+        workflow_role: Optional[str] = None,
+        part_number: Optional[int] = None,
+        workflow_meta: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Create a new clip record and return its ID."""
         previous = await db.execute(sa_text(
@@ -65,75 +119,114 @@ class ClipRepository:
             "reasoning": reasoning,
             "clip_order": clip_order,
         }
-        try:
-            async with db.begin_nested():
-                result = await db.execute(
-                    sa_text("""
-                        INSERT INTO generated_clips
-                        (id, task_id, filename, file_path, start_time, end_time, duration,
-                         text, relevance_score, reasoning, clip_order,
-                         virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                         hook_title, created_at)
-                        VALUES
-                        (:id, :task_id, :filename, :file_path, :start_time, :end_time, :duration,
-                         :text, :relevance_score, :reasoning, :clip_order,
-                         :virality_score, :hook_score, :engagement_score, :value_score, :shareability_score, :hook_type,
-                         :hook_title, NOW())
-                        ON CONFLICT (task_id, clip_order) DO UPDATE SET
-                            filename = EXCLUDED.filename,
-                            file_path = EXCLUDED.file_path,
-                            start_time = EXCLUDED.start_time,
-                            end_time = EXCLUDED.end_time,
-                            duration = EXCLUDED.duration,
-                            text = EXCLUDED.text,
-                            relevance_score = EXCLUDED.relevance_score,
-                            reasoning = EXCLUDED.reasoning,
-                            virality_score = EXCLUDED.virality_score,
-                            hook_score = EXCLUDED.hook_score,
-                            engagement_score = EXCLUDED.engagement_score,
-                            value_score = EXCLUDED.value_score,
-                            shareability_score = EXCLUDED.shareability_score,
-                            hook_type = EXCLUDED.hook_type,
-                            hook_title = EXCLUDED.hook_title,
-                            updated_at = NOW()
-                        RETURNING id
-                    """),
-                    {
-                        **base_params,
-                        "virality_score": virality_score,
-                        "hook_score": hook_score,
-                        "engagement_score": engagement_score,
-                        "value_score": value_score,
-                        "shareability_score": shareability_score,
-                        "hook_type": hook_type,
-                        "hook_title": hook_title,
-                    },
-                )
-        except DBAPIError as exc:
-            if getattr(exc.orig, "sqlstate", None) != "42703":
-                raise
-            result = await db.execute(
-                sa_text("""
-                    INSERT INTO generated_clips
-                    (id, task_id, filename, file_path, start_time, end_time, duration,
-                     text, relevance_score, reasoning, clip_order, created_at)
-                    VALUES
-                    (:id, :task_id, :filename, :file_path, :start_time, :end_time, :duration,
-                     :text, :relevance_score, :reasoning, :clip_order, NOW())
-                    ON CONFLICT (task_id, clip_order) DO UPDATE SET
-                        filename = EXCLUDED.filename,
-                        file_path = EXCLUDED.file_path,
-                        start_time = EXCLUDED.start_time,
-                        end_time = EXCLUDED.end_time,
-                        duration = EXCLUDED.duration,
-                        text = EXCLUDED.text,
-                        relevance_score = EXCLUDED.relevance_score,
-                        reasoning = EXCLUDED.reasoning,
-                        updated_at = NOW()
-                    RETURNING id
-                """),
+        score_params = {
+            **base_params,
+            "virality_score": virality_score,
+            "hook_score": hook_score,
+            "engagement_score": engagement_score,
+            "value_score": value_score,
+            "shareability_score": shareability_score,
+            "hook_type": hook_type,
+            "hook_title": hook_title,
+        }
+        result = await _execute_newest_supported(db, [
+            (
+                """
+                INSERT INTO generated_clips
+                (id, task_id, filename, file_path, start_time, end_time, duration,
+                 text, relevance_score, reasoning, clip_order,
+                 virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
+                 hook_title, workflow_role, part_number, workflow_meta, created_at)
+                VALUES
+                (:id, :task_id, :filename, :file_path, :start_time, :end_time, :duration,
+                 :text, :relevance_score, :reasoning, :clip_order,
+                 :virality_score, :hook_score, :engagement_score, :value_score, :shareability_score, :hook_type,
+                 :hook_title, :workflow_role, :part_number, CAST(:workflow_meta AS JSONB), NOW())
+                ON CONFLICT (task_id, clip_order) DO UPDATE SET
+                    filename = EXCLUDED.filename,
+                    file_path = EXCLUDED.file_path,
+                    start_time = EXCLUDED.start_time,
+                    end_time = EXCLUDED.end_time,
+                    duration = EXCLUDED.duration,
+                    text = EXCLUDED.text,
+                    relevance_score = EXCLUDED.relevance_score,
+                    reasoning = EXCLUDED.reasoning,
+                    virality_score = EXCLUDED.virality_score,
+                    hook_score = EXCLUDED.hook_score,
+                    engagement_score = EXCLUDED.engagement_score,
+                    value_score = EXCLUDED.value_score,
+                    shareability_score = EXCLUDED.shareability_score,
+                    hook_type = EXCLUDED.hook_type,
+                    hook_title = EXCLUDED.hook_title,
+                    workflow_role = EXCLUDED.workflow_role,
+                    part_number = EXCLUDED.part_number,
+                    workflow_meta = EXCLUDED.workflow_meta,
+                    updated_at = NOW()
+                RETURNING id
+                """,
+                {
+                    **score_params,
+                    "workflow_role": workflow_role,
+                    "part_number": part_number,
+                    "workflow_meta": json.dumps(workflow_meta or {}),
+                },
+            ),
+            (
+                """
+                INSERT INTO generated_clips
+                (id, task_id, filename, file_path, start_time, end_time, duration,
+                 text, relevance_score, reasoning, clip_order,
+                 virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
+                 hook_title, created_at)
+                VALUES
+                (:id, :task_id, :filename, :file_path, :start_time, :end_time, :duration,
+                 :text, :relevance_score, :reasoning, :clip_order,
+                 :virality_score, :hook_score, :engagement_score, :value_score, :shareability_score, :hook_type,
+                 :hook_title, NOW())
+                ON CONFLICT (task_id, clip_order) DO UPDATE SET
+                    filename = EXCLUDED.filename,
+                    file_path = EXCLUDED.file_path,
+                    start_time = EXCLUDED.start_time,
+                    end_time = EXCLUDED.end_time,
+                    duration = EXCLUDED.duration,
+                    text = EXCLUDED.text,
+                    relevance_score = EXCLUDED.relevance_score,
+                    reasoning = EXCLUDED.reasoning,
+                    virality_score = EXCLUDED.virality_score,
+                    hook_score = EXCLUDED.hook_score,
+                    engagement_score = EXCLUDED.engagement_score,
+                    value_score = EXCLUDED.value_score,
+                    shareability_score = EXCLUDED.shareability_score,
+                    hook_type = EXCLUDED.hook_type,
+                    hook_title = EXCLUDED.hook_title,
+                    updated_at = NOW()
+                RETURNING id
+                """,
+                score_params,
+            ),
+            (
+                """
+                INSERT INTO generated_clips
+                (id, task_id, filename, file_path, start_time, end_time, duration,
+                 text, relevance_score, reasoning, clip_order, created_at)
+                VALUES
+                (:id, :task_id, :filename, :file_path, :start_time, :end_time, :duration,
+                 :text, :relevance_score, :reasoning, :clip_order, NOW())
+                ON CONFLICT (task_id, clip_order) DO UPDATE SET
+                    filename = EXCLUDED.filename,
+                    file_path = EXCLUDED.file_path,
+                    start_time = EXCLUDED.start_time,
+                    end_time = EXCLUDED.end_time,
+                    duration = EXCLUDED.duration,
+                    text = EXCLUDED.text,
+                    relevance_score = EXCLUDED.relevance_score,
+                    reasoning = EXCLUDED.reasoning,
+                    updated_at = NOW()
+                RETURNING id
+                """,
                 base_params,
-            )
+            ),
+        ])
         clip_id = result.scalar()
         if not clip_id:
             raise RuntimeError("Failed to create clip: no ID returned")
@@ -143,33 +236,11 @@ class ClipRepository:
     @staticmethod
     async def get_clips_by_task(db: AsyncSession, task_id: str) -> List[Dict[str, Any]]:
         """Get all clips for a specific task, ordered by clip_order."""
-        try:
-            async with db.begin_nested():
-                result = await db.execute(
-                    sa_text("""
-                        SELECT id, filename, file_path, start_time, end_time, duration,
-                               text, relevance_score, reasoning, clip_order, created_at,
-                               virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                               hook_title
-                        FROM generated_clips
-                        WHERE task_id = :task_id
-                        ORDER BY clip_order ASC
-                    """),
-                    {"task_id": task_id},
-                )
-        except DBAPIError as exc:
-            if getattr(exc.orig, "sqlstate", None) != "42703":
-                raise
-            result = await db.execute(
-                sa_text("""
-                    SELECT id, filename, file_path, start_time, end_time, duration,
-                           text, relevance_score, reasoning, clip_order, created_at
-                    FROM generated_clips
-                    WHERE task_id = :task_id
-                    ORDER BY clip_order ASC
-                """),
-                {"task_id": task_id},
-            )
+        params = {"task_id": task_id}
+        result = await _execute_newest_supported(db, [
+            (f"{statement} ORDER BY clip_order ASC", params)
+            for statement in _clip_selects("task_id = :task_id")
+        ])
 
         clips = []
         for row in result.fetchall():
@@ -194,6 +265,9 @@ class ClipRepository:
                     "shareability_score": getattr(row, "shareability_score", 0) or 0,
                     "hook_type": getattr(row, "hook_type", None),
                     "hook_title": getattr(row, "hook_title", None),
+                    "workflow_role": getattr(row, "workflow_role", None),
+                    "part_number": getattr(row, "part_number", None),
+                    "workflow_meta": _workflow_meta(getattr(row, "workflow_meta", None)),
                 }
             )
 
@@ -252,35 +326,10 @@ class ClipRepository:
         db: AsyncSession, clip_id: str
     ) -> Optional[Dict[str, Any]]:
         """Get one clip by ID."""
-        try:
-            async with db.begin_nested():
-                result = await db.execute(
-                    sa_text(
-                        """
-                        SELECT id, task_id, filename, file_path, start_time, end_time, duration,
-                               text, relevance_score, reasoning, clip_order,
-                               virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                               hook_title, created_at
-                        FROM generated_clips
-                        WHERE id = :clip_id
-                        """
-                    ),
-                    {"clip_id": clip_id},
-                )
-        except DBAPIError as exc:
-            if getattr(exc.orig, "sqlstate", None) != "42703":
-                raise
-            result = await db.execute(
-                sa_text(
-                    """
-                    SELECT id, task_id, filename, file_path, start_time, end_time, duration,
-                           text, relevance_score, reasoning, clip_order, created_at
-                    FROM generated_clips
-                    WHERE id = :clip_id
-                    """
-                ),
-                {"clip_id": clip_id},
-            )
+        params = {"clip_id": clip_id}
+        result = await _execute_newest_supported(db, [
+            (statement, params) for statement in _clip_selects("id = :clip_id")
+        ])
         row = result.fetchone()
         if not row:
             return None
@@ -304,6 +353,9 @@ class ClipRepository:
             "shareability_score": getattr(row, "shareability_score", 0) or 0,
             "hook_type": getattr(row, "hook_type", None),
             "hook_title": getattr(row, "hook_title", None),
+            "workflow_role": getattr(row, "workflow_role", None),
+            "part_number": getattr(row, "part_number", None),
+            "workflow_meta": _workflow_meta(getattr(row, "workflow_meta", None)),
             "created_at": row.created_at.isoformat(),
             "video_url": f"/tasks/{row.task_id}/clips/{row.id}/file",
         }

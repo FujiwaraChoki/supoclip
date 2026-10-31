@@ -236,7 +236,7 @@ async def test_create_single_clip_keeps_timing_fields_consistent(monkeypatch, tm
 
     monkeypatch.setattr("src.services.video_service.run_in_thread", fake_run_in_thread)
     monkeypatch.setattr(
-        "src.services.video_service.build_clip_keep_ranges",
+        "src.media.render_ranges.build_clip_keep_ranges",
         lambda *_args, **_kwargs: [(10.0, 11.0), (12.0, 14.0)],
     )
 
@@ -260,7 +260,7 @@ def test_create_clips_from_segments_keeps_timing_fields_consistent(
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(
-        "src.video_utils.build_clip_keep_ranges",
+        "src.media.render_ranges.build_clip_keep_ranges",
         lambda *_args, **_kwargs: [(10.0, 11.0), (12.0, 14.0)],
     )
     monkeypatch.setattr("src.video_utils.create_optimized_clip", lambda *_args, **_kwargs: True)
@@ -300,7 +300,7 @@ def test_create_clips_from_segments_uses_source_ranges_when_recomputing_cleanup(
         return [(10.1, 10.9), (13.1, 14.9)]
 
     monkeypatch.setattr(
-        "src.video_utils.build_keep_ranges_from_source_ranges",
+        "src.media.render_ranges.build_keep_ranges_from_source_ranges",
         fake_build_keep_ranges_from_source_ranges,
     )
     monkeypatch.setattr(

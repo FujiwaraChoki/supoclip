@@ -1,4 +1,5 @@
 import asyncio
+import json
 import threading
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -162,3 +163,51 @@ async def test_active_processing_rejects_clip_edits(db_session, tmp_path, status
     with pytest.raises(ValueError, match="processing to finish"):
         await TaskService(db_session, config=config_for(tmp_path)).split_clip(task_id, ids[0], 3)
     assert len(await ClipRepository.get_clips_by_task(db_session, task_id)) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("edit", ["trim", "split", "merge", "delete", "captions"])
+async def test_workflow_fields_survive_clip_edits(db_session, tmp_path, monkeypatch, edit):
+    task_id, ids, original = await make_task(db_session, tmp_path, count=3)
+    metas = {}
+    for number, clip_id in enumerate(ids, start=1):
+        metas[clip_id] = {"planned": True, "ranges": [[number * 60.0, number * 60.0 + 10]], "title": f"Part {number}"}
+        await db_session.execute(
+            text("""
+                UPDATE generated_clips
+                SET workflow_role = 'part', part_number = :number, workflow_meta = CAST(:meta AS JSONB)
+                WHERE id = :id
+            """),
+            {"number": number, "meta": json.dumps(metas[clip_id]), "id": clip_id},
+        )
+    await db_session.commit()
+    render = fake_render(tmp_path)
+    monkeypatch.setattr("src.services.clip_service.split_clip_file", render)
+    monkeypatch.setattr("src.services.clip_service.trim_clip_file", lambda *_: render()[0])
+    monkeypatch.setattr("src.services.clip_service.merge_clip_files", lambda *_: render()[0])
+    monkeypatch.setattr("src.services.clip_service.overlay_custom_captions", lambda *_a, **_k: render()[0])
+    monkeypatch.setattr("src.services.clip_service.create_optimized_clip", lambda *_a, **_k: True)
+    service = TaskService(db_session, config=config_for(tmp_path))
+    service.video_service.resolve_local_video_path = lambda _: original
+    service.cache_repo.get_cache = AsyncMock(return_value={"video_path": str(original)})
+    service._load_task_source_settings = AsyncMock(return_value={"output_format": "original"})
+
+    await {
+        "trim": lambda: service.trim_clip(task_id, ids[0], .1, .1),
+        "split": lambda: service.split_clip(task_id, ids[0], 3),
+        "merge": lambda: service.merge_clips(task_id, ids[:2]),
+        "delete": lambda: service.delete_clip(task_id, ids[1]),
+        "captions": lambda: service.update_clip_captions(task_id, ids[0], "edited", "bottom", []),
+    }[edit]()
+
+    clips = {clip["id"]: clip for clip in await ClipRepository.get_clips_by_task(db_session, task_id)}
+    survivors = {
+        "trim": ids, "split": ids, "merge": [ids[0], ids[2]], "delete": [ids[0], ids[2]], "captions": ids,
+    }[edit]
+    for clip_id in survivors:
+        number = ids.index(clip_id) + 1
+        assert (clips[clip_id]["workflow_role"], clips[clip_id]["part_number"], clips[clip_id]["workflow_meta"]) == (
+            "part", number, metas[clip_id],
+        )
+    # Edits renumber clip_order but never part_number.
+    assert [clip["clip_order"] for clip in clips.values()] == list(range(1, len(clips) + 1))

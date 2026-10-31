@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowRight, Bot, ChartColumn, CornerDownLeft, Film, LogOut, Plus, Search, Settings, Share2, Shield, Sparkles,
+  ArrowRight, Bot, ChartColumn, CornerDownLeft, Film, ListChecks, ListOrdered, LogOut, Play, Plus, Search, Settings, Share2, Shield, Sparkles, Target,
 } from "lucide-react";
 import { toast } from "sonner";
 import { signOut, useSession } from "@/lib/auth-client";
@@ -18,6 +18,7 @@ import { getUpgradeState } from "@/components/billing/upgrade-prompt";
 import { fetchGenerations, timeAgo, type GenerationSummary } from "@/lib/generations";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Announcements } from "@/components/announcements";
+import { availableWorkflows, useWorkflowsInfo } from "@/components/workflow-picker";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Kbd } from "@/components/ui/kbd";
@@ -258,8 +259,17 @@ function UserRow({ compact, name, email }: { compact: boolean; name?: string | n
 
 type PaletteEntry = { id: string; label: string; hint?: string; href: string; icon: typeof Film; generation?: GenerationSummary };
 
+// "New series" and friends open the create screen with that workflow picked.
+const WORKFLOW_SHORTCUTS = [
+  { id: "series", icon: ListOrdered },
+  { id: "topic", icon: Target },
+  { id: "recap", icon: ListChecks },
+  { id: "trailer", icon: Play },
+] as const;
+
 function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useTranslations("shell");
+  const tHome = useTranslations("home");
   const locale = useLocale();
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -275,10 +285,15 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
   }, [open]);
 
   const socialAccess = useSocialAccess(open);
+  const workflowsInfo = useWorkflowsInfo(open);
   const entries = useMemo<PaletteEntry[]>(() => {
     const q = query.trim().toLowerCase();
+    const offered = availableWorkflows(workflowsInfo);
     const actions: PaletteEntry[] = [
       { id: "new", label: t("nav.newGeneration"), hint: t("palette.newHint"), href: "/", icon: Plus },
+      ...WORKFLOW_SHORTCUTS.filter((shortcut) => offered.has(shortcut.id)).map((shortcut) => ({
+        id: `new-${shortcut.id}`, label: tHome(`palette.${shortcut.id}`), href: `/?workflow=${shortcut.id}`, icon: shortcut.icon,
+      })),
       { id: "library", label: t("palette.library"), href: "/list", icon: Film },
       ...(socialAccess === true ? [{ id: "social", label: t("palette.social"), hint: t("palette.socialHint"), href: "/settings/social", icon: Share2 },
       { id: "analytics", label: t("nav.analytics"), hint: t("palette.analyticsHint"), href: "/analytics", icon: ChartColumn }] : []),
@@ -293,7 +308,7 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
         href: `/tasks/${generation.id}`, icon: Film, generation,
       }));
     return [...actions, ...matches];
-  }, [generations, query, socialAccess, t, locale]);
+  }, [generations, query, socialAccess, workflowsInfo, t, tHome, locale]);
 
   const go = useCallback((entry: PaletteEntry | undefined) => {
     if (!entry) return;

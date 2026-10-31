@@ -26,7 +26,19 @@
     "upload": "上传",
     "clips": "{count, plural, one {# 个片段} other {# 个片段}}",
     "select": "选择 {title}",
-    "deselect": "取消选择 {title}"
+    "deselect": "取消选择 {title}",
+    "workflow": {
+      "series": "系列 · {count, plural, one {# 集} other {# 集}}",
+      "topic": "主题 · {count, plural, one {# 个片段} other {# 个片段}}",
+      "recap": "精华回顾",
+      "trailer": "预告片"
+    },
+    "findingByWorkflow": {
+      "series": "正在梳理故事线…",
+      "topic": "正在寻找与你的主题相关的片段…",
+      "recap": "正在挑选要点…",
+      "trailer": "正在撰写预告…"
+    }
   },
   "title": "资料库",
   "summary": "{count, plural, one {# 次生成} other {# 次生成}} · 悬停可预览，选中后可批量管理",

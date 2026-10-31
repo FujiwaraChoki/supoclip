@@ -12,11 +12,13 @@ import DynamicVideoPlayer from "@/components/dynamic-video-player";
 import { TranscriptPreview } from "@/components/transcript-preview";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getClipUrl } from "@/lib/clip-actions";
 import { formatClipDuration } from "@/lib/generations";
 import { cn } from "@/lib/utils";
+import { SINGLE_OUTPUT, type SourceRange, type Workflow, type WorkflowClipFields } from "@/lib/workflows";
 
-export interface WallClip {
+export interface WallClip extends WorkflowClipFields {
   id: string;
   filename: string;
   start_time: string;
@@ -35,22 +37,72 @@ export interface WallClip {
   hook_title: string | null;
 }
 
-function clipTitle(clip: WallClip, fallback: string) {
-  return clip.hook_title || fallback;
+type TaskT = ReturnType<typeof useTranslations<"task">>;
+
+/** Parts, recaps and trailers are planned pieces, not scored picks. */
+const UNSCORED_ROLES = new Set(["part", "recap", "trailer"]);
+
+export function isPart(clip: WorkflowClipFields): clip is WorkflowClipFields & { part_number: number } {
+  return clip.workflow_role === "part" && typeof clip.part_number === "number";
 }
 
-export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownload, onDelete }: {
+export function showsScore(clip: Pick<WallClip, "virality_score" | "workflow_role">) {
+  return clip.virality_score > 0 && !UNSCORED_ROLES.has(clip.workflow_role ?? "");
+}
+
+// "Part 2: ", "Teil 2 – ", "第2部分：", "Parte 2 · " in front of a burned-in hook title.
+const PART_PREFIX = /^\s*\S{0,12}?\s*(\d+)\s*\S{0,3}?\s*[:：–—\-·|]\s*/u;
+
+/** A part's own title: the planned title, else its hook title without the "Part n:" label. */
+export function partTitle(clip: { hook_title?: string | null } & Pick<WallClip, "part_number" | "workflow_meta">): string | null {
+  const planned = clip.workflow_meta?.title?.trim();
+  if (planned) return planned;
+  const hook = clip.hook_title?.trim();
+  if (!hook) return null;
+  const match = PART_PREFIX.exec(hook);
+  if (match && Number(match[1]) === clip.part_number) return hook.slice(match[0].length).trim() || null;
+  return hook;
+}
+
+/**
+ * The clip's title. Parts show their own title (their number is badged next
+ * to it), else "Part n"; other clips their hook title, else "Clip n".
+ */
+export function clipTitle(clip: WallClip, t: TaskT) {
+  if (isPart(clip)) return partTitle(clip) ?? t("partLabel", { n: clip.part_number });
+  return clip.hook_title || t("clipNumber", { order: clip.clip_order });
+}
+
+/** Seconds as M:SS, or H:MM:SS past an hour, for pointing into the source video. */
+export function sourceTimestamp(seconds: number) {
+  const whole = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(whole / 3600);
+  const mins = Math.floor((whole % 3600) / 60);
+  const secs = (whole % 60).toString().padStart(2, "0");
+  return hours ? `${hours}:${mins.toString().padStart(2, "0")}:${secs}` : `${mins}:${secs}`;
+}
+
+/** The planned source ranges of a clip stitched from several moments, else null. */
+function sourceMoments(clip: WallClip): SourceRange[] | null {
+  const ranges = clip.workflow_meta?.ranges;
+  return Array.isArray(ranges) && ranges.length > 1 ? ranges : null;
+}
+
+export function ClipTile({ clip, taskId, busy, best, editable, partTotal, onOpen, onDownload, onDelete }: {
   clip: WallClip;
   taskId: string;
   busy: boolean;
   best: boolean;
   editable: boolean;
+  /** Parts in the series, for the "Part n of N" badge. */
+  partTotal?: number;
   onOpen: () => void;
   onDownload: () => void;
   onDelete?: () => void;
 }) {
   const t = useTranslations("task");
-  const title = clipTitle(clip, t("clipNumber", { order: clip.clip_order }));
+  const title = clipTitle(clip, t);
+  const why = clip.workflow_meta?.why;
   return (
     <article className="group @container animate-rise">
       <button
@@ -64,12 +116,16 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
           className="aspect-[9/16] rounded-xl ring-1 ring-black/5 transition-shadow duration-200 group-hover:shadow-xl"
         >
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-black/25" />
-          {best && (
+          {isPart(clip) ? (
+            <span className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-white backdrop-blur">
+              {partTotal ? t("partOf", { n: clip.part_number, total: partTotal }) : t("partLabel", { n: clip.part_number })}
+            </span>
+          ) : best && (
             <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-foreground shadow">
               <Flame className="size-3" />{t("topPick")}
             </span>
           )}
-          {clip.virality_score > 0 && (
+          {showsScore(clip) && (
             <span className="absolute right-2 top-2 rounded-full bg-black/55 text-white backdrop-blur">
               <ScoreRing score={clip.virality_score} size={36} />
             </span>
@@ -81,7 +137,16 @@ export function ClipTile({ clip, taskId, busy, best, editable, onOpen, onDownloa
         </ClipCover>
       </button>
       <div className="mt-2.5 px-0.5">
-        <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{title}</h3>
+        {why ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <h3 tabIndex={0} className="line-clamp-2 cursor-default text-sm font-semibold leading-snug focus-visible:outline-none focus-visible:underline">{title}</h3>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-64">{why}</TooltipContent>
+          </Tooltip>
+        ) : (
+          <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{title}</h3>
+        )}
         <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">{clip.start_time} – {clip.end_time}</p>
         <div className="mt-2 flex items-center gap-1">
           <Button size="sm" variant="outline" className="h-7 flex-1 px-2 text-xs" onClick={onDownload} disabled={busy} aria-label={t("downloadNamed", { title })}>
@@ -128,6 +193,8 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
   children?: React.ReactNode;
 }) {
   const t = useTranslations("task");
+  const moments = clip ? sourceMoments(clip) : null;
+  const meta = clip?.workflow_meta;
   useEffect(() => {
     if (!clip) return;
     const onKey = (event: KeyboardEvent) => {
@@ -157,13 +224,36 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
               </div>
               <div className="space-y-5 p-5">
                 <div>
-                  <DialogTitle className="font-display text-xl font-bold leading-tight">{clipTitle(clip, t("clipNumber", { order: clip.clip_order }))}</DialogTitle>
+                  {isPart(clip) && (
+                    <p className="mb-1 text-xs font-medium tabular-nums text-muted-foreground">
+                      {meta?.part_count ? t("partOf", { n: clip.part_number, total: meta.part_count }) : t("partLabel", { n: clip.part_number })}
+                    </p>
+                  )}
+                  <DialogTitle className="font-display text-xl font-bold leading-tight">{clipTitle(clip, t)}</DialogTitle>
                   <DialogDescription className="mt-1 tabular-nums">
-                    {clip.start_time} – {clip.end_time} · {formatClipDuration(clip.duration)}
+                    {moments ? formatClipDuration(clip.duration) : <>{clip.start_time} – {clip.end_time} · {formatClipDuration(clip.duration)}</>}
                   </DialogDescription>
                 </div>
 
-                {clip.virality_score > 0 && (
+                {isPart(clip) && (meta?.delivers || meta?.ends_on) && (
+                  <section className="space-y-1.5 text-sm">
+                    {meta.delivers && <p>{meta.delivers}</p>}
+                    {meta.ends_on && <p className="text-muted-foreground">{t("endsOn", { text: meta.ends_on })}</p>}
+                  </section>
+                )}
+
+                {moments && (
+                  <section>
+                    <h3 className="text-xs font-medium text-muted-foreground">{t("sourceMoments")}</h3>
+                    <ol className="mt-1.5 flex flex-wrap gap-1.5 text-xs tabular-nums">
+                      {moments.map(([start, end], i) => (
+                        <li key={`${start}-${i}`} className="rounded-md bg-muted px-2 py-1">{sourceTimestamp(start)} – {sourceTimestamp(end)}</li>
+                      ))}
+                    </ol>
+                  </section>
+                )}
+
+                {showsScore(clip) && (
                   <section className="rounded-xl border p-4">
                     <div className="flex items-center gap-4">
                       <ScoreRing score={clip.virality_score} size={56} className="text-foreground [&>span]:text-base" />
@@ -192,7 +282,7 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                   </section>
                 )}
 
-                {clip.text && <TranscriptPreview text={clip.text} clipTitle={clipTitle(clip, t("clipNumber", { order: clip.clip_order }))} />}
+                {clip.text && <TranscriptPreview text={clip.text} clipTitle={clipTitle(clip, t)} />}
                 {children}
               </div>
               <div className="mt-auto flex flex-wrap items-center gap-2 border-t bg-muted/30 px-5 py-3">
@@ -230,7 +320,10 @@ const STEPS = [
 function activeStep(status: string, progress: number, message: string) {
   if (status === "queued") return -1;
   const text = message.toLowerCase();
-  if (/render|creating clip|clip \d|saving/.test(text)) return 3;
+  // Workflow planning ("Mapping the story...", "Finding where '<topic>' comes up..."), checked
+  // first: the quoted topic is the user's own words and may say anything.
+  if (/^(reading|mapping|planning|picking|choosing|writing|checking|finding where)\b/.test(text)) return 2;
+  if (/render|creating (clip|part|recap|trailer)|clip \d|saving/.test(text)) return 3;
   if (/analy|moment|segment|ai /.test(text)) return 2;
   if (/transcri/.test(text)) return 1;
   if (/download|fetch|preparing/.test(text)) return 0;
@@ -238,9 +331,11 @@ function activeStep(status: string, progress: number, message: string) {
   return byProgress === -1 ? STEPS.length - 1 : byProgress;
 }
 
-/** "Creating clip 3/5..." → { current: 3, total: 5 } */
+/** "Creating clip 3/5..." or "Creating part 2/4..." → { current, total } */
 export function clipProgressFromMessage(message: string) {
-  const match = /clip (\d+)\s*\/\s*(\d+)/i.exec(message);
+  // A topic search message quotes the user's topic, which could look like a counter.
+  if (/^finding where/i.test(message)) return null;
+  const match = /(?:clip|part|recap|trailer) (\d+)\s*\/\s*(\d+)/i.exec(message);
   return match ? { current: Number(match[1]), total: Number(match[2]) } : null;
 }
 
@@ -259,10 +354,12 @@ function useElapsed(since: number | undefined) {
   return since === undefined ? 0 : Math.max(0, (now - since) / 1000);
 }
 
-export function ProcessingPanel({ status, progress, message, startedAt, elapsedSeconds, clipProgress }: {
+export function ProcessingPanel({ status, progress, message, startedAt, elapsedSeconds, clipProgress, workflow = "highlights" }: {
   status: string;
   progress: number;
   message: string;
+  /** Relabels the steps and the counter for what the generation makes. */
+  workflow?: Workflow;
   /** Epoch ms the task started; drives the time-left estimate. */
   startedAt?: number;
   /** Overrides the clock (landing demo). */
@@ -288,7 +385,7 @@ export function ProcessingPanel({ status, progress, message, startedAt, elapsedS
       </div>
       <div className="flex items-baseline justify-between gap-6">
         <p className="font-display text-2xl font-bold tracking-tight tabular-nums">{eta}</p>
-        {clip && <p className="text-sm tabular-nums text-muted-foreground">{t("clipOf", clip)}</p>}
+        {clip && !SINGLE_OUTPUT.has(workflow) && <p className="text-sm tabular-nums text-muted-foreground">{workflow === "series" ? t("partOf", { n: clip.current, total: clip.total }) : t("clipOf", clip)}</p>}
       </div>
       <div className="mt-4 h-2 rounded-full bg-stone-200/60 dark:bg-stone-800/60" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-label={t("percentComplete", { progress })}>
         <div className="metal-flow h-full rounded-full transition-[width] duration-700 ease-out" style={{ width: `${Math.max(progress, 1)}%` }} />
@@ -297,7 +394,7 @@ export function ProcessingPanel({ status, progress, message, startedAt, elapsedS
         {STEPS.map((s, i) => (
           <li key={s.id} className={cn("flex items-center gap-1 truncate pr-2", i < step ? "text-foreground/60" : i === step ? "font-medium text-foreground" : "text-foreground/35")}>
             {i < step && <Check className="size-3 shrink-0" />}
-            <span className="truncate">{t(`steps.${s.id}`)}</span>
+            <span className="truncate">{stepLabel(t, workflow, s.id)}</span>
           </li>
         ))}
       </ol>
@@ -306,10 +403,9 @@ export function ProcessingPanel({ status, progress, message, startedAt, elapsedS
   );
 }
 
-/** ~1 clip per 5 minutes of source, capped like the backend's MAX_CLIPS default. */
-export function expectedClipCount(sourceSeconds?: number | null) {
-  if (!sourceSeconds) return 4;
-  return Math.min(10, Math.max(1, Math.round(sourceSeconds / 300)));
+function stepLabel(t: TaskT, workflow: Workflow, step: (typeof STEPS)[number]["id"]) {
+  const key = `stepsByWorkflow.${workflow}.${step}`;
+  return t.has(key) ? t(key) : t(`steps.${step}`);
 }
 
 /** The clip grid while processing: finished clips, then 9:16 placeholders for the rest. */

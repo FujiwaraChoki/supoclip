@@ -261,6 +261,27 @@ class Config:
             for email in os.getenv("SOCIAL_PUBLISHING_ALLOWED_EMAILS", "").split(",")
             if email.strip()
         )
+        # Who may use workflows (series, topic, recap, trailer) and creator
+        # instructions: "admins" (default; admins plus the allowlist, also
+        # covers deploys where an old worker could take a new task), "all" or
+        # "off". Self-hosters set "all".
+        self.workflows_access = (os.getenv("WORKFLOWS_ACCESS") or "admins").strip().lower()
+        if self.workflows_access not in {"all", "admins", "off"}:
+            self.workflows_access = "admins"
+        self.workflows_allowed_emails = frozenset(
+            email.strip().lower()
+            for email in os.getenv("WORKFLOWS_ALLOWED_EMAILS", "").split(",")
+            if email.strip()
+        )
+        self.workflow_topic_max_clips = max(1, self._get_int_env("WORKFLOW_TOPIC_MAX_CLIPS", 15))
+        self.workflow_plan_timeout_seconds = self._get_positive_float_env(
+            "WORKFLOW_PLAN_TIMEOUT_SECONDS", 1800.0, maximum=6 * 60 * 60
+        )
+        # Word budget for sending the whole transcript in one outline call.
+        # None uses the provider default.
+        self.workflow_full_context_max_words = (
+            max(0, self._get_int_env("WORKFLOW_FULL_CONTEXT_MAX_WORDS", 0)) or None
+        )
         self.default_processing_mode = os.getenv("DEFAULT_PROCESSING_MODE", "fast")
         self.fast_mode_max_clips = int(os.getenv("FAST_MODE_MAX_CLIPS", "10"))
         self.fast_mode_transcript_model = os.getenv(

@@ -11,7 +11,8 @@
     "deleteFont": "无法删除字体",
     "exportClip": "无法导出片段",
     "share": "无法创建分享链接",
-    "disableShare": "无法停用分享链接"
+    "disableShare": "无法停用分享链接",
+    "createTask": "无法开始新的生成"
   },
   "toasts": {
     "settingsApplied": "已应用生成设置",
@@ -33,6 +34,7 @@
   "cancelTitle": "取消编辑标题",
   "editTitle": "编辑标题",
   "clipsTotal": "{count, plural, one {# 个片段} other {# 个片段}} · 共 {duration}",
+  "outputLength": "共 {duration}",
   "readOnly": "这是另一个账号生成内容的只读视图。",
   "cancel": "取消",
   "resume": "继续",
@@ -135,5 +137,116 @@
     "full": "完整文稿",
     "forTitle": "{title} 的文稿",
     "complete": "此片段的完整文稿"
-  }
+  },
+  "workflowBadge": {
+    "series": "系列 · {count, plural, one {# 集} other {# 集}}",
+    "topic": "主题：{topic}",
+    "recap": "精华回顾",
+    "trailer": "预告片",
+    "seriesPending": "系列"
+  },
+  "partOf": "第 {n} 集，共 {total} 集",
+  "partLabel": "第 {n} 集",
+  "endsOn": "结尾：{text}",
+  "postCaption": "发布文案",
+  "copyCaption": "复制文案",
+  "captionCopied": "文案已复制",
+  "downloadAll": "下载全部分集",
+  "incompleteSeries": "已停在第 {done} 集（共 {total} 集）。继续生成即可完成整个系列。",
+  "coversPoints": "{count, plural, one {涵盖 # 个要点} other {涵盖 # 个要点}}",
+  "pointKinds": {
+    "opener": "开场",
+    "closer": "总结"
+  },
+  "beatsTitle": "节奏",
+  "beatRoles": {
+    "cold_open": "钩子",
+    "context": "背景",
+    "escalation": "推进",
+    "button": "结尾"
+  },
+  "sourceMoment": "原视频 {time} 处",
+  "sourceMoments": "原视频片段",
+  "playFrom": "从 {time} 播放",
+  "topicHeader": "关于{topic} · {count, plural, one {# 个片段} other {# 个片段}}",
+  "instructionsUsed": "说明",
+  "stepsByWorkflow": {
+    "series": {
+      "finding": "梳理故事线",
+      "rendering": "剪辑分集"
+    },
+    "topic": {
+      "finding": "寻找与你的主题相关的片段",
+      "rendering": "渲染片段"
+    },
+    "recap": {
+      "finding": "挑选要点",
+      "rendering": "剪辑回顾"
+    },
+    "trailer": {
+      "finding": "撰写预告",
+      "rendering": "剪辑预告片"
+    }
+  },
+  "workflowNotes": {
+    "PART_COUNT_REDUCED": "你要求 {requested} 集，这个视频只够 {actual} 集。",
+    "STORY_ARC_SELECTED": "基于最精彩的一条故事线（{start}–{end}）制作。添加说明即可换一条。",
+    "NO_SINGLE_STORY": "这个视频没有一条贯穿始终的故事。本系列沿着其中最长的连贯主线展开。",
+    "TOPIC_THIN": "只有 {count, plural, one {# 个片段} other {# 个片段}}真正围绕这个主题。",
+    "TARGET_SHORTENED": "视频较短，所以回顾也更短。",
+    "COARSE_TRANSCRIPT": "这份转录没有逐词时间戳，剪辑点会不够精确。",
+    "SPONSOR_SKIPPED": "我们省略了一段赞助内容。"
+  },
+  "workflowErrors": {
+    "topic_not_found": {
+      "title": "这个视频几乎没有讲到“{topic}”",
+      "body": "我们只找到一些顺带提及，没有完整的片段。你的分钟数已退还。",
+      "suggestionsLabel": "这个视频主要在讲：",
+      "mentions": "在 {times} 处被简短提及。",
+      "cta": "改为生成精彩片段"
+    },
+    "source_too_short": {
+      "title": "这个视频太短，无法做成系列",
+      "body": "系列至少需要够分成两集的内容。你的分钟数已退还。",
+      "cta": "改为生成精彩片段"
+    },
+    "no_story": {
+      "title": "没有找到可以拆分成多集的故事",
+      "body": "这个视频没有一条足够长的故事线。你的分钟数已退还。",
+      "cta": "改为生成回顾"
+    },
+    "recap_unsupported": {
+      "title": "要点不够多，无法生成回顾",
+      "body": "你的分钟数已退还。",
+      "cta": "改为生成精彩片段"
+    },
+    "trailer_unbuildable": {
+      "title": "无法在不剧透结局的情况下做出预告片",
+      "body": "你的分钟数已退还。",
+      "cta": "改为生成回顾"
+    },
+    "analysis_incomplete": {
+      "title": "我们没能读完整个视频",
+      "body": "部分分析失败。你的分钟数已退还。",
+      "cta": "重试"
+    },
+    "plan_failed": {
+      "title": "AI 剪辑师没能完成这个方案",
+      "body": "你的分钟数已退还。",
+      "cta": "重试"
+    },
+    "render_incomplete": {
+      "title": "视频有一部分无法渲染",
+      "body": "你的分钟数已退还。",
+      "cta": "重试"
+    },
+    "transcript_untimed": {
+      "title": "这份转录没有时间戳",
+      "body": "精确剪辑需要时间戳。请改为上传文件。",
+      "cta": "返回首页"
+    },
+    "highlightsInstead": "改为生成精彩片段"
+  },
+  "clipLoadFailed": "无法加载此片段。",
+  "retryPlayback": "重新播放"
 }

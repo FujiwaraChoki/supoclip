@@ -390,3 +390,16 @@ it("refreshing account permissions clears an earlier visibility choice", async (
   fireEvent.keyDown(visibility, { key: "Enter" });
   expect(screen.queryByRole("option", { name: "Public" })).toBeNull();
 });
+
+it("prefills a series part's planned caption instead of drafting one", async () => {
+  const part = {
+    id: "clip-2", clip_order: 2, hook_title: null, text: "Transcript",
+    workflow_role: "part" as const, part_number: 2,
+    workflow_meta: { post_caption: "Part 2: the bank calls back. Part 3 tomorrow." },
+  };
+  render(<ClipPublishButton taskId="task-1" clip={part} connections={[connection()]} providers={[provider()]} onChanged={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: /publish/i }));
+  expect(await screen.findByLabelText("Caption")).toHaveValue("Part 2: the bank calls back. Part 3 tomorrow.");
+  expect(screen.getByLabelText("Title")).toHaveValue("Part 2");
+  expect(fetch).not.toHaveBeenCalledWith("/api/social/captions", expect.anything());
+});

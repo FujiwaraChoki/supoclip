@@ -85,6 +85,12 @@ CREATE TABLE tasks (
     share_token VARCHAR(64),
     share_enabled BOOLEAN NOT NULL DEFAULT false,
 
+    -- Workflow: what the task makes, its options and the persisted plan
+    workflow VARCHAR(20) NOT NULL DEFAULT 'highlights'
+        CONSTRAINT tasks_workflow_check CHECK (workflow IN ('highlights', 'series', 'topic', 'recap', 'trailer')),
+    workflow_options JSONB NOT NULL DEFAULT '{}'::jsonb,
+    workflow_plan JSONB,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -111,6 +117,11 @@ CREATE TABLE generated_clips (
     shareability_score INTEGER DEFAULT 0,
     hook_type VARCHAR(50),
     hook_title VARCHAR(200),         -- AI-written on-screen headline
+
+    -- Workflow role (part, topic, recap, trailer), series part number, plan metadata
+    workflow_role VARCHAR(20),
+    part_number INTEGER,
+    workflow_meta JSONB NOT NULL DEFAULT '{}'::jsonb,
 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -274,6 +285,7 @@ CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_created_at ON tasks(created_at);
 CREATE INDEX idx_tasks_processing_mode ON tasks(processing_mode);
 CREATE INDEX idx_tasks_completed_at ON tasks(completed_at);
+CREATE INDEX idx_tasks_user_workflow ON tasks(user_id, workflow);
 CREATE UNIQUE INDEX idx_tasks_share_token ON tasks(share_token) WHERE share_token IS NOT NULL;
 CREATE INDEX idx_sources_created_at ON sources(created_at);
 CREATE INDEX idx_processing_cache_source_url ON processing_cache(source_url);

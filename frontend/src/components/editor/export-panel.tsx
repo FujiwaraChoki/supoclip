@@ -36,6 +36,7 @@ import { editorRequest } from "./use-editor";
 import { editorMessage } from "./studio-ui";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import type { WorkflowMeta } from "@/lib/workflows";
 export interface ClipSummary {
   id: string;
   filename: string;
@@ -43,6 +44,11 @@ export interface ClipSummary {
   duration: number;
   text: string;
   video_url: string;
+  hook_title?: string | null;
+  /** Series parts only. */
+  part_number?: number | null;
+  workflow_role?: string | null;
+  workflow_meta?: WorkflowMeta;
 }
 interface Job extends ExportJob {
   endpoint: string;

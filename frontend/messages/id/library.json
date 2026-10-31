@@ -26,7 +26,19 @@
     "upload": "Unggahan",
     "clips": "{count, plural, one {# clip} other {# clip}}",
     "select": "Pilih {title}",
-    "deselect": "Batalkan pilihan {title}"
+    "deselect": "Batalkan pilihan {title}",
+    "workflow": {
+      "series": "Seri · {count, plural, one {# bagian} other {# bagian}}",
+      "topic": "Topik · {count, plural, one {# momen} other {# momen}}",
+      "recap": "Rangkuman",
+      "trailer": "Trailer"
+    },
+    "findingByWorkflow": {
+      "series": "Memetakan cerita…",
+      "topic": "Mencari momen tentang topikmu…",
+      "recap": "Memilih poin utama…",
+      "trailer": "Menulis trailer…"
+    }
   },
   "title": "Pustaka",
   "summary": "{count, plural, one {# generasi} other {# generasi}} · arahkan untuk pratinjau, pilih untuk kelola sekaligus",

@@ -126,5 +126,132 @@
     "long": "Panjang (1–2 menit)",
     "hint": "Target durasi sebelum jeda dan kata pengisi dihapus. Pilihan Anda disimpan sebagai default.",
     "saveError": "Gagal menyimpan default. Video ini tetap menggunakan pilihan Anda."
+  },
+  "whatToMake": "Apa yang ingin Anda buat?",
+  "workflows": {
+    "highlights": {
+      "label": "Highlight",
+      "hint": "Momen terbaik yang bisa berdiri sendiri"
+    },
+    "series": {
+      "label": "Seri",
+      "hint": "Bagian berurutan yang menceritakan kisah secara utuh"
+    },
+    "topic": {
+      "label": "Topik",
+      "hint": "Setiap momen kuat tentang satu topik"
+    },
+    "recap": {
+      "label": "Ringkasan",
+      "hint": "Satu video pendek berisi poin-poin utama"
+    },
+    "trailer": {
+      "label": "Trailer",
+      "hint": "Satu cuplikan singkat yang bikin orang ingin menonton video lengkapnya"
+    }
+  },
+  "subtitleByWorkflow": {
+    "highlights": "Masukkan video panjang. Dapatkan clip ber-caption, siap diposting.",
+    "series": "Masukkan video panjang. Dapatkan seri bernomor yang bikin penonton terus mengikuti.",
+    "topic": "Masukkan video panjang. Dapatkan setiap momen kuat tentang topik Anda.",
+    "recap": "Masukkan video panjang. Dapatkan satu video pendek berisi poin-poin utama.",
+    "trailer": "Masukkan video panjang. Dapatkan cuplikan singkat yang bikin orang ingin menonton semuanya."
+  },
+  "generateByWorkflow": {
+    "highlights": "Buat clip",
+    "series": "Buat seri",
+    "topic": "Cari momen",
+    "recap": "Buat ringkasan",
+    "trailer": "Buat trailer"
+  },
+  "topic": {
+    "placeholder": "Topik apa? mis. membangun bisnis",
+    "required": "Masukkan topik yang ingin dicari.",
+    "label": "Topik"
+  },
+  "parts": {
+    "picker": "Bagian: {value}",
+    "title": "Jumlah bagian",
+    "auto": "Otomatis",
+    "autoHint": "Kami pilih jumlah bagian yang pas dengan ceritanya",
+    "count": "{count, plural, other {# bagian}}"
+  },
+  "lengthByWorkflow": {
+    "series": {
+      "picker": "Durasi per bagian",
+      "auto": "Otomatis (1–1,5 menit)",
+      "short": "Pendek (30–60 dtk)",
+      "medium": "Sedang (45–90 dtk)",
+      "long": "Panjang (1,5–3 menit)",
+      "hint": "Durasi tiap bagian sebelum jeda dan kata pengisi dihapus."
+    },
+    "recap": {
+      "picker": "Durasi ringkasan",
+      "auto": "Otomatis (menyesuaikan video)",
+      "short": "Pendek (sekitar 45 dtk)",
+      "medium": "Sedang (sekitar 75 dtk)",
+      "long": "Panjang (sekitar 2 menit)",
+      "hint": "Total durasi ringkasan."
+    },
+    "trailer": {
+      "picker": "Durasi trailer",
+      "auto": "Otomatis (sekitar 30 dtk)",
+      "short": "Pendek (sekitar 20 dtk)",
+      "medium": "Sedang (sekitar 40 dtk)",
+      "long": "Panjang (sekitar 1 menit)",
+      "hint": "Total durasi trailer."
+    }
+  },
+  "instructions": {
+    "chip": "Instruksi",
+    "remove": "Hapus instruksi",
+    "counter": "{used}/{max}",
+    "placeholder": {
+      "highlights": "Ada yang spesifik? mis. hanya momen lucu, lewati bagian sponsor",
+      "series": "Ada yang spesifik? mis. fokus pada cerita startup pertamanya",
+      "topic": "Ada yang spesifik? mis. hanya saran praktis, tanpa cerita pribadi",
+      "recap": "Ada yang spesifik? mis. fokus pada saran soal uang",
+      "trailer": "Ada yang spesifik? mis. buat misterius, fokus pada konfliknya"
+    }
+  },
+  "urlRescue": {
+    "moved": "“{text}” dipindahkan ke instruksi.",
+    "undo": "Urungkan",
+    "notALink": "Sepertinya ini instruksi, bukan tautan. Tempel tautan video di sini, dan teks ini kami simpan sebagai instruksi.",
+    "moveToInstructions": "Pindahkan ke instruksi"
+  },
+  "suggestWorkflow": {
+    "series": "Jadikan seri saja?",
+    "seriesCount": "Jadikan seri {count} bagian saja?",
+    "topic": "Cari setiap momen tentang “{topic}” saja?",
+    "recap": "Buat ringkasan saja?",
+    "trailer": "Buat trailer saja?"
+  },
+  "tooShort": {
+    "series": "Video ini berdurasi {duration}. Seri butuh minimal 2 menit. Highlight paling cocok di sini.",
+    "recap": "Video ini berdurasi {duration}. Ringkasan cocok untuk video lebih dari 3 menit.",
+    "trailer": "Video ini berdurasi {duration}. Trailer cocok untuk video lebih dari 3 menit.",
+    "topic": "Video ini berdurasi {duration}. Pencarian topik butuh minimal 1 menit.",
+    "useHighlights": "Pakai Highlight"
+  },
+  "workflowErrors": {
+    "INVALID_WORKFLOW": "Opsi itu tidak didukung.",
+    "INVALID_WORKFLOW_OPTIONS": "Pengaturan itu tidak didukung.",
+    "TOPIC_REQUIRED": "Masukkan topik yang ingin dicari.",
+    "TOPIC_TOO_LONG": "Topik harus kurang dari 120 karakter.",
+    "INVALID_PART_COUNT": "Pilih Otomatis atau 2 sampai 10 bagian.",
+    "INSTRUCTIONS_TOO_LONG": "Instruksi harus kurang dari 500 karakter.",
+    "SOURCE_TOO_SHORT_FOR_SERIES": "Video ini terlalu pendek untuk dijadikan seri. Coba Highlight saja.",
+    "TOO_MANY_PARTS": "Video ini hanya cukup untuk paling banyak {max_parts} bagian. Pilih lebih sedikit bagian atau Otomatis.",
+    "SOURCE_TOO_SHORT_FOR_RECAP": "Video ini sudah pendek. Ringkasan cocok untuk video lebih dari 3 menit.",
+    "SOURCE_TOO_SHORT_FOR_TRAILER": "Trailer cocok untuk video lebih dari 3 menit.",
+    "SOURCE_TOO_SHORT_FOR_TOPIC": "Video ini terlalu pendek untuk pencarian topik. Coba Highlight saja.",
+    "WORKFLOW_NOT_AVAILABLE": "Opsi ini belum tersedia untuk akun Anda."
+  },
+  "palette": {
+    "series": "Seri baru",
+    "topic": "Pencarian topik baru",
+    "recap": "Ringkasan baru",
+    "trailer": "Trailer baru"
   }
 }

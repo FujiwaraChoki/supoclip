@@ -368,5 +368,7 @@
     "timeout": "The AI took too long. Try again.",
     "failed": "Couldn't reach the AI. Try again.",
     "title": "AI edit"
-  }
+  },
+  "partLabel": "Part {n}",
+  "partClipLabel": "Part {n} · {title}"
 }

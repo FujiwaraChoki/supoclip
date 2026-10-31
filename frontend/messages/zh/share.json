@@ -9,5 +9,13 @@
   "topVirality": "最高传播潜力分数",
   "ctaTitle": "把你的长视频做成这样的片段。",
   "ctaBody": "SupoClip 找出最精彩的时刻，框住说话的人，并写好字幕。开源，可免费自行部署。",
-  "try": "试用 SupoClip"
+  "try": "试用 SupoClip",
+  "workflowBadge": {
+    "series": "系列 · {count, plural, one {# 集} other {# 集}}",
+    "topic": "主题：{topic}",
+    "recap": "精华回顾",
+    "trailer": "预告片"
+  },
+  "partLabel": "第 {n} 集",
+  "totalDuration": "共 {duration}"
 }

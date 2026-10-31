@@ -10,6 +10,7 @@ account and exposing it as ``SUPOCLIP_API_KEY``.
 
 Typical workflow:
     1. ``supoclip_create_clip_task`` with a YouTube URL  -> returns a task_id
+       (``workflow`` picks highlights, a series, topic clips, a recap or a trailer)
     2. ``supoclip_wait_for_task`` (or poll ``supoclip_get_task``) until done
     3. ``supoclip_list_clips`` / ``supoclip_download_clip`` to retrieve results
 """
@@ -23,6 +24,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 from dataclasses import replace
 from typing import Annotated, Awaitable, Callable, Optional
 
@@ -120,6 +122,23 @@ ExportPreset = Literal["tiktok", "reels", "shorts"]
 TERMINAL_STATES = {"completed", "error", "cancelled"}
 VALID_OUTPUT_FORMATS = {"vertical", "vertical_fit", "vertical_pan", "vertical_split", "original"}
 
+# Mirrors backend/src/workflows/options.py so bad requests fail here with a clear
+# message instead of a 422 round trip. The backend stays the authority.
+WORKFLOWS = ("highlights", "series", "topic", "recap", "trailer")
+TOPIC_MIN_CHARS, TOPIC_MAX_CHARS = 2, 120
+INSTRUCTIONS_MAX_CHARS = 500
+SERIES_MIN_PARTS, SERIES_MAX_PARTS = 2, 10
+# Invisible characters the backend strips before measuring (ZWJ/ZWNJ are kept).
+_INVISIBLE = re.compile("[\u00ad\u180e\u200b\u2060\ufeff\u202a-\u202e\u2066-\u2069]")
+_LINE_BREAKS = re.compile("\r\n|[\r\u2028\u2029\u0085\u000b\u000c]")
+_INLINE_SPACE = re.compile(r"[^\S\n]+")
+_SPACE_AROUND_NEWLINES = re.compile(r" ?\n ?")
+_EXTRA_NEWLINES = re.compile(r"\n{3,}")
+# One Han, kana or Hangul character is already a searchable word.
+_ONE_CHARACTER_WORD = re.compile(
+    "^[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af\U00020000-\U0003134f]$"
+)
+
 
 # --------------------------------------------------------------------------- #
 # Helpers
@@ -157,6 +176,64 @@ def tool_errors(func: Callable[..., Awaitable[str]]) -> Callable[..., Awaitable[
             return f"Error: unexpected {type(exc).__name__}: {exc}"
 
     return wrapper
+
+
+def _normalize_text(value: str, *, keep_newlines: bool) -> str:
+    """Normalize like the API (``normalize_text`` in workflows/options.py): NFC,
+    one kind of line break, no control or invisible characters, single spaces,
+    at most one blank line (newlines only when ``keep_newlines``)."""
+    text = unicodedata.normalize("NFC", value or "")
+    text = _LINE_BREAKS.sub("\n", text).replace("\t", " ")
+    if not keep_newlines:
+        text = text.replace("\n", " ")
+    text = "".join(
+        ch for ch in text if ch == "\n" or unicodedata.category(ch) not in ("Cc", "Cs")
+    )
+    text = _INVISIBLE.sub("", text)
+    text = _INLINE_SPACE.sub(" ", text)
+    if keep_newlines:
+        text = _SPACE_AROUND_NEWLINES.sub("\n", text)
+        text = _EXTRA_NEWLINES.sub("\n\n", text)
+    return text.strip()
+
+
+def _workflow_fields(workflow: str, topic: str, part_count: int, instructions: str) -> dict:
+    """Validate the workflow arguments and return the request fields they add.
+
+    Plain highlights add nothing, so the request is exactly what it was before
+    workflows existed.
+    """
+    workflow = (workflow or "highlights").strip().lower()
+    if workflow not in WORKFLOWS:
+        raise SupoClipError("workflow must be highlights, series, topic, recap or trailer.")
+
+    fields: dict = {} if workflow == "highlights" else {"workflow": workflow}
+    cleaned_topic = _normalize_text(topic, keep_newlines=False)
+    if workflow == "topic":
+        searchable = any(ch.isalnum() for ch in cleaned_topic) and (
+            len(cleaned_topic) >= TOPIC_MIN_CHARS or _ONE_CHARACTER_WORD.match(cleaned_topic)
+        )
+        if not searchable:
+            raise SupoClipError("topic is required for workflow='topic': name the subject to look for, e.g. 'pricing'.")
+        if len(cleaned_topic) > TOPIC_MAX_CHARS:
+            raise SupoClipError(f"topic must be at most {TOPIC_MAX_CHARS} characters.")
+        fields["workflow_options"] = {"topic": cleaned_topic}
+    elif cleaned_topic:
+        raise SupoClipError("topic is only used with workflow='topic'.")
+
+    if part_count:
+        if workflow != "series":
+            raise SupoClipError("part_count is only used with workflow='series'.")
+        if not SERIES_MIN_PARTS <= part_count <= SERIES_MAX_PARTS:
+            raise SupoClipError("part_count must be 0 (auto) or 2 to 10.")
+        fields["workflow_options"] = {"part_count": int(part_count)}
+
+    cleaned_instructions = _normalize_text(instructions, keep_newlines=True)
+    if len(cleaned_instructions) > INSTRUCTIONS_MAX_CHARS:
+        raise SupoClipError(f"instructions must be at most {INSTRUCTIONS_MAX_CHARS} characters.")
+    if cleaned_instructions:
+        fields["instructions"] = cleaned_instructions
+    return fields
 
 
 def _safe_filename(name: str, default: str) -> str:
@@ -365,6 +442,10 @@ async def supoclip_create_clip_task(
     cut_long_pauses: bool = True,
     remove_filler_words: bool = True,
     clip_length: str = "auto",
+    workflow: str = "highlights",
+    topic: str = "",
+    part_count: int = 0,
+    instructions: str = "",
 ) -> str:
     """Create a SupoClip task that downloads a video and generates viral short clips.
 
@@ -374,6 +455,24 @@ async def supoclip_create_clip_task(
 
     Requires authentication. On the hosted service a paid plan / available quota
     may be required (a 402 error indicates this — see ``supoclip_billing_summary``).
+
+    workflow: what to make. "highlights" (default) = the best standalone clips.
+    "series" = one story split into ordered, numbered parts (Part 1..N) cut on
+    clean shared boundaries; clip_length sets part length; part_count 0 = auto
+    or 2-10. "topic" = every strong standalone moment about `topic` (required);
+    fails with code topic_not_found and suggested topics when the video barely
+    covers it. "recap" = ONE short video covering the main points in order;
+    clip_length sets total length. "trailer" = ONE short teaser that never
+    reveals the payoff; clip_length sets total length. Series/recap/trailer need
+    videos of at least 2/3/3 minutes. instructions: optional free-text editorial
+    guidance for any workflow (max 500 characters), e.g. "skip the sponsor read"
+    or "focus on the hiring story".
+
+    Workflows other than plain highlights may not be enabled for every account
+    (403 WORKFLOW_NOT_AVAILABLE); ``supoclip_list_workflows`` tells you first.
+    A failed workflow task ends with ``status: error`` and an ``error_code``
+    (e.g. ``topic_not_found``, with ``workflow_plan.error.details.suggested_topics``),
+    and its minutes are refunded.
 
     Args:
         url: YouTube or direct video URL to clip.
@@ -386,7 +485,16 @@ async def supoclip_create_clip_task(
         font_family / font_size / font_color: Optional subtitle styling overrides.
         cut_long_pauses: Shorten long silences to a natural breath (default on).
         remove_filler_words: Cut disfluencies like "um" and "uh" (default on).
-        clip_length: auto (15-60s), short (15-30s), medium (30-60s), or long (60-120s).
+        clip_length: auto, short, medium or long. Highlights and topic clips: per
+            clip, auto (15-60s), short (15-30s), medium (30-60s), long (60-120s).
+            Series: per part, auto (45-150s), short (30-60s), medium (45-90s),
+            long (90-175s). Recap: total, auto (scales with the video), short
+            (~45s), medium (~75s), long (~2 min). Trailer: total, auto (~30s),
+            short (~20s), medium (~40s), long (~60s).
+        workflow: 'highlights' | 'series' | 'topic' | 'recap' | 'trailer'.
+        topic: The subject to find (workflow='topic' only), max 120 characters.
+        part_count: Series parts, 0 = auto or 2-10 (workflow='series' only).
+        instructions: Optional editorial guidance for any workflow, max 500 characters.
 
     Returns:
         str: JSON ``{"task_id": str, "job_id": str, "message": str}`` on success.
@@ -397,6 +505,8 @@ async def supoclip_create_clip_task(
 
     if clip_length not in {"auto", "short", "medium", "long"}:
         raise SupoClipError("clip_length must be auto, short, medium, or long")
+
+    workflow_fields = _workflow_fields(workflow, topic, part_count, instructions)
 
     normalized_mode = processing_mode if processing_mode in {"fast", "balanced", "quality"} else "fast"
     normalized_format = output_format if output_format in VALID_OUTPUT_FORMATS else "vertical"
@@ -430,6 +540,7 @@ async def supoclip_create_clip_task(
 
     body["cut_long_pauses"] = bool(cut_long_pauses)
     body["remove_filler_words"] = bool(remove_filler_words)
+    body.update(workflow_fields)
 
     data = await _client().request("POST", "/tasks/", json_body=body)
     return _json(data)
@@ -447,13 +558,45 @@ async def supoclip_create_clip_task(
 )
 @tool_errors
 async def supoclip_create_clip(url: str = "") -> str:
-    """Create a SupoClip task from a YouTube or direct video URL.
+    """Create a SupoClip highlights task from a YouTube or direct video URL.
 
     This is a compatibility alias for clients that fail to pass arguments to
     the richer ``supoclip_create_clip_task`` tool. Pass the video URL in the
-    ``url`` argument.
+    ``url`` argument. For a series, topic clips, a recap or a trailer, use
+    ``supoclip_create_clip_task`` with ``workflow``.
     """
     return await supoclip_create_clip_task(url=url)
+
+
+@mcp.tool(
+    name="supoclip_list_workflows",
+    annotations={
+        "title": "List Workflows",
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": True,
+    },
+)
+@tool_errors
+async def supoclip_list_workflows() -> str:
+    """List what this account can make and each workflow's limits.
+
+    Call this before passing a ``workflow`` other than ``highlights`` (or any
+    ``instructions``) to ``supoclip_create_clip_task``. When ``enabled`` is
+    false, only plain highlights without instructions are available. Requires
+    authentication.
+
+    Returns:
+        str: JSON ``{"enabled": bool, "workflows": [{"id", "available",
+        "min_source_seconds", "part_count"?: {"min", "max"}, "lengths"?: {...}}],
+        "topic_max_chars": 120, "instructions_max_chars": 500}``. Series
+        ``lengths`` are part [min, max] seconds per clip_length; recap and
+        trailer ``lengths`` are total target seconds (recap auto: null, it
+        scales with the video).
+    """
+    data = await _client().request("GET", "/tasks/workflows")
+    return _json(data)
 
 
 @mcp.tool(
@@ -512,6 +655,10 @@ async def supoclip_get_task(
         str: JSON of the task including ``status`` (queued/processing/completed/
         error/cancelled), ``progress`` (0-100), ``progress_message`` and a
         ``clips`` array (each with ``id``, ``filename``, timing and scores).
+        Workflow tasks add ``workflow``, ``workflow_options``, ``workflow_plan``
+        (title, parts, points, beats, topic coverage, notes) and, on failure,
+        ``error_code``; their clips carry ``workflow_role`` (part/topic/recap/
+        trailer), ``part_number`` (series) and ``workflow_meta``.
     """
     data = await _client().request("GET", f"/tasks/{task_id}")
     return _json(data)

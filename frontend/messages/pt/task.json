@@ -11,7 +11,8 @@
     "deleteFont": "Falha ao excluir a fonte",
     "exportClip": "Falha ao exportar o clipe",
     "share": "Falha ao criar o link de compartilhamento",
-    "disableShare": "Falha ao desativar o link de compartilhamento"
+    "disableShare": "Falha ao desativar o link de compartilhamento",
+    "createTask": "Não foi possível iniciar a nova geração"
   },
   "toasts": {
     "settingsApplied": "Configurações da geração aplicadas",
@@ -33,6 +34,7 @@
   "cancelTitle": "Cancelar edição do título",
   "editTitle": "Editar título",
   "clipsTotal": "{count, plural, one {# clipe} other {# clipes}} · {duration} no total",
+  "outputLength": "{duration} no total",
   "readOnly": "Visualização somente leitura da geração de outra conta.",
   "cancel": "Cancelar",
   "resume": "Retomar",
@@ -135,5 +137,116 @@
     "full": "Transcrição completa",
     "forTitle": "Transcrição de {title}",
     "complete": "Transcrição completa deste clipe"
-  }
+  },
+  "workflowBadge": {
+    "series": "Série · {count, plural, one {# parte} other {# partes}}",
+    "topic": "Tema: {topic}",
+    "recap": "Resumo",
+    "trailer": "Trailer",
+    "seriesPending": "Série"
+  },
+  "partOf": "Parte {n} de {total}",
+  "partLabel": "Parte {n}",
+  "endsOn": "Termina com: {text}",
+  "postCaption": "Legenda do post",
+  "copyCaption": "Copiar legenda",
+  "captionCopied": "Legenda copiada",
+  "downloadAll": "Baixar todas as partes",
+  "incompleteSeries": "Parou na parte {done} de {total}. Retome para terminar a série.",
+  "coversPoints": "{count, plural, one {Cobre # ponto} other {Cobre # pontos}}",
+  "pointKinds": {
+    "opener": "Introdução",
+    "closer": "Conclusão"
+  },
+  "beatsTitle": "Estrutura",
+  "beatRoles": {
+    "cold_open": "Gancho",
+    "context": "Contexto",
+    "escalation": "Tensão",
+    "button": "Final"
+  },
+  "sourceMoment": "A partir de {time} no original",
+  "sourceMoments": "Trechos do original",
+  "playFrom": "Tocar a partir de {time}",
+  "topicHeader": "Sobre {topic} · {count, plural, one {# momento} other {# momentos}}",
+  "instructionsUsed": "Instruções",
+  "stepsByWorkflow": {
+    "series": {
+      "finding": "Mapeando a história",
+      "rendering": "Cortando as partes"
+    },
+    "topic": {
+      "finding": "Encontrando momentos sobre o seu tema",
+      "rendering": "Renderizando clipes"
+    },
+    "recap": {
+      "finding": "Escolhendo os pontos principais",
+      "rendering": "Editando o seu resumo"
+    },
+    "trailer": {
+      "finding": "Escrevendo o trailer",
+      "rendering": "Editando o seu trailer"
+    }
+  },
+  "workflowNotes": {
+    "PART_COUNT_REDUCED": "Você pediu {requested} partes. Este vídeo comporta {actual}.",
+    "STORY_ARC_SELECTED": "Feita a partir da história mais forte ({start}–{end}). Adicione instruções para escolher outra.",
+    "NO_SINGLE_STORY": "Este vídeo não tem uma única história contínua. Esta série segue o fio conectado mais longo.",
+    "TOPIC_THIN": "Só {count, plural, one {# momento fala} other {# momentos falam}} de fato sobre este tema.",
+    "TARGET_SHORTENED": "O vídeo é curto, então o resumo também ficou mais curto.",
+    "COARSE_TRANSCRIPT": "Esta transcrição não tem tempos por palavra, então os cortes são menos precisos.",
+    "SPONSOR_SKIPPED": "Deixamos de fora um trecho de patrocínio."
+  },
+  "workflowErrors": {
+    "topic_not_found": {
+      "title": "“{topic}” quase não aparece neste vídeo",
+      "body": "Só encontramos menções de passagem, não momentos completos. Seus minutos foram reembolsados.",
+      "suggestionsLabel": "Este vídeo fala mais sobre:",
+      "mentions": "Mencionado de passagem em {times}.",
+      "cta": "Criar destaques"
+    },
+    "source_too_short": {
+      "title": "Este vídeo é curto demais para uma série",
+      "body": "Uma série precisa de história suficiente para pelo menos duas partes. Seus minutos foram reembolsados.",
+      "cta": "Criar destaques"
+    },
+    "no_story": {
+      "title": "Não encontramos uma história para dividir em partes",
+      "body": "Este vídeo não tem uma linha narrativa longa o bastante. Seus minutos foram reembolsados.",
+      "cta": "Criar um resumo"
+    },
+    "recap_unsupported": {
+      "title": "Não há pontos distintos suficientes para um resumo",
+      "body": "Seus minutos foram reembolsados.",
+      "cta": "Criar destaques"
+    },
+    "trailer_unbuildable": {
+      "title": "Não conseguimos montar um trailer sem entregar o final",
+      "body": "Seus minutos foram reembolsados.",
+      "cta": "Criar um resumo"
+    },
+    "analysis_incomplete": {
+      "title": "Não conseguimos ler o vídeo inteiro",
+      "body": "Parte da análise falhou. Seus minutos foram reembolsados.",
+      "cta": "Tentar de novo"
+    },
+    "plan_failed": {
+      "title": "O editor de IA não conseguiu concluir este plano",
+      "body": "Seus minutos foram reembolsados.",
+      "cta": "Tentar de novo"
+    },
+    "render_incomplete": {
+      "title": "Uma parte do vídeo não pôde ser renderizada",
+      "body": "Seus minutos foram reembolsados.",
+      "cta": "Tentar de novo"
+    },
+    "transcript_untimed": {
+      "title": "Esta transcrição não tem tempos",
+      "body": "Precisamos de tempos para cortar com precisão. Envie o arquivo em vez disso.",
+      "cta": "Voltar ao início"
+    },
+    "highlightsInstead": "Criar destaques"
+  },
+  "clipLoadFailed": "Não foi possível carregar este clipe.",
+  "retryPlayback": "Tentar reproduzir de novo"
 }

@@ -9,5 +9,13 @@
   "topVirality": "top virality score",
   "ctaTitle": "Turn your long videos into clips like these.",
   "ctaBody": "SupoClip finds the best moments, frames the speaker and writes the captions. Open source and free to self-host.",
-  "try": "Try SupoClip"
+  "try": "Try SupoClip",
+  "workflowBadge": {
+    "series": "Series · {count, plural, one {# part} other {# parts}}",
+    "topic": "Topic: {topic}",
+    "recap": "Recap",
+    "trailer": "Trailer"
+  },
+  "partLabel": "Part {n}",
+  "totalDuration": "{duration} total"
 }

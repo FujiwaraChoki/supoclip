@@ -126,5 +126,132 @@
     "long": "长（1–2分钟）",
     "hint": "目标时长为移除停顿和语气词之前的时长。您的选择将保存为默认值。",
     "saveError": "无法保存默认值。此视频仍会使用您的选择。"
+  },
+  "whatToMake": "你想做什么？",
+  "workflows": {
+    "highlights": {
+      "label": "精彩片段",
+      "hint": "可以单独成片的高光时刻"
+    },
+    "series": {
+      "label": "系列",
+      "hint": "前后衔接的多集，讲完整个故事"
+    },
+    "topic": {
+      "label": "话题",
+      "hint": "关于某个话题的所有精彩时刻"
+    },
+    "recap": {
+      "label": "回顾",
+      "hint": "一段短视频，讲清主要观点"
+    },
+    "trailer": {
+      "label": "预告",
+      "hint": "一段短预告，让人想看完整视频"
+    }
+  },
+  "subtitleByWorkflow": {
+    "highlights": "丢进一段长视频，拿回带字幕、可以直接发布的短片。",
+    "series": "丢进一段长视频，拿回一套编好号、让人一集接一集看下去的系列。",
+    "topic": "丢进一段长视频，拿回所有关于你这个话题的精彩时刻。",
+    "recap": "丢进一段长视频，拿回一段讲清主要观点的短视频。",
+    "trailer": "丢进一段长视频，拿回一段让人想看完整版的短预告。"
+  },
+  "generateByWorkflow": {
+    "highlights": "生成片段",
+    "series": "生成系列",
+    "topic": "查找精彩时刻",
+    "recap": "制作回顾",
+    "trailer": "制作预告"
+  },
+  "topic": {
+    "placeholder": "什么话题？例如：创业",
+    "required": "请输入要查找的话题。",
+    "label": "话题"
+  },
+  "parts": {
+    "picker": "集数：{value}",
+    "title": "集数",
+    "auto": "自动",
+    "autoHint": "根据故事内容决定分几集",
+    "count": "{count, plural, other {# 集}}"
+  },
+  "lengthByWorkflow": {
+    "series": {
+      "picker": "每集时长",
+      "auto": "自动（1–1.5分钟）",
+      "short": "短（30–60秒）",
+      "medium": "中（45–90秒）",
+      "long": "长（1.5–3分钟）",
+      "hint": "每集在移除停顿和语气词之前的时长。"
+    },
+    "recap": {
+      "picker": "回顾时长",
+      "auto": "自动（按视频长度）",
+      "short": "短（约45秒）",
+      "medium": "中（约75秒）",
+      "long": "长（约2分钟）",
+      "hint": "回顾的总时长。"
+    },
+    "trailer": {
+      "picker": "预告时长",
+      "auto": "自动（约30秒）",
+      "short": "短（约20秒）",
+      "medium": "中（约40秒）",
+      "long": "长（约1分钟）",
+      "hint": "预告的总时长。"
+    }
+  },
+  "instructions": {
+    "chip": "要求",
+    "remove": "移除要求",
+    "counter": "{used}/{max}",
+    "placeholder": {
+      "highlights": "有什么特别要求？例如：只要搞笑的部分，跳过赞助内容",
+      "series": "有什么特别要求？例如：重点讲第一次创业的故事",
+      "topic": "有什么特别要求？例如：只要实用建议，不要个人故事",
+      "recap": "有什么特别要求？例如：重点放在理财建议上",
+      "trailer": "有什么特别要求？例如：保持神秘感，突出冲突"
+    }
+  },
+  "urlRescue": {
+    "moved": "已将“{text}”移到要求里。",
+    "undo": "撤销",
+    "notALink": "这看起来是一条要求，而不是链接。请在这里粘贴视频链接，这段文字会作为要求保留。",
+    "moveToInstructions": "移到要求"
+  },
+  "suggestWorkflow": {
+    "series": "改做系列？",
+    "seriesCount": "改做 {count} 集系列？",
+    "topic": "改为查找所有关于“{topic}”的片段？",
+    "recap": "改做回顾？",
+    "trailer": "改做预告？"
+  },
+  "tooShort": {
+    "series": "这个视频只有 {duration}。系列至少需要 2 分钟，这里更适合用精彩片段。",
+    "recap": "这个视频只有 {duration}。回顾适用于 3 分钟以上的视频。",
+    "trailer": "这个视频只有 {duration}。预告适用于 3 分钟以上的视频。",
+    "topic": "这个视频只有 {duration}。话题查找至少需要 1 分钟。",
+    "useHighlights": "改用精彩片段"
+  },
+  "workflowErrors": {
+    "INVALID_WORKFLOW": "不支持这个选项。",
+    "INVALID_WORKFLOW_OPTIONS": "不支持这些设置。",
+    "TOPIC_REQUIRED": "请输入要查找的话题。",
+    "TOPIC_TOO_LONG": "话题请控制在 120 个字符以内。",
+    "INVALID_PART_COUNT": "请选择自动，或 2 到 10 集。",
+    "INSTRUCTIONS_TOO_LONG": "要求请控制在 500 个字符以内。",
+    "SOURCE_TOO_SHORT_FOR_SERIES": "这个视频太短，拆不成系列。试试精彩片段吧。",
+    "TOO_MANY_PARTS": "这个视频最多只能分成 {max_parts} 集。请减少集数或选择自动。",
+    "SOURCE_TOO_SHORT_FOR_RECAP": "这个视频本来就很短。回顾适用于 3 分钟以上的视频。",
+    "SOURCE_TOO_SHORT_FOR_TRAILER": "预告适用于 3 分钟以上的视频。",
+    "SOURCE_TOO_SHORT_FOR_TOPIC": "这个视频太短，没法按话题查找。试试精彩片段吧。",
+    "WORKFLOW_NOT_AVAILABLE": "你的账户暂时还不能使用这个选项。"
+  },
+  "palette": {
+    "series": "新建系列",
+    "topic": "新建话题查找",
+    "recap": "新建回顾",
+    "trailer": "新建预告"
   }
 }

@@ -62,8 +62,9 @@ import {
   type SocialPrivacyLevel,
   type SocialProviderStatus,
 } from "@/lib/social";
+import type { WorkflowClipFields } from "@/lib/workflows";
 
-interface PublishableClip {
+interface PublishableClip extends WorkflowClipFields {
   id: string;
   clip_order: number;
   hook_title: string | null;
@@ -307,6 +308,7 @@ export function ClipPublishButton({
   onChanged,
 }: ClipPublishButtonProps) {
   const t = useTranslations("social");
+  const tTask = useTranslations("task");
   const [open, setOpen] = useState(false);
   const [accountIds, setAccountIds] = useState<string[]>([]);
   const [submissions, setSubmissions] = useState<Record<string, { status: "accepted" | "failed" | "unknown"; message?: string; scheduled?: boolean }>>({});
@@ -430,8 +432,10 @@ export function ClipPublishButton({
     const nextIds = retained.length ? retained : available.slice(0, 1).map((connection) => connection.id);
     setError(null);
     setSubmissions({});
-    setTitle(clip.hook_title || t("clipFallback", { order: clip.clip_order }));
-    setCaption(clip.text || "");
+    const plannedCaption = clip.workflow_meta?.post_caption?.trim();
+    setTitle(clip.hook_title
+      || (clip.workflow_role === "part" && clip.part_number ? tTask("partLabel", { n: clip.part_number }) : t("clipFallback", { order: clip.clip_order })));
+    setCaption(plannedCaption || clip.text || "");
     setHashtags("");
     setSchedule(false);
     setScheduledFor(toLocalDateTimeInput(new Date(Date.now() + 60 * 60 * 1000)));
@@ -445,7 +449,8 @@ export function ClipPublishButton({
       if (connection.provider === "tiktok") void loadPrivacyOptions(connection.id, epoch);
     }
     setOpen(true);
-    if (nextIds[0]) void generateCaption(nextIds[0]);
+    // A series part arrives with a caption written for it (it teases the next part); keep it.
+    if (nextIds[0] && !plannedCaption) void generateCaption(nextIds[0]);
   };
 
   const toggleAccount = (id: string) => {

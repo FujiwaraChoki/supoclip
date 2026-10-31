@@ -53,6 +53,7 @@ import { Preview } from "./preview";
 import { Timeline } from "./timeline";
 import { Inspector, type InspectorTab } from "./inspector";
 import { ExportPanel, readyEditor, type ClipSummary } from "./export-panel";
+import { partTitle } from "@/components/app/clip-wall";
 import { AIPrompt } from "./ai-prompt";
 import { editorMessage, editorStatus, Keys, Panel, ToolButton } from "./studio-ui";
 
@@ -75,6 +76,15 @@ const WIDGET_KEYS: Record<string, string[]> = {
   "[role=tab],[role=radio]": ["arrowleft", "arrowright", " "],
   "[role=switch],[role=checkbox]": [" "],
 };
+
+/** "Part 2 · The bank calls back" for series parts, else the hook title, else "Clip n". */
+export function clipPickerLabel(t: ReturnType<typeof useTranslations<"editor">>, clip: ClipSummary) {
+  if (clip.workflow_role === "part" && clip.part_number) {
+    const title = partTitle(clip);
+    return title ? t("partClipLabel", { n: clip.part_number, title }) : t("partLabel", { n: clip.part_number });
+  }
+  return clip.hook_title?.trim() || t("clipLabel", { order: clip.clip_order });
+}
 
 interface Props {
   taskId: string;
@@ -334,7 +344,7 @@ export function EditorWorkspace({
                     backgroundSize: "auto 100%",
                   }}
                 />
-                {t("clipLabel", { order: clip.clip_order })}
+                <span className="max-w-48 truncate">{clipPickerLabel(t, clip)}</span>
                 <span className="text-muted-foreground tabular-nums">
                   {t("workspace.clipOf", { count: clips.length })}
                 </span>
@@ -375,7 +385,7 @@ export function EditorWorkspace({
                         aria-label={t("workspace.editClip", { order: c.clip_order })}
                       >
                         <span className="flex items-center justify-between gap-2 text-xs">
-                          <span className="font-medium">{t("clipLabel", { order: c.clip_order })}</span>
+                          <span className="min-w-0 truncate font-medium">{clipPickerLabel(t, c)}</span>
                           <span className="text-muted-foreground tabular-nums">{timecode(c.duration)}</span>
                         </span>
                         <span className="block truncate text-xs text-muted-foreground">

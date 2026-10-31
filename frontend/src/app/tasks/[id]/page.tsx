@@ -2,7 +2,7 @@
 
 import { CaptionSizeControl } from "@/components/caption-size-control";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { useTaskProgress } from "@/hooks/use-task-progress";
@@ -49,6 +49,7 @@ import {
   ExternalLink,
   Link2Off,
   Loader2,
+  MessageSquareText,
   MoreHorizontal,
   PauseCircle,
   RotateCcw,
@@ -60,7 +61,10 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
-import { ClipTile, ClipFocus, ProcessingPanel, ProcessingSlots, EmptyState, clipProgressFromMessage, expectedClipCount } from "@/components/app/clip-wall";
+import { ClipTile, ClipFocus, ProcessingPanel, ProcessingSlots, EmptyState, clipProgressFromMessage, sourceTimestamp } from "@/components/app/clip-wall";
+import { orderedParts, seriesPartTotal, SeriesView, unfinishedSeries } from "@/components/app/series-view";
+import { HeroClipView } from "@/components/app/hero-clip-view";
+import { buildRecreateBody, createActionId, isWorkflowErrorCode, WorkflowFailure } from "@/components/app/workflow-failure";
 import { intlLocale } from "@/i18n/config";
 import { timeAgoLabel } from "@/lib/generations";
 import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind, type VideoSourceKind } from "@/components/video-source-icon";
@@ -73,8 +77,20 @@ import {
   type SocialPost,
   type SocialProviderStatus,
 } from "@/lib/social";
+import {
+  defaultSort,
+  expectedOutputs,
+  SCORED,
+  SINGLE_OUTPUT,
+  taskWorkflow,
+  type Workflow,
+  type WorkflowClipFields,
+  type WorkflowNote,
+  type WorkflowPlan,
+  type WorkflowTaskFields,
+} from "@/lib/workflows";
 
-interface Clip {
+interface Clip extends WorkflowClipFields {
   id: string;
   filename: string;
   file_path: string;
@@ -97,7 +113,7 @@ interface Clip {
   hook_title: string | null;
 }
 
-interface TaskDetails {
+interface TaskDetails extends WorkflowTaskFields {
   id: string;
   user_id: string;
   source_id: string;
@@ -121,6 +137,28 @@ interface TaskDetails {
   filtered_words?: string[];
   include_broll?: boolean;
   share_enabled?: boolean;
+  processing_mode?: string | null;
+  output_format?: string | null;
+  clip_length?: string | null;
+  add_subtitles?: boolean | null;
+  error_code?: string | null;
+}
+
+// Params each note needs; a note missing one is not shown rather than shown half-filled.
+const NOTE_PARAMS: Record<string, string[]> = {
+  PART_COUNT_REDUCED: ["requested", "actual"],
+  STORY_ARC_SELECTED: ["start", "end"],
+  TOPIC_THIN: ["count"],
+};
+
+/** Note params ready for ICU: source times in seconds become M:SS. */
+function noteParams(note: WorkflowNote, plan: WorkflowPlan | null, clipCount: number) {
+  const params: Record<string, string | number> = {};
+  for (const [key, value] of Object.entries(note.params ?? {})) {
+    params[key] = (key === "start" || key === "end") && typeof value === "number" ? sourceTimestamp(value) : value;
+  }
+  if (note.code === "TOPIC_THIN" && params.count === undefined) params.count = plan?.topic?.found ?? clipCount;
+  return (NOTE_PARAMS[note.code] ?? []).every((key) => params[key] !== undefined && params[key] !== null) ? params : null;
 }
 
 function sourceLabel(source: VideoSourceKind, uploadLabel: string) {
@@ -193,6 +231,8 @@ export default function TaskPage() {
   const [billingSummary] = useBillingSummary(Boolean(session?.user?.id));
   const [upgradeReason, setUpgradeReason] = useState<UpgradeReason | null>(null);
   const [sortBy, setSortBy] = useState<"score" | "timeline">("score");
+  // The first load picks the workflow's default order; after that the user's choice stays.
+  const sortChosen = useRef(false);
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
 
   const taskApiUrl = "/api/tasks";
@@ -289,7 +329,10 @@ export default function TaskPage() {
         setProjectRemoveFillerWords(Boolean(taskData.remove_filler_words));
         setProjectIncludeBroll(Boolean(taskData.include_broll));
         setProjectFilteredWords((taskData.filtered_words || []).join(", "));
-
+        if (!sortChosen.current) {
+          sortChosen.current = true;
+          setSortBy(defaultSort(taskWorkflow(taskData)));
+        }
         }
 
         // Fetch clips if task is completed or processing (incremental clips)
@@ -305,7 +348,9 @@ export default function TaskPage() {
           const clipsData = await clipsResponse.json();
           const nextClips = clipsData.clips || [];
           setClips((prev) => {
-            if (taskData.status === "completed") {
+            // Once the task stops, the server's list is the truth: a failed series,
+            // recap or trailer has had its clips deleted (and its minutes refunded).
+            if (taskData.status !== "processing") {
               return nextClips;
             }
 
@@ -580,19 +625,77 @@ export default function TaskPage() {
     void trackClipExport({ userId: session.user.id, surface: "task", format: exportPreset });
   };
 
+  const downloadOriginal = (clip: Clip) => {
+    const link = document.createElement("a");
+    const url = getClipUrl(clip.video_url, clip.filename);
+    link.href = `${url}${url.includes("?") ? "&" : "?"}download=true`;
+    link.download = clip.filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    if (session?.user?.id) void trackClipExport({ userId: session.user.id, surface: "task", format: "original" });
+  };
+
   const handleDownloadClip = (clip: Clip) => {
     if (exportPreset === "original") {
-      const link = document.createElement("a");
-      const url = getClipUrl(clip.video_url, clip.filename);
-      link.href = `${url}${url.includes("?") ? "&" : "?"}download=true`;
-      link.download = clip.filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      if (session?.user?.id) void trackClipExport({ userId: session.user.id, surface: "task", format: "original" });
+      downloadOriginal(clip);
       return;
     }
     void runAction(clip.id, () => handleExportClip(clip.id, clip.filename));
+  };
+
+  // One part at a time, in order: browsers drop downloads that start together.
+  const handleDownloadAll = (parts: Clip[]) => {
+    void runAction("download-all", async () => {
+      for (const [index, clip] of parts.entries()) {
+        if (exportPreset !== "original") {
+          await handleExportClip(clip.id, clip.filename);
+          continue;
+        }
+        downloadOriginal(clip);
+        if (index < parts.length - 1) await new Promise((resolve) => window.setTimeout(resolve, 800));
+      }
+    });
+  };
+
+  const handleResume = () => {
+    if (!task) return;
+    void runAction("resume", async () => {
+      try {
+        await requestAction(`${taskApiUrl}/${task.id}/resume`, "POST");
+      } catch (err) {
+        const reason = err instanceof ApiRequestError ? upgradeReasonForError(err.code, err.detail, undefined) : null;
+        if (!reason) throw err;
+        setUpgradeReason(reason);
+        return;
+      }
+      await fetchTaskStatus();
+      toast.success(t("toasts.resumed"));
+    });
+  };
+
+  // A new generation from the same source and settings (failure next steps).
+  const handleStartWorkflow = (workflow: Workflow, topic?: string) => {
+    if (!task?.source_url) return;
+    void runAction(createActionId(workflow, topic), async () => {
+      const response = await fetch("/api/tasks/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildRecreateBody(task, { workflow, topic })),
+      });
+      if (!response.ok) {
+        const info = await parseApiError(response, t("errors.createTask"));
+        const reason = upgradeReasonForError(info.code, info.detail, undefined);
+        if (reason) {
+          setUpgradeReason(reason);
+          return;
+        }
+        throw new Error(formatSupportMessage(info));
+      }
+      const created = (await response.json()) as { task_id?: string };
+      if (!created.task_id) throw new Error(t("errors.createTask"));
+      window.location.href = `/tasks/${created.task_id}`;
+    });
   };
 
   const handleCopyShareLink = async () => {
@@ -653,12 +756,64 @@ export default function TaskPage() {
   const sourceVideoUrl = task ? originalVideoUrl(task) : null;
   const hasClips = task?.status === "completed" && clips.length > 0;
   const isActive = task?.status === "processing" || task?.status === "queued";
-  const sortedClips = sortBy === "score"
-    ? [...clips].sort((a, b) => (b.virality_score ?? 0) - (a.virality_score ?? 0) || a.clip_order - b.clip_order)
-    : clips;
+  const workflow = taskWorkflow(task);
+  const plan = task?.workflow_plan ?? null;
+  const isSeries = workflow === "series";
+  // Series keep story order and recaps/trailers are one video, so only highlights and topic clips sort.
+  const sortable = !isSeries && !SINGLE_OUTPUT.has(workflow);
+  const sortedClips = isSeries
+    ? orderedParts(clips)
+    : sortable && sortBy === "score"
+      ? [...clips].sort((a, b) => (b.virality_score ?? 0) - (a.virality_score ?? 0) || a.clip_order - b.clip_order)
+      : clips;
   const focusedClip = focusIndex !== null ? sortedClips[focusIndex] : null;
-  const bestScore = clips.reduce((best, clip) => Math.max(best, clip.virality_score || 0), 0);
+  const bestScore = SCORED.has(workflow) ? clips.reduce((best, clip) => Math.max(best, clip.virality_score || 0), 0) : 0;
   const totalSeconds = clips.reduce((sum, clip) => sum + (clip.duration || 0), 0);
+  const partTotal = isSeries ? seriesPartTotal(plan, clips) : undefined;
+  // A split recap or trailer is no longer one video; show its pieces as a grid.
+  const heroClip = SINGLE_OUTPUT.has(workflow) && clips.length === 1 ? clips[0] : null;
+  const failureCode = task?.status === "error" && isWorkflowErrorCode(task.error_code) ? task.error_code : null;
+  const seriesIncomplete = isSeries && unfinishedSeries(task?.status, plan, clips) !== null;
+  const topicName = plan?.topic?.query || task?.workflow_options?.topic || plan?.title || "";
+  const instructions = task?.workflow_options?.instructions?.trim();
+  const expectedTotal = task
+    ? (isSeries && plan?.parts?.length) || expectedOutputs(workflow, task.source_duration_seconds, task.workflow_options?.part_count)
+    : 0;
+  const workflowBadge = workflow === "highlights" ? null
+    : workflow === "series"
+      ? (partTotal || task?.workflow_options?.part_count
+        ? t("workflowBadge.series", { count: partTotal || task?.workflow_options?.part_count || 0 })
+        : t("workflowBadge.seriesPending"))
+      : workflow === "topic" ? t("workflowBadge.topic", { topic: topicName }) : t(`workflowBadge.${workflow}`);
+  const planNotes = (plan?.notes ?? []).flatMap((note) => {
+    // The topic header already says when coverage is thin.
+    if (note.code === "TOPIC_THIN" || !t.has(`workflowNotes.${note.code}`)) return [];
+    const values = noteParams(note, plan, clips.length);
+    return values ? [{ code: note.code, text: t(`workflowNotes.${note.code}`, values) }] : [];
+  });
+
+  const formatSelect = (
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <span className="hidden sm:inline">{t("downloadAs")}</span>
+      <Select value={exportPreset} onValueChange={setExportPreset}>
+        <SelectTrigger size="sm" aria-label={t("downloadFormat")} className="h-8 min-w-[112px] bg-background"><SelectValue /></SelectTrigger>
+        <SelectContent align="end">
+          <SelectItem value="original">{t("original")}</SelectItem>
+          {EXPORT_PRESETS.map((preset) => <SelectItem key={preset.id} value={preset.id}>{preset.label}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
+  const publishButton = (clip: Clip) => task?.status === "completed" ? (
+    <ClipPublishButton
+      taskId={task.id}
+      clip={clip}
+      connections={socialConnections}
+      providers={socialProviders}
+      onChanged={loadSocialPosts}
+    />
+  ) : null;
 
   const renderTile = (clip: Clip, index: number) => (
     <ClipTile
@@ -667,6 +822,7 @@ export default function TaskPage() {
       taskId={task?.id ?? String(params.id)}
       busy={pendingAction === clip.id}
       best={bestScore > 0 && clip.virality_score === bestScore}
+      partTotal={partTotal}
       onOpen={() => setFocusIndex(index)}
       onDownload={() => handleDownloadClip(clip)}
       onDelete={readOnly ? undefined : () => setDeletingClipId(clip.id)}
@@ -698,7 +854,12 @@ export default function TaskPage() {
               </form>
             ) : (
               <div className="group flex items-start gap-2">
-                <h1 className={cn("min-w-0 break-words font-display text-xl font-bold tracking-tight md:text-2xl", isActive && "title-sheen")}>{task.source_title}</h1>
+                <div className="min-w-0">
+                  <h1 className={cn("min-w-0 break-words font-display text-xl font-bold tracking-tight md:text-2xl", isActive && "title-sheen")}>{task.source_title}</h1>
+                  {plan?.title && workflow !== "topic" && workflow !== "highlights" && (
+                    <p className="mt-0.5 text-sm text-muted-foreground">{plan.title}</p>
+                  )}
+                </div>
                 {!readOnly && (
                   <Button size="icon-sm" variant="ghost" aria-label={t("editTitle")} className="mt-0.5 shrink-0 text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                     onClick={() => { setIsEditing(true); setEditedTitle(task.source_title); }}>
@@ -709,6 +870,9 @@ export default function TaskPage() {
             )}
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
               {!isActive && <StatusBadge status={task.status} />}
+              {workflowBadge && (
+                <span className="max-w-full truncate rounded-full border bg-background px-2.5 py-0.5 text-xs font-medium text-foreground">{workflowBadge}</span>
+              )}
               {sourceVideoUrl ? (
                 <a href={sourceVideoUrl} target="_blank" rel="noopener noreferrer" title={t("originalVideo")} className="flex items-center gap-1.5 hover:text-foreground">
                   <VideoSourceIcon source={videoSourceKind(task.source_type)} className="size-3.5" aria-hidden />{sourceLabel(videoSourceKind(task.source_type), tLibrary("card.upload"))}<ExternalLink className="size-3" aria-hidden />
@@ -725,9 +889,29 @@ export default function TaskPage() {
                 </TooltipContent>
               </Tooltip>
               {isActive && task.source_duration_seconds ? <span className="tabular-nums">{t("sourceLength", { duration: formatDuration(task.source_duration_seconds) })}</span> : null}
-              {clips.length > 0 && <span className="tabular-nums">{t("clipsTotal", { count: clips.length, duration: formatDuration(totalSeconds) })}</span>}
+              {clips.length > 0 && (
+                <span className="tabular-nums">
+                  {/* Series, recaps and trailers already name their output in the badge. */}
+                  {workflow === "highlights" || workflow === "topic"
+                    ? t("clipsTotal", { count: clips.length, duration: formatDuration(totalSeconds) })
+                    : t("outputLength", { duration: formatDuration(totalSeconds) })}
+                </span>
+              )}
+              {instructions && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="flex items-center gap-1.5 hover:text-foreground"><MessageSquareText className="size-3.5" />{t("instructionsUsed")}</button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-sm whitespace-pre-line text-left">{instructions}</TooltipContent>
+                </Tooltip>
+              )}
               {readOnly && <span>{t("readOnly")}</span>}
             </div>
+            {planNotes.length > 0 && (
+              <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                {planNotes.map((note) => <li key={note.code}>{note.text}</li>)}
+              </ul>
+            )}
           </div>
 
           {!readOnly && (
@@ -742,20 +926,9 @@ export default function TaskPage() {
                 {t("cancel")}
               </Button>
             )}
-            {(task.status === "cancelled" || task.status === "error") && (
-              <Button size="sm" disabled={pendingAction !== null}
-                onClick={() => void runAction("resume", async () => {
-                  try {
-                    await requestAction(`${taskApiUrl}/${task.id}/resume`, "POST");
-                  } catch (err) {
-                    const reason = err instanceof ApiRequestError ? upgradeReasonForError(err.code, err.detail, undefined) : null;
-                    if (!reason) throw err;
-                    setUpgradeReason(reason);
-                    return;
-                  }
-                  await fetchTaskStatus();
-                  toast.success(t("toasts.resumed"));
-                })}>
+            {/* Workflow failures and an unfinished series offer their own next step in the body. */}
+            {((task.status === "cancelled" && !seriesIncomplete) || (task.status === "error" && !failureCode)) && (
+              <Button size="sm" disabled={pendingAction !== null} onClick={handleResume}>
                 <RotateCcw className="size-4" />{t("resume")}
               </Button>
             )}
@@ -805,9 +978,10 @@ export default function TaskPage() {
 
         {isActive && task ? (
           <div className="space-y-8">
-            <ProcessingPanel status={task.status} progress={progress} message={progressMessage} startedAt={Date.parse(task.created_at)} />
+            <ProcessingPanel status={task.status} progress={progress} message={progressMessage} startedAt={Date.parse(task.created_at)} workflow={workflow} />
             <ProcessingSlots status={task.status} progress={progress} message={progressMessage}
-              total={clipProgressFromMessage(progressMessage)?.total ?? Math.max(clips.length, expectedClipCount(task.source_duration_seconds))}>
+              className={SINGLE_OUTPUT.has(workflow) ? "mx-auto max-w-[16rem] grid-cols-1 sm:grid-cols-1 lg:grid-cols-1 xl:grid-cols-1" : undefined}
+              total={clipProgressFromMessage(progressMessage)?.total ?? Math.max(clips.length, expectedTotal)}>
               {sortedClips.map(renderTile)}
             </ProcessingSlots>
           </div>
@@ -815,6 +989,18 @@ export default function TaskPage() {
           <div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
         ) : task.status === "cancelled" && clips.length === 0 ? (
           <EmptyState icon={<PauseCircle className="size-7" />} title={t("cancelledTitle")} body={t("cancelledBody")} />
+        ) : failureCode ? (
+          <WorkflowFailure
+            code={failureCode}
+            plan={plan}
+            topic={task.workflow_options?.topic}
+            sourceSeconds={task.source_duration_seconds}
+            canCreate={Boolean(task.source_url)}
+            readOnly={readOnly}
+            pendingAction={pendingAction}
+            onCreate={handleStartWorkflow}
+            onResume={handleResume}
+          />
         ) : task.status === "error" ? (
           <EmptyState tone="error" icon={<AlertCircle className="size-7" />} title={t("failedTitle")} body={t("failedBody")}>
             <Button asChild variant="outline"><Link href="/"><ArrowLeft className="size-4" />{t("backHome")}</Link></Button>
@@ -823,27 +1009,59 @@ export default function TaskPage() {
           <EmptyState icon={<AlertCircle className="size-7" />} title={t("noClipsTitle")} body={t("noClipsBody")}>
             <Button asChild><Link href="/"><ArrowLeft className="size-4" />{t("tryAnother")}</Link></Button>
           </EmptyState>
+        ) : isSeries ? (
+          <SeriesView
+            clips={sortedClips}
+            plan={plan}
+            taskId={task.id}
+            status={task.status}
+            editable={task.status === "completed" && !readOnly}
+            busyId={pendingAction}
+            downloadingAll={pendingAction === "download-all"}
+            toolbar={formatSelect}
+            onOpen={(clip) => setFocusIndex(sortedClips.findIndex((item) => item.id === clip.id))}
+            onDownload={handleDownloadClip}
+            onDownloadAll={() => handleDownloadAll(sortedClips)}
+            onResume={readOnly ? undefined : handleResume}
+            resumeDisabled={pendingAction !== null}
+            renderActions={publishButton}
+          />
+        ) : heroClip && SINGLE_OUTPUT.has(workflow) ? (
+          <>
+            <div className="mb-5 flex justify-end">{formatSelect}</div>
+            <HeroClipView
+              workflow={workflow as "recap" | "trailer"}
+              clip={heroClip}
+              plan={plan}
+              taskId={task.id}
+              editable={task.status === "completed" && !readOnly}
+              busy={pendingAction === heroClip.id}
+              onDownload={() => handleDownloadClip(heroClip)}
+              actions={publishButton(heroClip)}
+            />
+          </>
         ) : (
           <>
+            {workflow === "topic" && topicName && (
+              <div className="mb-5">
+                <h2 className="text-base font-semibold">{t("topicHeader", { topic: topicName, count: clips.length })}</h2>
+                {plan?.topic?.coverage === "thin" && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">{t("workflowNotes.TOPIC_THIN", { count: plan.topic.found ?? clips.length })}</p>
+                )}
+              </div>
+            )}
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-              <div className="inline-flex rounded-lg border bg-background p-0.5" role="tablist" aria-label={t("sortLabel")}>
-                {(["score", "timeline"] as const).map((value) => (
-                  <button key={value} type="button" role="tab" aria-selected={sortBy === value} onClick={() => setSortBy(value)}
-                    className={cn("h-7 rounded-md px-3 text-xs font-medium transition-colors", sortBy === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}>
-                    {t(`sort.${value}`)}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="hidden sm:inline">{t("downloadAs")}</span>
-                <Select value={exportPreset} onValueChange={setExportPreset}>
-                  <SelectTrigger size="sm" aria-label={t("downloadFormat")} className="h-8 min-w-[112px] bg-background"><SelectValue /></SelectTrigger>
-                  <SelectContent align="end">
-                    <SelectItem value="original">{t("original")}</SelectItem>
-                    {EXPORT_PRESETS.map((preset) => <SelectItem key={preset.id} value={preset.id}>{preset.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              {sortable ? (
+                <div className="inline-flex rounded-lg border bg-background p-0.5" role="tablist" aria-label={t("sortLabel")}>
+                  {(["score", "timeline"] as const).map((value) => (
+                    <button key={value} type="button" role="tab" aria-selected={sortBy === value} onClick={() => setSortBy(value)}
+                      className={cn("h-7 rounded-md px-3 text-xs font-medium transition-colors", sortBy === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}>
+                      {t(`sort.${value}`)}
+                    </button>
+                  ))}
+                </div>
+              ) : <span />}
+              {formatSelect}
             </div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {sortedClips.map(renderTile)}
@@ -864,15 +1082,7 @@ export default function TaskPage() {
         onDownload={() => focusedClip && handleDownloadClip(focusedClip)}
         onDelete={readOnly ? undefined : () => { if (focusedClip) { setDeletingClipId(focusedClip.id); setFocusIndex(null); } }}
         hookTypeLabel={getHookTypeLabel}
-        actions={focusedClip && task?.status === "completed" ? (
-          <ClipPublishButton
-            taskId={task.id}
-            clip={focusedClip}
-            connections={socialConnections}
-            providers={socialProviders}
-            onChanged={loadSocialPosts}
-          />
-        ) : null}
+        actions={focusedClip ? publishButton(focusedClip) : null}
       >
         {focusedClip && (
           <ClipPostList

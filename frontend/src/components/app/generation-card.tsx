@@ -8,6 +8,7 @@ import { StatusBadge, ACTIVE_TASK_STATUSES } from "@/components/app/status-badge
 import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind } from "@/components/video-source-icon";
 import { coverClipUrl, timeAgoLabel, type GenerationSummary } from "@/lib/generations";
 import { cn } from "@/lib/utils";
+import { SCORED, taskWorkflow } from "@/lib/workflows";
 
 export function GenerationCard({ generation, selected, onToggle, selectionDisabled, showStatus, className }: {
   generation: GenerationSummary;
@@ -24,6 +25,10 @@ export function GenerationCard({ generation, selected, onToggle, selectionDisabl
   const failed = generation.status === "error";
   const selectable = Boolean(onToggle);
   const source = videoSourceKind(generation.source_type);
+  const workflow = taskWorkflow(generation);
+  const outputs = workflow === "highlights"
+    ? t("card.clips", { count: generation.clips_count })
+    : t(`card.workflow.${workflow}`, { count: generation.part_count ?? generation.clips_count });
 
   return (
     <div className={cn("group relative", className)}>
@@ -39,7 +44,7 @@ export function GenerationCard({ generation, selected, onToggle, selectionDisabl
           {active && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-stone-950/60 text-white">
               <Loader2 className="size-5 animate-spin" aria-hidden />
-              <span className="text-xs font-medium">{generation.status === "queued" ? t("card.queued") : t("card.finding")}</span>
+              <span className="text-xs font-medium">{generation.status === "queued" ? t("card.queued") : workflow === "highlights" ? t("card.finding") : t(`card.findingByWorkflow.${workflow}`)}</span>
               <div className="progress-sheen relative mt-1 h-0.5 w-24 overflow-hidden rounded-full bg-white/20" />
             </div>
           )}
@@ -49,14 +54,14 @@ export function GenerationCard({ generation, selected, onToggle, selectionDisabl
               <span className="text-xs font-medium">{t("card.needsAttention")}</span>
             </div>
           )}
-          {generation.top_virality_score ? (
+          {SCORED.has(workflow) && generation.top_virality_score ? (
             <div className="absolute right-2 top-2 rounded-full bg-black/55 text-white backdrop-blur">
               <ScoreRing score={generation.top_virality_score} size={34} />
             </div>
           ) : null}
           <div className="absolute inset-x-3 bottom-2.5 flex items-center justify-between text-[11px] font-medium text-white/90">
             <span className="flex items-center gap-1.5"><VideoSourceIcon source={source} className="size-3.5" aria-hidden />{source === "upload" ? t("card.upload") : VIDEO_SOURCE_LABELS[source]}</span>
-            {generation.clips_count > 0 && <span className="tabular-nums">{t("card.clips", { count: generation.clips_count })}</span>}
+            {generation.clips_count > 0 && <span className="tabular-nums">{outputs}</span>}
           </div>
         </ClipCover>
         <div className="mt-2.5 space-y-1 px-0.5">

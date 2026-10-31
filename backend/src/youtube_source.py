@@ -129,16 +129,15 @@ def missing_intervals(
 
 
 def ranges_from_segments(segments: Iterable[dict]) -> list[tuple[float, float]]:
+    """Source intervals a render of these segments reads.
+
+    A segment with explicit ranges (a planned workflow clip, an edited or
+    merged clip) plays only those. Its MM:SS labels are display text, and for
+    a recap or trailer they would span minutes that never play.
+    """
     collected: list[tuple[float, float]] = []
     for segment in segments:
-        start = parse_clock(segment.get("start_time"))
-        end = parse_clock(segment.get("end_time"))
-        if start is not None and end is not None and end > start:
-            collected.append((start, end))
-        hook_start = parse_clock(segment.get("hook_start_time"))
-        hook_end = parse_clock(segment.get("hook_end_time"))
-        if hook_start is not None and hook_end is not None and hook_end > hook_start:
-            collected.append((hook_start, hook_end))
+        explicit: list[tuple[float, float]] = []
         for key in ("keep_ranges", "source_ranges"):
             for item in segment.get(key) or []:
                 if isinstance(item, dict):
@@ -149,7 +148,16 @@ def ranges_from_segments(segments: Iterable[dict]) -> list[tuple[float, float]]:
                     except (TypeError, IndexError, KeyError):
                         continue
                 if item_start is not None and item_end is not None and float(item_end) > float(item_start):
-                    collected.append((float(item_start), float(item_end)))
+                    explicit.append((float(item_start), float(item_end)))
+        start = parse_clock(segment.get("start_time"))
+        end = parse_clock(segment.get("end_time"))
+        if not explicit and start is not None and end is not None and end > start:
+            collected.append((start, end))
+        hook_start = parse_clock(segment.get("hook_start_time"))
+        hook_end = parse_clock(segment.get("hook_end_time"))
+        if hook_start is not None and hook_end is not None and hook_end > hook_start:
+            collected.append((hook_start, hook_end))
+        collected.extend(explicit)
     return collected
 
 
