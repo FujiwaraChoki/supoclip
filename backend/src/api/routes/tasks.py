@@ -576,7 +576,10 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             source_title = source_title or metadata.get("title") or "YouTube Video"
             duration_seconds = float(metadata["duration"])
         elif source_type in {"twitch", "kick"}:
-            stream_metadata = await _preflight_stream_source(raw_source["url"], source_type, billing["max_youtube_duration_seconds"])
+            stream_limit = billing["max_youtube_duration_seconds"]
+            if source_type == "twitch":
+                stream_limit = max(stream_limit, runtime_config.twitch_max_video_duration)
+            stream_metadata = await _preflight_stream_source(raw_source["url"], source_type, stream_limit)
             source_title = source_title or stream_metadata.get("title") or f"{source_type.title()} Video"
             duration_seconds = float(stream_metadata["duration"])
         else:

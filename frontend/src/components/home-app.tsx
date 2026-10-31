@@ -37,7 +37,6 @@ import { fetchGenerations, type GenerationSummary } from "@/lib/generations";
 import { CLIP_LENGTHS, isClipLength, type ClipLength } from "@/lib/clip-duration";
 
 const CLIP_COUNTS = Array.from({ length: 20 }, (_, i) => i + 1);
-const MAX_INSTRUCTIONS = 500;
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 
@@ -330,7 +329,7 @@ export default function HomeApp() {
           output_format: outputFormat,
           clip_length: clipLength,
           clip_count: clipCount,
-          clip_instructions: clipInstructions.trim().slice(0, MAX_INSTRUCTIONS) || null,
+          clip_instructions: clipInstructions.trim() || null,
           add_subtitles: addSubtitles,
           include_broll: brollAvailable && includeBroll,
           cut_long_pauses: cutLongPauses,
@@ -541,18 +540,18 @@ export default function HomeApp() {
                     <MessageSquareText className="size-3.5" />{t("instructions.chip")}<ChevronDown className="size-3 opacity-60" />
                   </Chip>
                 </PopoverTrigger>
-                <PopoverContent align="start" className="w-[min(92vw,340px)] space-y-2 rounded-2xl p-3">
+                <PopoverContent align="start" className="w-[min(92vw,480px)] space-y-2 rounded-2xl p-3">
                   <label htmlFor="clip-instructions" className="text-sm font-medium">{t("instructions.label")}</label>
                   <Textarea
                     id="clip-instructions"
                     value={clipInstructions}
-                    maxLength={MAX_INSTRUCTIONS}
                     disabled={controlsDisabled}
-                    onChange={(event) => setClipInstructions(event.target.value.slice(0, MAX_INSTRUCTIONS))}
+                    onChange={(event) => setClipInstructions(event.target.value)}
                     placeholder={t("instructions.placeholder")}
-                    rows={4}
+                    rows={8}
+                    className="max-h-[60vh] resize-y overflow-y-auto"
                   />
-                  <p className="text-right text-xs text-muted-foreground">{clipInstructions.length}/{MAX_INSTRUCTIONS}</p>
+                  <p className="text-right text-xs text-muted-foreground">{clipInstructions.length.toLocaleString()}</p>
                 </PopoverContent>
               </Popover>
 
@@ -690,9 +689,8 @@ export default function HomeApp() {
               </Popover>
 
               {brollAvailable && (
-                // Icon-only so the desktop composer stays on one row.
-                <Chip onClick={() => setIncludeBroll((value) => !value)} disabled={controlsDisabled} aria-pressed={includeBroll} aria-label={t("broll")} active={includeBroll} title={`${t("broll")}: ${t("brollHint")}`} className="px-2">
-                  <Clapperboard className="size-3.5" />
+                <Chip onClick={() => setIncludeBroll((value) => !value)} disabled={controlsDisabled} aria-pressed={includeBroll} active={includeBroll} title={t("brollHint")}>
+                  <Clapperboard className="size-3.5" />{t("broll")}
                 </Chip>
               )}
 

@@ -264,6 +264,24 @@ class VideoService:
         return segments
 
     @staticmethod
+    def _apply_virality_floor(segments: list[dict], floor: int) -> list[dict]:
+        """Drop sub-floor segments (order kept); raise if none survive."""
+        if floor <= 0:
+            return segments
+        kept = [s for s in segments if int(s.get("virality_score") or 0) >= floor]
+        if len(kept) < len(segments):
+            logger.info(
+                "Virality floor %s dropped %s of %s segments",
+                floor, len(segments) - len(kept), len(segments),
+            )
+        if not kept:
+            raise ValueError(
+                f"No moments scored at least {floor}% virality. Try a longer video, "
+                "a different clip length, or lower MIN_VIRALITY_SCORE."
+            )
+        return kept
+
+    @staticmethod
     def _drop_static_segments(
         video_path: Path, segments: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -921,6 +939,9 @@ class VideoService:
                 if max_video_duration is None
                 else max_video_duration
             )
+            if source_type == "twitch":
+                # Matches the Twitch ceiling applied at task creation.
+                duration_limit = max(duration_limit, runtime_config.twitch_max_video_duration)
             # Step 1: Get video path (download or use existing)
             if should_cancel and await should_cancel():
                 raise Exception("Task cancelled")
@@ -1270,6 +1291,9 @@ class VideoService:
                 except Exception:
                     logger.exception("Visual suitability check failed; keeping every segment")
 
+            segments_json = VideoService._apply_virality_floor(
+                segments_json, runtime_config.min_virality_score
+            )
             segments_json = segments_json[:max(1, clip_limit)]
             if not segments_json:
                 raise ValueError("No usable footage remains after excluding interruption notices.")

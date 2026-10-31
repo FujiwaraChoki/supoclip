@@ -38,7 +38,6 @@ def clip_duration(value: str = "auto") -> ClipDuration:
 
 MIN_CLIP_COUNT = 1
 MAX_CLIP_COUNT = 20
-MAX_CLIP_INSTRUCTIONS_CHARS = 500
 
 
 def validate_clip_count(value: Any) -> "str | int":
@@ -61,12 +60,13 @@ def normalize_clip_count(value: Any) -> "str | int":
 def normalize_clip_instructions(value: Any) -> "str | None":
     if not isinstance(value, str):
         return None
-    return " ".join(value.split())[:MAX_CLIP_INSTRUCTIONS_CHARS] or None
+    # No length cap: creators can write as much guidance as they like. Line
+    # breaks survive so long, structured instructions stay readable to the LLM.
+    lines = (" ".join(line.split()) for line in value.splitlines())
+    return "\n".join(line for line in lines if line) or None
 
 
 def validate_clip_instructions(value: Any) -> "str | None":
     if value is not None and not isinstance(value, str):
         raise ValueError("clip_instructions must be text")
-    if value is not None and len(value) > MAX_CLIP_INSTRUCTIONS_CHARS:
-        raise ValueError(f"clip_instructions must be at most {MAX_CLIP_INSTRUCTIONS_CHARS} characters")
     return normalize_clip_instructions(value)

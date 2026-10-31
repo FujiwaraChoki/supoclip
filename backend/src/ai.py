@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional, Literal
 import asyncio
 import logging
 import math
+import os
 import random
 import re
 
@@ -38,7 +39,7 @@ IDEAL_CLIP_MIN_SECONDS = 25
 IDEAL_CLIP_MAX_SECONDS = 50
 MIN_ACCEPTED_CLIP_SECONDS = 15
 MAX_ACCEPTED_CLIP_SECONDS = 60
-TRANSCRIPT_ANALYSIS_CACHE_VERSION = "windowed-rerank-v6"
+TRANSCRIPT_ANALYSIS_CACHE_VERSION = "windowed-rerank-v7-retention"
 TRANSCRIPT_ANALYSIS_MAX_ATTEMPTS = 3
 TRANSCRIPT_ANALYSIS_TIMEOUT_SECONDS = 600
 # Long transcripts are analysed in overlapping windows so every part of the
@@ -46,8 +47,8 @@ TRANSCRIPT_ANALYSIS_TIMEOUT_SECONDS = 600
 ANALYSIS_WINDOW_SECONDS = 12 * 60
 ANALYSIS_WINDOW_OVERLAP_SECONDS = 2 * 60
 ANALYSIS_SINGLE_WINDOW_MAX_SECONDS = 15 * 60
-ANALYSIS_WINDOW_CONCURRENCY = 3
-ANALYSIS_WINDOW_SEGMENT_TARGET = "3-5"
+ANALYSIS_WINDOW_CONCURRENCY = max(1, int(os.getenv("ANALYSIS_CONCURRENCY", "6")))
+ANALYSIS_WINDOW_SEGMENT_TARGET = "5-8"
 # Wall-clock budget for all windows together. Each window additionally keeps
 # its own TRANSCRIPT_ANALYSIS_TIMEOUT_SECONDS budget once it starts running.
 ANALYSIS_TOTAL_TIMEOUT_SECONDS = 1800
@@ -428,7 +429,17 @@ SCORING AND OUTPUT RULES:
 - virality_reasoning and reasoning should cite what is actually present in the chosen span
 - summary and key_topics must also stay grounded in the transcript and should not add outside interpretation
 
-Find the number of compelling segments requested in the task (usually 2-5) that would work well as standalone clips. Quality over quantity: choose fewer stronger segments over filling a quota. Every selected segment must be accurate, self-contained, have proper time ranges, and score high on virality metrics."""
+Find the number of compelling segments requested in the task (usually 2-5) that would work well as standalone clips. Quality over quantity: choose fewer stronger segments over filling a quota. Every selected segment must be accurate, self-contained, have proper time ranges, and score high on virality metrics.
+
+RETENTION-FIRST SELECTION (what top clippers optimise for):
+- Completion beats length: short-form feeds reward clips viewers finish and rewatch. Prefer the tightest window that still lands the payoff.
+- The first 1-3 seconds decide the swipe. Start ON the hook: a bold claim, a surprising number, a direct question, conflict, or the peak of a reaction. Never start on greetings, filler, or setup that only pays off later.
+- Setup then payoff: for reactions, fails, wins and arguments, include just enough setup (the warning, the bet, the first failed attempt) for a cold viewer to get it, then end right after the payoff lands.
+- Stand alone: a viewer with zero context must understand it. Reject moments that depend on earlier inside jokes, unnamed "this/that" references, or visuals the transcript can't explain.
+- Emotional peaks win: laughter, shock, anger, hype, vulnerability, a hot take, a heated disagreement, a skill moment. Flat informational talk scores low unless the information itself is surprising.
+- Loopable endings: prefer endings that cut on the punchline or a beat that flows back into the opening; never trail off into "anyway" or a topic change.
+- Quotable and shareable: one line a viewer would repeat, stitch, or send to a friend.
+- Score honestly: 80+ only for moments you would bet beat a typical short in the same niche. Average moments belong in the 50-70 range."""
 
 def build_transcript_system_prompt(clip_length: str = "auto") -> str:
     bounds = clip_duration(clip_length)
@@ -817,7 +828,10 @@ def build_candidate_rerank_prompt(
             f"text: {segment.text}"
         )
     return (
-        f"Rank these {len(candidates)} clip candidates from the same video, best first.\n\n"
+        f"Rank these {len(candidates)} clip candidates from the same video, best first.\n"
+        "Apply the same retention-first criteria (hook in the first 1-3 seconds, "
+        "standalone, emotional peak, tight payoff, honest 80+ only for standout "
+        "moments) when ordering and calibrating scores.\n\n"
         + "\n\n".join(blocks)
         + _performance_history_section(performance_context)
         + _creator_instructions_section(clip_instructions)
@@ -845,9 +859,9 @@ def build_transcript_analysis_prompt(
     count_note = ""
     if clip_count != "auto":
         if window:
-            segment_target = str(math.ceil(clip_count / max(1, window_count)) + 2)
+            segment_target = str(math.ceil(clip_count / max(1, window_count)) + 4)
         else:
-            segment_target = str(clip_count)
+            segment_target = str(clip_count + 4)
         count_note = (
             f"\n- The creator wants {clip_count} final clips from the whole video; "
             "return only distinct, strong moments."
@@ -1785,7 +1799,11 @@ async def get_most_relevant_parts_by_transcript(
         )
         # Retain already-ranked alternatives until picture suitability checks
         # finish. No extra model call is needed when a slate is rejected.
-        validated_segments = candidates[: min(24, limit * 2) if include_reserve else limit]
+        validated_segments = candidates[
+            : min(24, limit * 2)
+            if include_reserve or get_config().min_virality_score > 0
+            else limit
+        ]
 
         final_analysis = TranscriptAnalysis(
             most_relevant_segments=validated_segments,

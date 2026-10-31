@@ -819,6 +819,12 @@ export default function TaskPage() {
           <EmptyState icon={<PauseCircle className="size-7" />} title={t("cancelledTitle")} body={t("cancelledBody")} />
         ) : task.status === "error" ? (
           <EmptyState tone="error" icon={<AlertCircle className="size-7" />} title={t("failedTitle")} body={t("failedBody")}>
+            {progressMessage.trim() && (
+              // The worker stores the failure reason here; show it so the cause is visible.
+              <p role="status" className="w-full max-w-md rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-foreground">
+                {progressMessage}
+              </p>
+            )}
             <Button asChild variant="outline"><Link href="/"><ArrowLeft className="size-4" />{t("backHome")}</Link></Button>
           </EmptyState>
         ) : clips.length === 0 ? (

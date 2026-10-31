@@ -109,6 +109,11 @@ class Config:
         self.scale_youtube_max_video_duration = int(
             os.getenv("SCALE_YOUTUBE_MAX_VIDEO_DURATION", "10800")
         )
+        # Twitch archives broadcasts up to 48 hours, so VODs default to that
+        # ceiling instead of the plan's YouTube cap.
+        self.twitch_max_video_duration = int(
+            os.getenv("TWITCH_MAX_VIDEO_DURATION", "172800")
+        )
         # 4 GB fits a full-length upload (the duration cap is 90 minutes) at a
         # normal 1080p bitrate. Larger files make transcription, storage, and
         # rendering slow and fragile.
@@ -118,6 +123,9 @@ class Config:
         self.output_dir = os.getenv("OUTPUT_DIR", "outputs")
 
         self.max_clips = int(os.getenv("MAX_CLIPS", "10"))
+        self.min_virality_score = max(
+            0, min(100, int(os.getenv("MIN_VIRALITY_SCORE", "80")))
+        )
         self.clip_duration = int(os.getenv("CLIP_DURATION", "30"))  # seconds
 
         self.temp_dir = os.getenv("TEMP_DIR", "temp")

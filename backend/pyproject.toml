@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.121.0",
     "uvicorn>=0.27.0",
     "openai-whisper>=20250625",
+    "faster-whisper>=1.2.1",
     "pydantic-ai>=1.107.4,<2",
     "setuptools-rust>=1.11.1",
     "asyncpg>=0.29.0",

@@ -6,6 +6,13 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-10-31
 
+- **New:** Clips scoring below a virality floor (default 80%, set with `MIN_VIRALITY_SCORE`; 0 turns it off) are no longer generated. If nothing in a video reaches the floor, the task says so instead of returning weak clips.
+- **Improved:** Clip selection now favours what holds viewers to the end: a hook in the first seconds, a clear payoff, clips that stand alone, emotional peaks, and endings that loop. The AI proposes extra candidates so the clip count you pick is easier to reach.
+- **Improved:** Transcription on self-hosted servers uses faster-whisper with the `large-v3-turbo` model by default, several times faster than before on CPU. Set `WHISPER_ENGINE=openai` to switch back.
+- **Improved:** Twitch VODs can be up to 48 hours long (`TWITCH_MAX_VIDEO_DURATION`).
+- **Improved:** Instructions for the AI have no length limit, and line breaks are kept.
+- **Improved:** The B-roll toggle is labelled, and the automatic 9:16 framing is now called "Face tracking 9:16".
+- **Fixed:** A failed video now shows the reason it failed.
 - **New:** Self-hosted servers can opt in to 4K with `MAX_OUTPUT_HEIGHT=2160`, keeping 4K sources instead of scaling them down to 1080p. The default stays 1080p. ([#315](https://github.com/FujiwaraChoki/supoclip/pull/315))
 - **New:** B-roll can also come from Pixabay when `PIXABAY_API_KEY` is set and there is no Pexels key. ([#315](https://github.com/FujiwaraChoki/supoclip/pull/315))
 - **New:** Each finished clip has a "Titles & hashtags" panel that writes a title, description, and hashtags for TikTok, YouTube Shorts, and Instagram Reels, ready to copy. ([#315](https://github.com/FujiwaraChoki/supoclip/pull/315))

@@ -24,14 +24,16 @@ def test_clip_count_validation():
 
 
 def test_clip_instructions_normalization_and_validation():
-    assert normalize_clip_instructions("  focus   on\n the   funny  parts ") == "focus on the funny parts"
+    assert normalize_clip_instructions("  focus   on\n the   funny  parts ") == "focus on\nthe funny parts"
+    assert normalize_clip_instructions("hook first\n\n\n  no intros ") == "hook first\nno intros"
     assert normalize_clip_instructions("   ") is None
     assert normalize_clip_instructions(None) is None
     assert normalize_clip_instructions(5) is None
     assert validate_clip_instructions(None) is None
     assert validate_clip_instructions(" hook   first ") == "hook first"
-    assert validate_clip_instructions("x" * 500) == "x" * 500
-    for bad in ("x" * 501, 5, ["a"]):
+    # Instructions have no length cap.
+    assert validate_clip_instructions("x" * 50_000) == "x" * 50_000
+    for bad in (5, ["a"]):
         with pytest.raises(ValueError):
             validate_clip_instructions(bad)
 
@@ -50,13 +52,13 @@ def test_default_prompt_is_unchanged_and_custom_prompt_has_count_and_instruction
     )
     assert "Creator instructions (follow when choosing and ranking segments" in custom
     assert '"Only funny moments"' in custom
-    assert "Choose 6 segments total." in custom
+    assert "Choose 10 segments total." in custom
     assert "6 final clips" in custom
 
     windowed = ai.build_transcript_analysis_prompt(
         "[00:00 - 00:10] hi", window=(0, 720), clip_count=10, window_count=3
     )
-    assert "Choose 6 segments total." in windowed  # ceil(10 / 3) + 2
+    assert "Choose 8 segments total." in windowed  # ceil(10 / 3) + 4
 
 
 def test_rerank_prompt_carries_instructions():
@@ -81,6 +83,7 @@ def _many_segments(n):
 
 
 async def test_clip_count_selects_exactly_n_and_auto_cap_is_unchanged(monkeypatch):
+    monkeypatch.setenv("MIN_VIRALITY_SCORE", "0")  # floor>0 always returns the reserve pool
     transcript = _transcript(600)
     monkeypatch.setattr(ai, "get_transcript_agent", lambda clip_length="auto": _agent_with(_many_segments(12)))
 
@@ -97,7 +100,7 @@ async def test_clip_count_selects_exactly_n_and_auto_cap_is_unchanged(monkeypatc
     agent = _agent_with(_many_segments(12))
     monkeypatch.setattr(ai, "get_transcript_agent", lambda clip_length="auto": agent)
     await ai.get_most_relevant_parts_by_transcript(transcript, clip_count=9, clip_instructions="x y")
-    assert "Choose 9 segments total." in agent.run.await_args.args[0]
+    assert "Choose 13 segments total." in agent.run.await_args.args[0]
     assert '"x y"' in agent.run.await_args.args[0]
 
 

@@ -214,7 +214,7 @@ async def test_long_transcript_runs_windows_then_reranks(monkeypatch):
 
     assert agent.run.await_count == 3
     prompts = [call.args[0] for call in agent.run.await_args_list]
-    assert all("one window" in prompt and "Choose 3-5 segments total." in prompt for prompt in prompts)
+    assert all("one window" in prompt and "Choose 5-8 segments total." in prompt for prompt in prompts)
     rerank_agent.run.assert_awaited_once()
     starts = [s.start_time for s in result.most_relevant_segments]
     assert sorted(starts) == ["00:30", "10:30", "20:30"]

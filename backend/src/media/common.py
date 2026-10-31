@@ -1,5 +1,6 @@
 """Shared media dependencies and rendering constants."""
 
+import os
 from pathlib import Path
 
 from typing import List, Dict, Any, Tuple, Optional
@@ -142,7 +143,13 @@ _WHISPER_MODEL_CACHE: Dict[str, Any] = {}
 
 FINAL_VIDEO_CRF = 19
 
-FINAL_VIDEO_PRESET = "medium"
+FINAL_VIDEO_PRESET = os.getenv("FINAL_X264_PRESET", "fast").strip() or "fast"
+
+if FINAL_VIDEO_PRESET not in {
+    "ultrafast", "superfast", "veryfast", "faster", "fast",
+    "medium", "slow", "slower", "veryslow",
+}:
+    FINAL_VIDEO_PRESET = "fast"
 
 INTERMEDIATE_CRF = 16
 

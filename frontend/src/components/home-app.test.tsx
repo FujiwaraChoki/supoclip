@@ -107,12 +107,12 @@ it("sends trimmed clip_instructions", async () => {
   expect(createBodies[0].clip_instructions).toBe("skip the intro");
 });
 
-it("caps clip instructions at 500 characters", async () => {
+it("sends clip instructions of any length", async () => {
   render(<HomeApp />, { wrapper: TooltipProvider });
   fireEvent.click(await screen.findByRole("button", { name: /^Instructions/ }));
   const box = await screen.findByLabelText("Instructions for the AI (optional)");
-  fireEvent.change(box, { target: { value: "a".repeat(600) } });
-  expect(screen.getByText("500/500")).toBeInTheDocument();
+  fireEvent.change(box, { target: { value: "a".repeat(5000) } });
+  expect(screen.getByText("5,000")).toBeInTheDocument();
   await submitUrl();
-  expect(createBodies[0].clip_instructions).toHaveLength(500);
+  expect(createBodies[0].clip_instructions).toHaveLength(5000);
 });

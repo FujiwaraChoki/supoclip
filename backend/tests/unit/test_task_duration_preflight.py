@@ -216,7 +216,7 @@ async def test_clip_count_and_instructions_default_to_auto_and_none(monkeypatch,
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "field,value",
-    [("clip_count", 0), ("clip_count", 21), ("clip_count", "5"), ("clip_instructions", "x" * 501), ("clip_instructions", 5)],
+    [("clip_count", 0), ("clip_count", 21), ("clip_count", "5"), ("clip_instructions", 5)],
 )
 async def test_invalid_clip_count_or_instructions_rejected_before_billing(monkeypatch, creation, field, value):
     request, service, queue, _ = creation
@@ -227,3 +227,40 @@ async def test_invalid_clip_count_or_instructions_rejected_before_billing(monkey
     tasks.BillingService.assert_can_create_task.assert_not_awaited()
     service.create_task_with_source.assert_not_awaited()
     queue.enqueue_processing_job.assert_not_awaited()
+
+
+@pytest.fixture
+def stream_config():
+    from src.config import Config
+
+    config = Config()
+    config.twitch_max_video_duration = 172800
+    set_config_override(config)
+    yield config
+    set_config_override(None)
+
+
+@pytest.mark.asyncio
+async def test_twitch_vod_limit_is_raised_above_small_billing_cap(monkeypatch, creation, stream_config):
+    request, service, queue, billing = creation
+    request.json.return_value = {"source": {"url": "https://www.twitch.tv/videos/123456789"}}
+    preflight = AsyncMock(return_value={"duration": 144000, "title": "x"})
+    monkeypatch.setattr(tasks, "_preflight_stream_source", preflight)
+    result = await tasks.create_task(request, db=None)
+    assert result["task_id"] == "task-1"
+    limit = preflight.await_args.args[2]
+    assert limit == max(billing["max_youtube_duration_seconds"], stream_config.twitch_max_video_duration)
+    assert limit >= 172800
+    assert service.create_task_with_source.await_args.kwargs["source_duration_seconds"] == 144000
+    queue.enqueue_processing_job.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_kick_vod_keeps_plain_billing_cap(monkeypatch, creation, stream_config):
+    request, _service, _queue, billing = creation
+    request.json.return_value = {"source": {"url": "https://kick.com/video/123e4567-e89b-12d3-a456-426614174000"}}
+    preflight = AsyncMock(return_value={"duration": 600, "title": "x"})
+    monkeypatch.setattr(tasks, "_preflight_stream_source", preflight)
+    await tasks.create_task(request, db=None)
+    assert preflight.await_args.args[1] == "kick"
+    assert preflight.await_args.args[2] == billing["max_youtube_duration_seconds"] == 5400
