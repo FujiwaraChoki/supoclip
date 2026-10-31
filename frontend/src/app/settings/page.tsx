@@ -598,9 +598,9 @@ export default function SettingsPage() {
         />
 
         {error && (
-          <Alert className="border-red-200 bg-red-50">
+          <Alert className="border-red-200 bg-red-50 dark:border-red-900/60 dark:bg-red-950/40">
             <AlertCircle className="h-4 w-4 text-red-500" />
-            <AlertDescription className="text-sm text-red-700">{error}</AlertDescription>
+            <AlertDescription className="text-sm text-red-700 dark:text-red-300">{error}</AlertDescription>
           </Alert>
         )}
       </div>

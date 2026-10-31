@@ -935,7 +935,7 @@ export default function TaskPage() {
                     value={projectFontColor ?? "#FFFFFF"}
                     onChange={(e) => setProjectFontColor(e.target.value)}
                     disabled={projectFontColor === null}
-                    className="h-9 w-9 rounded border border-gray-300 cursor-pointer disabled:cursor-not-allowed"
+                    className="h-9 w-9 rounded border border-input cursor-pointer disabled:cursor-not-allowed"
                   />
                   <Input
                     value={projectFontColor ?? ""}

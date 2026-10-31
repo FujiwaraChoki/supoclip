@@ -259,7 +259,7 @@ export default function CreatorProgramPage() {
             <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
               {slugState.state === "checking" && <><Loader2 className="size-3 animate-spin" /> {t("creator.checking")}</>}
               {slugState.state === "available" && (
-                <span className="text-green-700">
+                <span className="text-green-700 dark:text-green-400">
                   {t("creator.available", { origin, slug: slug.trim().toLowerCase(), code: slug.trim().toUpperCase() })}
                 </span>
               )}

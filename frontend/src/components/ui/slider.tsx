@@ -24,7 +24,7 @@ const Slider = React.forwardRef<
       <SliderPrimitive.Thumb key={index}
         aria-label={labelledBy ? undefined : `${label || "Value"}${values.length > 1 ? (index === 0 ? " start" : " end") : ""}`}
         aria-labelledby={labelledBy}
-        className="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50" />
+        className="block h-5 w-5 rounded-full border-2 border-primary bg-background ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50" />
     ))}
   </SliderPrimitive.Root>
 ))

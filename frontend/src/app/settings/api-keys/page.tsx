@@ -241,9 +241,9 @@ export default function ApiKeysPage() {
 
           {/* One-time key reveal */}
           {newKey && (
-            <Alert className="mb-6 border-green-200 bg-green-50">
+            <Alert className="mb-6 border-green-200 bg-green-50 dark:border-green-900/60 dark:bg-green-950/40">
               <AlertDescription>
-                <p className="font-medium text-green-900 mb-2">
+                <p className="font-medium text-green-900 mb-2 dark:text-green-100">
                   {t("apiKeys.reveal")}
                 </p>
                 <div className="flex items-center gap-2">
@@ -311,7 +311,7 @@ export default function ApiKeysPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/50 dark:hover:text-red-300"
                         onClick={() => handleRevoke(key.id)}
                       >
                         <Trash2 className="w-4 h-4" />
