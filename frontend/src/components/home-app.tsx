@@ -31,7 +31,7 @@ import { billingPlanMessageKey } from "@/lib/billing-plans";
 import { hasPaidAccess } from "@/lib/subscription-status";
 import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
-import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
+import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE, savedCaptionDefaults } from "@/lib/font-options";
 import { fetchGenerations, type GenerationSummary } from "@/lib/generations";
 import { CLIP_LENGTHS, isClipLength, type ClipLength } from "@/lib/clip-duration";
 import { cn } from "@/lib/utils";
@@ -130,9 +130,15 @@ export default function HomeApp() {
       void fetch("/api/preferences")
         .then((response) => response.ok ? response.json() : null)
         .then((preferences) => {
-          if (!cancelled && !clipLengthEdited.current && isClipLength(preferences?.clipLength)) {
+          if (cancelled) return;
+          if (!clipLengthEdited.current && isClipLength(preferences?.clipLength)) {
             setClipLength(preferences.clipLength);
           }
+          // Caption defaults from Settings; anything picked here meanwhile wins.
+          const captionDefaults = savedCaptionDefaults(preferences);
+          setFontFamily((current) => current ?? captionDefaults.fontFamily);
+          setFontSize((current) => current ?? captionDefaults.fontSize);
+          setFontColor((current) => current ?? captionDefaults.fontColor);
         })
         .catch(() => {})
         .finally(() => { if (!cancelled) setIsClipLengthLoading(false); });

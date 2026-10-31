@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildFontOptionsPayload } from "./font-options";
+import { buildFontOptionsPayload, savedCaptionDefaults } from "./font-options";
 
 describe("buildFontOptionsPayload", () => {
   it("sends null for every field left at the template default", () => {
@@ -32,6 +32,41 @@ describe("buildFontOptionsPayload", () => {
       font_family: null,
       font_size: null,
       font_color: null,
+    });
+  });
+});
+
+describe("savedCaptionDefaults", () => {
+  it("turns customized Settings defaults into create-form overrides", () => {
+    expect(savedCaptionDefaults({ fontFamily: "Inter", fontSize: 32, fontColor: "#FFD700" })).toEqual({
+      fontFamily: "Inter",
+      fontSize: 32,
+      fontColor: "#FFD700",
+    });
+  });
+
+  it("leaves untouched stock values to the caption template", () => {
+    expect(savedCaptionDefaults({ fontFamily: "TikTokSans-Regular", fontSize: 24, fontColor: "#ffffff" })).toEqual({
+      fontFamily: null,
+      fontSize: null,
+      fontColor: null,
+    });
+  });
+
+  it("applies only the fields that were customized", () => {
+    expect(savedCaptionDefaults({ fontFamily: "TikTokSans-Regular", fontSize: 24, fontColor: "#FF6B6B" })).toEqual({
+      fontFamily: null,
+      fontSize: null,
+      fontColor: "#FF6B6B",
+    });
+  });
+
+  it("ignores missing or invalid preferences", () => {
+    expect(savedCaptionDefaults(null)).toEqual({ fontFamily: null, fontSize: null, fontColor: null });
+    expect(savedCaptionDefaults({ fontFamily: " ", fontSize: 99, fontColor: "red" })).toEqual({
+      fontFamily: null,
+      fontSize: null,
+      fontColor: null,
     });
   });
 });
