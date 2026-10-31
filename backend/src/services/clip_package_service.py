@@ -374,6 +374,7 @@ async def load_clip_words(task_service, db, task: Dict[str, Any], clip: Dict[str
         from ..media.transcription import load_cached_transcript_data
         from ..media_storage import MediaStorage
         from ..utils.async_helpers import run_in_thread
+        from ..youtube_source import local_ranges_for
 
         service = task_service
         ranges = await run_in_thread(service._get_clip_source_ranges, clip)
@@ -393,7 +394,9 @@ async def load_clip_words(task_service, db, task: Dict[str, Any], clip: Dict[str
             return []
         meta = await run_in_thread(storage.local_path, clip["file_path"], metadata_only=True)
         offsets = await run_in_thread(load_clip_output_offsets, meta, ranges)
-        return get_words_for_keep_ranges(transcript, ranges, offsets)
+        # Cached transcripts of stitched sources sit on the local timeline.
+        local_ranges = await run_in_thread(local_ranges_for, source, ranges)
+        return get_words_for_keep_ranges(transcript, local_ranges, offsets)
     except Exception as exc:
         logger.info("Clip word timings unavailable: %s", type(exc).__name__)
         return []

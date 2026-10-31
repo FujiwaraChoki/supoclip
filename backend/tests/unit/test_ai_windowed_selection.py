@@ -348,3 +348,18 @@ async def test_picture_review_can_request_ranked_reserve_without_another_model_c
     result = await ai.get_most_relevant_parts_by_transcript(_transcript(120), include_reserve=True)
     assert len(result.most_relevant_segments) == 2
     agent.run.assert_awaited_once()
+
+
+def test_long_vod_timestamps_over_999_minutes_are_kept():
+    from src import ai
+    from src.media.timeline import parse_transcript_lines
+
+    transcript = "[999:58 - 1000:02] before\n[1000:05 - 1000:09] after"
+    assert [l["start_seconds"] for l in ai._parse_transcript_lines(transcript)] == [59998, 60005]
+    assert len(parse_transcript_lines(transcript)) == 2
+    windows = ai.split_transcript_into_windows(
+        transcript, window_seconds=60000, overlap_seconds=0, single_window_max_seconds=1
+    )
+    assert windows
+    joined = "\n".join(w["transcript"] for w in windows)
+    assert "999:58" in joined and "1000:05" in joined

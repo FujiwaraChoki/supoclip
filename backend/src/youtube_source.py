@@ -393,8 +393,17 @@ def cache_root(config=None) -> Path:
     return Path(runtime.temp_dir) / CACHE_DIRNAME
 
 
+def _cache_id(video_id: str, config=None) -> str:
+    """Keep 1080p caches under the bare id; a 2160p cap gets its own namespace."""
+    cap = getattr(config or get_config(), "max_output_height", 1080)
+    suffix = f"-{cap}p"
+    if cap > 1080 and not video_id.endswith(suffix):
+        return video_id + suffix
+    return video_id
+
+
 def cache_dir_for(video_id: str, config=None) -> Path:
-    return cache_root(config) / video_id
+    return cache_root(config) / _cache_id(video_id, config)
 
 
 def is_preserved_cache_path(path: Optional[Path]) -> bool:
@@ -505,7 +514,7 @@ def _persist_named(video_id: str, path: Path) -> None:
     if storage is None or not path.exists():
         return
     try:
-        storage.upload_file(path, storage.key(CACHE_DIRNAME, video_id, path.name))
+        storage.upload_file(path, storage.key(CACHE_DIRNAME, _cache_id(video_id), path.name))
     except Exception as exc:
         logger.warning("Could not store YouTube cache file %s: %s", path.name, redact_secrets(str(exc)))
 
@@ -519,7 +528,7 @@ def _restore_remote_cache(video_id: str, directory: Path) -> None:
     manifest_path = directory / MANIFEST_NAME
     try:
         found = storage._download(
-            storage.key(CACHE_DIRNAME, video_id, MANIFEST_NAME),
+            storage.key(CACHE_DIRNAME, _cache_id(video_id), MANIFEST_NAME),
             manifest_path,
             optional=True,
         )
@@ -544,7 +553,7 @@ def _restore_remote_cache(video_id: str, directory: Path) -> None:
         if dest.exists():
             continue
         try:
-            storage._download(storage.key(CACHE_DIRNAME, video_id, name), dest, optional=True)
+            storage._download(storage.key(CACHE_DIRNAME, _cache_id(video_id), name), dest, optional=True)
         except Exception as exc:
             logger.warning("Could not restore %s for %s: %s", name, video_id, redact_secrets(str(exc)))
 

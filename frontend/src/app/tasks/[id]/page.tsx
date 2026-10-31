@@ -878,13 +878,13 @@ export default function TaskPage() {
         actions={focusedClip && task?.status === "completed" ? (
           <>
           <ClipCopyKitButton
-            key={focusedClip.id}
+            key={`copy-${focusedClip.id}`}
             taskId={task.id}
             clip={focusedClip}
             onChanged={async () => { await fetchTaskStatus(0, 0, true); }}
           />
           <ClipPackageButton
-            key={focusedClip.id}
+            key={`package-${focusedClip.id}`}
             taskId={task.id}
             clip={focusedClip}
             onChanged={async () => { await fetchTaskStatus(0, 0, true); }}

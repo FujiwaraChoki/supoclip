@@ -259,3 +259,35 @@ async def test_model_exception_is_typed(monkeypatch):
     with pytest.raises(ClipCopyError) as e:
         await svc.generate_clip_package(CLIP)
     assert "provider-detail" not in str(e.value)
+
+
+@pytest.mark.asyncio
+async def test_load_clip_words_uses_local_timeline_ranges(monkeypatch, tmp_path):
+    from src import youtube_source
+    from src.media import timeline, transcription
+
+    seen = {}
+    monkeypatch.setattr(youtube_source, "local_ranges_for", lambda src, r: [(1.0, 2.0)])
+    monkeypatch.setattr(transcription, "load_cached_transcript_data", lambda src: {"words": [1]})
+    monkeypatch.setattr(
+        timeline, "get_words_for_keep_ranges",
+        lambda t, r, o: seen.update(ranges=r, offsets=o) or ["w"],
+    )
+    monkeypatch.setattr("src.clip_source_map.load_clip_output_offsets", lambda m, r: [0.0])
+
+    class Storage:
+        def local_path(self, ref, **kw):
+            return tmp_path / "x.mp4"
+
+    monkeypatch.setattr("src.media_storage.MediaStorage", Storage)
+    service = SimpleNamespace(
+        _get_clip_source_ranges=lambda clip: [(500.0, 510.0)],
+        config=SimpleNamespace(default_processing_mode="fast"),
+        _media_limits=AsyncMock(return_value=("1080p", None)),
+        _build_cache_key=lambda *a: "k",
+        cache_repo=SimpleNamespace(get_cache=AsyncMock(return_value={"video_path": "v"})),
+    )
+    words = await svc.load_clip_words(service, None, {"source_url": "u"}, {"file_path": "c"})
+    assert words == ["w"]
+    assert seen["ranges"] == [(1.0, 2.0)]
+    assert seen["offsets"] == [0.0]

@@ -487,7 +487,7 @@ def prune_broll_cache(
         return
     cutoff = time.time() - max_age_seconds
     kept = []
-    for path in directory.glob("pexels_*.mp4"):
+    for path in (*directory.glob("pexels_*.mp4"), *directory.glob("pixabay_*.mp4")):
         try:
             stat = path.stat()
             if stat.st_mtime < cutoff:

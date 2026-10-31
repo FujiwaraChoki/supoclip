@@ -68,13 +68,13 @@ HOOK_TITLE_MAX_WORDS = 10
 # The transcript formatter does not wrap minutes into hours, so sources of 100+
 # minutes produce labels such as "100:05".
 TRANSCRIPT_SPAN_RE = re.compile(
-    r"^\[(?P<start>\d{1,3}:\d{2}(?::\d{2})?)\s*-\s*"
-    r"(?P<end>\d{1,3}:\d{2}(?::\d{2})?)\]\s*(?P<text>.*)$"
+    r"^\[(?P<start>\d{1,4}:\d{2}(?::\d{2})?)\s*-\s*"
+    r"(?P<end>\d{1,4}:\d{2}(?::\d{2})?)\]\s*(?P<text>.*)$"
 )
 TRANSCRIPT_LINE_PATTERN = re.compile(
-    r"^\[(\d{1,3}:\d{2}(?::\d{2})?)\s*-\s*(\d{1,3}:\d{2}(?::\d{2})?)\]\s*(.*)$"
+    r"^\[(\d{1,4}:\d{2}(?::\d{2})?)\s*-\s*(\d{1,4}:\d{2}(?::\d{2})?)\]\s*(.*)$"
 )
-SIGNAL_LINE_PATTERN = re.compile(r"^- \[(?P<start>\d{1,3}:\d{2}(?::\d{2})?)\s*-")
+SIGNAL_LINE_PATTERN = re.compile(r"^- \[(?P<start>\d{1,4}:\d{2}(?::\d{2})?)\s*-")
 SPEAKER_PREFIX_PATTERN = re.compile(r"^Speaker [^:]+:\s*")
 
 
