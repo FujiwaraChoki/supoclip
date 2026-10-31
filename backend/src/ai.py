@@ -39,7 +39,7 @@ IDEAL_CLIP_MIN_SECONDS = 25
 IDEAL_CLIP_MAX_SECONDS = 50
 MIN_ACCEPTED_CLIP_SECONDS = 15
 MAX_ACCEPTED_CLIP_SECONDS = 60
-TRANSCRIPT_ANALYSIS_CACHE_VERSION = "windowed-rerank-v7-retention"
+TRANSCRIPT_ANALYSIS_CACHE_VERSION = "windowed-rerank-v8-retention"
 TRANSCRIPT_ANALYSIS_MAX_ATTEMPTS = 3
 TRANSCRIPT_ANALYSIS_TIMEOUT_SECONDS = 600
 # Long transcripts are analysed in overlapping windows so every part of the
@@ -438,8 +438,7 @@ RETENTION-FIRST SELECTION (what top clippers optimise for):
 - Stand alone: a viewer with zero context must understand it. Reject moments that depend on earlier inside jokes, unnamed "this/that" references, or visuals the transcript can't explain.
 - Emotional peaks win: laughter, shock, anger, hype, vulnerability, a hot take, a heated disagreement, a skill moment. Flat informational talk scores low unless the information itself is surprising.
 - Loopable endings: prefer endings that cut on the punchline or a beat that flows back into the opening; never trail off into "anyway" or a topic change.
-- Quotable and shareable: one line a viewer would repeat, stitch, or send to a friend.
-- Score honestly: 80+ only for moments you would bet beat a typical short in the same niche. Average moments belong in the 50-70 range."""
+- Quotable and shareable: one line a viewer would repeat, stitch, or send to a friend."""
 
 def build_transcript_system_prompt(clip_length: str = "auto") -> str:
     bounds = clip_duration(clip_length)

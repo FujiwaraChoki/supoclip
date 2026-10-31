@@ -52,4 +52,10 @@ def test_per_window_target_math():
 def test_system_prompt_has_retention_section_and_formats():
     prompt = ai.build_transcript_system_prompt("auto")
     assert "RETENTION-FIRST SELECTION" in prompt
-    assert ai.TRANSCRIPT_ANALYSIS_CACHE_VERSION == "windowed-rerank-v7-retention"
+    assert ai.TRANSCRIPT_ANALYSIS_CACHE_VERSION == "windowed-rerank-v8-retention"
+
+
+def test_system_prompt_does_not_cap_scores():
+    prompt = ai.build_transcript_system_prompt("auto")
+    assert "Score honestly" not in prompt
+    assert "50-70 range" not in prompt
