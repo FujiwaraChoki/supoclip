@@ -47,6 +47,17 @@ export function packageToKeepRanges(edits: SurgicalEdits | null | undefined, cli
   return kept;
 }
 
+/** Keep ranges for a stored package, or [] when it is a no-op or a REJECTED clip left untouched. */
+export function rescueKeepRanges(
+  pkg: { clip_status: string; surgical_edits: SurgicalEdits } | null | undefined,
+  clipDurationSec: number,
+): Range[] {
+  if (!pkg?.surgical_edits) return [];
+  const edits = pkg.surgical_edits;
+  if (pkg.clip_status === "REJECTED" && !edits.internal_cuts?.length && !(edits.total_seconds_shaved ?? 0)) return [];
+  return packageToKeepRanges(edits, clipDurationSec);
+}
+
 /** Map clip-relative ranges through the original draft's edit timeline into source-time segments. */
 export function rangesToSegments(original: EditDocument, ranges: Range[]): Segment[] {
   const items = sequence(original);

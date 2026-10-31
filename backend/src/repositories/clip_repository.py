@@ -108,6 +108,7 @@ class ClipRepository:
                             hook_type = EXCLUDED.hook_type,
                             hook_title = EXCLUDED.hook_title,
                             virality_breakdown = EXCLUDED.virality_breakdown,
+                            clip_package = NULL,
                             updated_at = NOW()
                         RETURNING id
                     """),
@@ -379,6 +380,12 @@ class ClipRepository:
                 UPDATE generated_clips
                 SET filename = :filename,
                     file_path = :file_path,
+                    -- Package trims are clip-relative; drop them once the timing changes.
+                    clip_package = CASE
+                        WHEN start_time IS DISTINCT FROM :start_time
+                          OR end_time IS DISTINCT FROM :end_time
+                          OR ABS(duration - CAST(:duration AS double precision)) > 0.05
+                        THEN NULL ELSE clip_package END,
                     start_time = :start_time,
                     end_time = :end_time,
                     duration = :duration,

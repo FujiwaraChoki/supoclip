@@ -692,3 +692,27 @@ def test_editor_restores_generated_layout_when_raw_media_is_already_local(storag
     storage.restore_editor(directory, media=True)
     assert (directory / "clean.mp4").read_bytes() == b"wide source"
     assert (directory / "layout.mp4").read_bytes() == b"full content composition"
+
+
+def _sidecar_requests(storage, monkeypatch, **kwargs):
+    reference = storage.reference(f"{storage.key()}/uploads/video.mp4")
+    asked = []
+
+    def download(key, destination, optional=False):
+        asked.append(key)
+        return True
+
+    monkeypatch.setattr(storage, "_download", download)
+    storage.local_path(reference, **kwargs)
+    return asked
+
+
+def test_local_path_sidecars_only_skips_media(storage, monkeypatch):
+    asked = _sidecar_requests(storage, monkeypatch, sidecars_only=True)
+    base = f"{storage.key()}/uploads/video"
+    assert sorted(asked) == [f"{base}.source_map.json", f"{base}.transcript_cache.json"]
+
+
+def test_local_path_metadata_only_fetches_source_map_only(storage, monkeypatch):
+    asked = _sidecar_requests(storage, monkeypatch, metadata_only=True)
+    assert asked == [f"{storage.key()}/uploads/video.source_map.json"]

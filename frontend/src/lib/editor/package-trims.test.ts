@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { draft } from "./document.test-fixture";
-import { applyKeepRanges, packageToKeepRanges, parseClock, type SurgicalEdits } from "./package-trims";
+import { applyKeepRanges, packageToKeepRanges, rescueKeepRanges, parseClock, type SurgicalEdits } from "./package-trims";
 
 const edits = (o: Partial<SurgicalEdits> = {}): SurgicalEdits => ({
   new_start: "00:02.500", new_end: "00:28.000", internal_cuts: [], ...o,
@@ -63,5 +63,20 @@ describe("applyKeepRanges", () => {
   });
   it("is a no-op for empty ranges", () => {
     expect(applyKeepRanges(draft, draft, [])).toBe(draft);
+  });
+});
+
+describe("rescueKeepRanges", () => {
+  it("handles missing packages", () => {
+    expect(rescueKeepRanges(null, 30)).toEqual([]);
+    expect(rescueKeepRanges(undefined, 30)).toEqual([]);
+  });
+  it("returns [] for an untouched REJECTED clip but keeps trims", () => {
+    const untouched = edits({ new_start: "00:00", new_end: "00:30", total_seconds_shaved: 0 });
+    expect(rescueKeepRanges({ clip_status: "REJECTED", surgical_edits: untouched }, 30)).toEqual([]);
+    expect(rescueKeepRanges({ clip_status: "REJECTED", surgical_edits: edits({ total_seconds_shaved: 2.5 }) }, 30))
+      .toEqual([{ start: 2.5, end: 28 }]);
+    expect(rescueKeepRanges({ clip_status: "RESCUE_REQUIRED", surgical_edits: edits() }, 30))
+      .toEqual([{ start: 2.5, end: 28 }]);
   });
 });

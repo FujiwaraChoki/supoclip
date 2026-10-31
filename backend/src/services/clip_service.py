@@ -53,6 +53,13 @@ from .video_service import resolve_upload_for_edit
 logger = logging.getLogger(__name__)
 
 
+
+def split_half_breakdown(breakdown: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Scores carry over to a split's second half; the text notes describe the first half."""
+    if not isinstance(breakdown, dict):
+        return None
+    return {**breakdown, "hook_quote": None, "why_it_works": None, "editor_fix": None}
+
 class ClipEditingMixin:
     @serialized_task_edit
     async def delete_clip(self, task_id: str, clip_id: str) -> None:
@@ -414,7 +421,7 @@ class ClipEditingMixin:
             value_score=clip.get("value_score", 0),
             shareability_score=clip.get("shareability_score", 0),
             hook_type=clip.get("hook_type"),
-            virality_breakdown=clip.get("virality_breakdown"),
+            virality_breakdown=split_half_breakdown(clip.get("virality_breakdown")),
             hook_title=clip.get("hook_title"),
         )
 

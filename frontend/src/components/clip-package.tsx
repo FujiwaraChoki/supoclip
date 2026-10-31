@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { AlertCircle, Copy, Loader2, RefreshCw, Scissors, Wrench } from "lucide-react";
@@ -15,7 +15,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useCopyText } from "@/lib/copy-text";
-import { packageToKeepRanges } from "@/lib/editor/package-trims";
+import { rescueKeepRanges } from "@/lib/editor/package-trims";
 
 export type ClipStatus = "VIRAL_READY" | "RESCUE_REQUIRED" | "REJECTED";
 
@@ -63,10 +63,8 @@ interface ClipPackageButtonProps {
 }
 
 function canApply(p: ClipPackage, duration?: number) {
-  const e = p.surgical_edits;
-  if (p.clip_status === "REJECTED" && !e.internal_cuts.length && !e.total_seconds_shaved) return false;
   // Clip length is unknown here (the studio re-checks): trust a usable window.
-  return packageToKeepRanges(e, duration ?? 24 * 3600).length > 0;
+  return rescueKeepRanges(p, duration ?? 24 * 3600).length > 0;
 }
 
 const STATUS: Record<ClipStatus, { key: string; className: string }> = {
@@ -80,6 +78,8 @@ export function ClipPackageButton({ taskId, clip, onChanged }: ClipPackageButton
   const copyText = useCopyText();
   const [open, setOpen] = useState(false);
   const [pkg, setPkg] = useState<ClipPackage | null>(clip.package ?? null);
+  // A trim or split clears the stored package server-side; follow the refreshed clip.
+  useEffect(() => setPkg(clip.package ?? null), [clip.package]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -169,6 +169,32 @@ def test_prompt_uses_timed_words_or_falls_back():
     assert "[00:00.000 - 00:20.000] all the words" in fallback and "VIRAL_READY" in fallback
 
 
+def test_untimed_resets_edits_but_keeps_copy():
+    raw = {
+        "surgical_edits": {
+            "new_start": "00:03", "new_end": "00:27", "cold_open_tease_timestamp": "00:10 - 00:12",
+            "internal_cuts": [{"cut_start": "00:10", "cut_end": "00:11", "reason": "x"}],
+        },
+        "on_screen_text_hooks": {"curiosity_gap": "hook"},
+        "seo_packaging": {"titles": {"shock_browse_fyp": "Title"}},
+    }
+    timed = norm(raw)["surgical_edits"]
+    assert timed["new_start"] == "00:03.000" and timed["internal_cuts"] and timed["total_seconds_shaved"] > 0
+    out = normalize_package(raw, raw_score=78, duration=30.0, timed=False)
+    edits = out["surgical_edits"]
+    assert (edits["new_start"], edits["new_end"]) == ("00:00.000", "00:30.000")
+    assert edits["internal_cuts"] == [] and edits["cold_open_tease_timestamp"] is None
+    assert edits["total_seconds_shaved"] == 0
+    assert out["on_screen_text_hooks"]["curiosity_gap"] == "hook"
+    assert out["seo_packaging"]["titles"]["shock_browse_fyp"] == "Title"
+
+
+def test_prompt_with_words_has_no_untimed_notice():
+    words = [{"text": "Hello", "start": 0.5, "end": 0.9}]
+    assert "No word timings" not in svc.build_prompt({"duration": 20, "text": "x"}, words)
+    assert "No word timings" in svc.build_prompt({"duration": 20, "text": "x"})
+
+
 def _fake_agent(output=None, exc=None):
     async def run(prompt):
         if exc:
@@ -181,6 +207,9 @@ def _fake_agent(output=None, exc=None):
 CLIP = {"id": "c", "text": "hello world", "duration": 30.0, "virality_score": 80, "hook_title": "H"}
 
 
+CLIP_WORDS = {**CLIP, "words": [{"text": "Hello", "start": 1.0, "end": 1.4}, {"text": "world.", "start": 1.5, "end": 2.0}]}
+
+
 async def test_generate_with_stubbed_agent(monkeypatch):
     out = svc.ClipPackageOutput(
         clip_status="REJECTED",
@@ -189,12 +218,28 @@ async def test_generate_with_stubbed_agent(monkeypatch):
     )
     agent = _fake_agent(out)
     monkeypatch.setattr(svc, "_build_agent", lambda: agent)
-    got = await svc.generate_clip_package(CLIP)
+    got = await svc.generate_clip_package(CLIP_WORDS)
     assert got["clip_status"] == "RESCUE_REQUIRED"
     assert got["scoring"]["projected_score_after_rescue"] == 92
     assert got["surgical_edits"]["total_seconds_shaved"] == 2.0
     assert got["generated_at"]
-    assert "hello world" in agent.run.await_args.args[0]
+    prompt = agent.run.await_args.args[0]
+    assert "Hello world." in prompt and "No word timings" not in prompt
+
+
+async def test_generate_without_words_discards_trims(monkeypatch):
+    out = svc.ClipPackageOutput(
+        surgical_edits=svc.SurgicalEdits(
+            new_start="00:01.000", new_end="00:29.000", cold_open_tease_timestamp="00:10 - 00:12",
+            internal_cuts=[svc.InternalCut(cut_start="00:05", cut_end="00:06", reason="x")],
+        ),
+    )
+    agent = _fake_agent(out)
+    monkeypatch.setattr(svc, "_build_agent", lambda: agent)
+    edits = (await svc.generate_clip_package(CLIP))["surgical_edits"]
+    assert (edits["new_start"], edits["new_end"]) == ("00:00.000", "00:30.000")
+    assert edits["total_seconds_shaved"] == 0 and edits["internal_cuts"] == []
+    assert "No word timings" in agent.run.await_args.args[0]
 
 
 async def test_cached_and_regenerate(monkeypatch):

@@ -1180,19 +1180,25 @@ class VideoService:
                     virality = segment.get("virality") or {}
                     if hasattr(virality, "model_dump"):
                         virality = virality.model_dump()
+                    # Cached analyses (processing_cache) store the flat segment
+                    # payload below, so fall back to its score fields.
                     segment_payload = {
                         "start_time": segment.get("start_time"),
                         "end_time": segment.get("end_time"),
                         "text": segment.get("text", ""),
                         "relevance_score": segment.get("relevance_score", 0.0),
                         "reasoning": segment.get("reasoning", ""),
-                        "virality_score": virality.get("total_score", 0),
-                        "hook_score": virality.get("hook_score", 0),
-                        "engagement_score": virality.get("engagement_score", 0),
-                        "value_score": virality.get("value_score", 0),
-                        "shareability_score": virality.get("shareability_score", 0),
-                        "hook_type": virality.get("hook_type"),
-                        "virality_breakdown": virality_breakdown_from_dump(virality),
+                        "virality_score": virality.get("total_score", segment.get("virality_score", 0)),
+                        "hook_score": virality.get("hook_score", segment.get("hook_score", 0)),
+                        "engagement_score": virality.get("engagement_score", segment.get("engagement_score", 0)),
+                        "value_score": virality.get("value_score", segment.get("value_score", 0)),
+                        "shareability_score": virality.get("shareability_score", segment.get("shareability_score", 0)),
+                        "hook_type": virality.get("hook_type", segment.get("hook_type")),
+                        "virality_breakdown": (
+                            virality_breakdown_from_dump(virality)
+                            if virality
+                            else segment.get("virality_breakdown")
+                        ),
                         "hook_title": segment.get("hook_title"),
                         "hook_start_time": segment.get("hook_start_time"),
                         "hook_end_time": segment.get("hook_end_time"),

@@ -128,3 +128,13 @@ it("hides the studio link for a rejected package with no edits", async () => {
   await screen.findByTestId("package-status");
   expect(screen.queryByRole("link", { name: /apply in studio/i })).toBeNull();
 });
+
+it("follows a new clip.package prop", async () => {
+  const next: ClipPackage = { ...pkg, on_screen_text_hooks: { ...pkg.on_screen_text_hooks, curiosity_gap: "Fresh hook" } };
+  const { rerender } = render(<ClipPackageButton taskId="task-1" clip={{ ...clip, package: pkg }} />);
+  open();
+  expect(await screen.findByText("Hook one")).toBeInTheDocument();
+  rerender(<ClipPackageButton taskId="task-1" clip={{ ...clip, package: next }} />);
+  expect(await screen.findByText("Fresh hook")).toBeInTheDocument();
+  expect(screen.queryByText("Hook one")).not.toBeInTheDocument();
+});

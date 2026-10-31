@@ -170,10 +170,9 @@ def _hashtags(raw: Dict[str, Any]) -> Dict[str, List[str]]:
                 out.append(tag)
         return out
 
+    # 3 + 3 + 2 broad tags keeps the total within the 8-tag limit.
     entity = clean(raw.get("entity_specific"))[:3]
     niche = clean(raw.get("niche_category"))[:3]
-    while len(entity) + len(niche) + len(broad) > 8:
-        (niche or entity).pop()
     return {"entity_specific": entity, "niche_category": niche, "platform_broad": broad}
 
 
@@ -227,8 +226,13 @@ def normalize_package(
     raw_score: int,
     duration: float,
     breakdown: Optional[Dict[str, Any]] = None,
+    timed: bool = True,
 ) -> Dict[str, Any]:
-    """Enforce routing, timestamp, length and hashtag rules on model output."""
+    """Enforce routing, timestamp, length and hashtag rules on model output.
+
+    ``timed`` is False when the prompt had no word timings; any trims the model
+    proposed are then guesses, so the edits are reset to the untouched clip.
+    """
     raw = ClipPackageOutput.model_validate(raw or {}).model_dump()
     status = route_status(raw_score)
     duration = max(0.0, float(duration or 0))
@@ -245,6 +249,12 @@ def normalize_package(
                 bd[dst] = int(round(breakdown[src]))
     projected = min(max(int(round(scoring["projected_score_after_rescue"])), raw_score), 100)
 
+    if not timed:
+        raw["surgical_edits"] = {
+            **raw["surgical_edits"],
+            "new_start": "0", "new_end": str(duration),
+            "internal_cuts": [], "cold_open_tease_timestamp": None,
+        }
     edits = _surgical_edits(raw["surgical_edits"], duration)
     hooks = {k: _hook(v) for k, v in raw["on_screen_text_hooks"].items()}
     seo_raw = raw["seo_packaging"]
@@ -331,10 +341,7 @@ def _duration(clip: Dict[str, Any]) -> float:
 
 
 def _int_score(clip: Dict[str, Any]) -> int:
-    try:
-        return int(round(float(clip.get("virality_score") or 0)))
-    except (TypeError, ValueError):
-        return 0
+    return ai._coerce_int(clip.get("virality_score"))
 
 
 def build_prompt(clip: Dict[str, Any], words: Sequence[Dict[str, Any]] = ()) -> str:
@@ -343,6 +350,10 @@ def build_prompt(clip: Dict[str, Any], words: Sequence[Dict[str, Any]] = ()) -> 
     lines = timed_lines(words) if words else ""
     if not lines:
         lines = f"[{format_time(0)} - {format_time(duration)}] {(clip.get('text') or '').strip()[:16000]}"
+        lines = (
+            "No word timings are available: keep new_start/new_end equal to the "
+            "originals and return no internal_cuts or cold-open tease.\n" + lines
+        )
     parts = [
         f"Clip duration: {duration:.1f} seconds ({format_time(duration)}).",
         f"On-screen hook title: {(clip.get('hook_title') or '')[:255]}",
@@ -375,12 +386,13 @@ async def load_clip_words(task_service, db, task: Dict[str, Any], clip: Dict[str
         if not cache or not cache.get("video_path"):
             return []
         storage = MediaStorage()
-        source = await run_in_thread(storage.local_path, cache["video_path"])
+        # Only the transcript sidecar is needed; never pull the source video here.
+        source = await run_in_thread(storage.local_path, cache["video_path"], sidecars_only=True)
         transcript = await run_in_thread(load_cached_transcript_data, source)
         if not transcript:
             return []
         meta = await run_in_thread(storage.local_path, clip["file_path"], metadata_only=True)
-        offsets = load_clip_output_offsets(meta, ranges)
+        offsets = await run_in_thread(load_clip_output_offsets, meta, ranges)
         return get_words_for_keep_ranges(transcript, ranges, offsets)
     except Exception as exc:
         logger.info("Clip word timings unavailable: %s", type(exc).__name__)
@@ -420,6 +432,7 @@ async def generate_clip_package(clip: Dict[str, Any]) -> Dict[str, Any]:
             raw_score=_int_score(clip),
             duration=_duration(clip),
             breakdown=clip.get("virality_breakdown"),
+            timed=bool(timed_lines(clip.get("words") or ())),
         )
     except ClipCopyError:
         raise

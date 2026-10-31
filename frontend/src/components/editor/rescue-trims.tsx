@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { Scissors } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { editDuration, type EditDocument } from "@/lib/editor/document";
-import { applyKeepRanges, packageToKeepRanges, type SurgicalEdits } from "@/lib/editor/package-trims";
+import { applyKeepRanges, rescueKeepRanges, type SurgicalEdits } from "@/lib/editor/package-trims";
 
 interface Props {
   pkg?: { clip_status: string; surgical_edits: SurgicalEdits } | null;
@@ -20,10 +20,8 @@ interface Props {
 export function RescueTrims({ pkg, doc, original, update, autoApply, onAutoApplied }: Props) {
   const t = useTranslations("editor");
   const edits = pkg?.surgical_edits;
-  const ranges = useMemo(() => packageToKeepRanges(edits, editDuration(original)), [edits, original]);
-  const rejected =
-    pkg?.clip_status === "REJECTED" && !edits?.internal_cuts?.length && !(edits?.total_seconds_shaved ?? 0);
-  const usable = ranges.length > 0 && !rejected;
+  const ranges = useMemo(() => rescueKeepRanges(pkg, editDuration(original)), [pkg, original]);
+  const usable = ranges.length > 0;
   const done = useRef(false);
   const apply = () => update((d) => applyKeepRanges(d, original, ranges));
   const applyRef = useRef(apply);
