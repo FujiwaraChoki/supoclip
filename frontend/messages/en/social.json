@@ -125,5 +125,20 @@
   "refreshPrivacy": "Refresh options",
   "loadingPrivacy": "Checking TikTok publishing options…",
   "privacyLoadFailed": "Couldn’t load publishing options. Refresh and try again.",
-  "tiktokPublicUnavailable": "Public isn’t available for this TikTok account. Check its privacy settings in TikTok, then refresh these options."
+  "tiktokPublicUnavailable": "Public isn’t available for this TikTok account. Check its privacy settings in TikTok, then refresh these options.",
+  "copyKit": {
+    "open": "Titles & hashtags",
+    "title": "Titles & hashtags for clip {order}",
+    "body": "AI-written title, description and hashtags for each platform.",
+    "generate": "Generate",
+    "generating": "Writing…",
+    "regenerate": "Regenerate",
+    "titleLabel": "Title",
+    "descriptionLabel": "Description",
+    "hashtagsLabel": "Hashtags",
+    "copy": "Copy",
+    "copyField": "Copy {field}",
+    "copyAll": "Copy all",
+    "error": "Couldn't generate titles and hashtags. Try again."
+  }
 }

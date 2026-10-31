@@ -125,5 +125,20 @@
   "refreshPrivacy": "Atualizar opções",
   "loadingPrivacy": "Verificando as opções do TikTok…",
   "privacyLoadFailed": "Não foi possível carregar as opções. Atualize e tente novamente.",
-  "tiktokPublicUnavailable": "A visibilidade pública não está disponível para esta conta do TikTok. Verifique a privacidade no TikTok e atualize as opções."
+  "tiktokPublicUnavailable": "A visibilidade pública não está disponível para esta conta do TikTok. Verifique a privacidade no TikTok e atualize as opções.",
+  "copyKit": {
+    "open": "Títulos e hashtags",
+    "title": "Títulos e hashtags do clipe {order}",
+    "body": "Título, descrição e hashtags escritos por IA para cada plataforma.",
+    "generate": "Gerar",
+    "generating": "Escrevendo…",
+    "regenerate": "Gerar novamente",
+    "titleLabel": "Título",
+    "descriptionLabel": "Descrição",
+    "hashtagsLabel": "Hashtags",
+    "copy": "Copiar",
+    "copyField": "Copiar {field}",
+    "copyAll": "Copiar tudo",
+    "error": "Não foi possível gerar títulos e hashtags. Tente novamente."
+  }
 }

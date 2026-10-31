@@ -32,6 +32,7 @@ from ...services.task_service import TaskService
 from ...services.video_service import VideoService
 from ...media.upload_ingest import foreign_upload
 from ...repositories.upload_repository import get_stored_upload
+from ...services.clip_copy_service import ClipCopyError, get_or_generate_clip_copy
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
 from ...workers.job_queue import JobQueue
@@ -1158,6 +1159,38 @@ async def update_clip_captions(
         raise HTTPException(
             status_code=500, detail=f"Error updating captions: {str(e)}"
         )
+
+
+@router.post("/{task_id}/clips/{clip_id}/copy")
+async def get_clip_copy(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Return (or generate) AI title, description and hashtags per platform."""
+    try:
+        try:
+            payload = await request.json()
+        except (ValueError, UnicodeDecodeError):
+            payload = {}
+        regenerate = isinstance(payload, dict) and payload.get("regenerate") is True
+
+        task_service = TaskService(db)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
+        if not clip or clip.get("task_id") != task_id:
+            raise HTTPException(status_code=404, detail="Clip not found")
+        if not (clip.get("text") or "").strip():
+            raise HTTPException(status_code=422, detail="Clip has no transcript text")
+        copy = await get_or_generate_clip_copy(
+            db, task_service.clip_repo, clip, task.get("source_title"), regenerate
+        )
+        return {"copy": copy}
+    except ClipCopyError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating clip copy: {e}")
+        raise HTTPException(status_code=500, detail="Error generating clip copy")
 
 
 @router.post("/{task_id}/clips/{clip_id}/regenerate")

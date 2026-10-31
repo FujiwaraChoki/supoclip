@@ -125,5 +125,20 @@
   "refreshPrivacy": "刷新选项",
   "loadingPrivacy": "正在检查 TikTok 发布选项…",
   "privacyLoadFailed": "无法加载发布选项，请刷新后重试。",
-  "tiktokPublicUnavailable": "此 TikTok 账号不支持公开发布。请在 TikTok 中检查隐私设置，然后刷新这些选项。"
+  "tiktokPublicUnavailable": "此 TikTok 账号不支持公开发布。请在 TikTok 中检查隐私设置，然后刷新这些选项。",
+  "copyKit": {
+    "open": "标题和话题标签",
+    "title": "片段 {order} 的标题和话题标签",
+    "body": "为每个平台由 AI 撰写的标题、描述和话题标签。",
+    "generate": "生成",
+    "generating": "正在撰写…",
+    "regenerate": "重新生成",
+    "titleLabel": "标题",
+    "descriptionLabel": "描述",
+    "hashtagsLabel": "话题标签",
+    "copy": "复制",
+    "copyField": "复制{field}",
+    "copyAll": "全部复制",
+    "error": "无法生成标题和话题标签，请重试。"
+  }
 }

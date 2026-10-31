@@ -125,5 +125,20 @@
   "refreshPrivacy": "Perbarui opsi",
   "loadingPrivacy": "Memeriksa opsi publikasi TikTok…",
   "privacyLoadFailed": "Opsi publikasi tidak dapat dimuat. Perbarui dan coba lagi.",
-  "tiktokPublicUnavailable": "Visibilitas publik tidak tersedia untuk akun TikTok ini. Periksa pengaturan privasi di TikTok, lalu perbarui opsi."
+  "tiktokPublicUnavailable": "Visibilitas publik tidak tersedia untuk akun TikTok ini. Periksa pengaturan privasi di TikTok, lalu perbarui opsi.",
+  "copyKit": {
+    "open": "Judul & hashtag",
+    "title": "Judul & hashtag untuk klip {order}",
+    "body": "Judul, deskripsi, dan hashtag buatan AI untuk setiap platform.",
+    "generate": "Buat",
+    "generating": "Sedang menulis…",
+    "regenerate": "Buat ulang",
+    "titleLabel": "Judul",
+    "descriptionLabel": "Deskripsi",
+    "hashtagsLabel": "Hashtag",
+    "copy": "Salin",
+    "copyField": "Salin {field}",
+    "copyAll": "Salin semua",
+    "error": "Tidak dapat membuat judul dan hashtag. Coba lagi."
+  }
 }

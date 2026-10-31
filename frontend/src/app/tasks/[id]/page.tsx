@@ -66,6 +66,7 @@ import { timeAgoLabel } from "@/lib/generations";
 import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind, type VideoSourceKind } from "@/components/video-source-icon";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
+import { ClipCopyKitButton, type ClipCopy } from "@/components/clip-copy-kit";
 import { ClipPostList, ClipPublishButton, useSocialPostToasts } from "@/components/clip-publisher";
 import {
   ACTIVE_POST_STATUSES,
@@ -95,6 +96,7 @@ interface Clip {
   shareability_score: number;
   hook_type: string | null;
   hook_title: string | null;
+  copy?: ClipCopy | null;
 }
 
 interface TaskDetails {
@@ -865,6 +867,13 @@ export default function TaskPage() {
         onDelete={readOnly ? undefined : () => { if (focusedClip) { setDeletingClipId(focusedClip.id); setFocusIndex(null); } }}
         hookTypeLabel={getHookTypeLabel}
         actions={focusedClip && task?.status === "completed" ? (
+          <>
+          <ClipCopyKitButton
+            key={focusedClip.id}
+            taskId={task.id}
+            clip={focusedClip}
+            onChanged={async () => { await fetchTaskStatus(0, 0, true); }}
+          />
           <ClipPublishButton
             taskId={task.id}
             clip={focusedClip}
@@ -872,6 +881,7 @@ export default function TaskPage() {
             providers={socialProviders}
             onChanged={loadSocialPosts}
           />
+          </>
         ) : null}
       >
         {focusedClip && (

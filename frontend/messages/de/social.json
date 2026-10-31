@@ -125,5 +125,20 @@
   "refreshPrivacy": "Optionen aktualisieren",
   "loadingPrivacy": "TikTok-Veröffentlichungsoptionen werden geprüft…",
   "privacyLoadFailed": "Veröffentlichungsoptionen konnten nicht geladen werden. Bitte aktualisieren.",
-  "tiktokPublicUnavailable": "Öffentlich ist für dieses TikTok-Konto nicht verfügbar. Prüfe die Datenschutzeinstellungen in TikTok und aktualisiere die Optionen."
+  "tiktokPublicUnavailable": "Öffentlich ist für dieses TikTok-Konto nicht verfügbar. Prüfe die Datenschutzeinstellungen in TikTok und aktualisiere die Optionen.",
+  "copyKit": {
+    "open": "Titel & Hashtags",
+    "title": "Titel & Hashtags für Clip {order}",
+    "body": "KI-generierter Titel, Beschreibung und Hashtags für jede Plattform.",
+    "generate": "Generieren",
+    "generating": "Wird geschrieben…",
+    "regenerate": "Neu generieren",
+    "titleLabel": "Titel",
+    "descriptionLabel": "Beschreibung",
+    "hashtagsLabel": "Hashtags",
+    "copy": "Kopieren",
+    "copyField": "{field} kopieren",
+    "copyAll": "Alles kopieren",
+    "error": "Titel und Hashtags konnten nicht erstellt werden. Versuche es erneut."
+  }
 }

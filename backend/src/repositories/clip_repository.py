@@ -12,10 +12,21 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text as sa_text
 from typing import List, Dict, Any, Optional
+import json
 import logging
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_copy_kit(value: Any) -> Optional[Dict[str, Any]]:
+    """JSONB comes back as text from raw asyncpg queries."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return None
+    return value if isinstance(value, dict) else None
 
 
 class ClipRepository:
@@ -150,7 +161,7 @@ class ClipRepository:
                         SELECT id, filename, file_path, start_time, end_time, duration,
                                text, relevance_score, reasoning, clip_order, created_at,
                                virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                               hook_title
+                               hook_title, copy_kit
                         FROM generated_clips
                         WHERE task_id = :task_id
                         ORDER BY clip_order ASC
@@ -194,10 +205,22 @@ class ClipRepository:
                     "shareability_score": getattr(row, "shareability_score", 0) or 0,
                     "hook_type": getattr(row, "hook_type", None),
                     "hook_title": getattr(row, "hook_title", None),
+                    "copy": _parse_copy_kit(getattr(row, "copy_kit", None)),
                 }
             )
 
         return clips
+
+    @staticmethod
+    async def set_clip_copy(db: AsyncSession, clip_id: str, copy: Dict[str, Any]) -> None:
+        """Persist generated copy kit for a clip."""
+        await db.execute(
+            sa_text(
+                "UPDATE generated_clips SET copy_kit = CAST(:copy AS jsonb) WHERE id = :clip_id"
+            ),
+            {"clip_id": clip_id, "copy": json.dumps(copy)},
+        )
+        await commit_unless_editing(db)
 
     @staticmethod
     async def get_clips_count(db: AsyncSession, task_id: str) -> int:
@@ -260,7 +283,7 @@ class ClipRepository:
                         SELECT id, task_id, filename, file_path, start_time, end_time, duration,
                                text, relevance_score, reasoning, clip_order,
                                virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                               hook_title, created_at
+                               hook_title, copy_kit, created_at
                         FROM generated_clips
                         WHERE id = :clip_id
                         """
@@ -304,6 +327,7 @@ class ClipRepository:
             "shareability_score": getattr(row, "shareability_score", 0) or 0,
             "hook_type": getattr(row, "hook_type", None),
             "hook_title": getattr(row, "hook_title", None),
+            "copy": _parse_copy_kit(getattr(row, "copy_kit", None)),
             "created_at": row.created_at.isoformat(),
             "video_url": f"/tasks/{row.task_id}/clips/{row.id}/file",
         }
