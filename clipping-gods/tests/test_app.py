@@ -5,6 +5,7 @@ from types import SimpleNamespace
 os.environ.setdefault("DATA_DIR", "/tmp/clipping-gods-tests")
 
 from fastapi.testclient import TestClient
+import pytest
 
 import app as clipping_app
 from app import TEAM_ROLES, _word_windows, detect_source
@@ -47,13 +48,15 @@ def test_transcript_windows_keep_word_timestamps_and_limit_span():
     ]
 
 
-def test_five_role_team_has_one_scout_and_four_reviewers():
-    assert len(TEAM_ROLES) == 4
+def test_five_reviewer_team_has_one_scout_and_five_reviewers():
+    assert len(TEAM_ROLES) == 5
+    assert clipping_app.MIN_SUCCESSFUL_REVIEWERS == 4
     assert {role for role, _ in TEAM_ROLES} == {
         "hook editor",
         "context editor",
         "story editor",
         "audience editor",
+        "source-fidelity editor",
     }
 
 
@@ -87,7 +90,7 @@ def test_job_api_requires_password_and_sets_clip_playback_cookie(monkeypatch, tm
         assert accepted.status_code == 422
 
 
-def test_four_specialists_average_scores_and_keep_candidate_mapping(monkeypatch):
+def test_five_specialists_average_scores_and_keep_candidate_mapping(monkeypatch):
     candidates = [
         {
             "score": 50,
@@ -103,6 +106,7 @@ def test_four_specialists_average_scores_and_keep_candidate_mapping(monkeypatch)
         "context editor": [70, 100, 70],
         "story editor": [60, 60, 90],
         "audience editor": [90, 90, 70],
+        "source-fidelity editor": [80, 80, 80],
     }
 
     async def fake_chat_json(_client, system, _prompt):
@@ -126,4 +130,81 @@ def test_four_specialists_average_scores_and_keep_candidate_mapping(monkeypatch)
     )
 
     assert [candidate["title"] for candidate in ranked] == ["1", "0", "2"]
-    assert [candidate["score"] for candidate in ranked] == [85, 75, 70]
+    assert [candidate["score"] for candidate in ranked] == [84, 76, 72]
+
+
+def test_four_successful_reviewers_continue_when_one_reviewer_fails(monkeypatch):
+    candidates = [
+        {
+            "score": 50,
+            "start_seconds": float(index * 30),
+            "end_seconds": float(index * 30 + 30),
+            "title": f"candidate-{index}",
+            "transcript": f"An independently understandable moment {index}.",
+        }
+        for index in range(2)
+    ]
+    calls = []
+
+    async def fake_chat_json(_client, system, _prompt):
+        role = next(role for role, _ in TEAM_ROLES if role in system)
+        calls.append(role)
+        if role == "source-fidelity editor":
+            raise TimeoutError("reviewer did not finish")
+        return {
+            "rankings": [
+                {"candidate_id": index, "score": 80 - index}
+                for index in range(len(candidates))
+            ]
+        }
+
+    monkeypatch.setattr(clipping_app, "_chat_json", fake_chat_json)
+    monkeypatch.setattr(clipping_app, "_update_job", lambda *_args, **_kwargs: None)
+
+    ranked = asyncio.run(
+        clipping_app._review_candidates(
+            SimpleNamespace(),
+            candidates,
+            "0123456789abcdef0123456789abcdef",
+        )
+    )
+
+    assert len(calls) == 5
+    assert len(ranked) == 2
+    assert ranked[0]["score"] == 80
+
+
+def test_reviewer_team_fails_when_two_reviewers_fail(monkeypatch):
+    candidates = [
+        {
+            "score": 50,
+            "start_seconds": float(index * 30),
+            "end_seconds": float(index * 30 + 30),
+            "title": f"candidate-{index}",
+            "transcript": f"An independently understandable moment {index}.",
+        }
+        for index in range(2)
+    ]
+
+    async def fake_chat_json(_client, system, _prompt):
+        role = next(role for role, _ in TEAM_ROLES if role in system)
+        if role in {"source-fidelity editor", "audience editor"}:
+            raise TimeoutError("reviewer did not finish")
+        return {
+            "rankings": [
+                {"candidate_id": index, "score": 80 - index}
+                for index in range(len(candidates))
+            ]
+        }
+
+    monkeypatch.setattr(clipping_app, "_chat_json", fake_chat_json)
+    monkeypatch.setattr(clipping_app, "_update_job", lambda *_args, **_kwargs: None)
+
+    with pytest.raises(RuntimeError, match="at least 4 are required"):
+        asyncio.run(
+            clipping_app._review_candidates(
+                SimpleNamespace(),
+                candidates,
+                "0123456789abcdef0123456789abcdef",
+            )
+        )

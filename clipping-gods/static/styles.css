@@ -74,6 +74,9 @@ h1 span { color: transparent; background: linear-gradient(95deg, #c99cff 6%, #e0
 .team-member b, .team-member small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .team-member b { font-size: 10px; font-weight: 600; }
 .team-member small { margin-top: 3px; color: #827c91; font-size: 9px; }
+@media (min-width: 681px) {
+  .team-grid { grid-template-columns: repeat(3, 1fr); row-gap: 14px; }
+}
 
 .jobs-section { width: min(100%, 740px); margin: 75px auto 80px; }
 .section-heading { display: flex; align-items: end; justify-content: space-between; margin-bottom: 16px; }
@@ -122,7 +125,7 @@ footer span:first-child { color: #aaa2b5; font: 700 9px "Space Grotesk", sans-se
   .input-row button { min-height: 49px; }
   .source-note { flex-basis: 100%; }
   .team-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
-  .team-member:last-child { grid-column: span 2; }
+  .team-member:last-child { grid-column: auto; }
   .jobs-section { margin: 58px auto 62px; }
   footer { gap: 12px; font-size: 8px; }
 }

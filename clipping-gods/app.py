@@ -62,7 +62,9 @@ TEAM_ROLES = (
     ("context editor", "Judge whether a viewer can understand the moment without missing context."),
     ("story editor", "Judge whether the moment has a clear progression and payoff."),
     ("audience editor", "Judge whether the moment offers concrete value or is worth sharing."),
+    ("source-fidelity editor", "Judge whether the spoken words preserve the source meaning and support the proposed clip."),
 )
+MIN_SUCCESSFUL_REVIEWERS = len(TEAM_ROLES) - 1
 
 _job_lock = asyncio.Lock()
 _worker_task: asyncio.Task[None] | None = None
@@ -475,7 +477,7 @@ async def _review_candidates(
 
     async def review(role: str, focus: str) -> list[tuple[int, int, str]]:
         async with semaphore:
-            _update_job(job_id, progress=f"Five-role review · {role}")
+            _update_job(job_id, progress=f"Five-reviewer team · {role}")
             result = await _chat_json(
                 client,
                 f"You are the {role}, a careful short-video editor. Focus on {focus} "
@@ -532,7 +534,12 @@ async def _review_candidates(
             continue
         score_rows.append(result)
     if not score_rows:
-        raise RuntimeError("All four specialist reviews failed.")
+        raise RuntimeError("All five specialist reviews failed.")
+    if len(score_rows) < MIN_SUCCESSFUL_REVIEWERS:
+        raise RuntimeError(
+            f"Only {len(score_rows)} of five specialist reviews completed; "
+            f"at least {MIN_SUCCESSFUL_REVIEWERS} are required."
+        )
 
     for index, candidate in enumerate(candidates):
         ratings = [

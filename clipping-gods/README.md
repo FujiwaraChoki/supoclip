@@ -2,24 +2,27 @@
 
 A standalone, Render-ready video clipping studio. Paste a **public** YouTube,
 TikTok, or Facebook video URL; Clipping Gods downloads the source, transcribes
-its audio, asks a five-role GonkaRouter team to find and rank strong moments,
+its audio, asks a GonkaRouter team of one scout and five reviewers to find and rank strong moments,
 and renders vertical MP4 clips.
 
 The project is isolated from the existing SupoClip application in this folder.
 It is a deliberately focused rebuild of the core import-to-clips workflow, not
 a port of SupoClip accounts, billing, social publishing, editor, or analytics.
 
-## What the five roles do
+## What the team does
 
 1. **Scout** reviews transcript windows and proposes candidate clips.
 2. **Hook editor** reviews openings.
 3. **Context editor** checks each moment stands alone.
 4. **Story editor** checks narrative and payoff.
 5. **Audience editor** scores concrete and shareable value.
+6. **Source-fidelity editor** checks that the clip preserves the source meaning.
 
-The four reviewers send independent requests to the configured Gonka model.
-Available reviewer scores are averaged; if one reviewer fails, the remaining
-reviewers can still rank the candidates. The scout uses one request per
+The five reviewers send independent requests to the configured Gonka model.
+Available reviewer scores are averaged; processing continues if one reviewer
+fails or times out, with the remaining four reviews required to rank candidates.
+Two failed reviewers stop the job rather than returning an under-reviewed result.
+The scout uses one request per
 eight-minute transcript window, so long videos make additional requests. This
 uses **one** Gonka API key and one selected model, not five model keys. Check
 your gateway's current usage and pricing before processing long videos.
