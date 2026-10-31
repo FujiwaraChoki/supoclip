@@ -168,6 +168,7 @@ Verify:
 - `LLM=openai:...` requires `OPENAI_API_KEY`
 - `LLM=google-gla:...` requires `GOOGLE_API_KEY`
 - `LLM=anthropic:...` requires `ANTHROPIC_API_KEY`
+- `LLM=openrouter:...` requires `OPENROUTER_API_KEY`
 - `LLM=ollama:...` requires a reachable Ollama endpoint
 
 ## YouTube length check times out
