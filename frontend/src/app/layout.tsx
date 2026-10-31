@@ -11,7 +11,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { FeedbackButton } from "@/components/feedback-button";
 import { PostHogIdentity } from "@/components/posthog-identity";
 import { intlLocale } from "@/i18n/config";
-import { APP_STORE_ID, getSiteUrl } from "@/lib/site";
+import { APP_STORE_ID, COMPANY_NAME, getSiteUrl } from "@/lib/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -49,7 +49,7 @@ export async function generateMetadata(): Promise<Metadata> {
   applicationName: "SupoClip",
   authors: [{ name: "SupoClip Team", url: getSiteUrl() }],
   creator: "SupoClip Team",
-  publisher: "SupoClip",
+  publisher: COMPANY_NAME,
   category: t("category"),
   icons: {
     icon: "/icon.png",

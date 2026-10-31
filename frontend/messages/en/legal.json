@@ -12,7 +12,7 @@
     "privacyLink": "Privacy Policy",
     "agreement": {
       "title": "Agreement",
-      "p1": "These Terms of Service (“Terms”) govern your use of the SupoClip apps and hosted service (the “Service”), which turn long-form videos into short, captioned clips. By creating an account or using the Service you agree to these Terms. If you do not agree, do not use the Service.",
+      "p1": "These Terms of Service (“Terms”) are between you and {company} (“we,” “us,” “our”), the operator of the SupoClip apps and hosted service (the “Service”), which turn long-form videos into short, captioned clips. By creating an account or using the Service you agree to these Terms. If you do not agree, do not use the Service.",
       "p2": "SupoClip is also available as open-source software you can self-host. These Terms apply to the SupoClip-operated hosted service; self-hosted instances are governed by the applicable open-source license and the operator’s own terms."
     },
     "account": {
@@ -43,7 +43,7 @@
     },
     "ip": {
       "title": "Intellectual Property",
-      "p1": "The Service, including its software, design, and branding, is owned by SupoClip or its licensors. The open-source components are licensed under their respective licenses. These Terms do not grant you any rights to our trademarks."
+      "p1": "The Service, including its software, design, and branding, is owned by {company} or its licensors. The open-source components are licensed under their respective licenses. These Terms do not grant you any rights to our trademarks."
     },
     "disclaimers": {
       "title": "Disclaimers",
@@ -51,7 +51,7 @@
     },
     "liability": {
       "title": "Limitation of Liability",
-      "p1": "To the fullest extent permitted by law, SupoClip will not be liable for indirect, incidental, special, consequential, or punitive damages, or for lost profits, data, or goodwill. Our aggregate liability for claims relating to the Service is limited to the amount you paid us in the twelve months before the claim arose."
+      "p1": "To the fullest extent permitted by law, {company} will not be liable for indirect, incidental, special, consequential, or punitive damages, or for lost profits, data, or goodwill. Our aggregate liability for claims relating to the Service is limited to the amount you paid us in the twelve months before the claim arose."
     },
     "termination": {
       "title": "Termination",
@@ -74,7 +74,7 @@
     "title": "Privacy Policy",
     "overview": {
       "title": "Overview",
-      "p1": "This Privacy Policy explains how SupoClip (“SupoClip,” “we,” “us”) collects, uses, shares, and protects information when you use the SupoClip apps and hosted service (the “Service”), which turn long-form videos into short, captioned clips.",
+      "p1": "{company} (“we,” “us”) operates the SupoClip apps and hosted service (the “Service”) and is the controller responsible for personal data processed to provide them. This Privacy Policy explains how we collect, use, share, and protect information when you use the Service, which turns long-form videos into short, captioned clips.",
       "p2": "SupoClip is also available as open-source software you can self-host. If you use a self-hosted instance operated by you or a third party, that operator—not SupoClip—is responsible for the data processed by that instance. This policy describes the SupoClip-operated hosted service."
     },
     "collect": {
@@ -157,5 +157,6 @@
       "title": "Contact Us",
       "body": "Questions about this policy or your data? Email us at <email>privacy@supoclip.com</email>."
     }
-  }
+  },
+  "operatorDetails": "Service operator: {company}, a Delaware limited liability company (file number {registration}). Registered office: {address}."
 }

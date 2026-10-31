@@ -12,7 +12,7 @@
     "privacyLink": "Datenschutzerklärung",
     "agreement": {
       "title": "Vereinbarung",
-      "p1": "Diese Nutzungsbedingungen („Bedingungen“) regeln deine Nutzung der SupoClip-Apps und des gehosteten Dienstes (der „Dienst“), der lange Videos in kurze Clips mit Untertiteln verwandelt. Mit dem Erstellen eines Kontos oder der Nutzung des Dienstes stimmst du diesen Bedingungen zu. Wenn du nicht einverstanden bist, nutze den Dienst nicht.",
+      "p1": "Diese Nutzungsbedingungen („Bedingungen“) gelten zwischen dir und {company} („wir“, „uns“), dem Betreiber der SupoClip-Apps und des gehosteten Dienstes (der „Dienst“), die lange Videos in kurze Clips mit Untertiteln umwandeln. Mit der Erstellung eines Kontos oder der Nutzung des Dienstes stimmst du diesen Bedingungen zu. Wenn du nicht zustimmst, nutze den Dienst nicht.",
       "p2": "SupoClip gibt es auch als Open-Source-Software, die du selbst hosten kannst. Diese Bedingungen gelten für den von SupoClip betriebenen gehosteten Dienst; selbst gehostete Instanzen unterliegen der jeweiligen Open-Source-Lizenz und den eigenen Bedingungen der betreibenden Person."
     },
     "account": {
@@ -43,7 +43,7 @@
     },
     "ip": {
       "title": "Geistiges Eigentum",
-      "p1": "Der Dienst, einschließlich Software, Design und Marke, gehört SupoClip oder den jeweiligen Lizenzgebern. Die Open-Source-Bestandteile stehen unter ihren jeweiligen Lizenzen. Diese Bedingungen räumen dir keine Rechte an unseren Marken ein."
+      "p1": "Der Dienst, einschließlich Software, Design und Marke, gehört {company} oder den jeweiligen Lizenzgebern. Die Open-Source-Bestandteile stehen unter ihren jeweiligen Lizenzen. Diese Bedingungen räumen dir keine Rechte an unseren Marken ein."
     },
     "disclaimers": {
       "title": "Haftungsausschlüsse",
@@ -51,7 +51,7 @@
     },
     "liability": {
       "title": "Haftungsbeschränkung",
-      "p1": "Soweit gesetzlich zulässig, haftet SupoClip nicht für indirekte, zufällige, besondere, Folge- oder Strafschäden und nicht für entgangenen Gewinn, Datenverlust oder Verlust von Goodwill. Unsere Gesamthaftung für Ansprüche im Zusammenhang mit dem Dienst ist auf den Betrag begrenzt, den du uns in den zwölf Monaten vor Entstehung des Anspruchs gezahlt hast."
+      "p1": "Soweit gesetzlich zulässig, haftet {company} nicht für indirekte, zufällige, besondere, Folge- oder Strafschäden und nicht für entgangenen Gewinn, Datenverlust oder Verlust von Goodwill. Unsere Gesamthaftung für Ansprüche im Zusammenhang mit dem Dienst ist auf den Betrag begrenzt, den du uns in den zwölf Monaten vor Entstehung des Anspruchs gezahlt hast."
     },
     "termination": {
       "title": "Beendigung",
@@ -74,7 +74,7 @@
     "title": "Datenschutzerklärung",
     "overview": {
       "title": "Überblick",
-      "p1": "Diese Datenschutzerklärung erklärt, wie SupoClip („SupoClip“, „wir“, „uns“) Informationen erhebt, nutzt, teilt und schützt, wenn du die SupoClip-Apps und den gehosteten Dienst (den „Dienst“) nutzt, der lange Videos in kurze Clips mit Untertiteln verwandelt.",
+      "p1": "{company} („wir“, „uns“) betreibt die SupoClip-Apps und den gehosteten Dienst (der „Dienst“) und ist der Verantwortliche für die personenbezogenen Daten, die zur Bereitstellung dieser Angebote verarbeitet werden. Diese Datenschutzerklärung erläutert, wie wir Informationen erheben, verwenden, weitergeben und schützen, wenn du den Dienst nutzt, der lange Videos in kurze Clips mit Untertiteln umwandelt.",
       "p2": "SupoClip gibt es auch als Open-Source-Software, die du selbst hosten kannst. Wenn du eine selbst gehostete Instanz nutzt, die du oder jemand anderes betreibt, ist die betreibende Person—nicht SupoClip—für die Daten verantwortlich, die diese Instanz verarbeitet. Diese Erklärung beschreibt den von SupoClip betriebenen gehosteten Dienst."
     },
     "collect": {
@@ -157,5 +157,6 @@
       "title": "Kontakt",
       "body": "Fragen zu dieser Erklärung oder deinen Daten? Schreib uns an <email>privacy@supoclip.com</email>."
     }
-  }
+  },
+  "operatorDetails": "Betreiber des Dienstes: {company}, eine Gesellschaft mit beschränkter Haftung nach dem Recht von Delaware (Registernummer {registration}). Eingetragener Sitz: {address}."
 }

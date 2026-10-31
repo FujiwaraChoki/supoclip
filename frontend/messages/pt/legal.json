@@ -12,7 +12,7 @@
     "privacyLink": "Política de Privacidade",
     "agreement": {
       "title": "Acordo",
-      "p1": "Estes Termos de Serviço (“Termos”) regem o seu uso dos apps do SupoClip e do serviço hospedado (o “Serviço”), que transformam vídeos longos em clipes curtos com legendas. Ao criar uma conta ou usar o Serviço, você concorda com estes Termos. Se não concordar, não use o Serviço.",
+      "p1": "Estes Termos de Serviço (“Termos”) são celebrados entre você e a {company} (“nós”), operadora dos aplicativos e do serviço hospedado do SupoClip (o “Serviço”), que transformam vídeos longos em clipes curtos com legendas. Ao criar uma conta ou usar o Serviço, você concorda com estes Termos. Se não concordar, não use o Serviço.",
       "p2": "O SupoClip também está disponível como software de código aberto que você pode hospedar por conta própria. Estes Termos se aplicam ao serviço hospedado operado pelo SupoClip; instâncias auto-hospedadas são regidas pela licença de código aberto aplicável e pelos termos de quem as opera."
     },
     "account": {
@@ -43,7 +43,7 @@
     },
     "ip": {
       "title": "Propriedade intelectual",
-      "p1": "O Serviço, inclusive o software, o design e a marca, pertence ao SupoClip ou aos seus licenciadores. Os componentes de código aberto são licenciados sob as respectivas licenças. Estes Termos não concedem a você nenhum direito sobre as nossas marcas."
+      "p1": "O Serviço, inclusive o software, o design e a marca, pertence ao {company} ou aos seus licenciadores. Os componentes de código aberto são licenciados sob as respectivas licenças. Estes Termos não concedem a você nenhum direito sobre as nossas marcas."
     },
     "disclaimers": {
       "title": "Isenções de responsabilidade",
@@ -51,7 +51,7 @@
     },
     "liability": {
       "title": "Limitação de responsabilidade",
-      "p1": "Na máxima medida permitida por lei, o SupoClip não responde por danos indiretos, incidentais, especiais, consequenciais ou punitivos, nem por lucros cessantes, perda de dados ou de reputação. Nossa responsabilidade total por reivindicações relacionadas ao Serviço se limita ao valor que você nos pagou nos doze meses anteriores ao surgimento da reivindicação."
+      "p1": "Na máxima medida permitida por lei, o {company} não responde por danos indiretos, incidentais, especiais, consequenciais ou punitivos, nem por lucros cessantes, perda de dados ou de reputação. Nossa responsabilidade total por reivindicações relacionadas ao Serviço se limita ao valor que você nos pagou nos doze meses anteriores ao surgimento da reivindicação."
     },
     "termination": {
       "title": "Encerramento",
@@ -74,7 +74,7 @@
     "title": "Política de Privacidade",
     "overview": {
       "title": "Visão geral",
-      "p1": "Esta Política de Privacidade explica como o SupoClip (“SupoClip”, “nós”) coleta, usa, compartilha e protege informações quando você usa os apps do SupoClip e o serviço hospedado (o “Serviço”), que transformam vídeos longos em clipes curtos com legendas.",
+      "p1": "A {company} (“nós”) opera os aplicativos e o serviço hospedado do SupoClip (o “Serviço”) e é a controladora responsável pelos dados pessoais tratados para fornecê-los. Esta Política de Privacidade explica como coletamos, usamos, compartilhamos e protegemos informações quando você usa o Serviço, que transforma vídeos longos em clipes curtos com legendas.",
       "p2": "O SupoClip também está disponível como software de código aberto que você pode hospedar por conta própria. Se você usa uma instância auto-hospedada operada por você ou por terceiros, quem opera—não o SupoClip—é responsável pelos dados processados por essa instância. Esta política descreve o serviço hospedado operado pelo SupoClip."
     },
     "collect": {
@@ -157,5 +157,6 @@
       "title": "Fale conosco",
       "body": "Dúvidas sobre esta política ou seus dados? Escreva para <email>privacy@supoclip.com</email>."
     }
-  }
+  },
+  "operatorDetails": "Operadora do serviço: {company}, uma sociedade de responsabilidade limitada de Delaware (número de registro {registration}). Sede registrada: {address}."
 }

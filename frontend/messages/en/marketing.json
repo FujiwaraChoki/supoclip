@@ -32,7 +32,8 @@
       "compare": "Compare",
       "product": "Product"
     },
-    "columnLinks": "{heading} links"
+    "columnLinks": "{heading} links",
+    "operator": "A product by {company}."
   },
   "creator": {
     "codeLead": "Code",

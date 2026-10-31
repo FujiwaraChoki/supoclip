@@ -12,7 +12,7 @@
     "privacyLink": "Política de privacidad",
     "agreement": {
       "title": "Acuerdo",
-      "p1": "Estas Condiciones del servicio (“Condiciones”) rigen tu uso de las apps de SupoClip y del servicio alojado (el “Servicio”), que convierten videos largos en clips cortos con subtítulos. Al crear una cuenta o usar el Servicio, aceptas estas Condiciones. Si no estás de acuerdo, no uses el Servicio.",
+      "p1": "Estos Términos de Servicio (“Términos”) se celebran entre tú y {company} (“nosotros”), que opera las aplicaciones y el servicio alojado de SupoClip (el “Servicio”), que convierten vídeos largos en clips cortos con subtítulos. Al crear una cuenta o utilizar el Servicio, aceptas estos Términos. Si no estás de acuerdo, no utilices el Servicio.",
       "p2": "SupoClip también está disponible como software de código abierto que puedes alojar tú mismo. Estas Condiciones se aplican al servicio alojado operado por SupoClip; las instancias autoalojadas se rigen por la licencia de código abierto aplicable y por las condiciones propias de quien las opera."
     },
     "account": {
@@ -43,7 +43,7 @@
     },
     "ip": {
       "title": "Propiedad intelectual",
-      "p1": "El Servicio, incluido su software, diseño y marca, es propiedad de SupoClip o de sus licenciantes. Los componentes de código abierto se licencian bajo sus respectivas licencias. Estas Condiciones no te otorgan ningún derecho sobre nuestras marcas."
+      "p1": "El Servicio, incluido su software, diseño y marca, es propiedad de {company} o de sus licenciantes. Los componentes de código abierto se licencian bajo sus respectivas licencias. Estas Condiciones no te otorgan ningún derecho sobre nuestras marcas."
     },
     "disclaimers": {
       "title": "Exenciones de responsabilidad",
@@ -51,7 +51,7 @@
     },
     "liability": {
       "title": "Limitación de responsabilidad",
-      "p1": "En la máxima medida permitida por la ley, SupoClip no será responsable por daños indirectos, incidentales, especiales, consecuentes o punitivos, ni por lucro cesante, pérdida de datos o de prestigio. Nuestra responsabilidad total por reclamos relacionados con el Servicio se limita al monto que nos pagaste en los doce meses anteriores al reclamo."
+      "p1": "En la máxima medida permitida por la ley, {company} no será responsable por daños indirectos, incidentales, especiales, consecuentes o punitivos, ni por lucro cesante, pérdida de datos o de prestigio. Nuestra responsabilidad total por reclamos relacionados con el Servicio se limita al monto que nos pagaste en los doce meses anteriores al reclamo."
     },
     "termination": {
       "title": "Terminación",
@@ -74,7 +74,7 @@
     "title": "Política de privacidad",
     "overview": {
       "title": "Resumen",
-      "p1": "Esta Política de privacidad explica cómo SupoClip (“SupoClip”, “nosotros”, “nos”) recopila, usa, comparte y protege información cuando usas las apps de SupoClip y el servicio alojado (el “Servicio”), que convierten videos largos en clips cortos con subtítulos.",
+      "p1": "{company} (“nosotros”) opera las aplicaciones y el servicio alojado de SupoClip (el “Servicio”) y es el responsable del tratamiento de los datos personales utilizados para prestarlos. Esta Política de Privacidad explica cómo recopilamos, utilizamos, compartimos y protegemos la información cuando utilizas el Servicio, que convierte vídeos largos en clips cortos con subtítulos.",
       "p2": "SupoClip también está disponible como software de código abierto que puedes alojar tú mismo. Si usas una instancia autoalojada operada por ti o por un tercero, quien la opera—no SupoClip—es responsable de los datos que esa instancia procesa. Esta política describe el servicio alojado operado por SupoClip."
     },
     "collect": {
@@ -157,5 +157,6 @@
       "title": "Contáctanos",
       "body": "¿Preguntas sobre esta política o tus datos? Escríbenos a <email>privacy@supoclip.com</email>."
     }
-  }
+  },
+  "operatorDetails": "Operador del servicio: {company}, una sociedad de responsabilidad limitada de Delaware (número de registro {registration}). Domicilio social: {address}."
 }

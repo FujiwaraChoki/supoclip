@@ -12,7 +12,7 @@
     "privacyLink": "Kebijakan Privasi",
     "agreement": {
       "title": "Perjanjian",
-      "p1": "Ketentuan Layanan ini (“Ketentuan”) mengatur penggunaanmu atas aplikasi SupoClip dan layanan yang di-host (“Layanan”), yang mengubah video bentuk panjang jadi clip pendek ber-caption. Dengan membuat akun atau memakai Layanan, kamu menyetujui Ketentuan ini. Jika kamu tidak setuju, jangan pakai Layanan.",
+      "p1": "Ketentuan Layanan ini (“Ketentuan”) merupakan perjanjian antara Anda dan {company} (“kami”), operator aplikasi dan layanan terkelola SupoClip (“Layanan”), yang mengubah video panjang menjadi klip pendek dengan takarir. Dengan membuat akun atau menggunakan Layanan, Anda menyetujui Ketentuan ini. Jika tidak setuju, jangan gunakan Layanan.",
       "p2": "SupoClip juga tersedia sebagai perangkat lunak open source yang bisa kamu host sendiri. Ketentuan ini berlaku untuk layanan yang di-host dan dioperasikan SupoClip; instans yang di-host sendiri diatur oleh lisensi open source yang berlaku dan ketentuan operatornya sendiri."
     },
     "account": {
@@ -43,7 +43,7 @@
     },
     "ip": {
       "title": "Kekayaan intelektual",
-      "p1": "Layanan, termasuk perangkat lunak, desain, dan branding-nya, dimiliki oleh SupoClip atau pemberi lisensinya. Komponen open source dilisensikan di bawah lisensi masing-masing. Ketentuan ini tidak memberimu hak apa pun atas merek dagang kami."
+      "p1": "Layanan, termasuk perangkat lunak, desain, dan branding-nya, dimiliki oleh {company} atau pemberi lisensinya. Komponen open source dilisensikan di bawah lisensi masing-masing. Ketentuan ini tidak memberimu hak apa pun atas merek dagang kami."
     },
     "disclaimers": {
       "title": "Penyangkalan",
@@ -51,7 +51,7 @@
     },
     "liability": {
       "title": "Batasan tanggung jawab",
-      "p1": "Sejauh diizinkan hukum, SupoClip tidak bertanggung jawab atas kerugian tidak langsung, insidental, khusus, konsekuensial, atau punitif, atau atas hilangnya laba, data, atau reputasi. Tanggung jawab agregat kami untuk klaim yang berkaitan dengan Layanan dibatasi pada jumlah yang kamu bayarkan kepada kami dalam dua belas bulan sebelum klaim muncul."
+      "p1": "Sejauh diizinkan hukum, {company} tidak bertanggung jawab atas kerugian tidak langsung, insidental, khusus, konsekuensial, atau punitif, atau atas hilangnya laba, data, atau reputasi. Tanggung jawab agregat kami untuk klaim yang berkaitan dengan Layanan dibatasi pada jumlah yang kamu bayarkan kepada kami dalam dua belas bulan sebelum klaim muncul."
     },
     "termination": {
       "title": "Pengakhiran",
@@ -74,7 +74,7 @@
     "title": "Kebijakan Privasi",
     "overview": {
       "title": "Ringkasan",
-      "p1": "Kebijakan Privasi ini menjelaskan bagaimana SupoClip (“SupoClip,” “kami”) mengumpulkan, memakai, membagikan, dan melindungi informasi saat kamu memakai aplikasi SupoClip dan layanan yang di-host (“Layanan”), yang mengubah video bentuk panjang jadi clip pendek ber-caption.",
+      "p1": "{company} (“kami”) mengoperasikan aplikasi dan layanan terkelola SupoClip (“Layanan”) dan merupakan pengendali data yang bertanggung jawab atas data pribadi yang diproses untuk menyediakannya. Kebijakan Privasi ini menjelaskan cara kami mengumpulkan, menggunakan, membagikan, dan melindungi informasi saat Anda menggunakan Layanan, yang mengubah video panjang menjadi klip pendek dengan takarir.",
       "p2": "SupoClip juga tersedia sebagai perangkat lunak open source yang bisa kamu host sendiri. Jika kamu memakai instans yang di-host sendiri dan dioperasikan olehmu atau pihak ketiga, operator itu—bukan SupoClip—yang bertanggung jawab atas data yang diproses instans tersebut. Kebijakan ini menjelaskan layanan yang di-host dan dioperasikan SupoClip."
     },
     "collect": {
@@ -157,5 +157,6 @@
       "title": "Hubungi kami",
       "body": "Pertanyaan tentang kebijakan ini atau datamu? Email kami di <email>privacy@supoclip.com</email>."
     }
-  }
+  },
+  "operatorDetails": "Operator layanan: {company}, perusahaan perseroan terbatas yang didirikan berdasarkan hukum Delaware (nomor registrasi {registration}). Alamat kantor terdaftar: {address}."
 }

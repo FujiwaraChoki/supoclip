@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-10-31
+
+- **Improved:** The footer, terms, and privacy policy now identify the company operating SupoClip. ([#314](https://github.com/FujiwaraChoki/supoclip/pull/314))
+
 ## 2026-10-29
 
 - **Fixed:** A large video upload finishes once the file is stored, instead of waiting on a copy that can time out. Uploading the same file again reuses it. ([#306](https://github.com/FujiwaraChoki/supoclip/pull/306))

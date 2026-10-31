@@ -6,8 +6,9 @@ import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { intlLocale } from "@/i18n/config";
 import { HOSTED_APP_URL, getSiteUrl } from "@/lib/blog-posts";
+import { COMPANY_NAME, COMPANY_REGISTERED_ADDRESS, COMPANY_REGISTRATION_NUMBER } from "@/lib/site";
 
-const LAST_UPDATED = "2026-10-21";
+const LAST_UPDATED = "2026-10-31";
 const CONTACT_EMAIL = "support@supoclip.com";
 
 function formatLegalDate(locale: string) {
@@ -91,7 +92,14 @@ export default async function TermsOfServicePage() {
 
         <div className="mt-12 space-y-10">
           <Section title={t("terms.agreement.title")}>
-            <p>{t("terms.agreement.p1")}</p>
+            <p>{t("terms.agreement.p1", { company: COMPANY_NAME })}</p>
+            <p>
+              {t("operatorDetails", {
+                company: COMPANY_NAME,
+                registration: COMPANY_REGISTRATION_NUMBER,
+                address: COMPANY_REGISTERED_ADDRESS,
+              })}
+            </p>
             <p>{t("terms.agreement.p2")}</p>
           </Section>
 
@@ -124,7 +132,7 @@ export default async function TermsOfServicePage() {
           </Section>
 
           <Section title={t("terms.ip.title")}>
-            <p>{t("terms.ip.p1")}</p>
+            <p>{t("terms.ip.p1", { company: COMPANY_NAME })}</p>
           </Section>
 
           <Section title={t("terms.disclaimers.title")}>
@@ -132,7 +140,7 @@ export default async function TermsOfServicePage() {
           </Section>
 
           <Section title={t("terms.liability.title")}>
-            <p>{t("terms.liability.p1")}</p>
+            <p>{t("terms.liability.p1", { company: COMPANY_NAME })}</p>
           </Section>
 
           <Section title={t("terms.termination.title")}>
