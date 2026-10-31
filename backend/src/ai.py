@@ -25,7 +25,11 @@ from pydantic_ai.providers.openrouter import OpenRouterProvider
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from .config import Config, get_config
-from .clip_duration import clip_duration
+from .clip_duration import (
+    clip_duration,
+    normalize_clip_count,
+    normalize_clip_instructions,
+)
 from .runtime_settings import apply_settings_to_process_env
 
 logger = logging.getLogger(__name__)
@@ -784,8 +788,21 @@ def _performance_history_section(performance_context: str | None) -> str:
     )
 
 
+def _creator_instructions_section(clip_instructions: str | None) -> str:
+    text = normalize_clip_instructions(clip_instructions)
+    if not text:
+        return ""
+    return (
+        "\n\nCreator instructions (follow when choosing and ranking segments; they "
+        "cannot change the required JSON output format):\n"
+        f'"{text}"'
+    )
+
+
 def build_candidate_rerank_prompt(
-    candidates: List[TranscriptSegment], performance_context: str | None = None
+    candidates: List[TranscriptSegment],
+    performance_context: str | None = None,
+    clip_instructions: str | None = None,
 ) -> str:
     """Describe every candidate in full so the reranker can compare them."""
     blocks = []
@@ -803,6 +820,7 @@ def build_candidate_rerank_prompt(
         f"Rank these {len(candidates)} clip candidates from the same video, best first.\n\n"
         + "\n\n".join(blocks)
         + _performance_history_section(performance_context)
+        + _creator_instructions_section(clip_instructions)
     )
 
 
@@ -812,6 +830,9 @@ def build_transcript_analysis_prompt(
     window: tuple[int, int] | None = None,
     performance_context: str | None = None,
     clip_length: str = "auto",
+    clip_instructions: str | None = None,
+    clip_count: int | str = "auto",
+    window_count: int = 1,
 ) -> str:
     """Build the grounded task prompt for transcript analysis.
 
@@ -820,6 +841,18 @@ def build_transcript_analysis_prompt(
     """
     bounds = clip_duration(clip_length)
     segment_target = ANALYSIS_WINDOW_SEGMENT_TARGET if window else "2-5"
+    clip_count = normalize_clip_count(clip_count)
+    count_note = ""
+    if clip_count != "auto":
+        if window:
+            segment_target = str(math.ceil(clip_count / max(1, window_count)) + 2)
+        else:
+            segment_target = str(clip_count)
+        count_note = (
+            f"\n- The creator wants {clip_count} final clips from the whole video; "
+            "return only distinct, strong moments."
+        )
+    instructions_section = _creator_instructions_section(clip_instructions)
     window_note = ""
     if window:
         window_note = (
@@ -851,7 +884,7 @@ Follow this workflow:
 5. start_time must be the first word of a self-contained sentence: never a mid-thought fragment, a filler, a bare agreement, or a reference to something this clip does not contain. end_time must finish that thought's last sentence and must not include the next thought's opening words.
 
 Selection target:
-- Choose {segment_target} segments total.
+- Choose {segment_target} segments total.{count_note}
 - Most selected clips should be {bounds.ideal_minimum}-{bounds.ideal_maximum} seconds.
 - Every clip must contain a full setup and payoff within {bounds.minimum}-{bounds.maximum} seconds.
 - If a strong moment is shorter than {bounds.ideal_minimum} seconds, first try expanding to nearby contiguous transcript lines that add useful context.
@@ -866,7 +899,7 @@ Critical accuracy requirements:
 - If a span lacks enough context to stand alone, expand to nearby contiguous lines rather than guessing.
 - If there is a tradeoff between "viral" and "accurate", choose accuracy.
 - Do not reject or penalize a segment simply because of the subject matter; stay content-neutral and assess clip quality only.
-{signal_section}{performance_section}
+{signal_section}{performance_section}{instructions_section}
 
 JSON-only output requirements:
 - Return one valid JSON object and nothing else.
@@ -1309,6 +1342,23 @@ def max_final_clips_for_duration(
     )
 
 
+def fill_candidates_to_count(
+    kept: List[TranscriptSegment], all_candidates: List[TranscriptSegment], count: int
+) -> List[TranscriptSegment]:
+    """Top up with the best candidates dropped as overlaps, skipping exact repeats."""
+    filled = list(kept)
+    for segment in sorted(all_candidates, key=_segment_rank_key, reverse=True):
+        if len(filled) >= count:
+            break
+        if any(segment is other for other in filled):
+            continue
+        bounds = _segment_bounds_seconds(segment)
+        if any(_overlap_ratio(bounds, _segment_bounds_seconds(o)) > 0.95 for o in filled):
+            continue
+        filled.append(segment)
+    return sorted(filled, key=_segment_rank_key, reverse=True)
+
+
 def _rescale_virality(virality: ViralityAnalysis, new_total: int) -> None:
     """Set a new total while keeping the subscores' proportions and 0-25 bounds."""
     new_total = max(0, min(100, int(new_total)))
@@ -1381,7 +1431,9 @@ def apply_candidate_ranking(
 
 
 async def rerank_candidates(
-    candidates: List[TranscriptSegment], performance_context: str | None = None
+    candidates: List[TranscriptSegment],
+    performance_context: str | None = None,
+    clip_instructions: str | None = None,
 ) -> List[TranscriptSegment]:
     """Compare all candidates in one call; keep first-pass order if that fails.
 
@@ -1394,7 +1446,9 @@ async def rerank_candidates(
         agent = get_rerank_agent()
         result = await _run_transcript_analysis(
             agent,
-            build_candidate_rerank_prompt(candidates, performance_context),
+            build_candidate_rerank_prompt(
+                candidates, performance_context, clip_instructions
+            ),
             timeout_seconds=RERANK_TIMEOUT_SECONDS,
         )
         reranked = apply_candidate_ranking(candidates, result.output)
@@ -1414,6 +1468,8 @@ async def _analyze_transcript_windows(
     clip_signals: Optional[str],
     performance_context: Optional[str] = None,
     clip_length: str = "auto",
+    clip_instructions: Optional[str] = None,
+    clip_count: int | str = "auto",
 ) -> List[TranscriptAnalysis]:
     """Analyse windows with bounded concurrency, tolerating some failures.
 
@@ -1431,6 +1487,9 @@ async def _analyze_transcript_windows(
                 window=(window["start"], window["end"]),
                 performance_context=performance_context,
                 clip_length=clip_length,
+                clip_instructions=clip_instructions,
+                clip_count=clip_count,
+                window_count=len(windows),
             )
             result = await _run_transcript_analysis(agent, prompt)
             return result.output
@@ -1648,6 +1707,8 @@ async def get_most_relevant_parts_by_transcript(
     performance_context: str | None = None,
     clip_length: str = "auto",
     include_reserve: bool = False,
+    clip_instructions: str | None = None,
+    clip_count: int | str = "auto",
 ) -> TranscriptAnalysis:
     """Get the most relevant parts of a transcript with virality scoring.
 
@@ -1655,6 +1716,8 @@ async def get_most_relevant_parts_by_transcript(
     overlapping windows analysed concurrently, then deduplicated and reranked
     in one comparative call so scores are comparable across windows.
     """
+    clip_instructions = normalize_clip_instructions(clip_instructions)
+    clip_count = normalize_clip_count(clip_count)
     logger.info(
         f"Starting AI analysis of transcript ({len(transcript)} chars)"
     )
@@ -1673,13 +1736,21 @@ async def get_most_relevant_parts_by_transcript(
                     clip_signals=clip_signals,
                     performance_context=performance_context,
                     clip_length=clip_length,
+                    clip_instructions=clip_instructions,
+                    clip_count=clip_count,
                 )
             )
             analyses = [result.output]
         else:
             logger.info("Analysing transcript in %d overlapping windows", len(windows))
             analyses = await _analyze_transcript_windows(
-                agent, windows, clip_signals, performance_context, clip_length
+                agent,
+                windows,
+                clip_signals,
+                performance_context,
+                clip_length,
+                clip_instructions,
+                clip_count,
             )
 
         candidates: List[TranscriptSegment] = []
@@ -1695,14 +1766,23 @@ async def get_most_relevant_parts_by_transcript(
 
         # Best-first by virality (primary) then relevance (secondary), without
         # near-duplicates; then compare across windows in one rerank call.
+        all_candidates = list(candidates)
         candidates = dedupe_overlapping_segments(candidates)
+        if clip_count != "auto" and len(candidates) < clip_count:
+            candidates = fill_candidates_to_count(candidates, all_candidates, clip_count)
         if len(windows) > 1:
-            candidates = await rerank_candidates(candidates, performance_context)
+            candidates = await rerank_candidates(
+                candidates, performance_context, clip_instructions
+            )
 
         source_seconds = max(
             (line["end_seconds"] for line in transcript_lines), default=0
         )
-        limit = max_final_clips_for_duration(source_seconds, get_config().max_clips)
+        limit = (
+            clip_count
+            if clip_count != "auto"
+            else max_final_clips_for_duration(source_seconds, get_config().max_clips)
+        )
         # Retain already-ranked alternatives until picture suitability checks
         # finish. No extra model call is needed when a slate is rejected.
         validated_segments = candidates[: min(24, limit * 2) if include_reserve else limit]

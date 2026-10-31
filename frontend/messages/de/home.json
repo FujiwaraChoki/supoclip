@@ -126,5 +126,17 @@
     "long": "Lang (1–2 Min.)",
     "hint": "Ziellänge vor dem Entfernen von Pausen und Füllwörtern. Deine Auswahl wird als Standard gespeichert.",
     "saveError": "Standard konnte nicht gespeichert werden. Dieses Video verwendet trotzdem deine Auswahl."
+  },
+  "clipCount": {
+    "picker": "Anzahl der Clips",
+    "title": "Anzahl der Clips",
+    "auto": "Automatische Anzahl",
+    "n": "{count} Clips",
+    "hint": "Genau so viele Clips, wenn das Video genug starke Momente hat."
+  },
+  "instructions": {
+    "chip": "Anweisungen",
+    "label": "Anweisungen für die KI (optional)",
+    "placeholder": "z. B. Konzentriere dich auf die lustigen Momente, überspringe das Intro, behalte die Produktdemo"
   }
 }

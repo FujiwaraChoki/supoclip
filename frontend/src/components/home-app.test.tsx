@@ -30,9 +30,16 @@ const billingSummary = {
   max_upload_bytes: 2_000_000_000,
 };
 
+const createBodies: Record<string, unknown>[] = [];
+
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+  createBodies.length = 0;
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    if (url.includes("/api/tasks/create")) {
+      createBodies.push(JSON.parse(String(init?.body)));
+      return Response.json({ error: "stop" }, { status: 500 });
+    }
     if (url.includes("billing-summary")) return Response.json(billingSummary);
     if (url.includes("/api/tasks")) return Response.json({ tasks: [] });
     if (url.includes("/api/fonts")) return Response.json({ fonts: [] });
@@ -66,4 +73,46 @@ it("states the upload limit and rejects a file over it before upload", async () 
 
   await waitFor(() => expect(screen.getByText(/ready to upload/)).toBeInTheDocument());
   expect(screen.queryByText(/over the 2 GB upload limit/)).not.toBeInTheDocument();
+});
+
+async function submitUrl() {
+  const input = document.getElementById("youtube-url") as HTMLInputElement;
+  fireEvent.change(input, { target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" } });
+  fireEvent.submit(input.closest("form") as HTMLFormElement);
+  await waitFor(() => expect(createBodies).toHaveLength(1));
+}
+
+it("sends clip_count auto and no instructions by default", async () => {
+  render(<HomeApp />, { wrapper: TooltipProvider });
+  await screen.findByText(/Uploads up to 2 GB/);
+  await submitUrl();
+  expect(createBodies[0].clip_count).toBe("auto");
+  expect(createBodies[0].clip_instructions ?? null).toBeNull();
+});
+
+it("sends the chosen clip_count as a number", async () => {
+  render(<HomeApp />, { wrapper: TooltipProvider });
+  fireEvent.click(await screen.findByRole("button", { name: "Number of clips" }));
+  fireEvent.click(await screen.findByRole("radio", { name: "5" }));
+  await submitUrl();
+  expect(createBodies[0].clip_count).toBe(5);
+});
+
+it("sends trimmed clip_instructions", async () => {
+  render(<HomeApp />, { wrapper: TooltipProvider });
+  fireEvent.click(await screen.findByRole("button", { name: /^Instructions/ }));
+  const box = await screen.findByLabelText("Instructions for the AI (optional)");
+  fireEvent.change(box, { target: { value: "  skip the intro  " } });
+  await submitUrl();
+  expect(createBodies[0].clip_instructions).toBe("skip the intro");
+});
+
+it("caps clip instructions at 500 characters", async () => {
+  render(<HomeApp />, { wrapper: TooltipProvider });
+  fireEvent.click(await screen.findByRole("button", { name: /^Instructions/ }));
+  const box = await screen.findByLabelText("Instructions for the AI (optional)");
+  fireEvent.change(box, { target: { value: "a".repeat(600) } });
+  expect(screen.getByText("500/500")).toBeInTheDocument();
+  await submitUrl();
+  expect(createBodies[0].clip_instructions).toHaveLength(500);
 });

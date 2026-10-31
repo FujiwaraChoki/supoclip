@@ -45,7 +45,12 @@ from ...stream_source import (
     fetch_stream_info,
 )
 from ...font_registry import is_font_accessible
-from ...clip_duration import normalize_clip_length, validate_clip_length
+from ...clip_duration import (
+    normalize_clip_length,
+    validate_clip_count,
+    validate_clip_instructions,
+    validate_clip_length,
+)
 from ...clip_cleanup import (
     new_task_cleanup_settings,
     normalize_clip_cleanup_settings,
@@ -512,6 +517,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         add_subtitles = True
     try:
         clip_length = validate_clip_length(data.get("clip_length", "auto"))
+        clip_count = validate_clip_count(data.get("clip_count", "auto"))
+        clip_instructions = validate_clip_instructions(data.get("clip_instructions"))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
     cleanup_settings = new_task_cleanup_settings(data)
@@ -532,6 +539,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             "output_format": output_format,
             "add_subtitles": add_subtitles,
             "clip_length": clip_length,
+            "clip_count": clip_count,
+            "clip_instructions": clip_instructions,
             "cleanup_settings": cleanup_settings,
         },
     )
@@ -609,6 +618,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                         {
                             "processing_job_id": processing_job_id,
                             "clip_length": clip_length,
+                            "clip_count": clip_count,
+                            "clip_instructions": clip_instructions,
                             **_stream_resolution_metadata(stream_metadata),
                         },
                         source_url=raw_source["url"],

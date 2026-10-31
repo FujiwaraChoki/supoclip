@@ -56,7 +56,7 @@ from ..clip_source_map import (
 )
 from ..ai import get_most_relevant_parts_by_transcript, max_final_clips_for_duration
 from ..clip_openings import OPENING_HOOK_PENALTY, opening_text_issue, review_opening
-from ..clip_duration import clip_duration
+from ..clip_duration import clip_duration, normalize_clip_count
 from ..config import get_config
 from ..media.source_limits import normalize_source_media
 from ..media.upload_ingest import (
@@ -563,6 +563,8 @@ class VideoService:
         clip_signals: Optional[str] = None,
         performance_context: Optional[str] = None,
         clip_length: str = "auto",
+        clip_instructions: Optional[str] = None,
+        clip_count: Any = "auto",
     ) -> Any:
         """
         Analyze transcript with AI to find relevant segments.
@@ -575,6 +577,8 @@ class VideoService:
             performance_context=performance_context,
             clip_length=clip_length,
             include_reserve=True,
+            clip_instructions=clip_instructions,
+            clip_count=clip_count,
         )
         logger.info(
             f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"
@@ -898,6 +902,8 @@ class VideoService:
         should_cancel: Optional[Callable[[], Awaitable[bool]]] = None,
         performance_context: Optional[str] = None,
         clip_length: str = "auto",
+        clip_instructions: Optional[str] = None,
+        clip_count: Any = "auto",
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.
@@ -1110,6 +1116,14 @@ class VideoService:
                     clip_signals=clip_signals,
                     performance_context=performance_context,
                     clip_length=clip_length,
+                    **{
+                        key: value
+                        for key, value in (
+                            ("clip_instructions", clip_instructions),
+                            ("clip_count", clip_count),
+                        )
+                        if value not in ("auto", None)
+                    },
                 )
 
             # Step 4: Create clips
@@ -1181,6 +1195,8 @@ class VideoService:
             clip_limit = max_final_clips_for_duration(file_duration, runtime_config.max_clips)
             if processing_mode == "fast":
                 clip_limit = min(clip_limit, runtime_config.fast_mode_max_clips)
+            if normalize_clip_count(clip_count) != "auto":
+                clip_limit = normalize_clip_count(clip_count)
             # Retain a bounded reserve until picture checks finish, so a rejected
             # slate can be replaced by the next already-ranked candidate.
             segments_json = segments_json[: min(24, max(1, clip_limit) * 2)]

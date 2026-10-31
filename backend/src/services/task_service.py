@@ -34,7 +34,12 @@ from ..config import Config, get_config
 from ..youtube_utils import cleanup_downloaded_files, extract_video_id
 from ..youtube_source import load_time_map, localize_segment, restore_clip_timeline, transcript_source_for
 from ..clip_cleanup import normalize_clip_cleanup_settings
-from ..clip_duration import clip_duration, validate_clip_length
+from ..clip_duration import (
+    clip_duration,
+    normalize_clip_count,
+    normalize_clip_instructions,
+    validate_clip_length,
+)
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
 from ..clip_source_map import load_clip_caption_settings
 from ..media_storage import MediaStorage, media_work
@@ -411,7 +416,19 @@ class TaskService(ClipEditingMixin):
             # clip selection. Personalized analyses bypass the shared analysis
             # cache so one creator's history never shapes another's clips.
             performance_context = await self._load_performance_context(user_id)
-            if performance_context:
+            # Custom clip count / instructions are per task, so they bypass
+            # the shared analysis cache the same way.
+            source_metadata = await self.task_repo.load_source_metadata(
+                self.db, task_id
+            )
+            clip_count = normalize_clip_count(source_metadata.get("clip_count"))
+            clip_instructions = normalize_clip_instructions(
+                source_metadata.get("clip_instructions")
+            )
+            personalized = bool(
+                performance_context or clip_instructions or clip_count != "auto"
+            )
+            if personalized:
                 cached_analysis_json = None
             cache_hit = bool(cached_transcript and cached_analysis_json)
 
@@ -477,6 +494,14 @@ class TaskService(ClipEditingMixin):
                 should_cancel=should_cancel,
                 performance_context=performance_context,
                 clip_length=clip_length,
+                **{
+                    key: value
+                    for key, value in (
+                        ("clip_instructions", clip_instructions),
+                        ("clip_count", clip_count),
+                    )
+                    if value not in ("auto", None)
+                },
             )
             stage_timings["pipeline_seconds"] = round(
                 perf_counter() - pipeline_start, 3
@@ -512,11 +537,11 @@ class TaskService(ClipEditingMixin):
                 transcript_text=result.get("transcript"),
                 analysis_json=(
                     result.get("analysis_json")
-                    if not performance_context and analysis_cache_key == cache_key
+                    if not personalized and analysis_cache_key == cache_key
                     else None
                 ),
             )
-            if not performance_context and analysis_cache_key != cache_key:
+            if not personalized and analysis_cache_key != cache_key:
                 await self.cache_repo.upsert_cache(
                     self.db,
                     cache_key=analysis_cache_key,

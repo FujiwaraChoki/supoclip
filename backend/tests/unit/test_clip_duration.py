@@ -75,7 +75,7 @@ async def test_single_and_windowed_analysis_keep_long_clips(monkeypatch, seconds
             )], summary="Summary", key_topics=[],
         ))
     monkeypatch.setattr(ai, "_run_transcript_analysis", analyze)
-    monkeypatch.setattr(ai, "rerank_candidates", AsyncMock(side_effect=lambda segments, _: segments))
+    monkeypatch.setattr(ai, "rerank_candidates", AsyncMock(side_effect=lambda segments, *_: segments))
     result = await ai.get_most_relevant_parts_by_transcript(transcript(seconds), clip_length="long")
     assert len(result.most_relevant_segments) == 1
     assert ai._segment_bounds_seconds(result.most_relevant_segments[0]) == (0, 90)

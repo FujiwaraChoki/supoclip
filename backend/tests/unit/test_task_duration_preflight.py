@@ -191,3 +191,39 @@ async def test_invalid_clip_length_rejected_before_billing_or_download(monkeypat
     service.create_task_with_source.assert_not_awaited()
     queue.enqueue_processing_job.assert_not_awaited()
     preflight.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_clip_count_and_instructions_are_persisted(monkeypatch, creation):
+    request, _, _, _ = creation
+    request.json.return_value["clip_count"] = 4
+    request.json.return_value["clip_instructions"] = "  only   the funny parts "
+    monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value={"duration": 300}))
+    await tasks.create_task(request, db=None)
+    metadata = tasks._save_task_source_metadata.await_args.args[1]
+    assert (metadata["clip_count"], metadata["clip_instructions"]) == (4, "only the funny parts")
+
+
+@pytest.mark.asyncio
+async def test_clip_count_and_instructions_default_to_auto_and_none(monkeypatch, creation):
+    request, _, _, _ = creation
+    monkeypatch.setattr(tasks, "async_get_youtube_video_info", AsyncMock(return_value={"duration": 300}))
+    await tasks.create_task(request, db=None)
+    metadata = tasks._save_task_source_metadata.await_args.args[1]
+    assert (metadata["clip_count"], metadata["clip_instructions"]) == ("auto", None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "field,value",
+    [("clip_count", 0), ("clip_count", 21), ("clip_count", "5"), ("clip_instructions", "x" * 501), ("clip_instructions", 5)],
+)
+async def test_invalid_clip_count_or_instructions_rejected_before_billing(monkeypatch, creation, field, value):
+    request, service, queue, _ = creation
+    request.json.return_value[field] = value
+    with pytest.raises(HTTPException) as error:
+        await tasks.create_task(request, db=None)
+    assert error.value.status_code == 422
+    tasks.BillingService.assert_can_create_task.assert_not_awaited()
+    service.create_task_with_source.assert_not_awaited()
+    queue.enqueue_processing_job.assert_not_awaited()

@@ -126,5 +126,17 @@
     "long": "Long (1–2 min)",
     "hint": "Target length before pause and filler removal. Your choice is saved as your default.",
     "saveError": "Could not save your default. This video will still use your choice."
+  },
+  "clipCount": {
+    "picker": "Number of clips",
+    "title": "Number of clips",
+    "auto": "Auto count",
+    "n": "{count} clips",
+    "hint": "Exactly this many clips when the video has enough strong moments."
+  },
+  "instructions": {
+    "chip": "Instructions",
+    "label": "Instructions for the AI (optional)",
+    "placeholder": "e.g. Focus on the funny moments, skip the intro, keep the product demo"
   }
 }
