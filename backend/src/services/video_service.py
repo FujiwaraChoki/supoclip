@@ -465,6 +465,7 @@ class VideoService:
                         segments,
                         task_id=task_id,
                         budget=job_budget,
+                        quality=quality,
                     )
                 except DownloadBudgetExceeded:
                     raise
@@ -483,6 +484,7 @@ class VideoService:
                 task_id=task_id,
                 budget=job_budget,
                 skip_proxy=bypass_proxy,
+                quality=quality,
             )
 
         try:
@@ -940,7 +942,8 @@ class VideoService:
                     getattr(runtime_config, "youtube_download_max_bytes", 2_000_000_000)
                 )
                 cached_full = (
-                    await run_in_thread(cached_full_media, video_id) if video_id else None
+                    await run_in_thread(cached_full_media, video_id, download_quality)
+                    if video_id else None
                 )
                 # Audio first only when a proxy is configured and we do not
                 # already have the full source cached. Uploads never reach here.
@@ -956,6 +959,7 @@ class VideoService:
                                 task_id=task_id,
                                 budget=job_budget,
                                 skip_proxy=True,
+                                quality=download_quality,
                             )
 
                         return download_analysis_source(
@@ -1216,7 +1220,7 @@ class VideoService:
                             await run_in_thread(load_time_map, video_path),
                         )
                     else:
-                        video_path = await run_in_thread(materialize_clip_source, url, video_id, segments_json, task_id=task_id, budget=job_budget, duration=file_duration, audio_path=audio_path)
+                        video_path = await run_in_thread(materialize_clip_source, url, video_id, segments_json, task_id=task_id, budget=job_budget, duration=file_duration, audio_path=audio_path, quality=download_quality)
                 except DownloadBudgetExceeded as exc:
                     raise Exception(str(exc)) from exc
                 except Exception as exc:
