@@ -16,6 +16,12 @@ import { getClipUrl } from "@/lib/clip-actions";
 import { formatClipDuration } from "@/lib/generations";
 import { cn } from "@/lib/utils";
 
+export type ViralityBreakdown = {
+  hook: number; narrative_arc: number; emotional_trigger: number; pacing: number; loop_potential: number;
+  penalties_applied: number; // 0 or negative
+  hook_quote: string | null; why_it_works: string | null; editor_fix: string | null;
+};
+
 export interface WallClip {
   id: string;
   filename: string;
@@ -33,6 +39,7 @@ export interface WallClip {
   shareability_score: number;
   hook_type: string | null;
   hook_title: string | null;
+  virality_breakdown?: ViralityBreakdown | null;
 }
 
 function clipTitle(clip: WallClip, fallback: string) {
@@ -110,6 +117,14 @@ const BREAKDOWN = [
   { key: "shareability_score", labelKey: "shareability", icon: Share2 },
 ] as const;
 
+const RUBRIC = [
+  { key: "hook", labelKey: "hook", max: 30, icon: MessageSquare },
+  { key: "narrative_arc", labelKey: "narrativeArc", max: 25, icon: TrendingUp },
+  { key: "emotional_trigger", labelKey: "emotionalTrigger", max: 20, icon: Share2 },
+  { key: "pacing", labelKey: "pacing", max: 15, icon: Star },
+  { key: "loop_potential", labelKey: "loopPotential", max: 10, icon: TrendingUp },
+] as const;
+
 export function ClipFocus({ clip, taskId, index, total, busy, editable, onNavigate, onClose, onDownload, onDelete, hookTypeLabel, actions, children }: {
   clip: WallClip | null;
   taskId: string;
@@ -176,7 +191,44 @@ export function ClipFocus({ clip, taskId, index, total, busy, editable, onNaviga
                         </p>
                       </div>
                     </div>
-                    {BREAKDOWN.some(({ key }) => clip[key] > 0) && <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3">
+                    {clip.virality_breakdown ? (() => {
+                      const vb = clip.virality_breakdown;
+                      return (
+                        <>
+                          <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3">
+                            {RUBRIC.map(({ key, labelKey, max, icon: Icon }) => (
+                              <div key={key} className="space-y-1.5">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="flex items-center gap-1.5 text-muted-foreground"><Icon className="size-3" />{t(`scores.${labelKey}`)}</span>
+                                  <span className="font-medium tabular-nums">{vb[key]}/{max}</span>
+                                </div>
+                                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                                  <div className="h-full rounded-full bg-foreground transition-[width] duration-500" style={{ width: `${(vb[key] / max) * 100}%` }} />
+                                </div>
+                              </div>
+                            ))}
+                            {vb.penalties_applied < 0 && (
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="flex items-center gap-1.5 text-muted-foreground">{t("scores.penalties")}</span>
+                                  <span className="font-medium tabular-nums text-red-600">{vb.penalties_applied}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          {([
+                            ["scores.hookQuote", vb.hook_quote ? `\u201c${vb.hook_quote}\u201d` : null],
+                            ["scores.whyItWorks", vb.why_it_works],
+                            ["scores.editorFix", vb.editor_fix],
+                          ] as const).map(([labelKey, text]) => text ? (
+                            <div key={labelKey} className="mt-3 space-y-1">
+                              <span className="text-xs text-muted-foreground">{t(labelKey)}</span>
+                              <p className="text-sm">{text}</p>
+                            </div>
+                          ) : null)}
+                        </>
+                      );
+                    })() : BREAKDOWN.some(({ key }) => clip[key] > 0) && <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3">
                       {BREAKDOWN.map(({ key, labelKey, icon: Icon }) => (
                         <div key={key} className="space-y-1.5">
                           <div className="flex items-center justify-between text-xs">

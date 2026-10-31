@@ -110,7 +110,15 @@
     "hook": "Hook",
     "engagement": "Engagement",
     "value": "Nilai",
-    "shareability": "Kelayakan dibagikan"
+    "shareability": "Kelayakan dibagikan",
+    "narrativeArc": "Alur cerita",
+    "emotionalTrigger": "Pemicu emosi",
+    "pacing": "Tempo",
+    "loopPotential": "Potensi loop",
+    "penalties": "Penalti",
+    "hookQuote": "Kalimat pembuka",
+    "whyItWorks": "Kenapa berhasil",
+    "editorFix": "Saran edit"
   },
   "openInEditor": "Buka di editor",
   "steps": {

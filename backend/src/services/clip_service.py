@@ -187,6 +187,7 @@ class ClipEditingMixin:
                     "value_score": clip.get("value_score", 0),
                     "shareability_score": clip.get("shareability_score", 0),
                     "hook_type": clip.get("hook_type"),
+                    "virality_breakdown": clip.get("virality_breakdown"),
                     "hook_title": clip.get("hook_title"),
                     "broll": broll,
                 }
@@ -281,6 +282,7 @@ class ClipEditingMixin:
                 value_score=clip_info.get("value_score", 0),
                 shareability_score=clip_info.get("shareability_score", 0),
                 hook_type=clip_info.get("hook_type"),
+                virality_breakdown=clip_info.get("virality_breakdown"),
                 hook_title=clip_info.get("hook_title"),
             )
             clip_ids.append(clip_id)
@@ -412,6 +414,7 @@ class ClipEditingMixin:
             value_score=clip.get("value_score", 0),
             shareability_score=clip.get("shareability_score", 0),
             hook_type=clip.get("hook_type"),
+            virality_breakdown=clip.get("virality_breakdown"),
             hook_title=clip.get("hook_title"),
         )
 

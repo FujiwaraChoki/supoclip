@@ -110,7 +110,15 @@
     "hook": "钩子",
     "engagement": "互动",
     "value": "价值",
-    "shareability": "分享性"
+    "shareability": "分享性",
+    "narrativeArc": "叙事结构",
+    "emotionalTrigger": "情绪触发",
+    "pacing": "节奏",
+    "loopPotential": "循环潜力",
+    "penalties": "扣分",
+    "hookQuote": "开场白",
+    "whyItWorks": "爆点原因",
+    "editorFix": "剪辑建议"
   },
   "openInEditor": "在编辑器中打开",
   "steps": {

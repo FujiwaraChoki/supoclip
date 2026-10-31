@@ -60,7 +60,7 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
-import { ClipTile, ClipFocus, ProcessingPanel, ProcessingSlots, EmptyState, clipProgressFromMessage, expectedClipCount } from "@/components/app/clip-wall";
+import { type ViralityBreakdown, ClipTile, ClipFocus, ProcessingPanel, ProcessingSlots, EmptyState, clipProgressFromMessage, expectedClipCount } from "@/components/app/clip-wall";
 import { intlLocale } from "@/i18n/config";
 import { timeAgoLabel } from "@/lib/generations";
 import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind, type VideoSourceKind } from "@/components/video-source-icon";
@@ -97,6 +97,7 @@ interface Clip {
   hook_type: string | null;
   hook_title: string | null;
   copy?: ClipCopy | null;
+  virality_breakdown?: ViralityBreakdown | null;
 }
 
 interface TaskDetails {

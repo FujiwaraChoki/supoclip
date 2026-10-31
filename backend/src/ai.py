@@ -163,38 +163,63 @@ def _extract_transcript_text_for_segment(
     return None
 
 
+# Virality rubric: (field, max points). Penalties are subtracted from the sum.
+VIRALITY_SUBSCORE_MAXIMA: Dict[str, int] = {
+    "hook_score": 30,
+    "narrative_arc_score": 25,
+    "emotional_trigger_score": 20,
+    "pacing_score": 15,
+    "loop_score": 10,
+}
+MAX_VIRALITY_PENALTY = 50  # greeting (-20) + unresolved pronoun (-15) + trail-off (-15)
+
+
+def _coerce_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(round(float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
 class ViralityAnalysis(BaseModel):
-    """Detailed virality breakdown for a segment."""
+    """Virality rubric breakdown for a segment (0-100 after penalties)."""
 
     hook_score: int = Field(
-        default=15,
-        description="How strong is the opening hook (0-25)",
-        ge=0,
-        le=25,
+        default=18,
+        validation_alias=AliasChoices("hook_score", "hook"),
+        description="The 3-second hook (0-30)",
     )
-    engagement_score: int = Field(
+    narrative_arc_score: int = Field(
         default=15,
-        description="How engaging/entertaining is the content (0-25)",
-        ge=0,
-        le=25,
+        validation_alias=AliasChoices("narrative_arc_score", "narrative_arc"),
+        description="Standalone context and setup -> tension -> payoff arc (0-25)",
     )
-    value_score: int = Field(
-        default=15,
-        description="Educational/informational value (0-25)",
-        ge=0,
-        le=25,
+    emotional_trigger_score: int = Field(
+        default=12,
+        validation_alias=AliasChoices("emotional_trigger_score", "emotional_trigger"),
+        description="High-arousal emotion or save-worthy value (0-20)",
     )
-    shareability_score: int = Field(
-        default=15,
-        description="Likelihood of being shared (0-25)",
-        ge=0,
-        le=25,
+    pacing_score: int = Field(
+        default=9,
+        validation_alias=AliasChoices("pacing_score", "pacing"),
+        description="Pacing and information density (0-15)",
+    )
+    loop_score: int = Field(
+        default=6,
+        validation_alias=AliasChoices("loop_score", "loop_potential"),
+        description="Loop and rewatch potential (0-10)",
+    )
+    penalties_applied: int = Field(
+        default=0,
+        description=(
+            "Automatic deductions as a negative number: -20 greeting/housekeeping open, "
+            "-15 unresolved pronoun in the first 3 seconds, -15 weak trail-off ending"
+        ),
     )
     total_score: int = Field(
         default=60,
-        description="Combined virality score (0-100)",
-        ge=0,
-        le=100,
+        validation_alias=AliasChoices("total_score", "virality_score"),
+        description="Sum of subscores plus penalties, clamped to 0-100",
     )
     hook_type: Optional[
         Literal["question", "statement", "statistic", "story", "contrast", "none"]
@@ -202,10 +227,76 @@ class ViralityAnalysis(BaseModel):
         default="none",
         description="Type of hook: question, statement, statistic, story, contrast, or none",
     )
+    hook_quote: Optional[str] = Field(
+        default=None, description="Exact first sentence of the clip"
+    )
+    why_it_works: Optional[str] = Field(
+        default=None,
+        description="One sentence naming the primary viral driver",
+    )
+    editor_fix: Optional[str] = Field(
+        default=None,
+        description="One specific edit that would push this clip to 95+",
+    )
     virality_reasoning: str = Field(
         default="The model did not provide a detailed virality breakdown.",
         description="Explanation of the virality score",
     )
+
+    @field_validator(*VIRALITY_SUBSCORE_MAXIMA, mode="before")
+    @classmethod
+    def _clamp_subscore(cls, value: Any, info: Any) -> int:
+        maximum = VIRALITY_SUBSCORE_MAXIMA[info.field_name]
+        return max(0, min(maximum, _coerce_int(value)))
+
+    @field_validator("penalties_applied", mode="before")
+    @classmethod
+    def _normalize_penalties(cls, value: Any) -> int:
+        # Models report deductions as either "-20" or "20"; store as non-positive.
+        return -min(MAX_VIRALITY_PENALTY, abs(_coerce_int(value)))
+
+    @field_validator("total_score", mode="before")
+    @classmethod
+    def _clamp_total(cls, value: Any) -> int:
+        return max(0, min(100, _coerce_int(value, 60)))
+
+    @field_validator("hook_quote", "why_it_works", "editor_fix", mode="before")
+    @classmethod
+    def _strip_text(cls, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text[:500] or None
+
+    def subscore_sum(self) -> int:
+        return sum(getattr(self, name) for name in VIRALITY_SUBSCORE_MAXIMA)
+
+    def computed_total(self) -> int:
+        return max(0, min(100, self.subscore_sum() + self.penalties_applied))
+
+    def breakdown(self) -> Dict[str, Any]:
+        """Persisted rubric detail (generated_clips.virality_breakdown)."""
+        return {
+            "hook": self.hook_score,
+            "narrative_arc": self.narrative_arc_score,
+            "emotional_trigger": self.emotional_trigger_score,
+            "pacing": self.pacing_score,
+            "loop_potential": self.loop_score,
+            "penalties_applied": self.penalties_applied,
+            "hook_quote": self.hook_quote,
+            "why_it_works": self.why_it_works,
+            "editor_fix": self.editor_fix,
+        }
+
+
+def virality_breakdown_from_dump(virality: Any) -> Optional[Dict[str, Any]]:
+    """Rubric breakdown for a dumped ViralityAnalysis, or None for legacy 4x25 data."""
+    if not isinstance(virality, dict) or "narrative_arc_score" not in virality:
+        return None
+    try:
+        return ViralityAnalysis.model_validate(virality).breakdown()
+    except ValueError:
+        return None
 
 
 def _default_virality_analysis() -> ViralityAnalysis:
@@ -293,7 +384,7 @@ OUTPUT CONTRACT:
 - The top-level JSON object must include: "most_relevant_segments", "summary", and "key_topics".
 - Each item in "most_relevant_segments" must include: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", and "hook_title".
 - Do not use "segment" as an output field. Use "text".
-- "virality" must include: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", and "virality_reasoning".
+- "virality" must include: "hook_score", "narrative_arc_score", "emotional_trigger_score", "pacing_score", "loop_score", "penalties_applied", "total_score", "hook_type", "hook_quote", "why_it_works", "editor_fix", and "virality_reasoning".
 - Every returned segment must be {minimum}-{maximum} seconds long. Prefer {ideal_minimum}-{ideal_maximum} seconds.
 
 CORE OBJECTIVES:
@@ -335,32 +426,43 @@ WHAT A GOOD CLIP FEELS LIKE:
 - Strong picks include contrarian claims, mistakes or lessons, concrete examples, before/after moments, frameworks, surprising results, emotionally charged reactions, and complete answers to interesting questions
 - Bad picks include intros, sponsor or CTA sections, vague setup, contextless quote fragments, repeated points, definitions without payoff, meandering background, and answer fragments that require unseen context
 
-VIRALITY SCORING (0-100 total, from four 0-25 subscores):
-For each segment, provide a detailed virality breakdown:
+VIRALITY SCORING — STRICT RUBRIC (0-100):
+Act as an elite short-form strategist for TikTok, YouTube Shorts and Instagram Reels. Score objectively and do not inflate. A total above 85 must mean genuine standalone viral mechanics: it stops the scroll and would hold more than 80% retention.
 
-1. HOOK STRENGTH (0-25):
-   - 20-25: Immediately grabs attention (surprising fact, bold claim, intriguing question)
-   - 15-19: Good opener that creates curiosity
-   - 10-14: Decent start but could be stronger
-   - 0-9: Weak or no hook
+1. THE 3-SECOND HOOK ("hook_score", 0-30) — judge only the very first sentence/moment:
+   - 25-30: Immediate pattern interrupt, bold contrarian claim, high-stakes question, or intense curiosity gap ("Most people do X, and it's ruining Y"). Zero warmup.
+   - 15-24: Clear topic statement, interesting premise, or named audience callout, but lacks high emotional urgency.
+   - 0-14: Starts with filler ("So, um, yeah..."), needs prior context, or begins mid-thought.
 
-2. ENGAGEMENT (0-25):
-   - 20-25: Highly entertaining, emotional, or dramatic
-   - 15-19: Interesting and holds attention
-   - 10-14: Moderately engaging
-   - 0-9: Flat or boring delivery
+2. STANDALONE CONTEXT & NARRATIVE ARC ("narrative_arc_score", 0-25) — will a cold For You viewer understand and finish it?
+   - 20-25: 100% self-contained. Tight setup -> tension/elaboration -> payoff/punchline; the ending resolves the hook at the final second.
+   - 10-19: Understandable alone, but the middle sags or the ending trails off instead of snapping shut.
+   - 0-9: Relies on inside jokes or earlier parts of the long video ("Like I said earlier..."), or cuts off before the point.
 
-3. VALUE (0-25):
-   - 20-25: Actionable insights, unique knowledge, or transformative ideas
-   - 15-19: Useful information most people don't know
-   - 10-14: Somewhat informative
-   - 0-9: Common knowledge or filler content
+3. EMOTIONAL & SHAREABILITY TRIGGER ("emotional_trigger_score", 0-20) — why would someone share, save or comment?
+   - 16-20: High-arousal emotion (humor, shock, inspiration, validation, healthy debate in the comments) OR hyper-specific, actionable value worth saving.
+   - 8-15: Mildly interesting or educational but passive; viewers watch and scroll without interacting.
+   - 0-7: Dry, generic advice or platitudes ("Work hard and stay consistent").
 
-4. SHAREABILITY (0-25):
-   - 20-25: "I need to send this to someone" content
-   - 15-19: Content worth bookmarking
-   - 10-14: Nice but not share-worthy
-   - 0-9: Generic content
+4. PACING & INFORMATION DENSITY ("pacing_score", 0-15):
+   - 12-15: High ideas-per-minute, punchy sentences, natural vocal energy, no dead air or rambling tangents.
+   - 6-11: Decent pacing with minor repetition or a slow 3-5 second patch.
+   - 0-5: Monotone, repetitive, or takes 45 seconds to say what takes 10.
+
+5. LOOP & REWATCH POTENTIAL ("loop_score", 0-10):
+   - 8-10: The final sentence flows back into the opening hook, or it is dense/fast enough to rewatch.
+   - 0-7: Standard linear ending ("...and that's why X matters.").
+
+AUTOMATIC PENALTIES ("penalties_applied", a negative number or 0; add every one that applies):
+   - -20: Starts with a greeting, throat clearing, or housekeeping ("Welcome back", "Good question").
+   - -15: Unresolved pronoun in the first 3 seconds ("He told me it wouldn't work..." when the viewer doesn't know who "he" or "it" is).
+   - -15: Ends on a weak trail-off ("...so yeah, that's pretty much it").
+
+"total_score" = hook_score + narrative_arc_score + emotional_trigger_score + pacing_score + loop_score + penalties_applied, floored at 0.
+Also return per segment inside "virality":
+   - "hook_quote": the exact first sentence of the clip, verbatim from the transcript.
+   - "why_it_works": one sentence naming the primary viral driver (contrarian take, high-value save, comment bait, ...).
+   - "editor_fix": one specific action that would push this clip to 95+ (e.g. "Trim the first 2.5 seconds so it starts right on the word Never").
 
 HOOK TITLES ("hook_title" per segment):
 - Write a short on-screen headline (3-9 words) that is burned into the top of the clip
@@ -921,7 +1023,7 @@ JSON-only output requirements:
 - Segment keys: "start_time", "end_time", "text", "relevance_score", "reasoning", "virality", "hook_title".
 - Optional segment keys "hook_start_time"/"hook_end_time": null unless a later 2-5 second line stands alone and the real opening is already a complete setup. The clip is not replayed from that line by default.
 - "hook_title" is a 3-9 word plain-text headline for the clip, in the transcript's language, grounded in the segment (no hashtags, emojis, or quotes).
-- Virality keys: "hook_score", "engagement_score", "value_score", "shareability_score", "total_score", "hook_type", "virality_reasoning".
+- Virality keys: "hook_score" (0-30), "narrative_arc_score" (0-25), "emotional_trigger_score" (0-20), "pacing_score" (0-15), "loop_score" (0-10), "penalties_applied" (0, -15, -20, ... as a negative number), "total_score", "hook_type", "hook_quote", "why_it_works", "editor_fix", "virality_reasoning".
 - Do not return segments shorter than {bounds.minimum} seconds or longer than {bounds.maximum} seconds.
 
 Transcript:
@@ -1373,40 +1475,37 @@ def fill_candidates_to_count(
 
 
 def _rescale_virality(virality: ViralityAnalysis, new_total: int) -> None:
-    """Set a new total while keeping the subscores' proportions and 0-25 bounds."""
+    """Set a new total while keeping subscore proportions, rubric maxima and penalties."""
     new_total = max(0, min(100, int(new_total)))
-    subscores = [
-        virality.hook_score,
-        virality.engagement_score,
-        virality.value_score,
-        virality.shareability_score,
-    ]
-    old_total = sum(subscores)
-    if old_total <= 0:
-        scaled = [new_total / 4] * 4
+    names = list(VIRALITY_SUBSCORE_MAXIMA)
+    maxima = [VIRALITY_SUBSCORE_MAXIMA[name] for name in names]
+    # Penalties stay fixed, so the subscores must cover them on top of the target.
+    target = min(sum(maxima), new_total - virality.penalties_applied)
+    subscores = [getattr(virality, name) for name in names]
+    old_sum = sum(subscores)
+    if old_sum <= 0:
+        scaled = [target * cap / sum(maxima) for cap in maxima]
     else:
-        scaled = [score * new_total / old_total for score in subscores]
-    rounded = [min(25, max(0, int(value))) for value in scaled]
-    remainder = new_total - sum(rounded)
-    by_fraction = sorted(range(4), key=lambda i: scaled[i] - int(scaled[i]), reverse=True)
+        scaled = [score * target / old_sum for score in subscores]
+    rounded = [min(cap, max(0, int(value))) for value, cap in zip(scaled, maxima)]
+    remainder = target - sum(rounded)
+    by_fraction = sorted(
+        range(len(names)), key=lambda i: scaled[i] - int(scaled[i]), reverse=True
+    )
     while remainder > 0:
         progressed = False
         for index in by_fraction:
             if remainder <= 0:
                 break
-            if rounded[index] < 25:
+            if rounded[index] < maxima[index]:
                 rounded[index] += 1
                 remainder -= 1
                 progressed = True
         if not progressed:
             break
-    (
-        virality.hook_score,
-        virality.engagement_score,
-        virality.value_score,
-        virality.shareability_score,
-    ) = rounded
-    virality.total_score = sum(rounded)
+    for name, value in zip(names, rounded):
+        setattr(virality, name, value)
+    virality.total_score = virality.computed_total()
 
 
 def apply_candidate_ranking(
@@ -1666,13 +1765,8 @@ def _validate_segments(
 
             # Validate virality scores
             if segment.virality:
-                # Ensure total score is sum of subscores
-                calculated_total = (
-                    segment.virality.hook_score
-                    + segment.virality.engagement_score
-                    + segment.virality.value_score
-                    + segment.virality.shareability_score
-                )
+                # Ensure total score is the rubric sum minus penalties
+                calculated_total = segment.virality.computed_total()
                 if segment.virality.total_score != calculated_total:
                     logger.warning(
                         f"Correcting virality total: {segment.virality.total_score} -> {calculated_total}"

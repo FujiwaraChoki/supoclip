@@ -54,7 +54,11 @@ from ..clip_source_map import (
     save_clip_source_ranges,
     source_range_bounds,
 )
-from ..ai import get_most_relevant_parts_by_transcript, max_final_clips_for_duration
+from ..ai import (
+    get_most_relevant_parts_by_transcript,
+    max_final_clips_for_duration,
+    virality_breakdown_from_dump,
+)
 from ..clip_openings import OPENING_HOOK_PENALTY, opening_text_issue, review_opening
 from ..clip_duration import clip_duration, normalize_clip_count
 from ..config import get_config
@@ -243,6 +247,9 @@ class VideoService:
                 hook_score = int(segment.get("hook_score") or 0)
                 reduced = max(0, hook_score - OPENING_HOOK_PENALTY)
                 segment["hook_score"] = reduced
+                breakdown = segment.get("virality_breakdown")
+                if isinstance(breakdown, dict):
+                    breakdown["hook"] = reduced
                 segment["virality_score"] = max(
                     0, int(segment.get("virality_score") or 0) - (hook_score - reduced)
                 )
@@ -873,6 +880,7 @@ class VideoService:
                 "value_score": segment.get("value_score", 0),
                 "shareability_score": segment.get("shareability_score", 0),
                 "hook_type": segment.get("hook_type"),
+                "virality_breakdown": segment.get("virality_breakdown"),
                 "hook_title": segment.get("hook_title"),
                 "keep_ranges": keep_ranges,
             }
@@ -1184,6 +1192,7 @@ class VideoService:
                         "value_score": virality.get("value_score", 0),
                         "shareability_score": virality.get("shareability_score", 0),
                         "hook_type": virality.get("hook_type"),
+                        "virality_breakdown": virality_breakdown_from_dump(virality),
                         "hook_title": segment.get("hook_title"),
                         "hook_start_time": segment.get("hook_start_time"),
                         "hook_end_time": segment.get("hook_end_time"),
@@ -1204,6 +1213,7 @@ class VideoService:
                         "value_score": virality.get("value_score", 0),
                         "shareability_score": virality.get("shareability_score", 0),
                         "hook_type": virality.get("hook_type"),
+                        "virality_breakdown": virality_breakdown_from_dump(virality),
                         "hook_title": getattr(segment, "hook_title", None),
                         "hook_start_time": getattr(segment, "hook_start_time", None),
                         "hook_end_time": getattr(segment, "hook_end_time", None),

@@ -19,19 +19,9 @@ def _transcript(total_seconds: int, line_seconds: int = 10) -> str:
 
 
 def _segment(start: str, end: str, total: int = 60, text: str = "Some useful words here.") -> ai.TranscriptSegment:
-    quarter = total // 4
-    return ai.TranscriptSegment(
-        start_time=start,
-        end_time=end,
-        text=text,
-        virality=ai.ViralityAnalysis(
-            hook_score=quarter,
-            engagement_score=quarter,
-            value_score=quarter,
-            shareability_score=total - 3 * quarter,
-            total_score=total,
-        ),
-    )
+    virality = ai.ViralityAnalysis(total_score=total)
+    ai._rescale_virality(virality, total)
+    return ai.TranscriptSegment(start_time=start, end_time=end, text=text, virality=virality)
 
 
 def test_short_transcript_is_a_single_unchanged_window():
@@ -164,14 +154,23 @@ def test_apply_ranking_reorders_and_calibrates_scores():
     assert [s.virality.total_score for s in reranked] == [88, 88, 80]
     for segment in reranked:
         virality = segment.virality
-        assert virality.total_score == (
-            virality.hook_score + virality.engagement_score
-            + virality.value_score + virality.shareability_score
-        )
-        assert all(0 <= score <= 25 for score in (
-            virality.hook_score, virality.engagement_score,
-            virality.value_score, virality.shareability_score,
-        ))
+        assert virality.total_score == virality.subscore_sum() + virality.penalties_applied
+        for name, maximum in ai.VIRALITY_SUBSCORE_MAXIMA.items():
+            assert 0 <= getattr(virality, name) <= maximum
+
+
+def test_rescale_keeps_penalties_and_caps():
+    virality = ai.ViralityAnalysis(
+        hook_score=28, narrative_arc_score=22, emotional_trigger_score=18,
+        pacing_score=13, loop_score=9, penalties_applied=-20,
+    )
+    ai._rescale_virality(virality, 70)
+    assert virality.penalties_applied == -20
+    assert virality.subscore_sum() == 90
+    assert virality.total_score == 70
+    ai._rescale_virality(virality, 95)  # 95 + 20 exceeds the 100-point rubric
+    assert virality.subscore_sum() == 100
+    assert virality.total_score == 80
 
 
 async def test_rerank_failure_keeps_first_pass_order(monkeypatch):
