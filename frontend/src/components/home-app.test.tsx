@@ -67,3 +67,27 @@ it("states the upload limit and rejects a file over it before upload", async () 
   await waitFor(() => expect(screen.getByText(/ready to upload/)).toBeInTheDocument());
   expect(screen.queryByText(/over the 2 GB upload limit/)).not.toBeInTheDocument();
 });
+
+it("sends the caption defaults saved in Settings with a new task", async () => {
+  const fetchMock = vi.mocked(fetch);
+  const defaultFetch = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (input, init) => {
+    const url = String(input);
+    if (url.includes("/api/preferences")) {
+      return Response.json({ fontFamily: "Inter", fontSize: 24, fontColor: "#FFD700", clipLength: "auto" });
+    }
+    if (url.includes("/api/tasks/create")) return Response.json({ task_id: "task-1" });
+    return defaultFetch(input, init);
+  });
+  render(<HomeApp />, { wrapper: TooltipProvider });
+
+  fireEvent.change(screen.getByLabelText("YouTube, Twitch, or Kick URL"), { target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" } });
+  const generate = screen.getByRole("button", { name: "Generate clips" });
+  await waitFor(() => expect(generate).toBeEnabled());
+  fireEvent.click(generate);
+
+  await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/api/tasks/create"))).toBe(true));
+  const [, init] = fetchMock.mock.calls.find(([url]) => String(url).includes("/api/tasks/create"))!;
+  // Size stays at its untouched stock value, so the caption template keeps deciding it.
+  expect(JSON.parse(String(init?.body)).font_options).toEqual({ font_family: "Inter", font_size: null, font_color: "#FFD700" });
+});
