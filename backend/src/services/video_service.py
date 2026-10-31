@@ -19,7 +19,13 @@ from ..youtube_utils import (
     download_youtube_video,
     get_youtube_video_id,
 )
-from ..youtube_proxy import ByteBudget, DownloadBudgetExceeded, PartialDownloadUnavailable, proxy_configured
+from ..youtube_proxy import (
+    ByteBudget,
+    DownloadBudgetExceeded,
+    PartialDownloadUnavailable,
+    proxy_configured,
+    public_download_error,
+)
 from ..youtube_source import (
     cached_full_media,
     download_analysis_source,
@@ -437,13 +443,15 @@ class VideoService:
         ranges: Optional[list] = None,
         budget: Optional[ByteBudget] = None,
         skip_proxy: bool = False,
+        errors: Optional[list] = None,
     ) -> Optional[Path]:
         """
         Download YouTube media for rendering.
 
         With a proxy configured, ``ranges`` downloads only those padded
         sections (reusing the cache). Otherwise this returns a full file,
-        stored so later edits do not fetch it again.
+        stored so later edits do not fetch it again. ``errors`` collects the
+        redacted reason of each failed attempt.
         """
         logger.info(f"Starting video download: {url}")
         video_id = get_youtube_video_id(url)
@@ -471,6 +479,8 @@ class VideoService:
                 except Exception as exc:
                     # Only unsupported slicing warrants a full proxy attempt.
                     bypass_proxy = skip_proxy or not isinstance(exc, PartialDownloadUnavailable)
+                    if errors is not None and not isinstance(exc, PartialDownloadUnavailable):
+                        errors.append(public_download_error(exc))
                     logger.warning(
                         "Section download unavailable for %s, using a full file: %s",
                         video_id,
@@ -479,7 +489,9 @@ class VideoService:
             return resolve_full_youtube_download(
                 url,
                 video_id,
-                lambda **kwargs: download_youtube_video(url, 3, task_id, quality, **kwargs),
+                lambda **kwargs: download_youtube_video(
+                    url, 3, task_id, quality, errors=errors, **kwargs
+                ),
                 task_id=task_id,
                 budget=job_budget,
                 skip_proxy=bypass_proxy,
