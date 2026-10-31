@@ -166,7 +166,7 @@ class ClipRepository:
                         SELECT id, filename, file_path, start_time, end_time, duration,
                                text, relevance_score, reasoning, clip_order, created_at,
                                virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                               hook_title, copy_kit, virality_breakdown
+                               hook_title, copy_kit, virality_breakdown, clip_package
                         FROM generated_clips
                         WHERE task_id = :task_id
                         ORDER BY clip_order ASC
@@ -212,6 +212,7 @@ class ClipRepository:
                     "hook_title": getattr(row, "hook_title", None),
                     "copy": _parse_json_object(getattr(row, "copy_kit", None)),
                     "virality_breakdown": _parse_json_object(getattr(row, "virality_breakdown", None)),
+                    "package": _parse_json_object(getattr(row, "clip_package", None)),
                 }
             )
 
@@ -228,6 +229,16 @@ class ClipRepository:
         )
         await commit_unless_editing(db)
 
+    @staticmethod
+    async def set_clip_package(db: AsyncSession, clip_id: str, package: Dict[str, Any]) -> None:
+        """Persist the rescue and packaging result for a clip."""
+        await db.execute(
+            sa_text(
+                "UPDATE generated_clips SET clip_package = CAST(:package AS jsonb) WHERE id = :clip_id"
+            ),
+            {"clip_id": clip_id, "package": json.dumps(package)},
+        )
+        await commit_unless_editing(db)
 
     @staticmethod
     async def get_clips_count(db: AsyncSession, task_id: str) -> int:
@@ -290,7 +301,7 @@ class ClipRepository:
                         SELECT id, task_id, filename, file_path, start_time, end_time, duration,
                                text, relevance_score, reasoning, clip_order,
                                virality_score, hook_score, engagement_score, value_score, shareability_score, hook_type,
-                               hook_title, copy_kit, virality_breakdown, created_at
+                               hook_title, copy_kit, virality_breakdown, clip_package, created_at
                         FROM generated_clips
                         WHERE id = :clip_id
                         """
@@ -336,6 +347,7 @@ class ClipRepository:
             "hook_title": getattr(row, "hook_title", None),
             "copy": _parse_json_object(getattr(row, "copy_kit", None)),
             "virality_breakdown": _parse_json_object(getattr(row, "virality_breakdown", None)),
+            "package": _parse_json_object(getattr(row, "clip_package", None)),
             "created_at": row.created_at.isoformat(),
             "video_url": f"/tasks/{row.task_id}/clips/{row.id}/file",
         }

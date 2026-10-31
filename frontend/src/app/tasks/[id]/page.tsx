@@ -67,6 +67,7 @@ import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind, type VideoSource
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 import { ClipCopyKitButton, type ClipCopy } from "@/components/clip-copy-kit";
+import { ClipPackageButton, type ClipPackage } from "@/components/clip-package";
 import { ClipPostList, ClipPublishButton, useSocialPostToasts } from "@/components/clip-publisher";
 import {
   ACTIVE_POST_STATUSES,
@@ -97,6 +98,7 @@ interface Clip {
   hook_type: string | null;
   hook_title: string | null;
   copy?: ClipCopy | null;
+  package?: ClipPackage | null;
   virality_breakdown?: ViralityBreakdown | null;
 }
 
@@ -876,6 +878,12 @@ export default function TaskPage() {
         actions={focusedClip && task?.status === "completed" ? (
           <>
           <ClipCopyKitButton
+            key={focusedClip.id}
+            taskId={task.id}
+            clip={focusedClip}
+            onChanged={async () => { await fetchTaskStatus(0, 0, true); }}
+          />
+          <ClipPackageButton
             key={focusedClip.id}
             taskId={task.id}
             clip={focusedClip}

@@ -33,6 +33,7 @@ from ...services.video_service import VideoService
 from ...media.upload_ingest import foreign_upload
 from ...repositories.upload_repository import get_stored_upload
 from ...services.clip_copy_service import ClipCopyError, get_or_generate_clip_copy
+from ...services.clip_package_service import get_or_generate_clip_package, load_clip_words
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
 from ...workers.job_queue import JobQueue
@@ -1205,6 +1206,40 @@ async def get_clip_copy(
     except Exception as e:
         logger.error(f"Error generating clip copy: {e}")
         raise HTTPException(status_code=500, detail="Error generating clip copy")
+
+
+@router.post("/{task_id}/clips/{clip_id}/package")
+async def get_clip_package(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Return (or generate) the rescue edits and SEO packaging for a clip."""
+    try:
+        try:
+            payload = await request.json()
+        except (ValueError, UnicodeDecodeError):
+            payload = {}
+        regenerate = isinstance(payload, dict) and payload.get("regenerate") is True
+
+        task_service = TaskService(db)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
+        if not clip or clip.get("task_id") != task_id:
+            raise HTTPException(status_code=404, detail="Clip not found")
+        if not (clip.get("text") or "").strip():
+            raise HTTPException(status_code=422, detail="Clip has no transcript text")
+        if regenerate or not clip.get("package"):
+            clip["words"] = await load_clip_words(task_service, db, task, clip)
+        package = await get_or_generate_clip_package(
+            db, task_service.clip_repo, clip, regenerate
+        )
+        return {"package": package}
+    except ClipCopyError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating clip package: {e}")
+        raise HTTPException(status_code=500, detail="Error generating clip package")
 
 
 @router.post("/{task_id}/clips/{clip_id}/regenerate")

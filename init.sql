@@ -113,6 +113,7 @@ CREATE TABLE generated_clips (
     hook_title VARCHAR(200),         -- AI-written on-screen headline
     copy_kit JSONB,                  -- AI-written per-platform title/description/hashtags
     virality_breakdown JSONB,        -- virality rubric subscores, penalties, hook quote, editor fix
+    clip_package JSONB,              -- rescue edits + SEO packaging
 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

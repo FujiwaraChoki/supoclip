@@ -326,6 +326,7 @@ Edit `backend/src/ai.py`: `simplified_system_prompt` controls selection criteria
 - Output: 9:16 vertical format, H.264, even pixel dimensions (`round_to_even()`)
 - Subtitles positioned at 75% down the frame
 - Virality scoring: strict rubric in `ai.py` — hook 0-30, narrative arc 0-25, emotional trigger 0-20, pacing 0-15, loop 0-10, minus penalties (-20 greeting, -15 unresolved pronoun, -15 trail-off), clamped to `virality_score` 0-100. Detail (plus `hook_quote`, `why_it_works`, `editor_fix`) lives in `generated_clips.virality_breakdown` JSONB; `hook_score` holds the 0-30 hook, while `engagement_/value_/shareability_score` are legacy (0 on new clips)
+- Per-clip "Rescue & package" (`clip_package_service.py`, `POST /tasks/{id}/clips/{clip_id}/package`): routes by raw score (<70 REJECTED, 70-85 RESCUE_REQUIRED, 86+ VIRAL_READY), suggests trims/internal cuts, 3 on-screen hooks, 3 titles, SEO description, tiered hashtags, pinned comment; stored in `generated_clips.clip_package`
 - Each segment gets an AI-written `hook_title` (3-9 words) burned into the top safe area for the first ~4s (`build_hook_title_ass` in `video_utils.py`), persisted on `generated_clips.hook_title`
 - Static talking-head crops get a slow ~5% Ken Burns punch-in (`kenburns_zoom_fragment`); tracked pans and split screens keep their own motion
 
