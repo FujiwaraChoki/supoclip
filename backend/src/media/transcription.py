@@ -9,6 +9,7 @@ import assemblyai as aai
 from ..config import get_config
 import httpx
 import json
+import os
 import re
 import time
 from .common import (
@@ -174,6 +175,78 @@ def _assemblyai_speech_models_value(speech_model: str) -> List[str]:
     return ["universal-3-5-pro", "universal-2"]
 
 
+try:  # CTranslate2 Whisper: same models, several times faster on CPU.
+    from faster_whisper import WhisperModel as _FasterWhisperModel
+except ImportError:  # pragma: no cover - depends on installed extras
+    _FasterWhisperModel = None
+
+_FASTER_WHISPER_MODEL_CACHE: Dict[tuple, Any] = {}
+
+
+def _use_faster_whisper() -> bool:
+    engine = os.getenv("WHISPER_ENGINE", "faster").strip().lower()
+    return engine != "openai" and _FasterWhisperModel is not None
+
+
+def _get_faster_whisper_model(model_name: str):
+    compute_type = os.getenv("WHISPER_COMPUTE_TYPE", "int8").strip() or "int8"
+    cpu_threads = int(os.getenv("WHISPER_CPU_THREADS", "0") or 0)
+    key = (model_name, compute_type, cpu_threads)
+    if key not in _FASTER_WHISPER_MODEL_CACHE:
+        logger.info(
+            "Loading faster-whisper model: %s (compute_type=%s, cpu_threads=%s)",
+            model_name, compute_type, cpu_threads or "auto",
+        )
+        _FASTER_WHISPER_MODEL_CACHE[key] = _FasterWhisperModel(
+            model_name,
+            device=os.getenv("WHISPER_DEVICE", "auto").strip() or "auto",
+            compute_type=compute_type,
+            cpu_threads=cpu_threads,
+            download_root=os.getenv("WHISPER_MODEL_DIR") or None,
+        )
+    return _FASTER_WHISPER_MODEL_CACHE[key]
+
+
+def _transcribe_with_faster_whisper(
+    audio_path: Path, model_name: str, language: Optional[str]
+) -> Dict[str, Any]:
+    """Run faster-whisper and return the openai-whisper result shape."""
+    model = _get_faster_whisper_model(model_name)
+    vad = os.getenv("WHISPER_VAD", "true").strip().lower() not in {"0", "false", "no", "off"}
+    segments, info = model.transcribe(
+        str(audio_path),
+        language=language,
+        word_timestamps=True,
+        beam_size=max(1, int(os.getenv("WHISPER_BEAM_SIZE", "1") or 1)),
+        # Skipping silence is the big win on streams and podcasts.
+        vad_filter=vad,
+        condition_on_previous_text=False,
+    )
+    result_segments: List[Dict[str, Any]] = []
+    for segment in segments:  # generator: decoding happens here
+        result_segments.append(
+            {
+                "start": float(segment.start),
+                "end": float(segment.end),
+                "text": segment.text,
+                "words": [
+                    {
+                        "word": word.word,
+                        "start": float(word.start),
+                        "end": float(word.end),
+                        "probability": float(word.probability),
+                    }
+                    for word in (segment.words or [])
+                ],
+            }
+        )
+    return {
+        "text": "".join(s["text"] for s in result_segments),
+        "segments": result_segments,
+        "language": info.language,
+    }
+
+
 def _get_whisper_model(model_name: str = "base"):
     """Load and cache a Whisper model by name."""
     if not _WHISPER_AVAILABLE:
@@ -195,8 +268,15 @@ def transcribe_with_whisper(
     ``en_us`` are reduced to the ISO 639-1 base Whisper expects.
     """
     audio_path = _prepare_audio_for_transcription(video_path)
-    model = _get_whisper_model(model_name)
     whisper_language = language.split("_", 1)[0] if language else None
+    if _use_faster_whisper():
+        logger.info(
+            "Starting faster-whisper transcription with model: %s (language: %s)",
+            model_name,
+            whisper_language or "auto",
+        )
+        return _transcribe_with_faster_whisper(audio_path, model_name, whisper_language)
+    model = _get_whisper_model(model_name)
     logger.info(
         "Starting Whisper transcription with model: %s (language: %s)",
         model_name,

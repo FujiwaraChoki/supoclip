@@ -1,4 +1,5 @@
 "use client";
+import type { SurgicalEdits } from "@/lib/editor/package-trims";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
@@ -43,6 +44,7 @@ export interface ClipSummary {
   duration: number;
   text: string;
   video_url: string;
+  package?: { clip_status: string; surgical_edits: SurgicalEdits } | null;
 }
 interface Job extends ExportJob {
   endpoint: string;

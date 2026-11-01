@@ -254,7 +254,7 @@ Caption templates are exposed by the backend and loaded into the frontend task c
 
 ### B-roll
 
-B-roll is optional and depends on `PEXELS_API_KEY`. The composer only shows the **B-roll** toggle when `GET /broll/status` reports it as configured.
+B-roll is optional and depends on `PEXELS_API_KEY` or `PIXABAY_API_KEY`. The composer only shows the **B-roll** toggle when `GET /broll/status` reports it as configured.
 
 With B-roll on, each rendered clip gets its own plan (`backend/src/broll.py`):
 

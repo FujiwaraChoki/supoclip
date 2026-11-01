@@ -368,5 +368,10 @@
     "timeout": "The AI took too long. Try again.",
     "failed": "Couldn't reach the AI. Try again.",
     "title": "AI edit"
+  },
+  "rescue": {
+    "apply": "Apply rescue trims",
+    "shave": "Shave {seconds}s",
+    "coldOpenNotApplied": "Cold-open tease not applied"
   }
 }

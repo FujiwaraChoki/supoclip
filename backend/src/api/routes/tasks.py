@@ -33,6 +33,8 @@ from ...services.task_service import TaskService
 from ...services.video_service import VideoService
 from ...media.upload_ingest import foreign_upload
 from ...repositories.upload_repository import get_stored_upload
+from ...services.clip_copy_service import ClipCopyError, get_or_generate_clip_copy
+from ...services.clip_package_service import get_or_generate_clip_package, load_clip_words
 from ...services.billing_service import BillingService, BillingLimitExceeded
 from ...auth_headers import resolve_authenticated_user_id
 from ...workers.job_queue import JobQueue
@@ -45,7 +47,12 @@ from ...stream_source import (
     fetch_stream_info,
 )
 from ...font_registry import is_font_accessible
-from ...clip_duration import normalize_clip_length, validate_clip_length
+from ...clip_duration import (
+    normalize_clip_length,
+    validate_clip_count,
+    validate_clip_instructions,
+    validate_clip_length,
+)
 from ...clip_cleanup import (
     new_task_cleanup_settings,
     normalize_clip_cleanup_settings,
@@ -520,6 +527,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         add_subtitles = True
     try:
         clip_length = validate_clip_length(data.get("clip_length", "auto"))
+        clip_count = validate_clip_count(data.get("clip_count", "auto"))
+        clip_instructions = validate_clip_instructions(data.get("clip_instructions"))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
     cleanup_settings = new_task_cleanup_settings(data)
@@ -540,6 +549,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             "output_format": output_format,
             "add_subtitles": add_subtitles,
             "clip_length": clip_length,
+            "clip_count": clip_count,
+            "clip_instructions": clip_instructions,
             "cleanup_settings": cleanup_settings,
         },
     )
@@ -575,7 +586,10 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             source_title = source_title or metadata.get("title") or "YouTube Video"
             duration_seconds = float(metadata["duration"])
         elif source_type in {"twitch", "kick"}:
-            stream_metadata = await _preflight_stream_source(raw_source["url"], source_type, billing["max_youtube_duration_seconds"])
+            stream_limit = billing["max_youtube_duration_seconds"]
+            if source_type == "twitch":
+                stream_limit = max(stream_limit, runtime_config.twitch_max_video_duration)
+            stream_metadata = await _preflight_stream_source(raw_source["url"], source_type, stream_limit)
             source_title = source_title or stream_metadata.get("title") or f"{source_type.title()} Video"
             duration_seconds = float(stream_metadata["duration"])
         else:
@@ -617,6 +631,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                         {
                             "processing_job_id": processing_job_id,
                             "clip_length": clip_length,
+                            "clip_count": clip_count,
+                            "clip_instructions": clip_instructions,
                             **_stream_resolution_metadata(stream_metadata),
                         },
                         source_url=raw_source["url"],
@@ -1236,6 +1252,72 @@ async def update_clip_captions(
         raise HTTPException(
             status_code=500, detail=f"Error updating captions: {str(e)}"
         )
+
+
+@router.post("/{task_id}/clips/{clip_id}/copy")
+async def get_clip_copy(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Return (or generate) AI title, description and hashtags per platform."""
+    try:
+        try:
+            payload = await request.json()
+        except (ValueError, UnicodeDecodeError):
+            payload = {}
+        regenerate = isinstance(payload, dict) and payload.get("regenerate") is True
+
+        task_service = TaskService(db)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
+        if not clip or clip.get("task_id") != task_id:
+            raise HTTPException(status_code=404, detail="Clip not found")
+        if not (clip.get("text") or "").strip():
+            raise HTTPException(status_code=422, detail="Clip has no transcript text")
+        copy = await get_or_generate_clip_copy(
+            db, task_service.clip_repo, clip, task.get("source_title"), regenerate
+        )
+        return {"copy": copy}
+    except ClipCopyError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating clip copy: {e}")
+        raise HTTPException(status_code=500, detail="Error generating clip copy")
+
+
+@router.post("/{task_id}/clips/{clip_id}/package")
+async def get_clip_package(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    """Return (or generate) the rescue edits and SEO packaging for a clip."""
+    try:
+        try:
+            payload = await request.json()
+        except (ValueError, UnicodeDecodeError):
+            payload = {}
+        regenerate = isinstance(payload, dict) and payload.get("regenerate") is True
+
+        task_service = TaskService(db)
+        task = await _require_task_owner(request, task_service, db, task_id)
+        clip = await task_service.clip_repo.get_clip_by_id(db, clip_id)
+        if not clip or clip.get("task_id") != task_id:
+            raise HTTPException(status_code=404, detail="Clip not found")
+        if not (clip.get("text") or "").strip():
+            raise HTTPException(status_code=422, detail="Clip has no transcript text")
+        if regenerate or not clip.get("package"):
+            clip["words"] = await load_clip_words(task_service, db, task, clip)
+        package = await get_or_generate_clip_package(
+            db, task_service.clip_repo, clip, regenerate
+        )
+        return {"package": package}
+    except ClipCopyError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating clip package: {e}")
+        raise HTTPException(status_code=500, detail="Error generating clip package")
 
 
 @router.post("/{task_id}/clips/{clip_id}/regenerate")

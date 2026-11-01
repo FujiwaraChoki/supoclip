@@ -114,7 +114,15 @@
     "hook": "Hook",
     "engagement": "Engagement",
     "value": "Value",
-    "shareability": "Shareability"
+    "shareability": "Shareability",
+    "narrativeArc": "Narrative arc",
+    "emotionalTrigger": "Emotional trigger",
+    "pacing": "Pacing",
+    "loopPotential": "Loop potential",
+    "penalties": "Penalties",
+    "hookQuote": "Opening line",
+    "whyItWorks": "Why it works",
+    "editorFix": "Editor fix"
   },
   "openInEditor": "Open in editor",
   "steps": {

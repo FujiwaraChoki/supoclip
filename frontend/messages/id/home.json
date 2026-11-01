@@ -126,5 +126,17 @@
     "long": "Panjang (1–2 menit)",
     "hint": "Target durasi sebelum jeda dan kata pengisi dihapus. Pilihan Anda disimpan sebagai default.",
     "saveError": "Gagal menyimpan default. Video ini tetap menggunakan pilihan Anda."
+  },
+  "clipCount": {
+    "picker": "Jumlah klip",
+    "title": "Jumlah klip",
+    "auto": "Jumlah otomatis",
+    "n": "{count} klip",
+    "hint": "Tepat sebanyak ini jika video memiliki cukup momen yang kuat."
+  },
+  "instructions": {
+    "chip": "Instruksi",
+    "label": "Instruksi untuk AI (opsional)",
+    "placeholder": "mis. Fokus pada momen lucu, lewati intro, pertahankan demo produk"
   }
 }

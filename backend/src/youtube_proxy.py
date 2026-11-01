@@ -117,14 +117,15 @@ def proxy_configured(config=None) -> bool:
 
 
 def capped_height(value: int | None = None, config=None) -> int:
-    """Never request above 1080p. Lower env values are honored."""
+    """Never request above the output cap (1080p by default). Lower env values are honored."""
     runtime = config or get_config()
+    ceiling = getattr(runtime, "max_output_height", 1080)
     raw = runtime.youtube_max_height if value is None else value
     try:
         height = int(raw)
     except (TypeError, ValueError):
-        height = 1080
-    return max(144, min(height, 1080))
+        height = ceiling
+    return max(144, min(height, ceiling))
 
 
 def video_format_selector(height: int | None = None) -> str:

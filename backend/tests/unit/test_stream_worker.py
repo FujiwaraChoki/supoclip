@@ -75,6 +75,7 @@ def _pipeline_mocks(monkeypatch, segments):
 
 
 async def test_processing_downloads_audio_then_time_mapped_sections(stream_config, monkeypatch):
+    stream_config.min_virality_score = 0  # fixture segments are unscored
     calls = []
 
     def audio(url, duration, task_id, *, max_duration=None, operation=None):
@@ -95,7 +96,9 @@ async def test_processing_downloads_audio_then_time_mapped_sections(stream_confi
     result = await VideoService.process_video_complete(TWITCH_URL, "twitch", task_id="task1", max_video_duration=3600)
 
     assert [c[0] for c in calls] == ["audio", "sections"]
-    assert all(c[3] == 3600 and c[4] == stream_source.PROCESSING_OPERATION for c in calls)
+    # Twitch VODs get the 48-hour Twitch ceiling even when the plan cap is lower.
+    expected_cap = max(3600, stream_config.twitch_max_video_duration)
+    assert all(c[3] == expected_cap and c[4] == stream_source.PROCESSING_OPERATION for c in calls)
     shifted = json.loads(Path(result["video_path"]).with_suffix(".transcript_cache.json").read_text())
     # Word timings are moved onto the stitched sections' timeline (60s -> 0s).
     assert shifted["words"] == [{"text": "hello", "start": 1000, "end": 1500}]

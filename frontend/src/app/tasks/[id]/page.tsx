@@ -62,12 +62,14 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
-import { ClipTile, ClipFocus, ProcessingPanel, ProcessingSlots, EmptyState, clipProgressFromMessage, expectedClipCount } from "@/components/app/clip-wall";
+import { type ViralityBreakdown, ClipTile, ClipFocus, ProcessingPanel, ProcessingSlots, EmptyState, clipProgressFromMessage, expectedClipCount } from "@/components/app/clip-wall";
 import { intlLocale } from "@/i18n/config";
 import { timeAgoLabel } from "@/lib/generations";
 import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind, type VideoSourceKind } from "@/components/video-source-icon";
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
+import { ClipCopyKitButton, type ClipCopy } from "@/components/clip-copy-kit";
+import { ClipPackageButton, type ClipPackage } from "@/components/clip-package";
 import { ClipPostList, ClipPublishButton, useSocialPostToasts } from "@/components/clip-publisher";
 import {
   ACTIVE_POST_STATUSES,
@@ -97,6 +99,9 @@ interface Clip {
   shareability_score: number;
   hook_type: string | null;
   hook_title: string | null;
+  copy?: ClipCopy | null;
+  package?: ClipPackage | null;
+  virality_breakdown?: ViralityBreakdown | null;
 }
 
 interface TaskDetails {
@@ -839,6 +844,12 @@ export default function TaskPage() {
           <EmptyState icon={<PauseCircle className="size-7" />} title={t("cancelledTitle")} body={t("cancelledBody")} />
         ) : task.status === "error" ? (
           <EmptyState tone="error" icon={<AlertCircle className="size-7" />} title={t("failedTitle")} body={t("failedBody")}>
+            {progressMessage.trim() && (
+              // The worker stores the failure reason here; show it so the cause is visible.
+              <p role="status" className="w-full max-w-md rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-foreground">
+                {progressMessage}
+              </p>
+            )}
             <Button asChild variant="outline"><Link href="/"><ArrowLeft className="size-4" />{t("backHome")}</Link></Button>
           </EmptyState>
         ) : clips.length === 0 ? (
@@ -897,6 +908,19 @@ export default function TaskPage() {
         onDelete={readOnly ? undefined : () => { if (focusedClip) { setDeletingClipId(focusedClip.id); setFocusIndex(null); } }}
         hookTypeLabel={getHookTypeLabel}
         actions={focusedClip && task?.status === "completed" ? (
+          <>
+          <ClipCopyKitButton
+            key={`copy-${focusedClip.id}`}
+            taskId={task.id}
+            clip={focusedClip}
+            onChanged={async () => { await fetchTaskStatus(0, 0, true); }}
+          />
+          <ClipPackageButton
+            key={`package-${focusedClip.id}`}
+            taskId={task.id}
+            clip={focusedClip}
+            onChanged={async () => { await fetchTaskStatus(0, 0, true); }}
+          />
           <ClipPublishButton
             taskId={task.id}
             clip={focusedClip}
@@ -904,6 +928,7 @@ export default function TaskPage() {
             providers={socialProviders}
             onChanged={loadSocialPosts}
           />
+          </>
         ) : null}
       >
         {focusedClip && (

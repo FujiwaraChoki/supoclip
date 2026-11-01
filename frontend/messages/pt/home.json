@@ -126,5 +126,17 @@
     "long": "Longo (1–2 min)",
     "hint": "Duração desejada antes de remover pausas e vícios de linguagem. Sua escolha é salva como padrão.",
     "saveError": "Não foi possível salvar o padrão. Este vídeo usará sua escolha."
+  },
+  "clipCount": {
+    "picker": "Número de clipes",
+    "title": "Número de clipes",
+    "auto": "Número automático",
+    "n": "{count} clipes",
+    "hint": "Exatamente essa quantidade de clipes se o vídeo tiver momentos fortes suficientes."
+  },
+  "instructions": {
+    "chip": "Instruções",
+    "label": "Instruções para a IA (opcional)",
+    "placeholder": "ex.: Foque nos momentos engraçados, pule a introdução, mantenha a demonstração do produto"
   }
 }

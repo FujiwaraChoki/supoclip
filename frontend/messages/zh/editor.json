@@ -368,5 +368,10 @@
     "timeout": "AI 响应超时，请重试。",
     "failed": "无法连接 AI，请重试。",
     "title": "AI 编辑"
+  },
+  "rescue": {
+    "apply": "应用救援剪辑",
+    "shave": "缩短 {seconds} 秒",
+    "coldOpenNotApplied": "未应用开场预告"
   }
 }

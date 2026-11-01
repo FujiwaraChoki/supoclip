@@ -114,7 +114,15 @@
     "hook": "Gancho",
     "engagement": "Engajamento",
     "value": "Valor",
-    "shareability": "Compartilhamento"
+    "shareability": "Compartilhamento",
+    "narrativeArc": "Arco narrativo",
+    "emotionalTrigger": "Gatilho emocional",
+    "pacing": "Ritmo",
+    "loopPotential": "Potencial de loop",
+    "penalties": "Penalidades",
+    "hookQuote": "Frase de abertura",
+    "whyItWorks": "Por que funciona",
+    "editorFix": "Ajuste de edição"
   },
   "openInEditor": "Abrir no editor",
   "steps": {

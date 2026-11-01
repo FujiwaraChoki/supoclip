@@ -359,11 +359,10 @@ async def get_caption_templates():
 @router.get("/broll/status")
 async def get_broll_status():
     """Return whether B-roll integrations are configured."""
-    config = get_config()
-    return {
-        "configured": bool(config.pexels_api_key),
-        "provider": "pexels" if config.pexels_api_key else None,
-    }
+    from ...broll import broll_provider
+
+    provider = broll_provider()
+    return {"configured": provider is not None, "provider": provider}
 
 
 def _idempotency_key(request: Request) -> str | None:

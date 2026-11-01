@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import {
   AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Clapperboard, Crop, FileVideo,
-  Loader2, Timer, Paperclip, Upload, Link2, Wand2, X,
+  Hash, Loader2, MessageSquareText, Timer, Paperclip, Upload, Link2, Wand2, X,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 import { VideoSourceIcon } from "@/components/video-source-icon";
@@ -21,6 +21,7 @@ import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banne
 import { UpgradeDialog, UpgradeNudge, getUpgradeState, upgradeReasonForError, useBillingPlanText, type UpgradeReason } from "@/components/billing/upgrade-prompt";
 import { getPublicBillingPlans } from "@/lib/billing-plans";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -34,6 +35,8 @@ import { formatSupportMessage, parseApiError } from "@/lib/api-error";
 import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE, savedCaptionDefaults } from "@/lib/font-options";
 import { fetchGenerations, type GenerationSummary } from "@/lib/generations";
 import { CLIP_LENGTHS, isClipLength, type ClipLength } from "@/lib/clip-duration";
+
+const CLIP_COUNTS = Array.from({ length: 20 }, (_, i) => i + 1);
 import { cn } from "@/lib/utils";
 import { FontSelectOption, type FontOption } from "@/components/font-select-option";
 
@@ -96,6 +99,8 @@ export default function HomeApp() {
   const [clipLength, setClipLength] = useState<ClipLength>("auto");
   const [clipLengthSaveError, setClipLengthSaveError] = useState(false);
   const [isClipLengthLoading, setIsClipLengthLoading] = useState(false);
+  const [clipCount, setClipCount] = useState<"auto" | number>("auto");
+  const [clipInstructions, setClipInstructions] = useState("");
   const clipLengthEdited = useRef(false);
   const clipLengthSave = useRef<Promise<unknown>>(Promise.resolve());
   const [addSubtitles, setAddSubtitles] = useState(true);
@@ -329,6 +334,8 @@ export default function HomeApp() {
           processing_mode: "fast",
           output_format: outputFormat,
           clip_length: clipLength,
+          clip_count: clipCount,
+          clip_instructions: clipInstructions.trim() || null,
           add_subtitles: addSubtitles,
           include_broll: brollAvailable && includeBroll,
           cut_long_pauses: cutLongPauses,
@@ -516,6 +523,46 @@ export default function HomeApp() {
 
               <Popover>
                 <PopoverTrigger asChild>
+                  <Chip disabled={controlsDisabled} active={clipCount !== "auto"} aria-label={t("clipCount.picker")}>
+                    <Hash className="size-3.5" />{clipCount === "auto" ? t("clipCount.auto") : t("clipCount.n", { count: clipCount })}<ChevronDown className="size-3 opacity-60" />
+                  </Chip>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 rounded-2xl p-3">
+                  <p className="mb-2 text-sm font-medium">{t("clipCount.title")}</p>
+                  <div role="radiogroup" aria-label={t("clipCount.title")} className="grid grid-cols-5 gap-1">
+                    {(["auto", ...CLIP_COUNTS] as const).map((count) => (
+                      <button type="button" role="radio" aria-checked={clipCount === count} aria-label={count === "auto" ? t("clipCount.auto") : String(count)} disabled={controlsDisabled} key={count} onClick={() => setClipCount(count)} className={cn("rounded-lg px-2 py-2 text-sm hover:bg-muted disabled:opacity-50", count === "auto" && "col-span-5 flex items-center justify-between px-3", clipCount === count && "bg-muted")}>
+                        {count === "auto" ? <><span>{t("clipCount.auto")}</span>{clipCount === count && <Check className="size-4" />}</> : count}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{t("clipCount.hint")}</p>
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Chip disabled={controlsDisabled} active={clipInstructions.trim().length > 0}>
+                    <MessageSquareText className="size-3.5" />{t("instructions.chip")}<ChevronDown className="size-3 opacity-60" />
+                  </Chip>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[min(92vw,480px)] space-y-2 rounded-2xl p-3">
+                  <label htmlFor="clip-instructions" className="text-sm font-medium">{t("instructions.label")}</label>
+                  <Textarea
+                    id="clip-instructions"
+                    value={clipInstructions}
+                    disabled={controlsDisabled}
+                    onChange={(event) => setClipInstructions(event.target.value)}
+                    placeholder={t("instructions.placeholder")}
+                    rows={8}
+                    className="max-h-[60vh] resize-y overflow-y-auto"
+                  />
+                  <p className="text-right text-xs text-muted-foreground">{clipInstructions.length.toLocaleString()}</p>
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
                   <Chip disabled={controlsDisabled} active={customized || !addSubtitles}>
                     {addSubtitles ? <Captions className="size-3.5" /> : <CaptionsOff className="size-3.5" />}
                     {addSubtitles ? selectedTemplate?.name || t("defaultTemplate") : t("noCaptions")}<ChevronDown className="size-3 opacity-60" />
@@ -648,9 +695,8 @@ export default function HomeApp() {
               </Popover>
 
               {brollAvailable && (
-                // Icon-only so the desktop composer stays on one row.
-                <Chip onClick={() => setIncludeBroll((value) => !value)} disabled={controlsDisabled} aria-pressed={includeBroll} aria-label={t("broll")} active={includeBroll} title={`${t("broll")}: ${t("brollHint")}`} className="px-2">
-                  <Clapperboard className="size-3.5" />
+                <Chip onClick={() => setIncludeBroll((value) => !value)} disabled={controlsDisabled} aria-pressed={includeBroll} active={includeBroll} title={t("brollHint")}>
+                  <Clapperboard className="size-3.5" />{t("broll")}
                 </Chip>
               )}
 

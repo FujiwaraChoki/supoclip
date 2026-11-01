@@ -77,6 +77,11 @@ SETTING_METADATA = {
         "description": "Optional B-roll stock footage provider key.",
         "input_type": "password",
     },
+    "PIXABAY_API_KEY": {
+        "label": "Pixabay API key",
+        "description": "Optional B-roll stock footage provider key, used when no Pexels key is set.",
+        "input_type": "password",
+    },
 }
 
 

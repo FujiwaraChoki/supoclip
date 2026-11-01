@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   AlertCircle,
@@ -54,6 +55,7 @@ import { Timeline } from "./timeline";
 import { Inspector, type InspectorTab } from "./inspector";
 import { ExportPanel, readyEditor, type ClipSummary } from "./export-panel";
 import { AIPrompt } from "./ai-prompt";
+import { RescueTrims } from "./rescue-trims";
 import { editorMessage, editorStatus, Keys, Panel, ToolButton } from "./studio-ui";
 
 const SHORTCUTS: [string[], string][] = [
@@ -94,6 +96,13 @@ export function EditorWorkspace({
 }: Props) {
   const t = useTranslations("editor");
   const endpoint = `/api/tasks/${taskId}/clips/${clip.id}/editor`;
+  const router = useRouter(), searchParams = useSearchParams();
+  const autoApply = searchParams.get("apply") === "rescue";
+  const clearApply = useCallback(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("apply");
+    router.replace(url.pathname + url.search);
+  }, [router]);
   const editor = useEditor(endpoint),
     doc = editor.document,
     asset = editor.asset;
@@ -560,7 +569,15 @@ export function EditorWorkspace({
                 update={editor.update}
                 videoRef={videoRef}
                 footer={
-                  asset.aiEditing ? (
+                  <>
+                    <RescueTrims
+                      pkg={clip.package}
+                      original={asset.original}
+                      update={editor.update}
+                      autoApply={autoApply}
+                      onAutoApplied={clearApply}
+                    />
+                    {asset.aiEditing ? (
                     <AIPrompt
                       endpoint={endpoint}
                       basis={asset.basis}
@@ -569,7 +586,8 @@ export function EditorWorkspace({
                       update={editor.update}
                       undo={editor.undo}
                     />
-                  ) : null
+                    ) : null}
+                  </>
                 }
               />
             </main>

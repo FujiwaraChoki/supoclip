@@ -60,9 +60,13 @@ from ..clip_source_map import (
     save_clip_source_ranges,
     source_range_bounds,
 )
-from ..ai import get_most_relevant_parts_by_transcript, max_final_clips_for_duration
+from ..ai import (
+    get_most_relevant_parts_by_transcript,
+    max_final_clips_for_duration,
+    virality_breakdown_from_dump,
+)
 from ..clip_openings import OPENING_HOOK_PENALTY, opening_text_issue, review_opening
-from ..clip_duration import clip_duration
+from ..clip_duration import clip_duration, normalize_clip_count
 from ..config import get_config
 from ..media.source_limits import normalize_source_media
 from ..media.upload_ingest import (
@@ -249,6 +253,9 @@ class VideoService:
                 hook_score = int(segment.get("hook_score") or 0)
                 reduced = max(0, hook_score - OPENING_HOOK_PENALTY)
                 segment["hook_score"] = reduced
+                breakdown = segment.get("virality_breakdown")
+                if isinstance(breakdown, dict):
+                    breakdown["hook"] = reduced
                 segment["virality_score"] = max(
                     0, int(segment.get("virality_score") or 0) - (hook_score - reduced)
                 )
@@ -268,6 +275,34 @@ class VideoService:
                 segments, key=lambda segment: int(segment.get("virality_score") or 0), reverse=True
             )
         return segments
+
+    @staticmethod
+    def _apply_virality_floor(segments: list[dict], floor: int, limit: int) -> list[dict]:
+        """Prefer segments at or above the floor, then fill up to ``limit``.
+
+        Segments that reach the floor come first in their existing order. When
+        fewer than ``limit`` qualify, the highest-scoring remaining segments
+        fill the gap, so a video with no 80%+ moment still returns its best
+        clips instead of none.
+        """
+        limit = max(1, limit)
+        if floor <= 0:
+            return segments[:limit]
+
+        def score(segment: dict) -> int:
+            return int(segment.get("virality_score") or 0)
+
+        kept = [s for s in segments if score(s) >= floor][:limit]
+        if len(kept) < limit:
+            below = sorted((s for s in segments if score(s) < floor), key=score, reverse=True)
+            fill = below[: limit - len(kept)]
+            if fill:
+                logger.info(
+                    "Virality floor %s: %s segment(s) qualified; filled %s below the floor "
+                    "(best %s)", floor, len(kept), len(fill), score(fill[0]),
+                )
+            kept += fill
+        return kept
 
     @staticmethod
     def _drop_static_segments(
@@ -577,6 +612,8 @@ class VideoService:
         clip_signals: Optional[str] = None,
         performance_context: Optional[str] = None,
         clip_length: str = "auto",
+        clip_instructions: Optional[str] = None,
+        clip_count: Any = "auto",
     ) -> Any:
         """
         Analyze transcript with AI to find relevant segments.
@@ -589,6 +626,8 @@ class VideoService:
             performance_context=performance_context,
             clip_length=clip_length,
             include_reserve=True,
+            clip_instructions=clip_instructions,
+            clip_count=clip_count,
         )
         logger.info(
             f"AI analysis complete: {len(relevant_parts.most_relevant_segments)} segments found"
@@ -855,6 +894,7 @@ class VideoService:
                 "value_score": segment.get("value_score", 0),
                 "shareability_score": segment.get("shareability_score", 0),
                 "hook_type": segment.get("hook_type"),
+                "virality_breakdown": segment.get("virality_breakdown"),
                 "hook_title": segment.get("hook_title"),
                 "keep_ranges": keep_ranges,
             }
@@ -912,6 +952,8 @@ class VideoService:
         should_cancel: Optional[Callable[[], Awaitable[bool]]] = None,
         performance_context: Optional[str] = None,
         clip_length: str = "auto",
+        clip_instructions: Optional[str] = None,
+        clip_count: Any = "auto",
     ) -> Dict[str, Any]:
         """
         Complete video processing pipeline.
@@ -929,6 +971,9 @@ class VideoService:
                 if max_video_duration is None
                 else max_video_duration
             )
+            if source_type == "twitch":
+                # Matches the Twitch ceiling applied at task creation.
+                duration_limit = max(duration_limit, runtime_config.twitch_max_video_duration)
             # Step 1: Get video path (download or use existing)
             if should_cancel and await should_cancel():
                 raise Exception("Task cancelled")
@@ -1126,6 +1171,14 @@ class VideoService:
                     clip_signals=clip_signals,
                     performance_context=performance_context,
                     clip_length=clip_length,
+                    **{
+                        key: value
+                        for key, value in (
+                            ("clip_instructions", clip_instructions),
+                            ("clip_count", clip_count),
+                        )
+                        if value not in ("auto", None)
+                    },
                 )
 
             # Step 4: Create clips
@@ -1143,18 +1196,25 @@ class VideoService:
                     virality = segment.get("virality") or {}
                     if hasattr(virality, "model_dump"):
                         virality = virality.model_dump()
+                    # Cached analyses (processing_cache) store the flat segment
+                    # payload below, so fall back to its score fields.
                     segment_payload = {
                         "start_time": segment.get("start_time"),
                         "end_time": segment.get("end_time"),
                         "text": segment.get("text", ""),
                         "relevance_score": segment.get("relevance_score", 0.0),
                         "reasoning": segment.get("reasoning", ""),
-                        "virality_score": virality.get("total_score", 0),
-                        "hook_score": virality.get("hook_score", 0),
-                        "engagement_score": virality.get("engagement_score", 0),
-                        "value_score": virality.get("value_score", 0),
-                        "shareability_score": virality.get("shareability_score", 0),
-                        "hook_type": virality.get("hook_type"),
+                        "virality_score": virality.get("total_score", segment.get("virality_score", 0)),
+                        "hook_score": virality.get("hook_score", segment.get("hook_score", 0)),
+                        "engagement_score": virality.get("engagement_score", segment.get("engagement_score", 0)),
+                        "value_score": virality.get("value_score", segment.get("value_score", 0)),
+                        "shareability_score": virality.get("shareability_score", segment.get("shareability_score", 0)),
+                        "hook_type": virality.get("hook_type", segment.get("hook_type")),
+                        "virality_breakdown": (
+                            virality_breakdown_from_dump(virality)
+                            if virality
+                            else segment.get("virality_breakdown")
+                        ),
                         "hook_title": segment.get("hook_title"),
                         "hook_start_time": segment.get("hook_start_time"),
                         "hook_end_time": segment.get("hook_end_time"),
@@ -1175,6 +1235,7 @@ class VideoService:
                         "value_score": virality.get("value_score", 0),
                         "shareability_score": virality.get("shareability_score", 0),
                         "hook_type": virality.get("hook_type"),
+                        "virality_breakdown": virality_breakdown_from_dump(virality),
                         "hook_title": getattr(segment, "hook_title", None),
                         "hook_start_time": getattr(segment, "hook_start_time", None),
                         "hook_end_time": getattr(segment, "hook_end_time", None),
@@ -1197,6 +1258,8 @@ class VideoService:
             clip_limit = max_final_clips_for_duration(file_duration, runtime_config.max_clips)
             if processing_mode == "fast":
                 clip_limit = min(clip_limit, runtime_config.fast_mode_max_clips)
+            if normalize_clip_count(clip_count) != "auto":
+                clip_limit = normalize_clip_count(clip_count)
             # Retain a bounded reserve until picture checks finish, so a rejected
             # slate can be replaced by the next already-ranked candidate.
             segments_json = segments_json[: min(24, max(1, clip_limit) * 2)]
@@ -1270,7 +1333,9 @@ class VideoService:
                 except Exception:
                     logger.exception("Visual suitability check failed; keeping every segment")
 
-            segments_json = segments_json[:max(1, clip_limit)]
+            segments_json = VideoService._apply_virality_floor(
+                segments_json, runtime_config.min_virality_score, clip_limit
+            )
             if not segments_json:
                 raise ValueError("No usable footage remains after excluding interruption notices.")
 

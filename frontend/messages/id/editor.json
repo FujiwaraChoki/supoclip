@@ -368,5 +368,10 @@
     "timeout": "AI terlalu lama. Coba lagi.",
     "failed": "Tidak bisa terhubung ke AI. Coba lagi.",
     "title": "Edit AI"
+  },
+  "rescue": {
+    "apply": "Terapkan pemangkasan penyelamatan",
+    "shave": "Pangkas {seconds}d",
+    "coldOpenNotApplied": "Cuplikan pembuka tidak diterapkan"
   }
 }

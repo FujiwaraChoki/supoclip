@@ -31,7 +31,7 @@ from urllib.parse import parse_qs, urlparse
 import requests
 
 from .config import get_config
-from .youtube_proxy import normalize_country, render_proxy_url, sticky_session_id
+from .youtube_proxy import capped_height, normalize_country, render_proxy_url, sticky_session_id
 from .youtube_source import CachedPiece, assemble_timeline, merge_ranges, ranges_from_segments
 
 logger = logging.getLogger(__name__)
@@ -263,9 +263,10 @@ def _ydl_options(provider, output, *, audio=False, ranges=None, session=None, so
             normalize_country(c.youtube_proxy_country),
         )
     # Kick HLS has no audio-only rendition; the smallest video keeps proxy traffic low.
+    max_height = capped_height(config=c)
     opts["format"] = (
         "bestaudio/worst[height<=360]/worst" if audio
-        else f"bestvideo[height<={c.youtube_max_height}]+bestaudio/best[height<={c.youtube_max_height}]/best"
+        else f"bestvideo[height<={max_height}]+bestaudio/best[height<={max_height}]/best"
     )
     if not audio:
         opts["merge_output_format"] = "mkv"

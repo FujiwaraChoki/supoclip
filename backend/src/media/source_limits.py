@@ -22,8 +22,11 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+from ..config import get_config
+
 logger = logging.getLogger(__name__)
 
+# 1080p values, kept for importers. Logic uses output_long_edge/output_short_edge.
 MAX_LONG_EDGE = 1920
 MAX_SHORT_EDGE = 1080
 MAX_OUTPUT_FPS = 60
@@ -100,13 +103,25 @@ def parse_frame_rate(value: str | None) -> float | None:
     return rate
 
 
+def output_short_edge() -> int:
+    """Short-side cap: MAX_OUTPUT_HEIGHT (1080 unless opted in to 2160)."""
+    return 2160 if getattr(get_config(), "max_output_height", 1080) == 2160 else MAX_SHORT_EDGE
+
+
+def output_long_edge() -> int:
+    return output_short_edge() * 16 // 9
+
+
 def fit_within_1080p(width: int, height: int) -> tuple[int, int]:
-    """Even dimensions that fit in 1920×1080, or the inputs when they already do."""
+    """Even dimensions that fit the configured output cap (1920×1080 by default),
+    or the inputs when they already do."""
     if width <= 0 or height <= 0:
         return width, height
     long_edge = max(width, height)
     short_edge = min(width, height)
-    scale = min(1.0, MAX_LONG_EDGE / long_edge, MAX_SHORT_EDGE / short_edge)
+    long_cap = output_long_edge()
+    short_cap = output_short_edge()
+    scale = min(1.0, long_cap / long_edge, short_cap / short_edge)
     if scale >= 1.0:
         return width, height
 
@@ -118,8 +133,6 @@ def fit_within_1080p(width: int, height: int) -> tuple[int, int]:
             rounded -= 2
         return max(2, rounded)
 
-    long_cap = MAX_LONG_EDGE
-    short_cap = MAX_SHORT_EDGE
     if width >= height:
         return even_within(width * scale, long_cap), even_within(height * scale, short_cap)
     return even_within(width * scale, short_cap), even_within(height * scale, long_cap)
@@ -137,7 +150,7 @@ def output_rate_token(fps: float) -> str:
 def exceeds_output_limits(width: int, height: int, fps: float | None) -> bool:
     long_edge = max(width, height)
     short_edge = min(width, height)
-    if long_edge > MAX_LONG_EDGE or short_edge > MAX_SHORT_EDGE:
+    if long_edge > output_long_edge() or short_edge > output_short_edge():
         return True
     return fps is not None and fps > MAX_OUTPUT_FPS + FPS_EPSILON
 
@@ -219,7 +232,7 @@ def probe_video_geometry(path: Path) -> VideoGeometry | None:
 
 
 def source_within_output_limits(path: Path) -> bool:
-    """True when the file is already at most 1080p/60, or when it cannot be probed.
+    """True when the file is already within the output cap (1080p default)/60, or when it cannot be probed.
 
     An unreadable file keeps the caller's existing failure path instead of
     being treated as an oversized source.
@@ -468,7 +481,7 @@ def _normalize_locked(path: Path) -> Path:
 
 
 def normalize_source_media(path: Path) -> Path:
-    """Scale a local working file down to at most 1080p and 60 fps.
+    """Scale a local working file down to the output cap (1080p default) and 60 fps.
 
     Files that are already within the cap, or that cannot be probed, are
     returned unchanged. A failed transcode of an oversized file raises so the

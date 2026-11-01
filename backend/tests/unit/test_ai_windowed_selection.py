@@ -19,19 +19,9 @@ def _transcript(total_seconds: int, line_seconds: int = 10) -> str:
 
 
 def _segment(start: str, end: str, total: int = 60, text: str = "Some useful words here.") -> ai.TranscriptSegment:
-    quarter = total // 4
-    return ai.TranscriptSegment(
-        start_time=start,
-        end_time=end,
-        text=text,
-        virality=ai.ViralityAnalysis(
-            hook_score=quarter,
-            engagement_score=quarter,
-            value_score=quarter,
-            shareability_score=total - 3 * quarter,
-            total_score=total,
-        ),
-    )
+    virality = ai.ViralityAnalysis(total_score=total)
+    ai._rescale_virality(virality, total)
+    return ai.TranscriptSegment(start_time=start, end_time=end, text=text, virality=virality)
 
 
 def test_short_transcript_is_a_single_unchanged_window():
@@ -164,14 +154,23 @@ def test_apply_ranking_reorders_and_calibrates_scores():
     assert [s.virality.total_score for s in reranked] == [88, 88, 80]
     for segment in reranked:
         virality = segment.virality
-        assert virality.total_score == (
-            virality.hook_score + virality.engagement_score
-            + virality.value_score + virality.shareability_score
-        )
-        assert all(0 <= score <= 25 for score in (
-            virality.hook_score, virality.engagement_score,
-            virality.value_score, virality.shareability_score,
-        ))
+        assert virality.total_score == virality.subscore_sum() + virality.penalties_applied
+        for name, maximum in ai.VIRALITY_SUBSCORE_MAXIMA.items():
+            assert 0 <= getattr(virality, name) <= maximum
+
+
+def test_rescale_keeps_penalties_and_caps():
+    virality = ai.ViralityAnalysis(
+        hook_score=28, narrative_arc_score=22, emotional_trigger_score=18,
+        pacing_score=13, loop_score=9, penalties_applied=-20,
+    )
+    ai._rescale_virality(virality, 70)
+    assert virality.penalties_applied == -20
+    assert virality.subscore_sum() == 90
+    assert virality.total_score == 70
+    ai._rescale_virality(virality, 95)  # 95 + 20 exceeds the 100-point rubric
+    assert virality.subscore_sum() == 100
+    assert virality.total_score == 80
 
 
 async def test_rerank_failure_keeps_first_pass_order(monkeypatch):
@@ -214,7 +213,7 @@ async def test_long_transcript_runs_windows_then_reranks(monkeypatch):
 
     assert agent.run.await_count == 3
     prompts = [call.args[0] for call in agent.run.await_args_list]
-    assert all("one window" in prompt and "Choose 3-5 segments total." in prompt for prompt in prompts)
+    assert all("one window" in prompt and "Choose 5-8 segments total." in prompt for prompt in prompts)
     rerank_agent.run.assert_awaited_once()
     starts = [s.start_time for s in result.most_relevant_segments]
     assert sorted(starts) == ["00:30", "10:30", "20:30"]
@@ -349,3 +348,18 @@ async def test_picture_review_can_request_ranked_reserve_without_another_model_c
     result = await ai.get_most_relevant_parts_by_transcript(_transcript(120), include_reserve=True)
     assert len(result.most_relevant_segments) == 2
     agent.run.assert_awaited_once()
+
+
+def test_long_vod_timestamps_over_999_minutes_are_kept():
+    from src import ai
+    from src.media.timeline import parse_transcript_lines
+
+    transcript = "[999:58 - 1000:02] before\n[1000:05 - 1000:09] after"
+    assert [l["start_seconds"] for l in ai._parse_transcript_lines(transcript)] == [59998, 60005]
+    assert len(parse_transcript_lines(transcript)) == 2
+    windows = ai.split_transcript_into_windows(
+        transcript, window_seconds=60000, overlap_seconds=0, single_window_max_seconds=1
+    )
+    assert windows
+    joined = "\n".join(w["transcript"] for w in windows)
+    assert "999:58" in joined and "1000:05" in joined

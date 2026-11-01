@@ -126,5 +126,17 @@
     "long": "Largo (1–2 min)",
     "hint": "Duración objetivo antes de eliminar pausas y muletillas. Tu elección se guarda como predeterminada.",
     "saveError": "No se pudo guardar la opción predeterminada. Este vídeo usará tu elección."
+  },
+  "clipCount": {
+    "picker": "Número de clips",
+    "title": "Número de clips",
+    "auto": "Número automático",
+    "n": "{count} clips",
+    "hint": "Exactamente esta cantidad de clips si el video tiene suficientes momentos fuertes."
+  },
+  "instructions": {
+    "chip": "Instrucciones",
+    "label": "Instrucciones para la IA (opcional)",
+    "placeholder": "p. ej. Céntrate en los momentos graciosos, omite la intro, conserva la demo del producto"
   }
 }

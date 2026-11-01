@@ -114,7 +114,15 @@
     "hook": "Hook",
     "engagement": "Interaktion",
     "value": "Nutzen",
-    "shareability": "Teilbarkeit"
+    "shareability": "Teilbarkeit",
+    "narrativeArc": "Erzählbogen",
+    "emotionalTrigger": "Emotionaler Auslöser",
+    "pacing": "Tempo",
+    "loopPotential": "Loop-Potenzial",
+    "penalties": "Abzüge",
+    "hookQuote": "Erster Satz",
+    "whyItWorks": "Warum es funktioniert",
+    "editorFix": "Schnitt-Tipp"
   },
   "openInEditor": "Im Editor öffnen",
   "steps": {

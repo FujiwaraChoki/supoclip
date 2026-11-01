@@ -7,6 +7,22 @@ Add a line here when a pull request changes something a user can see. Use **New*
 ## 2026-10-31
 
 - **New:** Download all of a generation's clips at once as a ZIP from the task page. The download starts right away and streams the original files. ([#321](https://github.com/FujiwaraChoki/supoclip/pull/321))
+- **Improved:** Virality scores now follow a strict rubric: the hook in the first 3 seconds, whether the clip stands alone, emotional pull, pacing and rewatch value, with points taken off for greetings, unclear openings and trailing endings. Each clip shows the breakdown, its opening line, why it works, and one edit that would make it stronger. ([#323](https://github.com/FujiwaraChoki/supoclip/pull/323))
+- **New:** "Rescue & package" on each clip suggests trims and jump cuts, three on-screen hooks, three titles, an SEO description, hashtags, and a pinned comment, and labels the clip ready, worth rescuing, or rejected. ([#323](https://github.com/FujiwaraChoki/supoclip/pull/323))
+- **New:** "Apply in studio" turns the suggested trims into an edit in the clip studio in one step, which you can undo or adjust before exporting. ([#323](https://github.com/FujiwaraChoki/supoclip/pull/323))
+- **New:** Clips that reach a virality floor (default 80%, set with `MIN_VIRALITY_SCORE`; 0 turns it off) are ranked first; when fewer than your clip count reach it, the best remaining moments fill the rest so you always get clips. ([#323](https://github.com/FujiwaraChoki/supoclip/pull/323))
+- **Improved:** Clip selection now favours what holds viewers to the end: a hook in the first seconds, a clear payoff, clips that stand alone, emotional peaks, and endings that loop. The AI proposes extra candidates so the clip count you pick is easier to reach. ([#323](https://github.com/FujiwaraChoki/supoclip/pull/323))
+- **Improved:** Transcription on self-hosted servers uses faster-whisper with the `large-v3-turbo` model by default, several times faster than before on CPU. Set `WHISPER_ENGINE=openai` to switch back. ([#323](https://github.com/FujiwaraChoki/supoclip/pull/323))
+- **Improved:** Twitch VODs can be up to 48 hours long (`TWITCH_MAX_VIDEO_DURATION`). ([#323](https://github.com/FujiwaraChoki/supoclip/pull/323))
+- **Improved:** Instructions for the AI have no length limit, and line breaks are kept. ([#323](https://github.com/FujiwaraChoki/supoclip/pull/323))
+- **Improved:** The B-roll toggle is labelled, and the automatic 9:16 framing is now called "Face tracking 9:16". ([#323](https://github.com/FujiwaraChoki/supoclip/pull/323))
+- **Fixed:** A failed video now shows the reason it failed. ([#323](https://github.com/FujiwaraChoki/supoclip/pull/323))
+- **New:** Self-hosted servers can opt in to 4K with `MAX_OUTPUT_HEIGHT=2160`, keeping 4K sources instead of scaling them down to 1080p. The default stays 1080p. ([#315](https://github.com/FujiwaraChoki/supoclip/pull/315))
+- **New:** B-roll can also come from Pixabay when `PIXABAY_API_KEY` is set and there is no Pexels key. ([#315](https://github.com/FujiwaraChoki/supoclip/pull/315))
+- **New:** Each finished clip has a "Titles & hashtags" panel that writes a title, description, and hashtags for TikTok, YouTube Shorts, and Instagram Reels, ready to copy. ([#315](https://github.com/FujiwaraChoki/supoclip/pull/315))
+- **New:** Choose how many clips you want, from 1 to 20, when you start a new video. ([#315](https://github.com/FujiwaraChoki/supoclip/pull/315))
+- **New:** Add optional instructions for the AI, such as "focus on the funny moments", when you start a new video. ([#315](https://github.com/FujiwaraChoki/supoclip/pull/315))
+- **Improved:** Self-hosted servers can process long videos: set `WORKER_JOB_TIMEOUT_SECONDS` and `PROCESSING_TASK_TIMEOUT_SECONDS` alongside `MAX_VIDEO_DURATION` so multi-hour jobs are not cut off. ([#315](https://github.com/FujiwaraChoki/supoclip/pull/315))
 - **Improved:** The footer, terms, and privacy policy now identify the company operating SupoClip. ([#314](https://github.com/FujiwaraChoki/supoclip/pull/314))
 - **New:** Switch between a light and dark theme from the sidebar (or the header on mobile). The app starts light and remembers your choice; the website and sign-in pages stay light. ([#312](https://github.com/FujiwaraChoki/supoclip/pull/312))
 

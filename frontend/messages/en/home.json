@@ -51,8 +51,8 @@
   "framing": "Framing",
   "framingOptions": {
     "vertical": {
-      "label": "Auto 9:16",
-      "hint": "Adapts to subjects and scene context"
+      "label": "Face tracking 9:16",
+      "hint": "Follows faces and adapts to scene context"
     },
     "vertical_fit": {
       "label": "Full frame 9:16",
@@ -74,7 +74,7 @@
   "captions": "Captions",
   "noCaptions": "No captions",
   "broll": "B-roll",
-  "brollHint": "Adds stock footage from Pexels where the speaker names something you can show",
+  "brollHint": "Adds stock footage where the speaker names something you can show",
   "cleanup": "Cleanup",
   "cleanupTitle": "Clip cleanup",
   "cleanupBody": "Tighten dead air and cut filler sounds while rendering.",
@@ -87,7 +87,7 @@
   "extraWords": "Extra words or phrases to cut",
   "extraWordsPlaceholder": "basically, literally, to be honest",
   "generate": "Generate clips",
-  "limitNote": "{plan}: YouTube, Twitch, and Kick videos up to {minutes} minutes. Each video uses its length in minutes, checked before we start.",
+  "limitNote": "{plan}: YouTube and Kick videos up to {minutes} minutes, Twitch VODs up to 48 hours. Each video uses its length in minutes, checked before we start.",
   "uploadLimits": "Uploads up to {size}. Videos above 1080p or 60 fps are scaled down automatically, keeping their shape.",
   "completionEmails": "Completion emails follow your preference in <settings>Settings</settings>.",
   "recent": "Recent",
@@ -126,5 +126,17 @@
     "long": "Long (1–2 min)",
     "hint": "Target length before pause and filler removal. Your choice is saved as your default.",
     "saveError": "Could not save your default. This video will still use your choice."
+  },
+  "clipCount": {
+    "picker": "Number of clips",
+    "title": "Number of clips",
+    "auto": "Auto count",
+    "n": "{count} clips",
+    "hint": "Exactly this many clips when the video has enough strong moments."
+  },
+  "instructions": {
+    "chip": "Instructions",
+    "label": "Instructions for the AI (optional)",
+    "placeholder": "e.g. Focus on the funny moments, skip the intro, keep the product demo"
   }
 }

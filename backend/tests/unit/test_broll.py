@@ -583,6 +583,23 @@ def test_prune_drops_stale_footage_then_oldest_over_the_cap(pexels_config):
     assert sorted(p.name for p in cache.iterdir()) == ["pexels_3_a.mp4"]
 
 
+def test_prune_covers_pixabay_footage_in_expiry_and_budget(pexels_config):
+    import os
+    import time
+
+    cache = Path(pexels_config.temp_dir) / "broll_cache"
+    cache.mkdir()
+    now = time.time()
+    for name, age in (("pixabay_1_a.mp4", 3 * 86400), ("pixabay_2_a.mp4", 300), ("pexels_3_a.mp4", 60)):
+        path = cache / name
+        path.write_bytes(b"x" * 10)
+        os.utime(path, (now - age, now - age))
+
+    broll.prune_broll_cache(max_bytes=15, in_use_seconds=0)
+
+    assert sorted(p.name for p in cache.iterdir()) == ["pexels_3_a.mp4"]
+
+
 def test_prune_never_evicts_footage_a_render_is_about_to_use(pexels_config):
     import os
     import time

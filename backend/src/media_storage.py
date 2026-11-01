@@ -248,7 +248,12 @@ class MediaStorage:
         finally:
             temporary.unlink(missing_ok=True)
 
-    def local_path(self, reference: str, *, metadata_only=False) -> Path:
+    def local_path(self, reference: str, *, metadata_only=False, sidecars_only=False) -> Path:
+        """Materialize ``reference`` locally.
+
+        ``metadata_only`` fetches just the source map; ``sidecars_only`` fetches every
+        sidecar (source map and transcript cache) but never the media file itself.
+        """
         if not is_s3(reference):
             path = Path(reference)
             # Older processing-cache rows contain the materialized path.
@@ -256,7 +261,9 @@ class MediaStorage:
             cache_root = (Path(self.config.temp_dir) / "media-cache").resolve()
             marker = path.parent / ".reference"
             if path.resolve().is_relative_to(cache_root) and marker.exists():
-                return self.local_path(marker.read_text(), metadata_only=metadata_only)
+                return self.local_path(
+                    marker.read_text(), metadata_only=metadata_only, sidecars_only=sidecars_only
+                )
             return path
         key = self.parse(reference)
         digest = hashlib.sha256(reference.encode()).hexdigest()
@@ -282,7 +289,7 @@ class MediaStorage:
                 if not sidecar.exists() and (not missing.exists() or time.time() - missing.stat().st_mtime >= self.config.media_cache_ttl_seconds):
                     if not self._download(str(PurePosixPath(key).with_suffix(suffix)), sidecar, optional=True):
                         missing.touch()
-            if not metadata_only and not path.exists():
+            if not (metadata_only or sidecars_only) and not path.exists():
                 capped = self.capped_source_key(key)
                 # A previous job may already have stored a 1080p/60 master.
                 # Misses fall through to the original upload.
