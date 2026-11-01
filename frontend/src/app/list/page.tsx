@@ -303,10 +303,10 @@ export default function ListPage() {
 
   if (!session?.user) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-background">
         <div className="max-w-4xl mx-auto px-4 py-24 text-center">
-          <h1 className="text-3xl font-bold text-black mb-4">{t("signInTitle")}</h1>
-          <p className="text-gray-600 mb-8">
+          <h1 className="text-3xl font-bold text-foreground mb-4">{t("signInTitle")}</h1>
+          <p className="text-muted-foreground mb-8">
             {t("signInBody")}
           </p>
           <Link href="/sign-in">
@@ -430,7 +430,7 @@ export default function ListPage() {
       )}
 
       {batchNotice && (
-        <Alert className={cn("mt-6", batchNotice.tone === "success" ? "border-emerald-200 bg-emerald-50/50" : "border-red-200 bg-red-50/50")}>
+        <Alert className={cn("mt-6", batchNotice.tone === "success" ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900/60 dark:bg-emerald-950/40" : "border-red-200 bg-red-50/50 dark:border-red-900/60 dark:bg-red-950/40")}>
           {batchNotice.tone === "success" ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4 text-red-600" />}
           <AlertDescription className="text-sm">{batchNotice.message}</AlertDescription>
         </Alert>
@@ -478,7 +478,7 @@ export default function ListPage() {
           style={{ animation: "command-bar-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both" }}
         >
           <div
-            className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-stone-800 bg-stone-950 px-2 py-2 shadow-2xl"
+            className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-stone-800 bg-stone-950 px-2 py-2 shadow-2xl dark:border-stone-700 dark:bg-stone-800"
             style={{ animation: "command-bar-pulse 3s ease-in-out infinite" }}
           >
             {/* Select all checkbox */}
@@ -498,7 +498,7 @@ export default function ListPage() {
               </span>
             </div>
 
-            <Separator orientation="vertical" className="h-6 bg-stone-700" />
+            <Separator orientation="vertical" className="h-6 bg-stone-700 dark:bg-stone-600" />
 
             {/* Action buttons */}
             <div className="flex items-center gap-0.5 px-1">
@@ -509,7 +509,7 @@ export default function ListPage() {
                     size="sm"
                     onClick={() => void handleCancelSelected()}
                     disabled={cancelableCount === 0 || activeBatchAction !== null}
-                    className="text-stone-300 hover:text-white hover:bg-stone-800 disabled:text-stone-600 disabled:hover:bg-transparent"
+                    className="text-stone-300 hover:text-white hover:bg-stone-800 disabled:text-stone-600 disabled:hover:bg-transparent dark:hover:bg-stone-700 dark:disabled:text-stone-500"
                   >
                     {activeBatchAction === "cancel" ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -518,7 +518,7 @@ export default function ListPage() {
                     )}
                     <span className="hidden sm:inline">{t("cancel.action")}</span>
                     {cancelableCount > 0 && (
-                      <span className="text-xs text-stone-500">{cancelableCount}</span>
+                      <span className="text-xs text-stone-500 dark:text-stone-400">{cancelableCount}</span>
                     )}
                   </Button>
                 </TooltipTrigger>
@@ -534,7 +534,7 @@ export default function ListPage() {
                     size="sm"
                     onClick={() => void handleResumeSelected()}
                     disabled={resumableCount === 0 || activeBatchAction !== null}
-                    className="text-stone-300 hover:text-white hover:bg-stone-800 disabled:text-stone-600 disabled:hover:bg-transparent"
+                    className="text-stone-300 hover:text-white hover:bg-stone-800 disabled:text-stone-600 disabled:hover:bg-transparent dark:hover:bg-stone-700 dark:disabled:text-stone-500"
                   >
                     {activeBatchAction === "resume" ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -543,7 +543,7 @@ export default function ListPage() {
                     )}
                     <span className="hidden sm:inline">{t("resume.action")}</span>
                     {resumableCount > 0 && (
-                      <span className="text-xs text-stone-500">{resumableCount}</span>
+                      <span className="text-xs text-stone-500 dark:text-stone-400">{resumableCount}</span>
                     )}
                   </Button>
                 </TooltipTrigger>
@@ -552,7 +552,7 @@ export default function ListPage() {
                 </TooltipContent>
               </Tooltip>
 
-              <Separator orientation="vertical" className="h-6 bg-stone-700" />
+              <Separator orientation="vertical" className="h-6 bg-stone-700 dark:bg-stone-600" />
 
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -561,7 +561,7 @@ export default function ListPage() {
                     size="sm"
                     onClick={() => setShowDeleteDialog(true)}
                     disabled={selectedCount === 0 || activeBatchAction !== null}
-                    className="text-red-400 hover:text-red-300 hover:bg-red-950/50 disabled:text-stone-600 disabled:hover:bg-transparent"
+                    className="text-red-400 hover:text-red-300 hover:bg-red-950/50 disabled:text-stone-600 disabled:hover:bg-transparent dark:hover:bg-red-950/60 dark:disabled:text-stone-500"
                   >
                     {activeBatchAction === "delete" ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -577,7 +577,7 @@ export default function ListPage() {
               </Tooltip>
             </div>
 
-            <Separator orientation="vertical" className="h-6 bg-stone-700" />
+            <Separator orientation="vertical" className="h-6 bg-stone-700 dark:bg-stone-600" />
 
             {/* Clear selection */}
             <Tooltip>
@@ -590,7 +590,7 @@ export default function ListPage() {
                     setBatchNotice(null);
                   }}
                   disabled={activeBatchAction !== null}
-                  className="text-stone-400 hover:text-white hover:bg-stone-800 rounded-xl"
+                  className="text-stone-400 hover:text-white hover:bg-stone-800 rounded-xl dark:hover:bg-stone-700"
                   aria-label={t("clearSelection")}
                 >
                   <X className="w-4 h-4" />

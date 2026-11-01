@@ -242,6 +242,7 @@ def test_cached_full_file_skips_the_downloader(tmp_path, monkeypatch):
             "video_id": VIDEO_ID,
             "audio": None,
             "full": "full.mp4",
+            "full_height": 1080,
             "ranges": [],
         }))
 

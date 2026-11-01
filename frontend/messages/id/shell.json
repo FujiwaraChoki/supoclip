@@ -43,6 +43,9 @@
     "signingOut": "Sedang keluar…",
     "signOutError": "Tidak bisa keluar. Coba lagi, ya."
   },
+  "theme": {
+    "toggle": "Ganti tema terang/gelap"
+  },
   "announcements": {
     "whatsNew": "Yang baru",
     "whatsNewUnread": "Yang baru, {count, plural, one {# pengumuman belum dibaca} other {# pengumuman belum dibaca}}",

@@ -32,7 +32,7 @@ import { billingPlanMessageKey } from "@/lib/billing-plans";
 import { hasPaidAccess } from "@/lib/subscription-status";
 import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError } from "@/lib/api-error";
-import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE } from "@/lib/font-options";
+import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE, savedCaptionDefaults } from "@/lib/font-options";
 import { fetchGenerations, type GenerationSummary } from "@/lib/generations";
 import { CLIP_LENGTHS, isClipLength, type ClipLength } from "@/lib/clip-duration";
 
@@ -135,9 +135,15 @@ export default function HomeApp() {
       void fetch("/api/preferences")
         .then((response) => response.ok ? response.json() : null)
         .then((preferences) => {
-          if (!cancelled && !clipLengthEdited.current && isClipLength(preferences?.clipLength)) {
+          if (cancelled) return;
+          if (!clipLengthEdited.current && isClipLength(preferences?.clipLength)) {
             setClipLength(preferences.clipLength);
           }
+          // Caption defaults from Settings; anything picked here meanwhile wins.
+          const captionDefaults = savedCaptionDefaults(preferences);
+          setFontFamily((current) => current ?? captionDefaults.fontFamily);
+          setFontSize((current) => current ?? captionDefaults.fontSize);
+          setFontColor((current) => current ?? captionDefaults.fontColor);
         })
         .catch(() => {})
         .finally(() => { if (!cancelled) setIsClipLengthLoading(false); });
@@ -627,7 +633,7 @@ export default function HomeApp() {
                               {availableFonts.length > 0 && filteredFonts.length === 0 && <SelectItem value="__no_match__" disabled>{t("noFontMatch")}</SelectItem>}
                             </SelectContent>
                           </Select>
-                          {fontLoadError && <p className="text-xs text-amber-700">{fontLoadError}</p>}
+                          {fontLoadError && <p className="text-xs text-amber-700 dark:text-amber-400">{fontLoadError}</p>}
                         </div>
                         <CaptionSizeControl value={fontSize} onChange={setFontSize} disabled={controlsDisabled} />
                         <div className="space-y-2">
@@ -751,9 +757,9 @@ export default function HomeApp() {
           {isLoading && statusMessage && <p role="status" className="mt-3 text-center text-sm text-muted-foreground sm:hidden">{statusMessage}</p>}
 
           {error && (
-            <Alert className="mt-4 border-red-200 bg-red-50">
+            <Alert className="mt-4 border-red-200 bg-red-50 dark:border-red-900/60 dark:bg-red-950/40">
               <AlertCircle className="h-4 w-4 text-red-500" />
-              <AlertDescription className="text-sm text-red-700">{error}</AlertDescription>
+              <AlertDescription className="text-sm text-red-700 dark:text-red-300">{error}</AlertDescription>
             </Alert>
           )}
 

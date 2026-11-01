@@ -160,7 +160,7 @@ export default function ApiKeysPage() {
 
   if (isPending) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Skeleton className="h-32 w-full max-w-xl" />
       </div>
     );
@@ -168,9 +168,9 @@ export default function ApiKeysPage() {
 
   if (!session?.user) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-background">
         <div className="max-w-4xl mx-auto px-4 py-24 text-center">
-          <p className="text-gray-600 mb-4">{t("apiKeys.signIn")}</p>
+          <p className="text-muted-foreground mb-4">{t("apiKeys.signIn")}</p>
           <Link href="/sign-in">
             <Button>{t("apiKeys.signInAction")}</Button>
           </Link>
@@ -241,13 +241,13 @@ export default function ApiKeysPage() {
 
           {/* One-time key reveal */}
           {newKey && (
-            <Alert className="mb-6 border-green-200 bg-green-50">
+            <Alert className="mb-6 border-green-200 bg-green-50 dark:border-green-900/60 dark:bg-green-950/40">
               <AlertDescription>
-                <p className="font-medium text-green-900 mb-2">
+                <p className="font-medium text-green-900 mb-2 dark:text-green-100">
                   {t("apiKeys.reveal")}
                 </p>
                 <div className="flex items-center gap-2">
-                  <code ref={newKeyRef} tabIndex={-1} className="flex-1 select-text px-3 py-2 bg-white border rounded text-sm break-all">
+                  <code ref={newKeyRef} tabIndex={-1} className="flex-1 select-text px-3 py-2 bg-muted border rounded text-sm break-all">
                     {newKey}
                   </code>
                   <Button size="sm" variant="outline" onClick={handleCopy} aria-label={t("apiKeys.copy")}>
@@ -281,13 +281,13 @@ export default function ApiKeysPage() {
 
           {/* Key list */}
           <div>
-            <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-3">
+            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
               {t("apiKeys.yourKeys")}
             </h2>
             {isFetching ? (
               <Skeleton className="h-20 w-full" />
             ) : keys.length === 0 ? (
-              <p className="text-gray-500 text-sm">{t("apiKeys.empty")}</p>
+              <p className="text-muted-foreground text-sm">{t("apiKeys.empty")}</p>
             ) : (
               <div className="space-y-3">
                 {keys.map((key) => (
@@ -297,13 +297,13 @@ export default function ApiKeysPage() {
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-black truncate">{key.name}</span>
+                        <span className="font-medium text-foreground truncate">{key.name}</span>
                         {key.revoked && <Badge variant="secondary">{t("apiKeys.revoked")}</Badge>}
                       </div>
-                      <p className="text-xs text-gray-500 font-mono mt-1">
+                      <p className="text-xs text-muted-foreground font-mono mt-1">
                         {key.key_prefix}…
                       </p>
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         {t("apiKeys.meta", { created: formatDate(key.created_at), used: formatDate(key.last_used_at) })}
                       </p>
                     </div>
@@ -311,7 +311,7 @@ export default function ApiKeysPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/50 dark:hover:text-red-300"
                         onClick={() => handleRevoke(key.id)}
                       >
                         <Trash2 className="w-4 h-4" />

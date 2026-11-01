@@ -16,6 +16,7 @@ This guide covers the recommended Docker setup, local development mode, and the 
   - `OPENAI_API_KEY` with `LLM=openai:...`
   - `GOOGLE_API_KEY` with `LLM=google-gla:...`
   - `ANTHROPIC_API_KEY` with `LLM=anthropic:...`
+  - `OPENROUTER_API_KEY` with `LLM=openrouter:<vendor>/<model>`
   - `LLM=ollama:...` with an available Ollama server, optionally `OLLAMA_BASE_URL`
 
 ### Optional credentials

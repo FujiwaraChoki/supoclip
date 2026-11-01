@@ -11,7 +11,8 @@
     "deleteFont": "Schrift konnte nicht gelöscht werden",
     "exportClip": "Clip konnte nicht exportiert werden",
     "share": "Freigabelink konnte nicht erstellt werden",
-    "disableShare": "Freigabelink konnte nicht deaktiviert werden"
+    "disableShare": "Freigabelink konnte nicht deaktiviert werden",
+    "downloadAll": "Die Clips konnten nicht heruntergeladen werden. Bitte versuche es erneut."
   },
   "toasts": {
     "settingsApplied": "Generierungseinstellungen übernommen",
@@ -63,6 +64,9 @@
   },
   "downloadAs": "Herunterladen als",
   "downloadFormat": "Download-Format",
+  "downloadAll": "Alle herunterladen",
+  "downloadAllHint": "Alle Clips als ZIP mit den Originaldateien herunterladen",
+  "preparingDownload": "Wird vorbereitet…",
   "original": "Original",
   "settingsTitle": "Generierungseinstellungen",
   "settingsBody": "Stell Schrift, Untertitel und Bereinigung für die Clips dieser Generierung ein.",

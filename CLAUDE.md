@@ -159,6 +159,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 - `POST /tasks/{id}/clips/merge` — Merge selected clips
 - `PATCH /tasks/{id}/clips/{clip_id}/captions` — Update captions
 - `GET /tasks/{id}/clips/{clip_id}/export?preset=tiktok` — Export with platform preset
+- `GET /tasks/{id}/clips/zip` — Stream every existing clip as one ZIP, built on the fly (`clip_archive.py`); `GET .../clips/zip/preflight` runs the same checks first. One ZIP download per user at a time (Redis slot, 429)
 
 **Media:**
 - `GET /fonts`, `GET /transitions`, `GET /caption-templates`, `GET /broll/status`
@@ -205,7 +206,9 @@ RevenueCat `...scale.monthly/annual` product IDs); only the display name changed
   email/name; `PATCH /api/admin/users/{id}/legacy-hd`).
   720p plans also *download* YouTube at 720p (`reduced_media_limits` → Apify quality /
   yt-dlp height cap), and their `processing_cache` key gets a `|q720` suffix so a 1080p
-  request never reuses a 720p source. Full-quality keys are unchanged.
+  request never reuses a 720p source. Full-quality keys are unchanged. The durable
+  `youtube-cache/<video_id>` full file records its height (`full_height`, one file per
+  height) and is reused only at or above the requested cap; sections always use the global cap.
 - **Scheduling** social posts requires Creator (`can_schedule_posts`); publishing
   immediately works on Pro.
 - **Annual** checkout: `interval: "year"` uses `STRIPE_PRO_/SCALE_ANNUAL_PRICE_ID`.

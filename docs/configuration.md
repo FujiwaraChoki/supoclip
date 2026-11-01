@@ -62,6 +62,7 @@ In most cases, edit `.env` and then rebuild or restart the stack.
 | `OPENAI_API_KEY` | If using OpenAI | Required for `openai:*` models |
 | `GOOGLE_API_KEY` | If using Google | Required for `google-gla:*` models |
 | `ANTHROPIC_API_KEY` | If using Anthropic | Required for `anthropic:*` models |
+| `OPENROUTER_API_KEY` | If using OpenRouter | Required for `openrouter:*` models (see [OpenRouter analysis](openrouter-analysis.md)) |
 | `OLLAMA_BASE_URL` | If using Ollama remotely | Base URL for Ollama-compatible endpoints |
 | `OLLAMA_API_KEY` | Optional | Used for hosted Ollama providers such as Ollama Cloud |
 

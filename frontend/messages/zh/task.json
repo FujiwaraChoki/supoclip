@@ -11,7 +11,8 @@
     "deleteFont": "无法删除字体",
     "exportClip": "无法导出片段",
     "share": "无法创建分享链接",
-    "disableShare": "无法停用分享链接"
+    "disableShare": "无法停用分享链接",
+    "downloadAll": "无法下载片段，请重试。"
   },
   "toasts": {
     "settingsApplied": "已应用生成设置",
@@ -63,6 +64,9 @@
   },
   "downloadAs": "下载为",
   "downloadFormat": "下载格式",
+  "downloadAll": "全部下载",
+  "downloadAllHint": "将所有片段的原始文件打包为 ZIP 下载",
+  "preparingDownload": "正在准备…",
   "original": "原始",
   "settingsTitle": "生成设置",
   "settingsBody": "为这次生成的片段设置字体、字幕和清理选项。",

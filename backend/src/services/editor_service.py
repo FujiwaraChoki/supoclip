@@ -48,6 +48,32 @@ async def cap_export_for_plan(task_id: str, path: Path) -> None:
         )
 
 
+PREPARE_FAILED = "Could not prepare the source video. Check that the source is available, then retry."
+
+
+class EditorPrepareError(Exception):
+    """A preparation failure whose message is safe to show in the studio."""
+
+
+def youtube_download_failure(errors: list[str]) -> str:
+    """Explain why the YouTube source could not be fetched again.
+
+    The editor only downloads when no cached copy covers the clip, so the
+    message says that too. Provider details stay in the worker log.
+    """
+    text = " ".join(errors).lower()
+    lead = "No saved copy of this YouTube video is left on the server, and downloading it again failed"
+    if "confirm your age" in text or "age-restricted" in text:
+        return f"{lead}: YouTube requires sign-in because the video is age-restricted."
+    if "not a bot" in text:
+        return f"{lead}: YouTube asked this server to sign in to confirm it is not a bot. Retry later."
+    if "private video" in text or "video unavailable" in text or "has been removed" in text:
+        return f"{lead}: YouTube reports the video is private or no longer available."
+    if "http error 429" in text or "too many requests" in text:
+        return f"{lead}: YouTube is rate limiting this server. Retry later."
+    return f"{lead}. Retry later."
+
+
 def read_state(directory: Path):
     path = directory / "asset.json"
     if not path.exists():
@@ -466,7 +492,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                 or clip["task_id"] != task_id
                 or clip["filename"] != filename
             ):
-                raise ValueError("The original clip changed. Reopen the editor.")
+                raise EditorPrepareError("The original clip changed. Reopen the editor.")
             ranges = await run_in_thread(service._get_clip_source_ranges, clip)
             source_url, source_type = task.get("source_url"), task.get("source_type")
             mode = task.get("processing_mode") or service.config.default_processing_mode
@@ -487,10 +513,30 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             await db.close()
             if not source or not source.exists():
                 if source_type == "youtube":
-                    downloaded = await service.video_service.download_video(
-                        source_url, task_id=task_id, ranges=ranges, quality=download_quality
-                    )
-                    source = Path(downloaded) if downloaded else None
+                    from ..youtube_proxy import DownloadBudgetExceeded
+
+                    # Reuses the YouTube source cache when it still covers the clip.
+                    download_errors: list[str] = []
+                    try:
+                        downloaded = await service.video_service.download_video(
+                            source_url,
+                            task_id=task_id,
+                            ranges=ranges,
+                            quality=download_quality,
+                            errors=download_errors,
+                        )
+                    except DownloadBudgetExceeded as exc:
+                        raise EditorPrepareError(
+                            "The source video is larger than the download limit, so it cannot be prepared for editing."
+                        ) from exc
+                    if not downloaded:
+                        logging.getLogger(__name__).warning(
+                            "Editor source download failed for task %s: %s",
+                            task_id,
+                            "; ".join(download_errors) or "no reason reported",
+                        )
+                        raise EditorPrepareError(youtube_download_failure(download_errors))
+                    source = Path(downloaded)
                     downloaded_source = source
                 elif source_type in {"twitch", "kick"}:
                     source = await run_in_thread(
@@ -504,7 +550,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
 
                     source = await resolve_upload_for_edit(service.video_service, source_url)
             if not source or not source.exists():
-                raise ValueError(
+                raise EditorPrepareError(
                     "The original source is unavailable. Restore the source file to edit this clip."
                 )
             source = await service.video_service.prepare_source(source)
@@ -600,15 +646,13 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                     )
                     atomic_json(directory / "original.json", initial)
                 atomic_json(directory / "asset.json", metadata)
-    except Exception:
-        import logging
-
+    except Exception as exc:
         logging.getLogger(__name__).exception("Editor preparation failed")
         atomic_json(
             directory / "asset.json",
             {
                 "status": "failed",
-                "error": "Could not prepare the source video. Check that the source is available, then retry.",
+                "error": str(exc) if isinstance(exc, EditorPrepareError) else PREPARE_FAILED,
             },
         )
     finally:

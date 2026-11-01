@@ -148,7 +148,7 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
               />
               <p className="mt-1 text-xs text-muted-foreground">{setting.description}</p>
               {setting.overridden_by_env && (
-                <p className="mt-1 text-xs text-amber-700">
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
                   {t("runtime.envOverride")}
                 </p>
               )}
@@ -194,8 +194,8 @@ export function RuntimeSettingsForm({ settings }: RuntimeSettingsFormProps) {
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-4">
         <div className="text-sm">
-          {error && <p className="text-red-700">{error}</p>}
-          {message && <p className="text-green-700">{message}</p>}
+          {error && <p className="text-red-700 dark:text-red-400">{error}</p>}
+          {message && <p className="text-green-700 dark:text-green-400">{message}</p>}
         </div>
         <button
           type="submit"

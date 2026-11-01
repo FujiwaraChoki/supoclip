@@ -104,6 +104,7 @@ docker-compose up -d --build
 | `BETTER_AUTH_SECRET` | dev secret | Auth secret (change in production!) |
 | `GOOGLE_API_KEY` | - | For Google Gemini models |
 | `ANTHROPIC_API_KEY` | - | For Claude models |
+| `OPENROUTER_API_KEY` | - | For `openrouter:*` models |
 | `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | For local/self-hosted Ollama endpoint |
 | `OLLAMA_API_KEY` | - | Optional, required for Ollama Cloud |
 | `AWS_REGION` | `us-east-1` | Optional in self-host mode, required for hosted billing emails |

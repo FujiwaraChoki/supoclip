@@ -10,6 +10,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { FeedbackButton } from "@/components/feedback-button";
 import { PostHogIdentity } from "@/components/posthog-identity";
+import { ThemeProvider } from "@/components/theme-provider";
 import { intlLocale } from "@/i18n/config";
 import { APP_STORE_ID, COMPANY_NAME, getSiteUrl } from "@/lib/site";
 
@@ -91,7 +92,7 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={intlLocale(locale)}>
+    <html lang={intlLocale(locale)} suppressHydrationWarning>
       <head>
         {isDataFastEnabled ? (
           <>
@@ -131,16 +132,18 @@ export default async function RootLayout({
         ) : null}
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${syne.variable} antialiased`}>
-        <NextIntlClientProvider locale={locale} messages={messages}>
-          <TooltipProvider>
-            {children}
-            <DataFastIdentity />
-            <PostHogIdentity />
-            <AttributionTracker />
-            <FeedbackButton />
-            <Toaster />
-          </TooltipProvider>
-        </NextIntlClientProvider>
+        <ThemeProvider>
+          <NextIntlClientProvider locale={locale} messages={messages}>
+            <TooltipProvider>
+              {children}
+              <DataFastIdentity />
+              <PostHogIdentity />
+              <AttributionTracker />
+              <FeedbackButton />
+              <Toaster />
+            </TooltipProvider>
+          </NextIntlClientProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

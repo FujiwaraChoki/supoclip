@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-10-31
 
+- **New:** Download all of a generation's clips at once as a ZIP from the task page. The download starts right away and streams the original files. ([#321](https://github.com/FujiwaraChoki/supoclip/pull/321))
 - **Improved:** Virality scores now follow a strict rubric: the hook in the first 3 seconds, whether the clip stands alone, emotional pull, pacing and rewatch value, with points taken off for greetings, unclear openings and trailing endings. Each clip shows the breakdown, its opening line, why it works, and one edit that would make it stronger. ([#323](https://github.com/FujiwaraChoki/supoclip/pull/323))
 - **New:** "Rescue & package" on each clip suggests trims and jump cuts, three on-screen hooks, three titles, an SEO description, hashtags, and a pinned comment, and labels the clip ready, worth rescuing, or rejected. ([#323](https://github.com/FujiwaraChoki/supoclip/pull/323))
 - **New:** "Apply in studio" turns the suggested trims into an edit in the clip studio in one step, which you can undo or adjust before exporting. ([#323](https://github.com/FujiwaraChoki/supoclip/pull/323))
@@ -23,6 +24,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 - **New:** Add optional instructions for the AI, such as "focus on the funny moments", when you start a new video. ([#315](https://github.com/FujiwaraChoki/supoclip/pull/315))
 - **Improved:** Self-hosted servers can process long videos: set `WORKER_JOB_TIMEOUT_SECONDS` and `PROCESSING_TASK_TIMEOUT_SECONDS` alongside `MAX_VIDEO_DURATION` so multi-hour jobs are not cut off. ([#315](https://github.com/FujiwaraChoki/supoclip/pull/315))
 - **Improved:** The footer, terms, and privacy policy now identify the company operating SupoClip. ([#314](https://github.com/FujiwaraChoki/supoclip/pull/314))
+- **New:** Switch between a light and dark theme from the sidebar (or the header on mobile). The app starts light and remembers your choice; the website and sign-in pages stay light. ([#312](https://github.com/FujiwaraChoki/supoclip/pull/312))
 
 ## 2026-10-29
 

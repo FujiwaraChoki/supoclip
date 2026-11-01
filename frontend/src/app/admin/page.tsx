@@ -458,7 +458,7 @@ export default async function AdminPage({
 
       <Panel title={t("runtime.title")} description={t("runtime.description")}>
         {runtimeSettings.error ? (
-          <div className="px-5 py-5 text-sm text-red-700">{runtimeSettings.error}</div>
+          <div className="px-5 py-5 text-sm text-red-700 dark:text-red-400">{runtimeSettings.error}</div>
         ) : (
           <RuntimeSettingsForm settings={runtimeSettings.settings} />
         )}

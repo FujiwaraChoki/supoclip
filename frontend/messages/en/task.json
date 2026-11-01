@@ -11,7 +11,8 @@
     "deleteFont": "Failed to delete font",
     "exportClip": "Failed to export clip",
     "share": "Failed to create share link",
-    "disableShare": "Failed to disable share link"
+    "disableShare": "Failed to disable share link",
+    "downloadAll": "Could not download the clips. Please try again."
   },
   "toasts": {
     "settingsApplied": "Generation settings applied",
@@ -63,6 +64,9 @@
   },
   "downloadAs": "Download as",
   "downloadFormat": "Download format",
+  "downloadAll": "Download all",
+  "downloadAllHint": "Download every clip as a ZIP of the original files",
+  "preparingDownload": "Preparing…",
   "original": "Original",
   "settingsTitle": "Generation settings",
   "settingsBody": "Configure font, caption, and cleanup settings for this generation's clips.",

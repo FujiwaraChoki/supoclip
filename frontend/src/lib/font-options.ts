@@ -17,6 +17,40 @@ export const FONT_SIZE_OPTIONS: Array<{ label: string; value: number | null }> =
   { label: "Large", value: 40 },
 ];
 
+// Column defaults every user row starts with (see the users table). A saved
+// default equal to one of these was never changed in Settings, so it keeps
+// deferring to the caption template.
+const STOCK_FONT_DEFAULTS = { fontFamily: "TikTokSans-Regular", fontSize: 24, fontColor: "#FFFFFF" };
+
+/**
+ * Turns the caption defaults saved in Settings (GET /api/preferences) into
+ * create-form state. Fields the user customized become explicit overrides;
+ * untouched or invalid fields stay null so the caption template decides.
+ */
+export function savedCaptionDefaults(preferences: {
+  fontFamily?: unknown;
+  fontSize?: unknown;
+  fontColor?: unknown;
+} | null | undefined): { fontFamily: string | null; fontSize: number | null; fontColor: string | null } {
+  const { fontFamily, fontSize, fontColor } = preferences ?? {};
+  return {
+    fontFamily:
+      typeof fontFamily === "string" && fontFamily.trim() && fontFamily !== STOCK_FONT_DEFAULTS.fontFamily
+        ? fontFamily
+        : null,
+    fontSize:
+      typeof fontSize === "number" && Number.isInteger(fontSize) && fontSize >= 12 && fontSize <= 48
+        && fontSize !== STOCK_FONT_DEFAULTS.fontSize
+        ? fontSize
+        : null,
+    fontColor:
+      typeof fontColor === "string" && /^#[0-9A-Fa-f]{6}$/.test(fontColor)
+        && fontColor.toUpperCase() !== STOCK_FONT_DEFAULTS.fontColor
+        ? fontColor
+        : null,
+  };
+}
+
 /**
  * Builds the font_options payload sent to /api/tasks/create. Each field is
  * null unless the user explicitly customized it in "Customize captions" —

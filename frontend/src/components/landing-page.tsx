@@ -194,7 +194,7 @@ export default function LandingPage() {
           )}
         >
           <Link href="/" className="flex items-center gap-2">
-            <Image src="/logo.png" alt="SupoClip" width={24} height={24} className="rounded-md" />
+            <Image src="/logo.png" alt="SupoClip" width={24} height={24} className="rounded-md dark:invert" />
             <span className="font-display text-[17px] font-bold tracking-tight">SupoClip</span>
           </Link>
 

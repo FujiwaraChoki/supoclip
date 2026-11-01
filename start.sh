@@ -25,7 +25,7 @@ if [ ! -f .env ]; then
     echo "  2. Or use the provided .env file"
     echo "  3. Edit .env and add your API keys:"
     echo "     - ASSEMBLY_AI_API_KEY (required)"
-    echo "     - OPENAI_API_KEY or GOOGLE_API_KEY or ANTHROPIC_API_KEY"
+    echo "     - OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY, or OPENROUTER_API_KEY"
     echo "     - OR set LLM=ollama:<model> (optional: OLLAMA_BASE_URL, OLLAMA_API_KEY)"
     echo ""
     exit 1
@@ -39,11 +39,11 @@ FRONTEND_LOCAL_URL="http://localhost:${FRONTEND_PORT:-3001}"
 
 if [ -n "${LLM:-}" ]; then
     case "$LLM" in
-        google:*|google-gla:*|openai:*|anthropic:*|ollama:*)
+        google:*|google-gla:*|openai:*|openrouter:*|anthropic:*|ollama:*)
             ;;
         *)
             echo -e "${YELLOW}Warning: Unsupported LLM value '$LLM'${NC}"
-            echo "Use google-gla:*, openai:*, anthropic:*, or ollama:*"
+            echo "Use google-gla:*, openai:*, openrouter:*, anthropic:*, or ollama:*"
             echo ""
             ;;
     esac
@@ -64,12 +64,15 @@ elif [[ "${LLM:-}" == ollama:* ]] && [ -z "${OLLAMA_BASE_URL:-}" ]; then
     echo ""
 fi
 
-if [ -z "$OPENAI_API_KEY" ] && [ -z "$GOOGLE_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+if [ -z "${OPENAI_API_KEY:-}" ] && \
+   [ -z "${GOOGLE_API_KEY:-}" ] && \
+   [ -z "${ANTHROPIC_API_KEY:-}" ] && \
+   [ -z "${OPENROUTER_API_KEY:-}" ]; then
     if [[ "${LLM:-}" == ollama:* ]]; then
         :
     else
     echo -e "${YELLOW}Warning: No AI provider API key is set in .env${NC}"
-    echo "You need at least one of: OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY, or LLM=ollama:<model>"
+    echo "You need at least one of: OPENAI_API_KEY, GOOGLE_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, or LLM=ollama:<model>"
     echo ""
     fi
 fi

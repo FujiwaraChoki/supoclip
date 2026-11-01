@@ -155,3 +155,49 @@ async def test_caption_edit_removes_only_its_download(
     assert not source.exists()
     assert not source.parent.exists()
     assert clip_path.exists()
+
+
+async def test_editor_preparation_reports_why_the_youtube_download_failed(tmp_path, monkeypatch):
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    monkeypatch.setattr("src.config.get_config", lambda: config)
+    clip = {"id": "clip", "task_id": "task", "filename": "clip.mp4", "file_path": str(tmp_path / "clip.mp4"), "text": ""}
+    task = {"source_url": SOURCE_URL, "source_type": "youtube", "processing_mode": "fast"}
+
+    async def download_video(*_args, errors=None, **_kwargs):
+        errors.append("ERROR: [youtube] abcdefghijk: Sign in to confirm you’re not a bot. Use --cookies-from-browser")
+        return None
+
+    service = SimpleNamespace(
+        clip_repo=SimpleNamespace(get_clip_by_id=AsyncMock(return_value=clip)),
+        task_repo=SimpleNamespace(get_task_by_id=AsyncMock(return_value=task)),
+        cache_repo=SimpleNamespace(get_cache=AsyncMock(return_value=None)),
+        video_service=SimpleNamespace(download_video=download_video),
+        config=SimpleNamespace(default_processing_mode="fast"),
+        _build_cache_key=lambda *_: "cache-key",
+        _media_limits=AsyncMock(return_value=(None, None)),
+        _get_clip_source_ranges=lambda _: [(0.0, 1.0)],
+        _load_task_source_settings=AsyncMock(return_value={}),
+    )
+
+    @asynccontextmanager
+    async def sessions():
+        yield SimpleNamespace(close=AsyncMock())
+
+    monkeypatch.setattr("src.database.AsyncSessionLocal", sessions)
+    monkeypatch.setattr("src.services.task_service.TaskService", lambda _: service)
+
+    await editor_service.prepare_editor({}, "task", "clip", "clip.mp4")
+
+    state = editor_service.read_state(editor_dir(str(tmp_path), "task", "clip", "clip.mp4"))
+    assert state["status"] == "failed"
+    assert "not a bot" in state["error"]
+    assert "--cookies" not in state["error"]
+
+
+def test_youtube_download_failure_messages():
+    message = editor_service.youtube_download_failure
+    assert "age-restricted" in message(["Sign in to confirm your age"])
+    assert "private or no longer available" in message(["ERROR: Private video"])
+    assert "rate limiting" in message(["HTTP Error 429: Too Many Requests"])
+    assert message([]).endswith("Retry later.")

@@ -11,7 +11,8 @@
     "deleteFont": "No se pudo eliminar la fuente",
     "exportClip": "No se pudo exportar el clip",
     "share": "No se pudo crear el enlace para compartir",
-    "disableShare": "No se pudo desactivar el enlace para compartir"
+    "disableShare": "No se pudo desactivar el enlace para compartir",
+    "downloadAll": "No se pudieron descargar los clips. Inténtalo de nuevo."
   },
   "toasts": {
     "settingsApplied": "Configuración de la generación aplicada",
@@ -63,6 +64,9 @@
   },
   "downloadAs": "Descargar como",
   "downloadFormat": "Formato de descarga",
+  "downloadAll": "Descargar todo",
+  "downloadAllHint": "Descarga todos los clips en un ZIP con los archivos originales",
+  "preparingDownload": "Preparando…",
   "original": "Original",
   "settingsTitle": "Configuración de la generación",
   "settingsBody": "Configura la fuente, los subtítulos y la limpieza de los clips de esta generación.",

@@ -43,9 +43,9 @@ export function TranscriptPreview({ text, clipTitle }: TranscriptPreviewProps) {
 
   return (
     <div className="mb-4">
-      <h4 className="mb-2 font-medium text-black">{t("transcript.heading")}</h4>
-      <div className="rounded-lg bg-gray-50 p-3">
-        <p ref={previewRef} className="line-clamp-4 text-sm leading-6 text-gray-700">
+      <h4 className="mb-2 font-medium text-foreground">{t("transcript.heading")}</h4>
+      <div className="rounded-lg bg-muted p-3">
+        <p ref={previewRef} className="line-clamp-4 text-sm leading-6 text-foreground/80">
           {text}
         </p>
 
@@ -54,7 +54,7 @@ export function TranscriptPreview({ text, clipTitle }: TranscriptPreviewProps) {
             <DialogTrigger asChild>
               <button
                 type="button"
-                className="mt-2 rounded-sm text-sm font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 transition-colors hover:decoration-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2"
+                className="mt-2 rounded-sm text-sm font-medium text-foreground underline decoration-muted-foreground underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 {t("transcript.seeMore")}
               </button>
@@ -66,7 +66,7 @@ export function TranscriptPreview({ text, clipTitle }: TranscriptPreviewProps) {
                   {clipTitle ? t("transcript.forTitle", { title: clipTitle }) : t("transcript.complete")}
                 </DialogDescription>
               </DialogHeader>
-              <div className="max-h-[60vh] overflow-y-auto rounded-lg bg-gray-50 p-4 text-sm leading-6 text-gray-700 whitespace-pre-wrap">
+              <div className="max-h-[60vh] overflow-y-auto rounded-lg bg-muted p-4 text-sm leading-6 text-foreground/80 whitespace-pre-wrap">
                 {text}
               </div>
             </DialogContent>

@@ -142,7 +142,7 @@ function Sidebar({ active }: { active: "create" | "library" }) {
   return (
     <aside className="flex h-full w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-3">
       <div className="flex h-14 items-center gap-2 px-2 font-display text-lg font-bold tracking-tight">
-        <Image src="/logo.png" alt="" width={24} height={24} className="size-6" />
+        <Image src="/logo.png" alt="" width={24} height={24} className="size-6 dark:invert" />
         SupoClip
       </div>
       <div className="mb-4 mt-1 flex h-9 w-full items-center gap-2.5 rounded-lg bg-foreground px-2.5 text-sm font-medium text-background">

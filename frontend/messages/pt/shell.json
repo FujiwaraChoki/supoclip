@@ -43,6 +43,9 @@
     "signingOut": "Saindo…",
     "signOutError": "Não foi possível sair. Tente de novo."
   },
+  "theme": {
+    "toggle": "Alternar tema claro/escuro"
+  },
   "announcements": {
     "whatsNew": "Novidades",
     "whatsNewUnread": "Novidades, {count, plural, one {# anúncio não lido} other {# anúncios não lidos}}",

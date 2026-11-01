@@ -18,6 +18,8 @@ import { getUpgradeState } from "@/components/billing/upgrade-prompt";
 import { fetchGenerations, timeAgo, type GenerationSummary } from "@/lib/generations";
 import { StatusBadge } from "@/components/app/status-badge";
 import { Announcements } from "@/components/announcements";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { useAppTheme } from "@/components/theme-provider";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Kbd } from "@/components/ui/kbd";
@@ -75,6 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Children must keep the same tree position whether or not the session has
   // loaded — otherwise the page remounts and re-runs its initial fetches.
   const user = session?.user;
+  useAppTheme(Boolean(user));
   const admin = Boolean((user as { is_admin?: boolean } | undefined)?.is_admin);
   const socialAccess = useSocialAccess(Boolean(user));
   const labeled = NAV.map((item) => ({ ...item, label: t(`nav.${item.labelKey}`) }));
@@ -92,7 +95,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
       >
         <Link href="/" className={cn("flex h-14 items-center gap-2 font-display text-lg font-bold tracking-tight", compact ? "justify-center" : "px-2")}>
-          <Image src="/logo.png" alt="" width={24} height={24} className="size-6" priority />
+          <Image src="/logo.png" alt="" width={24} height={24} className="size-6 dark:invert" priority />
           {!compact && "SupoClip"}
         </Link>
 
@@ -134,10 +137,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className={cn(user && "flex min-w-0 flex-1 flex-col", user && !immersive && "pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0")}>
         {user && !immersive ? <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b bg-background/80 px-4 backdrop-blur md:hidden">
           <Link href="/" className="flex items-center gap-2 font-display text-lg font-bold tracking-tight">
-            <Image src="/logo.png" alt="" width={22} height={22} className="size-[22px]" />SupoClip
+            <Image src="/logo.png" alt="" width={22} height={22} className="size-[22px] dark:invert" />SupoClip
           </Link>
           <div className="flex items-center gap-1">
             <Announcements key={user.id} userId={user.id} compact />
+            <ThemeToggle tooltipSide="bottom" className="rounded-lg p-2 hover:bg-accent [&_svg]:size-5" />
             <button type="button" onClick={() => setPaletteOpen(true)} aria-label={t("search.generations")} className="rounded-lg p-2 text-muted-foreground hover:bg-accent">
               <Search className="size-5" />
             </button>
@@ -243,6 +247,7 @@ function UserRow({ compact, name, email }: { compact: boolean; name?: string | n
           <p className="truncate text-xs text-muted-foreground">{email}</p>
         </div>
       )}
+      <ThemeToggle tooltipSide={compact ? "right" : "top"} />
       <Tooltip>
         <TooltipTrigger asChild>
           <button type="button" onClick={() => void handleSignOut()} disabled={signingOut} aria-label={t("user.signOut")}

@@ -96,7 +96,7 @@ export async function ArticleShell({
       <header className="border-b">
         <nav aria-label={t("shell.blogNav")} className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-5">
           <Link href="/" className="flex items-center gap-2.5 text-xl font-bold">
-            <Image src="/logo.png" alt="" width={30} height={30} className="rounded-lg" />SupoClip
+            <Image src="/logo.png" alt="" width={30} height={30} className="rounded-lg dark:invert" />SupoClip
           </Link>
           <div className="flex items-center gap-5 text-sm">
             <Link href="/blog" className="underline underline-offset-4">{t("shell.allArticles")}</Link>
