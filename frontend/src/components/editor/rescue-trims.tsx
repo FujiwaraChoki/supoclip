@@ -8,7 +8,6 @@ import { applyKeepRanges, rescueKeepRanges, type SurgicalEdits } from "@/lib/edi
 
 interface Props {
   pkg?: { clip_status: string; surgical_edits: SurgicalEdits } | null;
-  doc: EditDocument;
   original: EditDocument;
   update: (change: (doc: EditDocument) => EditDocument, group?: string) => void;
   /** Apply once on mount (the ?apply=rescue deep link). */
@@ -17,7 +16,7 @@ interface Props {
 }
 
 /** Applies a clip's stored Rescue & package trims as one undoable change. Cold-open tease is never applied. */
-export function RescueTrims({ pkg, doc, original, update, autoApply, onAutoApplied }: Props) {
+export function RescueTrims({ pkg, original, update, autoApply, onAutoApplied }: Props) {
   const t = useTranslations("editor");
   const edits = pkg?.surgical_edits;
   const ranges = useMemo(() => rescueKeepRanges(pkg, editDuration(original)), [pkg, original]);

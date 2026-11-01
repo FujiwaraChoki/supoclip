@@ -16,7 +16,7 @@ const pkg = {
 const setup = (extra = {}) => {
   let current: EditDocument = original;
   const update = vi.fn((change: (d: EditDocument) => EditDocument) => { current = change(current); });
-  const view = render(<RescueTrims pkg={pkg} doc={original} original={original} update={update} {...extra} />);
+  const view = render(<RescueTrims pkg={pkg} original={original} update={update} {...extra} />);
   return { update, current: () => current, ...view };
 };
 
@@ -33,15 +33,15 @@ it("auto-applies once under StrictMode and clears the flag", () => {
   const update = vi.fn();
   const done = vi.fn();
   const { rerender } = render(
-    <StrictMode><RescueTrims pkg={pkg} doc={original} original={original} update={update} autoApply onAutoApplied={done} /></StrictMode>,
+    <StrictMode><RescueTrims pkg={pkg} original={original} update={update} autoApply onAutoApplied={done} /></StrictMode>,
   );
-  rerender(<StrictMode><RescueTrims pkg={pkg} doc={original} original={original} update={update} autoApply onAutoApplied={done} /></StrictMode>);
+  rerender(<StrictMode><RescueTrims pkg={pkg} original={original} update={update} autoApply onAutoApplied={done} /></StrictMode>);
   expect(update).toHaveBeenCalledTimes(1);
   expect(done).toHaveBeenCalledTimes(1);
 });
 
 it("renders nothing for a rejected package without edits", () => {
   const rejected = { clip_status: "REJECTED", surgical_edits: { new_start: "0:00", new_end: "0:30", internal_cuts: [], total_seconds_shaved: 0 } };
-  const { container } = render(<RescueTrims pkg={rejected} doc={original} original={original} update={vi.fn()} />);
+  const { container } = render(<RescueTrims pkg={rejected} original={original} update={vi.fn()} />);
   expect(container).toBeEmptyDOMElement();
 });

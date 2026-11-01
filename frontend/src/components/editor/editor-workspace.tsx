@@ -572,7 +572,6 @@ export function EditorWorkspace({
                   <>
                     <RescueTrims
                       pkg={clip.package}
-                      doc={doc}
                       original={asset.original}
                       update={editor.update}
                       autoApply={autoApply}
