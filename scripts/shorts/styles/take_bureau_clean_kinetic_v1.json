@@ -1,0 +1,70 @@
+{
+  "name": "TAKE_BUREAU_CLEAN_KINETIC_V1",
+  "frame": {"width": 1080, "height": 1920},
+  "fontsdir": "/app/fonts",
+  "caption": {
+    "font": "Anton",
+    "font_file": "Anton-Regular.ttf",
+    "size_max": 150,
+    "size_min": 96,
+    "max_words": 3,
+    "max_chars": 18,
+    "max_lines": 2,
+    "line_spacing": 1.0,
+    "letter_spacing": 1,
+    "base_color": "#FFFFFF",
+    "outline_px": 5,
+    "outline_color": "#000000",
+    "outline_alpha": 0.62,
+    "shadow_px": 2,
+    "blur": 2,
+    "hold_max_s": 0.6,
+    "pop_from_pct": 105,
+    "pop_ms": 70
+  },
+  "highlight": {
+    "default": "yellow",
+    "max_runs_per_chunk": 1,
+    "colors": {
+      "yellow": "#FFE600",
+      "green": "#3DFF5A",
+      "cyan": "#2EE6FF",
+      "pink": "#FF3DD8",
+      "red": "#FF3030"
+    }
+  },
+  "layout": {
+    "target_y": 0.57,
+    "face_gap_px": 36,
+    "safe_top": 0.10,
+    "safe_bottom": 0.73,
+    "safe_left": 0.06,
+    "safe_right": 0.14,
+    "shrink_step_px": 6,
+    "face_model": "/app/src/media/models/face_detection_yunet_2023mar.onnx",
+    "face_score": 0.6,
+    "face_samples": [0.2, 0.5, 0.8],
+    "pushin_pad": 1.05
+  },
+  "attribution": {
+    "text": "YOUTUBE.COM/@THEGAPKING",
+    "font": "Barlow Condensed",
+    "font_file": "BarlowCondensed-Bold.ttf",
+    "bold": true,
+    "size": 44,
+    "letter_spacing": 3,
+    "color": "#FFFFFF",
+    "alpha": 0.78,
+    "outline_px": 2,
+    "y": 0.085,
+    "gap_px": 18
+  },
+  "camera": {
+    "jump_cut_punch": 1.12,
+    "pushin_per_s": 0.012,
+    "pushin_max": 0.05,
+    "target_shot_s": [1.2, 3.5],
+    "max_source_upscale": 1.6
+  },
+  "audio": {"lufs": -14, "true_peak": -1.5}
+}
