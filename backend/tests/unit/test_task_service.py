@@ -76,11 +76,14 @@ def build_task_service() -> TaskService:
     service.task_repo.get_task_by_id = AsyncMock(return_value={"status": "queued"})
     service.cache_repo.get_cache = AsyncMock(return_value=None)
     service.cache_repo.upsert_cache = AsyncMock()
+    service.checkpoint_repo.get = AsyncMock(return_value={})
+    service.checkpoint_repo.save = AsyncMock()
     service.task_repo.update_task_runtime_metadata = AsyncMock()
     service.task_repo.update_task_status = AsyncMock()
     service.task_repo.update_task_clips = AsyncMock()
     service.task_repo.get_task_notification_context = AsyncMock(return_value=None)
     service.clip_repo.delete_clips_by_task = AsyncMock(return_value=0)
+    service.clip_repo.get_clips_by_task = AsyncMock(return_value=[])
     service.clip_repo.create_clip = AsyncMock(return_value="clip-1")
     service.video_service.create_single_clip = AsyncMock(return_value=build_clip_result())
     service.video_service.apply_single_transition = AsyncMock(
@@ -411,8 +414,9 @@ async def test_process_task_keeps_generated_clips_standalone():
 
 
 @pytest.mark.asyncio
-async def test_process_task_clears_existing_clips_before_rendering():
+async def test_process_task_preserves_existing_clips_on_retry():
     service = build_task_service()
+    service.clip_repo.get_clips_by_task.return_value = [{"id": "edited-clip", "clip_order": 1}]
     service.task_repo.get_task_notification_context = AsyncMock(
         return_value={
             "notify_on_completion": False,
@@ -430,9 +434,10 @@ async def test_process_task_clears_existing_clips_before_rendering():
         source_type="youtube",
     )
 
-    service.clip_repo.delete_clips_by_task.assert_awaited_once_with(service.db, "task-1")
+    service.clip_repo.delete_clips_by_task.assert_not_awaited()
+    service.video_service.create_single_clip.assert_not_awaited()
     assert any(
-        call.args == (service.db, "task-1", [])
+        call.args == (service.db, "task-1", ["edited-clip"])
         for call in service.task_repo.update_task_clips.await_args_list
     )
 
@@ -605,16 +610,13 @@ async def test_process_task_keeps_successful_output_when_one_render_fails(tmp_pa
         side_effect=[None, build_clip_result()]
     )
 
-    result = await service.process_task(
-        task_id="task-1", url="upload://source.mp4", source_type="video_url"
-    )
-
-    assert result["clips_count"] == 1
+    with pytest.raises(ValueError, match="Your completed clips are saved"):
+        await service.process_task(
+            task_id="task-1", url="upload://source.mp4", source_type="video_url"
+        )
     service.clip_repo.create_clip.assert_awaited_once()
-    service.task_repo.update_task_status.assert_any_await(
-        service.db, "task-1", "completed", progress=100,
-        progress_message="Complete!", expected_statuses=["processing"],
-    )
+    assert service.task_repo.update_task_status.await_args.args[2] == "error"
+    assert service.checkpoint_repo.save.await_args.args[-1] == {"completed_positions": [2]}
 
 
 @pytest.mark.asyncio

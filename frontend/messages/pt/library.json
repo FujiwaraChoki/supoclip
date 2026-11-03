@@ -62,13 +62,13 @@
     "action": "Cancelar",
     "tooltip": "Cancelar {count, plural, one {# geração ativa} other {# gerações ativas}}"
   },
-  "resume": {
-    "empty": "Não há gerações com falha ou canceladas na seleção para retomar.",
-    "fallback": "Falha ao retomar a geração",
-    "success": "{count, plural, one {# geração retomada.} other {# gerações retomadas.}}",
-    "partial": "{success} retomadas, {failed} falharam. {error}",
-    "action": "Retomar",
-    "tooltip": "Retomar {count, plural, one {# geração com falha ou cancelada} other {# gerações com falha ou canceladas}}"
+  "retry": {
+    "empty": "Nenhuma geração com falha ou cancelada selecionada para tentar novamente.",
+    "fallback": "Não foi possível colocar a nova tentativa na fila",
+    "success": "{count, plural, one {# geração na fila para nova tentativa.} other {# gerações na fila para nova tentativa.}}",
+    "partial": "{success} na fila para nova tentativa, {failed} com falha. {error}",
+    "action": "Tentar geração novamente",
+    "tooltip": "Tentar novamente {count, plural, one {# geração com falha/cancelada} other {# gerações com falha/canceladas}}"
   },
   "delete": {
     "empty": "Selecione pelo menos uma geração para excluir.",

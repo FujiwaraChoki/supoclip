@@ -295,35 +295,33 @@ export default function TaskPage() {
 
         }
 
-        // Fetch clips if task is completed or processing (incremental clips)
-        if (taskData.status !== "queued") {
-          const clipsResponse = await fetch(`${taskApiUrl}/${params.id}/clips`, {
-            cache: "no-store",
-          });
+        // Queued retries can already have completed clips, including after reload.
+        const clipsResponse = await fetch(`${taskApiUrl}/${params.id}/clips`, {
+          cache: "no-store",
+        });
 
-          if (!clipsResponse.ok) {
-            throw new Error(await buildSupportError(clipsResponse, t("errors.fetchClips", { status: clipsResponse.status })));
+        if (!clipsResponse.ok) {
+          throw new Error(await buildSupportError(clipsResponse, t("errors.fetchClips", { status: clipsResponse.status })));
+        }
+
+        const clipsData = await clipsResponse.json();
+        const nextClips = clipsData.clips || [];
+        setClips((prev) => {
+          if (taskData.status === "completed") {
+            return nextClips;
           }
 
-          const clipsData = await clipsResponse.json();
-          const nextClips = clipsData.clips || [];
-          setClips((prev) => {
-            if (taskData.status === "completed") {
-              return nextClips;
-            }
-
-            const merged = new Map<string, Clip>();
-            for (const clip of prev) {
-              merged.set(clip.id, clip);
-            }
-            for (const clip of nextClips) {
-              merged.set(clip.id, clip);
-            }
-            return Array.from(merged.values()).sort(
-              (a, b) => (a.clip_order ?? 0) - (b.clip_order ?? 0),
-            );
-          });
-        }
+          const merged = new Map<string, Clip>();
+          for (const clip of prev) {
+            merged.set(clip.id, clip);
+          }
+          for (const clip of nextClips) {
+            merged.set(clip.id, clip);
+          }
+          return Array.from(merged.values()).sort(
+            (a, b) => (a.clip_order ?? 0) - (b.clip_order ?? 0),
+          );
+        });
 
         setTask(taskData);
         return true;
@@ -766,7 +764,7 @@ export default function TaskPage() {
             )}
             {(task.status === "cancelled" || task.status === "error") && (
               <Button size="sm" disabled={pendingAction !== null}
-                onClick={() => void runAction("resume", async () => {
+                onClick={() => void runAction("retry", async () => {
                   try {
                     await requestAction(`${taskApiUrl}/${task.id}/resume`, "POST");
                   } catch (err) {
@@ -776,9 +774,9 @@ export default function TaskPage() {
                     return;
                   }
                   await fetchTaskStatus();
-                  toast.success(t("toasts.resumed"));
+                  toast.success(t("toasts.retryQueued"));
                 })}>
-                <RotateCcw className="size-4" />{t("resume")}
+                <RotateCcw className="size-4" />{t("retryGeneration")}
               </Button>
             )}
             {hasClips && (
@@ -837,7 +835,7 @@ export default function TaskPage() {
           <div className="flex min-h-[50vh] items-center justify-center"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
         ) : task.status === "cancelled" && clips.length === 0 ? (
           <EmptyState icon={<PauseCircle className="size-7" />} title={t("cancelledTitle")} body={t("cancelledBody")} />
-        ) : task.status === "error" ? (
+        ) : task.status === "error" && clips.length === 0 ? (
           <EmptyState tone="error" icon={<AlertCircle className="size-7" />} title={t("failedTitle")} body={t("failedBody")}>
             <Button asChild variant="outline"><Link href="/"><ArrowLeft className="size-4" />{t("backHome")}</Link></Button>
           </EmptyState>
@@ -847,6 +845,12 @@ export default function TaskPage() {
           </EmptyState>
         ) : (
           <>
+            {task.status === "error" && (
+              <div role="status" className="mb-6 rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+                <p className="font-medium">{t("failedTitle")}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{t("failedBody")}</p>
+              </div>
+            )}
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div className="inline-flex rounded-lg border bg-background p-0.5" role="tablist" aria-label={t("sortLabel")}>
                 {(["score", "timeline"] as const).map((value) => (

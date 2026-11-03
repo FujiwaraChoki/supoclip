@@ -17,7 +17,7 @@
   "toasts": {
     "settingsApplied": "已应用生成设置",
     "cancelled": "已取消生成",
-    "resumed": "已继续生成"
+    "retryQueued": "已将生成任务加入重试队列"
   },
   "hooks": {
     "question": "提问钩子",
@@ -36,7 +36,7 @@
   "clipsTotal": "{count, plural, one {# 个片段} other {# 个片段}} · 共 {duration}",
   "readOnly": "这是另一个账号生成内容的只读视图。",
   "cancel": "取消",
-  "resume": "继续",
+  "retryGeneration": "重试生成",
   "restyle": "重新设置样式",
   "creatingLink": "正在创建链接…",
   "linkCopied": "链接已复制",
@@ -50,9 +50,9 @@
   "reconnectingOwn": "正在重新连接实时更新。你的视频仍在处理。",
   "reconnectingOther": "正在重新连接实时更新。这次生成仍在处理。",
   "cancelledTitle": "生成已取消",
-  "cancelledBody": "准备好后可以继续这次生成。",
+  "cancelledBody": "准备好后可重试此生成任务。已完成的片段将保留。",
   "failedTitle": "处理失败",
-  "failedBody": "处理视频时出错。可以继续，从停止的地方重试，或换一个视频。",
+  "failedBody": "处理失败。请重试生成。已完成的片段将保留。",
   "backHome": "返回首页",
   "noClipsTitle": "没有生成片段",
   "noClipsBody": "生成已完成，但没有产出片段。这段视频可能没有适合剪辑的内容。",

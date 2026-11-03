@@ -62,13 +62,13 @@
     "action": "Batal",
     "tooltip": "Batalkan {count, plural, one {# generasi yang berjalan} other {# generasi yang berjalan}}"
   },
-  "resume": {
-    "empty": "Tidak ada generasi gagal atau dibatalkan di pilihan untuk dilanjutkan.",
-    "fallback": "Gagal melanjutkan generasi",
-    "success": "{count, plural, one {# generasi dilanjutkan.} other {# generasi dilanjutkan.}}",
-    "partial": "{success} dilanjutkan, {failed} gagal. {error}",
-    "action": "Lanjutkan",
-    "tooltip": "Lanjutkan {count, plural, one {# generasi gagal/dibatalkan} other {# generasi gagal/dibatalkan}}"
+  "retry": {
+    "empty": "Tidak ada pembuatan gagal atau dibatalkan yang dipilih untuk dicoba lagi.",
+    "fallback": "Gagal memasukkan percobaan ulang ke antrean",
+    "success": "{count} pembuatan masuk antrean untuk dicoba lagi.",
+    "partial": "{success} masuk antrean untuk dicoba lagi, {failed} gagal. {error}",
+    "action": "Coba pembuatan lagi",
+    "tooltip": "Coba lagi {count} pembuatan yang gagal/dibatalkan"
   },
   "delete": {
     "empty": "Pilih minimal satu generasi untuk dihapus.",

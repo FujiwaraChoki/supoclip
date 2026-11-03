@@ -25,7 +25,7 @@ async def task_run_guard(db, task_id: str):
         )
         await connection.commit()
         if not locked:
-            raise TaskRunBusy("The previous worker is still stopping. Retry resume in a moment.")
+            raise TaskRunBusy("The previous worker is still stopping. Try again in a moment.")
         yield
 
 

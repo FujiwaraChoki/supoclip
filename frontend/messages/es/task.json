@@ -17,7 +17,7 @@
   "toasts": {
     "settingsApplied": "Configuración de la generación aplicada",
     "cancelled": "Generación cancelada",
-    "resumed": "Generación reanudada"
+    "retryQueued": "Generación en cola para reintentar"
   },
   "hooks": {
     "question": "Gancho de pregunta",
@@ -36,7 +36,7 @@
   "clipsTotal": "{count, plural, one {# clip} other {# clips}} · {duration} en total",
   "readOnly": "Vista de solo lectura de la generación de otra cuenta.",
   "cancel": "Cancelar",
-  "resume": "Reanudar",
+  "retryGeneration": "Reintentar generación",
   "restyle": "Restilizar",
   "creatingLink": "Creando enlace…",
   "linkCopied": "Enlace copiado",
@@ -50,9 +50,9 @@
   "reconnectingOwn": "Reconectando a las actualizaciones en vivo. Tu video sigue procesándose.",
   "reconnectingOther": "Reconectando a las actualizaciones en vivo. Esta generación sigue procesándose.",
   "cancelledTitle": "Generación cancelada",
-  "cancelledBody": "Reanuda esta generación cuando quieras continuar.",
+  "cancelledBody": "Vuelve a intentar esta generación cuando quieras. Los clips terminados se conservarán.",
   "failedTitle": "Error de procesamiento",
-  "failedBody": "Hubo un error al procesar tu video. Reanuda para reintentar desde donde se detuvo, o prueba con otro video.",
+  "failedBody": "El procesamiento ha fallado. Reintenta la generación. Los clips terminados se conservarán.",
   "backHome": "Volver al inicio",
   "noClipsTitle": "No se generaron clips",
   "noClipsBody": "La generación terminó, pero no se crearon clips. Es posible que el video no tuviera contenido adecuado para recortar.",

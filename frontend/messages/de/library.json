@@ -62,13 +62,13 @@
     "action": "Abbrechen",
     "tooltip": "{count, plural, one {# aktive Generierung abbrechen} other {# aktive Generierungen abbrechen}}"
   },
-  "resume": {
-    "empty": "In der Auswahl sind keine fehlgeschlagenen oder abgebrochenen Generierungen zum Fortsetzen.",
-    "fallback": "Generierung konnte nicht fortgesetzt werden",
-    "success": "{count, plural, one {# Generierung fortgesetzt.} other {# Generierungen fortgesetzt.}}",
-    "partial": "{success} fortgesetzt, {failed} fehlgeschlagen. {error}",
-    "action": "Fortsetzen",
-    "tooltip": "{count, plural, one {# fehlgeschlagene oder abgebrochene Generierung fortsetzen} other {# fehlgeschlagene oder abgebrochene Generierungen fortsetzen}}"
+  "retry": {
+    "empty": "Keine fehlgeschlagenen oder abgebrochenen Generierungen zum Wiederholen ausgewählt.",
+    "fallback": "Generierung konnte nicht erneut eingereiht werden",
+    "success": "{count, plural, one {# Generierung zur Wiederholung eingereiht.} other {# Generierungen zur Wiederholung eingereiht.}}",
+    "partial": "{success} erneut eingereiht, {failed} fehlgeschlagen. {error}",
+    "action": "Generierung erneut versuchen",
+    "tooltip": "{count, plural, one {# fehlgeschlagene oder abgebrochene Generierung erneut versuchen} other {# fehlgeschlagene oder abgebrochene Generierungen erneut versuchen}}"
   },
   "delete": {
     "empty": "Wähl mindestens eine Generierung zum Löschen aus.",
