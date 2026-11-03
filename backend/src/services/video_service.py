@@ -72,7 +72,9 @@ from ..media.upload_ingest import (
     upload_needs_remote_copy,
 )
 from ..media_storage import MediaStorage
+from ..errors import MissingAudioError
 from ..media.ffmpeg import (
+    audio_stream_present,
     cap_video_short_side,
     ffprobe_duration,
     ffprobe_video_size,
@@ -417,23 +419,37 @@ class VideoService:
         return local
 
     @staticmethod
-    def probe_upload_duration(url: str, user_id: str, storage_reference: str | None = None) -> float:
-        """Read an uploaded video's length without downloading it."""
+    def _upload_probe_target(url: str, user_id: str, storage_reference: str | None = None) -> str:
+        """Local path or signed URL whose container headers ffprobe can read."""
         if url.startswith("upload://s3/"):
             storage = MediaStorage()
             reference = storage.validate_source(url, user_id)
             # ffprobe reads only the container headers through ranged requests.
-            return ffprobe_duration(storage.signed_url(reference, "source.mp4", expires_in=300))
+            return storage.signed_url(reference, "source.mp4", expires_in=300)
         path = VideoService.resolve_local_video_path(url)
         if path.is_file():
-            return ffprobe_duration(path)
+            return str(path)
         # Local file and sidecar are both gone. The upload session still names
         # the durable object; ffprobe reads its headers through a signed URL.
         if storage_reference:
             storage = MediaStorage()
             if storage.enabled:
-                return ffprobe_duration(storage.signed_url(storage_reference, "source.mp4", expires_in=300))
-        return ffprobe_duration(path)
+                return storage.signed_url(storage_reference, "source.mp4", expires_in=300)
+        return str(path)
+
+    @staticmethod
+    def probe_upload_duration(url: str, user_id: str, storage_reference: str | None = None) -> float:
+        """Read an uploaded video's length without downloading it."""
+        return ffprobe_duration(VideoService._upload_probe_target(url, user_id, storage_reference))
+
+    @staticmethod
+    def probe_upload_has_audio(url: str, user_id: str, storage_reference: str | None = None) -> Optional[bool]:
+        """Whether an uploaded file has an audio stream.
+
+        ``None`` means the probe failed. Callers must not treat that as a
+        silent video; a confirmed absence is ``False``.
+        """
+        return audio_stream_present(VideoService._upload_probe_target(url, user_id, storage_reference))
 
     @staticmethod
     async def download_video(
@@ -994,6 +1010,12 @@ class VideoService:
                     )
                 if not video_path:
                     raise Exception("Failed to download video")
+                # A video-only download is a bad file from that provider, not a
+                # problem with the user's link. The provider chain already
+                # tried the next fallback; still refuse it before transcription
+                # so AssemblyAI never reports "No audio stream".
+                if await run_in_thread(audio_stream_present, video_path) is False:
+                    raise Exception("Failed to download video: file has no audio stream")
             elif source_type in {"twitch", "kick"}:
                 # The API preflight already measured the source (and the task
                 # seeds that length), so no second metadata request is made here.
@@ -1023,6 +1045,10 @@ class VideoService:
                         video_path = VideoService.resolve_local_video_path(url)
                 if video_path is None or not video_path.exists():
                     raise Exception("Video file not found")
+                # First worker step when the upload could not be probed before
+                # it was queued. A confirmed missing audio track stops here.
+                if await run_in_thread(audio_stream_present, video_path) is False:
+                    raise MissingAudioError()
 
             # Post-download duration guard (catches cases where preflight info was unavailable)
             file_duration = VideoService._get_file_duration(video_path)
@@ -1301,5 +1327,8 @@ class VideoService:
                         cleanup_downloaded_files(video_id, source_path=video_path)
                     except Exception:
                         logger.exception("Could not clean up failed YouTube download")
-            logger.error(f"Error in video processing pipeline: {e}")
+            if isinstance(e, MissingAudioError):
+                logger.warning("Video processing rejected user input: %s", e)
+            else:
+                logger.error(f"Error in video processing pipeline: {e}")
             raise

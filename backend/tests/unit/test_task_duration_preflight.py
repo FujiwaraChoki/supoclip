@@ -1,6 +1,6 @@
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 from fastapi import HTTPException
@@ -164,6 +164,37 @@ async def test_unreadable_or_long_upload_uses_no_minutes(monkeypatch, creation, 
     assert "No minutes were used" in error.value.detail["message"]
     service.create_task_with_source.assert_not_awaited()
     queue.enqueue_processing_job.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_upload_without_audio_is_rejected_before_charge_or_queue(monkeypatch, creation):
+    request, service, queue, _billing = creation
+    request.json.return_value = {"source": {"url": "upload://video.mp4"}}
+    monkeypatch.setattr(tasks.VideoService, "probe_upload_duration", MagicMock(return_value=120.0))
+    monkeypatch.setattr(tasks.VideoService, "probe_upload_has_audio", MagicMock(return_value=False))
+    with pytest.raises(HTTPException) as error:
+        await tasks.create_task(request, db=None)
+    assert error.value.status_code == 422
+    assert error.value.detail["code"] == "VIDEO_NO_AUDIO"
+    assert "no audio track" in error.value.detail["message"]
+    assert "No minutes were used" in error.value.detail["message"]
+    service.create_task_with_source.assert_not_awaited()
+    queue.enqueue_processing_job.assert_not_awaited()
+    # The plan check runs first. The duration-sized charge check must not.
+    assert tasks.BillingService.assert_can_create_task.await_args_list == [call("user-1")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("has_audio", [True, None])
+async def test_upload_with_audio_or_unreadable_audio_probe_still_queues(monkeypatch, creation, has_audio):
+    request, service, queue, _billing = creation
+    request.json.return_value = {"source": {"url": "upload://video.mp4"}}
+    monkeypatch.setattr(tasks.VideoService, "probe_upload_duration", MagicMock(return_value=90.0))
+    monkeypatch.setattr(tasks.VideoService, "probe_upload_has_audio", MagicMock(return_value=has_audio))
+    result = await tasks.create_task(request, db=None)
+    assert result["task_id"] == "task-1"
+    service.create_task_with_source.assert_awaited()
+    queue.enqueue_processing_job.assert_awaited()
 
 
 @pytest.mark.asyncio

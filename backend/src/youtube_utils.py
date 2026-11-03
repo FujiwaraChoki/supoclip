@@ -17,7 +17,7 @@ import yt_dlp
 
 from .apify_youtube_downloader import ApifyDownloadError, download_video_via_apify
 from .config import get_config
-from .media.ffmpeg import ffprobe_video_size
+from .media.ffmpeg import audio_stream_present, ffprobe_video_size
 from .youtube_proxy import (
     YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
     ByteBudget,
@@ -749,6 +749,29 @@ def download_youtube_video(
         if not downloaded_path:
             _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error="no file")
             logger.warning("%s download failed for %s", provider, url)
+            continue
+
+        # Video-only DASH remuxes are a bad download, not a problem with the
+        # link. Drop the file and let the next provider try.
+        if audio_stream_present(downloaded_path) is False:
+            logger.warning(
+                "%s download for %s has no audio stream; trying the next provider",
+                provider,
+                video_id,
+            )
+            _note_attempt(
+                provider, video_id, task_id, job_budget, before,
+                outcome="failure", error="no audio stream",
+            )
+            if errors is not None:
+                errors.append("Downloaded file has no audio stream")
+            try:
+                from .youtube_source import is_preserved_cache_path
+
+                if downloaded_path.is_file() and not is_preserved_cache_path(downloaded_path):
+                    downloaded_path.unlink()
+            except OSError:
+                logger.warning("Could not remove audio-less download %s", downloaded_path)
             continue
 
         file_size = downloaded_path.stat().st_size if downloaded_path.is_file() else 0

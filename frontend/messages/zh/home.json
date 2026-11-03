@@ -14,6 +14,7 @@
     "uploadFont": "字体上传失败",
     "uploadFontRetry": "字体上传失败。请再试一次。",
     "processVideo": "视频处理失败。请再试一次。",
+    "noAudio": "这个视频没有音轨。SupoClip 需要语音才能找到片段。请上传带声音的文件，或改为粘贴 YouTube 链接。没有消耗分钟数。",
     "fileTooLarge": "这个文件有 {size}，超过了 {limit} 的上传上限。请换一个更短的导出或更小的文件。",
     "api": "API 错误：{status}"
   },

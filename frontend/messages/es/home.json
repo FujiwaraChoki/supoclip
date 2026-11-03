@@ -14,6 +14,7 @@
     "uploadFont": "No se pudo subir la fuente",
     "uploadFontRetry": "No se pudo subir la fuente. Inténtalo de nuevo.",
     "processVideo": "No se pudo procesar el video. Inténtalo de nuevo.",
+    "noAudio": "Este video no tiene pista de audio. SupoClip necesita voz para encontrar clips. Sube un archivo con sonido o pega el enlace de YouTube. No se usaron minutos.",
     "fileTooLarge": "Este archivo pesa {size} y supera el límite de subida de {limit}. Prueba con una exportación más corta o un archivo más pequeño.",
     "api": "Error de API: {status}"
   },

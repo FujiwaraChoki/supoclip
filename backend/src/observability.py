@@ -8,6 +8,8 @@ from typing import Any
 from uuid import uuid4
 
 
+from .errors import UserInputError
+
 TRACE_HEADER = "x-trace-id"
 _trace_id_ctx: ContextVar[str] = ContextVar("trace_id", default="-")
 _user_id_ctx: ContextVar[str | None] = ContextVar("user_id", default=None)
@@ -73,7 +75,10 @@ class PostHogExceptionHandler(logging.Handler):
         if not record.exc_info or record.name.startswith("posthog"):
             return
         exception = record.exc_info[1]
-        if exception is None:
+        if exception is None or isinstance(exception, UserInputError):
+            # User-input failures are not crashes. Capturing them would page
+            # on-call and, for a plain Exception("No audio stream"), share a
+            # fingerprint with AssemblyAI 5xx transcription errors.
             return
         try:
             self.client.capture_exception(

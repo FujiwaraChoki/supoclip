@@ -31,6 +31,7 @@ from .task_completion_email_service import (
     TaskCompletionRecipient,
 )
 from ..config import Config, get_config
+from ..errors import UserInputError
 from ..youtube_utils import cleanup_downloaded_files, extract_video_id
 from ..youtube_source import load_time_map, localize_segment, restore_clip_timeline, transcript_source_for
 from ..clip_cleanup import normalize_clip_cleanup_settings
@@ -43,6 +44,29 @@ from ..repositories.media_repository import queue_delete, guard_source_creation
 from ..stream_source import cleanup_stream_path, cleanup_stream_task, seed_stream_resolution
 
 logger = logging.getLogger(__name__)
+
+
+def classify_task_error(exc: BaseException) -> str:
+    """Stable ``tasks.error_code`` for a processing failure.
+
+    User-input errors win over the message heuristics. The no-audio message
+    mentions YouTube, and a substring match would otherwise file it as a
+    download error next to provider failures.
+    """
+    if isinstance(exc, UserInputError):
+        return exc.error_code
+    message = str(exc).lower()
+    if "download" in message or "youtube" in message:
+        return "download_error"
+    if "analysis" in message:
+        return "analysis_error"
+    if "transcript" in message:
+        return "transcription_error"
+    if "cancelled" in message:
+        return "cancelled"
+    return "task_error"
+
+
 PROCESSING_CACHE_VERSION = "20260319_grounded_segments_v1"
 
 
@@ -671,7 +695,10 @@ class TaskService(ClipEditingMixin):
             }
 
         except Exception as e:
-            logger.error(f"Error processing task {task_id}: {e}")
+            if isinstance(e, UserInputError):
+                logger.warning("Task %s rejected user input: %s", task_id, e)
+            else:
+                logger.error(f"Error processing task {task_id}: {e}")
             # Clear failed writes before recording the terminal error state.
             await self.db.rollback()
             if pending_clip_path and pending_clip_path != video_path:
@@ -697,16 +724,7 @@ class TaskService(ClipEditingMixin):
             )
             if failed is False:
                 raise
-            error_code = "task_error"
-            message = str(e).lower()
-            if "download" in message or "youtube" in message:
-                error_code = "download_error"
-            elif "analysis" in message:
-                error_code = "analysis_error"
-            elif "transcript" in message:
-                error_code = "transcription_error"
-            elif "cancelled" in message:
-                error_code = "cancelled"
+            error_code = classify_task_error(e)
 
             await self.task_repo.update_task_runtime_metadata(
                 self.db,

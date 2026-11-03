@@ -14,6 +14,7 @@
     "uploadFont": "Schrift konnte nicht hochgeladen werden",
     "uploadFontRetry": "Schrift konnte nicht hochgeladen werden. Versuch es noch einmal.",
     "processVideo": "Video konnte nicht verarbeitet werden. Versuch es noch einmal.",
+    "noAudio": "Dieses Video hat keine Audiospur. SupoClip braucht gesprochene Sprache, um Clips zu finden. Bitte lade eine Datei mit Ton hoch oder füge den YouTube-Link ein. Es wurden keine Minuten verbraucht.",
     "fileTooLarge": "Diese Datei ist {size} und damit über dem Upload-Limit von {limit}. Versuch einen kürzeren Export oder eine kleinere Datei.",
     "api": "API-Fehler: {status}"
   },

@@ -53,6 +53,7 @@
   "cancelledBody": "Resume this generation when you are ready to continue.",
   "failedTitle": "Processing Failed",
   "failedBody": "There was an error processing your video. Resume to retry from where it stopped, or try another video.",
+  "noAudio": "This video has no audio track. SupoClip needs speech to find clips. Please upload a file with sound or paste the YouTube link instead. No minutes were used.",
   "backHome": "Back to Home",
   "noClipsTitle": "No Clips Generated",
   "noClipsBody": "The generation completed but no clips were generated. The video may not have had suitable content for clipping.",

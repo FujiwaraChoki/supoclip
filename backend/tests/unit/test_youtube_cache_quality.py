@@ -71,6 +71,27 @@ def test_720p_cache_does_not_short_circuit_1080p_sections(cache, monkeypatch):
     ).name == "full-720.mp4"
 
 
+def test_video_only_cache_is_replaced_by_the_next_download(cache, tmp_path, monkeypatch):
+    silent = _store(cache, "full-1080.mp4", full_height=1080)
+    calls = []
+
+    def present(path):
+        # The cached file is video-only. The fresh download, and the cache
+        # entry after it is overwritten, has an audio stream.
+        return b"cached" not in Path(path).read_bytes()
+
+    monkeypatch.setattr(source, "audio_stream_present", present)
+
+    assert source.cached_full_media(VIDEO_ID) is None
+    with pytest.raises(source.PartialDownloadUnavailable):
+        source.materialize_clip_source(URL, VIDEO_ID, [{"start_time": 1, "end_time": 2}])
+    result = source.resolve_full_youtube_download(URL, VIDEO_ID, _downloader(tmp_path, calls))
+
+    assert calls == [1]
+    assert result is not None and result.read_bytes() == b"fresh download"
+    assert silent.read_bytes() == b"fresh download"
+
+
 def test_1080p_cache_is_reused_for_a_720p_request(cache, tmp_path):
     high = _store(cache, "full-1080.mp4", full_height=1080)
     calls = []

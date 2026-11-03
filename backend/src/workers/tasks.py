@@ -11,6 +11,7 @@ from .media_cleanup import cleanup_media, sweep_orphaned_media
 from .media_replication import check_media_storage, replicate_pending_media
 from ..repositories.task_run_guard import TaskRunBusy
 
+from ..errors import UserInputError
 from ..observability import configure_logging, set_trace_id, set_user_id
 
 configure_logging()
@@ -110,6 +111,13 @@ async def process_video_task(
             # A resume request may still own the guard while publishing this job.
             # Retry without rewriting task state or creating a dead-letter entry.
             raise Retry(defer=2)
+        except UserInputError as exc:
+            # The task row is already terminal. Returning lets arq stop; a
+            # raise would spend the remaining tries on the same file.
+            logger.warning(
+                "Task %s rejected user input (%s): %s", task_id, exc.error_code, exc
+            )
+            return {"task_id": task_id, "status": "error", "error_code": exc.error_code}
         except Exception as e:
             logger.error(f"Task {task_id} failed: {e}", exc_info=True)
             try:

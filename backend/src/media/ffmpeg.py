@@ -47,22 +47,62 @@ def run_ffmpeg_command(command: List[str], timeout: int = 900) -> subprocess.Com
 
 
 def ffprobe_has_audio(video_path: Path) -> bool:
-    result = run_ffmpeg_command(
-        [
-            "ffprobe",
-            "-v",
-            "error",
-            "-select_streams",
-            "a:0",
-            "-show_entries",
-            "stream=codec_type",
-            "-of",
-            "csv=p=0",
-            str(video_path),
-        ],
-        timeout=60,
+    """True when a probe finds an audio stream. A failed probe is False."""
+    return audio_stream_present(video_path) is True
+
+
+def parse_ffprobe_has_audio(payload: object) -> bool:
+    """Whether an ffprobe JSON document contains an audio stream.
+
+    Same document shape as ``parse_ffprobe_video_size``: a ``streams`` list.
+    Data, video, and subtitle streams do not count. An empty list is a
+    container ffprobe could read that has no audio.
+    """
+    if not isinstance(payload, dict):
+        raise ValueError("ffprobe payload is not an object")
+    streams = payload.get("streams")
+    if not isinstance(streams, list):
+        raise ValueError("ffprobe returned no stream list")
+    return any(
+        isinstance(stream, dict) and stream.get("codec_type") == "audio"
+        for stream in streams
     )
-    return result.returncode == 0 and "audio" in result.stdout
+
+
+def audio_stream_present(source: str | Path) -> Optional[bool]:
+    """Whether ``source`` has an audio stream.
+
+    ``True`` or ``False`` when ffprobe reads the container. ``None`` when the
+    probe itself fails, so a missing binary or an unreadable file is not
+    treated as a silent video. ``source`` may be a local path or an http(s)
+    URL; it is passed through as text because ``Path`` collapses ``//``.
+
+    The probe is JSON, like ``ffprobe_video_size``. A csv ``codec_type`` row
+    is ambiguous once side data appends extra columns.
+    """
+    try:
+        result = run_ffmpeg_command(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "stream=codec_type",
+                "-of",
+                "json",
+                str(source),
+            ],
+            timeout=60,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        payload = json.loads(result.stdout or "")
+        return parse_ffprobe_has_audio(payload)
+    except (TypeError, ValueError):
+        return None
 
 
 # ISO 639-1 → ISO 639-2 (B and T forms) for the languages container tags most

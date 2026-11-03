@@ -53,6 +53,7 @@
   "cancelledBody": "Lanjutkan generasi ini saat kamu siap.",
   "failedTitle": "Pemrosesan gagal",
   "failedBody": "Ada error saat memproses videomu. Lanjutkan untuk mencoba lagi dari titik berhenti, atau coba video lain.",
+  "noAudio": "Video ini tidak punya trek audio. SupoClip butuh ucapan untuk menemukan klip. Unggah file yang ada suaranya, atau tempel tautan YouTube. Tidak ada menit yang terpakai.",
   "backHome": "Kembali ke beranda",
   "noClipsTitle": "Tidak ada clip yang dihasilkan",
   "noClipsBody": "Generasi selesai, tapi tidak ada clip yang dihasilkan. Videonya mungkin tidak punya konten yang cocok untuk di-clip.",
