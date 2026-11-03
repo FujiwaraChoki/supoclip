@@ -58,7 +58,6 @@ def test_geo_error_does_not_prevent_successful_independent_provider(config, monk
 
 
 def test_direct_download_does_not_retry_same_country(config, monkeypatch):
-    monkeypatch.setattr(youtube_utils, "get_youtube_video_info", lambda *a, **kw: {"duration": 60})
     error = GeoRestrictedError("The uploader has not made this video available in your country", countries=["US"])
     client = Mock()
     client.download.side_effect = DownloadError(str(error), exc_info=(type(error), error, None))
@@ -81,7 +80,38 @@ def test_metadata_geo_reason_survives_later_metadata_provider_error(config, monk
     monkeypatch.setattr(youtube_utils, "_fetch_video_info_with_ytdlp", Mock(side_effect=GeoRestrictedError("unavailable", countries=["US"])))
     monkeypatch.setattr(youtube_utils, "_fetch_video_info_with_youtube_data_api", Mock(side_effect=RuntimeError("metadata API unavailable")))
     with pytest.raises(YouTubeGeoRestrictedError):
-        youtube_utils._download_youtube_video_with_ytdlp(URL)
+        youtube_utils.get_youtube_video_info(URL)
+
+
+def test_direct_download_succeeds_when_proxy_metadata_is_geo_blocked(config, monkeypatch, tmp_path):
+    config.rapidapi_youtube_api_key = None
+    config.apify_api_token = None
+    blocked_metadata = Mock(side_effect=YouTubeGeoRestrictedError())
+    monkeypatch.setattr(youtube_utils, "get_youtube_video_info", blocked_metadata)
+    monkeypatch.setattr(youtube_utils, "download_full_with_proxy", Mock(side_effect=YouTubeGeoRestrictedError()))
+    monkeypatch.setattr(youtube_utils, "_get_local_video_dimensions", lambda _: (1280, 720))
+    downloaded = []
+    source = tmp_path / f"{VIDEO_ID}.mp4"
+
+    class DirectClient:
+        def __init__(self, options):
+            assert not options.get("proxy")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def download(self, urls):
+            downloaded.extend(urls)
+            source.write_bytes(b"complete video")
+
+    monkeypatch.setattr(youtube_utils.yt_dlp, "YoutubeDL", DirectClient)
+
+    assert youtube_utils.download_youtube_video(URL, quality="720") == source
+    assert downloaded == [URL]
+    blocked_metadata.assert_not_called()
 
 
 @pytest.mark.asyncio

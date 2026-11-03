@@ -37,6 +37,7 @@ def region_downloads(tmp_path, monkeypatch):
         state["metadata"].append(dict(options))
         if state["errors"]:
             raise state["errors"].pop(0)
+        proxy._metadata_ready(options)
         return {"duration": 20, "formats": copy.deepcopy(FORMATS)}
 
     def media(options, _url, _id, fmt, stem, fragments=None):
@@ -378,3 +379,39 @@ def test_incomplete_audio_response_does_not_reuse_completed_video_counter(region
         extensions={".m4a"}, incomplete_filename=str(audio) + ".m4a",
     )
     assert budget.total == 8
+
+
+@pytest.mark.parametrize("audio_partial_exists", [False, True])
+def test_full_incomplete_audio_is_not_charged_to_completed_video(
+    region_downloads, tmp_path, monkeypatch, audio_partial_exists,
+):
+    _, _, run = region_downloads
+    attempts = []
+
+    @contextmanager
+    def client(options):
+        class Client:
+            def download(self, _urls):
+                attempts.append(options)
+                stem = Path(options["outtmpl"]).parent / VIDEO_ID
+                video = Path(str(stem) + ".f137.mp4")
+                video.write_bytes(b"12345")
+                options["progress_hooks"][0]({
+                    "status": "finished", "filename": str(video), "downloaded_bytes": 5,
+                })
+                if audio_partial_exists:
+                    audio = Path(str(stem) + ".f140.m4a")
+                    Path(str(audio) + ".part").write_bytes(b"12")
+                    options["progress_hooks"][0]({
+                        "status": "downloading", "filename": str(audio), "downloaded_bytes": 2,
+                    })
+                raise DownloadError("3 bytes read, 7 more expected")
+        yield Client()
+
+    monkeypatch.setattr(proxy, "_proxy_client", client)
+    budget = proxy.ByteBudget(7)
+    with pytest.raises(proxy.DownloadBudgetExceeded):
+        run("full", budget)
+    assert budget.total == 8
+    assert len(attempts) == 1  # Failed bytes exhaust the budget before a retry.
+    assert not list(tmp_path.glob(f"proxy-{VIDEO_ID}-*"))

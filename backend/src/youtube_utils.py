@@ -610,24 +610,8 @@ def _download_youtube_video_with_ytdlp(
         return None
 
     downloader = YouTubeDownloader()
-    info_errors: list[str] = []
-    video_info = get_youtube_video_info(
-        url,
-        task_id=task_id,
-        errors=info_errors,
-    )
-    if not video_info:
-        logger.error(f"Could not retrieve video information for: {url}")
-        if info_errors:
-            # Raised so the provider chain records why yt-dlp gave up.
-            raise YouTubeDownloadError(info_errors[-1])
-        return None
-
-    logger.info(f"Video: '{video_info.get('title')}' ({video_info.get('duration')}s)")
-
-    duration = video_info.get("duration", 0)
-    if duration > 3600:
-        logger.warning(f"Video duration ({duration}s) exceeds recommended limit")
+    # This is the independent datacenter fallback. yt-dlp extracts metadata
+    # during download; a separate proxied lookup must not gate this route.
 
     last_error: Optional[str] = None
 

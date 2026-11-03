@@ -422,12 +422,12 @@ def download_options(
 def is_transient_proxy_error(exc: BaseException) -> bool:
     """Only transport failures merit a new residential session, never bad media."""
     transient = False
-    for exc in _exception_chain(exc):
-        if isinstance(exc, (DownloadBudgetExceeded, PartialDownloadUnavailable)):
+    for error in _exception_chain(exc):
+        if isinstance(error, (DownloadBudgetExceeded, PartialDownloadUnavailable)):
             return False
-        if isinstance(exc, (DownloadDeadlineExceeded, TimeoutError, ConnectionError)):
+        if isinstance(error, (DownloadDeadlineExceeded, TimeoutError, ConnectionError)):
             transient = True
-        message = str(exc).lower()
+        message = str(error).lower()
         if any(marker in message for marker in (
             "unable to connect to proxy", "tunnel connection failed", "no_host_connection",
             "no_ray", "timed out", "connection reset", "connection aborted",
@@ -1247,7 +1247,6 @@ def _download_audio_attempt(
 
     try:
         info = extract_video_info(url, options)
-        _metadata_ready(options)
         formats = info.get("formats") or []
         source_language = _video_language(info)
         original_audio = _original_audio_resolution(formats, source_language)
@@ -1358,7 +1357,6 @@ def _download_section_attempt(
     work = dest.parent / f".parts-{dest.stem}"
     try:
         info = extract_video_info(url, options)
-        _metadata_ready(options)
         formats = info.get("formats") or []
         source_language = _video_language(info)
         original_audio = _original_audio_resolution(formats, source_language)
@@ -1464,17 +1462,20 @@ def _account_failed_media(
         media = [path for path in media if str(path).startswith(component_prefix)]
     incomplete = re.search(r"\b(\d+) bytes read, \d+ more expected\b", str(exc)) if include_incomplete else None
     for path in media:
-        downloaded = path.stat().st_size
-        if incomplete and len(media) == 1:
-            downloaded = max(downloaded, int(incomplete.group(1)))
         count_bytes({
             "status": "downloading", "filename": str(path).removesuffix(".part"),
-            "downloaded_bytes": downloaded,
+            "downloaded_bytes": path.stat().st_size,
         })
-    if incomplete and not media:
-        # Never attribute a new response to a completed sibling format. Native
-        # downloads know the exact filename; full yt-dlp downloads may not.
-        filename = incomplete_filename or str(stem) + ".incomplete"
+    if incomplete:
+        # A complete video can remain while the next audio response fails before
+        # its first write. Only an explicit name or a unique partial identifies
+        # that response; a sole completed file is not evidence of ownership.
+        partials = [path for path in media if path.suffix == ".part"]
+        filename = incomplete_filename
+        if filename is None and len(partials) == 1:
+            filename = str(partials[0]).removesuffix(".part")
+        if filename is None:
+            filename = str(stem) + ".incomplete"
         count_bytes({"status": "downloading", "filename": filename,
                      "downloaded_bytes": int(incomplete.group(1))})
 
