@@ -33,6 +33,7 @@ from .task_completion_email_service import (
 )
 from ..config import Config, get_config
 from ..youtube_utils import cleanup_downloaded_files, extract_video_id
+from ..youtube_proxy import YouTubeGeoRestrictedError
 from ..youtube_source import load_time_map, localize_segment, restore_clip_timeline, transcript_source_for
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..clip_duration import clip_duration, validate_clip_length
@@ -736,7 +737,9 @@ class TaskService(ClipEditingMixin):
                 raise
             error_code = "task_error"
             message = str(e).lower()
-            if "download" in message or "youtube" in message:
+            if isinstance(e, YouTubeGeoRestrictedError):
+                error_code = "youtube_geo_restricted"
+            elif "download" in message or "youtube" in message:
                 error_code = "download_error"
             elif "analysis" in message:
                 error_code = "analysis_error"

@@ -39,6 +39,7 @@ from ...workers.job_queue import JobQueue
 from ...workers.progress import ProgressTracker
 from ...config import get_config
 from ...youtube_utils import async_get_youtube_video_info, canonical_youtube_url
+from ...youtube_proxy import YouTubeGeoRestrictedError
 from ...stream_source import (
     PREFLIGHT_DEADLINE_SECONDS as STREAM_PREFLIGHT_DEADLINE_SECONDS,
     StreamSourceError,
@@ -76,6 +77,14 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
             raise ValueError("Missing video duration")
         if not math.isfinite(duration) or duration <= 0:
             raise ValueError("Invalid video duration")
+    except YouTubeGeoRestrictedError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "YOUTUBE_GEO_RESTRICTED",
+                "message": f"{exc} No minutes were used.",
+            },
+        ) from None
     except TimeoutError:
         logger.warning(
             "YouTube metadata preflight timed out after %s seconds",

@@ -26,6 +26,8 @@ from .youtube_proxy import (
     DownloadBudgetExceeded,
     PartialDownloadUnavailable,
     YouTubeDownloadError,
+    YouTubeGeoRestrictedError,
+    is_geo_restricted_error,
     YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
     capped_height,
     download_audio,
@@ -780,6 +782,19 @@ def download_analysis_source(
     known and the formats can be sliced. Anything else uses ``download_full``,
     the existing full-file / API Router / Apify chain.
     """
+    def full_fallback(error: BaseException) -> tuple[Optional[Path], bool]:
+        try:
+            path = download_full()
+        except DownloadBudgetExceeded:
+            raise
+        except Exception:
+            if is_geo_restricted_error(error):
+                raise YouTubeGeoRestrictedError() from error
+            raise
+        if not path and is_geo_restricted_error(error):
+            raise YouTubeGeoRestrictedError() from error
+        return path, False
+
     try:
         return download_audio_for_job(url, video_id, task_id=task_id, budget=budget), True
     except DownloadBudgetExceeded:
@@ -791,7 +806,7 @@ def download_analysis_source(
                 video_id,
                 public_download_error(exc),
             )
-            return download_full(), False
+            return full_fallback(exc)
         try:
             return _full_timeline_via_sections(
                 url, video_id, duration, task_id=task_id, budget=budget,
@@ -804,14 +819,14 @@ def download_analysis_source(
                 video_id,
                 public_download_error(section_exc),
             )
-            return download_full(), False
+            return full_fallback(section_exc)
     except Exception as exc:
         logger.warning(
             "Proxy audio download failed for %s, falling back to a full file: %s",
             video_id,
             public_download_error(exc),
         )
-        return download_full(), False
+        return full_fallback(exc)
 
 
 def download_audio_for_job(

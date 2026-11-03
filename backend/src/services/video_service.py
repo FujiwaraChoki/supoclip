@@ -23,6 +23,8 @@ from ..youtube_proxy import (
     ByteBudget,
     DownloadBudgetExceeded,
     PartialDownloadUnavailable,
+    YouTubeGeoRestrictedError,
+    is_geo_restricted_error,
     proxy_configured,
     public_download_error,
 )
@@ -461,6 +463,7 @@ class VideoService:
                 return None
             job_budget = budget or ByteBudget(get_config().youtube_download_max_bytes)
             bypass_proxy = skip_proxy
+            section_error = None
             if ranges:
                 try:
                     segments = [
@@ -478,6 +481,7 @@ class VideoService:
                 except DownloadBudgetExceeded:
                     raise
                 except Exception as exc:
+                    section_error = exc
                     # Only unsupported slicing warrants a full proxy attempt.
                     bypass_proxy = skip_proxy or not isinstance(exc, PartialDownloadUnavailable)
                     if errors is not None and not isinstance(exc, PartialDownloadUnavailable):
@@ -487,17 +491,27 @@ class VideoService:
                         video_id,
                         exc,
                     )
-            return resolve_full_youtube_download(
-                url,
-                video_id,
-                lambda **kwargs: download_youtube_video(
-                    url, 3, task_id, quality, errors=errors, **kwargs
-                ),
-                task_id=task_id,
-                budget=job_budget,
-                skip_proxy=bypass_proxy,
-                quality=quality,
-            )
+            try:
+                path = resolve_full_youtube_download(
+                    url,
+                    video_id,
+                    lambda **kwargs: download_youtube_video(
+                        url, 3, task_id, quality, errors=errors, **kwargs
+                    ),
+                    task_id=task_id,
+                    budget=job_budget,
+                    skip_proxy=bypass_proxy,
+                    quality=quality,
+                )
+            except DownloadBudgetExceeded:
+                raise
+            except Exception:
+                if section_error is not None and is_geo_restricted_error(section_error):
+                    raise YouTubeGeoRestrictedError() from section_error
+                raise
+            if not path and section_error is not None and is_geo_restricted_error(section_error):
+                raise YouTubeGeoRestrictedError() from section_error
+            return path
 
         try:
             video_path = await run_in_thread(_resolve)
@@ -1294,7 +1308,16 @@ class VideoService:
                             max_duration=duration_limit, operation=PROCESSING_OPERATION,
                         )
                     else:
-                        video_path = await VideoService.download_video(url, task_id=task_id, quality=download_quality, budget=job_budget, skip_proxy=not isinstance(exc, PartialDownloadUnavailable))
+                        try:
+                            video_path = await VideoService.download_video(url, task_id=task_id, quality=download_quality, budget=job_budget, skip_proxy=not isinstance(exc, PartialDownloadUnavailable))
+                        except DownloadBudgetExceeded:
+                            raise
+                        except Exception:
+                            if is_geo_restricted_error(exc):
+                                raise YouTubeGeoRestrictedError() from exc
+                            raise
+                        if not video_path and is_geo_restricted_error(exc):
+                            raise YouTubeGeoRestrictedError() from exc
                     if video_path and audio_path:
                         await run_in_thread(copy_transcript_sidecar, audio_path, video_path)
                         await run_in_thread(persist_cache_sidecar, video_path)

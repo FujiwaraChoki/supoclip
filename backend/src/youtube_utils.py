@@ -24,7 +24,10 @@ from .youtube_proxy import (
     DownloadBudgetExceeded,
     base_proxy_params,
     download_full_with_proxy,
+    extract_video_info_with_proxy,
     YouTubeDownloadError,
+    YouTubeGeoRestrictedError,
+    is_geo_restricted_error,
     log_youtube_attempt,
     proxy_configured,
     public_download_error,
@@ -303,9 +306,14 @@ def _fetch_video_info_with_ytdlp(url: str, task_id: Optional[str] = None) -> Dic
     if not video_id:
         raise ValueError(f"Invalid YouTube URL: {url}")
 
-    ydl_opts = _build_info_options(task_id)
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+    if proxy_configured():
+        # Duration preflight must recover regions too, including self-hosted
+        # deployments without the independent YouTube Data API configured.
+        info = extract_video_info_with_proxy(url, video_id, task_id=task_id)
+    else:
+        ydl_opts = _build_info_options(task_id)
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
 
     return {
         "id": info.get("id"),
@@ -412,6 +420,7 @@ def get_youtube_video_info(
     )
     providers = [primary_provider, secondary_provider]
     last_error: Optional[Exception] = None
+    geo_error: Optional[Exception] = None
 
     for index, provider in enumerate(providers):
         try:
@@ -439,6 +448,10 @@ def get_youtube_video_info(
             return video_info
         except Exception as exc:
             last_error = exc
+            if is_geo_restricted_error(exc):
+                geo_error = exc
+                if errors is not None:
+                    errors.append(str(YouTubeGeoRestrictedError()))
             if index == 0:
                 logger.warning(
                     "Primary YouTube metadata provider %s failed for %s: %s. Trying %s.",
@@ -459,6 +472,8 @@ def get_youtube_video_info(
         logger.warning("YouTube video info fetch failed for %s: %s", video_id, last_error)
         if errors is not None:
             errors.append(public_download_error(last_error))
+    if geo_error is not None:
+        raise YouTubeGeoRestrictedError() from geo_error
     return None
 
 
@@ -612,6 +627,10 @@ def _download_youtube_video_with_ytdlp(
             logger.warning("No video file found after download attempt %s", attempt + 1)
 
         except yt_dlp.utils.DownloadError as e:
+            # Retrying the same datacenter cannot change a country restriction.
+            # Let independent download providers try their own regions instead.
+            if is_geo_restricted_error(e):
+                raise YouTubeGeoRestrictedError() from e
             last_error = str(e)
             logger.warning("Download attempt %s failed: %s", attempt + 1, e)
             if attempt < max_retries - 1:
@@ -622,6 +641,8 @@ def _download_youtube_video_with_ytdlp(
                 logger.error("All download attempts failed")
 
         except Exception as e:
+            if is_geo_restricted_error(e):
+                raise YouTubeGeoRestrictedError() from e
             last_error = str(e)
             logger.error(
                 "Unexpected error during download attempt %s: %s",
@@ -704,6 +725,7 @@ def download_youtube_video(
 
     config = get_config()
     job_budget = budget or ByteBudget(getattr(config, "youtube_download_max_bytes", 2_000_000_000))
+    geo_error: Optional[BaseException] = None
 
     for provider in _provider_order(config, skip_proxy=skip_proxy):
         before = job_budget.snapshot()
@@ -735,9 +757,13 @@ def download_youtube_video(
             if errors is not None:
                 errors.append(public_download_error(exc))
             if exc.permanent:
+                if geo_error is not None:
+                    raise YouTubeGeoRestrictedError() from geo_error
                 return None
             continue
         except Exception as exc:
+            if is_geo_restricted_error(exc):
+                geo_error = exc
             _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
             logger.warning(
                 "%s download failed for %s: %s", provider, url, redact_secrets(str(exc)),
@@ -771,6 +797,8 @@ def download_youtube_video(
         return downloaded_path
 
     logger.error("All YouTube download providers failed for %s", url)
+    if geo_error is not None:
+        raise YouTubeGeoRestrictedError() from geo_error
     return None
 
 
