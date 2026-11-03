@@ -36,6 +36,7 @@ from ..youtube_source import load_time_map, localize_segment, restore_clip_timel
 from ..clip_cleanup import normalize_clip_cleanup_settings
 from ..clip_duration import clip_duration, validate_clip_length
 from ..ai import TRANSCRIPT_ANALYSIS_CACHE_VERSION
+from ..media.transcription import TranscriptionError
 from ..clip_source_map import load_clip_caption_settings
 from ..media_storage import MediaStorage, media_work
 from ..utils.async_helpers import run_in_thread
@@ -703,7 +704,7 @@ class TaskService(ClipEditingMixin):
                 error_code = "download_error"
             elif "analysis" in message:
                 error_code = "analysis_error"
-            elif "transcript" in message:
+            elif isinstance(e, TranscriptionError) or "transcript" in message:
                 error_code = "transcription_error"
             elif "cancelled" in message:
                 error_code = "cancelled"

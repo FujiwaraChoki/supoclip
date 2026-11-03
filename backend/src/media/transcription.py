@@ -9,6 +9,8 @@ import assemblyai as aai
 from ..config import get_config
 import httpx
 import json
+import os
+import random
 import re
 import time
 from .common import (
@@ -326,6 +328,11 @@ def get_video_transcript(
     Dispatches to AssemblyAI, local Whisper, or YouTube captions based on
     ``TRANSCRIPTION_PROVIDER``. ``source_url`` enables the youtube_captions
     provider, which needs the original URL rather than a local file path.
+
+    AssemblyAI retries transient server failures inside one task. When those
+    retries are exhausted and a local Whisper model is already downloaded,
+    that path supplies word-level timings. Retries do not create another
+    minute charge.
     """
     logger.info(f"Getting transcript for: {video_path}")
     runtime_config = get_config()
@@ -343,10 +350,245 @@ def get_video_transcript(
     return _get_transcript_with_assemblyai(video_path, speech_model, runtime_config)
 
 
+# Resubmit a dead or never-created transcript this many times. Polling an
+# in-flight job stays inside _submit_and_wait_for_assemblyai_transcript and
+# does not spend one of these attempts.
+ASSEMBLYAI_TRANSIENT_ATTEMPTS = 3
+
+_TRANSIENT_HTTP_STATUSES = {408, 429, 500, 502, 503, 504}
+
+_PERMANENT_TRANSCRIPT_MARKERS = (
+    "no audio",
+    "no spoken",
+    "any audio",
+    "contain audio",
+    "audio stream",
+    "too short",
+    "unsupported language",
+    "language is not supported",
+    "language code",
+    "language_code",
+    "invalid api key",
+    "api key",
+    "unauthorized",
+    "authentication",
+    "forbidden",
+    "insufficient credit",
+    "payment required",
+    "invalid file",
+    "corrupt",
+    "could not decode",
+)
+
+_TRANSIENT_TRANSCRIPT_MARKERS = (
+    "internal server error",
+    "server error",
+    "please retry",
+    "try again",
+    "temporarily",
+    "unavailable",
+    "bad gateway",
+    "gateway",
+    "timeout",
+    "timed out",
+    "overloaded",
+    "download error",
+    "too many requests",
+    "rate limit",
+    "service unavailable",
+)
+
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w.-]+")
+_URL_RE = re.compile(r"https?://\S+")
+_TAG_RE = re.compile(r"<[^>]*>")
+
+TRANSIENT_TRANSCRIPTION_MESSAGE = (
+    "Transcription is temporarily unavailable. Please try again in a few minutes."
+)
+
+
+class TranscriptionError(RuntimeError):
+    """User-facing transcription failure.
+
+    ``error_fingerprint`` keeps transient outages and permanent audio
+    rejections in separate error-tracking issues.
+    """
+
+    error_fingerprint = "transcription_error"
+
+
+class TransientTranscriptionError(TranscriptionError):
+    """AssemblyAI failed in a way that another attempt may succeed."""
+
+    error_fingerprint = "assemblyai_transient"
+
+
+class PermanentTranscriptionError(TranscriptionError):
+    """The audio or credentials were rejected and retrying will not help."""
+
+    error_fingerprint = "assemblyai_permanent"
+
+
+def _redact_provider_detail(detail: str | None) -> str:
+    """Shorten a provider error for logs without URLs, markup, or addresses."""
+    text = _TAG_RE.sub(" ", detail or "")
+    text = _URL_RE.sub("[url]", text)
+    text = _EMAIL_RE.sub("[email]", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:180] or "unknown"
+
+
+def _http_status(error: BaseException) -> int | None:
+    status = getattr(error, "status_code", None)
+    if isinstance(status, int):
+        return status
+    response = getattr(error, "response", None)
+    code = getattr(response, "status_code", None)
+    return code if isinstance(code, int) else None
+
+
+def _transcript_error_is_transient(message: str | None) -> bool:
+    """A finished transcript with status error is transient only for server faults.
+
+    Unknown audio rejections stay permanent so a bad file is not submitted again.
+    An empty message has no audio reason to treat as permanent.
+    """
+    text = (message or "").strip().lower()
+    if not text:
+        return True
+    if any(marker in text for marker in _PERMANENT_TRANSCRIPT_MARKERS):
+        return False
+    return any(marker in text for marker in _TRANSIENT_TRANSCRIPT_MARKERS)
+
+
+def _classify_assemblyai_exception(error: BaseException) -> str | None:
+    """Classify a raised AssemblyAI failure.
+
+    Returns ``resubmit`` when no paid transcript was created, ``ambiguous``
+    when a submit or poll may still be running, ``upload_exhausted`` when the
+    upload already used its own retries, ``permanent`` for auth and validation,
+    or ``None`` when the error is not an AssemblyAI outcome.
+    """
+    if isinstance(error, PermanentTranscriptionError):
+        return "permanent"
+    if isinstance(error, TransientTranscriptionError):
+        return "ambiguous"
+    if isinstance(error, TimeoutError):
+        # The polling budget ended. The submitted job may still be running.
+        return "ambiguous"
+    if isinstance(error, httpx.ReadTimeout):
+        # A lost submit response can hide a transcript that was created.
+        return "ambiguous"
+    if isinstance(error, RuntimeError) and "upload unavailable after" in str(error).lower():
+        return "upload_exhausted"
+    status = _http_status(error)
+    if isinstance(error, (httpx.HTTPStatusError, aai.AssemblyAIError)) or status is not None:
+        if status in {400, 401, 403, 404, 422}:
+            return "permanent"
+        if status in _TRANSIENT_HTTP_STATUSES or (status is not None and status >= 500):
+            return "resubmit"
+        if status is None and isinstance(error, httpx.TransportError):
+            return "resubmit"
+        if status is None:
+            return None
+        return "permanent"
+    if isinstance(error, httpx.TransportError):
+        return "resubmit"
+    return None
+
+
+def _permanent_transcription_message(detail: str, status: int | None = None) -> str:
+    text = detail.lower()
+    if status in {401, 403} or any(
+        marker in text for marker in ("api key", "unauthorized", "authentication", "forbidden")
+    ):
+        return (
+            "Transcription could not authenticate. "
+            "Check the transcription provider configuration."
+        )
+    if any(marker in text for marker in ("no audio", "no spoken", "any audio", "audio stream", "too short")):
+        return "This video has no usable audio for a transcript."
+    if "language" in text:
+        return "This video's language isn't supported for transcription."
+    return "This video's audio could not produce a transcript."
+
+
+def _assemblyai_backoff_seconds(attempt: int) -> float:
+    """Exponential backoff with jitter. ``attempt`` is the 1-based failure count."""
+    ceiling = min(30.0, 2.0 ** attempt)
+    return ceiling + random.uniform(0, ceiling)
+
+
+def _finalize_assemblyai_transcript(video_path: Path, transcript, language: str) -> str:
+    response = getattr(transcript, "json_response", None) or {}
+    logger.info(
+        "AssemblyAI transcript language: %s (confidence: %s)",
+        response.get("language_code") or language or "unknown",
+        response.get("language_confidence"),
+    )
+    formatted_lines = format_transcript_for_analysis(transcript)
+    cache_transcript_data(video_path, transcript)
+    result = "\n".join(formatted_lines)
+    logger.info(
+        "Transcript formatted: %s segments, %s chars",
+        len(formatted_lines),
+        len(result),
+    )
+    return result
+
+
+def _whisper_fallback_ready(model_name: str) -> bool:
+    """True when local Whisper can run without downloading weights.
+
+    An AssemblyAI outage must not start a model download. The fallback is
+    available only when the package is installed and the configured checkpoint
+    is already on disk.
+    """
+    if not _WHISPER_AVAILABLE or _whisper is None:
+        return False
+    models = getattr(_whisper, "_MODELS", {})
+    if model_name not in models and Path(model_name).is_file():
+        return True
+    url = models.get(model_name)
+    if not isinstance(url, str):
+        return False
+    cache_root = Path(os.getenv("XDG_CACHE_HOME", str(Path.home() / ".cache"))) / "whisper"
+    return (cache_root / Path(url).name).is_file()
+
+
+def _whisper_word_timing_fallback(video_path: Path, runtime_config) -> str | None:
+    """Use local Whisper when AssemblyAI retries are exhausted.
+
+    YouTube captions are not a fallback: they have no word-level timings, which
+    captions and cleanup need. Whisper is the installed provider that keeps them.
+    """
+    model_name = getattr(runtime_config, "whisper_model", None) or "base"
+    if not _whisper_fallback_ready(model_name):
+        logger.warning("Whisper word-level fallback is not available")
+        return None
+    logger.warning(
+        "AssemblyAI retries exhausted; falling back to Whisper for word-level timings"
+    )
+    try:
+        return _get_transcript_with_whisper(video_path, runtime_config)
+    except Exception as error:
+        logger.error(
+            "Whisper fallback failed after AssemblyAI retries: %s",
+            _redact_provider_detail(str(error)),
+        )
+        return None
+
+
 def _get_transcript_with_assemblyai(
     video_path: Path, speech_model: str, runtime_config
 ) -> str:
-    """Get transcript using AssemblyAI with word-level timing for precise subtitles."""
+    """Get transcript using AssemblyAI with word-level timing for precise subtitles.
+
+    Transient HTTP failures and a transcript that finishes with a server-side
+    error are resubmitted with backoff, inside ``assembly_ai_http_timeout_seconds``.
+    A polling timeout or a lost submit response is not resubmitted: that job may
+    already exist. Permanent audio and auth failures fail immediately.
+    """
     # A job owns its client: concurrent jobs must not mutate shared SDK settings.
     client = aai.Client(settings=aai.Settings(
         api_key=runtime_config.assembly_ai_api_key,
@@ -371,46 +613,107 @@ def _get_transcript_with_assemblyai(
         language_detection=None if language else True,
     )
 
+    attempts = ASSEMBLYAI_TRANSIENT_ATTEMPTS
+    deadline = time.monotonic() + runtime_config.assembly_ai_http_timeout_seconds
+    fallback = False
+    last_detail = "unknown"
     try:
         logger.info("Starting AssemblyAI transcription")
         transcription_media_path = _prepare_audio_for_transcription(video_path)
-        # Once submitted, a polling timeout must not submit another paid job or
-        # restart the full transcription budget. Retry status GETs above instead.
-        transcript = _submit_and_wait_for_assemblyai_transcript(
-            transcriber,
-            transcription_media_path,
-            config_obj,
-            runtime_config.assembly_ai_http_timeout_seconds,
-        )
+        for attempt in range(1, attempts + 1):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                logger.warning(
+                    "AssemblyAI transient transcription failure: budget exhausted before attempt %s/%s",
+                    attempt,
+                    attempts,
+                )
+                break
 
-        if transcript is None:
-            raise RuntimeError("AssemblyAI transcription did not return a transcript")
+            logger.info("AssemblyAI transcription attempt %s/%s", attempt, attempts)
+            failure_kind = None
+            try:
+                transcript = _submit_and_wait_for_assemblyai_transcript(
+                    transcriber,
+                    transcription_media_path,
+                    config_obj,
+                    remaining,
+                )
+            except Exception as error:
+                failure_kind = _classify_assemblyai_exception(error)
+                if failure_kind is None:
+                    raise
+                detail = _redact_provider_detail(str(error))
+                if failure_kind == "permanent":
+                    logger.error("AssemblyAI permanent transcription failure: %s", detail)
+                    raise PermanentTranscriptionError(
+                        _permanent_transcription_message(detail, _http_status(error))
+                    ) from error
+                if failure_kind == "ambiguous":
+                    logger.error(
+                        "AssemblyAI transient transcription failure: %s",
+                        detail,
+                    )
+                    raise TransientTranscriptionError(TRANSIENT_TRANSCRIPTION_MESSAGE) from error
+                last_detail = detail
+            else:
+                transcript_error = getattr(transcript, "error", None) if transcript is not None else None
+                status = getattr(transcript, "status", None)
+                if transcript is not None and status != aai.TranscriptStatus.error:
+                    if attempt > 1:
+                        logger.info(
+                            "AssemblyAI transcription succeeded on attempt %s/%s",
+                            attempt,
+                            attempts,
+                        )
+                    return _finalize_assemblyai_transcript(video_path, transcript, language)
+                if transcript is not None and not _transcript_error_is_transient(transcript_error):
+                    detail = _redact_provider_detail(transcript_error)
+                    logger.error("AssemblyAI permanent transcription failure: %s", detail)
+                    raise PermanentTranscriptionError(
+                        _permanent_transcription_message(detail)
+                    )
+                last_detail = _redact_provider_detail(
+                    transcript_error or "AssemblyAI returned no transcript"
+                )
+                failure_kind = "resubmit"
 
-        if transcript.status == aai.TranscriptStatus.error:
-            logger.error(f"AssemblyAI transcription failed: {transcript.error}")
-            raise Exception(f"Transcription failed: {transcript.error}")
+            if failure_kind == "resubmit" and attempt < attempts:
+                remaining_for_retry = deadline - time.monotonic()
+                if remaining_for_retry <= 0:
+                    logger.warning(
+                        "AssemblyAI transient transcription failure: budget exhausted before resubmit"
+                    )
+                    break
+                logger.warning(
+                    "AssemblyAI transient transcription failure on attempt %s/%s (%s); resubmitting",
+                    attempt,
+                    attempts,
+                    last_detail,
+                )
+                time.sleep(min(_assemblyai_backoff_seconds(attempt), remaining_for_retry))
+                continue
 
-        response = getattr(transcript, "json_response", None) or {}
-        logger.info(
-            "AssemblyAI transcript language: %s (confidence: %s)",
-            response.get("language_code") or language or "unknown",
-            response.get("language_confidence"),
-        )
-
-        formatted_lines = format_transcript_for_analysis(transcript)
-        cache_transcript_data(video_path, transcript)
-
-        result = "\n".join(formatted_lines)
-        logger.info(
-            f"Transcript formatted: {len(formatted_lines)} segments, {len(result)} chars"
-        )
-        return result
-
-    except Exception as e:
-        logger.error(f"Error in AssemblyAI transcription: {e}")
-        raise
+            # The upload loop already retried, or this was the last transcript
+            # submit. A polling timeout never reaches here: that job may still
+            # be running, so it is not sent to the local fallback.
+            logger.warning(
+                "AssemblyAI transient transcription failure on attempt %s/%s (%s); retries exhausted",
+                attempt,
+                attempts,
+                last_detail,
+            )
+            fallback = True
+            break
     finally:
         client.http_client.close()
+
+    if fallback:
+        whisper_transcript = _whisper_word_timing_fallback(video_path, runtime_config)
+        if whisper_transcript is not None:
+            return whisper_transcript
+    logger.error("AssemblyAI transient transcription failure: %s", last_detail)
+    raise TransientTranscriptionError(TRANSIENT_TRANSCRIPTION_MESSAGE)
 
 
 def _get_transcript_with_whisper(video_path: Path, runtime_config) -> str:

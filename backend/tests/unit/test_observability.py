@@ -71,3 +71,33 @@ def test_posthog_disabled_without_token(monkeypatch):
     monkeypatch.delenv("POSTHOG_PROJECT_TOKEN", raising=False)
     monkeypatch.setattr(observability, "_posthog_client", None)
     assert observability.get_posthog_client() is None
+
+
+def test_exception_fingerprint_is_sent_with_the_error():
+    client = FakePostHog()
+    handler = observability.PostHogExceptionHandler(client)
+
+    class TransientOutage(RuntimeError):
+        error_fingerprint = "assemblyai_transient"
+
+    error = TransientOutage("Transcription is temporarily unavailable.")
+    record = _record(exc_info=(TransientOutage, error, None))
+    handler.emit(record)
+    payload = json.loads(observability.JsonLogFormatter().format(record))
+
+    [(captured, kwargs)] = client.calls
+    assert captured is error
+    assert kwargs["properties"]["$exception_fingerprint"] == "assemblyai_transient"
+    assert payload["error_fingerprint"] == "assemblyai_transient"
+
+
+def test_exceptions_without_fingerprint_keep_default_grouping():
+    client = FakePostHog()
+    handler = observability.PostHogExceptionHandler(client)
+    error = ValueError("bad")
+    record = _record(exc_info=(ValueError, error, None))
+    handler.emit(record)
+    payload = json.loads(observability.JsonLogFormatter().format(record))
+
+    assert "$exception_fingerprint" not in client.calls[0][1]["properties"]
+    assert "error_fingerprint" not in payload

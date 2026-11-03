@@ -69,7 +69,8 @@ def test_transcription_timeout_does_not_resubmit_paid_job(monkeypatch, tmp_path)
     helper = Mock(side_effect=TimeoutError("deadline exceeded"))
     monkeypatch.setattr(transcription, "_submit_and_wait_for_assemblyai_transcript", helper)
     monkeypatch.setattr(transcription, "_prepare_audio_for_transcription", lambda path: path)
-    with pytest.raises(TimeoutError):
+    monkeypatch.setattr(transcription, "_whisper_word_timing_fallback", Mock(side_effect=AssertionError("fallback")))
+    with pytest.raises(transcription.TransientTranscriptionError, match="temporarily unavailable"):
         transcription._get_transcript_with_assemblyai(tmp_path / "video.mp4", "universal", runtime_config)
     helper.assert_called_once()
 
@@ -123,7 +124,7 @@ def test_language_is_detected_unless_configured(
     helper = Mock(side_effect=TimeoutError("stop after submit"))
     monkeypatch.setattr(transcription, "_submit_and_wait_for_assemblyai_transcript", helper)
     monkeypatch.setattr(transcription, "_prepare_audio_for_transcription", lambda path: path)
-    with pytest.raises(TimeoutError):
+    with pytest.raises(transcription.TransientTranscriptionError):
         transcription._get_transcript_with_assemblyai(tmp_path / "video.mp4", "universal", runtime_config)
     config = helper.call_args.args[2]
     assert config.language_code == expected_code
@@ -209,7 +210,7 @@ def test_job_client_has_bounded_timeout_without_mutating_global_settings(monkeyp
     monkeypatch.setattr(transcription.aai, "Client", capture)
     monkeypatch.setattr(transcription, "_prepare_audio_for_transcription", lambda path: path)
     monkeypatch.setattr(transcription, "_submit_and_wait_for_assemblyai_transcript", Mock(side_effect=TimeoutError("stop")))
-    with pytest.raises(TimeoutError):
+    with pytest.raises(transcription.TransientTranscriptionError):
         transcription._get_transcript_with_assemblyai(tmp_path / "video.mp4", "best", runtime)
     assert clients[0].settings.http_timeout == 45
     assert clients[0].settings.api_key == "job-key"

@@ -76,15 +76,22 @@ class PostHogExceptionHandler(logging.Handler):
         if exception is None:
             return
         try:
+            properties = {
+                "service": SERVICE_NAME,
+                "trace_id": getattr(record, "trace_id", "-"),
+                "logger": record.name,
+                "log_message": record.getMessage(),
+            }
+            # Stable grouping for failures that share a stack but mean
+            # different things, such as a transient provider outage versus a
+            # permanent audio rejection.
+            fingerprint = getattr(exception, "error_fingerprint", None)
+            if isinstance(fingerprint, str) and fingerprint:
+                properties["$exception_fingerprint"] = fingerprint
             self.client.capture_exception(
                 exception,
                 distinct_id=getattr(record, "user_id", None),
-                properties={
-                    "service": SERVICE_NAME,
-                    "trace_id": getattr(record, "trace_id", "-"),
-                    "logger": record.name,
-                    "log_message": record.getMessage(),
-                },
+                properties=properties,
             )
         except Exception:
             self.handleError(record)
@@ -128,6 +135,9 @@ class JsonLogFormatter(logging.Formatter):
 
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
+            fingerprint = getattr(record.exc_info[1], "error_fingerprint", None)
+            if isinstance(fingerprint, str) and fingerprint:
+                payload["error_fingerprint"] = fingerprint
 
         # YouTube download attempts. These names are stable so Axiom can sum
         # bytes per provider. Proxy URLs are never attached to the record.
