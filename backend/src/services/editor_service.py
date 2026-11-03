@@ -513,7 +513,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             await db.close()
             if not source or not source.exists():
                 if source_type == "youtube":
-                    from ..youtube_proxy import DownloadBudgetExceeded
+                    from ..youtube_proxy import DownloadBudgetExceeded, YouTubeGeoRestrictedError
 
                     # Reuses the YouTube source cache when it still covers the clip.
                     download_errors: list[str] = []
@@ -529,6 +529,8 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                         raise EditorPrepareError(
                             "The source video is larger than the download limit, so it cannot be prepared for editing."
                         ) from exc
+                    except YouTubeGeoRestrictedError as exc:
+                        raise EditorPrepareError(str(exc)) from exc
                     if not downloaded:
                         logging.getLogger(__name__).warning(
                             "Editor source download failed for task %s: %s",

@@ -143,3 +143,75 @@ def test_checkpoint_keys_invalidate_changed_inputs_but_not_styling(pipeline):
     assert key(length="long") != original
     config.transcription_language = "de"
     assert key() != original
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("metadata_failure", ["geo", "timeout"])
+async def test_metadata_failure_still_uses_saved_full_media(pipeline, monkeypatch, metadata_failure):
+    from src.youtube_proxy import YouTubeGeoRestrictedError
+    p = pipeline
+    failure = YouTubeGeoRestrictedError() if metadata_failure == "geo" else TimeoutError("deadline")
+    monkeypatch.setattr(module, "async_get_youtube_video_info", AsyncMock(side_effect=failure))
+    monkeypatch.setattr(module, "cached_full_media", lambda *_: p.source)
+    downloaded = AsyncMock(side_effect=AssertionError("Saved source should be used"))
+    monkeypatch.setattr(VideoService, "download_video", downloaded)
+
+    result = await p.run()
+
+    assert result["video_path"] == str(p.source)
+    p.transcription.assert_awaited_once()
+    downloaded.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("metadata_failure", ["geo", "timeout"])
+async def test_metadata_and_audio_failure_still_tries_independent_full_provider(pipeline, monkeypatch, metadata_failure):
+    from unittest.mock import Mock
+    from src import youtube_source
+    from src.youtube_proxy import YouTubeGeoRestrictedError
+    p = pipeline
+    p.config.youtube_source_cache = False
+    failure = YouTubeGeoRestrictedError() if metadata_failure == "geo" else TimeoutError("deadline")
+    monkeypatch.setattr(module, "async_get_youtube_video_info", AsyncMock(side_effect=failure))
+    monkeypatch.setattr(module, "download_analysis_source", youtube_source.download_analysis_source)
+    monkeypatch.setattr(youtube_source, "download_audio_for_job", Mock(side_effect=YouTubeGeoRestrictedError()))
+    full = Mock(return_value=p.source)
+    monkeypatch.setattr(module, "download_youtube_video", full)
+
+    result = await p.run()
+
+    assert result["video_path"] == str(p.source)
+    assert full.call_args.kwargs["skip_proxy"] is True
+    p.transcription.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_worker_shares_metadata_route_budget_with_media(pipeline, monkeypatch):
+    from unittest.mock import Mock
+    p = pipeline
+    metadata = AsyncMock(return_value={"duration": 120})
+    media = Mock(return_value=(p.source, False))
+    monkeypatch.setattr(module, "async_get_youtube_video_info", metadata)
+    monkeypatch.setattr(module, "download_analysis_source", media)
+
+    await p.run()
+
+    assert metadata.call_args.kwargs["budget"] is media.call_args.kwargs["budget"]
+
+
+@pytest.mark.asyncio
+async def test_worker_does_not_mask_storage_failure_after_geo_sections(pipeline, monkeypatch):
+    from unittest.mock import Mock
+    from src.youtube_proxy import YouTubeGeoRestrictedError
+    p = pipeline
+    monkeypatch.setattr(module, "materialize_clip_source", Mock(side_effect=YouTubeGeoRestrictedError()))
+    error = OSError("disk full while restoring media")
+    fallback = AsyncMock(side_effect=error)
+    monkeypatch.setattr(VideoService, "download_video", fallback)
+
+    with pytest.raises(OSError) as result:
+        await p.run()
+
+    assert result.value is error
+    assert error.__context__ is None
+    fallback.assert_awaited_once()

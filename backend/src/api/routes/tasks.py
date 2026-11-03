@@ -69,7 +69,7 @@ async def _preflight_youtube_source(url: str, duration_limit: int) -> Dict[str, 
     timeout_seconds = get_config().youtube_preflight_timeout_seconds
     try:
         metadata = await asyncio.wait_for(
-            async_get_youtube_video_info(url),
+            async_get_youtube_video_info(url, deadline=time.monotonic() + timeout_seconds),
             timeout=timeout_seconds,
         )
         duration = (metadata or {}).get("duration")
@@ -1236,6 +1236,11 @@ async def update_clip_captions(
             position_y=position_y,
         )
         return {"clip": updated_clip}
+    except YouTubeGeoRestrictedError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "YOUTUBE_GEO_RESTRICTED", "message": str(exc)},
+        ) from None
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:
@@ -1340,6 +1345,11 @@ async def apply_task_settings(
             db=db,
         )
         return {"task": task, "message": "Task settings updated"}
+    except YouTubeGeoRestrictedError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "YOUTUBE_GEO_RESTRICTED", "message": str(exc)},
+        ) from None
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except HTTPException:

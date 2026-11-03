@@ -638,7 +638,7 @@ def _discard_staged_download(video_id: str, source: Path, dest: Path) -> None:
     transcript = source.with_suffix(".transcript_cache.json")
     if transcript.exists() and transcript.resolve() != dest.with_suffix(".transcript_cache.json").resolve():
         transcript.unlink(missing_ok=True)
-    if staging.name.startswith(f"apify-{video_id}-"):
+    if staging.name.startswith((f"apify-{video_id}-", f"proxy-{video_id}-")):
         shutil.rmtree(staging, ignore_errors=True)
 
 
@@ -782,51 +782,48 @@ def download_analysis_source(
     known and the formats can be sliced. Anything else uses ``download_full``,
     the existing full-file / API Router / Apify chain.
     """
-    def full_fallback(error: BaseException) -> tuple[Optional[Path], bool]:
-        try:
-            path = download_full()
-        except DownloadBudgetExceeded:
-            raise
-        except Exception:
-            if is_geo_restricted_error(error):
-                raise YouTubeGeoRestrictedError() from error
-            raise
-        if not path and is_geo_restricted_error(error):
-            raise YouTubeGeoRestrictedError() from error
-        return path, False
-
+    failure = None
+    try_sections = False
     try:
         return download_audio_for_job(url, video_id, task_id=task_id, budget=budget), True
     except DownloadBudgetExceeded:
         raise
     except AudioDownloadForbidden as exc:
-        if _positive_duration(duration) is None:
-            logger.warning(
-                "Proxy audio download failed for %s, falling back to a full file: %s",
-                video_id,
-                public_download_error(exc),
-            )
-            return full_fallback(exc)
+        failure = exc
+        try_sections = _positive_duration(duration) is not None
+    except Exception as exc:
+        failure = exc
+
+    if try_sections:
         try:
             return _full_timeline_via_sections(
                 url, video_id, duration, task_id=task_id, budget=budget,
             ), False
         except DownloadBudgetExceeded:
             raise
-        except Exception as section_exc:
-            logger.warning(
-                "Proxy audio download failed for %s, falling back to a full file: %s",
-                video_id,
-                public_download_error(section_exc),
-            )
-            return full_fallback(section_exc)
-    except Exception as exc:
-        logger.warning(
-            "Proxy audio download failed for %s, falling back to a full file: %s",
-            video_id,
-            public_download_error(exc),
-        )
-        return full_fallback(exc)
+        except Exception as exc:
+            failure = exc
+
+    logger.warning(
+        "Proxy audio download failed for %s, falling back to a full file: %s",
+        video_id, public_download_error(failure),
+    )
+    # Run the independent provider outside the failed attempt's exception
+    # handler. Its own transport, local-file and programming errors stay intact.
+    return preserve_geo_restriction(download_full(), failure), False
+
+
+def preserve_geo_restriction(
+    path: Optional[Path], previous_error: Optional[BaseException],
+) -> Optional[Path]:
+    """Keep a known restriction only when every fallback returned no media.
+
+    Callers evaluate downloads before this helper, so their exceptions are
+    never relabelled as restrictions from an earlier attempt.
+    """
+    if path is None and previous_error is not None and is_geo_restricted_error(previous_error):
+        raise YouTubeGeoRestrictedError() from previous_error
+    return path
 
 
 def download_audio_for_job(

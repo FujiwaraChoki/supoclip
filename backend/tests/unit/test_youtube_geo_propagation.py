@@ -135,10 +135,9 @@ def test_metadata_preflight_recovers_allowed_region_without_data_api(config, mon
     assert config.youtube_proxy_country == "de"
 
 
-@pytest.mark.parametrize("fallback_error", [None, RuntimeError("all providers failed")])
-def test_audio_geo_survives_full_fallback_failure(monkeypatch, fallback_error):
+def test_audio_geo_survives_full_fallback_failure(monkeypatch):
     monkeypatch.setattr(youtube_source, "download_audio_for_job", Mock(side_effect=YouTubeGeoRestrictedError()))
-    full = Mock(return_value=None, side_effect=fallback_error)
+    full = Mock(return_value=None)
     with pytest.raises(YouTubeGeoRestrictedError):
         youtube_source.download_analysis_source(URL, VIDEO_ID, download_full=full)
     full.assert_called_once()
@@ -159,11 +158,65 @@ def test_audio_geo_does_not_hide_byte_budget_failure(monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("fallback_error", [None, RuntimeError("all providers failed")])
-async def test_section_geo_survives_full_fallback_failure(config, monkeypatch, fallback_error):
+async def test_section_geo_survives_full_fallback_failure(config, monkeypatch):
     monkeypatch.setattr(video_service, "materialize_clip_source", Mock(side_effect=YouTubeGeoRestrictedError()))
-    full = Mock(return_value=None, side_effect=fallback_error)
+    full = Mock(return_value=None)
     monkeypatch.setattr(video_service, "resolve_full_youtube_download", full)
     with pytest.raises(YouTubeGeoRestrictedError):
         await video_service.VideoService.download_video(URL, ranges=[(0, 10)])
     assert full.call_args.kwargs["skip_proxy"] is True
+
+
+@pytest.mark.parametrize("failure", [OSError("disk full"), TypeError("programming error"), RuntimeError("storage unavailable")])
+def test_audio_fallback_exceptions_are_not_relabelled_geo(monkeypatch, failure):
+    monkeypatch.setattr(youtube_source, "download_audio_for_job", Mock(side_effect=YouTubeGeoRestrictedError()))
+    full = Mock(side_effect=failure)
+    with pytest.raises(type(failure)) as result:
+        youtube_source.download_analysis_source(URL, VIDEO_ID, download_full=full)
+    assert result.value is failure
+    assert failure.__context__ is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [OSError("disk full"), TypeError("programming error"), RuntimeError("storage unavailable")])
+async def test_section_fallback_exceptions_are_not_relabelled_geo(config, monkeypatch, failure):
+    monkeypatch.setattr(video_service, "materialize_clip_source", Mock(side_effect=YouTubeGeoRestrictedError()))
+    monkeypatch.setattr(video_service, "resolve_full_youtube_download", Mock(side_effect=failure))
+    with pytest.raises(type(failure)) as result:
+        await video_service.VideoService.download_video(URL, ranges=[(0, 10)])
+    assert result.value is failure
+    assert failure.__context__ is None
+
+
+def test_metadata_deadline_reserves_time_for_independent_api(config, monkeypatch):
+    config.youtube_metadata_provider = "yt_dlp"
+    config.youtube_data_api_key = "test"
+    now = [100.0]
+    monkeypatch.setattr(youtube_utils.time, "monotonic", lambda: now[0])
+    deadlines = []
+
+    def primary(*args, deadline=None, **kwargs):
+        deadlines.append(deadline)
+        now[0] = deadline
+        raise TimeoutError("proxy timeout")
+
+    def fallback(*args, deadline=None, **kwargs):
+        deadlines.append(deadline)
+        return {"duration": 600}
+
+    monkeypatch.setattr(youtube_utils, "_fetch_video_info_with_ytdlp", primary)
+    monkeypatch.setattr(youtube_utils, "_fetch_video_info_with_youtube_data_api", fallback)
+    assert youtube_utils.get_youtube_video_info(URL, deadline=130)["duration"] == 600
+    assert deadlines == [115, 130]
+
+
+def test_metadata_deadline_does_not_start_provider_after_expiry(config, monkeypatch):
+    monkeypatch.setattr(youtube_utils.time, "monotonic", lambda: 130.0)
+    proxy = Mock()
+    api = Mock()
+    monkeypatch.setattr(youtube_utils, "_fetch_video_info_with_ytdlp", proxy)
+    monkeypatch.setattr(youtube_utils, "_fetch_video_info_with_youtube_data_api", api)
+    with pytest.raises(TimeoutError):
+        youtube_utils.get_youtube_video_info(URL, deadline=130)
+    proxy.assert_not_called()
+    api.assert_not_called()
