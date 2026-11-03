@@ -357,7 +357,8 @@ def _get_transcript_with_assemblyai(
 
     # AssemblyAI now requires the plural `speech_models` list; the singular
     # `best`/`nano`/`universal` values were deprecated server-side.
-    speech_models_value = _assemblyai_speech_models_value(speech_model)
+    selected_model = getattr(runtime_config, "assembly_ai_speech_model", "") or speech_model
+    speech_models_value = _assemblyai_speech_models_value(selected_model)
 
     # Without a language, AssemblyAI assumes US English and garbles everything
     # else; detection also routes to the first listed model that supports it.

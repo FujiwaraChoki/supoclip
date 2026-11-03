@@ -133,6 +133,7 @@ These settings affect clip generation speed, throughput, and defaults.
 | `DEFAULT_PROCESSING_MODE` | `fast` | Default mode for new tasks |
 | `FAST_MODE_MAX_CLIPS` | `10` | Clip cap used by fast mode (never above `MAX_CLIPS`) |
 | `FAST_MODE_TRANSCRIPT_MODEL` | `universal-3-5-pro` | Fast mode uses the Pro model too; `universal-2` covers languages Pro doesn't. `nano`/`universal-2` select the cheaper model for self-hosting |
+| `ASSEMBLY_AI_SPEECH_MODEL` | Empty | Overrides the AssemblyAI model for every processing mode. Set `universal-2` to use only the non-Pro model while retaining word timings and speaker labels; takes precedence over `FAST_MODE_TRANSCRIPT_MODEL` |
 | `ASSEMBLY_AI_REQUEST_TIMEOUT_SECONDS` | `60` | Per-request upload/submit timeout (5–300). Transient upload failures retry up to 3 times; the paid submission is attempted once |
 | `WHISPER_MODEL_SIZE` | `medium` in `.env.example` | Whisper model size when Whisper is used locally |
 | `QUEUED_TASK_TIMEOUT_SECONDS` | `180` | Marks stale queued tasks as failed instead of leaving them stuck forever |

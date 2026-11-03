@@ -196,6 +196,27 @@ def test_explicit_value_model_remains_available(alias):
     assert transcription._assemblyai_speech_models_value(alias) == ["universal-2"]
 
 
+@pytest.mark.parametrize("mode_model", ["best", "universal-3-5-pro", "universal"])
+def test_deployment_model_override_submits_only_universal2_with_speaker_labels(
+    monkeypatch, tmp_path, mode_model
+):
+    runtime = SimpleNamespace(
+        assembly_ai_api_key="test", assembly_ai_http_timeout_seconds=900,
+        assembly_ai_speech_model="universal-2", transcription_language="",
+    )
+    submit = Mock(side_effect=TimeoutError("stop before paid submission"))
+    monkeypatch.setattr(transcription, "_prepare_audio_for_transcription", lambda path: path)
+    monkeypatch.setattr(transcription, "_submit_and_wait_for_assemblyai_transcript", submit)
+
+    with pytest.raises(TimeoutError):
+        transcription._get_transcript_with_assemblyai(tmp_path / "video.mp4", mode_model, runtime)
+
+    submitted_config = submit.call_args.args[2]
+    assert submitted_config.speech_models == ["universal-2"]
+    assert submitted_config.speaker_labels is True
+    assert submitted_config.language_detection is True
+
+
 def test_job_client_has_bounded_timeout_without_mutating_global_settings(monkeypatch, tmp_path):
     runtime = SimpleNamespace(assembly_ai_api_key="job-key", assembly_ai_http_timeout_seconds=900,
                               assembly_ai_request_timeout_seconds=45, transcription_language="")
