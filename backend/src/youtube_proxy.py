@@ -304,8 +304,8 @@ def _progress_hook(budget: ByteBudget, seen: dict[str, int]) -> Callable[[dict],
         downloaded = int(status.get("downloaded_bytes") or status.get("total_bytes") or 0)
         previous = seen.get(filename, 0)
         if downloaded > previous:
-            budget.add(downloaded - previous)
             seen[filename] = downloaded
+            budget.add(downloaded - previous)
 
     return hook
 
@@ -324,6 +324,7 @@ def download_options(
         30, getattr(get_config(), "youtube_proxy_timeout_seconds", 300)
     )
     count_bytes = _progress_hook(budget, seen if seen is not None else {})
+    options["_youtube_count_bytes"] = count_bytes
 
     def bounded_progress(status):
         count_bytes(status)
@@ -338,24 +339,29 @@ def download_options(
 def is_transient_proxy_error(exc: BaseException) -> bool:
     """Only transport failures merit a new residential session, never bad media."""
     seen: set[int] = set()
+    transient = False
     while id(exc) not in seen:
         seen.add(id(exc))
         if isinstance(exc, (DownloadBudgetExceeded, PartialDownloadUnavailable)):
             return False
         if isinstance(exc, (DownloadDeadlineExceeded, TimeoutError, ConnectionError)):
-            return True
+            transient = True
         message = str(exc).lower()
         if any(marker in message for marker in (
             "unable to connect to proxy", "tunnel connection failed", "no_host_connection",
             "no_ray", "timed out", "connection reset", "connection aborted",
             "remote end closed", "http error 502", "http error 503", "http error 504",
         )):
-            return True
+            transient = True
+        # yt-dlp's IncompleteRead is often wrapped in a DownloadError. A peer
+        # closing a response early is recoverable just like a connection reset.
+        if re.search(r"\b\d+ bytes read, \d+ more expected\b", message):
+            transient = True
         cause = exc.__cause__ or exc.__context__
         if not isinstance(cause, BaseException):
             break
         exc = cause
-    return False
+    return transient
 
 
 def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: str,
@@ -998,7 +1004,7 @@ def native_download_format(
         "acodec": fmt.get("acodec"),
         "width": fmt.get("width"),
         "height": fmt.get("height"),
-        "downloader_options": fmt.get("downloader_options"),
+        "downloader_options": fmt.get("downloader_options") or {},
         "fragment_base_url": fmt.get("fragment_base_url"),
         "extra_param_to_segment_url": fmt.get("extra_param_to_segment_url"),
     }
@@ -1013,8 +1019,24 @@ def native_download_format(
     # Section metadata would make yt-dlp pick FFmpegFD and bypass the proxy.
     info.pop("section_start", None)
     info.pop("section_end", None)
-    with _proxy_client(params) as ydl:
-        ydl.process_info(info)
+    try:
+        with _proxy_client(params) as ydl:
+            ydl.process_info(info)
+    except Exception as exc:
+        # The HTTP client can read a final block without writing it or emitting
+        # progress. Account for known bytes before removing the partial file.
+        count_bytes = options.get("_youtube_count_bytes")
+        if count_bytes:
+            incomplete = re.search(r"\b(\d+) bytes read, \d+ more expected\b", str(exc))
+            if incomplete and fragments is None:
+                count_bytes({"status": "downloading", "filename": str(dest_stem) + "." + info["ext"],
+                             "downloaded_bytes": int(incomplete.group(1))})
+            for partial in dest_stem.parent.glob(dest_stem.name + ".*"):
+                filename = str(partial).removesuffix(".part")
+                if partial.is_file() and Path(filename).suffix == "." + info["ext"]:
+                    count_bytes({"status": "downloading", "filename": filename,
+                                 "downloaded_bytes": partial.stat().st_size})
+        raise
     return _find_download(dest_stem)
 
 
