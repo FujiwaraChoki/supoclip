@@ -49,6 +49,14 @@ PRs should include:
 - Any env/config or migration impact.
 - Screenshots/GIFs for UI changes.
 - Linked issue(s) and manual verification steps.
+- A `CHANGELOG.md` entry for user-visible changes, or a brief explanation of why no entry is needed.
+
+## Changelog Requirements
+- Update the root `CHANGELOG.md` in the same PR as every user-visible feature, improvement, or bug fix. This includes UI wording changes and backend fixes that affect the user experience.
+- Follow the file's format: newest date first, plain-language descriptions, a **New**, **Improved**, **Fixed**, or **Under the hood** category, and a link to the relevant PR. Never include customer names, email addresses, IDs, or other private details.
+- Internal-only changes, including repository instructions and tests with no product behavior change, do not need a release note.
+- Before merging, explicitly check that the required entry is present and run `cd frontend && pnpm exec vitest run src/lib/changelog.test.ts` when the changelog changes.
+- When deploying a user-visible change, verify its entry appears on the live `/changelog` page before reporting the release complete. Do not defer the entry to a later follow-up.
 
 ## Security & Configuration Tips
 - Never commit real secrets; use `.env.example` as the template.
