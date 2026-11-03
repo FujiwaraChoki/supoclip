@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Optional
 
 from .config import get_config
+from .media.ffmpeg import audio_stream_present
 from .youtube_proxy import (
     AudioDownloadForbidden,
     ByteBudget,
@@ -663,7 +664,14 @@ def adopt_full_download(
         manifest = _load_manifest(directory, video_id)
         previous = _full_path(directory, manifest)
         existing = _usable_full(directory, manifest, quality)
-        if existing is not None and existing.resolve() != source.resolve():
+        # A video-only cache must not win over the file just downloaded.
+        # Otherwise a silent full file is stored, then returned again in
+        # place of every later download that was meant to replace it.
+        if (
+            existing is not None
+            and existing.resolve() != source.resolve()
+            and audio_stream_present(existing) is not False
+        ):
             kept = existing
         else:
             kept = None
@@ -793,9 +801,9 @@ def download_analysis_source(
             )
             return download_full(), False
         try:
-            return _full_timeline_via_sections(
+            section_path = _full_timeline_via_sections(
                 url, video_id, duration, task_id=task_id, budget=budget,
-            ), False
+            )
         except DownloadBudgetExceeded:
             raise
         except Exception as section_exc:
@@ -805,6 +813,13 @@ def download_analysis_source(
                 public_download_error(section_exc),
             )
             return download_full(), False
+        if audio_stream_present(section_path) is False:
+            logger.warning(
+                "Section download for %s has no audio stream; falling back to a full file",
+                video_id,
+            )
+            return download_full(), False
+        return section_path, False
     except Exception as exc:
         logger.warning(
             "Proxy audio download failed for %s, falling back to a full file: %s",
@@ -1010,7 +1025,9 @@ def materialize_clip_source(
     with _cache_lock(directory):
         _restore_remote_cache(video_id, directory)
         manifest = _load_manifest(directory, video_id)
-        full = _usable_full(directory, manifest, quality)
+        full = _without_silent_full(
+            _usable_full(directory, manifest, quality), video_id,
+        )
         if full:
             log_youtube_attempt(
                 provider="cache", video_id=video_id, kind="full",
@@ -1078,6 +1095,21 @@ def materialize_clip_source(
     return render_path
 
 
+def _without_silent_full(full: Optional[Path], video_id: str) -> Optional[Path]:
+    """Drop a cached file whose container has no audio stream.
+
+    A failed probe stays usable. Only a container ffprobe could read, with no
+    audio stream, is a bad download and must not be served again.
+    """
+    if full is not None and audio_stream_present(full) is False:
+        logger.warning(
+            "Cached YouTube file for %s has no audio stream; downloading again",
+            video_id,
+        )
+        return None
+    return full
+
+
 def cached_full_media(video_id: str, quality: Optional[str] = None) -> Optional[Path]:
     """Return a fresh cached full download at or above ``quality``, if stored."""
     runtime = get_config()
@@ -1089,7 +1121,8 @@ def cached_full_media(video_id: str, quality: Optional[str] = None) -> Optional[
         return None
     with _cache_lock(directory):
         _restore_remote_cache(video_id, directory)
-        return _usable_full(directory, _load_manifest(directory, video_id), quality)
+        full = _usable_full(directory, _load_manifest(directory, video_id), quality)
+    return _without_silent_full(full, video_id)
 
 
 def resolve_full_youtube_download(
@@ -1115,6 +1148,7 @@ def resolve_full_youtube_download(
         with _cache_lock(directory):
             _restore_remote_cache(video_id, directory)
             full = _usable_full(directory, _load_manifest(directory, video_id), quality)
+        full = _without_silent_full(full, video_id)
         if full:
             log_youtube_attempt(
                 provider="cache", video_id=video_id, kind="full",

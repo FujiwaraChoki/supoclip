@@ -53,6 +53,7 @@
   "cancelledBody": "Setz diese Generierung fort, wenn du weitermachen willst.",
   "failedTitle": "Verarbeitung fehlgeschlagen",
   "failedBody": "Beim Verarbeiten deines Videos ist ein Fehler aufgetreten. Setz fort, um ab der Stelle neu zu versuchen, oder nimm ein anderes Video.",
+  "noAudio": "Dieses Video hat keine Audiospur. SupoClip braucht gesprochene Sprache, um Clips zu finden. Bitte lade eine Datei mit Ton hoch oder füge den YouTube-Link ein. Es wurden keine Minuten verbraucht.",
   "backHome": "Zurück zur Startseite",
   "noClipsTitle": "Keine Clips erzeugt",
   "noClipsBody": "Die Generierung ist fertig, aber es wurden keine Clips erzeugt. Das Video hatte vielleicht keinen passenden Inhalt zum Schneiden.",

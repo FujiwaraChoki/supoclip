@@ -30,6 +30,7 @@ from ...repositories.task_repository import TaskRepository
 from ...database import get_db
 from ...database import AsyncSessionLocal
 from ...services.task_service import TaskService
+from ...errors import NO_AUDIO_ERROR_CODE, NO_AUDIO_MESSAGE, VIDEO_NO_AUDIO
 from ...services.video_service import VideoService
 from ...media.upload_ingest import foreign_upload
 from ...repositories.upload_repository import get_stored_upload
@@ -191,7 +192,26 @@ async def _preflight_upload_source(url: str, user_id: str, duration_limit: int, 
                 "max_duration_seconds": duration_limit,
             },
         )
+
+    # Same headers as the duration probe, still before the task is created
+    # or any minutes are recorded. A failed probe is not a silent video.
+    has_audio = None
+    try:
+        if reference:
+            has_audio = await run_in_thread(
+                VideoService.probe_upload_has_audio, url, user_id, reference
+            )
+        else:
+            has_audio = await run_in_thread(VideoService.probe_upload_has_audio, url, user_id)
+    except Exception:
+        logger.warning("Could not probe upload audio for %s", url)
+    if has_audio is False:
+        raise HTTPException(status_code=422, detail=_no_audio_detail())
     return duration
+
+
+def _no_audio_detail() -> Dict[str, str]:
+    return {"code": VIDEO_NO_AUDIO, "message": NO_AUDIO_MESSAGE}
 
 
 def _normalize_font_size(value: Any, default: int = 24) -> Optional[int]:
@@ -1468,6 +1488,9 @@ async def resume_task(
                     status_code=400,
                     detail="Only cancelled/error/queued tasks can be resumed",
                 )
+            if task.get("error_code") == NO_AUDIO_ERROR_CODE:
+                # Resuming would re-charge minutes for a file that cannot work.
+                raise HTTPException(status_code=422, detail=_no_audio_detail())
 
             source_url = task.get("source_url")
             source_type = task.get("source_type")

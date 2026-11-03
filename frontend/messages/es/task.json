@@ -53,6 +53,7 @@
   "cancelledBody": "Reanuda esta generación cuando quieras continuar.",
   "failedTitle": "Error de procesamiento",
   "failedBody": "Hubo un error al procesar tu video. Reanuda para reintentar desde donde se detuvo, o prueba con otro video.",
+  "noAudio": "Este video no tiene pista de audio. SupoClip necesita voz para encontrar clips. Sube un archivo con sonido o pega el enlace de YouTube. No se usaron minutos.",
   "backHome": "Volver al inicio",
   "noClipsTitle": "No se generaron clips",
   "noClipsBody": "La generación terminó, pero no se crearon clips. Es posible que el video no tuviera contenido adecuado para recortar.",

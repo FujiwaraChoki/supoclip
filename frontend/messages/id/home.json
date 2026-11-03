@@ -14,6 +14,7 @@
     "uploadFont": "Gagal mengunggah font",
     "uploadFontRetry": "Gagal mengunggah font. Coba lagi, ya.",
     "processVideo": "Gagal memproses video. Coba lagi, ya.",
+    "noAudio": "Video ini tidak punya trek audio. SupoClip butuh ucapan untuk menemukan klip. Unggah file yang ada suaranya, atau tempel tautan YouTube. Tidak ada menit yang terpakai.",
     "fileTooLarge": "File ini {size}, melebihi batas unggah {limit}. Coba ekspor yang lebih pendek atau file yang lebih kecil.",
     "api": "Error API: {status}"
   },

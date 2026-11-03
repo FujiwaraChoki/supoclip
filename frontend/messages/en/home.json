@@ -14,6 +14,7 @@
     "uploadFont": "Failed to upload font",
     "uploadFontRetry": "Failed to upload font. Please try again.",
     "processVideo": "Failed to process video. Please try again.",
+    "noAudio": "This video has no audio track. SupoClip needs speech to find clips. Please upload a file with sound or paste the YouTube link instead. No minutes were used.",
     "fileTooLarge": "This file is {size}, which is over the {limit} upload limit. Try a shorter export or a smaller file.",
     "api": "API error: {status}"
   },

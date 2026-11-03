@@ -53,6 +53,7 @@
   "cancelledBody": "准备好后可以继续这次生成。",
   "failedTitle": "处理失败",
   "failedBody": "处理视频时出错。可以继续，从停止的地方重试，或换一个视频。",
+  "noAudio": "这个视频没有音轨。SupoClip 需要语音才能找到片段。请上传带声音的文件，或改为粘贴 YouTube 链接。没有消耗分钟数。",
   "backHome": "返回首页",
   "noClipsTitle": "没有生成片段",
   "noClipsBody": "生成已完成，但没有产出片段。这段视频可能没有适合剪辑的内容。",

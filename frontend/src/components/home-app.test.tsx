@@ -68,6 +68,32 @@ it("states the upload limit and rejects a file over it before upload", async () 
   expect(screen.queryByText(/over the 2 GB upload limit/)).not.toBeInTheDocument();
 });
 
+it("explains an upload with no audio instead of the raw backend text", async () => {
+  const fetchMock = vi.mocked(fetch);
+  const defaultFetch = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (input, init) => {
+    const url = String(input);
+    if (url.includes("/api/tasks/create")) {
+      return new Response(JSON.stringify({
+        detail: { code: "VIDEO_NO_AUDIO", message: "English fallback from the API" },
+      }), { status: 422, headers: { "Content-Type": "application/json" } });
+    }
+    return defaultFetch(input, init);
+  });
+  render(<HomeApp />, { wrapper: TooltipProvider });
+
+  fireEvent.change(screen.getByLabelText("YouTube, Twitch, or Kick URL"), {
+    target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+  });
+  const generate = screen.getByRole("button", { name: "Generate clips" });
+  await waitFor(() => expect(generate).toBeEnabled());
+  fireEvent.click(generate);
+
+  expect(await screen.findByText(/This video has no audio track/)).toBeInTheDocument();
+  expect(screen.getByText(/SupoClip needs speech to find clips/)).toBeInTheDocument();
+  expect(screen.queryByText(/English fallback from the API/)).not.toBeInTheDocument();
+});
+
 it("sends the caption defaults saved in Settings with a new task", async () => {
   const fetchMock = vi.mocked(fetch);
   const defaultFetch = fetchMock.getMockImplementation()!;

@@ -340,6 +340,9 @@ export default function HomeApp() {
 
       if (!startResponse.ok) {
         const info = await parseApiError(startResponse, t("errors.api", { status: startResponse.status }));
+        if (info.code === "VIDEO_NO_AUDIO") {
+          throw new Error(formatSupportMessage({ ...info, message: t("errors.noAudio") }));
+        }
         const upgradeForError = upgradeReasonForError(info.code, info.detail, upgradeState?.nextPlan?.youtubeMaxMinutes);
         if (upgradeForError) {
           openUpgrade(upgradeForError);

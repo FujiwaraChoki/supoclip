@@ -56,6 +56,18 @@ def test_logged_exceptions_go_to_posthog_with_trace_and_user():
     assert kwargs["properties"]["logger"] == "src.test"
 
 
+def test_user_input_errors_are_not_captured():
+    from src.errors import MissingAudioError
+
+    client = FakePostHog()
+    handler = observability.PostHogExceptionHandler(client)
+    error = MissingAudioError()
+    handler.emit(_record(exc_info=(MissingAudioError, error, error.__traceback__)))
+    assert client.calls == []
+    assert error.fingerprint == "user-input:no_audio"
+    assert error.retryable is False
+
+
 def test_plain_errors_and_posthog_own_logs_are_not_captured():
     client = FakePostHog()
     handler = observability.PostHogExceptionHandler(client)
