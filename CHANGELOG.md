@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-03
 
+- **Fixed:** YouTube videos blocked in the downloader's region can retry from a supported region while keeping saved transcripts and other download options available. Generation and editing explain any remaining regional restriction and suggest uploading the file or choosing another source. ([#332](https://github.com/FujiwaraChoki/supoclip/pull/332))
 - **Fixed:** Retrying a failed generation keeps completed clips and your edits, reuses finished transcription and analysis, and generates only the missing clips. Temporary YouTube download failures get a limited automatic retry before falling back. ([#329](https://github.com/FujiwaraChoki/supoclip/pull/329))
 - **Improved:** The recovery action is now called “Retry generation” instead of “Resume.” ([#329](https://github.com/FujiwaraChoki/supoclip/pull/329))
 

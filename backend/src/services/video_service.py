@@ -23,6 +23,7 @@ from ..youtube_proxy import (
     ByteBudget,
     DownloadBudgetExceeded,
     PartialDownloadUnavailable,
+    YouTubeGeoRestrictedError,
     proxy_configured,
     public_download_error,
 )
@@ -35,6 +36,7 @@ from ..youtube_source import (
     load_time_map,
     local_ranges_for,
     persist_cache_sidecar,
+    preserve_geo_restriction,
 )
 from ..video_utils import (
     get_video_transcript,
@@ -461,6 +463,7 @@ class VideoService:
                 return None
             job_budget = budget or ByteBudget(get_config().youtube_download_max_bytes)
             bypass_proxy = skip_proxy
+            section_error = None
             if ranges:
                 try:
                     segments = [
@@ -478,6 +481,7 @@ class VideoService:
                 except DownloadBudgetExceeded:
                     raise
                 except Exception as exc:
+                    section_error = exc
                     # Only unsupported slicing warrants a full proxy attempt.
                     bypass_proxy = skip_proxy or not isinstance(exc, PartialDownloadUnavailable)
                     if errors is not None and not isinstance(exc, PartialDownloadUnavailable):
@@ -487,7 +491,7 @@ class VideoService:
                         video_id,
                         exc,
                     )
-            return resolve_full_youtube_download(
+            path = resolve_full_youtube_download(
                 url,
                 video_id,
                 lambda **kwargs: download_youtube_video(
@@ -498,6 +502,7 @@ class VideoService:
                 skip_proxy=bypass_proxy,
                 quality=quality,
             )
+            return preserve_geo_restriction(path, section_error)
 
         try:
             video_path = await run_in_thread(_resolve)
@@ -946,7 +951,23 @@ class VideoService:
                 await progress_callback(10, "Downloading video...", "processing")
 
             if source_type == "youtube":
-                video_info = await async_get_youtube_video_info(url, task_id=task_id)
+                job_budget = ByteBudget(
+                    getattr(runtime_config, "youtube_download_max_bytes", 2_000_000_000)
+                )
+                metadata_error = None
+                try:
+                    video_info = await async_get_youtube_video_info(
+                        url, task_id=task_id, budget=job_budget,
+                    )
+                except YouTubeGeoRestrictedError as exc:
+                    # A retry already passed admission. Metadata failure must
+                    # not prevent reuse of saved media or independent providers.
+                    metadata_error = exc
+                    video_info = None
+                    logger.warning("YouTube metadata unavailable; trying saved media and download providers: %s", exc)
+                except TimeoutError:
+                    video_info = None
+                    logger.warning("YouTube metadata timed out; trying saved media and download providers")
                 source_duration = None
                 if video_info:
                     duration = video_info.get("duration", 0)
@@ -959,9 +980,6 @@ class VideoService:
                         )
 
                 video_id = get_youtube_video_id(url)
-                job_budget = ByteBudget(
-                    getattr(runtime_config, "youtube_download_max_bytes", 2_000_000_000)
-                )
                 cached_full = (
                     await run_in_thread(cached_full_media, video_id, download_quality)
                     if video_id else None
@@ -1001,6 +1019,7 @@ class VideoService:
                     video_path = cached_full or await VideoService.download_video(
                         url, task_id=task_id, quality=download_quality, budget=job_budget,
                     )
+                video_path = preserve_geo_restriction(video_path, metadata_error)
                 if not video_path:
                     raise Exception("Failed to download video")
             elif source_type in {"twitch", "kick"}:
@@ -1266,6 +1285,7 @@ class VideoService:
                     await progress_callback(
                         65, "Downloading selected segments...", "processing"
                     )
+                section_error = None
                 try:
                     if source_type in {"twitch", "kick"}:
                         video_path = await run_in_thread(
@@ -1282,19 +1302,26 @@ class VideoService:
                 except DownloadBudgetExceeded as exc:
                     raise Exception(str(exc)) from exc
                 except Exception as exc:
+                    if source_type in {"twitch", "kick"} and isinstance(exc, StreamSourceError):
+                        raise
+                    section_error = exc
+
+                if section_error is not None:
                     logger.warning(
                         "Section download failed, falling back to a full download: %s",
-                        exc,
+                        section_error,
                     )
                     if source_type in {"twitch", "kick"}:
-                        if isinstance(exc, StreamSourceError):
-                            raise
                         video_path = await run_in_thread(
                             download_stream_video, url, file_duration, task_id,
                             max_duration=duration_limit, operation=PROCESSING_OPERATION,
                         )
                     else:
-                        video_path = await VideoService.download_video(url, task_id=task_id, quality=download_quality, budget=job_budget, skip_proxy=not isinstance(exc, PartialDownloadUnavailable))
+                        video_path = await VideoService.download_video(
+                            url, task_id=task_id, quality=download_quality, budget=job_budget,
+                            skip_proxy=not isinstance(section_error, PartialDownloadUnavailable),
+                        )
+                        video_path = preserve_geo_restriction(video_path, section_error)
                     if video_path and audio_path:
                         await run_in_thread(copy_transcript_sidecar, audio_path, video_path)
                         await run_in_thread(persist_cache_sidecar, video_path)

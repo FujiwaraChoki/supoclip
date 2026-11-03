@@ -6,6 +6,8 @@ Optimized for free yt-dlp downloads with optional Apify fallback.
 import asyncio
 from datetime import datetime
 import logging
+import json
+import uuid
 import re
 import time
 from pathlib import Path
@@ -24,7 +26,11 @@ from .youtube_proxy import (
     DownloadBudgetExceeded,
     base_proxy_params,
     download_full_with_proxy,
+    extract_video_info_with_proxy,
+    extract_video_info,
     YouTubeDownloadError,
+    YouTubeGeoRestrictedError,
+    is_geo_restricted_error,
     log_youtube_attempt,
     proxy_configured,
     public_download_error,
@@ -298,14 +304,28 @@ def validate_youtube_url(url: str) -> bool:
     return video_id is not None
 
 
-def _fetch_video_info_with_ytdlp(url: str, task_id: Optional[str] = None) -> Dict[str, Any]:
+def _fetch_video_info_with_ytdlp(
+    url: str, task_id: Optional[str] = None, *,
+    budget: Optional[ByteBudget] = None, deadline: Optional[float] = None,
+) -> Dict[str, Any]:
     video_id = get_youtube_video_id(url)
     if not video_id:
         raise ValueError(f"Invalid YouTube URL: {url}")
 
-    ydl_opts = _build_info_options(task_id)
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)
+    if proxy_configured():
+        # Duration preflight must recover regions too, including self-hosted
+        # deployments without the independent YouTube Data API configured.
+        info = extract_video_info_with_proxy(
+            url, video_id, task_id=task_id, budget=budget, deadline=deadline,
+        )
+    else:
+        ydl_opts = _build_info_options(task_id)
+        if deadline is not None:
+            ydl_opts["_youtube_deadline"] = deadline
+            info = extract_video_info(url, ydl_opts)
+        else:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
 
     return {
         "id": info.get("id"),
@@ -324,7 +344,9 @@ def _fetch_video_info_with_ytdlp(url: str, task_id: Optional[str] = None) -> Dic
     }
 
 
-def _fetch_video_info_with_youtube_data_api(url: str) -> Dict[str, Any]:
+def _fetch_video_info_with_youtube_data_api(
+    url: str, *, deadline: Optional[float] = None,
+) -> Dict[str, Any]:
     video_id = get_youtube_video_id(url)
     if not video_id:
         raise ValueError(f"Invalid YouTube URL: {url}")
@@ -334,6 +356,14 @@ def _fetch_video_info_with_youtube_data_api(url: str) -> Dict[str, Any]:
     if not api_key:
         raise ValueError("Missing YOUTUBE_DATA_API_KEY and GOOGLE_API_KEY")
 
+    timeout = (10, 30)
+    if deadline is not None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("YouTube metadata deadline exceeded")
+        # Divide the remaining allowance between connection and read-idle
+        # timeouts. Check elapsed time too; these are not total wall-clock limits.
+        timeout = (min(10, remaining / 2), min(30, remaining / 2))
     response = requests.get(
         YOUTUBE_DATA_API_URL,
         params={
@@ -348,10 +378,12 @@ def _fetch_video_info_with_youtube_data_api(url: str) -> Dict[str, Any]:
                 "statistics(viewCount,likeCount))"
             ),
         },
-        timeout=(10, 30),
+        timeout=timeout,
     )
     response.raise_for_status()
     payload = response.json()
+    if deadline is not None and time.monotonic() >= deadline:
+        raise TimeoutError("YouTube metadata deadline exceeded")
     items = payload.get("items") or []
     if not items:
         raise ValueError(f"No YouTube Data API results for video {video_id}")
@@ -388,8 +420,15 @@ def fetch_video_info(url: str) -> Optional[Dict[str, Any]]:
 async def async_get_youtube_video_info(
     url: str,
     task_id: Optional[str] = None,
+    *,
+    budget: Optional[ByteBudget] = None,
+    deadline: Optional[float] = None,
 ) -> Optional[Dict[str, Any]]:
-    return await asyncio.to_thread(get_youtube_video_info, url, task_id)
+    if deadline is None:
+        deadline = time.monotonic() + get_config().youtube_preflight_timeout_seconds
+    return await asyncio.to_thread(
+        get_youtube_video_info, url, task_id, budget=budget, deadline=deadline,
+    )
 
 
 def get_youtube_video_info(
@@ -397,6 +436,8 @@ def get_youtube_video_info(
     task_id: Optional[str] = None,
     *,
     errors: Optional[list[str]] = None,
+    budget: Optional[ByteBudget] = None,
+    deadline: Optional[float] = None,
 ) -> Optional[Dict[str, Any]]:
     video_id = get_youtube_video_id(url)
     if not video_id:
@@ -412,16 +453,30 @@ def get_youtube_video_info(
     )
     providers = [primary_provider, secondary_provider]
     last_error: Optional[Exception] = None
+    geo_error: Optional[Exception] = None
 
     for index, provider in enumerate(providers):
         try:
+            options = {}
+            if deadline is not None:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("YouTube metadata deadline exceeded")
+                usable_providers = sum(
+                    candidate != YOUTUBE_METADATA_PROVIDER_DATA_API
+                    or bool(config.resolve_youtube_data_api_key())
+                    for candidate in providers[index:]
+                )
+                options["deadline"] = time.monotonic() + remaining / max(1, usable_providers)
             if provider == YOUTUBE_METADATA_PROVIDER_DATA_API:
-                video_info = _fetch_video_info_with_youtube_data_api(url)
+                video_info = _fetch_video_info_with_youtube_data_api(url, **options)
             else:
+                if budget is not None:
+                    options["budget"] = budget
                 video_info = (
-                    _fetch_video_info_with_ytdlp(url, task_id)
+                    _fetch_video_info_with_ytdlp(url, task_id, **options)
                     if task_id
-                    else _fetch_video_info_with_ytdlp(url)
+                    else _fetch_video_info_with_ytdlp(url, **options)
                 )
 
             if index == 0:
@@ -439,6 +494,8 @@ def get_youtube_video_info(
             return video_info
         except Exception as exc:
             last_error = exc
+            if is_geo_restricted_error(exc):
+                geo_error = exc
             if index == 0:
                 logger.warning(
                     "Primary YouTube metadata provider %s failed for %s: %s. Trying %s.",
@@ -459,6 +516,10 @@ def get_youtube_video_info(
         logger.warning("YouTube video info fetch failed for %s: %s", video_id, last_error)
         if errors is not None:
             errors.append(public_download_error(last_error))
+    if deadline is not None and time.monotonic() >= deadline:
+        raise TimeoutError("YouTube metadata deadline exceeded") from last_error
+    if geo_error is not None:
+        raise YouTubeGeoRestrictedError() from geo_error
     return None
 
 
@@ -549,24 +610,8 @@ def _download_youtube_video_with_ytdlp(
         return None
 
     downloader = YouTubeDownloader()
-    info_errors: list[str] = []
-    video_info = get_youtube_video_info(
-        url,
-        task_id=task_id,
-        errors=info_errors,
-    )
-    if not video_info:
-        logger.error(f"Could not retrieve video information for: {url}")
-        if info_errors:
-            # Raised so the provider chain records why yt-dlp gave up.
-            raise YouTubeDownloadError(info_errors[-1])
-        return None
-
-    logger.info(f"Video: '{video_info.get('title')}' ({video_info.get('duration')}s)")
-
-    duration = video_info.get("duration", 0)
-    if duration > 3600:
-        logger.warning(f"Video duration ({duration}s) exceeds recommended limit")
+    # This is the independent datacenter fallback. yt-dlp extracts metadata
+    # during download; a separate proxied lookup must not gate this route.
 
     last_error: Optional[str] = None
 
@@ -612,6 +657,10 @@ def _download_youtube_video_with_ytdlp(
             logger.warning("No video file found after download attempt %s", attempt + 1)
 
         except yt_dlp.utils.DownloadError as e:
+            # Retrying the same datacenter cannot change a country restriction.
+            # Let independent download providers try their own regions instead.
+            if is_geo_restricted_error(e):
+                raise YouTubeGeoRestrictedError() from e
             last_error = str(e)
             logger.warning("Download attempt %s failed: %s", attempt + 1, e)
             if attempt < max_retries - 1:
@@ -622,6 +671,8 @@ def _download_youtube_video_with_ytdlp(
                 logger.error("All download attempts failed")
 
         except Exception as e:
+            if is_geo_restricted_error(e):
+                raise YouTubeGeoRestrictedError() from e
             last_error = str(e)
             logger.error(
                 "Unexpected error during download attempt %s: %s",
@@ -704,6 +755,7 @@ def download_youtube_video(
 
     config = get_config()
     job_budget = budget or ByteBudget(getattr(config, "youtube_download_max_bytes", 2_000_000_000))
+    geo_error: Optional[BaseException] = None
 
     for provider in _provider_order(config, skip_proxy=skip_proxy):
         before = job_budget.snapshot()
@@ -735,9 +787,13 @@ def download_youtube_video(
             if errors is not None:
                 errors.append(public_download_error(exc))
             if exc.permanent:
+                if geo_error is not None:
+                    raise YouTubeGeoRestrictedError() from geo_error
                 return None
             continue
         except Exception as exc:
+            if is_geo_restricted_error(exc):
+                geo_error = exc
             _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
             logger.warning(
                 "%s download failed for %s: %s", provider, url, redact_secrets(str(exc)),
@@ -771,6 +827,8 @@ def download_youtube_video(
         return downloaded_path
 
     logger.error("All YouTube download providers failed for %s", url)
+    if geo_error is not None:
+        raise YouTubeGeoRestrictedError() from geo_error
     return None
 
 
@@ -848,11 +906,30 @@ def cleanup_downloaded_files(video_id: str, source_path: Optional[Path] = None):
 
     temp_dir = Path(get_config().temp_dir)
     provider_dir = False
-    if source_path is not None and source_path.parent.name.startswith((f"apify-{video_id}-", f"rapidapi-{video_id}-")):
+    if source_path is not None and source_path.parent.name.startswith((f"apify-{video_id}-", f"rapidapi-{video_id}-", f"proxy-{video_id}-")):
         candidate = source_path.parent.resolve()
         if candidate.parent != temp_dir.resolve():
             logger.warning("Refusing source cleanup outside the configured download directory")
             return
+        if candidate.name.startswith(f"proxy-{video_id}-"):
+            # A proxy attempt now owns a unique directory. Retain reusable
+            # timings at the stable per-video path before removing that media.
+            sidecar = source_path.with_suffix(".transcript_cache.json")
+            canonical = temp_dir / f"{video_id}.transcript_cache.json"
+            temporary = canonical.with_name(f".{canonical.name}.{uuid.uuid4().hex}.tmp")
+            try:
+                payload = json.loads(sidecar.read_text(encoding="utf-8"))
+                if isinstance(payload, dict) and isinstance(payload.get("words"), list) and payload["words"]:
+                    temporary.write_text(json.dumps(payload), encoding="utf-8")
+                    temporary.replace(canonical)
+                    sidecar.unlink(missing_ok=True)
+            except (OSError, ValueError):
+                pass  # Keep any existing sidecar if canonical persistence fails.
+            finally:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    logger.warning("Could not remove temporary transcript sidecar for %s", video_id)
         temp_dir = candidate
         provider_dir = True
 

@@ -157,7 +157,8 @@ async def test_caption_edit_removes_only_its_download(
     assert clip_path.exists()
 
 
-async def test_editor_preparation_reports_why_the_youtube_download_failed(tmp_path, monkeypatch):
+@pytest.mark.parametrize("geo_restricted", [False, True])
+async def test_editor_preparation_reports_why_the_youtube_download_failed(tmp_path, monkeypatch, geo_restricted):
     config = Config()
     config.temp_dir = str(tmp_path)
     monkeypatch.setattr("src.config.get_config", lambda: config)
@@ -165,6 +166,10 @@ async def test_editor_preparation_reports_why_the_youtube_download_failed(tmp_pa
     task = {"source_url": SOURCE_URL, "source_type": "youtube", "processing_mode": "fast"}
 
     async def download_video(*_args, errors=None, **_kwargs):
+        if geo_restricted:
+            from src.youtube_proxy import YouTubeGeoRestrictedError
+
+            raise YouTubeGeoRestrictedError()
         errors.append("ERROR: [youtube] abcdefghijk: Sign in to confirm you’re not a bot. Use --cookies-from-browser")
         return None
 
@@ -191,7 +196,11 @@ async def test_editor_preparation_reports_why_the_youtube_download_failed(tmp_pa
 
     state = editor_service.read_state(editor_dir(str(tmp_path), "task", "clip", "clip.mp4"))
     assert state["status"] == "failed"
-    assert "not a bot" in state["error"]
+    if geo_restricted:
+        assert "regional restrictions" in state["error"]
+        assert "Upload the video file" in state["error"]
+    else:
+        assert "not a bot" in state["error"]
     assert "--cookies" not in state["error"]
 
 

@@ -676,3 +676,54 @@ def test_ytdlp_format_enforces_global_cap_and_honors_lower_plan_cap(tmp_path):
         assert capped == "bv*[height<=720]+ba/b[height<=720]"
     finally:
         set_config_override(None)
+
+
+def test_proxy_cleanup_retains_timings_at_stable_path(tmp_path, monkeypatch):
+    import json
+    from src.youtube_utils import cleanup_downloaded_files
+
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    monkeypatch.setattr("src.youtube_utils.get_config", lambda: config)
+    stage = tmp_path / "proxy-abcdefghijk-owned"
+    stage.mkdir()
+    source = stage / "abcdefghijk.mp4"
+    source.write_bytes(b"video")
+    words = {"words": [{"text": "hello", "start": 0, "end": 500}]}
+    source.with_suffix(".transcript_cache.json").write_text(json.dumps(words))
+    other = tmp_path / "abcdefghijk.mp4"
+    other.write_bytes(b"another job")
+
+    cleanup_downloaded_files("abcdefghijk", source_path=source)
+
+    assert json.loads((tmp_path / "abcdefghijk.transcript_cache.json").read_text()) == words
+    assert other.read_bytes() == b"another job"
+    assert not stage.exists()
+
+
+def test_proxy_adoption_removes_owned_directory_and_keeps_sidecar(tmp_path, monkeypatch):
+    import json
+    from src.youtube_source import adopt_full_download
+
+    config = Config()
+    config.temp_dir = str(tmp_path)
+    config.youtube_source_cache = True
+    config.media_storage = "local"
+    set_config_override(config)
+    try:
+        stage = tmp_path / "proxy-abcdefghijk-owned"
+        stage.mkdir()
+        source = stage / "abcdefghijk.mp4"
+        source.write_bytes(b"video")
+        words = {"words": [{"text": "hello", "start": 0, "end": 500}]}
+        source.with_suffix(".transcript_cache.json").write_text(json.dumps(words))
+        monkeypatch.setattr("src.youtube_source._persist_named", lambda *a: None)
+        monkeypatch.setattr("src.youtube_source._restore_remote_cache", lambda *a: None)
+
+        saved = adopt_full_download("abcdefghijk", source)
+
+        assert saved.read_bytes() == b"video"
+        assert json.loads(saved.with_suffix(".transcript_cache.json").read_text()) == words
+        assert not stage.exists()
+    finally:
+        set_config_override(None)

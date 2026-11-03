@@ -35,7 +35,7 @@ regenerated, while an existing full source remains available.
 
 If a format cannot be sliced, the job tries a bounded full 1080p download through the proxy. A proxy network failure skips that repeat attempt. With a proxy configured, the fallback order is always **proxy → API Router → Apify primary (Titan in production) → configured emergency actors → direct yt-dlp**, regardless of the legacy primary-provider setting. `APIFY_EXPENSIVE_FALLBACKS` defaults to `false`, so only the primary Apify actor runs. Production explicitly enables Marielise then Scraper One with a shared $1 Apify budget and a $0.50 per-actor ceiling (Titan keeps its smaller $0.03 cap). The spending allowance is shared, not reset between actors. Leave high-cap actors (marielise.dev, scraper_one, dami_studio, and anything else with a multi-dollar run cap) out of `APIFY_YOUTUBE_FALLBACK_ACTORS` unless that flag is `true`. Actor ids stay in private environment configuration.
 
-Proxy attempts and API Router default to 300 seconds each (`YOUTUBE_PROXY_TIMEOUT_SECONDS` and `RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS`). Proxy socket requests and progress checks honor the attempt deadline; a timed-out provider hands off to the next provider. Production actor run timeouts are 300 seconds, with a separate bounded allowance for file transfer and verification. The worker job deadline is independent of actor deadlines.
+Proxy attempts and API Router default to 300 seconds each (`YOUTUBE_PROXY_TIMEOUT_SECONDS` and `RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS`). Proxy socket requests and progress checks honor the attempt deadline. One transport retry and one allowed-region retry are permitted, within an overall limit of the initial timeout plus 60 seconds. A region retry can use the remaining overall allowance; it is not limited to a new 60-second transfer. Once retries are exhausted, independent providers can take over. Full-file proxy attempts use private temporary directories so cleanup cannot remove another job's media or a saved transcript. Production actor run timeouts are 300 seconds, with a separate bounded allowance for file transfer and verification. The worker job deadline is independent of actor deadlines.
 
 ## Generation recovery
 
@@ -97,6 +97,15 @@ the provider to replace the IP sooner. Verify the same exit is used for
 metadata, audio, and selected sections in a canary before enabling production.
 
 `{session}` initially becomes an 8–24 character id derived from the task id. A transport retry uses a new random 24-character id for that download. `{country}` must be two letters; anything else is ignored and the placeholder is removed. Do not log the rendered URL.
+
+When YouTube reports a regional restriction and supplies allowed country codes,
+the downloader can retry through an allowed country using the `{country}`
+placeholder. The retry uses a fresh session for both metadata and media, shares
+the original byte allowance, and stays within the bounded retry deadline.
+It does not change the configured country for other jobs. A proxy URL without
+`{country}` cannot perform this recovery. If the remaining download providers
+also fail, the task explains the regional restriction and suggests uploading
+the video file or choosing another source.
 
 yt-dlp is forced to IPv4 (`source_address=0.0.0.0`, the same as `-4`). Player clients stay at yt-dlp defaults.
 

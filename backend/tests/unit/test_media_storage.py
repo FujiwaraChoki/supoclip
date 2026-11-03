@@ -661,9 +661,9 @@ def test_legacy_video_names_remain_uploadable(storage, filename):
     assert storage.begin_upload('owner', filename, 7, 'video/mp4')['video_path'].endswith('.mp4')
 
 
-@pytest.mark.parametrize("prefix", ["apify-", "oxy-", "videoscale-", "ytdl-"])
+@pytest.mark.parametrize("prefix", ["proxy-", "apify-", "rapidapi-", "oxy-", "videoscale-", "ytdl-"])
 @pytest.mark.parametrize("recent", [False, True])
-def test_orphan_scan_reclaims_retired_downloads_after_grace(storage, tmp_path, prefix, recent):
+def test_orphan_scan_reclaims_staged_downloads_after_grace(storage, tmp_path, prefix, recent):
     from src.workers.media_cleanup import orphan_candidates
 
     directory = tmp_path / f"{prefix}abcdefghijk-test"
@@ -677,6 +677,23 @@ def test_orphan_scan_reclaims_retired_downloads_after_grace(storage, tmp_path, p
         os.utime(media, None)
     candidates = list(orphan_candidates(storage))
     assert ((str(directory), True) in candidates) is (not recent)
+
+
+def test_orphan_scan_reclaims_interrupted_proxy_attempt(storage, tmp_path):
+    from src.workers.media_cleanup import orphan_candidates
+
+    directory = tmp_path / "proxy-abcdefghijk-interrupted"
+    attempt = directory / "attempt-partial"
+    attempt.mkdir(parents=True)
+    partial = attempt / "abcdefghijk.f137.mp4.part"
+    partial.write_bytes(b"interrupted video")
+    old = time.time() - storage.config.media_orphan_grace_seconds - 60
+    for path in (partial, attempt, directory):
+        os.utime(path, (old, old))
+
+    assert (str(directory), True) in list(orphan_candidates(storage))
+    storage.delete(str(directory), prefix=True)
+    assert not directory.exists()
 
 
 def test_editor_restores_generated_layout_when_raw_media_is_already_local(storage, tmp_path):

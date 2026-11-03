@@ -81,8 +81,8 @@ def test_real_transport_failure_recovers_once_without_a_proxy(transport, failure
     budget = proxy.ByteBudget(len(payload) * 3)
     assert download(budget).read_bytes() == payload
     assert state["metadata"] == state["requests"] == 2
-    assert state["sessions"][0] is None
-    assert state["sessions"][1]
+    assert state["sessions"][0] == proxy.sticky_session_id(None, "abcdefghijk")
+    assert state["sessions"][1] and state["sessions"][1] != state["sessions"][0]
     assert budget.total >= len(payload) + (16384 if failure == "truncated" else 0)
 
 
@@ -188,7 +188,8 @@ def test_real_hls_section_retry_preserves_previous_section(tmp_path, monkeypatch
         assert outputs[0][0].read_bytes() == outputs[0][1]
         assert requests == ["/video-0.ts", "/audio-0.ts", "/video-1.ts", "/audio-1.ts",
                             "/video-1.ts", "/audio-1.ts"]
-        assert sessions[:2] == [None, None] and sessions[2]
+        assert sessions[0] == sessions[1] == proxy.sticky_session_id(None, "abcdefghijk")
+        assert sessions[2] and sessions[2] != sessions[1]
         assert budget.total >= len(payload) * 5
         assert not list(tmp_path.glob(".parts-*"))
         for path, _ in outputs:

@@ -117,7 +117,7 @@ async def test_youtube_preflight_timeout_returns_a_clear_error(monkeypatch):
     monkeypatch.setenv("YOUTUBE_PREFLIGHT_TIMEOUT_SECONDS", "0.05")
     set_config_override(None)
 
-    async def slow(_url):
+    async def slow(_url, **_kwargs):
         await asyncio.sleep(2)
         return {"duration": 10, "secret": "secret provider details"}
 
