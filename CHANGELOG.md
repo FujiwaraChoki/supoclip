@@ -4,6 +4,11 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-03
+
+- **Fixed:** Retrying a failed generation keeps completed clips and your edits, reuses finished transcription and analysis, and generates only the missing clips. Temporary YouTube download failures get a limited automatic retry before falling back. ([#329](https://github.com/FujiwaraChoki/supoclip/pull/329))
+- **Improved:** The recovery action is now called “Retry generation” instead of “Resume.” ([#329](https://github.com/FujiwaraChoki/supoclip/pull/329))
+
 ## 2026-10-31
 
 - **New:** Download all of a generation's clips at once as a ZIP from the task page. The download starts right away and streams the original files. ([#321](https://github.com/FujiwaraChoki/supoclip/pull/321))
