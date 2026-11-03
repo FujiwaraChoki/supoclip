@@ -98,6 +98,15 @@ metadata, audio, and selected sections in a canary before enabling production.
 
 `{session}` initially becomes an 8–24 character id derived from the task id. A transport retry uses a new random 24-character id for that download. `{country}` must be two letters; anything else is ignored and the placeholder is removed. Do not log the rendered URL.
 
+When YouTube reports a regional restriction and supplies allowed country codes,
+the downloader can retry through an allowed country using the `{country}`
+placeholder. The retry uses a fresh session for both metadata and media, shares
+the original byte allowance, and stays within the bounded retry deadline.
+It does not change the configured country for other jobs. A proxy URL without
+`{country}` cannot perform this recovery. If the remaining download providers
+also fail, the task explains the regional restriction and suggests uploading
+the video file or choosing another source.
+
 yt-dlp is forced to IPv4 (`source_address=0.0.0.0`, the same as `-4`). Player clients stay at yt-dlp defaults.
 
 ## bgutil sidecar
