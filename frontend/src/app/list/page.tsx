@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { ACTIVE_TASK_STATUSES, RESUMABLE_TASK_STATUSES } from "@/components/app/status-badge";
+import { ACTIVE_TASK_STATUSES, RETRYABLE_TASK_STATUSES } from "@/components/app/status-badge";
 import { PageLoading } from "@/components/app/page-state";
 import { Button } from "@/components/ui/button";
 
@@ -49,7 +49,7 @@ import Link from "next/link";
 
 type Task = GenerationSummary;
 
-type BatchAction = "cancel" | "resume" | "delete" | null;
+type BatchAction = "cancel" | "retry" | "delete" | null;
 
 const fetchTasksList = fetchGenerations;
 
@@ -144,12 +144,12 @@ export default function ListPage() {
   const selectedCount = selectedTasks.length;
   const completedCount = tasks.filter((task) => task.status === "completed").length;
   const activeCount = tasks.filter((task) => ACTIVE_TASK_STATUSES.includes(task.status)).length;
-  const attentionCount = tasks.filter((task) => RESUMABLE_TASK_STATUSES.includes(task.status)).length;
+  const attentionCount = tasks.filter((task) => RETRYABLE_TASK_STATUSES.includes(task.status)).length;
   const cancelableCount = selectedTasks.filter((task) =>
     ACTIVE_TASK_STATUSES.includes(task.status),
   ).length;
-  const resumableCount = selectedTasks.filter((task) =>
-    RESUMABLE_TASK_STATUSES.includes(task.status),
+  const retryableCount = selectedTasks.filter((task) =>
+    RETRYABLE_TASK_STATUSES.includes(task.status),
   ).length;
   const allVisibleSelected = tasks.length > 0 && tasks.every((task) => selectedTaskIds.includes(task.id));
   const someSelected = selectedCount > 0 && !allVisibleSelected;
@@ -261,20 +261,20 @@ export default function ListPage() {
     );
   };
 
-  const handleResumeSelected = async () => {
+  const handleRetrySelected = async () => {
     const targetTaskIds = selectedTasks
-      .filter((task) => RESUMABLE_TASK_STATUSES.includes(task.status))
+      .filter((task) => RETRYABLE_TASK_STATUSES.includes(task.status))
       .map((task) => task.id);
 
     await runBatchAction(
-      "resume",
+      "retry",
       targetTaskIds,
       (taskId) => fetch(`/api/tasks/${taskId}/resume`, { method: "POST" }),
       {
-        empty: t("resume.empty"),
-        fallback: t("resume.fallback"),
-        success: (count) => t("resume.success", { count }),
-        partial: (s, f, err) => t("resume.partial", { success: s, failed: f, error: err }),
+        empty: t("retry.empty"),
+        fallback: t("retry.fallback"),
+        success: (count) => t("retry.success", { count }),
+        partial: (s, f, err) => t("retry.partial", { success: s, failed: f, error: err }),
       },
     );
   };
@@ -324,7 +324,7 @@ export default function ListPage() {
     if (query && !task.source_title.toLowerCase().includes(query)) return false;
     if (filter === "ready") return task.status === "completed";
     if (filter === "active") return ACTIVE_TASK_STATUSES.includes(task.status);
-    if (filter === "attention") return RESUMABLE_TASK_STATUSES.includes(task.status);
+    if (filter === "attention") return RETRYABLE_TASK_STATUSES.includes(task.status);
     return true;
   });
   const filters: { id: typeof filter; label: string; count: number }[] = [
@@ -532,23 +532,23 @@ export default function ListPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => void handleResumeSelected()}
-                    disabled={resumableCount === 0 || activeBatchAction !== null}
+                    onClick={() => void handleRetrySelected()}
+                    disabled={retryableCount === 0 || activeBatchAction !== null}
                     className="text-stone-300 hover:text-white hover:bg-stone-800 disabled:text-stone-600 disabled:hover:bg-transparent dark:hover:bg-stone-700 dark:disabled:text-stone-500"
                   >
-                    {activeBatchAction === "resume" ? (
+                    {activeBatchAction === "retry" ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <RotateCcw className="w-4 h-4" />
                     )}
-                    <span className="hidden sm:inline">{t("resume.action")}</span>
-                    {resumableCount > 0 && (
-                      <span className="text-xs text-stone-500 dark:text-stone-400">{resumableCount}</span>
+                    <span className="hidden sm:inline">{t("retry.action")}</span>
+                    {retryableCount > 0 && (
+                      <span className="text-xs text-stone-500 dark:text-stone-400">{retryableCount}</span>
                     )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={8}>
-                  {t("resume.tooltip", { count: resumableCount })}
+                  {t("retry.tooltip", { count: retryableCount })}
                 </TooltipContent>
               </Tooltip>
 

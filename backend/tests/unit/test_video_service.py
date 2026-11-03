@@ -7,6 +7,13 @@ from src.services import video_service as video_service_module
 from src.services.video_service import VideoService, resolve_upload_for_edit
 
 
+@pytest.fixture(autouse=True)
+def isolated_upload_lookup(monkeypatch):
+    from unittest.mock import AsyncMock
+    monkeypatch.setattr(video_service_module, "materialize_stored_upload", AsyncMock(return_value=None))
+    monkeypatch.setattr(video_service_module, "upload_needs_remote_copy", AsyncMock(return_value=False))
+
+
 class _EmptyAnalysis:
     summary = "No strong standalone segment found"
     key_topics = []

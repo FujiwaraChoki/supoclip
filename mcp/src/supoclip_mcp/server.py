@@ -738,7 +738,7 @@ async def supoclip_cancel_task(
 @mcp.tool(
     name="supoclip_resume_task",
     annotations={
-        "title": "Resume Task",
+        "title": "Retry Generation",
         "readOnlyHint": False,
         "destructiveHint": False,
         "idempotentHint": False,
@@ -747,12 +747,12 @@ async def supoclip_cancel_task(
 )
 @tool_errors
 async def supoclip_resume_task(
-    task_id: Annotated[str, Field(description="The task id to resume.", min_length=1)],
+    task_id: Annotated[str, Field(description="The task id to retry.", min_length=1)],
 ) -> str:
     """Re-queue a cancelled or errored task for processing. Requires authentication.
 
     Args:
-        task_id: The task id to resume.
+        task_id: The task id to retry.
 
     Returns:
         str: JSON ``{"message": str, "job_id": str}``.

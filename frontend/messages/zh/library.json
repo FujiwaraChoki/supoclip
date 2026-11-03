@@ -62,13 +62,13 @@
     "action": "取消",
     "tooltip": "取消 {count, plural, one {# 个进行中的生成} other {# 个进行中的生成}}"
   },
-  "resume": {
-    "empty": "所选内容里没有失败或已取消、可以继续的生成。",
-    "fallback": "继续生成失败",
-    "success": "{count, plural, one {已继续 # 次生成。} other {已继续 # 次生成。}}",
-    "partial": "已继续 {success} 个，{failed} 个失败。{error}",
-    "action": "继续",
-    "tooltip": "继续 {count, plural, one {# 个失败或已取消的生成} other {# 个失败或已取消的生成}}"
+  "retry": {
+    "empty": "所选任务中没有可重试的失败或已取消生成任务。",
+    "fallback": "无法将生成任务加入重试队列",
+    "success": "已将 {count} 个生成任务加入重试队列。",
+    "partial": "{success} 个已加入重试队列，{failed} 个失败。{error}",
+    "action": "重试生成",
+    "tooltip": "重试 {count} 个失败或已取消的生成任务"
   },
   "delete": {
     "empty": "请至少选择一次生成再删除。",

@@ -62,13 +62,13 @@
     "action": "Cancel",
     "tooltip": "Cancel {count, plural, one {# active generation} other {# active generations}}"
   },
-  "resume": {
-    "empty": "No failed or cancelled generations in selection to resume.",
-    "fallback": "Failed to resume generation",
-    "success": "{count, plural, one {# generation resumed.} other {# generations resumed.}}",
-    "partial": "{success} resumed, {failed} failed. {error}",
-    "action": "Resume",
-    "tooltip": "Resume {count, plural, one {# failed/cancelled generation} other {# failed/cancelled generations}}"
+  "retry": {
+    "empty": "No failed or cancelled generations in selection to retry.",
+    "fallback": "Failed to queue generation retry",
+    "success": "{count, plural, one {# generation queued for retry.} other {# generations queued for retry.}}",
+    "partial": "{success} queued for retry, {failed} failed. {error}",
+    "action": "Retry generation",
+    "tooltip": "Retry {count, plural, one {# failed/cancelled generation} other {# failed/cancelled generations}}"
   },
   "delete": {
     "empty": "Select at least one generation to delete.",

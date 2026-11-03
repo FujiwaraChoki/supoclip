@@ -17,7 +17,7 @@
   "toasts": {
     "settingsApplied": "Generierungseinstellungen übernommen",
     "cancelled": "Generierung abgebrochen",
-    "resumed": "Generierung fortgesetzt"
+    "retryQueued": "Generierung zur Wiederholung eingereiht"
   },
   "hooks": {
     "question": "Frage-Hook",
@@ -36,7 +36,7 @@
   "clipsTotal": "{count, plural, one {# Clip} other {# Clips}} · {duration} insgesamt",
   "readOnly": "Nur-Lese-Ansicht einer Generierung von einem anderen Konto.",
   "cancel": "Abbrechen",
-  "resume": "Fortsetzen",
+  "retryGeneration": "Generierung erneut versuchen",
   "restyle": "Neu stylen",
   "creatingLink": "Link wird erstellt…",
   "linkCopied": "Link kopiert",
@@ -50,9 +50,9 @@
   "reconnectingOwn": "Verbindung zu den Live-Updates wird wiederhergestellt. Dein Video wird noch verarbeitet.",
   "reconnectingOther": "Verbindung zu den Live-Updates wird wiederhergestellt. Diese Generierung wird noch verarbeitet.",
   "cancelledTitle": "Generierung abgebrochen",
-  "cancelledBody": "Setz diese Generierung fort, wenn du weitermachen willst.",
+  "cancelledBody": "Versuch diese Generierung erneut, wenn du bereit bist. Deine fertigen Clips bleiben erhalten.",
   "failedTitle": "Verarbeitung fehlgeschlagen",
-  "failedBody": "Beim Verarbeiten deines Videos ist ein Fehler aufgetreten. Setz fort, um ab der Stelle neu zu versuchen, oder nimm ein anderes Video.",
+  "failedBody": "Die Verarbeitung ist fehlgeschlagen. Versuch die Generierung erneut. Deine fertigen Clips bleiben erhalten.",
   "backHome": "Zurück zur Startseite",
   "noClipsTitle": "Keine Clips erzeugt",
   "noClipsBody": "Die Generierung ist fertig, aber es wurden keine Clips erzeugt. Das Video hatte vielleicht keinen passenden Inhalt zum Schneiden.",

@@ -34,9 +34,10 @@ class _Analysis:
 
 
 def _segment(start, end):
-    return SimpleNamespace(
+    from src.ai import TranscriptSegment
+    return TranscriptSegment(
         start_time=start, end_time=end, text="hello world", relevance_score=0.9, reasoning="good",
-        virality=None, hook_title=None, hook_start_time=None, hook_end_time=None,
+        hook_title=None, hook_start_time=None, hook_end_time=None,
     )
 
 

@@ -23,8 +23,11 @@ export REDIS_HOST=127.0.0.1 REDIS_PORT=56379
 export TEMP_DIR=/tmp/supoclip-local-media
 export BACKEND_AUTH_SECRET=local-test-backend-secret
 export SELF_HOST=true
+export MEDIA_STORAGE=local
 export YOUTUBE_DOWNLOAD_PROVIDER=yt_dlp YOUTUBE_METADATA_PROVIDER=yt_dlp
-export APIFY_API_TOKEN='' YOUTUBE_DATA_API_KEY='' GOOGLE_API_KEY=''
+export YOUTUBE_PROXY_URL='' YOUTUBE_POT_PROVIDER_URL=''
+export APIFY_API_TOKEN='' RAPIDAPI_YOUTUBE_API_KEY='' YOUTUBE_DATA_API_KEY='' GOOGLE_API_KEY=''
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
 export TRANSCRIPTION_PROVIDER=whisper WHISPER_MODEL=base
 export LLM=ollama:YOUR_INSTALLED_MODEL
 export OLLAMA_BASE_URL=http://127.0.0.1:11434/v1
@@ -93,3 +96,67 @@ while extracting Playwright browser assets and writing some failure traces.
 Live payment charges, real email/Discord delivery and hosted AI providers are outside
 this local test setup. Billing and webhook validation still run in the automated
 unit suite.
+
+## Retry recovery stress tests
+
+Start with a fresh disposable database and empty dedicated Redis. Reusing a live-test
+database can leave cached media or queued jobs that interfere with other integration
+tests. Run the full backend suite before the opt-in media tests below.
+
+```sh
+cd backend
+export TEST_DATABASE_URL=postgresql+asyncpg://supoclip@127.0.0.1:55432/supoclip_test
+export DATABASE_URL="$TEST_DATABASE_URL"
+export MEDIA_STORAGE=local SELF_HOST=true
+export REDIS_HOST=127.0.0.1 REDIS_PORT=56379
+export YOUTUBE_PROXY_URL='' YOUTUBE_POT_PROVIDER_URL=''
+export APIFY_API_TOKEN='' RAPIDAPI_YOUTUBE_API_KEY=''
+unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+.venv/bin/pytest
+```
+
+The retry tests include:
+
+- A 45-case failure matrix across four planned clips, three attempts per case,
+  and fresh service/database sessions between attempts. Committed clip IDs,
+  metadata, file hashes, order, and completed plan positions must survive.
+- Twenty simultaneous retry API calls and twenty duplicate worker invocations.
+  Only one job may enqueue or enter the pipeline.
+- A 24,000-word multilingual checkpoint with twenty concurrent stage updates,
+  plus a late checkpoint write after task deletion.
+- Real yt-dlp HTTP and HLS fragment downloads from a loopback server that injects
+  502/503/504 responses, premature EOF, and disconnects. Tests verify the attempt
+  limit, fresh session selection, shared byte budget, and preservation of previous
+  sections. HLS outputs are muxed and decoded with real ffmpeg. No proxy is used;
+  proxy configuration and timeout boundaries have separate mocked tests.
+
+To exercise real transcription, AI selection, rendering, trimming, and recovery,
+download a speech-rich excerpt directly with yt-dlp, then run the opt-in tests:
+
+```sh
+# From backend/, using the same local-only environment above.
+mkdir -p ../tmp/retry-live
+.venv/bin/yt-dlp --ignore-config --proxy '' \
+  -f 'best[ext=mp4][height<=480]/best[ext=mp4]' --download-sections '*00:00-00:03:00' \
+  -o '../tmp/retry-live/source.%(ext)s' \
+  'https://www.youtube.com/watch?v=kCmyxaBRv8o'
+export RETRY_LIVE_SOURCE="$(realpath ../tmp/retry-live/source.mp4)"
+export RETRY_LIVE_ARTIFACTS="$(realpath ../tmp/retry-live)"
+export RETRY_LIVE_LLM=ollama:YOUR_INSTALLED_MODEL
+.venv/bin/pytest tests/live/test_retry_media.py -s --no-cov
+```
+
+These two opt-in tests use local Whisper (`base`), local Ollama on port 11434,
+local media storage, and disabled completion notifications. The first requires a
+source yielding at least two selected clips. It injects a failure after transcription,
+a partial render failure, and cancellation after rendering; it deletes transcript
+sidecars to verify checkpoint restoration, trims a committed clip, and checks that
+retry preserves its exact bytes and database row. A final repeated attempt must do
+no additional rendering. The second downloads a short public YouTube video through
+the application's direct yt-dlp path and retries after a clip was saved. Both fully
+decode every final clip and write `report.json` files with stage counts and hashes.
+
+The media tests are skipped unless `RETRY_LIVE_SOURCE` is set. They create test data
+and clear the short fixture's processing-cache entry, so use only the disposable
+database. A three-minute excerpt validates real recovery mechanics; it is not a
+full-length 108-minute run or a production residential-proxy canary.

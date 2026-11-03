@@ -4,17 +4,19 @@ SupoClip can download YouTube media with `yt-dlp` through a residential proxy, t
 
 ## What a configured job does
 
-1. One sticky proxy session for the job, forced over IPv4.
+1. A sticky proxy session, forced over IPv4; a transient transport failure can rotate the session for that failed download.
 2. Modest audio only (about 128 kbps m4a) for the duration check, transcription, audio peaks, and clip selection.
 3. After clips are chosen, only those time ranges, padded (default ±10 seconds) with overlaps merged, at or below 1080p.
 4. Audio and sections land in `{TEMP_DIR}/youtube-cache/{video_id}/`. Regenerating clips, editing captions, and opening the editor reuse that cache. A new section is fetched only when an edit extends past the cached ranges.
 5. Each attempt logs `youtube_provider`, `youtube_video_id`, `youtube_download_kind`, `youtube_outcome`, `youtube_bytes`, and `task_id`. A successful HLS or full-timeline section retry also sets `youtube_fallback` to `hls_audio` or `section`. Axiom can sum bytes per provider. Proxy URLs and signed media URLs are redacted.
 
-When the modest https audio download fails with HTTP 403 or yt-dlp's "unable to download video data" error, the job retries once with an HLS audio format already present in that info response: audio-only `m3u8` / `m3u8_native`, or the lowest muxed HLS rendition at or below the height cap when no audio-only HLS exists. If that also fails and the duration is known, it asks the section downloader for the full timeline (that path prefers timed HLS). Only then does it use the existing chain. With a proxy configured, this audio failure still skips a second full-file proxy attempt and continues to API Router, then Apify, then direct yt-dlp. A byte-budget failure stops the job. Other audio errors, including a bot-check, go straight to that chain. The first audio attempt is unchanged when https audio works.
+When the modest https audio download fails with HTTP 403 or yt-dlp's "unable to download video data" error, the job retries once with an HLS audio format already present in that info response: audio-only `m3u8` / `m3u8_native`, or the lowest muxed HLS rendition at or below the height cap when no audio-only HLS exists. If that also fails and the duration is known, it asks the section downloader for the full timeline (that path prefers timed HLS). Only then does it use the existing chain. With a proxy configured, this audio failure still skips a second full-file proxy attempt and continues to API Router, then Apify, then direct yt-dlp. A byte-budget failure stops the job. Non-transient audio errors, including a bot-check, go straight to that chain. The first audio attempt is unchanged when https audio works.
 
 The HLS retry does not pass a format string such as `bestaudio[protocol^=m3u8]`. A format string can make yt-dlp hand the playlist to ffmpeg, which would leave from the server IP. The retry selects one format and downloads it with the native client. Player clients stay at yt-dlp defaults, so an info response that listed no HLS formats cannot be repaired here. `--download-sections` is still not used.
 
-Uploads and non-YouTube sources are unchanged. Without a proxy, YouTube jobs still download a full file, now capped at 1080p, and that file is cached too.
+Audio and individual section downloads retry a transient timeout or proxy connection failure once with fresh metadata and a new session. The extra attempt has a 60-second deadline and shares the original byte allowance, including bytes spent on failed attempts. Completed sections remain cached. Budget failures, unsupported formats, private videos and bot checks do not trigger this transport retry. The existing HLS-on-403 recovery and provider fallbacks remain in place.
+
+Uploads and non-YouTube download paths are unchanged. Without a proxy, YouTube jobs still download a full file, now capped at 1080p, and that file is cached too.
 
 Section bytes go through yt-dlp's HTTP client. ffmpeg only trims and muxes local files. `--download-sections` is not used: ffmpeg does not route SOCKS proxies and does not reliably send authenticated HTTP proxy credentials, so the media would leave from the server IP.
 
@@ -34,6 +36,14 @@ regenerated, while an existing full source remains available.
 If a format cannot be sliced, the job tries a bounded full 1080p download through the proxy. A proxy network failure skips that repeat attempt. With a proxy configured, the fallback order is always **proxy → API Router → Apify primary (Titan in production) → configured emergency actors → direct yt-dlp**, regardless of the legacy primary-provider setting. `APIFY_EXPENSIVE_FALLBACKS` defaults to `false`, so only the primary Apify actor runs. Production explicitly enables Marielise then Scraper One with a shared $1 Apify budget and a $0.50 per-actor ceiling (Titan keeps its smaller $0.03 cap). The spending allowance is shared, not reset between actors. Leave high-cap actors (marielise.dev, scraper_one, dami_studio, and anything else with a multi-dollar run cap) out of `APIFY_YOUTUBE_FALLBACK_ACTORS` unless that flag is `true`. Actor ids stay in private environment configuration.
 
 Proxy attempts and API Router default to 300 seconds each (`YOUTUBE_PROXY_TIMEOUT_SECONDS` and `RAPIDAPI_YOUTUBE_TIMEOUT_SECONDS`). Proxy socket requests and progress checks honor the attempt deadline; a timed-out provider hands off to the next provider. Production actor run timeouts are 300 seconds, with a separate bounded allowance for file transfer and verification. The worker job deadline is independent of actor deadlines.
+
+## Generation recovery
+
+`Retry generation` keeps existing clip IDs, edits, exports and scheduled posts. It renders only unfinished positions in the saved clip plan, appending new clips without changing the existing display order. Failed individual renders leave the generation retryable even when other clips succeeded. Queued or processing jobs cannot start an overlapping run; a cancelled worker must finish stopping first.
+
+The backend migration `20261103_0001_task_processing_checkpoints.sql` adds task-private JSON checkpoints for transcript text and original word timings, AI analysis, selected segments, and completed plan positions. Each paid stage is saved before downstream downloads or rendering. A missing local transcript sidecar is restored from the checkpoint. Clip creation and its completed-position checkpoint commit together. Checkpoints are removed when their task is deleted. Existing tasks without checkpoints retain their clips, but cannot recover previously unsaved transcription or analysis results.
+
+Source, processing mode, clip length, or transcription configuration changes invalidate the checkpoint; style changes do not. User edits to clip order do not change completed plan positions. The legacy `/resume` API path and MCP tool name remain compatible.
 
 ## Bandwidth
 
@@ -86,7 +96,7 @@ keep an exit IP for about 30 minutes; an offline residential peer can cause
 the provider to replace the IP sooner. Verify the same exit is used for
 metadata, audio, and selected sections in a canary before enabling production.
 
-`{session}` becomes an 8–24 character id derived from the task id, so one job keeps one exit IP. `{country}` must be two letters; anything else is ignored and the placeholder is removed. Do not log the rendered URL.
+`{session}` initially becomes an 8–24 character id derived from the task id. A transport retry uses a new random 24-character id for that download. `{country}` must be two letters; anything else is ignored and the placeholder is removed. Do not log the rendered URL.
 
 yt-dlp is forced to IPv4 (`source_address=0.0.0.0`, the same as `-4`). Player clients stay at yt-dlp defaults.
 

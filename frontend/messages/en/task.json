@@ -17,7 +17,7 @@
   "toasts": {
     "settingsApplied": "Generation settings applied",
     "cancelled": "Generation cancelled",
-    "resumed": "Generation resumed"
+    "retryQueued": "Generation retry queued"
   },
   "hooks": {
     "question": "Question Hook",
@@ -36,7 +36,7 @@
   "clipsTotal": "{count, plural, one {# clip} other {# clips}} · {duration} total",
   "readOnly": "Read-only view of another account's generation.",
   "cancel": "Cancel",
-  "resume": "Resume",
+  "retryGeneration": "Retry generation",
   "restyle": "Restyle",
   "creatingLink": "Creating link…",
   "linkCopied": "Link copied",
@@ -50,9 +50,9 @@
   "reconnectingOwn": "Reconnecting to live updates. Your video is still processing.",
   "reconnectingOther": "Reconnecting to live updates. This generation is still processing.",
   "cancelledTitle": "Generation cancelled",
-  "cancelledBody": "Resume this generation when you are ready to continue.",
+  "cancelledBody": "Retry this generation when you are ready. Your completed clips will be kept.",
   "failedTitle": "Processing Failed",
-  "failedBody": "There was an error processing your video. Resume to retry from where it stopped, or try another video.",
+  "failedBody": "Processing failed. Retry generation to try again. Your completed clips will be kept.",
   "backHome": "Back to Home",
   "noClipsTitle": "No Clips Generated",
   "noClipsBody": "The generation completed but no clips were generated. The video may not have had suitable content for clipping.",

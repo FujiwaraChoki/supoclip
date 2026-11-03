@@ -1454,7 +1454,7 @@ async def get_performance_metrics(
 async def resume_task(
     task_id: str, request: Request, db: AsyncSession = Depends(get_db)
 ):
-    """Resume a cancelled or errored task by enqueueing a new worker job."""
+    """Retry a cancelled or errored task while preserving completed clips."""
     try:
         task_service = TaskService(db)
         task = await _require_task_owner(request, task_service, db, task_id)
@@ -1466,7 +1466,7 @@ async def resume_task(
             if task.get("status") not in ["cancelled", "error"]:
                 raise HTTPException(
                     status_code=400,
-                    detail="Only cancelled/error/queued tasks can be resumed",
+                    detail="Only cancelled/error/queued tasks can be retried",
                 )
 
             source_url = task.get("source_url")
@@ -1549,12 +1549,12 @@ async def resume_task(
                 except Exception:
                     await task_service.task_repo.update_task_status(
                         db, task_id, task["status"],
-                        progress_message="Could not enqueue resume. Please retry.",
+                        progress_message="Could not queue generation. Please try again.",
                         expected_statuses=["queued", task["status"]],
                     )
                     raise
 
-                return {"message": "Task resumed", "job_id": job_id}
+                return {"message": "Generation retry queued", "job_id": job_id}
     except GenerationAllowanceBusy as e:
         raise HTTPException(status_code=409, detail=str(e), headers={"Retry-After": "1"})
     except BillingLimitExceeded as e:
@@ -1571,8 +1571,8 @@ async def resume_task(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error resuming task: {e}")
-        raise HTTPException(status_code=500, detail=f"Error resuming task: {str(e)}")
+        logger.error(f"Error retrying generation: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrying generation: {str(e)}")
 
 
 @router.get("/dead-letter/list")

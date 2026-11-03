@@ -17,7 +17,7 @@
   "toasts": {
     "settingsApplied": "Pengaturan generasi diterapkan",
     "cancelled": "Generasi dibatalkan",
-    "resumed": "Generasi dilanjutkan"
+    "retryQueued": "Pembuatan masuk antrean untuk dicoba lagi"
   },
   "hooks": {
     "question": "Hook pertanyaan",
@@ -36,7 +36,7 @@
   "clipsTotal": "{count, plural, one {# clip} other {# clip}} · total {duration}",
   "readOnly": "Tampilan baca-saja dari generasi akun lain.",
   "cancel": "Batal",
-  "resume": "Lanjutkan",
+  "retryGeneration": "Coba pembuatan lagi",
   "restyle": "Ganti gaya",
   "creatingLink": "Membuat tautan…",
   "linkCopied": "Tautan disalin",
@@ -50,9 +50,9 @@
   "reconnectingOwn": "Menyambung ulang ke pembaruan langsung. Videomu masih diproses.",
   "reconnectingOther": "Menyambung ulang ke pembaruan langsung. Generasi ini masih diproses.",
   "cancelledTitle": "Generasi dibatalkan",
-  "cancelledBody": "Lanjutkan generasi ini saat kamu siap.",
+  "cancelledBody": "Coba pembuatan ini lagi saat Anda siap. Klip yang sudah selesai akan tetap disimpan.",
   "failedTitle": "Pemrosesan gagal",
-  "failedBody": "Ada error saat memproses videomu. Lanjutkan untuk mencoba lagi dari titik berhenti, atau coba video lain.",
+  "failedBody": "Pemrosesan gagal. Coba pembuatan lagi. Klip yang sudah selesai akan tetap disimpan.",
   "backHome": "Kembali ke beranda",
   "noClipsTitle": "Tidak ada clip yang dihasilkan",
   "noClipsBody": "Generasi selesai, tapi tidak ada clip yang dihasilkan. Videonya mungkin tidak punya konten yang cocok untuk di-clip.",

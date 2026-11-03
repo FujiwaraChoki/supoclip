@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 export const ACTIVE_TASK_STATUSES = ["queued", "processing"];
-export const RESUMABLE_TASK_STATUSES = ["cancelled", "error"];
+export const RETRYABLE_TASK_STATUSES = ["cancelled", "error"];
 const styles: Record<string, string> = {
   completed: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   processing: "bg-sky-500/10 text-sky-700 dark:text-sky-400",

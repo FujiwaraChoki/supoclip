@@ -16,7 +16,7 @@ from tests.integration.test_processing_cancellation import setup_worker
 async def test_resume_waits_for_cancelled_worker_and_then_enqueues_only_once(
     client, auth_headers, db_session, initialized_database, tmp_path, monkeypatch
 ):
-    task_id, _, original = await make_task(db_session, tmp_path, status="queued")
+    task_id, _, original = await make_task(db_session, tmp_path, count=0, status="queued")
     await create_user(db_session, user_id="user-1")
     await db_session.execute(text("UPDATE tasks SET user_id='user-1' WHERE id=:id"), {"id": task_id})
     await db_session.commit()
@@ -64,7 +64,7 @@ async def test_resume_waits_for_cancelled_worker_and_then_enqueues_only_once(
 async def test_duplicate_worker_cannot_overlap_or_repeat_completed_run(
     db_session, initialized_database, tmp_path
 ):
-    task_id, _, original = await make_task(db_session, tmp_path, status="queued")
+    task_id, _, original = await make_task(db_session, tmp_path, count=0, status="queued")
     sessions = async_sessionmaker(initialized_database, expire_on_commit=False)
     entered, release = asyncio.Event(), asyncio.Event()
     async with sessions() as one, sessions() as two:

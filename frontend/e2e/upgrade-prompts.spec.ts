@@ -97,7 +97,7 @@ test("settings shows Pro users the step up to Creator and yearly billing", async
   await expect(page.getByRole("button", { name: "Save Preferences" })).toBeVisible();
 });
 
-test("resuming past the limit opens the upgrade dialog", async ({ page }) => {
+test("retrying past the limit opens the upgrade dialog", async ({ page }) => {
   await mockApp(page, proAtLimit);
   const task = { id: "one", user_id: "user", source_title: "A conversation worth sharing", source_type: "youtube", status: "cancelled", clips_count: 0, created_at: "2026-09-16T10:00:00Z", updated_at: "2026-09-16T10:00:00Z" };
   await page.route("**/api/tasks/one", (route) => route.fulfill({ json: task }));
@@ -107,7 +107,7 @@ test("resuming past the limit opens the upgrade dialog", async ({ page }) => {
     json: { detail: { code: "SUBSCRIPTION_REQUIRED", message: "Plan usage limit reached", billing: proAtLimit } },
   }));
   await page.goto("/tasks/one");
-  await page.getByRole("button", { name: "Resume" }).click();
+  await page.getByRole("button", { name: "Retry generation" }).click();
   await expect(page.getByRole("dialog").getByText("You've used all 10 hours on Pro this month")).toBeVisible();
 });
 

@@ -430,7 +430,7 @@ def test_proxy_deadline_stops_new_requests_and_slow_progress(monkeypatch):
     with pytest.raises(proxy.DownloadDeadlineExceeded):
         with proxy._proxy_client({'_youtube_deadline': 103}):
             pytest.fail('Expired downloader entered')
-    monkeypatch.setattr(proxy, 'base_proxy_params', lambda *a: {})
+    monkeypatch.setattr(proxy, 'base_proxy_params', lambda *a, **kw: {})
     options = proxy.download_options(None, 'abcdefghijk', ByteBudget(10000))
     now[0] += 301
     with pytest.raises(proxy.DownloadDeadlineExceeded):
