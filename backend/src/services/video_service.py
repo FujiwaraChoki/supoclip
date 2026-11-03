@@ -556,6 +556,10 @@ class VideoService:
         Generate transcript from video using the configured provider
         (assemblyai, whisper, or youtube_captions).
         Runs in thread pool to avoid blocking.
+
+        AssemblyAI transient failures are retried, then fall back to a local
+        Whisper model when one is already downloaded. This stays on the
+        current task, so a retry does not record another processing-minute charge.
         """
         logger.info(f"Generating transcript for: {video_path}")
         speech_model = "best"

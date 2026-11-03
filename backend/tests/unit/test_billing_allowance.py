@@ -126,6 +126,26 @@ async def test_terminal_status_refunds_only_failed_tasks_without_clips(allowance
 
 
 @pytest.mark.asyncio
+async def test_transcription_retry_does_not_double_charge_and_failure_refunds(allowance_db):
+    """Retries stay on one task row. A terminal failure refunds that single charge."""
+    _insert_task(allowance_db, status="processing")
+    await _charge(allowance_db)
+    await record_minute_usage(_SqlSession(allowance_db), "user-1", "task-1", 60)
+    service = BillingService(_SqlSession(allowance_db))
+    assert await service._count_usage("user-1", PERIOD_START, PERIOD_END) == (1, 1)
+    assert allowance_db.execute(text("SELECT COUNT(*) FROM minute_usage_events")).scalar() == 1
+
+    assert await TaskRepository.update_task_status(service.db, "task-1", "error")
+    assert await service._count_usage("user-1", PERIOD_START, PERIOD_END) == (0, 0)
+    refunded_at = allowance_db.execute(text("SELECT refunded_at FROM minute_usage_events")).scalar()
+    assert refunded_at is not None
+
+    await TaskRepository.update_task_status(service.db, "task-1", "error")
+    assert allowance_db.execute(text("SELECT refunded_at FROM minute_usage_events")).scalar() == refunded_at
+    assert allowance_db.execute(text("SELECT COUNT(*) FROM minute_usage_events")).scalar() == 1
+
+
+@pytest.mark.asyncio
 async def test_duplicate_charge_and_retry_at_full_limit_are_idempotent(allowance_db, monkeypatch):
     _insert_task(allowance_db, status="error")
     await _charge(allowance_db)
