@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
-  AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Clapperboard, Crop, FileVideo,
+  AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Clapperboard, Crop, FileVideo, SlidersHorizontal,
   ListOrdered, Loader2, MessageSquareText, Timer, Paperclip, Sparkles, Target, Upload, Link2, Wand2, X,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 import { VideoSourceIcon } from "@/components/video-source-icon";
 import { availableWorkflows, useWorkflowsInfo, WorkflowPicker } from "@/components/workflow-picker";
+import { changedSettings, invalidSetting, WorkflowAdvancedSettings, type AdvancedValues } from "@/components/workflow-advanced";
 import { FONT_SEARCH_THRESHOLD, formatUploadLimit, getYouTubeThumbnailUrl, maxVideoUploadBytes, readVideoDuration, uploadVideoFile, validateVideoSourceUrl } from "@/lib/video-upload";
 import { AppShell } from "@/components/app/app-shell";
 import { GenerationCard } from "@/components/app/generation-card";
@@ -70,7 +71,7 @@ const INSTRUCTIONS_COUNTER_FROM = 400;
 // Every create rejection the form can explain in the user's language.
 const WORKFLOW_ERROR_CODES: Record<WorkflowRequestErrorCode, true> = {
   INVALID_WORKFLOW: true, INVALID_WORKFLOW_OPTIONS: true, TOPIC_REQUIRED: true, TOPIC_TOO_LONG: true,
-  INVALID_PART_COUNT: true, INSTRUCTIONS_TOO_LONG: true, WORKFLOW_NOT_AVAILABLE: true, SOURCE_TOO_SHORT_FOR_SERIES: true,
+  INVALID_PART_COUNT: true, INSTRUCTIONS_TOO_LONG: true, INVALID_WORKFLOW_SETTING: true, WORKFLOW_NOT_AVAILABLE: true, SOURCE_TOO_SHORT_FOR_SERIES: true,
   TOO_MANY_PARTS: true, SOURCE_TOO_SHORT_FOR_RECAP: true, SOURCE_TOO_SHORT_FOR_TRAILER: true, SOURCE_TOO_SHORT_FOR_TOPIC: true,
 };
 
@@ -184,6 +185,8 @@ export default function HomeApp() {
   const [workflowLength, setWorkflowLength] = useState<ClipLength>("auto");
   const [instructions, setInstructions] = useState("");
   const [instructionsOpen, setInstructionsOpen] = useState(false);
+  // Per workflow: settings mean different things in each, and switching back keeps them.
+  const [advancedByWorkflow, setAdvancedByWorkflow] = useState<Partial<Record<Workflow, AdvancedValues>>>({});
   const [sourceSeconds, setSourceSeconds] = useState<number | null>(null);
   const [rescue, setRescue] = useState<UrlRescue | null>(null);
   const [suggestion, setSuggestion] = useState<WorkflowIntent | null>(null);
@@ -196,6 +199,11 @@ export default function HomeApp() {
   const heldAt = useRef(0);
   const durationFile = useRef<File | null>(null);
   const activeWorkflow: Workflow = workflowsEnabled && offeredWorkflows.has(workflow) ? workflow : "highlights";
+  const advancedSchema = workflowsInfo?.workflows.find((entry) => entry.id === activeWorkflow)?.settings ?? [];
+  const advancedValues = advancedByWorkflow[activeWorkflow] ?? {};
+  const advancedChanges = workflowsEnabled ? changedSettings(advancedSchema, advancedValues) : {};
+  const advancedCount = Object.keys(advancedChanges).length;
+  const advancedProblem = workflowsEnabled ? invalidSetting(advancedSchema, advancedValues) : null;
   const usesWorkflowLength = WORKFLOW_LENGTHS.has(activeWorkflow);
   const lengthWorkflow = activeWorkflow as LengthWorkflow;
 
@@ -624,13 +632,14 @@ export default function HomeApp() {
         filtered_words: normalizedFilteredWords,
       };
       // Plain highlights without instructions sends exactly the request it always has.
+      const options: WorkflowOptions = {};
       if (activeWorkflow !== "highlights") {
         request.workflow = activeWorkflow;
-        const options: WorkflowOptions = {};
         if (activeWorkflow === "topic") options.topic = normalizeTopic(topic);
         if (activeWorkflow === "series" && partCount !== "auto") options.part_count = partCount;
-        if (Object.keys(options).length > 0) request.workflow_options = options;
       }
+      if (advancedCount > 0) options.advanced = advancedChanges;
+      if (Object.keys(options).length > 0) request.workflow_options = options;
       if (sentInstructions) request.instructions = sentInstructions;
 
       setStatusMessage(sourceType === "youtube" ? t("status.checkingLength") : t("status.starting"));
@@ -1175,6 +1184,25 @@ export default function HomeApp() {
                 </PopoverContent>
               </Popover>
 
+              {workflowsEnabled && advancedSchema.length > 0 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Chip disabled={controlsDisabled} active={advancedCount > 0}>
+                      <SlidersHorizontal className="size-3.5" />{t("advanced.chip")}{advancedCount > 0 && <span className="rounded-full bg-foreground px-1.5 text-[10px] text-background">{advancedCount}</span>}
+                      <ChevronDown className="size-3 opacity-60" />
+                    </Chip>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="max-h-[70vh] w-[min(92vw,340px)] overflow-y-auto rounded-2xl">
+                    <WorkflowAdvancedSettings
+                      schema={advancedSchema}
+                      values={advancedValues}
+                      onChange={(values) => setAdvancedByWorkflow((current) => ({ ...current, [activeWorkflow]: values }))}
+                      disabled={controlsDisabled}
+                    />
+                  </PopoverContent>
+                </Popover>
+              )}
+
               <div className="ml-auto flex items-center gap-2">
                 {/* The shortcut hint gives way to the workflow chips; empty, it takes no room. */}
                 <span className="hidden text-xs text-muted-foreground sm:inline-flex sm:items-center sm:gap-1 sm:empty:hidden">
@@ -1184,7 +1212,7 @@ export default function HomeApp() {
                   type="submit"
                   size="icon"
                   aria-label={t(`generateByWorkflow.${activeWorkflow}`)}
-                  disabled={!hasSource || isLoading || lengthLoading || topicProblem !== null || instructionsTooLong}
+                  disabled={!hasSource || isLoading || lengthLoading || topicProblem !== null || instructionsTooLong || advancedProblem !== null}
                   className="size-9 rounded-full bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
                 >
                   {isLoading ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}

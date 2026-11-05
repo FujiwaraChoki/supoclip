@@ -202,7 +202,8 @@
     "TOPIC_BROADENED": "„{topic}“ ist für dieses Video sehr weit gefasst, deshalb haben wir es so verstanden: {interpretation}",
     "TARGET_SHORTENED": "Das Video ist kurz, deshalb ist auch die Zusammenfassung kürzer.",
     "COARSE_TRANSCRIPT": "Dieses Transkript hat keine Wort-Zeitmarken, deshalb sind die Schnitte weniger genau.",
-    "SPONSOR_SKIPPED": "Einen Sponsorenteil haben wir weggelassen."
+    "SPONSOR_SKIPPED": "Einen Sponsorenteil haben wir weggelassen.",
+    "COLD_OPEN_SKIPPED": "Kein Satz war stark genug für ein Cold Open, daher beginnt Teil 1 am Anfang."
   },
   "workflowErrors": {
     "topic_not_found": {

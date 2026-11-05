@@ -54,7 +54,7 @@ from .media.captions import (
     ass_fonts_dir,
     build_assemblyai_ass_subtitles,
 )
-from .media.render_ranges import resolve_render_ranges, segment_bounds
+from .media.render_ranges import burned_hook_title, point_labels_for, resolve_render_ranges, segment_bounds
 from .media.reframing import (
     render_reframed_clip_ffmpeg,
 )
@@ -277,6 +277,7 @@ def create_optimized_clip(
     layout_report: Optional[Dict[str, Any]] = None,
     broll_overlays: Optional[List[Dict[str, Any]]] = None,
     output_offsets: Optional[List[float]] = None,
+    point_labels: Optional[List[Dict[str, Any]]] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size).
 
@@ -288,8 +289,12 @@ def create_optimized_clip(
     the clip timeline, for workflow clips with planned junction fades. The
     stitch, captions and speaker framing all follow them. Without them the
     renderer's default crossfades apply.
+
+    ``point_labels`` are a recap's on-screen points ({"text", "start"} on the
+    clip timeline), burned in with the captions.
     """
     try:
+        labels_kwargs = {"point_labels": point_labels} if point_labels else {}
         if keep_ranges:
             effective_keep_ranges = normalize_source_ranges(keep_ranges)
         else:
@@ -334,6 +339,7 @@ def create_optimized_clip(
         if (
             not add_subtitles
             and not hook_title
+            and not point_labels
             and not broll_overlays
             and keep_original
             and len(effective_keep_ranges) == 1
@@ -444,7 +450,7 @@ def create_optimized_clip(
 
             burn_ass_path: Optional[Path] = None
             fonts_dir: Optional[Path] = None
-            if (add_subtitles or hook_title) and build_assemblyai_ass_subtitles(
+            if (add_subtitles or hook_title or point_labels) and build_assemblyai_ass_subtitles(
                 video_path,
                 start_time,
                 end_time,
@@ -462,6 +468,7 @@ def create_optimized_clip(
                 avoid_band=source_caption_band,
                 caption_layout_report=layout_report,
                 **offsets_kwargs,
+                **labels_kwargs,
             ):
                 burn_ass_path = ass_path
                 fonts_dir = ass_fonts_dir(
@@ -561,6 +568,7 @@ def create_clips_from_segments(
             start_seconds, end_seconds = resolved.bounds
 
             layout_report: Dict[str, Any] = {}
+            point_labels = point_labels_for(segment.get("workflow_meta"), resolved.group_output_starts)
             success = create_optimized_clip(
                 video_path,
                 start_seconds,
@@ -573,11 +581,12 @@ def create_clips_from_segments(
                 caption_template,
                 output_format,
                 keep_ranges,
-                hook_title=segment.get("hook_title"),
+                hook_title=burned_hook_title(segment),
                 extend_to_sentence=False,
                 layout_report=layout_report,
                 broll_overlays=segment.get("broll_overlays"),
                 **({"output_offsets": output_offsets} if output_offsets is not None else {}),
+                **({"point_labels": point_labels} if point_labels else {}),
             )
 
             if success:

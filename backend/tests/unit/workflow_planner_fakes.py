@@ -111,6 +111,7 @@ def plan_context(
     cleanup: Optional[dict] = None,
     performance_context: Optional[str] = None,
     progress: Optional[Callable] = None,
+    advanced: Optional[dict] = None,
 ) -> PlanContext:
     messages: list[tuple[int, str]] = []
 
@@ -120,7 +121,7 @@ def plan_context(
     if source_seconds is None:
         source_seconds = (data["words"][-1]["end"] / 1000 + 1.0) if data else 600.0
     ctx = PlanContext(
-        spec=WorkflowSpec(workflow, WorkflowOptions(topic=topic, part_count=part_count, instructions=instructions), clip_length),
+        spec=WorkflowSpec(workflow, WorkflowOptions(topic=topic, part_count=part_count, instructions=instructions, advanced=dict(advanced or {})), clip_length),
         task_id="task-1",
         transcript_text=transcript_text,
         transcript_data=data,

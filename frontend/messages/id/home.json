@@ -246,12 +246,90 @@
     "SOURCE_TOO_SHORT_FOR_RECAP": "Video ini sudah pendek. Ringkasan cocok untuk video lebih dari 3 menit.",
     "SOURCE_TOO_SHORT_FOR_TRAILER": "Trailer cocok untuk video lebih dari 3 menit.",
     "SOURCE_TOO_SHORT_FOR_TOPIC": "Video ini terlalu pendek untuk pencarian topik. Coba Highlight saja.",
-    "WORKFLOW_NOT_AVAILABLE": "Opsi ini belum tersedia untuk akun kamu."
+    "WORKFLOW_NOT_AVAILABLE": "Opsi ini belum tersedia untuk akun kamu.",
+    "INVALID_WORKFLOW_SETTING": "Pengaturan lanjutan itu tidak didukung."
   },
   "palette": {
     "series": "Seri baru",
     "topic": "Pencarian topik baru",
     "recap": "Ringkasan baru",
     "trailer": "Trailer baru"
+  },
+  "advanced": {
+    "chip": "Lanjutan",
+    "title": "Lanjutan",
+    "body": "Pengaturan bawaan cocok untuk sebagian besar video. Ubah hanya jika ada alasannya.",
+    "auto": "Otomatis",
+    "reset": "Kembalikan ke bawaan",
+    "outOfRange": "Masukkan bilangan bulat dari {min} sampai {max}.",
+    "settings": {
+      "hook_title": {
+        "label": "Judul di video",
+        "hint": "Tampilkan judul selama beberapa detik pertama."
+      },
+      "junction_style": {
+        "label": "Potongan antarbagian",
+        "hint": "Cara potongan-potongan klip disambung."
+      },
+      "cold_open": {
+        "label": "Cold open",
+        "hint": "Bagian 1 dimulai dengan kalimat dari bagian lebih lanjut, lalu kembali ke awal."
+      },
+      "part_labels": {
+        "label": "Nomor bagian di judul",
+        "hint": "Setiap judul diawali “Bagian 2:”."
+      },
+      "endings": {
+        "label": "Akhir tiap bagian",
+        "hint": "Di mana setiap bagian berhenti."
+      },
+      "coverage": {
+        "label": "Sumber materi",
+        "hint": "Seberapa banyak isi video yang dicakup."
+      },
+      "max_clips": {
+        "label": "Jumlah klip",
+        "hint": "Jumlah klip paling banyak."
+      },
+      "match": {
+        "label": "Kecocokan topik",
+        "hint": "Apa yang dilakukan jika video hanya mendekati topikmu."
+      },
+      "on_screen_points": {
+        "label": "Tampilkan tiap poin di layar",
+        "hint": "Sebutkan tiap poin sebagai teks saat dimulai."
+      },
+      "target_seconds": {
+        "label": "Durasi dalam detik",
+        "hint": "Menggantikan durasi yang kamu pilih di atas."
+      },
+      "max_points": {
+        "label": "Jumlah poin maksimal",
+        "hint": "Poin yang lebih sedikit memberi ruang lebih, dan rekap bisa lebih pendek."
+      },
+      "spoilers": {
+        "label": "Spoiler",
+        "hint": "Apakah trailer boleh memakai kalimat yang membocorkan akhir."
+      },
+      "ending": {
+        "label": "Kalimat terakhir",
+        "hint": "Trailer diakhiri dengan apa."
+      }
+    },
+    "choices": {
+      "auto": "Otomatis",
+      "soft": "Transisi halus",
+      "hard": "Potongan langsung",
+      "cliffhanger": "Bikin penasaran dengan bagian berikutnya",
+      "natural": "Selesaikan pemikirannya",
+      "best_chapters": "Bab terbaik",
+      "start_to_finish": "Berurutan, dari awal",
+      "whole_video": "Seluruh video",
+      "best_moments": "Hanya momen terbaik",
+      "broad": "Izinkan yang mendekati",
+      "strict": "Hanya topik yang persis",
+      "relaxed": "Diizinkan",
+      "question": "Sebuah pertanyaan"
+    }
   }
 }

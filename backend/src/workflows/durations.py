@@ -97,10 +97,17 @@ def part_budget(clip_length: str) -> Budget:
     return Budget(min=low, ideal_min=ideal_low, ideal_max=ideal_high, max=high, render_cap=cap)
 
 
-def recap_target(clip_length: str, source_seconds: float) -> tuple[float, bool]:
-    """Recap total target and whether it was shortened to fit a short source."""
+def recap_target(
+    clip_length: str, source_seconds: float, target_seconds: Optional[int] = None
+) -> tuple[float, bool]:
+    """Recap total target and whether it was shortened to fit a short source.
+
+    ``target_seconds`` is the creator's exact length, in place of the chip.
+    """
     clip_length = validate_clip_length(clip_length)
-    if clip_length == "auto":
+    if target_seconds is not None:
+        target = target_seconds
+    elif clip_length == "auto":
         target = next(
             (value for limit, value in _RECAP_AUTO_TARGETS if source_seconds <= limit),
             _RECAP_AUTO_LONGEST,
@@ -112,9 +119,9 @@ def recap_target(clip_length: str, source_seconds: float) -> tuple[float, bool]:
     return float(target), False
 
 
-def recap_budget(clip_length: str, source_seconds: float) -> Budget:
+def recap_budget(clip_length: str, source_seconds: float, target_seconds: Optional[int] = None) -> Budget:
     """Total length of the one recap clip: window [0.85·T, 1.15·T]."""
-    target, shortened = recap_target(clip_length, source_seconds)
+    target, shortened = recap_target(clip_length, source_seconds, target_seconds)
     return Budget(
         min=_rounded(0.85 * target),
         ideal_min=_rounded(0.95 * target),
@@ -126,11 +133,12 @@ def recap_budget(clip_length: str, source_seconds: float) -> Budget:
     )
 
 
-def trailer_budget(clip_length: str) -> Budget:
+def trailer_budget(clip_length: str, target_seconds: Optional[int] = None) -> Budget:
     """Total length of the one trailer clip: window [0.67·T, 1.1·T].
 
-    The floor is low on purpose: four lines on one thread beat a padded trailer."""
-    target = _TRAILER_TARGETS[validate_clip_length(clip_length)]
+    The floor is low on purpose: four lines on one thread beat a padded trailer.
+    ``target_seconds`` is the creator's exact length, in place of the chip."""
+    target = target_seconds if target_seconds is not None else _TRAILER_TARGETS[validate_clip_length(clip_length)]
     return Budget(
         min=_rounded(0.67 * target),
         ideal_min=_rounded(0.9 * target),
@@ -161,14 +169,17 @@ def topic_budget(clip_length: str) -> Budget:
     return clip_budget(clip_length)
 
 
-def workflow_budget(workflow: str, clip_length: str, source_seconds: float = 0.0) -> Budget:
-    """The per-output budget for a workflow. ``source_seconds`` matters for recap only."""
+def workflow_budget(
+    workflow: str, clip_length: str, source_seconds: float = 0.0, target_seconds: Optional[int] = None
+) -> Budget:
+    """The per-output budget for a workflow. ``source_seconds`` matters for recap only;
+    ``target_seconds`` for recap and trailer."""
     if workflow == "series":
         return part_budget(clip_length)
     if workflow == "recap":
-        return recap_budget(clip_length, source_seconds)
+        return recap_budget(clip_length, source_seconds, target_seconds)
     if workflow == "trailer":
-        return trailer_budget(clip_length)
+        return trailer_budget(clip_length, target_seconds)
     if workflow == "topic":
         return topic_budget(clip_length)
     if workflow == "highlights":

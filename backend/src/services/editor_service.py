@@ -9,6 +9,7 @@ import subprocess
 import uuid
 from typing import get_args
 
+from ..media.render_ranges import burned_hook_title
 from ..editor_document import (
     CaptionStyle,
     EditDocument,
@@ -426,7 +427,7 @@ def upgrade_document(
     return {
         **document,
         "captions": captions,
-        "hookTitle": document.get("hookTitle", (clip.get("hook_title") or "")[:200]),
+        "hookTitle": document.get("hookTitle", (burned_hook_title(clip) or "")[:200]),
         # Drafts saved before the editor had B-roll pick up the generated clip's.
         "broll": document.get(
             "broll",
@@ -623,7 +624,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                             clip_width,
                             clip_height,
                         ),
-                        "hookTitle": (clip.get("hook_title") or "")[:200],
+                        "hookTitle": (burned_hook_title(clip) or "")[:200],
                         "broll": editor_broll_from_placements(broll_placements, duration),
                         "words": [
                             {

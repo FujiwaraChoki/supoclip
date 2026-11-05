@@ -202,7 +202,8 @@
     "TOPIC_BROADENED": "“{topic}” é amplo demais para este vídeo, então entendemos como: {interpretation}",
     "TARGET_SHORTENED": "O vídeo é curto, então o resumo também ficou mais curto.",
     "COARSE_TRANSCRIPT": "Esta transcrição não tem tempos por palavra, então os cortes são menos precisos.",
-    "SPONSOR_SKIPPED": "Deixamos de fora um trecho de patrocínio."
+    "SPONSOR_SKIPPED": "Deixamos de fora um trecho de patrocínio.",
+    "COLD_OPEN_SKIPPED": "Nenhuma frase foi forte o bastante para uma abertura fria, então a parte 1 começa do início."
   },
   "workflowErrors": {
     "topic_not_found": {

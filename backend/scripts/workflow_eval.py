@@ -270,7 +270,11 @@ def check_series_continuity(data: Optional[dict], index, result) -> Check:
         for uid in range(first, last + 1):
             unit = index.unit(uid)
             skipped.update((w.start, w.end) for w in index.words[unit.w0 : unit.w1 + 1])
-    parts = [_range_words(data, segment["source_ranges"]) for segment in segments]
+    # A cold open repeats a later line on purpose: the audit reads each part's own story.
+    parts = [
+        _range_words(data, segment["source_ranges"][(segment["workflow_meta"].get("cold_open") or {}).get("range_count", 0):])
+        for segment in segments
+    ]
     problems = []
     for number, (left, right) in enumerate(zip(parts, parts[1:]), start=1):
         shared = set(left) & set(right)
@@ -292,10 +296,12 @@ def check_series_continuity(data: Optional[dict], index, result) -> Check:
     return Check("series continuity (I2)", not problems, "; ".join(problems[:5]))
 
 
-def check_budget(workflow: str, result, clip_length: str, source_seconds: float) -> Check:
+def check_budget(
+    workflow: str, result, clip_length: str, source_seconds: float, target_seconds: Optional[int] = None
+) -> Check:
     from src.workflows.durations import workflow_budget
 
-    budget = workflow_budget(workflow, clip_length, source_seconds)
+    budget = workflow_budget(workflow, clip_length, source_seconds, target_seconds)
     plan = result.plan
     if workflow == "series":
         bad = [f"part {p['part_number']} {p['seconds']}s" for p in plan["parts"] if not budget.min - 0.5 <= p["seconds"] <= budget.max + 0.5]
@@ -467,10 +473,30 @@ td{{padding:2px 8px}}pre{{white-space:pre-wrap;font-size:12px}}li p{{margin:.3em
 
 JUDGE_PROMPT = """You review short-form edits planned from a long video. Score each criterion 1-5 (5 = a top editor would ship it as is, 1 = broken) and explain in at most 80 words.
 
-series: continuity (no repeated or missing sentence between parts), open_loops (every part but the last ends on a question or tension), payoff (the last part resolves the story), titles.
+series: continuity (no repeated or missing sentence between parts), open_loops (every part but the last ends on a question or tension), payoff (the last part resolves the story), titles, opening (the first five seconds of Part 1 would stop a stranger scrolling).
 topic: precision (every clip is substantively about the topic), standalone (each opens and ends cleanly), titles.
 recap: coverage (the main points are there), coherence (it plays as one piece, no dangling references), titles.
-trailer: curiosity (makes you want the full video), no_spoilers (never shows the outcome), titles."""
+trailer: curiosity (makes you want the full video), no_spoilers (never shows the outcome), titles.
+
+Text marked [on screen: ...] is shown as text on the video when that point starts, so it counts as context the viewer has. A line marked [cold open] is a deliberate flash-forward played before Part 1 and heard again later: it is not a continuity error."""
+
+
+def _judged_text(segment: dict, plan: dict) -> str:
+    """What the viewer gets: the words, with on-screen points and a cold open marked."""
+    text = segment["text"]
+    meta = segment.get("workflow_meta") or {}
+    if meta.get("cold_open"):
+        return "[cold open] " + text.replace(" … ", "\n[Part 1 starts] ", 1)
+    points = plan.get("points")
+    if not points or meta.get("on_screen_points") is False:
+        return text
+    beats = text.split(" … ")
+    if len(beats) != len(points):
+        return text
+    return "\n".join(
+        f"[on screen: {point['label']}] {beat}" if point.get("kind") == "point" else beat
+        for point, beat in zip(points, beats)
+    )
 
 
 async def judge(run: Run, outline_text: str, topic: str = "") -> dict:
@@ -486,7 +512,8 @@ async def judge(run: Run, outline_text: str, topic: str = "") -> dict:
 
     agent = build_agent(Score, JUDGE_PROMPT, structural=True)
     clips = "\n\n".join(
-        f"[{n}] Title: {s.get('hook_title') or ''}\nText: {s['text']}" for n, s in enumerate(run.result.segments, start=1)
+        f"[{n}] Title: {s.get('hook_title') or ''}\nText: {_judged_text(s, run.result.plan)}"
+        for n, s in enumerate(run.result.segments, start=1)
     )
     # The topic workflow is judged against the creator's topic, not the video's main story.
     asked = f"\n\nThe creator asked for clips about: {topic}" if topic else ""
@@ -507,6 +534,7 @@ async def evaluate(args: argparse.Namespace) -> int:
     from src.workflows.llm import PlanStats
     from src.workflows.outline import get_outline
     from src.workflows.planning import PlanInput, plan_language
+    from src.workflows.settings import read_settings
     from src.workflows.units import build_units
 
     cfg = get_config()
@@ -517,6 +545,7 @@ async def evaluate(args: argparse.Namespace) -> int:
         cut_long_pauses=args.cleanup, remove_filler_words=args.cleanup
     )
     runs: list[Run] = []
+    settings = json.loads(args.settings) if args.settings else {}
     names = list(FIXTURES) if args.all else [name.strip() for name in args.fixtures.split(",") if name.strip()]
     workflows = [name.strip() for name in args.workflows.split(",") if name.strip()]
     for name in names:
@@ -532,6 +561,7 @@ async def evaluate(args: argparse.Namespace) -> int:
                 topic=args.topic or fixture.topic if workflow == "topic" else "",
                 part_count=args.parts if workflow == "series" else None,
                 instructions=args.instructions or "",
+                advanced=read_settings(workflow, settings),
             )
             spec = WorkflowSpec(workflow, options, args.clip_length)
             current = Run(name, workflow)
@@ -568,7 +598,9 @@ async def evaluate(args: argparse.Namespace) -> int:
                 continue
             result = current.result
             current.checks.append(check_unit_edges(index, result.segments))
-            current.checks.append(check_budget(workflow, result, args.clip_length, source_seconds))
+            current.checks.append(
+                check_budget(workflow, result, args.clip_length, source_seconds, options.advanced.get("target_seconds"))
+            )
             current.checks.append(check_titles(workflow, result, result.plan.get("language")))
             if workflow == "series":
                 current.checks.append(check_series_continuity(data, index, result))
@@ -641,6 +673,7 @@ def main() -> int:
     parser.add_argument("--parts", type=int, default=None, help="explicit series part count")
     parser.add_argument("--topic", default="", help="override every fixture's topic")
     parser.add_argument("--instructions", default="")
+    parser.add_argument("--settings", default="", help='advanced settings as JSON, applied where they exist: \'{"cold_open": true}\'')
     parser.add_argument("--cleanup", action="store_true", help="plan with pause and filler cleanup on")
     parser.add_argument("--judge", action="store_true", help="score each plan with RERANK_LLM")
     parser.add_argument("--render", action="store_true", help="render clips for fixtures with video")

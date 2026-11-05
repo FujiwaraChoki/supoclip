@@ -246,12 +246,90 @@
     "SOURCE_TOO_SHORT_FOR_RECAP": "Este vídeo já é curto. Resumos funcionam em vídeos com mais de 3 minutos.",
     "SOURCE_TOO_SHORT_FOR_TRAILER": "Trailers funcionam em vídeos com mais de 3 minutos.",
     "SOURCE_TOO_SHORT_FOR_TOPIC": "Este vídeo é curto demais para buscar por tema. Experimente Destaques.",
-    "WORKFLOW_NOT_AVAILABLE": "Esta opção ainda não está disponível na sua conta."
+    "WORKFLOW_NOT_AVAILABLE": "Esta opção ainda não está disponível na sua conta.",
+    "INVALID_WORKFLOW_SETTING": "Essa configuração avançada não é compatível."
   },
   "palette": {
     "series": "Nova série",
     "topic": "Nova busca por tema",
     "recap": "Novo resumo",
     "trailer": "Novo trailer"
+  },
+  "advanced": {
+    "chip": "Avançado",
+    "title": "Avançado",
+    "body": "Os padrões funcionam para a maioria dos vídeos. Mude apenas o que tiver motivo para mudar.",
+    "auto": "Automático",
+    "reset": "Restaurar padrões",
+    "outOfRange": "Digite um número inteiro de {min} a {max}.",
+    "settings": {
+      "hook_title": {
+        "label": "Título no vídeo",
+        "hint": "Mostra o título nos primeiros segundos."
+      },
+      "junction_style": {
+        "label": "Cortes entre trechos",
+        "hint": "Como os pedaços de um clipe se unem."
+      },
+      "cold_open": {
+        "label": "Abertura fria",
+        "hint": "A parte 1 começa com uma frase de mais adiante na série e depois volta ao início."
+      },
+      "part_labels": {
+        "label": "Número da parte nos títulos",
+        "hint": "Cada título começa com “Parte 2:”."
+      },
+      "endings": {
+        "label": "Finais das partes",
+        "hint": "Onde cada parte termina."
+      },
+      "coverage": {
+        "label": "De onde tirar o material",
+        "hint": "Quanto do vídeo o resultado cobre."
+      },
+      "max_clips": {
+        "label": "Número de clipes",
+        "hint": "A quantidade máxima de clipes."
+      },
+      "match": {
+        "label": "Correspondência do tema",
+        "hint": "O que fazer quando o vídeo só chega perto do seu tema."
+      },
+      "on_screen_points": {
+        "label": "Mostrar cada ponto na tela",
+        "hint": "Nomeia cada ponto em texto quando ele começa."
+      },
+      "target_seconds": {
+        "label": "Duração em segundos",
+        "hint": "Substitui a duração escolhida acima."
+      },
+      "max_points": {
+        "label": "Máximo de pontos",
+        "hint": "Menos pontos dão mais espaço a cada um, e o resumo pode ficar mais curto."
+      },
+      "spoilers": {
+        "label": "Spoilers",
+        "hint": "Se o trailer pode usar frases que revelam o final."
+      },
+      "ending": {
+        "label": "Última frase",
+        "hint": "Como o trailer termina."
+      }
+    },
+    "choices": {
+      "auto": "Automático",
+      "soft": "Transição suave",
+      "hard": "Corte seco",
+      "cliffhanger": "Deixar querendo a próxima parte",
+      "natural": "Concluir a ideia",
+      "best_chapters": "Os melhores capítulos",
+      "start_to_finish": "Em ordem, desde o início",
+      "whole_video": "O vídeo inteiro",
+      "best_moments": "Só os melhores momentos",
+      "broad": "Permitir correspondência próxima",
+      "strict": "Só o tema exato",
+      "relaxed": "Permitidos",
+      "question": "Uma pergunta"
+    }
   }
 }

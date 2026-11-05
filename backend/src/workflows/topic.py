@@ -1062,6 +1062,9 @@ async def plan_topic(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, Any
     if locate.fit == "different":
         # The video only shares a word with the topic ("crime" in a sermon about sin).
         raise topic_not_found(topic, [], suggested_early)
+    if locate.fit == "broader" and pi.setting("match") == "strict":
+        # The creator asked for this topic or nothing: no clips about something near it.
+        raise topic_not_found(topic, [], suggested_early)
     if locate.fit == "broader":
         pi.note("TOPIC_BROADENED", {"topic": topic, "interpretation": " ".join(locate.interpretation.split())})
         canonical = topic.strip() or canonical
@@ -1114,6 +1117,8 @@ async def plan_topic(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, Any
         if candidate.retitle:
             candidate.hook_title = grounded_title(index, candidate)
     limit = max(1, int(get_config().workflow_topic_max_clips))
+    if pi.setting("max_clips") is not None:
+        limit = min(limit, int(pi.setting("max_clips")))
     main = [candidate for candidate in eligible if not candidate.reserve_only]
     selected = main[:limit]
     reserve = [candidate for candidate in eligible if candidate not in selected][:RESERVE_CLIPS]

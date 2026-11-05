@@ -174,6 +174,19 @@ describe("failure helpers", () => {
     expect(highlights.source.title).toBeNull();
   });
 
+  it("keeps a task's advanced settings when they still mean the same thing", () => {
+    const task = {
+      source_url: "https://youtu.be/x", workflow: "series" as const,
+      workflow_options: { advanced: { cold_open: true, hook_title: false } },
+    };
+    expect(buildRecreateBody(task, { workflow: "series" }).workflow_options).toEqual({ advanced: { cold_open: true, hook_title: false } });
+    // Another workflow has no cold open, and highlights have no burned titles to turn off.
+    expect(buildRecreateBody(task, { workflow: "recap" }).workflow_options).toEqual({ advanced: { hook_title: false } });
+    expect(buildRecreateBody(task, { workflow: "highlights" })).not.toHaveProperty("workflow_options");
+    const topic = { ...task, workflow: "topic" as const, workflow_options: { topic: "a", advanced: { match: "strict" } } };
+    expect(buildRecreateBody(topic, { workflow: "topic", topic: "b" }).workflow_options).toEqual({ topic: "b", advanced: { match: "strict" } });
+  });
+
   it("keeps the length only when it measures the same thing", () => {
     const task = { source_url: "https://youtu.be/abc", clip_length: "short" };
     // A short recap (about 45 s in total) is not a request for short clips.

@@ -173,6 +173,8 @@ async def test_check_constraint_rejects_unknown_workflows(db_session):
         ({"workflow": "topic", "workflow_options": {"topic": "钱"}}, "topic", {"topic": "钱"}),
         ({"workflow": "recap", "clip_length": "long"}, "recap", {}),
         ({"workflow": "trailer", "instructions": "No spoilers\n\n\n\nplease"}, "trailer", {"instructions": "No spoilers\n\nplease"}),
+        ({"workflow": "series", "workflow_options": {"advanced": {"cold_open": True, "part_labels": True}}}, "series", {"advanced": {"cold_open": True}}),
+        ({"workflow_options": {"advanced": {"max_clips": 3}}}, "highlights", {"advanced": {"max_clips": 3}}),
     ],
 )
 async def test_create_persists_the_workflow_in_the_task_insert(
@@ -216,6 +218,8 @@ async def test_create_persists_the_workflow_in_the_task_insert(
         ({"workflow": "recap"}, 179, 422, "SOURCE_TOO_SHORT_FOR_RECAP"),
         ({"workflow": "trailer"}, 120, 422, "SOURCE_TOO_SHORT_FOR_TRAILER"),
         ({"workflow": "topic", "workflow_options": {"topic": "pricing"}}, 59, 422, "SOURCE_TOO_SHORT_FOR_TOPIC"),
+        ({"workflow": "series", "workflow_options": {"advanced": {"endings": "maybe"}}}, 600, 422, "INVALID_WORKFLOW_SETTING"),
+        ({"workflow": "recap", "workflow_options": {"advanced": {"nope": 1}}}, 600, 422, "INVALID_WORKFLOW_SETTING"),
     ],
 )
 async def test_rejections_happen_before_any_charge(
@@ -254,6 +258,7 @@ async def test_rejections_happen_before_any_charge(
         {"workflow": "trailer"},
         {"instructions": "Focus on the hiring story"},
         {"workflow": "highlights", "workflow_options": {"instructions": "Focus"}},
+        {"workflow_options": {"advanced": {"max_clips": 3}}},
     ],
 )
 async def test_gate_rejects_workflows_and_instructions_with_403_before_charging(

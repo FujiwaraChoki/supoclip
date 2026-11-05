@@ -46,8 +46,11 @@ const billingSummary = {
 const workflowsInfo = {
   enabled: true,
   workflows: [
-    { id: "highlights", available: true, min_source_seconds: 0 },
-    { id: "series", available: true, min_source_seconds: 120, part_count: { min: 2, max: 10 }, lengths: { auto: [45, 150], short: [30, 60], medium: [45, 90], long: [90, 175] } },
+    { id: "highlights", available: true, min_source_seconds: 0, settings: [{ key: "max_clips", type: "int", default: null, min: 1, max: 20 }] },
+    { id: "series", available: true, min_source_seconds: 120, settings: [
+      { key: "cold_open", type: "bool", default: false },
+      { key: "endings", type: "enum", default: "cliffhanger", choices: ["cliffhanger", "natural"] },
+    ], part_count: { min: 2, max: 10 }, lengths: { auto: [45, 150], short: [30, 60], medium: [45, 90], long: [90, 175] } },
     { id: "topic", available: true, min_source_seconds: 60 },
     { id: "recap", available: true, min_source_seconds: 180, lengths: { auto: null, short: 45, medium: 75, long: 120 } },
     { id: "trailer", available: true, min_source_seconds: 180, lengths: { auto: 30, short: 20, medium: 40, long: 60 } },
@@ -268,6 +271,48 @@ describe("when workflows are enabled", () => {
     expect(body).not.toHaveProperty("instructions");
     expect(preferenceSaves).toEqual([]);
     expect(analytics.track).toHaveBeenCalledWith("task_created", expect.objectContaining({ workflow: "series", has_instructions: false, part_count: 3 }));
+  });
+
+  it("keeps Advanced closed and leaves the request as it was until something changes", async () => {
+    await renderHome();
+    pick(/Series/);
+    expect(screen.queryByLabelText("Cold open")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Advanced/ }));
+    expect(await screen.findByRole("switch", { name: "Cold open" })).not.toBeChecked();
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate series");
+    expect(body).not.toHaveProperty("workflow_options");
+  });
+
+  it("sends only the settings that changed, counts them, and resets", async () => {
+    await renderHome();
+    pick(/Series/);
+    fireEvent.click(screen.getByRole("button", { name: /Advanced/ }));
+    const cold = await screen.findByRole("switch", { name: "Cold open" });
+    fireEvent.click(cold);
+    expect(screen.getByRole("button", { name: /Advanced/ })).toHaveTextContent("1");
+    fireEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
+    expect(screen.getByRole("button", { name: /Advanced/ })).not.toHaveTextContent("1");
+    expect(cold).not.toBeChecked();
+    fireEvent.click(cold);
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate series");
+    expect(body.workflow_options).toEqual({ advanced: { cold_open: true } });
+  });
+
+  it("holds the form while a number is out of range, and sends highlights' clip count without a workflow", async () => {
+    await renderHome();
+    pick(/Highlights/);
+    fireEvent.click(screen.getByRole("button", { name: /Advanced/ }));
+    const clips = await screen.findByRole("spinbutton", { name: "Number of clips" });
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    fireEvent.change(clips, { target: { value: "99" } });
+    expect(screen.getByText("Enter a whole number from 1 to 20.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate clips" })).toBeDisabled();
+    fireEvent.change(clips, { target: { value: "3" } });
+    const body = await submit("Generate clips");
+    expect(body).not.toHaveProperty("workflow");
+    expect(body.workflow_options).toEqual({ advanced: { max_clips: 3 } });
   });
 
   it("omits the part count for an automatic series", async () => {

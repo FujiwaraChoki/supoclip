@@ -77,13 +77,31 @@ export type WorkflowOptions = {
   topic?: string;
   part_count?: number;
   instructions?: string;
+  /** Advanced settings, only what differs from the defaults. See `backend/src/workflows/settings.py`. */
+  advanced?: Record<string, WorkflowSettingValue>;
 };
+
+export type WorkflowSettingValue = boolean | number | string;
+
+/** One advanced setting, as `GET /tasks/workflows` publishes it. `default: null` means automatic. */
+export type WorkflowSetting = {
+  key: string;
+  type: "bool" | "int" | "enum";
+  default: WorkflowSettingValue | null;
+  choices?: string[];
+  min?: number;
+  max?: number;
+};
+
+/** Settings every planned workflow has; the rest mean something only for their own workflow. */
+export const SHARED_SETTINGS: readonly string[] = ["hook_title", "junction_style"];
 
 /** Plan notes, localized from `task.workflowNotes.<CODE>` with `params`. */
 export type WorkflowNoteCode =
   | "PART_COUNT_REDUCED"
   | "STORY_ARC_SELECTED"
   | "CHAPTERS_LEFT_OUT"
+  | "COLD_OPEN_SKIPPED"
   | "NO_SINGLE_STORY"
   | "TOPIC_THIN"
   | "TOPIC_BROADENED"
@@ -118,6 +136,7 @@ export type WorkflowRequestErrorCode =
   | "TOPIC_TOO_LONG"
   | "INVALID_PART_COUNT"
   | "INSTRUCTIONS_TOO_LONG"
+  | "INVALID_WORKFLOW_SETTING"
   | "WORKFLOW_NOT_AVAILABLE"
   | "SOURCE_TOO_SHORT_FOR_SERIES"
   | "TOO_MANY_PARTS"
@@ -146,6 +165,8 @@ export type WorkflowPlanPart = {
   last_unit?: number;
   ranges?: SourceRange[];
   seconds?: number;
+  /** Part 1 only: a line from a later part played before the story starts. */
+  cold_open?: { first_unit: number; last_unit: number; range_count: number; from_part: number };
 };
 
 export type WorkflowPlanPoint = {
@@ -294,6 +315,8 @@ export type WorkflowSummaryFields = {
 };
 
 export type WorkflowInfo = {
+  /** Advanced settings for this workflow; empty without access. */
+  settings?: WorkflowSetting[];
   id: Workflow;
   available: boolean;
   min_source_seconds: number;

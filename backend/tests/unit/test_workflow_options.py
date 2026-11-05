@@ -556,7 +556,10 @@ def test_series_part_limits():
 
 
 def test_workflows_info_matches_the_contract():
-    assert workflows_info(True) == {
+    info = workflows_info(True)
+    for entry in info["workflows"]:
+        assert entry.pop("settings"), entry["id"]  # test_workflow_settings.py covers the schema
+    assert info == {
         "enabled": True,
         "workflows": [
             {"id": "highlights", "available": True, "min_source_seconds": 0},

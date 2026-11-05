@@ -27,6 +27,7 @@ from .durations import (
     trailer_lengths,
 )
 from .errors import WorkflowError, WorkflowRequestError
+from .settings import parse_settings, settings_schema
 
 TOPIC_MIN_CHARS, TOPIC_MAX_CHARS = 2, 120
 INSTRUCTIONS_MAX_CHARS = 500
@@ -147,7 +148,12 @@ def parse_workflow_request(data: dict, clip_length: str) -> WorkflowSpec:
 
     return WorkflowSpec(
         workflow=workflow,
-        options=WorkflowOptions(topic=topic, part_count=part_count, instructions=instructions),
+        options=WorkflowOptions(
+            topic=topic,
+            part_count=part_count,
+            instructions=instructions,
+            advanced=parse_settings(workflow, raw_options.get("advanced")),
+        ),
         clip_length=clip_length,
     )
 
@@ -254,6 +260,8 @@ def workflows_info(enabled: bool) -> dict[str, Any]:
             "id": workflow,
             "available": enabled or workflow == "highlights",
             "min_source_seconds": MIN_SOURCE_SECONDS[workflow],
+            # Settings are a workflows feature: nothing to render without access.
+            "settings": settings_schema(workflow) if enabled else [],
             **extra,
         }
 

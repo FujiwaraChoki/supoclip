@@ -286,3 +286,41 @@ def rendered_duration(keep: Sequence[Range], offsets: Sequence[float]) -> float:
         raise ValueError("Output offsets must match the kept ranges")
     start, end = ranges[-1]
     return max(0.0, float(offsets[-1]) + end - start)
+
+
+def burned_hook_title(segment: Dict[str, Any]) -> Optional[str]:
+    """The title to burn in. A clip whose creator turned titles off keeps its name in the app."""
+    if (segment.get("workflow_meta") or {}).get("burn_hook_title") is False:
+        return None
+    return segment.get("hook_title")
+
+
+def point_labels_for(
+    meta: Optional[Dict[str, Any]], group_output_starts: Optional[Sequence[Optional[float]]] = None
+) -> List[Dict[str, Any]]:
+    """A recap's on-screen points on the clip timeline, one per point in play order.
+
+    A point with several ranges (a setup, a long silence) shows once, where it
+    starts. ``group_output_starts`` comes from the render; without it (a caption
+    edit, which keeps the timeline) the stored ``output_start`` holds.
+    """
+    meta = meta or {}
+    if meta.get("on_screen_points") is False:
+        return []
+    labels: List[Dict[str, Any]] = []
+    previous = None
+    for item in meta.get("points") or []:
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("label") or "").strip()
+        same_point = label == previous
+        previous = label
+        if item.get("kind") != "point" or not label or same_point:
+            continue
+        index = item.get("range_index")
+        start = item.get("output_start")
+        if group_output_starts is not None and isinstance(index, int) and 0 <= index < len(group_output_starts):
+            start = group_output_starts[index]
+        if start is not None:
+            labels.append({"text": label, "start": float(start)})
+    return labels

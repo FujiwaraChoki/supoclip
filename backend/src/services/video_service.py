@@ -79,6 +79,8 @@ from ..media.ffmpeg import (
     rendered_ranges_duration,
 )
 from ..media.render_ranges import (
+    burned_hook_title,
+    point_labels_for,
     expand_ranges_with_groups,
     output_offsets_for_junctions,
     rendered_duration,
@@ -1023,6 +1025,7 @@ class VideoService:
                 )
             broll_overlays = await broll_overlays_for(broll_placements)
             render_report: Dict[str, Any] = {}
+            point_labels = point_labels_for(segment.get("workflow_meta"), resolved.group_output_starts)
 
             success = await run_in_thread(
                 create_optimized_clip,
@@ -1037,11 +1040,12 @@ class VideoService:
                 caption_template,
                 output_format,
                 keep_ranges,
-                segment.get("hook_title"),
+                burned_hook_title(segment),
                 extend_to_sentence=False,
                 layout_report=render_report,
                 broll_overlays=broll_overlays,
                 **({"output_offsets": output_offsets} if output_offsets is not None else {}),
+                **({"point_labels": point_labels} if point_labels else {}),
             )
 
             if not success:
@@ -1144,6 +1148,7 @@ class VideoService:
         checkpoint: Dict[str, Any],
         save_checkpoint: Callable[[Dict[str, Any]], Awaitable[None]],
         instructions: Optional[str] = None,
+        max_clips: Optional[int] = None,
     ) -> tuple[Any, List[Dict[str, Any]], int, bool]:
         """Pick standalone highlights: (analysis, ranked segments with reserve, clip limit, final plan).
 
@@ -1286,6 +1291,9 @@ class VideoService:
         clip_limit = max_final_clips_for_duration(file_duration, runtime_config.max_clips)
         if processing_mode == "fast":
             clip_limit = min(clip_limit, runtime_config.fast_mode_max_clips)
+        if max_clips is not None:
+            # The creator's count replaces the length-based default, up to the server's limit.
+            clip_limit = min(max_clips, max(clip_limit, runtime_config.max_clips))
         # Retain a bounded reserve until picture checks finish, so a rejected
         # slate can be replaced by the next already-ranked candidate.
         if not prepared_segments:
@@ -1551,6 +1559,7 @@ class VideoService:
             final_plan = False
             if workflow == "highlights":
                 instructions = workflow_spec.options.instructions if workflow_spec is not None else ""
+                requested_clips = workflow_spec.setting("max_clips") if workflow_spec is not None else None
                 relevant_parts, segments_json, clip_limit, final_plan = await VideoService._select_highlight_segments(
                     video_path=video_path,
                     transcript=transcript,
@@ -1565,6 +1574,7 @@ class VideoService:
                     checkpoint=checkpoint,
                     save_checkpoint=save_checkpoint,
                     **({"instructions": instructions} if instructions else {}),
+                    **({"max_clips": requested_clips} if requested_clips is not None else {}),
                 )
             else:
                 if should_cancel and await should_cancel():
@@ -1687,7 +1697,9 @@ class VideoService:
                 # Parts tell one story in order; a still picture is never a reason to skip one.
                 await run_in_thread(VideoService._log_static_parts, video_path, segments_json)
             else:
-                min_seconds = workflow_budget(workflow, workflow_spec.clip_length, source_seconds).min
+                min_seconds = workflow_budget(
+                    workflow, workflow_spec.clip_length, source_seconds, workflow_spec.setting("target_seconds")
+                ).min
                 segments_json = [
                     await run_in_thread(
                         VideoService._drop_static_ranges,

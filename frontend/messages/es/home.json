@@ -246,12 +246,90 @@
     "SOURCE_TOO_SHORT_FOR_RECAP": "Este video ya es corto. Los resúmenes funcionan con videos de más de 3 minutos.",
     "SOURCE_TOO_SHORT_FOR_TRAILER": "Los tráileres funcionan con videos de más de 3 minutos.",
     "SOURCE_TOO_SHORT_FOR_TOPIC": "Este video es demasiado corto para buscar por tema. Prueba con Destacados.",
-    "WORKFLOW_NOT_AVAILABLE": "Esta opción aún no está disponible en tu cuenta."
+    "WORKFLOW_NOT_AVAILABLE": "Esta opción aún no está disponible en tu cuenta.",
+    "INVALID_WORKFLOW_SETTING": "Ese ajuste avanzado no es compatible."
   },
   "palette": {
     "series": "Nueva serie",
     "topic": "Nueva búsqueda por tema",
     "recap": "Nuevo resumen",
     "trailer": "Nuevo tráiler"
+  },
+  "advanced": {
+    "chip": "Avanzado",
+    "title": "Avanzado",
+    "body": "Los valores predeterminados funcionan para la mayoría de los videos. Cambia solo lo que tengas motivos para cambiar.",
+    "auto": "Automático",
+    "reset": "Restablecer valores predeterminados",
+    "outOfRange": "Escribe un número entero de {min} a {max}.",
+    "settings": {
+      "hook_title": {
+        "label": "Título en el video",
+        "hint": "Muestra el título durante los primeros segundos."
+      },
+      "junction_style": {
+        "label": "Cortes entre secciones",
+        "hint": "Cómo se unen las piezas de un clip."
+      },
+      "cold_open": {
+        "label": "Apertura en frío",
+        "hint": "La parte 1 empieza con una frase de más adelante en la serie y luego vuelve al principio."
+      },
+      "part_labels": {
+        "label": "Número de parte en los títulos",
+        "hint": "Cada título empieza con «Parte 2:»."
+      },
+      "endings": {
+        "label": "Finales de las partes",
+        "hint": "Dónde termina cada parte."
+      },
+      "coverage": {
+        "label": "De dónde sacar el material",
+        "hint": "Cuánto del video cubre el resultado."
+      },
+      "max_clips": {
+        "label": "Número de clips",
+        "hint": "La cantidad máxima de clips."
+      },
+      "match": {
+        "label": "Coincidencia del tema",
+        "hint": "Qué hacer si el video solo se acerca a tu tema."
+      },
+      "on_screen_points": {
+        "label": "Mostrar cada punto en pantalla",
+        "hint": "Nombra cada punto con texto cuando empieza."
+      },
+      "target_seconds": {
+        "label": "Duración en segundos",
+        "hint": "Reemplaza la duración que elegiste arriba."
+      },
+      "max_points": {
+        "label": "Máximo de puntos",
+        "hint": "Con menos puntos, cada uno tiene más espacio y el resumen puede quedar más corto."
+      },
+      "spoilers": {
+        "label": "Spoilers",
+        "hint": "Si el tráiler puede usar frases que revelen el final."
+      },
+      "ending": {
+        "label": "Última frase",
+        "hint": "Con qué termina el tráiler."
+      }
+    },
+    "choices": {
+      "auto": "Automático",
+      "soft": "Fundido suave",
+      "hard": "Corte directo",
+      "cliffhanger": "Dejar con ganas de la siguiente parte",
+      "natural": "Terminar la idea",
+      "best_chapters": "Los mejores capítulos",
+      "start_to_finish": "En orden, desde el principio",
+      "whole_video": "Todo el video",
+      "best_moments": "Solo los mejores momentos",
+      "broad": "Permitir una coincidencia cercana",
+      "strict": "Solo el tema exacto",
+      "relaxed": "Permitidos",
+      "question": "Una pregunta"
+    }
   }
 }

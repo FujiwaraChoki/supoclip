@@ -8,6 +8,7 @@ import { buildFontOptionsPayload } from "@/lib/font-options";
 import {
   MIN_SOURCE_SECONDS,
   normalizeTopic,
+  SHARED_SETTINGS,
   topicIssue,
   type Workflow,
   type WorkflowErrorCode,
@@ -87,6 +88,17 @@ const LENGTH_SCOPE: Record<Workflow, "clip" | "part" | "total"> = {
  */
 export function buildRecreateBody(task: RecreatableTask, next: { workflow: Workflow; topic?: string }) {
   const instructions = task.workflow_options?.instructions?.trim();
+  // A setting carries over when it means the same thing in the next workflow.
+  const sameWorkflow = (task.workflow ?? "highlights") === next.workflow;
+  const advanced = Object.fromEntries(
+    Object.entries(task.workflow_options?.advanced ?? {}).filter(
+      ([key]) => sameWorkflow || (next.workflow !== "highlights" && SHARED_SETTINGS.includes(key)),
+    ),
+  );
+  const options = {
+    ...(next.workflow === "topic" && next.topic ? { topic: next.topic } : {}),
+    ...(Object.keys(advanced).length > 0 ? { advanced } : {}),
+  };
   return {
     source: {
       url: task.source_url,
@@ -106,7 +118,7 @@ export function buildRecreateBody(task: RecreatableTask, next: { workflow: Workf
     ...(typeof task.remove_filler_words === "boolean" ? { remove_filler_words: task.remove_filler_words } : {}),
     ...(Array.isArray(task.filtered_words) ? { filtered_words: task.filtered_words } : {}),
     ...(next.workflow === "highlights" ? {} : { workflow: next.workflow }),
-    ...(next.workflow === "topic" && next.topic ? { workflow_options: { topic: next.topic } } : {}),
+    ...(Object.keys(options).length > 0 ? { workflow_options: options } : {}),
     ...(instructions ? { instructions } : {}),
   };
 }

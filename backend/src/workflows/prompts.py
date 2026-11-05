@@ -353,6 +353,18 @@ def series_open_system(language_name: str) -> str:
     )
 
 
+def series_cold_open_system(language_name: str) -> str:
+    return (
+        preamble(language_name)
+        + "\n\nTASK: The candidates are lines from later in this series. One will play as a cold open: a flash-forward "
+        "before Part 1 starts, then the story begins from the top and reaches that line in its own time. Pick the line "
+        "that makes a stranger need to know how we get there: a stake, a turn, a striking claim. It must make sense with "
+        "no context, and it must never give away how the series ends. Reject definitions, housekeeping and anything that "
+        "leans on names or events the viewer hasn't met. candidate is the line's number, -1 when no line is strong enough; "
+        "no cold open beats a weak one."
+    )
+
+
 def series_retitle_system(language_name: str) -> str:
     return (
         preamble(language_name)
@@ -506,6 +518,7 @@ TASK: Cut ONE short video of {_seconds(budget.min)}-{_seconds(budget.max)}s (ide
 - opener: one complete sentence or two (4-10s) from the content itself that states the central question ("{question}") or the single most striking claim, so a stranger knows in 5 seconds why to keep watching. It plays first even if it comes later in the video. If the opener asks or implies a question, the answer must play in the recap: opener_answered_by is the 1-based point that answers it (0 when it asks nothing). Never a signpost about the video ("in this video", "what I want to do", "I'll walk you through", "in this presentation") and never a line that announces a count ("five rules", "3 reasons") unless every item is a point. Never a reaction or an exclamation without its subject. -1/-1 if no line qualifies.
 - points: the main points in the order they come in the video, one point per entry, no repeats, no overlaps. Give one point for EVERY chapter rated ★5 and as many ★4 chapters as you can, spread from the start of the video to its end. Fewer complete points beat more fragments: about {recap_point_count(budget)} points. For each point pick where the speaker STATES it most clearly and completely. Give the full range (6-{_seconds(point_max)}s) and the core: the shortest COMPLETE thought inside it (at least 4s). If the statement is a contrast (X... but/whereas Y), an announced list ("there are 2 consequences"), or a question and its answer, the core keeps both halves. Never end on "the first is" or on the setup of a contrast. Rate importance (1 essential, 2 important, 3 nice to have) so the editor knows what to cut first. label: 2-6 words naming the point. subject: 1-3 words copied exactly from the transcript that name what this point is about; those words must play in the setup or the core.
 - setup: if the core needs earlier words to make sense (what "those trials" are, who "he" is), setup_first..setup_last is the shortest earlier sentence that names it, at most 8s, from the 90s before the core. It plays right before the core with a cut between them. Example: "Some people call it the night shift." then "And they found that one of those shifts costs you a third of your pay." Use setups only where needed; otherwise -1/-1.
+- label: each point's label plays on screen as that point starts, so a viewer who just joined knows what they're hearing. 2-5 words that say what the point is ("Why alcohol ruins REM", "The 3-hour rule"), understandable with no other context. Not a quote, not a teaser, no pronouns.
 - closer: the unit range that lands the conclusion or takeaway, ending on a complete sentence; -1/-1 if the last point already concludes. The closer must answer the spine in plain words a stranger can repeat. Never a definition, a term of art or a teaser for what comes next.
 - title: 3-9 words: the recap's answer as a claim the viewer will hear proven, using the speaker's vivid words or a real number. Not a list of topics. Not "How X works". Every noun must be spoken in the points.
 
@@ -538,6 +551,8 @@ Fix only real problems:
 - a point that runs long and loses the thread
 - a ★5 main point of the video that is missing, when a weaker beat could make room
 - a closer that doesn't conclude: end on the line that answers the opener in plain words
+
+Each beat's label plays on screen as the beat starts, so a viewer who just joined knows what they're hearing: 2-5 words in {language_name} that say what the point is and make sense with no other context. Not a quote, not a teaser, no pronouns. Rewrite any label that doesn't do that; this alone doesn't make the verdict "fix".
 
 verdict is "ship" when the cut you were shown already works (return it unchanged), else "fix".
 title: 3-9 words in {language_name}: the recap's answer as a claim the viewer will hear proven, using the speaker's vivid words or a real number. Not a list of topics. Not "How X works". Every noun must be spoken in the beats you return.
