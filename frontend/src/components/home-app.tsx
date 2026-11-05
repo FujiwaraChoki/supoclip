@@ -1192,7 +1192,7 @@ export default function HomeApp() {
                       <ChevronDown className="size-3 opacity-60" />
                     </Chip>
                   </PopoverTrigger>
-                  <PopoverContent align="start" className="max-h-[70vh] w-[min(92vw,340px)] overflow-y-auto rounded-2xl">
+                  <PopoverContent align="start" collisionPadding={12} className="max-h-[var(--radix-popover-content-available-height)] w-[min(92vw,340px)] overflow-y-auto rounded-2xl">
                     <WorkflowAdvancedSettings
                       schema={advancedSchema}
                       values={advancedValues}
