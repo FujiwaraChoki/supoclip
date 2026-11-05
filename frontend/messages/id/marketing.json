@@ -341,7 +341,7 @@
   "publish": {
     "eyebrow": "Baru: publikasi",
     "title": "Potong sekali. Posting sepanjang minggu.",
-    "body": "Hubungkan channel YouTube-mu dan setiap klip bisa tayang sesuai jadwalnya sendiri. Pilih waktu, tinjau judul buatan AI, dan SupoClip yang memposting untukmu.",
+    "body": "Hubungkan channel YouTube atau akun TikTok kamu dan atur jadwal untuk setiap klip. Pilih waktu, periksa judul dan deskripsi yang dibuat AI, lalu SupoClip mempostingnya untukmu.",
     "platforms": {
       "youtube": "YouTube Shorts",
       "tiktok": "TikTok",
@@ -419,9 +419,9 @@
     "usageExample": {
       "videos": "Sekitar {count} video sumber per bulan. Masing-masing menjadi beberapa klip."
     },
-    "publishYoutube": "Posting klip ke YouTube Shorts",
-    "schedulingYoutube": "Jadwalkan klip ke YouTube Shorts",
-    "schedulingSoon": "Penjadwalan ke TikTok dan Instagram"
+    "publishPlatforms": "Publikasikan klip ke YouTube Shorts dan TikTok",
+    "schedulingPlatforms": "Jadwalkan klip ke YouTube Shorts dan TikTok",
+    "schedulingSoon": "Penjadwalan ke Instagram"
   },
   "faq": {
     "eyebrow": "FAQ",
@@ -442,7 +442,7 @@
       },
       "publishing": {
         "question": "Bisakah SupoClip memposting ke TikTok dan Instagram?",
-        "answer": "Saat ini kamu bisa memublikasikan langsung ke YouTube Shorts: langsung dengan Pro, atau terjadwal dengan Creator. TikTok dan Instagram segera hadir. Sementara itu, unduh klip dengan preset ekspor TikTok dan Reels lalu unggah sendiri."
+        "answer": "Ya, kamu bisa memublikasikan langsung ke TikTok dan YouTube Shorts, atau menjadwalkan postingan dengan Creator. Publikasi ke Instagram segera hadir. Sementara itu, unduh klip dengan preset ekspor Reels lalu unggah sendiri ke Instagram."
       },
       "watermark": {
         "question": "Apakah klip diberi watermark?",
