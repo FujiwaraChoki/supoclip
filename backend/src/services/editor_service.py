@@ -472,7 +472,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
         load_cached_transcript_data,
         get_words_for_keep_ranges,
     )
-    from ..clip_editor import _caption_words_with_timings
+    from ..clip_editor import _caption_words_with_timings, caption_tokens
     from ..clip_source_map import load_clip_caption_settings, load_clip_output_offsets, clip_source_map_path
     from ..youtube_source import local_ranges_for
 
@@ -601,7 +601,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             transcript = load_cached_transcript_data(source)
             timed = get_words_for_keep_ranges(transcript, local_ranges, source_offsets) if transcript else []
             words = _caption_words_with_timings(
-                (clip.get("text") or "").split(), timed, metadata["duration"]
+                caption_tokens(clip.get("text") or "", timed), timed, metadata["duration"]
             )
             duration = metadata["duration"]
             emphasis = generated_emphasis(words, task)

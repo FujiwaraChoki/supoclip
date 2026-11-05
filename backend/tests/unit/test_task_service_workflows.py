@@ -303,6 +303,57 @@ async def test_retry_renders_only_the_missing_parts_of_the_frozen_plan():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [
+    OSError("transient download failure"),
+    WorkflowError("render_incomplete", "Part 2 couldn't be rendered. Please try again."),
+])
+async def test_a_failed_retry_keeps_the_parts_of_the_earlier_attempt(failure):
+    service, events = _workflow_service("series", SERIES_SEGMENTS, SERIES_PLAN)
+    service.checkpoint_repo.get = AsyncMock(return_value={"completed_positions": [1]})
+    service.checkpoint_repo.forget_completed_positions = AsyncMock()
+    service.clip_repo.get_clips_by_task = AsyncMock(return_value=[{"id": "part-1", "clip_order": 1}])
+    service.video_service.process_video_complete = AsyncMock(side_effect=failure)
+
+    with pytest.raises(type(failure)):
+        await _run(service)
+
+    assert ("delete_clips",) not in events
+    assert not [event for event in events if event[0] == "plan_error"]
+    service.checkpoint_repo.forget_completed_positions.assert_not_awaited()
+    code = service.task_repo.update_task_runtime_metadata.await_args.kwargs["error_code"]
+    assert code not in WorkflowError.CODES  # the page would say "refunded"
+    status = events[-1]
+    assert status[:2] == ("status", "error") and "transient" not in status[2] and "Part 2" not in status[2]
+
+
+@pytest.mark.asyncio
+async def test_a_failure_before_outputs_are_read_deletes_nothing():
+    service, events = _workflow_service("series", SERIES_SEGMENTS, SERIES_PLAN)
+    service.clip_repo.get_clips_by_task = AsyncMock(side_effect=OSError("db went away"))
+
+    with pytest.raises(OSError):
+        await _run(service)
+
+    assert ("delete_clips",) not in events
+
+
+@pytest.mark.asyncio
+async def test_a_new_plan_replaces_the_parts_cut_for_the_old_one():
+    service, events = _workflow_service("series", SERIES_SEGMENTS, SERIES_PLAN)
+    service.checkpoint_repo.get = AsyncMock(return_value={"completed_positions": [1]})
+    service.checkpoint_repo.forget_completed_positions = AsyncMock()
+    service.clip_repo.get_clips_by_task = AsyncMock(return_value=[{"id": "old-part-1", "clip_order": 1}])
+    # No workflow_plan_restored: this attempt planned again.
+
+    await _run(service)
+
+    assert ("delete_clips",) in events
+    service.checkpoint_repo.forget_completed_positions.assert_awaited_once()
+    assert service.video_service.create_single_clip.await_count == len(SERIES_SEGMENTS)
+    assert service.clip_repo.create_clip.await_args_list[0].kwargs["clip_order"] == 1
+
+
+@pytest.mark.asyncio
 async def test_planner_error_deletes_clips_records_details_and_uses_its_code():
     service, events = _workflow_service("topic", [], None, {"topic": "crypto"})
     message = "We couldn't find strong moments about crypto in this video."

@@ -38,6 +38,7 @@ from .prompts import (
     outline_block,
     topic_extract_system,
     topic_finish_system,
+    topic_block,
     topic_locate_system,
     topic_rerank_system,
     transcript_block,
@@ -785,9 +786,11 @@ def resolve_overlaps(
 
 
 async def _locate(pi: PlanInput, topic: str) -> TopicLocate:
-    system = topic_locate_system(pi.language_name, topic)
+    system = topic_locate_system(pi.language_name)
     prompt = with_instructions(
-        outline_block(pi.outline.outline, pi.index, include=("chapters", "points", "topics")),
+        topic_block(topic)
+        + "\n\n"
+        + outline_block(pi.outline.outline, pi.index, include=("chapters", "points", "topics")),
         pi.instructions,
     )
     agent = build_agent(TopicLocate, system, structural=True)

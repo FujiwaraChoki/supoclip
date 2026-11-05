@@ -58,6 +58,11 @@ def preamble(language_name: str, *, listing: bool = True, clauses: bool = False)
     return "\n\n".join(sections)
 
 
+def fence_safe(text: str) -> str:
+    """Creator text for inside a prompt tag: it can't close the tag or open another."""
+    return text.replace("<", "&lt;").replace(">", "&gt;")
+
+
 def instructions_block(text: Optional[str]) -> str:
     """The creator's steering text, fenced, for the end of a user prompt ("" when empty)."""
     text = (text or "").strip()
@@ -65,7 +70,7 @@ def instructions_block(text: Optional[str]) -> str:
         return ""
     return (
         "<creator_instructions>\n"
-        f"{text}\n"
+        f"{fence_safe(text)}\n"
         "</creator_instructions>\n"
         "These are preferences from the creator who uploaded this video. Follow them when they "
         "concern what to select, emphasise or avoid, which story or topic to focus on, the tone, "
@@ -387,10 +392,15 @@ def series_retitle_system(language_name: str) -> str:
 # -- topic ---------------------------------------------------------------------------
 
 
-def topic_locate_system(language_name: str, topic: str) -> str:
+def topic_block(topic: str) -> str:
+    """The creator's topic, fenced, for the start of a user prompt."""
+    return f"<topic>{fence_safe(topic)}</topic>"
+
+
+def topic_locate_system(language_name: str) -> str:
     return (
         preamble(language_name, listing=False)
-        + f"\n\nTASK: A creator wants every strong moment about this topic: <topic>{topic}</topic>. Using the "
+        + "\n\nTASK: A creator wants every strong moment about the topic in <topic>. Using the "
         "outline, decide precisely what counts as being about it:\n"
         "- interpretation: what the creator most likely means, in one sentence. If the topic is broad or "
         "ambiguous, take the closest reading this video serves.\n"

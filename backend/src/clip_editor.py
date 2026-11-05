@@ -10,9 +10,11 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 import subprocess
 import tempfile
 import threading
+import unicodedata
 import uuid
 
 from .caption_templates import get_template
+from .workflows.language import is_no_space
 from .media.ffmpeg import ffmpeg_escape_filter_path, ffprobe_video_size
 from .media.source_limits import FPS_EPSILON, MAX_OUTPUT_FPS, probe_video_geometry
 from .video_utils import (
@@ -255,8 +257,7 @@ def overlay_custom_captions(
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / _safe_name("caption")
-    words = [word for word in caption_text.split() if word.strip()]
-    if not words:
+    if not caption_text.strip():
         _run(["ffmpeg", "-y", "-i", str(input_path), *_encode_args(), str(output_path)])
         return output_path
 
@@ -278,6 +279,7 @@ def overlay_custom_captions(
         else:
             timed_words = get_words_in_range(transcript_data, 0.0, duration)
 
+    words = caption_tokens(caption_text, timed_words)
     caption_words = _caption_words_with_timings(words, timed_words, duration)
     if not build_assemblyai_ass_subtitles(
         input_path,
@@ -320,6 +322,30 @@ def overlay_custom_captions(
         ass_path.unlink(missing_ok=True)
 
     return output_path
+
+
+def caption_tokens(text: str, timed_words: List[Dict[str, Any]]) -> List[str]:
+    """Words of a clip's caption text, ready for per-word timing.
+
+    Chinese, Japanese and Thai clips store text without spaces, which would
+    otherwise read as a single word held for the whole clip. Unedited text gets
+    the transcript's own words back; edited text is split by character.
+    """
+    tokens = text.split()
+    if not is_no_space(None, "".join(tokens)):
+        return tokens
+    spoken = [str(word.get("text", "")).strip() for word in timed_words]
+    spoken = [word for word in spoken if word]
+    if "".join(spoken) == "".join(tokens):
+        return spoken
+    characters: List[str] = []
+    for character in "".join(tokens):
+        # Combining marks (Thai vowels and tones) stay on their base character.
+        if characters and unicodedata.category(character).startswith("M"):
+            characters[-1] += character
+        else:
+            characters.append(character)
+    return characters
 
 
 def _caption_words_with_timings(

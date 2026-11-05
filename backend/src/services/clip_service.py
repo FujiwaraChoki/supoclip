@@ -740,6 +740,8 @@ class ClipEditingMixin:
             end_time,
             duration,
             text,
+            # The merged clip no longer plays one part's planned cuts or labels.
+            workflow_meta=_unplanned_meta(first["workflow_meta"]) if first.get("workflow_meta") else None,
         )
 
         for clip in ordered[1:]:

@@ -131,6 +131,7 @@ _INTERNAL_ERRORS = (
     OSError, LookupError, TypeError, AttributeError, NameError, AssertionError,
     ArithmeticError, SubprocessError, SQLAlchemyError,
 )
+KEPT_OUTPUTS_ERROR = "Your finished clips are saved. Retry generation to create the missing ones."
 _GENERIC_ERROR = "Something went wrong while generating your clips. Retry generation to try again."
 
 
@@ -493,6 +494,9 @@ class TaskService(ClipEditingMixin):
         pending_clip_path: Optional[Path] = None
         clips_output_dir = Path(self.config.temp_dir) / "clips"
         spec: Optional[WorkflowSpec] = None
+        # Finished output from an earlier attempt, which may carry edits, exports
+        # and scheduled posts. Unknown until read, so a failure before that deletes nothing.
+        prior_outputs = True
 
         async def check_cancelled():
             if should_cancel and await should_cancel():
@@ -505,6 +509,7 @@ class TaskService(ClipEditingMixin):
             # honour it with the ARQ job arguments unchanged.
             task_row = await self.task_repo.get_task_by_id(self.db, task_id) or {}
             spec = workflow_spec_from_task(task_row, clip_length)
+            prior_outputs = bool(await self.clip_repo.get_clips_by_task(self.db, task_id))
             # New tasks already have an atomic acceptance charge. Recover queued
             # legacy jobs with missing durations before doing paid processing.
             if self.config.monetization_enabled and user_id:
@@ -721,6 +726,18 @@ class TaskService(ClipEditingMixin):
             async with self._processing_transaction(task_id):
                 await check_cancelled()
                 existing_clips = await self.clip_repo.get_clips_by_task(self.db, task_id)
+                if (
+                    existing_clips
+                    and spec.workflow in ALL_OR_NOTHING_WORKFLOWS
+                    and not result.get("workflow_plan_restored")
+                ):
+                    # A new plan: these parts were cut for one that no longer
+                    # exists, and part 3 of one can't follow part 2 of the other.
+                    await self.clip_repo.delete_clips_by_task(self.db, task_id)
+                    await self.checkpoint_repo.forget_completed_positions(self.db, task_id)
+                    checkpoint.pop("completed_positions", None)
+                    existing_clips = []
+                    prior_outputs = False
                 clip_ids_by_order = {clip["clip_order"]: clip["id"] for clip in existing_clips}
                 # Display order changes when a user splits, merges or reorders
                 # clips. Track completed plan positions separately and commit
@@ -953,10 +970,17 @@ class TaskService(ClipEditingMixin):
                 raise
             is_workflow_error = isinstance(e, WorkflowError)
             all_or_nothing = spec is not None and spec.workflow in ALL_OR_NOTHING_WORKFLOWS
-            if is_workflow_error or all_or_nothing:
+            if (is_workflow_error or all_or_nothing) and not prior_outputs:
                 # No partial series, recap or trailer: removing every clip
                 # before the error status lets the minute refund fire.
                 await self._discard_task_clips(task_id)
+            # An earlier attempt's parts stay, charged, and a retry finishes them.
+            # That isn't the "refunded, here's what to make instead" failure.
+            failure_message = (
+                KEPT_OUTPUTS_ERROR if is_workflow_error and prior_outputs else user_facing_error(e)
+            )
+            if is_workflow_error and prior_outputs:
+                is_workflow_error = False
             if is_workflow_error:
                 try:
                     await self.task_repo.merge_workflow_plan_error(
@@ -965,7 +989,7 @@ class TaskService(ClipEditingMixin):
                 except Exception:
                     logger.exception("Could not record workflow error on task %s", task_id)
             failed = await self.task_repo.update_task_status(
-                self.db, task_id, "error", progress=0, progress_message=user_facing_error(e),
+                self.db, task_id, "error", progress=0, progress_message=failure_message,
                 expected_statuses=["queued", "processing"],
             )
             if failed is False:
@@ -993,7 +1017,7 @@ class TaskService(ClipEditingMixin):
             )
             if progress_callback:
                 try:
-                    await progress_callback(0, user_facing_error(e), "error")
+                    await progress_callback(0, failure_message, "error")
                 except Exception:
                     logger.exception("Could not publish task failure for %s", task_id)
             raise
