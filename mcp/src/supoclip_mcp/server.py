@@ -28,6 +28,7 @@ from typing import Annotated, Awaitable, Callable, Optional
 
 import httpx
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.settings import AuthSettings
@@ -38,7 +39,7 @@ try:  # Python 3.10 lacks typing.Literal niceties only in edge cases; import is 
 except ImportError:  # pragma: no cover
     from typing_extensions import Literal  # type: ignore
 
-from .client import AuthNotConfiguredError, SupoClipClient, SupoClipError
+from .client import SupoClipClient, SupoClipError
 from .config import load_settings
 
 SETTINGS = load_settings()
@@ -143,18 +144,23 @@ def _client() -> SupoClipClient:
 
 
 def tool_errors(func: Callable[..., Awaitable[str]]) -> Callable[..., Awaitable[str]]:
-    """Wrap a tool so backend/auth errors come back as readable text, not stack traces."""
+    """Wrap a tool so backend/auth errors become MCP tool errors, not stack traces.
+
+    The error is raised as ``ToolError`` so FastMCP answers with ``isError: true``
+    and the readable message; returning it as normal text would look like a
+    successful result to the client.
+    """
 
     @functools.wraps(func)
     async def wrapper(*args, **kwargs) -> str:
         try:
             return await func(*args, **kwargs)
-        except AuthNotConfiguredError as exc:
-            return f"Error: {exc}"
-        except SupoClipError as exc:
-            return f"Error: {exc}"
+        except SupoClipError as exc:  # includes AuthNotConfiguredError
+            raise ToolError(str(exc)) from exc
+        except ToolError:
+            raise
         except Exception as exc:  # pragma: no cover - defensive
-            return f"Error: unexpected {type(exc).__name__}: {exc}"
+            raise ToolError(f"unexpected {type(exc).__name__}: {exc}") from exc
 
     return wrapper
 
