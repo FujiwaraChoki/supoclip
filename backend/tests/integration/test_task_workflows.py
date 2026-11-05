@@ -35,7 +35,7 @@ def youtube_duration(monkeypatch):
     """The YouTube preflight reports this many seconds (default 10 minutes)."""
     state = {"seconds": 600}
 
-    async def info(_url):
+    async def info(_url, **_kwargs):
         return {"duration": state["seconds"], "title": "Workflow source"}
 
     monkeypatch.setattr("src.api.routes.tasks.async_get_youtube_video_info", info)
