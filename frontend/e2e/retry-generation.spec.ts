@@ -82,9 +82,10 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "
     await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "10");
 
     current = { ...current, progress_message: "Using a backup video download option..." };
-    const notice = page.getByRole("status").filter({ hasText: "Using a backup download option" });
+    const notice = page.getByRole("status", { name: "Hang tight" });
     await expect(notice).toBeVisible({ timeout: 12_000 });
-    await expect(page.getByText("Recovering your video")).toBeVisible();
+    await expect(page.getByText("Hang tight")).toBeVisible();
+    await expect(notice).not.toContainText(/download|backup|connection|recovery/i);
     await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "10");
     await expect(page.getByText(/min left|minute left/)).toHaveCount(0);
 
@@ -96,7 +97,7 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "
     }
 
     current = { ...current, progress: 30, progress_message: "Generating transcript..." };
-    await expect(page.getByText("Recovering your video")).toHaveCount(0, { timeout: 12_000 });
+    await expect(page.getByText("Hang tight")).toHaveCount(0, { timeout: 12_000 });
     await expect(notice).toHaveCount(0);
     await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "30");
   });

@@ -141,12 +141,13 @@
     "complete": "Transcripción completa de este clip"
   },
   "recovery": {
-    "heading": "Recuperando tu video",
-    "connection": "La descarga se interrumpió. Probando otra conexión…",
-    "audio": "Probando otra forma de descargar el audio del video…",
-    "fullVideo": "Descargando el video completo para continuar el procesamiento…",
-    "backup": "Usando una opción de descarga alternativa…",
-    "anotherBackup": "La opción anterior no funcionó. Probando otra opción de recuperación…",
-    "explanation": "Esto puede tardar unos minutos más. La generación continuará automáticamente cuando el video esté listo."
+    "heading": "Un poquito de paciencia",
+    "messages": {
+      "snags": "Nos hemos encontrado con algunos obstáculos, así que esto está tardando un poco más de lo habitual.",
+      "hiccup": "Un pequeño contratiempo nos está frenando. Puede que tardemos un poquito más.",
+      "scenicRoute": "Este video ha elegido la ruta panorámica. Tardará un poco más de lo habitual.",
+      "bumps": "Hay algunos baches en el camino. Los estamos superando—solo necesitamos un poco más de tiempo.",
+      "slower": "Las cosas van un poco más despacio de lo habitual. Seguimos en ello."
+    }
   }
 }

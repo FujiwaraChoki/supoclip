@@ -141,12 +141,13 @@
     "complete": "Vollständiges Transkript für diesen Clip"
   },
   "recovery": {
-    "heading": "Dein Video wird wiederhergestellt",
-    "connection": "Der Download wurde unterbrochen. Eine andere Verbindung wird versucht…",
-    "audio": "Die Tonspur wird auf einem anderen Weg heruntergeladen…",
-    "fullVideo": "Das vollständige Video wird heruntergeladen, damit die Verarbeitung weitergehen kann…",
-    "backup": "Eine alternative Download-Methode wird verwendet…",
-    "anotherBackup": "Die vorherige Methode hat nicht funktioniert. Eine weitere Alternative wird versucht…",
-    "explanation": "Das kann ein paar zusätzliche Minuten dauern. Die Erstellung geht automatisch weiter, sobald das Video bereit ist."
+    "heading": "Einen Moment noch",
+    "messages": {
+      "snags": "Ein paar Stolpersteine unterwegs—diesmal dauert es etwas länger als sonst.",
+      "hiccup": "Ein kleiner Hänger bremst uns aus. Es kann etwas länger dauern.",
+      "scenicRoute": "Dieses Video nimmt die Panoramaroute. Es dauert etwas länger als sonst.",
+      "bumps": "Der Weg ist gerade etwas holprig. Wir arbeiten uns durch—noch ein wenig Geduld.",
+      "slower": "Heute läuft es etwas langsamer als sonst. Wir bleiben dran."
+    }
   }
 }

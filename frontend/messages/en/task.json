@@ -141,12 +141,13 @@
     "complete": "Complete transcript for this clip"
   },
   "recovery": {
-    "heading": "Recovering your video",
-    "connection": "The download was interrupted. Trying another connection…",
-    "audio": "Trying another way to download the video’s audio…",
-    "fullVideo": "Downloading the full video so processing can continue…",
-    "backup": "Using a backup download option…",
-    "anotherBackup": "The previous option did not work. Trying another recovery option…",
-    "explanation": "This may take a few extra minutes. Your generation will continue automatically once the video is ready."
+    "heading": "Hang tight",
+    "messages": {
+      "snags": "We've hit a few snags, so this is taking a little longer than usual.",
+      "hiccup": "A small hiccup is slowing things down. This may take a little extra time.",
+      "scenicRoute": "This one's taking the scenic route. It'll be a little longer than usual.",
+      "bumps": "A few bumps along the way. We're working through them—just a little more time.",
+      "slower": "Things are moving a bit slower than usual. We're still on it."
+    }
   }
 }

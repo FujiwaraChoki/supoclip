@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { getClipUrl } from "@/lib/clip-actions";
 import { formatClipDuration } from "@/lib/generations";
-import { downloadRecoveryKey } from "@/lib/download-recovery";
+import { DELAY_MESSAGE_KEYS, isDownloadRecovery } from "@/lib/download-recovery";
 import { cn } from "@/lib/utils";
 
 export interface WallClip {
@@ -230,7 +230,7 @@ const STEPS = [
 
 function activeStep(status: string, progress: number, message: string) {
   if (status === "queued") return -1;
-  if (downloadRecoveryKey(message)) return 0;
+  if (isDownloadRecovery(message)) return 0;
   const text = message.toLowerCase();
   if (/render|creating clip|clip \d|saving/.test(text)) return 3;
   if (/analy|moment|segment|ai /.test(text)) return 2;
@@ -273,9 +273,10 @@ export function ProcessingPanel({ status, progress, message, startedAt, elapsedS
   clipProgress?: { current: number; total: number } | null;
 }) {
   const t = useTranslations("task");
+  const [delayMessage] = useState(() => DELAY_MESSAGE_KEYS[Math.floor(Math.random() * DELAY_MESSAGE_KEYS.length)]);
   const ticking = useElapsed(elapsedSeconds === undefined ? startedAt : undefined);
   const elapsed = elapsedSeconds ?? ticking;
-  const recovery = status === "processing" ? downloadRecoveryKey(message) : null;
+  const recovery = status === "processing" && isDownloadRecovery(message);
   const step = activeStep(status, progress, message);
   const clip = clipProgress === undefined ? clipProgressFromMessage(message) : clipProgress;
   const remaining = progress > 0 ? (elapsed * (100 - progress)) / progress : Infinity;
@@ -295,12 +296,9 @@ export function ProcessingPanel({ status, progress, message, startedAt, elapsedS
         {clip && <p className="text-sm tabular-nums text-muted-foreground">{t("clipOf", clip)}</p>}
       </div>
       {recovery && (
-        <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2.5 text-sm" role="status">
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2.5 text-sm" role="status" aria-label={t("recovery.heading")}>
           <Loader2 aria-hidden className="mt-0.5 size-4 shrink-0 animate-spin text-amber-700 dark:text-amber-400" />
-          <div>
-            <p className="font-medium">{t(`recovery.${recovery}`)}</p>
-            <p className="mt-1 text-muted-foreground">{t("recovery.explanation")}</p>
-          </div>
+          <p>{t(`recovery.messages.${delayMessage}`)}</p>
         </div>
       )}
       <div className="mt-4 h-2 rounded-full bg-stone-200/60 dark:bg-stone-800/60" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress} aria-label={t("percentComplete", { progress })}>
