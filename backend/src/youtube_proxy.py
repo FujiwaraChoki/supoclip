@@ -24,6 +24,7 @@ from typing import Any, Callable, Optional
 from urllib.parse import urljoin, urlsplit
 
 from .config import get_config
+from .download_progress import DownloadRecovery, report_download_recovery
 
 logger = logging.getLogger(__name__)
 
@@ -505,6 +506,7 @@ def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: 
                     raise YouTubeGeoRestrictedError() from exc
                 raise
             session = secrets.token_hex(12)
+            report_download_recovery(DownloadRecovery.CONNECTION)
             logger.info(
                 "youtube_proxy_retry attempt=%s video_id=%s task_id=%s error=%s",
                 attempt + 2, video_id, task_id or "-", public_download_error(exc),
@@ -1279,6 +1281,7 @@ def _download_audio_attempt(
             if hls is None:
                 raise AudioDownloadForbidden("No HLS audio format is available") from exc
             hls_retry = True
+            report_download_recovery(DownloadRecovery.AUDIO)
             logger.info(
                 "youtube_audio_fallback retrying via=hls_audio video_id=%s format_id=%s protocol=%s task_id=%s",
                 video_id,
