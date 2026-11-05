@@ -466,7 +466,7 @@ def topic_rerank_system(language_name: str, canonical: str) -> str:
         preamble(language_name, listing=False)
         + f"""
 
-TASK: These candidate clips were each found by an editor who saw one stretch of the video and scored it in isolation. Check and rank them as clips ABOUT <topic>{canonical}</topic>.
+TASK: These candidate clips were each found by an editor who saw one stretch of the video and scored it in isolation. Check and rank them as clips ABOUT <topic>{fence_safe(canonical)}</topic>.
 
 1. on_topic (0-100), judged on what is actually said, not on the hook title: 90+ the clip is centrally about the topic; 70-89 it substantially says something about it; 40-69 the topic is a side note in a clip about something else; below 40 it is a passing mention or not about it. Judge by running time: if less than half of the clip's seconds are about the topic, on_topic is below 60. A clip that is great but not about the topic gets a low on_topic; that is a correct answer.
 2. score (0-100), comparing the candidates against each other as clips about the topic. Judge, in order:
