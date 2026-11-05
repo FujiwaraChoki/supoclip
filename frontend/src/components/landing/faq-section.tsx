@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { Plus } from "lucide-react";
+import Link from "next/link";
 
 import { getLandingFaqs } from "@/lib/landing-faq";
 import { Reveal, SectionHeading } from "./reveal";
@@ -15,6 +16,7 @@ export function FaqSection() {
       <div className="mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:gap-16">
         <div className="lg:sticky lg:top-28 lg:self-start">
           <SectionHeading eyebrow={t("faq.eyebrow")} title={t("faq.title")} body={t("faq.body")} align="left" />
+          <Link href="/faq" className="mt-6 inline-block text-sm font-medium underline underline-offset-4">{t("faqPage.viewAll")}</Link>
         </div>
 
         <Reveal delay={0.05} className="min-w-0">
@@ -27,7 +29,10 @@ export function FaqSection() {
                     <Plus className="size-4" />
                   </span>
                 </summary>
-                <p className="max-w-2xl pb-6 pr-12 text-sm leading-relaxed text-muted-foreground">{faq.answer}</p>
+                <div className="max-w-2xl pb-6 pr-12 text-sm leading-relaxed text-muted-foreground">
+                  <p>{faq.answer}</p>
+                  {faq.key === "languages" && <Link href="/faq#languages" className="mt-3 inline-block font-medium text-foreground underline underline-offset-4">{t("faqPage.viewLanguages")}</Link>}
+                </div>
               </details>
             ))}
           </div>

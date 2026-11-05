@@ -167,6 +167,9 @@
       "title": "Compare SupoClip, Clips AI, and Auto-Editor",
       "label": "Open-source video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
+    },
+    "faq": {
+      "label": "常见问题"
     }
   },
   "nav": {
@@ -182,7 +185,8 @@
     "getStarted": "开始使用",
     "openHosted": "打开托管应用",
     "toggleMenu": "打开或关闭菜单",
-    "publishing": "发布"
+    "publishing": "发布",
+    "faq": "常见问题"
   },
   "hero": {
     "badge": "开源，可自托管。也有 iPhone 版。",
@@ -445,8 +449,8 @@
         "answer": "不会。无论是托管方案还是自托管，SupoClip 都不会添加水印。"
       },
       "languages": {
-        "question": "支持其他语言吗？",
-        "answer": "支持。系统会自动识别视频中的语言，文字稿、字幕和选段都会跟随视频的语言。"
+        "question": "SupoClip 支持哪些语言？",
+        "answer": "SupoClip 通过 Universal-2 支持 99 种以上口语语言，包括英语、西班牙语、葡萄牙语、德语、法语、中文、日语、印地语、阿拉伯语和印尼语。系统自动检测视频语言，片段和字幕保持原语言。完整列表和相关限制请查看常见问题。"
       },
       "selfHost": {
         "question": "自托管真的免费吗？",
@@ -480,5 +484,62 @@
   "cta": {
     "title": "你的下一条视频，已经是一周的内容。",
     "body": "粘贴一个链接，看看 SupoClip 能找到什么。使用托管版应用，或免费自托管开源版本。"
+  },
+  "faqPage": {
+    "title": "语言、字幕与剪辑",
+    "metaTitle": "常见问题：支持的语言与视频处理",
+    "intro": "查找视频使用的语言，了解转录、字幕以及 SupoClip 如何处理视频。",
+    "topics": "常见问题主题",
+    "sections": {
+      "languages": "支持的语言",
+      "processing": "字幕与处理",
+      "general": "入门与套餐"
+    },
+    "languageBadge": "支持 99 种以上口语语言",
+    "languageIntro": "托管应用使用 AssemblyAI Universal-2 转录，支持下方列出的语言及地区变体。SupoClip 根据转录内容寻找精彩片段，并生成原语言字幕。",
+    "searchLabel": "查找你的语言",
+    "searchPlaceholder": "使用你的语言或英语搜索…",
+    "resultCount": "显示 {count} / {total} 种语言及变体",
+    "listLabel": "支持的口语语言及地区变体",
+    "noResults": "列表中没有匹配的语言。请尝试使用英文名称搜索。如果仍未找到，则该语言未被列为托管转录支持的语言。",
+    "sourceNote": "这是 Universal-2 公布的语言列表，包含地区变体。转录准确度和说话人检测效果因语言和录音而异。",
+    "sourceLink": "查看 AssemblyAI 语言文档",
+    "mandarin": "中文（普通话）",
+    "viewAll": "查看所有常见问题",
+    "viewLanguages": "查看全部支持的语言",
+    "items": {
+      "detection": {
+        "question": "上传前需要选择语言吗？",
+        "answer": "不需要。托管应用会自动检测每个视频的口语语言。更改界面语言不会改变转录语言。清晰的人声和较少的背景噪音有助于准确检测。"
+      },
+      "translation": {
+        "question": "SupoClip 可以翻译或配音吗？",
+        "answer": "SupoClip 使用视频中说话的语言生成转录和字幕。自动字幕翻译和配音目前不属于剪辑流程。导出前，你可以在编辑器中修正字幕文字。"
+      },
+      "mixed": {
+        "question": "如果视频在多种语言之间切换怎么办？",
+        "answer": "托管流程会检测主要口语语言。视频中的说话人切换语言时，无法保证字幕准确。为获得更可靠的结果，建议使用以一种语言为主的录音，并在发布前检查字幕。"
+      },
+      "accuracy": {
+        "question": "所有支持的语言都同样准确吗？",
+        "answer": "不是。转录质量会受到语言、口音、背景噪音和多人同时说话的影响。支持某种语言并不保证字幕或说话人检测完全准确。请检查片段，尤其留意人名、专业术语、方言和使用人数较少的语言。"
+      },
+      "interface": {
+        "question": "视频支持的语言与界面语言相同吗？",
+        "answer": "两者独立。界面支持英语、西班牙语、葡萄牙语、德语、中文和印尼语。不论选择哪种界面语言，视频都可以使用上方列表中的任一口语语言。"
+      },
+      "fonts": {
+        "question": "为什么部分字幕字符显示异常或使用其他字体？",
+        "answer": "某种语言可能支持转录，但你选择的字幕字体未必包含其字符。请查看字体选择器中每种字体旁的语言信息，并选择覆盖相应文字系统的字体。导出前请检查渲染后的片段。"
+      },
+      "cleanup": {
+        "question": "所有语言都支持去除语气词吗？",
+        "answer": "清理功能为英语、德语和法语提供专用语气词列表，其他语言使用一小份通用犹豫音列表。你可以调整过滤词或关闭语气词去除功能。长停顿移除是单独的设置。"
+      },
+      "providers": {
+        "question": "自托管支持的语言相同吗？",
+        "answer": "语言覆盖范围取决于配置的转录服务。使用 Universal-2 的 AssemblyAI 适用上方列表；本地 Whisper 则取决于安装的模型。YouTube 字幕服务需要 YouTube 视频来源，支持范围取决于该视频可用的字幕。AI 分析服务与转录服务分开配置。"
+      }
+    }
   }
 }

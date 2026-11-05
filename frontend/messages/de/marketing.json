@@ -167,6 +167,9 @@
       "title": "Compare SupoClip, Clips AI, and Auto-Editor",
       "label": "Open-source video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
+    },
+    "faq": {
+      "label": "FAQ"
     }
   },
   "nav": {
@@ -182,7 +185,8 @@
     "getStarted": "Loslegen",
     "openHosted": "Gehostete App öffnen",
     "toggleMenu": "Menü umschalten",
-    "publishing": "Veröffentlichen"
+    "publishing": "Veröffentlichen",
+    "faq": "FAQ"
   },
   "hero": {
     "badge": "Open Source und selbst hostbar. Auch fürs iPhone.",
@@ -445,8 +449,8 @@
         "answer": "Nein. SupoClip fügt nie ein Wasserzeichen hinzu, weder in den gehosteten Tarifen noch beim Selbsthosten."
       },
       "languages": {
-        "question": "Funktioniert es auch in anderen Sprachen?",
-        "answer": "Ja. Die gesprochene Sprache wird automatisch erkannt, sodass Transkript, Untertitel und Clip-Auswahl der Sprache des Videos folgen."
+        "question": "Welche Sprachen unterstützt SupoClip?",
+        "answer": "SupoClip unterstützt über Universal-2 mehr als 99 gesprochene Sprachen, darunter Englisch, Spanisch, Portugiesisch, Deutsch, Französisch, Chinesisch, Japanisch, Hindi, Arabisch und Indonesisch. Die Sprache wird automatisch erkannt; Clips und Untertitel folgen der Originalsprache. Die vollständige Liste und Einschränkungen findest du in den FAQ."
       },
       "selfHost": {
         "question": "Ist Selbsthosten wirklich kostenlos?",
@@ -480,5 +484,62 @@
   "cta": {
     "title": "Dein nächstes Video ist schon eine Woche Content.",
     "body": "Füge einen Link ein und sieh, was SupoClip findet. Nutze die gehostete App oder hoste die Open-Source-Version kostenlos selbst."
+  },
+  "faqPage": {
+    "title": "Sprachen, Untertitel und Clips",
+    "metaTitle": "FAQ: Unterstützte Sprachen und Videoverarbeitung",
+    "intro": "Finde die Sprache deines Videos und Antworten zu Transkripten, Untertiteln und der Videoverarbeitung mit SupoClip.",
+    "topics": "FAQ-Themen",
+    "sections": {
+      "languages": "Unterstützte Sprachen",
+      "processing": "Untertitel und Verarbeitung",
+      "general": "Einstieg und Tarife"
+    },
+    "languageBadge": "Über 99 gesprochene Sprachen",
+    "languageIntro": "Die gehostete App nutzt AssemblyAI Universal-2 für die Transkription der unten aufgeführten Sprachen und regionalen Varianten. SupoClip nutzt das Transkript, um Clips zu finden und Untertitel in der Originalsprache zu erstellen.",
+    "searchLabel": "Finde deine Sprache",
+    "searchPlaceholder": "In deiner Sprache oder auf Englisch suchen…",
+    "resultCount": "{count} von {total} Sprachen und Varianten",
+    "listLabel": "Unterstützte gesprochene Sprachen und regionale Varianten",
+    "noResults": "Keine passende Sprache in dieser Liste. Versuche den englischen Namen. Fehlt sie weiterhin, ist sie nicht als unterstützt für die gehostete Transkription aufgeführt.",
+    "sourceNote": "Dies ist die veröffentlichte Sprachliste von Universal-2 einschließlich regionaler Varianten. Genauigkeit und Sprechererkennung hängen von Sprache und Aufnahme ab.",
+    "sourceLink": "Sprachdokumentation von AssemblyAI ansehen",
+    "mandarin": "Chinesisch (Mandarin)",
+    "viewAll": "Alle FAQ ansehen",
+    "viewLanguages": "Alle unterstützten Sprachen ansehen",
+    "items": {
+      "detection": {
+        "question": "Muss ich vor dem Hochladen eine Sprache auswählen?",
+        "answer": "Nein. Die gehostete App erkennt die gesprochene Sprache für jedes Video automatisch. Die Sprache der Oberfläche ändert die Transkription nicht. Klare Sprache mit wenig Hintergrundgeräuschen erleichtert die richtige Erkennung."
+      },
+      "translation": {
+        "question": "Kann SupoClip mein Video übersetzen oder synchronisieren?",
+        "answer": "SupoClip erstellt Transkripte und Untertitel in der gesprochenen Sprache des Videos. Automatische Untertitelübersetzung und Synchronisation gehören derzeit nicht zum Clip-Workflow. Du kannst den Untertiteltext vor dem Export im Editor korrigieren."
+      },
+      "mixed": {
+        "question": "Was passiert, wenn ein Video zwischen Sprachen wechselt?",
+        "answer": "Der gehostete Workflow erkennt die hauptsächlich gesprochene Sprache. Genaue Untertitel sind bei Sprachwechseln innerhalb eines Videos nicht garantiert. Nutze für verlässlichere Ergebnisse Aufnahmen mit einer Hauptsprache und prüfe die Untertitel vor der Veröffentlichung."
+      },
+      "accuracy": {
+        "question": "Sind alle unterstützten Sprachen gleich genau?",
+        "answer": "Nein. Die Qualität hängt von Sprache, Akzent, Hintergrundgeräuschen und überlappender Sprache ab. Sprachunterstützung garantiert keine perfekten Untertitel oder Sprechererkennung. Prüfe deine Clips besonders bei Namen, Fachbegriffen, Dialekten und weniger verbreiteten Sprachen."
+      },
+      "interface": {
+        "question": "Sind Videosprachen und Oberflächensprachen identisch?",
+        "answer": "Sie sind unabhängig voneinander. Die Oberfläche ist auf Englisch, Spanisch, Portugiesisch, Deutsch, Chinesisch und Indonesisch verfügbar. Dein Video kann in jeder oben aufgeführten gesprochenen Sprache sein, unabhängig von der gewählten Oberflächensprache."
+      },
+      "fonts": {
+        "question": "Warum sehen manche Untertitelzeichen falsch aus oder nutzen eine andere Schrift?",
+        "answer": "Eine Sprache kann bei der Transkription unterstützt sein, obwohl die gewählte Untertitelschrift ihre Zeichen nicht enthält. Prüfe die Sprachinformationen neben jeder Schrift in der Schriftauswahl und wähle eine Schrift für dein Schriftsystem. Kontrolliere den gerenderten Clip vor dem Export."
+      },
+      "cleanup": {
+        "question": "Funktioniert die Füllwortentfernung in jeder Sprache?",
+        "answer": "Die Bereinigung nutzt sprachspezifische Füllwortlisten für Englisch, Deutsch und Französisch. Andere Sprachen verwenden eine kleine gemeinsame Liste von Zögerlauten. Du kannst die gefilterten Wörter anpassen oder die Füllwortentfernung ausschalten. Lange Pausen werden über eine separate Einstellung entfernt."
+      },
+      "providers": {
+        "question": "Unterstützt Self-Hosting dieselben Sprachen?",
+        "answer": "Die Sprachabdeckung hängt vom konfigurierten Transkriptionsanbieter ab. AssemblyAI mit Universal-2 nutzt die obige Liste; lokales Whisper hängt vom installierten Modell ab. Der Anbieter für YouTube-Untertitel benötigt eine YouTube-Quelle und hängt von den dort verfügbaren Untertiteln ab. Der Anbieter für die KI-Analyse wird getrennt konfiguriert."
+      }
+    }
   }
 }

@@ -62,6 +62,7 @@ const NAV_LINKS = [
   { href: "#publish", key: "publishing" },
   { href: "#pricing", key: "pricing" },
   { href: "#open-source", key: "openSource" },
+  { href: "/faq", key: "faq" },
   { href: "/blog", key: "blog" },
   { href: "/affiliate", key: "affiliate" },
 ] as const;
@@ -198,7 +199,7 @@ export default function LandingPage() {
             <span className="font-display text-[17px] font-bold tracking-tight">SupoClip</span>
           </Link>
 
-          <div className="hidden items-center gap-1 md:flex">
+          <div className="hidden items-center gap-1 xl:flex">
             {NAV_LINKS.map(({ href, key }) => {
               const className =
                 "whitespace-nowrap rounded-full px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";
@@ -210,7 +211,7 @@ export default function LandingPage() {
             })}
           </div>
 
-          <div className="hidden items-center gap-1 md:flex">
+          <div className="hidden items-center gap-1 xl:flex">
             {authEnabled ? (
               <>
                 <Button asChild variant="ghost" size="sm" className="rounded-full">
@@ -234,7 +235,7 @@ export default function LandingPage() {
             variant="ghost"
             size="icon"
             onClick={() => setMobileNavOpen((open) => !open)}
-            className="rounded-full md:hidden"
+            className="rounded-full xl:hidden"
             aria-label={t("nav.toggleMenu")}
             aria-expanded={mobileNavOpen}
           >
@@ -243,7 +244,7 @@ export default function LandingPage() {
         </nav>
 
         {mobileNavOpen && (
-          <div className="animate-rise mx-auto mt-2 max-w-6xl rounded-3xl border bg-background/95 p-3 shadow-lg backdrop-blur-xl md:hidden">
+          <div className="animate-rise mx-auto mt-2 max-w-6xl rounded-3xl border bg-background/95 p-3 shadow-lg backdrop-blur-xl xl:hidden">
             {NAV_LINKS.map(({ href, key }) => {
               const className =
                 "block rounded-2xl px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground";

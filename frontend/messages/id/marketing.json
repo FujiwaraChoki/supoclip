@@ -167,6 +167,9 @@
       "title": "Compare SupoClip, Clips AI, and Auto-Editor",
       "label": "Open-source video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
+    },
+    "faq": {
+      "label": "FAQ"
     }
   },
   "nav": {
@@ -182,7 +185,8 @@
     "getStarted": "Mulai",
     "openHosted": "Buka aplikasi yang di-host",
     "toggleMenu": "Buka atau tutup menu",
-    "publishing": "Publikasi"
+    "publishing": "Publikasi",
+    "faq": "FAQ"
   },
   "hero": {
     "badge": "Open source dan bisa di-host sendiri. Juga tersedia di iPhone.",
@@ -445,8 +449,8 @@
         "answer": "Tidak. SupoClip tidak pernah menambahkan watermark, baik di paket hosted maupun saat di-host sendiri."
       },
       "languages": {
-        "question": "Apakah bisa untuk bahasa lain?",
-        "answer": "Bisa. Bahasa yang diucapkan terdeteksi otomatis, jadi transkrip, subtitle, dan pilihan klip mengikuti bahasa videonya."
+        "question": "Bahasa apa saja yang didukung SupoClip?",
+        "answer": "SupoClip mendukung lebih dari 99 bahasa lisan melalui Universal-2, termasuk bahasa Inggris, Spanyol, Portugis, Jerman, Prancis, Mandarin, Jepang, Hindi, Arab, dan Indonesia. Bahasa dideteksi otomatis, dan klip serta subtitle mengikuti bahasa asli. Lihat FAQ untuk daftar lengkap dan batasannya."
       },
       "selfHost": {
         "question": "Benarkah host sendiri itu gratis?",
@@ -480,5 +484,62 @@
   "cta": {
     "title": "Video berikutnya sudah jadi konten seminggu.",
     "body": "Tempel tautan dan lihat apa yang ditemukan SupoClip. Pakai aplikasi yang di-host, atau host sendiri versi open source secara gratis."
+  },
+  "faqPage": {
+    "title": "Bahasa, subtitle, dan klip",
+    "metaTitle": "FAQ: Bahasa yang didukung dan pemrosesan video",
+    "intro": "Temukan bahasa video Anda dan jawaban tentang transkrip, subtitle, serta cara SupoClip memproses video.",
+    "topics": "Topik FAQ",
+    "sections": {
+      "languages": "Bahasa yang didukung",
+      "processing": "Subtitle dan pemrosesan",
+      "general": "Memulai dan paket"
+    },
+    "languageBadge": "Lebih dari 99 bahasa lisan",
+    "languageIntro": "Aplikasi yang dihosting menggunakan AssemblyAI Universal-2 untuk transkripsi bahasa dan varian regional di bawah ini. SupoClip menggunakan transkrip untuk menemukan klip dan membuat subtitle dalam bahasa asli.",
+    "searchLabel": "Temukan bahasa Anda",
+    "searchPlaceholder": "Cari dalam bahasa Anda atau bahasa Inggris…",
+    "resultCount": "{count} dari {total} bahasa dan varian",
+    "listLabel": "Bahasa lisan dan varian regional yang didukung",
+    "noResults": "Tidak ada bahasa yang cocok dalam daftar ini. Coba nama bahasa dalam bahasa Inggris. Jika tetap tidak ditemukan, bahasa tersebut tidak terdaftar sebagai bahasa yang didukung transkripsi yang dihosting.",
+    "sourceNote": "Ini adalah daftar bahasa Universal-2 yang dipublikasikan, termasuk varian regional. Akurasi dan deteksi pembicara berbeda menurut bahasa dan rekaman.",
+    "sourceLink": "Lihat dokumentasi bahasa AssemblyAI",
+    "mandarin": "Bahasa Mandarin",
+    "viewAll": "Lihat semua FAQ",
+    "viewLanguages": "Lihat semua bahasa yang didukung",
+    "items": {
+      "detection": {
+        "question": "Apakah saya perlu memilih bahasa sebelum mengunggah?",
+        "answer": "Tidak. Aplikasi yang dihosting mendeteksi bahasa lisan setiap video secara otomatis. Mengubah bahasa antarmuka tidak mengubah transkripsi. Ucapan yang jelas dengan sedikit kebisingan latar membantu deteksi yang tepat."
+      },
+      "translation": {
+        "question": "Bisakah SupoClip menerjemahkan atau mengisi suara video saya?",
+        "answer": "SupoClip membuat transkrip dan subtitle dalam bahasa yang diucapkan dalam video. Terjemahan subtitle otomatis dan sulih suara belum menjadi bagian dari alur pembuatan klip saat ini. Anda dapat memperbaiki teks subtitle di editor sebelum mengekspor."
+      },
+      "mixed": {
+        "question": "Bagaimana jika video berganti-ganti bahasa?",
+        "answer": "Alur yang dihosting mendeteksi bahasa utama. Subtitle yang akurat tidak dijamin jika pembicara berganti bahasa dalam satu video. Untuk hasil lebih andal, gunakan rekaman dengan satu bahasa utama dan periksa subtitle sebelum menerbitkan."
+      },
+      "accuracy": {
+        "question": "Apakah semua bahasa yang didukung sama akuratnya?",
+        "answer": "Tidak. Kualitas transkripsi bergantung pada bahasa, aksen, kebisingan latar, dan ucapan yang tumpang tindih. Dukungan bahasa tidak menjamin subtitle atau deteksi pembicara yang sempurna. Periksa klip, terutama nama, istilah khusus, dialek, dan bahasa yang lebih jarang digunakan."
+      },
+      "interface": {
+        "question": "Apakah bahasa video sama dengan bahasa antarmuka aplikasi?",
+        "answer": "Keduanya terpisah. Antarmuka tersedia dalam bahasa Inggris, Spanyol, Portugis, Jerman, Mandarin, dan Indonesia. Video Anda dapat menggunakan bahasa lisan apa pun dalam daftar di atas, terlepas dari bahasa antarmuka yang dipilih."
+      },
+      "fonts": {
+        "question": "Mengapa sebagian karakter subtitle terlihat salah atau memakai font lain?",
+        "answer": "Bahasa transkripsi dapat didukung meskipun font subtitle yang dipilih tidak memiliki karakternya. Periksa informasi bahasa di samping setiap font pada pemilih font dan pilih font yang mencakup aksara Anda. Periksa klip yang telah dirender sebelum mengekspor."
+      },
+      "cleanup": {
+        "question": "Apakah penghapusan kata pengisi berfungsi untuk semua bahasa?",
+        "answer": "Pembersihan menggunakan daftar kata pengisi khusus untuk bahasa Inggris, Jerman, dan Prancis. Bahasa lain memakai daftar kecil bunyi keraguan bersama. Anda dapat menyesuaikan kata yang difilter atau menonaktifkan penghapusan kata pengisi. Penghapusan jeda panjang diatur secara terpisah."
+      },
+      "providers": {
+        "question": "Apakah hosting mandiri mendukung bahasa yang sama?",
+        "answer": "Cakupan bahasa bergantung pada penyedia transkripsi yang dikonfigurasi. AssemblyAI dengan Universal-2 menggunakan daftar di atas; Whisper lokal bergantung pada model yang diinstal. Penyedia subtitle YouTube bergantung pada subtitle yang tersedia untuk video tersebut dan memerlukan sumber YouTube. Penyedia analisis AI dikonfigurasi terpisah dari transkripsi."
+      }
+    }
   }
 }
