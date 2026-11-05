@@ -142,5 +142,19 @@
     "editAction": "Edit",
     "hide": "Hide",
     "publish": "Publish"
+  },
+  "flags": {
+    "title": "Feature Flags",
+    "description": "Turn features on per platform without a deploy. Changes reach the API within about 15 seconds.",
+    "flag": "Flag",
+    "web": "Web",
+    "ios": "iOS",
+    "adminsBypass": "Admins always",
+    "adminsBypassHint": "Admins get it on every platform while it's off",
+    "updated": "Updated",
+    "updatedBy": "{date} by {email}",
+    "empty": "No feature flags yet.",
+    "toggle": "{flag} on {platform}",
+    "updateFailed": "Failed to update the flag"
   }
 }

@@ -151,6 +151,13 @@ are gated separately from the rest of processing. Set these on **both the API
 and the worker**; `docker-compose.yml` passes them to both. See
 [workflows.md](workflows.md) for what each workflow makes.
 
+The env gate is the ceiling. The `workflows` feature flag (`feature_flags`
+table, switched in `/admin` without a deploy) also has to be on for the
+caller's platform, web or iOS; admins bypass it by default. Both must allow a
+request. The migration seeds it off on web and iOS, so after deploying, an
+admin turns it on per platform. See
+[workflows.md](workflows.md#the-workflows-feature-flag).
+
 | Variable | Default | Purpose |
 |---|---|---|
 | `WORKFLOWS_ACCESS` | `admins` | `admins` (admins plus `WORKFLOWS_ALLOWED_EMAILS`), `all`, or `off`. Anyone outside the gate only sees Highlights; the API answers other workflows, and resumes of workflow tasks, with 403 `WORKFLOW_NOT_AVAILABLE`. Jobs already queued finish. Self-hosters usually want `all` |

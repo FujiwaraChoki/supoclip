@@ -234,6 +234,12 @@ describe("when the server does not offer workflows", () => {
       expect(screen.queryByRole("radio", { name: /Series/ })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Instructions" })).not.toBeInTheDocument();
       expect(screen.getByText("Drop in a long video. Get back captioned, ready-to-post clips.")).toBeInTheDocument();
+      expect(document.querySelector('[data-tour="workflow-picker"]')).toBeNull();
+      openSettings();
+      expect(screen.queryByRole("tab", { name: /Advanced/ })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Upload limits and details" }));
+      expect(screen.queryByRole("button", { name: "Take the tour" })).not.toBeInTheDocument();
+      fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
 
       // No rescue either: the link box behaves exactly as before.
       pasteIntoUrl(`${LINK} make it a series`);
@@ -319,6 +325,13 @@ describe("when only some workflows are open to everyone", () => {
 });
 
 describe("when workflows are enabled", () => {
+  it("links to the workflows tour", async () => {
+    await renderHome();
+    expect(document.querySelector('[data-tour="workflow-picker"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Upload limits and details" }));
+    expect(await screen.findByRole("button", { name: "Take the tour" })).toBeInTheDocument();
+  });
+
   it("sends today's request for plain highlights", async () => {
     await renderHome();
     expect(screen.getByRole("radio", { name: /Highlights/ })).toHaveAttribute("aria-checked", "true");

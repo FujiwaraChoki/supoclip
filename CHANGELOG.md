@@ -19,6 +19,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 - **Fixed:** Clips no longer carry chapter markers or extra data tracks from an uploaded MKV file. ([#337](https://github.com/FujiwaraChoki/supoclip/pull/337))
 - **Fixed:** Failed generations no longer show file paths or technical processing errors. ([#337](https://github.com/FujiwaraChoki/supoclip/pull/337))
 - **Under the hood:** Updated sign-in, video-processing, and developer tools to address published security vulnerabilities. ([#338](https://github.com/FujiwaraChoki/supoclip/pull/338))
+- **Under the hood:** New features can be switched on for the web and iPhone apps separately, without an update.
 
 ## 2026-11-03
 

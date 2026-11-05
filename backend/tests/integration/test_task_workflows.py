@@ -42,6 +42,13 @@ def youtube_duration(monkeypatch):
     return state
 
 
+@pytest.fixture(autouse=True)
+async def workflows_flag_on(feature_flag):
+    """These tests cover the WORKFLOWS_ACCESS gate: the feature flag is on everywhere
+    (test_feature_flags.py covers the flag)."""
+    await feature_flag("workflows", web_enabled=True, ios_enabled=True)
+
+
 @pytest.fixture
 def workflows_for_all(app):
     app.state.config.workflows_access = "all"

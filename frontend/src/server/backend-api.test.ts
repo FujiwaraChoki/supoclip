@@ -41,3 +41,24 @@ describe("backend trace ids", () => {
     expect(fetchMock.mock.calls[0][1].headers["x-trace-id"]).toMatch(/^[0-9a-f-]{36}$/);
   });
 });
+
+describe("client platform", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    incomingHeaders.current = new Headers();
+  });
+
+  it.each([
+    ["ios", "ios"],
+    [" iOS ", "ios"],
+    ["web", undefined],
+    ["android", undefined],
+    [null, undefined],
+  ])("forwards x-supoclip-client %j as %j", async (sent, forwarded) => {
+    incomingHeaders.current = new Headers(sent === null ? {} : { "x-supoclip-client": sent });
+    const fetchMock = vi.fn().mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetchMock);
+    await fetchBackend("/tasks/workflows", { userId: "owner" });
+    expect(fetchMock.mock.calls[0][1].headers["x-supoclip-client"]).toBe(forwarded);
+  });
+});

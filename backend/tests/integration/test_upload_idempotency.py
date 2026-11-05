@@ -213,11 +213,12 @@ async def test_task_retry_reuses_the_upload_until_options_change(
 
 @pytest.mark.asyncio
 async def test_task_retry_dedupe_includes_workflow_topic_and_instructions(
-    client, app, auth_headers, db_session, tmp_path, monkeypatch,
+    client, app, auth_headers, db_session, tmp_path, monkeypatch, feature_flag,
 ):
     await create_user(db_session, user_id="user-1")
     app.state.config.temp_dir = str(tmp_path)
     app.state.config.workflows_access = "all"
+    await feature_flag("workflows", web_enabled=True)
 
     async def _duration(*_args):
         return 600.0
