@@ -205,6 +205,22 @@ async def test_a_final_cut_outside_the_window_or_on_a_sponsor_read_is_asked_agai
 
 
 @pytest.mark.asyncio
+async def test_a_mid_recap_beat_labelled_intro_is_asked_for_its_own_name(monkeypatch):
+    def relabelled(prompt):
+        cut = _same_cut(prompt)
+        cut.beats[1].label = "Intro"
+        return cut
+
+    pi, model = _setup(monkeypatch, {"RecapDraft": [_draft()], "RecapFinalCut": relabelled})
+
+    _, plan = await plan_recap(pi)
+
+    assert "needs a label of its own" in model.calls[-1].prompt
+    # Never burned in as the name of a point.
+    assert not [point for point in plan["points"] if point["kind"] == "point" and point["label"] == "Intro"]
+
+
+@pytest.mark.asyncio
 async def test_a_failed_final_cut_keeps_the_assembled_recap_and_a_title_that_plays(monkeypatch):
     pi, _ = _setup(monkeypatch, {"RecapDraft": [_draft()], "RecapFinalCut": [RuntimeError("down")]})
     segments, plan = await plan_recap(pi)

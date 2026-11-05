@@ -38,10 +38,13 @@ export function heroMoments(workflow: "recap" | "trailer", clip: WallClip, plan?
   const sourceOf = (rangeIndex: number) => finite(ranges[rangeIndex]?.[0]);
   if (workflow === "recap") {
     if (meta.points?.length) {
-      return meta.points.map((point, i) => ({
-        key: `p${i}`, label: point.label, kind: point.kind,
-        outputStart: finite(point.output_start), sourceStart: sourceOf(point.range_index),
-      }));
+      // One entry per range: a point with a setup has two, but it is one point.
+      return meta.points
+        .map((point, i) => ({
+          key: `p${i}`, label: point.label, kind: point.kind,
+          outputStart: finite(point.output_start), sourceStart: sourceOf(point.range_index),
+        }))
+        .filter((moment, i, all) => i === 0 || moment.label !== all[i - 1].label);
     }
     return (plan?.points ?? []).map((point, i) => ({
       key: `p${i}`, label: point.label,
@@ -146,7 +149,7 @@ export function HeroClipView({ workflow, clip, plan, taskId, editable, busy, onD
         {moments.length > 0 && (
           <div className="mt-8">
             <h3 className="text-sm font-semibold">
-              {workflow === "recap" ? t("coversPoints", { count: moments.length }) : t("beatsTitle")}
+              {workflow === "recap" ? t("coversPoints", { count: moments.filter((moment) => moment.kind !== "opener" && moment.kind !== "closer").length }) : t("beatsTitle")}
             </h3>
             <ol className="mt-3 space-y-1">
               {moments.map((moment, i) => {

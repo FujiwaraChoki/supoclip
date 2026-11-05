@@ -53,6 +53,7 @@ from .units import UnitIndex, format_clock
 logger = logging.getLogger(__name__)
 
 POINT_MIN_SECONDS = 6.0
+FRAMING_LABELS = frozenset({"Intro", "Takeaway"})
 CORE_MIN_SECONDS = 4.0
 # A setup is a short earlier sentence that names what the core leans on.
 SETUP_MAX_SECONDS = 8.0
@@ -697,6 +698,10 @@ class _FinalCutRules:
             origin = self._origin(first, last)
             kind = "point"
             label = _label(entry.label) or (origin.label if origin is not None else "")
+            # "Intro" means the start of the recap. Anywhere else it would burn in
+            # as the name of a point, so the beat has to say what it is instead.
+            if label in FRAMING_LABELS:
+                label = ""
             importance = origin.importance if origin is not None else 2
             if origin is not None and origin.kind == "opener" and position == 0:
                 kind, label, importance = "opener", origin.label, 1
@@ -732,6 +737,8 @@ class _FinalCutRules:
                 issues.append(f"Beat {number} starts mid-sentence at #{beat.first}.")
             if index.boundary_strength(beat.last) < STRONG_BOUNDARY:
                 issues.append(f"Beat {number} ends mid-sentence at #{beat.last}.")
+            if beat.kind == "point" and not beat.label:
+                issues.append(f"Beat {number} needs a label of its own that says what the point is.")
             for other, previous in enumerate(beats[: number - 1], start=1):
                 if beat.first <= previous.last and previous.first <= beat.last:
                     issues.append(f"Beats {other} and {number} overlap.")
