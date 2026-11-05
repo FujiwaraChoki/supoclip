@@ -367,7 +367,12 @@
     "length": "现在 {duration}（之前 {was}）",
     "timeout": "AI 响应超时，请重试。",
     "failed": "无法连接 AI，请重试。",
-    "title": "AI 编辑"
+    "title": "AI 编辑",
+    "remaining": "本月剩余 {remaining} 次 AI 编辑，共 {limit} 次。",
+    "resets": "{date}重置。",
+    "subscriptionRequired": "AI 编辑需要 Pro 或 Creator 套餐。",
+    "upgradeCreator": "升级至 Creator",
+    "viewPlans": "查看套餐"
   },
   "partLabel": "第 {n} 集",
   "partClipLabel": "第 {n} 集 · {title}"

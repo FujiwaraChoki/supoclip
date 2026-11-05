@@ -167,6 +167,9 @@
       "title": "Compare SupoClip, Clips AI, and Auto-Editor",
       "label": "Open-source video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
+    },
+    "faq": {
+      "label": "Perguntas frequentes"
     }
   },
   "nav": {
@@ -182,7 +185,8 @@
     "getStarted": "Começar",
     "openHosted": "Abrir o app hospedado",
     "toggleMenu": "Abrir ou fechar o menu",
-    "publishing": "Publicação"
+    "publishing": "Publicação",
+    "faq": "Perguntas frequentes"
   },
   "hero": {
     "badge": "Código aberto e auto-hospedável. Também no iPhone.",
@@ -445,8 +449,8 @@
         "answer": "Não. O SupoClip nunca adiciona marca d'água, nem nos planos hospedados nem quando você hospeda por conta própria."
       },
       "languages": {
-        "question": "Funciona em outros idiomas?",
-        "answer": "Sim. O idioma falado é detectado automaticamente, então a transcrição, as legendas e a escolha dos clipes seguem o idioma do vídeo."
+        "question": "Quais idiomas o SupoClip aceita?",
+        "answer": "O SupoClip aceita mais de 99 idiomas falados pelo Universal-2, incluindo inglês, espanhol, português, alemão, francês, chinês, japonês, hindi, árabe e indonésio. O idioma é detectado automaticamente, e os clipes e legendas seguem o idioma original. Veja a lista completa e as limitações nas perguntas frequentes."
       },
       "selfHost": {
         "question": "Auto-hospedar é mesmo de graça?",
@@ -480,5 +484,62 @@
   "cta": {
     "title": "Seu próximo vídeo já é uma semana de conteúdo.",
     "body": "Cole um link e veja o que o SupoClip encontra. Use o app hospedado ou hospede de graça a versão de código aberto."
+  },
+  "faqPage": {
+    "title": "Idiomas, legendas e clipes",
+    "metaTitle": "Perguntas frequentes: idiomas e processamento de vídeo",
+    "intro": "Encontre o idioma do seu vídeo e tire dúvidas sobre transcrições, legendas e como o SupoClip processa seus vídeos.",
+    "topics": "Temas das perguntas frequentes",
+    "sections": {
+      "languages": "Idiomas compatíveis",
+      "processing": "Legendas e processamento",
+      "general": "Primeiros passos e planos"
+    },
+    "languageBadge": "Mais de 99 idiomas falados",
+    "languageIntro": "O aplicativo hospedado usa o AssemblyAI Universal-2 para transcrever os idiomas e variantes regionais abaixo. O SupoClip usa a transcrição para encontrar clipes e gerar legendas no idioma original.",
+    "searchLabel": "Encontre seu idioma",
+    "searchPlaceholder": "Pesquise no seu idioma ou em inglês…",
+    "resultCount": "{count} de {total} idiomas e variantes",
+    "listLabel": "Idiomas falados e variantes regionais compatíveis",
+    "noResults": "Nenhum idioma encontrado nesta lista. Tente o nome em inglês. Se ainda não aparecer, ele não está listado como compatível com a transcrição hospedada.",
+    "sourceNote": "Esta é a lista publicada de idiomas do Universal-2, incluindo variantes regionais. A precisão e a detecção de falantes variam conforme o idioma e a gravação.",
+    "sourceLink": "Ver a documentação de idiomas do AssemblyAI",
+    "mandarin": "Chinês (mandarim)",
+    "viewAll": "Ver todas as perguntas frequentes",
+    "viewLanguages": "Ver todos os idiomas compatíveis",
+    "items": {
+      "detection": {
+        "question": "Preciso selecionar um idioma antes de enviar?",
+        "answer": "Não. O aplicativo hospedado detecta automaticamente o idioma falado em cada vídeo. Alterar o idioma da interface não muda a transcrição. Uma fala clara com pouco ruído de fundo ajuda na detecção correta."
+      },
+      "translation": {
+        "question": "O SupoClip pode traduzir ou dublar meu vídeo?",
+        "answer": "O SupoClip gera transcrições e legendas no idioma falado no vídeo. A tradução automática de legendas e a dublagem não fazem parte do fluxo atual de criação de clipes. Você pode corrigir o texto das legendas no editor antes de exportar."
+      },
+      "mixed": {
+        "question": "E se o vídeo alternar entre idiomas?",
+        "answer": "O fluxo hospedado detecta o idioma principal. Legendas precisas não são garantidas quando as pessoas alternam entre idiomas em um vídeo. Para resultados mais confiáveis, use gravações com um idioma principal e revise as legendas antes de publicar."
+      },
+      "accuracy": {
+        "question": "Todos os idiomas compatíveis têm a mesma precisão?",
+        "answer": "Não. A qualidade varia conforme o idioma, o sotaque, o ruído de fundo e as falas sobrepostas. O suporte a um idioma não garante legendas perfeitas nem detecção perfeita de falantes. Revise os clipes, especialmente nomes, termos técnicos, dialetos e idiomas menos falados."
+      },
+      "interface": {
+        "question": "Os idiomas dos vídeos são os mesmos da interface?",
+        "answer": "São independentes. A interface está disponível em inglês, espanhol, português, alemão, chinês e indonésio. O vídeo pode estar em qualquer um dos idiomas falados listados acima, independentemente do idioma da interface."
+      },
+      "fonts": {
+        "question": "Por que alguns caracteres das legendas aparecem errados ou com outra fonte?",
+        "answer": "Um idioma pode ser aceito na transcrição mesmo que a fonte escolhida não inclua seus caracteres. Confira as informações de idiomas ao lado de cada fonte no seletor e escolha uma que cubra seu sistema de escrita. Revise o clipe renderizado antes de exportar."
+      },
+      "cleanup": {
+        "question": "A remoção de palavras de hesitação funciona em todos os idiomas?",
+        "answer": "A limpeza usa listas específicas para inglês, alemão e francês. Outros idiomas usam uma pequena lista compartilhada de sons de hesitação. Você pode ajustar as palavras filtradas ou desativar a remoção. A remoção de pausas longas é uma configuração separada."
+      },
+      "providers": {
+        "question": "O auto-hospedamento aceita os mesmos idiomas?",
+        "answer": "A cobertura depende do provedor de transcrição configurado. O AssemblyAI com Universal-2 usa a lista acima; o Whisper local depende do modelo instalado. O provedor de legendas do YouTube depende das legendas disponíveis para o vídeo e exige uma fonte do YouTube. O provedor de análise com IA é configurado separadamente."
+      }
+    }
   }
 }

@@ -1,11 +1,9 @@
 """Authenticated draft, preview and background export endpoints."""
 
-from datetime import datetime, timezone
 from pathlib import Path
 import logging
 import math
 import json
-import os
 import re
 import uuid
 
@@ -26,6 +24,9 @@ from ...editor_document import (
 )
 from ...services.editor_service import caption_looks, read_state, upgrade_document
 from ...services.task_service import TaskService
+from ...services.ai_edit_allowance_service import (
+    AIEditAllowanceService, AIEditLimitExceeded, refund_ai_edit_usage,
+)
 from ...workers.job_queue import JobQueue
 from ...utils.async_helpers import run_in_thread
 from .tasks import _require_task_owner, _read_json_object
@@ -86,6 +87,8 @@ async def get_editor(
         from ...services.ai_edit_service import ai_editing_configured
 
         state["aiEditing"] = ai_editing_configured()
+        if state["aiEditing"]:
+            state["aiEditUsage"] = await AIEditAllowanceService(db).summary(task["user_id"])
     state["basis"] = clip["filename"]
     state["jobs"] = [
         {"id": p.stem[4:], **json.loads(p.read_text())}
@@ -522,7 +525,16 @@ async def broll_footage(
     )
 
 
-AI_EDIT_DAILY_LIMIT = int(os.getenv("AI_EDIT_DAILY_LIMIT", "150"))
+@router.get("/{task_id}/clips/{clip_id}/editor/ai")
+async def ai_edit_usage(
+    task_id: str, clip_id: str, request: Request, db: AsyncSession = Depends(get_db)
+):
+    service = TaskService(db)
+    task = await _require_task_owner(request, service, db, task_id)
+    clip = await service.clip_repo.get_clip_by_id(db, clip_id)
+    if not clip or clip["task_id"] != task_id:
+        raise HTTPException(404, "Clip not found")
+    return await AIEditAllowanceService(db).summary(task["user_id"])
 
 
 @router.post("/{task_id}/clips/{clip_id}/editor/ai", status_code=202)
@@ -569,15 +581,15 @@ async def start_ai_edit(
         playhead = float(min(state["duration"], max(0, playhead)))
 
     pool = await JobQueue.get_pool()
-    day = datetime.now(timezone.utc).strftime("%Y%m%d")
-    counter = f"ai_edit:count:{task['user_id']}:{day}"
-    used = await pool.incr(counter)
-    if used == 1:
-        await pool.expire(counter, 2 * 86400)
-    if used > AI_EDIT_DAILY_LIMIT:
-        raise HTTPException(429, "You've reached today's limit for AI edits. It resets tomorrow.")
-
     job_id = uuid.uuid4().hex
+    try:
+        usage = await AIEditAllowanceService(db).reserve(task["user_id"], job_id)
+    except AIEditLimitExceeded as exc:
+        raise HTTPException(429 if exc.usage["limit"] else 402, {
+            "code": "AI_EDIT_LIMIT_REACHED",
+            "message": "Your monthly AI edit allowance is used up." if exc.usage["limit"] else "AI editing requires an active Pro or Creator subscription.",
+            "usage": exc.usage,
+        }) from None
     try:
         await pool.set(
             request_key(job_id),
@@ -597,13 +609,16 @@ async def start_ai_edit(
         await JobQueue.enqueue_job("ai_edit_job", job_id, _queue_name=AI_EDIT_QUEUE)
     except Exception:
         try:
-            await pool.decr(counter)
+            await refund_ai_edit_usage(job_id)
+        except Exception:
+            logging.getLogger(__name__).exception("Could not refund failed AI request %s", job_id)
+        try:
             await pool.delete(request_key(job_id))
             await pool.delete(f"ai_edit:owner:{job_id}")
         except Exception:
             logging.getLogger(__name__).warning("Could not clean up failed AI request %s", job_id, exc_info=True)
         raise HTTPException(503, "The AI service is unavailable. Your draft is safe.")
-    return {"id": job_id, "status": "queued"}
+    return {"id": job_id, "status": "queued", "usage": usage}
 
 
 @router.get("/{task_id}/clips/{clip_id}/editor/ai/{job_id}")
@@ -619,7 +634,7 @@ async def ai_edit_status(
     if not re.fullmatch(r"[a-f0-9]{32}", job_id):
         raise HTTPException(404, "AI edit not found")
     service = TaskService(db)
-    await _require_task_owner(request, service, db, task_id)
+    task = await _require_task_owner(request, service, db, task_id)
     await db.close()
     pool = await JobQueue.get_pool()
     owner = await pool.get(f"ai_edit:owner:{job_id}")
@@ -628,4 +643,7 @@ async def ai_edit_status(
     result = await pool.get(result_key(job_id))
     if not result:
         return {"id": job_id, "status": "queued"}
-    return {"id": job_id, **json.loads(result)}
+    payload = json.loads(result)
+    if payload.get("status") in {"completed", "failed"}:
+        payload["usage"] = await AIEditAllowanceService(db).summary(task["user_id"])
+    return {"id": job_id, **payload}

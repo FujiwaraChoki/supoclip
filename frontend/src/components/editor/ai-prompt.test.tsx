@@ -3,7 +3,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { AIPrompt } from "./ai-prompt";
 import { editorRequest } from "./use-editor";
 import { draft } from "@/lib/editor/document.test-fixture";
-import type { EditDocument } from "@/lib/editor/document";
+import type { AIEditUsage, EditDocument } from "@/lib/editor/document";
+import { ApiRequestError } from "@/lib/api-error";
 
 vi.mock("./use-editor", () => ({ editorRequest: vi.fn() }));
 const request = vi.mocked(editorRequest);
@@ -14,10 +15,10 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-function setup() {
+function setup(initialUsage?: AIEditUsage) {
   let current = structuredClone(draft);
   const update = vi.fn((change: (doc: EditDocument) => EditDocument) => { current = change(current); });
-  const view = render(<AIPrompt endpoint="/editor" basis="clip.mp4" doc={draft} playhead={0} update={update} undo={vi.fn()} />);
+  const view = render(<AIPrompt endpoint="/editor" basis="clip.mp4" initialUsage={initialUsage} doc={draft} playhead={0} update={update} undo={vi.fn()} />);
   const input = screen.getByRole("textbox");
   fireEvent.change(input, { target: { value: "mute it" } });
   const submit = () => fireEvent.submit(input.closest("form")!);
@@ -104,4 +105,47 @@ it("shows a failed job without changing the draft and can run again", async () =
   await act(async () => view.submit());
   await act(async () => vi.advanceTimersByTimeAsync(900));
   expect(view.current().muted).toBe(true);
+});
+
+const allowance: AIEditUsage = {
+  plan: "pro", limit: 10, used: 9, remaining: 1, resetsAt: "2026-12-05T00:00:00Z", allowed: true,
+};
+
+it("shows the last monthly edit, disables submission when spent, and restores failed usage", async () => {
+  const spent = { ...allowance, used: 10, remaining: 0, allowed: false };
+  request.mockResolvedValueOnce({ id: "job", usage: spent }).mockResolvedValueOnce({
+    status: "failed", error: "The AI service is unavailable.", usage: allowance,
+  });
+  const view = setup(allowance);
+  expect(screen.getByText(/1 of 10 AI edits left this month/)).toHaveTextContent(/Resets Dec 5/);
+  await act(async () => view.submit());
+  expect(screen.getByText(/0 of 10 AI edits left this month/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
+  expect(screen.getByRole("link", { name: "Upgrade to Creator" })).toHaveAttribute("href", "/settings#plan");
+  await act(async () => vi.advanceTimersByTimeAsync(900));
+  expect(screen.getByText(/1 of 10 AI edits left this month/)).toBeVisible();
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "try again" } });
+  expect(screen.getByRole("button", { name: "Run" })).toBeEnabled();
+});
+
+it("uses server allowance on a concurrent limit rejection and keeps the draft", async () => {
+  const spent = { ...allowance, used: 10, remaining: 0, allowed: false };
+  request.mockRejectedValueOnce(new ApiRequestError({
+    message: "Monthly limit reached.", traceId: null, code: "AI_EDIT_LIMIT_REACHED", detail: { usage: spent },
+  }));
+  const view = setup(allowance);
+  await act(async () => view.submit());
+  expect(screen.getByText(/0 of 10 AI edits left this month/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
+  expect(view.update).not.toHaveBeenCalled();
+});
+
+it("refreshes an open exhausted editor when its monthly allowance resets", async () => {
+  vi.setSystemTime(new Date("2026-12-04T23:59:59Z"));
+  const view = setup({ ...allowance, used: 10, remaining: 0, allowed: false });
+  request.mockResolvedValueOnce({ ...allowance, used: 0, remaining: 10, resetsAt: "2027-01-05T00:00:00Z" });
+  await act(async () => vi.advanceTimersByTimeAsync(2000));
+  expect(screen.getByText(/10 of 10 AI edits left this month/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Run" })).toBeEnabled();
+  view.unmount();
 });

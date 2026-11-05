@@ -273,7 +273,7 @@ generated clips are never overwritten.
 
 - **B-roll** has its own track in the timeline (drag to move, drag an edge to resize) and a tab with AI auto-fill and
   Pexels search. It follows cuts like captions and is included in both browser and server exports.
-- **AI editing:** type a request in the "AI edit" field under the preview (or press ⌘J), e.g. "remove the filler words", "make it under
+- **AI editing:** Pro includes 10 AI edits per month and Creator includes 100, shared across clips. The editor shows how many remain and when they reset. Failed requests restore the allowance; completed requests count even if nothing changes. To edit, type a request in the "AI edit" field under the preview (or press ⌘J), e.g. "remove the filler words", "make it under
   30 seconds", "bigger yellow captions", "add B-roll where he talks about biking". The AI worker asks Claude Sonnet 5.5
   for edit operations, applies them to the draft, and the change arrives as one step you can undo. Requests it can't
   do (music, voiceover, transitions) are explained instead. Defaults to Sonnet with `ANTHROPIC_API_KEY`;

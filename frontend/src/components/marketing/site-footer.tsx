@@ -31,6 +31,7 @@ export function SiteFooter() {
         ...getMarketingLinks("product").map((link) => link.href),
         "/sign-up",
         "/#pricing",
+        "/faq",
         "/affiliate",
         "/changelog",
         "/status",
