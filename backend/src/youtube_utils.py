@@ -19,6 +19,7 @@ import yt_dlp
 
 from .apify_youtube_downloader import ApifyDownloadError, download_video_via_apify
 from .config import get_config
+from .download_progress import DownloadRecovery, report_download_recovery
 from .media.ffmpeg import ffprobe_video_size
 from .youtube_proxy import (
     YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,
@@ -756,8 +757,20 @@ def download_youtube_video(
     config = get_config()
     job_budget = budget or ByteBudget(getattr(config, "youtube_download_max_bytes", 2_000_000_000))
     geo_error: Optional[BaseException] = None
+    attempted_providers = 0
 
     for provider in _provider_order(config, skip_proxy=skip_proxy):
+        if provider == YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI and not config.rapidapi_youtube_api_key:
+            continue
+        if provider == YOUTUBE_DOWNLOAD_PROVIDER_APIFY and not config.apify_api_token:
+            logger.info("APIFY_API_TOKEN not set; skipping Apify download for %s", url)
+            continue
+        if attempted_providers or skip_proxy:
+            report_download_recovery(
+                DownloadRecovery.ANOTHER_BACKUP if attempted_providers > (0 if skip_proxy else 1)
+                else DownloadRecovery.BACKUP
+            )
+        attempted_providers += 1
         before = job_budget.snapshot()
         try:
             if provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY:
@@ -765,8 +778,6 @@ def download_youtube_video(
                     url, video_id, downloader.temp_dir, task_id=task_id, budget=job_budget, quality=quality,
                 )
             elif provider == YOUTUBE_DOWNLOAD_PROVIDER_RAPIDAPI:
-                if not config.rapidapi_youtube_api_key:
-                    continue
                 downloaded_path = download_video_via_rapidapi(
                     video_id, downloader.temp_dir, config.rapidapi_youtube_api_key,
                     quality=_resolve_apify_quality(url, quality),
@@ -775,9 +786,6 @@ def download_youtube_video(
             elif provider == YOUTUBE_DOWNLOAD_PROVIDER_YTDLP:
                 downloaded_path = _download_youtube_video_with_ytdlp(url, max_retries, task_id, quality)
             else:
-                if not config.apify_api_token:
-                    logger.info("APIFY_API_TOKEN not set; skipping Apify download for %s", url)
-                    continue
                 downloaded_path = download_youtube_video_with_apify(url, video_id, quality)
         except DownloadBudgetExceeded as exc:
             _note_attempt(provider, video_id, task_id, job_budget, before, outcome="failure", error=str(exc))
