@@ -2,7 +2,9 @@
 Task service - orchestrates task creation and processing workflow.
 """
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+from subprocess import SubprocessError
 from typing import Dict, Any, Optional, Callable
 import logging
 from datetime import datetime
@@ -120,6 +122,23 @@ def _fill_plan_output_starts(plan: Dict[str, Any], segment: Dict[str, Any], grou
                 item["output_start"] = round(float(group_output_starts[index]), 3)
                 changed = True
     return changed
+
+
+# Failures the pipeline didn't word for a person: paths, SQL, ffmpeg arguments.
+# Deliberate messages are plain Exception or ValueError, or a RuntimeError
+# subclass such as a download error, and pass through.
+_INTERNAL_ERRORS = (
+    OSError, LookupError, TypeError, AttributeError, NameError, AssertionError,
+    ArithmeticError, SubprocessError, SQLAlchemyError,
+)
+_GENERIC_ERROR = "Something went wrong while generating your clips. Retry generation to try again."
+
+
+def user_facing_error(error: Exception) -> str:
+    """What the task page shows for ``error``. The real one stays in the logs."""
+    if type(error) is RuntimeError or isinstance(error, _INTERNAL_ERRORS):
+        return _GENERIC_ERROR
+    return str(error) or _GENERIC_ERROR
 
 
 class TaskService(ClipEditingMixin):
@@ -946,7 +965,7 @@ class TaskService(ClipEditingMixin):
                 except Exception:
                     logger.exception("Could not record workflow error on task %s", task_id)
             failed = await self.task_repo.update_task_status(
-                self.db, task_id, "error", progress=0, progress_message=str(e),
+                self.db, task_id, "error", progress=0, progress_message=user_facing_error(e),
                 expected_statuses=["queued", "processing"],
             )
             if failed is False:
@@ -974,7 +993,7 @@ class TaskService(ClipEditingMixin):
             )
             if progress_callback:
                 try:
-                    await progress_callback(0, str(e), "error")
+                    await progress_callback(0, user_facing_error(e), "error")
                 except Exception:
                     logger.exception("Could not publish task failure for %s", task_id)
             raise

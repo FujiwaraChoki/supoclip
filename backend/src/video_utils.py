@@ -67,6 +67,7 @@ from .media.speaker_framing import (
 )
 from .media.ffmpeg import (
     build_audio_output_args,
+    NO_CHAPTERS,
     build_final_video_encode_args,
     burn_ass_subtitles_ffmpeg,
     clamp_even,
@@ -355,6 +356,7 @@ def create_optimized_clip(
                     "-ss", str(fast_path_start),
                     "-i", str(video_path),
                     *audio_stream_map_args(select_audio_stream_index(video_path)),
+                    *NO_CHAPTERS,
                     "-t", str(fast_path_end - fast_path_start),
                     "-c", "copy",
                     "-movflags", "+faststart",
