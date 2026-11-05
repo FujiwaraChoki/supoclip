@@ -4,6 +4,11 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-05
+
+- **Fixed:** Clips stitched together after cutting pauses no longer risk a frozen picture while the audio keeps playing. ([#333](https://github.com/FujiwaraChoki/supoclip/pull/333))
+- **Under the hood:** Groundwork for new ways to turn a video into clips, not yet available to everyone. ([#333](https://github.com/FujiwaraChoki/supoclip/pull/333))
+
 ## 2026-11-03
 
 - **Fixed:** YouTube videos blocked in the downloader's region can retry from a supported region while keeping saved transcripts and other download options available. Generation and editing explain any remaining regional restriction and suggest uploading the file or choosing another source. ([#332](https://github.com/FujiwaraChoki/supoclip/pull/332))
