@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-05
 
+- **Improved:** Generations explain when a video download switches to a recovery option and may take longer. The notice survives a page refresh, replaces the time estimate during recovery, and clears when processing continues. ([#336](https://github.com/FujiwaraChoki/supoclip/pull/336))
 - **New:** A dedicated FAQ lists every supported spoken language and regional variant, with search and answers about language detection, captions, translation limits, and video processing. It is available in all six interface languages and linked from the homepage and footer. ([#334](https://github.com/FujiwaraChoki/supoclip/pull/334))
 - **Under the hood:** Preview deployments use an upload timeout within the hosting platform's supported limit. ([#334](https://github.com/FujiwaraChoki/supoclip/pull/334))
 
