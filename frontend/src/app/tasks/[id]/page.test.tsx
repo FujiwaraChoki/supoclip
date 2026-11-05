@@ -297,7 +297,7 @@ describe("task page workflows", () => {
     })]);
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Covers 2 points" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Covers 1 point" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Three rules for pricing" })).toBeInTheDocument();
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });

@@ -155,7 +155,7 @@ export function HeroClipView({ workflow, clip, plan, taskId, editable, busy, onD
         {moments.length > 0 && (
           <div className="mt-8">
             <h3 className="text-sm font-semibold">
-              {workflow === "recap" ? t("coversPoints", { count: moments.filter((moment) => moment.kind !== "opener" && moment.kind !== "closer").length }) : t("beatsTitle")}
+              {workflow === "recap" ? t("coversPoints", { count: moments.filter((moment) => moment.kind !== "opener" && moment.kind !== "closer").length || moments.length }) : t("beatsTitle")}
             </h3>
             <ol className="mt-3 space-y-1">
               {moments.map((moment, i) => {
