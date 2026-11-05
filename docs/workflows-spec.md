@@ -312,6 +312,13 @@ Common keys for every planned clip: `{"planned": true, "ranges": [[s,e],...], "j
 
 `enabled` false means the caller may only use highlights without instructions.
 
+### 2.6a Advanced settings (added after the first release)
+
+`WorkflowOptions.advanced` holds only non-default values from the registry in
+`workflows/settings.py`; `WorkflowSpec.setting(key)` reads a value or its default,
+and `fingerprint()` includes `advanced` only when it is non-empty, so default plans
+keep their cache keys. `docs/workflows.md` lists every setting.
+
 ### 2.7 Frontend contract `frontend/src/lib/workflows.ts` (WP1)
 
 ```ts
@@ -323,7 +330,7 @@ export const SCORED: ReadonlySet<Workflow>;                 // highlights, topic
 export const PART_COUNT_OPTIONS = ["auto", 2, 3, 4, 5, 6, 8, 10] as const;
 export const TOPIC_MAX_CHARS = 120; export const INSTRUCTIONS_MAX_CHARS = 500;
 export const MIN_SOURCE_SECONDS: Record<Workflow, number>;  // mirrors §1.1
-export type WorkflowOptions = { topic?: string; part_count?: number };
+export type WorkflowOptions = { topic?: string; part_count?: number; advanced?: Record<string, WorkflowSettingValue> };
 export type WorkflowPlan = { /* §2.4 */ };
 export type WorkflowMeta = { /* §2.5 */ };
 export type WorkflowsInfo = { /* §2.6 */ };

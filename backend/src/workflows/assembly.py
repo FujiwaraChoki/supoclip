@@ -192,8 +192,11 @@ RECAP_LATE_SHARE = 0.75
 _ENDING_FORMATS = {"story", "vlog", "other"}
 # An opener this close before a point plays with it, as one beat.
 OPENER_MERGE_UNITS = 2
-# A recap of the whole video touches every one of its thirds that holds a chapter rated this or higher.
-COVERAGE_SLICES = 3
+# A recap of the whole video touches each of these stretches that holds a chapter rated COVERAGE_MIN_STARS or
+# higher. Quarters, not thirds: a beat early in the last third still left out the last 17 minutes of a 57-minute
+# episode. A recap of at most 4 beats has no room for quarters and takes thirds.
+COVERAGE_SLICES = 4
+COVERAGE_SHORT_SLICES = 3
 COVERAGE_MIN_STARS = 3
 
 
@@ -747,21 +750,24 @@ def _outline_candidates(
     return found
 
 
-def coverage_slices(index: UnitIndex, outline: Any, framing: Collection[int] = ()) -> tuple[tuple[int, int], ...]:
-    """The video's substance in equal thirds by time, as unit ranges: a recap of the whole video touches each.
+def coverage_slices(
+    index: UnitIndex, outline: Any, framing: Collection[int] = (), budget: Optional[Budget] = None
+) -> tuple[tuple[int, int], ...]:
+    """The video's substance in equal stretches of time, as unit ranges: a recap of the whole video touches each.
 
-    Sponsor reads, empty intros and outros don't count, and a third holding
+    Sponsor reads, empty intros and outros don't count, and a stretch holding
     only minor chapters (rated under 3) has nothing it must contribute.
     """
     content = [uid for uid in range(1, len(index) + 1) if uid not in framing]
-    if len(content) < COVERAGE_SLICES:
+    count = COVERAGE_SHORT_SLICES if budget is not None and recap_beat_cap(budget) <= 4 else COVERAGE_SLICES
+    if len(content) < count:
         return ()
     start, end = index.unit(content[0]).start, index.unit(content[-1]).end
     spans, stars = _chapter_spans(outline, len(index))
     slices: list[tuple[int, int]] = []
-    for third in range(COVERAGE_SLICES):
-        low = max(content[0], index.unit_at(start + third * (end - start) / COVERAGE_SLICES))
-        high = min(content[-1], index.unit_at(start + (third + 1) * (end - start) / COVERAGE_SLICES - 0.001))
+    for stretch in range(count):
+        low = max(content[0], index.unit_at(start + stretch * (end - start) / count))
+        high = min(content[-1], index.unit_at(start + (stretch + 1) * (end - start) / count - 0.001))
         minor = spans and not any(
             star >= COVERAGE_MIN_STARS and _overlaps(span, (low, high)) for span, star in zip(spans, stars)
         )
@@ -803,7 +809,7 @@ def fit_recap(
     ``importance`` 1-5 and ``statement``, and optionally ``chapters`` with
     ``end_unit`` and ``importance``), or None.
 
-    ``whole_video`` makes the best candidate of every third of the video play
+    ``whole_video`` makes the best candidate of every stretch of the video play
     (``coverage_slices``). ``max_points`` limits the points, opener and closer
     aside, even when that leaves the recap under its window.
     """
@@ -876,7 +882,7 @@ def fit_recap(
         video_format=video_format,
         point_max=point_max,
         late_from=_late_from(index, outline, video_format, spans, stars, framing),
-        slices=coverage_slices(index, outline, framing) if whole_video else (),
+        slices=coverage_slices(index, outline, framing, budget) if whole_video else (),
         max_points=max_points,
     )
     forced = _must_play(pool, budget)
@@ -931,7 +937,7 @@ def _must_play(pool: RecapPool, budget: Budget) -> frozenset[int]:
             carrier = next((c for c in pool.candidates if number in c.outline_points), None)
             if carrier is not None:
                 forced.add(carrier.key)
-    # Every third of the video plays, by its best candidate (an opener or closer from there counts).
+    # Every stretch of the video plays, by its best candidate (an opener or closer from there counts).
     framed = [beat.full for beat in (pool.opener, pool.closer) if beat is not None]
     chosen = {c.key: c.beat.full for c in pool.candidates if c.key in forced}
     for part in missing_slices(pool.slices, framed + list(chosen.values())):

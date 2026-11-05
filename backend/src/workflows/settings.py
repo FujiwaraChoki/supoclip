@@ -55,7 +55,7 @@ _JUNCTIONS = Setting("junction_style", "enum", "auto", choices=("auto", "soft", 
 _SHARED = (_HOOK_TITLE, _JUNCTIONS)
 
 SETTINGS: dict[str, tuple[Setting, ...]] = {
-    "highlights": (Setting("max_clips", "int", None, minimum=1, maximum=20),),
+    "highlights": (Setting("max_clips", "int", None, minimum=1, maximum=10),),
     "series": (
         Setting("cold_open", "bool", False),
         Setting("part_labels", "bool", True),
@@ -76,7 +76,8 @@ SETTINGS: dict[str, tuple[Setting, ...]] = {
         *_SHARED,
     ),
     "trailer": (
-        Setting("target_seconds", "int", None, minimum=15, maximum=90),
+        # Six beats of at most 10 s: a longer trailer could never fill its window.
+        Setting("target_seconds", "int", None, minimum=20, maximum=60),
         Setting("spoilers", "enum", "strict", choices=("strict", "relaxed")),
         Setting("ending", "enum", "auto", choices=("auto", "question")),
         *_SHARED,

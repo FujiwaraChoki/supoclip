@@ -211,7 +211,7 @@ class _DraftRules:
             (number, chapter, span)
             for number, (chapter, span) in enumerate(zip(outline.chapters, chapter_ranges(outline, pi.index)), start=1)
         ]
-        self.slices = _slices(pi)
+        self.slices = _slices(pi, budget) if budget is not None else ()
         self.max_points = pi.setting("max_points")
 
     def _valid(self, uid: int) -> bool:
@@ -432,11 +432,11 @@ class _DraftRules:
                     )
         return issues
 
-def _slices(pi: PlanInput) -> tuple[tuple[int, int], ...]:
-    """The thirds of the video this recap has to touch; none when the creator wants best moments only."""
+def _slices(pi: PlanInput, budget: Budget) -> tuple[tuple[int, int], ...]:
+    """The stretches of the video this recap has to touch; none when the creator wants best moments only."""
     if pi.setting("coverage") != "whole_video":
         return ()
-    return coverage_slices(pi.index, pi.outline.outline, framing_units(pi))
+    return coverage_slices(pi.index, pi.outline.outline, framing_units(pi), budget)
 
 
 def _snap(index: UnitIndex, first: int, last: int, floor: int, ceiling: int) -> tuple[int, int]:
@@ -681,8 +681,8 @@ class _FinalCutRules:
         self.budget = budget
         self.framing = framing_units(pi)
         played = [span for beat in cut.beats for span in beat_spans(beat)]
-        # A third the assembled cut reaches stays reached; one it couldn't reach isn't asked of the reader.
-        self.slices = [part for part in _slices(pi) if not missing_slices([part], played)]
+        # A stretch the assembled cut reaches stays reached; one it couldn't reach isn't asked of the reader.
+        self.slices = [part for part in _slices(pi, budget) if not missing_slices([part], played)]
         self.max_points = pi.setting("max_points")
 
     def beats(self, final: RecapFinalCut) -> list[Beat]:

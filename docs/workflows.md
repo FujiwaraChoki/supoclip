@@ -133,7 +133,8 @@ the others and asks for a retry, like highlights.
 
 - **Create** (`home-app.tsx`, `workflow-picker.tsx`): "What do you want to
   make?", the topic field, the part count chip, instructions, and the length
-  chip relabelled per workflow.
+  chip relabelled per workflow, and **Advanced** (`workflow-advanced.tsx`), a closed
+  popover rendered from the settings schema.
   - `/?workflow=<id>` (used by the ⌘K palette) selects that workflow, then
     replaces the address with `/`. `localStorage["supoclip.workflow"]` keeps
     the last workflow picked (the id only; topic, part count and lengths are
@@ -179,6 +180,65 @@ the others and asks for a retry, like highlights.
   it with a generated one); untitled parts are "Part n".
 - **Editor** clip picker: "Part 2 · The bank calls back" for parts, else the
   hook title.
+
+## Advanced settings
+
+`backend/src/workflows/settings.py` is the one list. Each setting has a type,
+a default, bounds and the workflows it applies to; `GET /tasks/workflows`
+publishes them per workflow (`settings`, empty without access) and the create
+screen's **Advanced** popover renders whatever it gets.
+
+| Workflow | Key | Default | Choices | What it does |
+|---|---|---|---|---|
+| highlights | `max_clips` | auto | 1-10 | Replaces the length-based count, up to `MAX_CLIPS`. |
+| series, topic, recap, trailer | `hook_title` | on | | Off: nothing burned in. The clip keeps its name in the app. |
+| series, topic, recap, trailer | `junction_style` | `auto` | `auto`, `soft`, `hard` | Replaces the fades between a clip's planned ranges (`soft` is 0.12 s). A cold open's jump stays a hard cut. |
+| series | `cold_open` | off | | Part 1 starts on a line from a later part (see below). |
+| series | `part_labels` | on | | Off: titles lose "Part 2:". The app still numbers parts. |
+| series | `endings` | `cliffhanger` | `cliffhanger`, `natural` | `natural` drops the solver's reward for ending on a question or hook, rewards closing lines, and tells the draft and critique. |
+| series | `coverage` | `best_chapters` | `best_chapters`, `start_to_finish` | `start_to_finish` runs from the first content, in order, as far as the parts hold; no scope call, no finale check. |
+| topic | `max_clips` | auto | 1-15 | Lowers `WORKFLOW_TOPIC_MAX_CLIPS`. |
+| topic | `match` | `broad` | `broad`, `strict` | `strict` fails with `topic_not_found` (refunded) when the video only fits broadly. |
+| recap | `on_screen_points` | on | | Burns each point's label as it starts. |
+| recap | `target_seconds` | auto | 30-150 | Replaces the length chip. The window stays 0.85-1.15 T. |
+| recap | `max_points` | auto | 2-12 | Most points, opener and closer aside. Holds even when the recap ends up under its window. |
+| recap | `coverage` | `whole_video` | `whole_video`, `best_moments` | `whole_video`: see below. |
+| trailer | `target_seconds` | auto | 20-60 | Replaces the length chip. |
+| trailer | `spoilers` | `strict` | `strict`, `relaxed` | `relaxed` marks nothing off limits and ignores the judge's spoiler veto. |
+| trailer | `ending` | `auto` | `auto`, `question` | `question` asks the draft for a question button and re-picks one at the end; without one in the video the cut stays and `stats.fallbacks` records `TRAILER_NO_QUESTION_ENDING`. |
+
+A task stores only what differs from the defaults, in
+`workflow_options.advanced`. So a request with nothing changed sends, stores and
+fingerprints exactly what it did before settings existed, and plain highlights
+stay on the legacy path. A highlights request with a setting is not legacy and
+goes through the gate. The API rejects a key no workflow has, or a bad value,
+with 422 `INVALID_WORKFLOW_SETTING` (`details.setting`) before any charge; a key
+that belongs to another workflow is dropped. The worker reads leniently. Retry
+reads the stored options; "make something else from this source" keeps a setting
+only when it means the same thing (`SHARED_SETTINGS`).
+
+**Whole-video recaps.** `coverage_slices` cuts the video's substance (no sponsor
+reads, empty intros or outros) into four equal stretches of time (three for a recap of at most 4 beats), ignoring one
+with no chapter rated 3 or more. Each must play: the draft is asked to add a
+point, the selection forces the best candidate from each, and the final cut may
+not lose a stretch the assembled cut reached.
+
+**On-screen points.** Only `kind: "point"` entries show, once per point, about
+3 s from where the point starts, in the place the layout gives the hook title
+(top safe area, or low in the frame when captions take the top). A label that
+would meet the title waits for it to go. They survive restyles and caption edits.
+Trim and split keep them on the new timeline. A merged clip loses them, because
+it no longer plays its plan. **The clip studio doesn't show them**: preview and
+export from the studio have no point labels.
+
+**Cold open.** `cold_open_candidates` offers whole sentences of 3-9 s from later
+parts: never the last part of a longer series, never a payoff, never a line that
+leans on what came before, and only what leaves Part 1 inside its budget. The
+model picks one or none (`series_cold_open`); none adds note `COLD_OPEN_SKIPPED`.
+The line is the first range of Part 1, marked `workflow_meta.cold_open`
+(`first_unit`, `last_unit`, `range_count`, `from_part`) and in the plan part. The
+line plays again later on purpose, so the I2 audit reads each part without its
+`range_count` first ranges. `start_time` and `end_time` keep naming the part's own start.
 
 ## MCP
 
@@ -517,7 +577,7 @@ them, with `workflow_meta` `{}` for highlights clips. Shared results expose
 {
   "source": {"url": "https://youtu.be/..."},
   "workflow": "series",                                    // default "highlights"
-  "workflow_options": {"topic": "...", "part_count": "auto"},
+  "workflow_options": {"topic": "...", "part_count": "auto", "advanced": {"cold_open": true}},
   "instructions": "Focus on the story about the first startup",   // any workflow
   "clip_length": "auto"
 }
@@ -544,6 +604,7 @@ Rejections happen before anything is charged (`detail = {"code", "message", ...}
 ### `GET /tasks/workflows`
 
 ```json
+// Every entry also has "settings": [{"key", "type", "default", "choices" | "min" and "max"}], empty when disabled.
 {"enabled": true,
  "workflows": [
    {"id": "highlights", "available": true, "min_source_seconds": 0},

@@ -120,7 +120,7 @@ def test_the_worker_reads_leniently():
 def test_the_schema_is_published_only_with_access():
     enabled = {entry["id"]: entry for entry in workflows_info(True)["workflows"]}
     assert {item["key"] for item in enabled["series"]["settings"]} >= {"cold_open", "part_labels", "endings", "coverage", "hook_title", "junction_style"}
-    assert {"key": "max_clips", "type": "int", "default": None, "min": 1, "max": 20} in enabled["highlights"]["settings"]
+    assert {"key": "max_clips", "type": "int", "default": None, "min": 1, "max": 10} in enabled["highlights"]["settings"]
     assert all(entry["settings"] == [] for entry in workflows_info(False)["workflows"])
     json.dumps(settings_schema("recap"))
 
@@ -434,15 +434,16 @@ def _spread_case():
     index = build_units(data, "")
     outline = make_outline(chapters=[chapter(200, importance=5), chapter(400, importance=3), chapter(600, importance=3)])
     # The early points are worth the most: a recap chooses them all unless told to spread.
-    spans = [(10 + n * 8, 12 + n * 8, 1) for n in range(6)] + [(250, 252, 3), (500, 502, 3)]
+    spans = [(10 + n * 8, 12 + n * 8, 1) for n in range(6)] + [(250, 252, 3), (350, 352, 3), (500, 502, 3)]
     return index, outline, RecapDraftIn(title="t", opener=None, points=_recap_points(index, spans), closer=None)
 
 
-def test_whole_video_coverage_reaches_every_third():
+def test_whole_video_coverage_reaches_every_quarter():
     index, outline, draft = _spread_case()
-    budget = recap_budget("short", 3000)
-    slices = coverage_slices(index, outline)
-    assert len(slices) == 3
+    budget = recap_budget("medium", 3000)
+    slices = coverage_slices(index, outline, budget=budget)
+    assert len(slices) == 4
+    assert len(coverage_slices(index, outline, budget=recap_budget("short", 3000))) == 3
     early = fit_recap(index, draft, budget, outline)
     spread = fit_recap(index, draft, budget, outline, whole_video=True)
     assert max(beat.first for beat in early.beats) < slices[1][0]
@@ -454,9 +455,9 @@ def test_framing_and_minor_chapters_dont_count_as_video_to_cover():
     data = story_data(300)
     index = build_units(data, "")
     outline = make_outline(chapters=[chapter(100, importance=5), chapter(200, importance=5), chapter(300, importance=1)])
-    # The last chapter is an outro in all but name: a third of nothing asks for nothing.
+    # The last chapter is an outro in all but name: a stretch of nothing asks for nothing.
     slices = coverage_slices(index, outline)
-    assert all(low < 200 for low, _ in slices) and len(slices) == 2
+    assert all(low <= 225 for low, _ in slices) and len(slices) == 3
     trimmed = coverage_slices(index, outline, framing=set(range(201, 301)))
     assert trimmed[-1][1] <= 200
 
