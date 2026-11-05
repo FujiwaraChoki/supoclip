@@ -2,7 +2,7 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import type { EditDocument } from "../src/lib/editor/document";
+import type { AIEditUsage, EditDocument } from "../src/lib/editor/document";
 import { draft } from "../src/lib/editor/document.test-fixture";
 
 const mediaPath = path.resolve("test-results/ai-clean.mp4");
@@ -35,7 +35,7 @@ function serve(route: Route, file: string) {
   });
 }
 
-async function setup(page: Page, { aiEditing = true } = {}) {
+async function setup(page: Page, { aiEditing = true, aiEditUsage }: { aiEditing?: boolean; aiEditUsage?: AIEditUsage } = {}) {
   let saved: { revision: number; document: EditDocument } = { revision: 0, document: structuredClone(draft) };
   await page.route("**/api/auth/get-session**", (r) =>
     r.fulfill({
@@ -75,7 +75,7 @@ async function setup(page: Page, { aiEditing = true } = {}) {
       json: {
         status: "ready", basis: "clip1.mp4", duration: 3, width: 1080, height: 1920, fps: 24, hasAudio: true,
         waveform: Array.from({ length: 160 }, (_, i) => 0.2 + Math.abs(Math.sin(i)) * 0.6),
-        draft: saved, original: draft, jobs: [], aiEditing,
+        draft: saved, original: draft, jobs: [], aiEditing, aiEditUsage,
       },
     });
   });
@@ -285,3 +285,38 @@ test("long unbroken Unicode requests and summaries stay inside a narrow editor",
   expect(status!.x + status!.width).toBeLessThanOrEqual(390);
   expect(status!.height).toBeLessThanOrEqual(128);
 });
+
+for (const [plan, limit, width] of [["pro", 10, 1440], ["scale", 100, 390]] as const) {
+  test(`${plan} monthly allowance shows the last edit and prevents further submissions at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const usage: AIEditUsage = { plan, limit, used: limit - 1, remaining: 1, allowed: true, resetsAt: "2026-12-05T00:00:00Z" };
+    const spent: AIEditUsage = { ...usage, used: limit, remaining: 0, allowed: false };
+    const { saved } = await setup(page, { aiEditUsage: usage });
+    let submissions = 0;
+    await page.route("**/editor/ai", r => {
+      submissions++;
+      return r.fulfill({ status: 202, json: { id: "a".repeat(32), usage: spent } });
+    });
+    await page.route(`**/editor/ai/${"a".repeat(32)}`, r => r.fulfill({ json: {
+      status: "completed", summary: "Muted the clip.", changed: true,
+      document: { ...draft, muted: true }, usage: spent,
+    } }));
+    await expect(page.getByText(`1 of ${limit} AI edits left this month.`, { exact: false })).toBeVisible();
+    await page.screenshot({ path: `test-results/ai-allowance-${plan}-remaining.png` });
+    const input = page.getByLabel("Ask AI to edit this clip");
+    await input.fill("mute it");
+    await input.press("Enter");
+    await expect(page.getByText("Muted the clip.", { exact: false })).toBeVisible();
+    await expect(page.getByText(`0 of ${limit} AI edits left this month.`, { exact: false })).toBeVisible();
+    await expect(input).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Run", exact: true })).toBeDisabled();
+    await expect(page.getByRole("link", { name: plan === "pro" ? "Upgrade to Creator" : "View plans", exact: true })).toHaveAttribute("href", "/settings#plan");
+    expect(submissions).toBe(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expect.poll(() => saved().document.muted).toBe(true);
+    await page.screenshot({ path: `test-results/ai-allowance-${plan}-exhausted.png` });
+    // The monthly AI limit never disables ordinary editing or undo.
+    await page.getByRole("button", { name: "Undo", exact: true }).last().click();
+    await expect.poll(() => saved().document.muted).toBe(false);
+  });
+}

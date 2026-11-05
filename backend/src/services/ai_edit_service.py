@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..config import get_config
 from ..editor_document import EditDocument, TIME_EPSILON
+from .ai_edit_allowance_service import refund_ai_edit_usage
 
 logger = logging.getLogger(__name__)
 
@@ -673,6 +674,11 @@ async def ai_edit_job(ctx: dict, job_id: str) -> None:
     redis = ctx["redis"]
 
     async def publish(payload: dict) -> None:
+        if payload.get("status") == "failed":
+            try:
+                await refund_ai_edit_usage(job_id)
+            except Exception:
+                logger.exception("Could not refund failed AI edit %s", job_id)
         await redis.set(result_key(job_id), json.dumps(payload), ex=AI_EDIT_RESULT_TTL_SECONDS)
 
     raw = await redis.get(request_key(job_id))

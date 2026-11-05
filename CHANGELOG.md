@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-05
 
+- **Improved:** Pro includes 10 AI edits per month and Creator includes 100. The editor shows the remaining allowance and reset date, and failed requests restore the edit. ([#335](https://github.com/FujiwaraChoki/supoclip/pull/335))
 - **New:** A dedicated FAQ lists every supported spoken language and regional variant, with search and answers about language detection, captions, translation limits, and video processing. It is available in all six interface languages and linked from the homepage and footer. ([#334](https://github.com/FujiwaraChoki/supoclip/pull/334))
 - **Under the hood:** Preview deployments use an upload timeout within the hosting platform's supported limit. ([#334](https://github.com/FujiwaraChoki/supoclip/pull/334))
 

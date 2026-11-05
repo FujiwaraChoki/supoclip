@@ -367,6 +367,11 @@
     "length": "Sekarang {duration} (sebelumnya {was})",
     "timeout": "AI terlalu lama. Coba lagi.",
     "failed": "Tidak bisa terhubung ke AI. Coba lagi.",
-    "title": "Edit AI"
+    "title": "Edit AI",
+    "remaining": "Sisa {remaining} dari {limit} edit AI bulan ini.",
+    "resets": "Direset pada {date}.",
+    "subscriptionRequired": "Pengeditan AI memerlukan Pro atau Creator.",
+    "upgradeCreator": "Tingkatkan ke Creator",
+    "viewPlans": "Lihat paket"
   }
 }

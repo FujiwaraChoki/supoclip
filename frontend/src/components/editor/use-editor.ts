@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { formatSupportMessage, parseApiError } from "@/lib/api-error";
+import { ApiRequestError, parseApiError } from "@/lib/api-error";
 import { remapCaptionTransforms, type EditDocument, type EditorState } from "@/lib/editor/document";
 
 export async function editorRequest<T>(
@@ -21,11 +21,7 @@ export async function editorRequest<T>(
         }),
   });
   if (!response.ok)
-    throw new Error(
-      formatSupportMessage(
-        await parseApiError(response, "Could not update the editor."),
-      ),
-    );
+    throw new ApiRequestError(await parseApiError(response, "Could not update the editor."));
   return response.json();
 }
 interface History {

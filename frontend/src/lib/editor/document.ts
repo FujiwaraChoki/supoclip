@@ -124,6 +124,15 @@ export interface ExportJob {
   progress: number;
   error?: string;
 }
+export interface AIEditUsage {
+  plan: string;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  resetsAt: string | null;
+  allowed: boolean;
+}
+
 export interface EditorState {
   status: "unprepared" | "preparing" | "ready" | "failed";
   basis: string;
@@ -140,6 +149,7 @@ export interface EditorState {
   captionLooks?: Record<string, CaptionLook>;
   /** Whether the server can make AI edits (an Anthropic key is configured). */
   aiEditing?: boolean;
+  aiEditUsage?: AIEditUsage;
   hasLayout?: boolean;
   landscapeRecommended?: boolean;
 }

@@ -367,6 +367,11 @@
     "length": "Jetzt {duration} (vorher {was})",
     "timeout": "Die KI hat zu lange gebraucht. Versuche es noch einmal.",
     "failed": "Die KI war nicht erreichbar. Versuche es noch einmal.",
-    "title": "KI-Bearbeitung"
+    "title": "KI-Bearbeitung",
+    "remaining": "Diesen Monat noch {remaining} von {limit} KI-Bearbeitungen.",
+    "resets": "Wird am {date} zurückgesetzt.",
+    "subscriptionRequired": "KI-Bearbeitung erfordert Pro oder Creator.",
+    "upgradeCreator": "Auf Creator upgraden",
+    "viewPlans": "Tarife ansehen"
   }
 }
