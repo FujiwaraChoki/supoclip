@@ -367,6 +367,11 @@
     "length": "Now {duration} (was {was})",
     "timeout": "The AI took too long. Try again.",
     "failed": "Couldn't reach the AI. Try again.",
-    "title": "AI edit"
+    "title": "AI edit",
+    "remaining": "{remaining} of {limit} AI edits left this month.",
+    "resets": "Resets {date}.",
+    "subscriptionRequired": "AI editing requires Pro or Creator.",
+    "upgradeCreator": "Upgrade to Creator",
+    "viewPlans": "View plans"
   }
 }
