@@ -91,7 +91,7 @@ class WorkflowSpec:
 
     @property
     def legacy(self) -> bool:
-        """Highlights without instructions or settings: the original pipeline, byte for byte."""
+        """Highlights without instructions or settings: the original pipeline."""
         return self.workflow == "highlights" and not self.options.instructions and not self.options.advanced
 
     def setting(self, key: str) -> Optional[SettingValue]:

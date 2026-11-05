@@ -1126,7 +1126,8 @@ async def plan_topic(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, Any
     selected = main[:limit]
     reserve = [candidate for candidate in eligible if candidate not in selected][:RESERVE_CLIPS]
     coverage = coverage_of(index, selected, pi.cleanup)
-    if coverage == "thin":
+    # Fewer clips because the creator asked for fewer isn't a thin topic.
+    if coverage == "thin" and len(main) <= limit:
         pi.note("TOPIC_THIN", {"count": len(selected), "found": len(selected)})
     if index.coarse:
         pi.note("COARSE_TRANSCRIPT")

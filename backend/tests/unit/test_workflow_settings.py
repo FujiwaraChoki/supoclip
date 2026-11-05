@@ -324,6 +324,8 @@ async def test_topic_max_clips_limits_the_clips(monkeypatch):
     pi, _ = _topic_pi(monkeypatch, advanced={"max_clips": 1})
     segments, plan = await plan_topic(pi)
     assert len([s for s in segments if not s["workflow_meta"].get("reserve")]) == 1
+    # Asking for one clip isn't a thin topic.
+    assert not any(note["code"] == "TOPIC_THIN" for note in plan["notes"])
 
 
 @pytest.mark.asyncio

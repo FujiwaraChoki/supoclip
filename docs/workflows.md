@@ -11,7 +11,13 @@ A task makes one of five things, stored as `tasks.workflow`:
 | `trailer` | One short clip of beats that builds curiosity and never reveals the payoff. |
 
 Free-text `instructions` steer any workflow, highlights included. Highlights
-without instructions is byte-identical to the pipeline before workflows.
+without instructions or settings keeps the pipeline from before workflows: same
+prompts, cache keys, segments and enqueue arguments. Clips with no cuts render
+frame for frame the same. Three render differences reach everyone: stitched clips
+(pause or filler cleanup) get exact frame counts, which fixes a frozen picture but
+can shift them by a frame and tip the face tracker's framing; a spoken sliver
+under 0.12 s between two cuts is kept (0 of 600 sampled clips, but it turns that
+clip's crossfades into hard cuts); and a source's chapters no longer reach clips.
 
 The `clip_length` chip means part length for a series, total length for a
 recap or trailer, and per-clip length for highlights and topic clips.
