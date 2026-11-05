@@ -67,6 +67,7 @@ import { orderedParts, seriesPartTotal, SeriesView, unfinishedSeries } from "@/c
 import { HeroClipView } from "@/components/app/hero-clip-view";
 import { DownloadAllButton } from "@/components/app/download-all-button";
 import { buildRecreateBody, createActionId, isWorkflowErrorCode, WorkflowFailure } from "@/components/app/workflow-failure";
+import { availableWorkflows, useWorkflowsInfo } from "@/components/workflow-picker";
 import { intlLocale } from "@/i18n/config";
 import { timeAgoLabel } from "@/lib/generations";
 import { VIDEO_SOURCE_LABELS, VideoSourceIcon, videoSourceKind, type VideoSourceKind } from "@/components/video-source-icon";
@@ -189,6 +190,9 @@ export default function TaskPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const [task, setTask] = useState<TaskDetails | null>(null);
+  const failureCode = task?.status === "error" && isWorkflowErrorCode(task.error_code) ? task.error_code : null;
+  // Next steps on the failure screen stay inside what this user may make.
+  const workflowsInfo = useWorkflowsInfo(Boolean(failureCode));
   const [clips, setClips] = useState<Clip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -690,7 +694,7 @@ export default function TaskPage() {
       const response = await fetch("/api/tasks/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildRecreateBody(task, { workflow, topic })),
+        body: JSON.stringify(buildRecreateBody(task, { workflow, topic }, workflowsInfo?.workflows.find((entry) => entry.id === workflow)?.customizable !== false && workflowsInfo?.enabled !== false)),
       });
       if (!response.ok) {
         const info = await parseApiError(response, t("errors.createTask"));
@@ -781,7 +785,6 @@ export default function TaskPage() {
   const partTotal = isSeries ? seriesPartTotal(plan, clips) : undefined;
   // A split recap or trailer is no longer one video; show its pieces as a grid.
   const heroClip = SINGLE_OUTPUT.has(workflow) && clips.length === 1 ? clips[0] : null;
-  const failureCode = task?.status === "error" && isWorkflowErrorCode(task.error_code) ? task.error_code : null;
   const seriesIncomplete = isSeries && unfinishedSeries(task?.status, plan, clips) !== null;
   const topicName = plan?.topic?.query || task?.workflow_options?.topic || plan?.title || "";
   const instructions = task?.workflow_options?.instructions?.trim();
@@ -1006,6 +1009,7 @@ export default function TaskPage() {
             topic={task.workflow_options?.topic}
             sourceSeconds={task.source_duration_seconds}
             canCreate={Boolean(task.source_url)}
+            offered={workflowsInfo ? availableWorkflows(workflowsInfo) : null}
             readOnly={readOnly}
             pendingAction={pendingAction}
             onCreate={handleStartWorkflow}

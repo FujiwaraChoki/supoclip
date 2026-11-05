@@ -116,6 +116,34 @@ describe("WorkflowFailure", () => {
   });
 });
 
+describe("WorkflowFailure for a user with only some workflows", () => {
+  it("offers highlights instead of a recap they can't make", () => {
+    const { onCreate } = renderFailure("trailer_unbuildable", { workflow: "trailer", offered: new Set(["highlights", "trailer"]) });
+    fireEvent.click(screen.getByRole("button", { name: "Make highlights instead" }));
+    expect(onCreate).toHaveBeenCalledWith("highlights");
+  });
+
+  it("keeps the recap when they can make it", () => {
+    const { onCreate } = renderFailure("trailer_unbuildable", { workflow: "trailer", offered: new Set(["recap", "highlights"]) });
+    expect(screen.queryByRole("button", { name: "Make highlights instead" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button")[0]);
+    expect(onCreate).toHaveBeenCalledWith("recap");
+  });
+
+  it("hides topic suggestions they can't make", () => {
+    renderFailure("topic_not_found", { plan: notFoundPlan, topic: "crypto", offered: new Set(["highlights", "trailer"]) });
+    expect(screen.queryByRole("button", { name: "pricing" })).not.toBeInTheDocument();
+  });
+
+  it("drops instructions and settings the next workflow can't take", () => {
+    const task = { source_url: "https://youtu.be/x", workflow: "topic" as const, workflow_options: { topic: "x", instructions: "Funny bits", advanced: { hook_title: false } } };
+    const body = buildRecreateBody(task, { workflow: "highlights" }, false);
+    expect(body).not.toHaveProperty("instructions");
+    expect(body).not.toHaveProperty("workflow_options");
+    expect(buildRecreateBody(task, { workflow: "series" }).instructions).toBe("Funny bits");
+  });
+});
+
 describe("failure helpers", () => {
   it("knows the worker codes", () => {
     expect(isWorkflowErrorCode("topic_not_found")).toBe(true);

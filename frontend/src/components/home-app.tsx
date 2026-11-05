@@ -199,6 +199,9 @@ export default function HomeApp() {
   const heldAt = useRef(0);
   const durationFile = useRef<File | null>(null);
   const activeWorkflow: Workflow = workflowsEnabled && offeredWorkflows.has(workflow) ? workflow : "highlights";
+  // A saved series is plain highlights until the server says otherwise, and
+  // submitting that early would charge for the wrong thing.
+  const awaitingWorkflows = workflowsInfo === null && workflow !== "highlights";
   const advancedSchema = workflowsInfo?.workflows.find((entry) => entry.id === activeWorkflow)?.settings ?? [];
   // Some workflows can be open to everyone while customizing highlights stays limited.
   const instructionsOffered = workflowsEnabled
@@ -567,7 +570,7 @@ export default function HomeApp() {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!hasSource || isLoading || lengthLoading || !session?.user?.id) return;
+    if (!hasSource || isLoading || lengthLoading || !session?.user?.id || awaitingWorkflows) return;
     // Clicking Generate first blurs the link box; if that blur just held a request back, let the user see it.
     if (heldAt.current > 0 && performance.now() - heldAt.current < 800) return;
     let sourceUrl = url;
@@ -1215,7 +1218,7 @@ export default function HomeApp() {
                   type="submit"
                   size="icon"
                   aria-label={t(`generateByWorkflow.${activeWorkflow}`)}
-                  disabled={!hasSource || isLoading || lengthLoading || topicProblem !== null || instructionsTooLong || advancedProblem !== null}
+                  disabled={!hasSource || isLoading || lengthLoading || awaitingWorkflows || topicProblem !== null || instructionsTooLong || advancedProblem !== null}
                   className="size-9 rounded-full bg-brand text-brand-foreground shadow-sm hover:bg-brand/90 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
                 >
                   {isLoading ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}

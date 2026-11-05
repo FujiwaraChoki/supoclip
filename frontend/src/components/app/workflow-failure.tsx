@@ -86,13 +86,18 @@ const LENGTH_SCOPE: Record<Workflow, "clip" | "part" | "total"> = {
  * omit `workflow`, exactly like the create form. The length carries over only
  * when it measures the same thing: a short recap is not a request for short clips.
  */
-export function buildRecreateBody(task: RecreatableTask, next: { workflow: Workflow; topic?: string }) {
-  const instructions = task.workflow_options?.instructions?.trim();
+export function buildRecreateBody(
+  task: RecreatableTask,
+  next: { workflow: Workflow; topic?: string },
+  /** False when this user can make `next.workflow` but not customize it: the server would refuse both. */
+  customizable = true,
+) {
+  const instructions = customizable ? task.workflow_options?.instructions?.trim() : undefined;
   // A setting carries over when it means the same thing in the next workflow.
   const sameWorkflow = (task.workflow ?? "highlights") === next.workflow;
   const advanced = Object.fromEntries(
     Object.entries(task.workflow_options?.advanced ?? {}).filter(
-      ([key]) => sameWorkflow || (next.workflow !== "highlights" && SHARED_SETTINGS.includes(key)),
+      ([key]) => customizable && (sameWorkflow || (next.workflow !== "highlights" && SHARED_SETTINGS.includes(key))),
     ),
   );
   const options = {
@@ -132,7 +137,7 @@ export function createActionId(workflow: Workflow, topic?: string) {
  * A workflow failure explained, with the next step: suggested topics, another
  * workflow on the same source, or a retry. Every one of these was refunded.
  */
-export function WorkflowFailure({ code, workflow, plan, topic, sourceSeconds, canCreate, readOnly, pendingAction, onCreate, onResume }: {
+export function WorkflowFailure({ code, workflow, plan, topic, sourceSeconds, canCreate, offered, readOnly, pendingAction, onCreate, onResume }: {
   code: WorkflowErrorCode;
   /** The workflow that failed: source_too_short reads differently for each. */
   workflow: Workflow;
@@ -142,6 +147,8 @@ export function WorkflowFailure({ code, workflow, plan, topic, sourceSeconds, ca
   sourceSeconds?: number | null;
   /** False when the source can't be reused (no stored URL). */
   canCreate: boolean;
+  /** What this user may make, once known. Next steps stay inside it. */
+  offered?: ReadonlySet<Workflow> | null;
   readOnly: boolean;
   pendingAction: string | null;
   onCreate: (workflow: Workflow, topic?: string) => void;
@@ -157,7 +164,7 @@ export function WorkflowFailure({ code, workflow, plan, topic, sourceSeconds, ca
   const shownTopic = topic || plan?.topic?.query || detailTopic;
   // Only topics the API would accept, each once, and never the one that just failed.
   const seen = new Set([normalizeTopic(shownTopic).toLocaleLowerCase()]);
-  const suggestions = code === "topic_not_found"
+  const suggestions = code === "topic_not_found" && (!offered || offered.has("topic"))
     ? (details?.suggested_topics ?? []).flatMap((item) => {
       const suggestion = typeof item === "string" ? normalizeTopic(item) : "";
       const key = suggestion.toLocaleLowerCase();
@@ -171,6 +178,7 @@ export function WorkflowFailure({ code, workflow, plan, topic, sourceSeconds, ca
     : [];
   let action = failureAction(code, sourceSeconds);
   if (action.kind === "create" && !canCreate) action = { kind: "home" };
+  if (action.kind === "create" && offered && !offered.has(action.workflow)) action = { kind: "create", workflow: "highlights" };
   const busy = pendingAction !== null;
   // Each code's CTA names its usual next step; a source too short for a recap gets highlights instead.
   const usual = failureAction(code);

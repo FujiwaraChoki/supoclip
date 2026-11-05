@@ -66,7 +66,7 @@ const LEGACY_KEYS = [
   "include_broll", "cut_long_pauses", "pause_threshold_ms", "remove_filler_words", "filtered_words",
 ];
 
-let workflowsResponse: () => Response;
+let workflowsResponse: () => Response | Promise<Response>;
 let createResponse: () => Response;
 let savedClipLength: string;
 let created: Record<string, unknown>[];
@@ -222,6 +222,35 @@ describe("when the server does not offer workflows", () => {
       expect(body.clip_length).toBe("medium");
     });
   }
+});
+
+describe("before the server says what's offered", () => {
+  it("won't send a saved series as plain highlights", async () => {
+    storage.set("supoclip.workflow", "series");
+    let settle: (response: Response) => void = () => {};
+    workflowsResponse = () => new Promise<Response>((resolve) => { settle = resolve; });
+    render(<HomeApp />, { wrapper: TooltipProvider });
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/api/tasks/workflows"))).toBe(true));
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/api/pr"))).toBe(true));
+    await act(async () => {});
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    expect(screen.getByRole("button", { name: /Generate/ })).toBeDisabled();
+
+    await act(async () => { settle(Response.json(workflowsInfo)); });
+    expect(screen.getByRole("radio", { name: /Series/ })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("doesn't hold back someone making plain highlights", async () => {
+    storage.set("supoclip.workflow", "highlights");
+    workflowsResponse = () => new Promise<Response>(() => {});
+    render(<HomeApp />, { wrapper: TooltipProvider });
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/api/tasks/workflows"))).toBe(true));
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).includes("/api/pr"))).toBe(true));
+    await act(async () => {});
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate clips");
+    expect(Object.keys(body)).toEqual(LEGACY_KEYS);
+  });
 });
 
 describe("when only some workflows are open to everyone", () => {
