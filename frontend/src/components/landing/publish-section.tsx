@@ -66,7 +66,7 @@ function WeekCalendar() {
               <div className="space-y-2">
                 {SLOTS.filter((slot) => slot.day === dayIndex).map((slot) => {
                   const clip = DEMO_CLIPS[slot.clip];
-                  const soon = slot.provider !== "youtube";
+                  const soon = slot.provider === "instagram";
                   const published = !soon && dayIndex < TODAY_INDEX;
                   const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), slot.hour, slot.minute);
                   return (
@@ -114,7 +114,7 @@ export function PublishSection() {
   const t = useTranslations("marketing.publish");
   const platforms = [
     { provider: "youtube", live: true },
-    { provider: "tiktok", live: false },
+    { provider: "tiktok", live: true },
     { provider: "instagram", live: false },
   ] as const;
   const points = [

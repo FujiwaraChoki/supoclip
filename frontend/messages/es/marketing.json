@@ -341,7 +341,7 @@
   "publish": {
     "eyebrow": "Nuevo: publicación",
     "title": "Recorta una vez. Publica toda la semana.",
-    "body": "Conecta tu canal de YouTube y cada clip puede salir con su propio horario. Elige una hora, revisa el título redactado por la IA y SupoClip lo publica por ti.",
+    "body": "Conecta tu canal de YouTube o tu cuenta de TikTok y programa cada clip a tu ritmo. Elige una hora, revisa el título y la descripción que propone la IA y SupoClip lo publica por ti.",
     "platforms": {
       "youtube": "YouTube Shorts",
       "tiktok": "TikTok",
@@ -419,9 +419,9 @@
     "usageExample": {
       "videos": "Unos {count} videos originales al mes. Cada uno se convierte en varios clips."
     },
-    "publishYoutube": "Publica clips en YouTube Shorts",
-    "schedulingYoutube": "Programa clips en YouTube Shorts",
-    "schedulingSoon": "Programación en TikTok e Instagram"
+    "publishPlatforms": "Publica clips en YouTube Shorts y TikTok",
+    "schedulingPlatforms": "Programa clips en YouTube Shorts y TikTok",
+    "schedulingSoon": "Programación en Instagram"
   },
   "faq": {
     "eyebrow": "Preguntas frecuentes",
@@ -442,7 +442,7 @@
       },
       "publishing": {
         "question": "¿SupoClip puede publicar en TikTok e Instagram?",
-        "answer": "Hoy puedes publicar directamente en YouTube Shorts: al momento con Pro o programado con Creator. TikTok e Instagram llegarán pronto. Mientras tanto, descarga los clips con los ajustes de exportación para TikTok y Reels y súbelos tú."
+        "answer": "Sí, puedes publicar directamente en TikTok y YouTube Shorts, o programar publicaciones con Creator. La publicación en Instagram llegará pronto. Mientras tanto, descarga los clips con el ajuste de exportación para Reels y súbelos tú a Instagram."
       },
       "watermark": {
         "question": "¿Los clips llevan marca de agua?",

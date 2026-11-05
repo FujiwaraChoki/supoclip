@@ -84,7 +84,7 @@ function getPlans(
   planText: ReturnType<typeof useBillingPlanText>,
 ) {
   // The landing page states which platforms scheduling reaches, so it swaps the
-  // generic billing line for its own YouTube (live) / TikTok + Instagram (soon) pair.
+  // generic billing line for YouTube + TikTok (live) and Instagram (soon).
   const showScheduling = socialPublishingStage() !== "off";
   const genericScheduling = planText.t("highlights.scheduling");
   return [
@@ -128,7 +128,7 @@ function getPlans(
         features: [
           ...planText.highlights(plan).filter((line) => line !== genericScheduling),
           // Creator schedules; plans without scheduling can still post right away.
-          ...(scheduling ? [t("pricing.schedulingYoutube")] : showScheduling ? [t("pricing.publishYoutube")] : []),
+          ...(scheduling ? [t("pricing.schedulingPlatforms")] : showScheduling ? [t("pricing.publishPlatforms")] : []),
           t("pricing.hosted.tracking"),
           t("pricing.hosted.exports"),
         ],
@@ -355,17 +355,17 @@ export default function LandingPage() {
             <span className="hidden h-5 w-px bg-border lg:block" />
             <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
               <span>{t("hero.publishTo")}</span>
-              <span className="flex items-center gap-1.5 text-foreground/80">
-                <SocialProviderIcon provider="youtube" className="size-4" />
-                YouTube
-              </span>
-              {(["tiktok", "instagram"] as const).map((provider) => (
-                <span key={provider} className="flex items-center gap-1.5 opacity-60">
+              {(["youtube", "tiktok"] as const).map((provider) => (
+                <span key={provider} className="flex items-center gap-1.5 text-foreground/80">
                   <SocialProviderIcon provider={provider} className="size-4" />
-                  {t(`publish.platforms.${provider}Short`)}
+                  {t(`publish.platforms.${provider}`)}
                 </span>
               ))}
-              <ComingSoonTag />
+              <span className="flex flex-wrap items-center gap-1.5 opacity-60">
+                <SocialProviderIcon provider="instagram" className="size-4" />
+                {t("publish.platforms.instagramShort")}
+                <ComingSoonTag />
+              </span>
             </div>
           </Reveal>
         </div>
