@@ -205,6 +205,9 @@ async def test_workflow_fields_survive_clip_edits(db_session, tmp_path, monkeypa
     survivors = {
         "trim": ids, "split": ids, "merge": [ids[0], ids[2]], "delete": [ids[0], ids[2]], "captions": ids,
     }[edit]
+    if edit == "merge":
+        # Keeps part 1's role, without the planned cuts it no longer plays.
+        metas[ids[0]] = {"title": "Part 1"}
     if edit == "trim":
         # Still part 1, narrowed to what the trimmed clip plays.
         metas[ids[0]] = {**metas[ids[0]], "ranges": [[0.1, 9.9]], "junction_fades": []}
