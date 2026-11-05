@@ -269,5 +269,15 @@
     "highlightsInstead": "Make highlights instead"
   },
   "clipLoadFailed": "Couldn't load this clip.",
-  "retryPlayback": "Retry playback"
+  "retryPlayback": "Retry playback",
+  "recovery": {
+    "heading": "Hang tight",
+    "messages": {
+      "snags": "We've hit a few snags, so this is taking a little longer than usual.",
+      "hiccup": "A small hiccup is slowing things down. This may take a little extra time.",
+      "scenicRoute": "This one's taking the scenic route. It'll be a little longer than usual.",
+      "bumps": "A few bumps along the way. We're working through them—just a little more time.",
+      "slower": "Things are moving a bit slower than usual. We're still on it."
+    }
+  }
 }

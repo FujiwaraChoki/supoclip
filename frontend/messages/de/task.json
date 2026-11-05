@@ -269,5 +269,15 @@
     "highlightsInstead": "Stattdessen Highlights erstellen"
   },
   "clipLoadFailed": "Dieser Clip konnte nicht geladen werden.",
-  "retryPlayback": "Wiedergabe erneut versuchen"
+  "retryPlayback": "Wiedergabe erneut versuchen",
+  "recovery": {
+    "heading": "Einen Moment noch",
+    "messages": {
+      "snags": "Ein paar Stolpersteine unterwegs—diesmal dauert es etwas länger als sonst.",
+      "hiccup": "Ein kleiner Hänger bremst uns aus. Es kann etwas länger dauern.",
+      "scenicRoute": "Dieses Video nimmt die Panoramaroute. Es dauert etwas länger als sonst.",
+      "bumps": "Der Weg ist gerade etwas holprig. Wir arbeiten uns durch—noch ein wenig Geduld.",
+      "slower": "Heute läuft es etwas langsamer als sonst. Wir bleiben dran."
+    }
+  }
 }

@@ -12,6 +12,12 @@ import subprocess
 import uuid
 
 from ..utils.async_helpers import run_in_thread
+from ..download_progress import (
+    DownloadRecovery,
+    ProgressCallback,
+    report_download_recovery,
+    run_download_in_thread,
+)
 from ..repositories.minute_usage_repository import charged_duration
 from ..youtube_utils import (
     async_get_youtube_video_info,
@@ -672,6 +678,8 @@ class VideoService:
         budget: Optional[ByteBudget] = None,
         skip_proxy: bool = False,
         errors: Optional[list] = None,
+        progress_callback: Optional[ProgressCallback] = None,
+        download_progress: int = 10,
     ) -> Optional[Path]:
         """
         Download YouTube media for rendering.
@@ -717,6 +725,7 @@ class VideoService:
                         video_id,
                         exc,
                     )
+                    report_download_recovery(DownloadRecovery.FULL_VIDEO)
             path = resolve_full_youtube_download(
                 url,
                 video_id,
@@ -731,7 +740,9 @@ class VideoService:
             return preserve_geo_restriction(path, section_error)
 
         try:
-            video_path = await run_in_thread(_resolve)
+            video_path = await run_download_in_thread(
+                _resolve, progress_callback=progress_callback, progress=download_progress,
+            )
         except DownloadBudgetExceeded:
             logger.error("YouTube download exceeded the per-job byte limit: %s", url)
             raise
@@ -1431,13 +1442,16 @@ class VideoService:
                         )
 
                     try:
-                        video_path, audio_first = await run_in_thread(_resolve_analysis)
+                        video_path, audio_first = await run_download_in_thread(
+                            _resolve_analysis, progress_callback=progress_callback,
+                        )
                     except DownloadBudgetExceeded as exc:
                         raise Exception(str(exc)) from exc
                 else:
                     audio_first = False
                     video_path = cached_full or await VideoService.download_video(
                         url, task_id=task_id, quality=download_quality, budget=job_budget,
+                        progress_callback=progress_callback,
                     )
                 video_path = preserve_geo_restriction(video_path, metadata_error)
                 if not video_path:
@@ -1631,7 +1645,12 @@ class VideoService:
                             await run_in_thread(load_time_map, video_path),
                         )
                     else:
-                        video_path = await run_in_thread(materialize_clip_source, url, video_id, segments_json, task_id=task_id, budget=job_budget, duration=file_duration, audio_path=audio_path, quality=download_quality)
+                        video_path = await run_download_in_thread(
+                            materialize_clip_source, url, video_id, segments_json,
+                            task_id=task_id, budget=job_budget, duration=file_duration,
+                            audio_path=audio_path, quality=download_quality,
+                            progress_callback=progress_callback, progress=65,
+                        )
                 except DownloadBudgetExceeded as exc:
                     raise Exception(str(exc)) from exc
                 except Exception as exc:
@@ -1640,6 +1659,8 @@ class VideoService:
                     section_error = exc
 
                 if section_error is not None:
+                    if progress_callback:
+                        await progress_callback(65, DownloadRecovery.FULL_VIDEO.value, "processing")
                     logger.warning(
                         "Section download failed, falling back to a full download: %s",
                         section_error,
@@ -1653,6 +1674,7 @@ class VideoService:
                         video_path = await VideoService.download_video(
                             url, task_id=task_id, quality=download_quality, budget=job_budget,
                             skip_proxy=not isinstance(section_error, PartialDownloadUnavailable),
+                            progress_callback=progress_callback, download_progress=65,
                         )
                         video_path = preserve_geo_restriction(video_path, section_error)
                     if video_path and audio_path:

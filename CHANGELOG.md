@@ -6,11 +6,13 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-05
 
+- **Improved:** Generations show a short, varied notice when a video takes longer than usual. The notice survives a page refresh, replaces the time estimate during delays, and clears when processing continues. ([#336](https://github.com/FujiwaraChoki/supoclip/pull/336))
 - **Improved:** Pro includes 10 AI edits per month and Creator includes 100. The editor shows the remaining allowance and reset date, and failed requests restore the edit. ([#335](https://github.com/FujiwaraChoki/supoclip/pull/335))
 - **New:** A dedicated FAQ lists every supported spoken language and regional variant, with search and answers about language detection, captions, translation limits, and video processing. It is available in all six interface languages and linked from the homepage and footer. ([#334](https://github.com/FujiwaraChoki/supoclip/pull/334))
 - **Under the hood:** Preview deployments use an upload timeout within the hosting platform's supported limit. ([#334](https://github.com/FujiwaraChoki/supoclip/pull/334))
 - **Fixed:** Clips stitched together after cutting pauses no longer risk a frozen picture while the audio keeps playing. ([#333](https://github.com/FujiwaraChoki/supoclip/pull/333))
 - **Under the hood:** Groundwork for new ways to turn a video into clips, not yet available to everyone. ([#333](https://github.com/FujiwaraChoki/supoclip/pull/333))
+- **Under the hood:** Updated sign-in, video-processing, and developer tools to address published security vulnerabilities. ([#338](https://github.com/FujiwaraChoki/supoclip/pull/338))
 
 ## 2026-11-03
 

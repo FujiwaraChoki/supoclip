@@ -68,3 +68,37 @@ test("library bulk retry uses the new wording", async ({ page }) => {
   await page.getByRole("button", { name: /Retry generation/ }).click();
   await expect.poll(() => requests).toBe(1);
 });
+
+for (const viewport of [{ name: "desktop", width: 1440, height: 900 }, { name: "mobile", width: 390, height: 844 }]) {
+  test(`download recovery updates survive refresh and clear on ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    let current = {
+      ...generation, status: "processing", progress: 10,
+      progress_message: "Downloading video...",
+      created_at: new Date(Date.now() - 60_000).toISOString(),
+    };
+    await mockApp(page, () => current);
+    await page.goto("/tasks/retry");
+    await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "10");
+
+    current = { ...current, progress_message: "Using a backup video download option..." };
+    const notice = page.getByRole("status", { name: "Hang tight" });
+    await expect(notice).toBeVisible({ timeout: 12_000 });
+    await expect(page.getByText("Hang tight")).toBeVisible();
+    await expect(notice).not.toContainText(/download|backup|connection|recovery/i);
+    await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "10");
+    await expect(page.getByText(/min left|minute left/)).toHaveCount(0);
+
+    await page.reload();
+    await expect(notice).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    if (process.env.CAPTURE_RECOVERY_SCREENSHOTS) {
+      await page.screenshot({ path: `../docs/screenshots/download-recovery-${viewport.name}.png`, fullPage: true });
+    }
+
+    current = { ...current, progress: 30, progress_message: "Generating transcript..." };
+    await expect(page.getByText("Hang tight")).toHaveCount(0, { timeout: 12_000 });
+    await expect(notice).toHaveCount(0);
+    await expect(page.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "30");
+  });
+}
