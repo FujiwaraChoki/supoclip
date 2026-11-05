@@ -368,5 +368,7 @@
     "timeout": "Die KI hat zu lange gebraucht. Versuche es noch einmal.",
     "failed": "Die KI war nicht erreichbar. Versuche es noch einmal.",
     "title": "KI-Bearbeitung"
-  }
+  },
+  "partLabel": "Teil {n}",
+  "partClipLabel": "Teil {n} · {title}"
 }

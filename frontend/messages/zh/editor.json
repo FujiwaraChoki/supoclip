@@ -368,5 +368,7 @@
     "timeout": "AI 响应超时，请重试。",
     "failed": "无法连接 AI，请重试。",
     "title": "AI 编辑"
-  }
+  },
+  "partLabel": "第 {n} 集",
+  "partClipLabel": "第 {n} 集 · {title}"
 }

@@ -74,6 +74,74 @@ def archive_entry_names(clips: list[dict[str, Any]]) -> list[str]:
     return names
 
 
+# "Part 3: Title" / "Teil 3 – Title": the label the series pipeline prefixes
+# onto a part's hook title (same pattern as the task page's partTitle).
+_PART_PREFIX_RE = re.compile(r"^\s*\S{0,12}?\s*(\d+)\s*\S{0,3}?\s*[:：–—\-·|]\s*")
+# Characters Windows, macOS or common unzip tools refuse in a file name.
+_UNSAFE_NAME_CHARS_RE = re.compile(r'[\x00-\x1f\x7f<>:"/\\|?*]+')
+PART_TITLE_MAX_CHARS = 80
+
+
+def _part_title(clip: dict[str, Any]) -> str:
+    """A part's own title: the planned title, else its hook title without "Part n:"."""
+    meta = clip.get("workflow_meta") or {}
+    title = (meta.get("title") or "").strip() if isinstance(meta, dict) else ""
+    if not title:
+        title = (clip.get("hook_title") or "").strip()
+        match = _PART_PREFIX_RE.match(title)
+        if match and int(match.group(1)) == clip.get("part_number"):
+            title = title[match.end():]
+    title = unicodedata.normalize("NFKC", title)
+    title = re.sub(r"\s+", " ", _UNSAFE_NAME_CHARS_RE.sub(" ", title)).strip()
+    if len(title) > PART_TITLE_MAX_CHARS:
+        title = title[:PART_TITLE_MAX_CHARS].rsplit(" ", 1)[0] or title[:PART_TITLE_MAX_CHARS]
+    # A name may not end in a dot or space on Windows.
+    return title.rstrip(". ")
+
+
+def _part_order(clip: dict[str, Any]) -> tuple[bool, int]:
+    number = clip.get("part_number")
+    return (not isinstance(number, int), number if isinstance(number, int) else 0)
+
+
+def order_for_archive(clips: list[dict[str, Any]], workflow: str | None) -> list[dict[str, Any]]:
+    """Clips in the order they are meant to be watched.
+
+    A series plays by part number (a split part's halves stay together in
+    clip order); everything else keeps clip order.
+    """
+    if workflow != "series":
+        return list(clips)
+    return sorted(clips, key=_part_order)
+
+
+def series_entry_names(clips: list[dict[str, Any]]) -> list[str]:
+    """``Part 01 - Title.mp4`` for clips already in part order.
+
+    Names carry the part's own number, so a part whose file is missing leaves
+    a gap instead of renumbering the rest. The halves of a split part become
+    ``Part 03.1`` and ``Part 03.2``. A clip without a part number (none is
+    expected) is named ``Clip NN`` by its position.
+    """
+    numbers = [clip.get("part_number") for clip in clips]
+    known = [number for number in numbers if isinstance(number, int)]
+    width = max(2, len(str(max(known, default=0))), len(str(len(clips))))
+    halves = {number: known.count(number) for number in known}
+    seen: dict[int, int] = {}
+    names = []
+    for position, (clip, number) in enumerate(zip(clips, numbers), start=1):
+        if isinstance(number, int):
+            label = f"Part {number:0{width}d}"
+            if halves[number] > 1:
+                seen[number] = seen.get(number, 0) + 1
+                label = f"{label}.{seen[number]}"
+        else:
+            label = f"Clip {position:0{width}d}"
+        title = _part_title(clip)
+        names.append(f"{label} - {title}.mp4" if title else f"{label}.mp4")
+    return names
+
+
 def archive_filename(title: str | None) -> str:
     return f"{slugify(title) or 'supoclip'}-clips.zip"
 
@@ -88,10 +156,12 @@ def content_disposition(filename: str) -> str:
     return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename, safe='')}"
 
 
-def resolve_entries(clips: list[dict[str, Any]], storage: MediaStorage) -> list[ArchiveEntry]:
-    """Keep only clips whose file exists, with their size. Blocking."""
+def resolve_entries(
+    clips: list[dict[str, Any]], storage: MediaStorage, workflow: str | None = None
+) -> list[ArchiveEntry]:
+    """Keep only clips whose file exists, with their size, in watch order. Blocking."""
     present = []
-    for clip in clips:
+    for clip in order_for_archive(clips, workflow):
         reference = clip.get("file_path") or ""
         if not reference:
             continue
@@ -104,7 +174,8 @@ def resolve_entries(clips: list[dict[str, Any]], storage: MediaStorage) -> list[
             logger.warning("Skipping clip %s in archive: file is missing", clip.get("id"))
             continue
         present.append((clip, reference, size))
-    names = archive_entry_names([clip for clip, _, _ in present])
+    kept = [clip for clip, _, _ in present]
+    names = series_entry_names(kept) if workflow == "series" else archive_entry_names(kept)
     return [ArchiveEntry(name, reference, size) for name, (_, reference, size) in zip(names, present)]
 
 

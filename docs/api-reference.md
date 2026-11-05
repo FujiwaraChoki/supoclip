@@ -115,6 +115,8 @@ Source file:
   - Create task
 - `GET /billing/summary`
   - Billing summary for current user
+- `GET /workflows`
+  - What the current user can make (see [Workflows](#workflows))
 - `GET /{task_id}`
   - Task detail
 - `GET /{task_id}/progress`
@@ -146,6 +148,122 @@ Deploy the `default_clip_length` user migration (through either migration runner
 before the frontend. Ship the API and worker together so the worker accepts the
 new optional job argument. No new environment variables are required.
 
+### Workflows
+
+A task makes one of five things. Omit `workflow` (or send `"highlights"`) for
+the original behavior: without instructions, highlights are selected and
+rendered exactly as before workflows existed.
+
+| `workflow` | Makes | `clip_length` means |
+|---|---|---|
+| `highlights` | The best standalone clips | Each clip (15–60 s on auto) |
+| `series` | Part 1..N of one story, in order, cut on shared boundaries | Each part: auto 45–150 s, short 30–60, medium 45–90, long 90–175 |
+| `topic` | Every strong standalone moment about `workflow_options.topic` | Each clip, as for highlights |
+| `recap` | One clip covering the main points in order | Total: auto scales with the video (45–120 s), short ~45, medium ~75, long ~120 |
+| `trailer` | One short teaser that never reveals the payoff | Total: auto ~30, short ~20, medium ~40, long ~60 |
+
+New optional fields on `POST /tasks/`:
+
+- `workflow`: one of the five ids. Any other value is rejected, never coerced.
+- `workflow_options`: an object. `topic` (topic only): what to look for, 2–120
+  characters with at least one letter or digit; a single Han, kana or Hangul
+  character is a whole word and is accepted. `part_count` (series only):
+  `"auto"`, `null` or 2–10. Options that do not apply to the workflow are
+  dropped. `workflow_options.instructions` is also accepted.
+- `instructions`: free-text editorial guidance for any workflow, highlights
+  included, up to 500 characters. It wins over `workflow_options.instructions`
+  when both are set.
+
+Topic and instructions are normalized before they are measured or stored: line
+breaks unified, control characters, lone surrogates and invisible characters
+(soft hyphen, zero-width space, word joiner, BOM, bidi controls) removed,
+spaces collapsed. Topics are one line; instructions keep at most one blank line.
+
+```jsonc
+{"source": {"url": "https://youtu.be/VIDEO_ID"}, "workflow": "series", "workflow_options": {"part_count": "auto"}, "clip_length": "medium"}
+{"source": {"url": "https://youtu.be/VIDEO_ID"}, "workflow": "topic", "workflow_options": {"topic": "pricing"}}
+{"source": {"url": "https://youtu.be/VIDEO_ID"}, "workflow": "recap", "clip_length": "short", "instructions": "Focus on the money advice"}
+{"source": {"url": "https://youtu.be/VIDEO_ID"}, "workflow": "trailer"}
+{"source": {"url": "https://youtu.be/VIDEO_ID"}, "instructions": "Skip the sponsor read"}
+```
+
+Rejections happen before a task exists or minutes are charged. `detail` is
+`{"code", "message"}` plus the fields listed:
+
+| Status | `code` | When |
+|---|---|---|
+| 422 | `INVALID_WORKFLOW` | `workflow` is not one of the five ids |
+| 422 | `INVALID_WORKFLOW_OPTIONS` | `workflow_options` is not an object |
+| 422 | `TOPIC_REQUIRED` | topic workflow without a usable topic (empty, punctuation only, or one non-CJK character) |
+| 422 | `TOPIC_TOO_LONG` | topic over 120 characters |
+| 422 | `INVALID_PART_COUNT` | series `part_count` other than `"auto"`, `null` or 2–10 |
+| 422 | `INSTRUCTIONS_TOO_LONG` | instructions over 500 characters after normalization |
+| 403 | `WORKFLOW_NOT_AVAILABLE` | a workflow other than highlights, or instructions, outside the `WORKFLOWS_ACCESS` gate |
+| 422 | `SOURCE_TOO_SHORT_FOR_SERIES` | source under 2 minutes; `min_source_seconds`. With an explicit part count that fits fewer than two parts of the chosen length, `min_source_seconds` is what two parts need (225 for long parts) |
+| 422 | `TOO_MANY_PARTS` | the explicit part count does not fit; `max_parts` is the most that does |
+| 422 | `SOURCE_TOO_SHORT_FOR_RECAP` | source under 3 minutes; `min_source_seconds` |
+| 422 | `SOURCE_TOO_SHORT_FOR_TRAILER` | source under 3 minutes; `min_source_seconds` |
+| 422 | `SOURCE_TOO_SHORT_FOR_TOPIC` | source under 1 minute; `min_source_seconds` |
+
+`GET /tasks/workflows` reports the gate and limits for the caller:
+
+```json
+{"enabled": true,
+ "workflows": [
+   {"id": "highlights", "available": true, "min_source_seconds": 0},
+   {"id": "series", "available": true, "min_source_seconds": 120, "part_count": {"min": 2, "max": 10},
+    "lengths": {"auto": [45, 150], "short": [30, 60], "medium": [45, 90], "long": [90, 175]}},
+   {"id": "topic", "available": true, "min_source_seconds": 60},
+   {"id": "recap", "available": true, "min_source_seconds": 180, "lengths": {"auto": null, "short": 45, "medium": 75, "long": 120}},
+   {"id": "trailer", "available": true, "min_source_seconds": 180, "lengths": {"auto": 30, "short": 20, "medium": 40, "long": 60}}],
+ "topic_max_chars": 120, "instructions_max_chars": 500}
+```
+
+`enabled: false` means only highlights without instructions.
+
+Responses:
+
+- `GET /tasks/{id}` adds `workflow`, `workflow_options` (normalized, including
+  `instructions`), `workflow_plan` (the stored plan: title, parts, points,
+  beats, topic coverage, notes, and `error` after a workflow failure),
+  `source_duration_seconds` and `share_enabled`. `error_code` holds the
+  worker code below when a workflow fails.
+- Clips (`GET /tasks/{id}`, `GET /tasks/{id}/clips` and the SSE `clip_ready`
+  event) add `workflow_role` (`part`, `topic`, `recap`, `trailer`, or null for
+  highlights), `part_number` (series) and `workflow_meta` (`{}` for
+  highlights; planned ranges plus the part's title, ending and post caption,
+  the topic relevance and why, or a recap's points and a trailer's beats with
+  their offsets into the clip).
+- `GET /tasks/` adds `workflow`, `workflow_title` and `part_count`. Series,
+  recap and trailer covers are their first clip.
+- Shared results (`GET /tasks/shared/{share_token}`) add `workflow`, a public
+  `workflow_plan` (`version`, `workflow`, `title`, `parts[].{part_number,title}`,
+  `points[].label`, `beats[].role`, `topic.{query,canonical,coverage,found}`,
+  `notes[].{code,params}`) and, per clip, `part_number`, `workflow_role` and
+  `workflow_meta.{title, ends_on, points, beats}`. Options, instructions,
+  ranges, captions and errors are never shared.
+
+A workflow that cannot produce what it promised fails the task loudly instead
+of returning filler. The task ends `error` with no clips (so the minutes are
+refunded automatically), `progress_message` explains it in English, and
+`error_code` is one of:
+
+| `error_code` | Meaning | Suggested next step |
+|---|---|---|
+| `topic_not_found` | The topic is only mentioned in passing. `workflow_plan.error.details` has `suggested_topics` and `mentions` (MM:SS) | Retry with a suggested topic, or highlights |
+| `source_too_short` | Not enough story for two parts | Highlights |
+| `no_story` | No storyline runs long enough for a series | Recap |
+| `recap_unsupported` | Not enough distinct points | Highlights |
+| `trailer_unbuildable` | Every trailer would give away the ending | Recap |
+| `analysis_incomplete` | Part of the long-video analysis failed | Resume |
+| `plan_failed` | Planning failed or exceeded `WORKFLOW_PLAN_TIMEOUT_SECONDS` | Resume |
+| `render_incomplete` | A required part, recap or trailer failed to render | Resume |
+| `transcript_untimed` | The transcript has no timings to cut on | Upload the file instead |
+
+A cancelled series keeps the parts already rendered; resuming re-renders from
+the cached plan. Resume needs no extra fields for any workflow: the worker reads
+`workflow` and `workflow_options` from the task.
+
 ### Clip operations
 
 - `GET /{task_id}/clips`
@@ -172,6 +290,15 @@ new optional job argument. No new environment variables are required.
   - Download a finished export. Redirects to a presigned S3 URL when object storage is on.
 
 The queued export routes need the `clip_exports` table (created when the API process runs its startup migrations) and a worker restarted afterwards so it registers `export_clip_preset`. Ship the worker with the API, then the frontend. The synchronous GET route does not need the new table.
+
+### Sharing
+
+- `POST /{task_id}/share` / `DELETE /{task_id}/share`
+  - Create (or re-enable) and revoke the read-only share link of a completed task
+- `GET /shared/{share_token}`
+  - Public task and clip subset (see [Workflows](#workflows) for the workflow fields)
+- `GET /shared/{share_token}/clips/{clip_id}/file`
+  - Public clip file
 
 ### Task-wide settings and diagnostics
 

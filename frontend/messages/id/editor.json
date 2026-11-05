@@ -368,5 +368,7 @@
     "timeout": "AI terlalu lama. Coba lagi.",
     "failed": "Tidak bisa terhubung ke AI. Coba lagi.",
     "title": "Edit AI"
-  }
+  },
+  "partLabel": "Bagian {n}",
+  "partClipLabel": "Bagian {n} · {title}"
 }

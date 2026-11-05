@@ -9,6 +9,7 @@ from sqlalchemy import (
     ARRAY,
     Boolean,
     Float,
+    Index,
     Integer,
     Text,
     text as sql_text,
@@ -222,12 +223,29 @@ class Task(Base):
     share_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=sql_text("'false'")
     )
+    # What the task makes (highlights, series, topic, recap, trailer), its
+    # validated options and the plan persisted before rendering.
+    workflow: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=sql_text("'highlights'")
+    )
+    workflow_options: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=sql_text("'{}'::jsonb")
+    )
+    workflow_plan: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "workflow IN ('highlights', 'series', 'topic', 'recap', 'trailer')",
+            name="tasks_workflow_check",
+        ),
+        Index("idx_tasks_user_workflow", "user_id", "workflow"),
     )
 
     # Relationships
@@ -317,6 +335,13 @@ class GeneratedClip(Base):
         Integer, nullable=True, server_default=sql_text("'0'")
     )
     hook_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    # Workflow clips: part | topic | recap | trailer, the series part number
+    # and the planned ranges and labels (empty for highlights).
+    workflow_role: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    part_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    workflow_meta: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=sql_text("'{}'::jsonb")
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -26,7 +26,19 @@
     "upload": "Envio",
     "clips": "{count, plural, one {# clipe} other {# clipes}}",
     "select": "Selecionar {title}",
-    "deselect": "Desmarcar {title}"
+    "deselect": "Desmarcar {title}",
+    "workflow": {
+      "series": "Série · {count, plural, one {# parte} other {# partes}}",
+      "topic": "Tema · {count, plural, one {# momento} other {# momentos}}",
+      "recap": "Resumo",
+      "trailer": "Trailer"
+    },
+    "findingByWorkflow": {
+      "series": "Mapeando a história…",
+      "topic": "Encontrando momentos sobre o seu tema…",
+      "recap": "Escolhendo os pontos principais…",
+      "trailer": "Escrevendo o trailer…"
+    }
   },
   "title": "Biblioteca",
   "summary": "{count, plural, one {# geração} other {# gerações}} · passe o cursor para pré-visualizar, selecione para gerenciar em lote",
