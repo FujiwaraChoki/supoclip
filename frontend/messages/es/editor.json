@@ -367,7 +367,12 @@
     "length": "Ahora {duration} (antes {was})",
     "timeout": "La IA tardó demasiado. Inténtalo de nuevo.",
     "failed": "No se pudo contactar con la IA. Inténtalo de nuevo.",
-    "title": "Edición con IA"
+    "title": "Edición con IA",
+    "remaining": "Te quedan {remaining} de {limit} ediciones con IA este mes.",
+    "resets": "Se renueva el {date}.",
+    "subscriptionRequired": "La edición con IA requiere Pro o Creator.",
+    "upgradeCreator": "Mejorar a Creator",
+    "viewPlans": "Ver planes"
   },
   "partLabel": "Parte {n}",
   "partClipLabel": "Parte {n} · {title}"

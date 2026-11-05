@@ -224,6 +224,7 @@ class FakeRedis:
 
 @pytest.fixture
 def no_runtime_settings(monkeypatch):
+    monkeypatch.setattr(ai, "refund_ai_edit_usage", AsyncMock())
     monkeypatch.setattr("src.runtime_settings.load_runtime_settings_cache", AsyncMock())
 
     class Session:
@@ -352,6 +353,28 @@ async def client(tmp_path, monkeypatch):
         config=SimpleNamespace(temp_dir=str(tmp_path)),
     )
     pool = FakePool()
+    pool.allowance_limit = 10
+    pool.reserved = set()
+
+    class Allowance:
+        async def summary(self, user_id):
+            used = len(pool.reserved)
+            return {"plan": "pro", "limit": pool.allowance_limit, "used": used,
+                    "remaining": max(0, pool.allowance_limit - used),
+                    "resetsAt": "2026-12-01T00:00:00+00:00", "allowed": used < pool.allowance_limit}
+
+        async def reserve(self, user_id, job_id):
+            usage = await self.summary(user_id)
+            if not usage["allowed"]:
+                raise editor.AIEditLimitExceeded(usage)
+            pool.reserved.add(job_id)
+            return await self.summary(user_id)
+
+    async def refund(job_id):
+        pool.reserved.discard(job_id)
+
+    monkeypatch.setattr(editor, "AIEditAllowanceService", lambda db: Allowance())
+    monkeypatch.setattr(editor, "refund_ai_edit_usage", refund)
     monkeypatch.setattr(editor, "TaskService", lambda db: service)
     monkeypatch.setattr("src.api.routes.tasks._get_user_id_from_headers", AsyncMock(return_value="owner"))
     monkeypatch.setattr(editor.JobQueue, "get_pool", AsyncMock(return_value=pool))
@@ -401,6 +424,7 @@ async def test_results_are_private_to_their_clip(client, monkeypatch):
     assert (await http.get(f"/tasks/task/clips/clip/editor/ai/{job_id}")).status_code == 404
     monkeypatch.setattr("src.api.routes.tasks._get_user_id_from_headers", AsyncMock(return_value="outsider"))
     assert (await http.get(f"/tasks/task/clips/clip/editor/ai/{job_id}")).status_code == 403
+    assert (await http.get("/tasks/task/clips/clip/editor/ai")).status_code == 403
 
 
 async def test_instructions_are_validated_and_limited(client, monkeypatch):
@@ -410,16 +434,34 @@ async def test_instructions_are_validated_and_limited(client, monkeypatch):
     assert (await send(instruction="   ")).status_code == 400
     assert (await send(instruction="x" * 1001)).status_code == 400
     assert (await http.post("/tasks/task/clips/clip/editor/ai", json={"basis": "old.mp4", "document": document, "instruction": "x"})).status_code == 409
-    monkeypatch.setattr(editor, "AI_EDIT_DAILY_LIMIT", 1)
+    pool.allowance_limit = 1
     assert (await send(instruction="first")).status_code == 202
-    assert (await send(instruction="second")).status_code == 429
+    rejected = await send(instruction="second")
+    assert rejected.status_code == 429
+    assert rejected.json()["detail"]["code"] == "AI_EDIT_LIMIT_REACHED"
+    assert rejected.json()["detail"]["usage"]["remaining"] == 0
     monkeypatch.setattr(ai, "ai_editing_configured", lambda: False)
     assert (await send(instruction="third")).status_code == 503
 
 
 async def test_editor_state_says_whether_ai_editing_is_available(client):
     http, *_ = client
-    assert (await http.get("/tasks/task/clips/clip/editor")).json()["aiEditing"] is True
+    state = (await http.get("/tasks/task/clips/clip/editor")).json()
+    assert state["aiEditing"] is True
+    assert state["aiEditUsage"]["remaining"] == 10
+    assert (await http.get("/tasks/task/clips/clip/editor/ai")).json() == state["aiEditUsage"]
+
+
+async def test_unsubscribed_users_cannot_queue_an_ai_edit(client):
+    http, document, pool, enqueue = client
+    pool.allowance_limit = 0
+    response = await http.post("/tasks/task/clips/clip/editor/ai", json={
+        "basis": "clip.mp4", "document": document, "instruction": "mute",
+    })
+    assert response.status_code == 402
+    assert response.json()["detail"]["usage"]["allowed"] is False
+    assert pool.reserved == set()
+    enqueue.assert_not_awaited()
 
 
 def test_output_schema_stays_small_enough_for_structured_outputs():
@@ -438,7 +480,7 @@ async def test_nontext_instructions_never_spend_quota(client, instruction):
         "basis": "clip.mp4", "document": document, "instruction": instruction,
     })
     assert response.status_code == 400
-    assert pool.counts == {}
+    assert pool.reserved == set()
     enqueue.assert_not_awaited()
 
 
@@ -521,15 +563,15 @@ async def test_queue_failure_refunds_quota_and_removes_partial_request(client, m
         "basis": "clip.mp4", "document": document, "instruction": "mute",
     })
     assert response.status_code == 503
-    assert list(pool.counts.values()) == [0]
+    assert pool.reserved == set()
     assert pool.data == {}
 
 
-async def test_concurrent_requests_cannot_exceed_daily_quota(client, monkeypatch):
+async def test_concurrent_requests_cannot_exceed_monthly_quota(client, monkeypatch):
     import asyncio
 
     http, document, pool, enqueue = client
-    monkeypatch.setattr(editor, "AI_EDIT_DAILY_LIMIT", 5)
+    pool.allowance_limit = 5
     responses = await asyncio.gather(*(http.post("/tasks/task/clips/clip/editor/ai", json={
         "basis": "clip.mp4", "document": document, "instruction": f"request {i}",
     }) for i in range(50)))

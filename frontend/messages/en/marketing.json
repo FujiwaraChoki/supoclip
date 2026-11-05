@@ -167,6 +167,9 @@
       "title": "Compare SupoClip, Clips AI, and Auto-Editor",
       "label": "Open-source video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
+    },
+    "faq": {
+      "label": "FAQ"
     }
   },
   "nav": {
@@ -182,7 +185,8 @@
     "getStarted": "Get Started",
     "openHosted": "Open Hosted App",
     "toggleMenu": "Toggle menu",
-    "publishing": "Publishing"
+    "publishing": "Publishing",
+    "faq": "FAQ"
   },
   "hero": {
     "badge": "Open source and self-hostable. Also on iPhone.",
@@ -445,8 +449,8 @@
         "answer": "No. SupoClip never adds a watermark, on hosted plans or when you self-host."
       },
       "languages": {
-        "question": "Does it work in other languages?",
-        "answer": "Yes. The spoken language is detected automatically, so transcripts, captions, and clip picks follow the language of the video."
+        "question": "Which languages does SupoClip support?",
+        "answer": "SupoClip supports 99+ spoken languages through Universal-2, including English, Spanish, Portuguese, German, French, Chinese, Japanese, Hindi, Arabic, and Indonesian. The spoken language is detected automatically, and clips and captions follow the source language. See the FAQ for the full list and language-specific limits."
       },
       "selfHost": {
         "question": "Is it really free to self-host?",
@@ -480,5 +484,62 @@
   "cta": {
     "title": "Your next video is already a week of content.",
     "body": "Paste a link and see what SupoClip finds. Use the hosted app, or self-host the open-source version for free."
+  },
+  "faqPage": {
+    "title": "Languages, captions, and clipping",
+    "metaTitle": "FAQ: Supported languages and video processing",
+    "intro": "Find your spoken language and get clear answers about transcripts, captions, and how SupoClip processes your videos.",
+    "topics": "FAQ topics",
+    "sections": {
+      "languages": "Supported languages",
+      "processing": "Captions and processing",
+      "general": "Getting started and plans"
+    },
+    "languageBadge": "99+ spoken languages",
+    "languageIntro": "The hosted app uses AssemblyAI Universal-2 for transcription, with support for the languages and regional variants below. SupoClip uses the transcript to find clips and generate captions in the source language.",
+    "searchLabel": "Find your language",
+    "searchPlaceholder": "Search in your language or in English…",
+    "resultCount": "{count} of {total} languages and variants",
+    "listLabel": "Supported spoken languages and regional variants",
+    "noResults": "No matching language in this list. Try its English name. If it is still missing, it is not listed as supported by hosted transcription.",
+    "sourceNote": "This is the published Universal-2 language list, including regional variants. Accuracy and speaker detection vary by language and recording.",
+    "sourceLink": "View AssemblyAI’s language documentation",
+    "mandarin": "Chinese (Mandarin)",
+    "viewAll": "Explore all FAQs",
+    "viewLanguages": "See every supported language",
+    "items": {
+      "detection": {
+        "question": "Do I need to select a language before uploading?",
+        "answer": "No. The hosted app detects the spoken language for each video automatically. Changing the interface language does not change transcription. Clear speech with little background noise gives detection the best chance of choosing correctly."
+      },
+      "translation": {
+        "question": "Can SupoClip translate or dub my video?",
+        "answer": "SupoClip generates transcripts and captions in the language spoken in your video. Automatic caption translation and voice dubbing are not currently part of the clipping workflow. You can correct caption text in the editor before exporting."
+      },
+      "mixed": {
+        "question": "What if a video switches between languages?",
+        "answer": "The hosted workflow detects the main spoken language. Accurate captions are not guaranteed when speakers switch between languages within a video. For more reliable results, use recordings with one main language and review the captions before publishing."
+      },
+      "accuracy": {
+        "question": "Will every supported language be equally accurate?",
+        "answer": "No. Transcription quality varies by language, accent, background noise, and overlapping speech. Language support is not a guarantee of perfect captions or speaker detection. Review your clips, especially names, specialist terms, dialects, and recordings in less widely spoken languages."
+      },
+      "interface": {
+        "question": "Are video languages the same as the app’s interface languages?",
+        "answer": "They are separate. The interface is available in English, Spanish, Portuguese, German, Chinese, and Indonesian. Your video can be in any of the supported spoken languages listed above, regardless of the interface language you choose."
+      },
+      "fonts": {
+        "question": "Why do some caption characters look wrong or use another font?",
+        "answer": "A transcription language can be supported even when your selected caption font does not include its characters. Check the language information beside each font in the font picker and choose a font that covers your script. Review the rendered clip before exporting."
+      },
+      "cleanup": {
+        "question": "Does filler-word removal work in every language?",
+        "answer": "Cleanup uses language-specific filler lists for English, German, and French. Other languages use a small shared list of hesitation sounds. You can adjust the filtered words or disable filler-word removal. Long-pause removal is a separate setting."
+      },
+      "providers": {
+        "question": "Does self-hosting have the same language support?",
+        "answer": "Language coverage depends on the transcription provider you configure. AssemblyAI with Universal-2 uses the list above; local Whisper depends on the model you install. The YouTube captions provider depends on captions available for that video and requires a YouTube source. Your AI analysis provider is configured separately from transcription."
+      }
+    }
   }
 }
