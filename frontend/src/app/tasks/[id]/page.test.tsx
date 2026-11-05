@@ -91,6 +91,9 @@ let created: Json | null = null;
 function serve(taskBody: Json, clips: Json[]) {
   created = null;
   vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (String(input).includes("/api/tasks/workflows")) {
+      return Response.json({ enabled: true, workflows: ["highlights", "series", "topic", "recap", "trailer"].map((id) => ({ id, available: true, customizable: true })) });
+    }
     const url = String(input);
     if (url === "/api/tasks/create") {
       created = JSON.parse(String(init?.body));
