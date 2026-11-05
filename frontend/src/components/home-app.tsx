@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
 import { ComposerSettings } from "@/components/composer-settings";
+import { FeatureTourHost } from "@/components/feature-tour";
 import { OUTPUT_FORMATS, parseCreateSettings, type CreateSettings, type LengthWorkflow, type OutputFormat } from "@/lib/create-settings";
 import { VideoSourceIcon } from "@/components/video-source-icon";
 import { availableWorkflows, useWorkflowsInfo, WorkflowPicker } from "@/components/workflow-picker";
@@ -404,6 +405,19 @@ export default function HomeApp() {
     if (!next && fileInputRef.current) fileInputRef.current.value = "";
     if (!next) requestAnimationFrame(() => urlInputRef.current?.focus());
   };
+
+  // The tour shows each workflow on the real page, then puts back what was selected.
+  const workflowBeforeTour = useRef<Workflow | null>(null);
+  const previewWorkflow = useCallback((next: Workflow) => {
+    setWorkflow((current) => {
+      workflowBeforeTour.current ??= current;
+      return next;
+    });
+  }, []);
+  const endWorkflowPreview = useCallback(() => {
+    if (workflowBeforeTour.current) setWorkflow(workflowBeforeTour.current);
+    workflowBeforeTour.current = null;
+  }, []);
 
   const chooseWorkflow = (next: Workflow) => {
     setWorkflow(next);
@@ -1058,6 +1072,7 @@ export default function HomeApp() {
               {instructionsOffered && (
                 // Icon-only like B-roll, so the desktop composer stays on one row.
                 <Chip
+                  data-tour="instructions"
                   onClick={toggleInstructions}
                   disabled={controlsDisabled}
                   active={instructions.trim().length > 0 || instructionsOpen}
@@ -1287,7 +1302,7 @@ export default function HomeApp() {
                   ) }] : []),
                 ]}
                 trigger={
-                  <Chip disabled={controlsDisabled} active={settingsChanged} className="min-w-0">
+                  <Chip data-tour="composer-settings" disabled={controlsDisabled} active={settingsChanged} className="min-w-0">
                     <SlidersHorizontal className="size-3.5 shrink-0" />
                     <span className="sr-only">{t("composerSettings.chip")}: </span>
                     <span className="truncate">{settingsSummary}</span>
@@ -1311,6 +1326,7 @@ export default function HomeApp() {
                   <PopoverContent align="end" collisionPadding={12} className="w-[min(92vw,320px)] space-y-2 rounded-2xl text-xs text-muted-foreground">
                     <p>{t("uploadLimits", { size: formatUploadLimit(uploadLimitBytes) })}</p>
                     {limitNote && <p>{limitNote}</p>}
+                    {workflowsEnabled && <button type="button" onClick={() => window.location.assign("/?tour=workflows")} className="block font-medium text-foreground underline-offset-2 hover:underline">{t("composerSettings.tour")}</button>}
                     <p>
                       {t.rich("completionEmails", {
                         settings: (chunks) => (
@@ -1341,6 +1357,8 @@ export default function HomeApp() {
               <AlertDescription className="text-sm text-red-700 dark:text-red-300">{error}</AlertDescription>
             </Alert>
           )}
+
+          <FeatureTourHost enabled={Boolean(session?.user?.id)} busy={hasSource || isLoading || upgradeReason !== null} onWorkflow={previewWorkflow} onEnd={endWorkflowPreview} />
 
           <p id="source-limits" className="sr-only">
             {t("uploadLimits", { size: formatUploadLimit(uploadLimitBytes) })}{limitNote ? ` ${limitNote}` : ""}

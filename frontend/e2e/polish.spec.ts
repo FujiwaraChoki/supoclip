@@ -39,7 +39,8 @@ test("full-frame framing can be selected and submitted on mobile", async ({ page
     await route.fulfill({ json: { task_id: "one" } });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Auto 9:16", exact: true }).click();
+  await page.getByRole("button", { name: /^Settings:/ }).click();
+  await page.getByRole("tab", { name: /Framing/ }).click();
   const option = page.getByRole("radio", { name: /Full frame 9:16/ });
   await option.click();
   await expect(option).toHaveAttribute("aria-checked", "true");
@@ -258,7 +259,7 @@ for (const width of [390, 1280]) {
       await route.fulfill({ json: { task_id: "one" } });
     });
     await page.goto("/");
-    const picker = page.getByRole("button", { name: "Clip length", exact: true });
+    const picker = page.getByRole("button", { name: /^Settings:/ });
     await expect(picker).toContainText("Medium (30–60s)");
     await picker.click();
     await page.getByRole("radio", { name: "Long (1–2 min)", exact: true }).click();
@@ -277,7 +278,7 @@ for (const width of [390, 1280]) {
 }
 
 for (const clipLength of ["auto", "long"]) {
-  test(`desktop composer fits one row and mobile wraps with ${clipLength} clip length`, async ({ page }) => {
+  test(`composer fits one row at every width with ${clipLength} clip length`, async ({ page }) => {
     await page.route("**/api/tasks/billing-summary", route => route.fulfill({ json: { monetization_enabled: false } }));
     await page.route(/\/api\/tasks\/?(\?.*)?$/, route => route.fulfill({ json: { tasks: [] } }));
     await page.route("**/api/announcements**", route => route.fulfill({ json: { announcements: [] } }));
@@ -286,10 +287,13 @@ for (const clipLength of ["auto", "long"]) {
     // Widest composer: the server offers B-roll and it is switched on.
     await page.route("**/api/broll/status", route => route.fulfill({ json: { configured: true, provider: "pexels" } }));
     await page.goto("/");
-    await page.getByRole("button", { name: "B-roll", exact: true }).click();
+    await page.getByRole("button", { name: /^Settings:/ }).click();
+    await page.getByRole("tab", { name: /B-roll/ }).click();
+    await page.getByRole("switch", { name: "B-roll" }).click();
+    await page.keyboard.press("Escape");
     const submit = page.getByRole("button", { name: "Generate clips", exact: true });
     const upload = page.getByRole("button", { name: "Upload a video file", exact: true });
-    await expect(page.getByRole("button", { name: "Clip length", exact: true })).toContainText(clipLength === "auto" ? "Auto length" : "Long (1–2 min)");
+    await expect(page.getByRole("button", { name: /^Settings:/ })).toContainText(clipLength === "auto" ? "Auto length" : "Long (1–2 min)");
     for (const width of [320, 390, 768, 1280, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       for (const url of ["", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]) {
@@ -298,15 +302,10 @@ for (const clipLength of ["auto", "long"]) {
         const uploadBox = await upload.boundingBox();
         expect(buttonBox).not.toBeNull();
         expect(uploadBox).not.toBeNull();
-        if (width >= 1280) {
-          const cleanupBox = await page.getByRole("button", { name: /Cleanup/ }).boundingBox();
-          expect(Math.abs(buttonBox!.y - uploadBox!.y)).toBeLessThanOrEqual(4);
-          expect(Math.abs(cleanupBox!.y - uploadBox!.y)).toBeLessThanOrEqual(4);
-          expect(buttonBox!.x).toBeGreaterThan(cleanupBox!.x + cleanupBox!.width);
-        } else if (width <= 390) {
-          const cleanupBox = await page.getByRole("button", { name: /Cleanup/ }).boundingBox();
-          expect(cleanupBox!.y).toBeGreaterThan(uploadBox!.y);
-        }
+        const settingsBox = await page.getByRole("button", { name: /^Settings:/ }).boundingBox();
+        expect(Math.abs(buttonBox!.y - uploadBox!.y)).toBeLessThanOrEqual(4);
+        expect(Math.abs(settingsBox!.y - uploadBox!.y)).toBeLessThanOrEqual(4);
+        expect(buttonBox!.x).toBeGreaterThan(settingsBox!.x + settingsBox!.width);
         await expect(submit).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       }
@@ -330,10 +329,11 @@ test("captions turn off from the caption style menu and the composer stays on on
     await route.fulfill({ json: { task_id: "one" } });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Default", exact: true }).click();
+  await page.getByRole("button", { name: /^Settings:/ }).click();
+  await page.getByRole("tab", { name: /Captions/ }).click();
   await page.getByRole("switch", { name: "Captions", exact: true }).click();
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: "No captions", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Settings:/ })).toContainText("No captions");
   await page.getByLabel("YouTube, Twitch, or Kick URL", { exact: true }).fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
   const submit = page.getByRole("button", { name: "Generate clips", exact: true });
   const uploadBox = await page.getByRole("button", { name: "Upload a video file", exact: true }).boundingBox();
@@ -354,7 +354,8 @@ for (const width of [390, 1280]) {
     await page.route("**/api/broll/status", route => route.fulfill({ json: { configured: true, provider: "pexels" } }));
     let preferenceSaved = false;
     await page.route("**/api/preferences", async route => {
-      if (route.request().method() === "PATCH") preferenceSaved = true;
+      // The saved clip length stays out of it; remembered create settings are separate.
+      if (route.request().method() === "PATCH" && route.request().postDataJSON()?.clipLength !== undefined) preferenceSaved = true;
       await route.fulfill({ json: { clipLength: "medium" } });
     });
     const submitted: Record<string, unknown>[] = [];
@@ -366,17 +367,20 @@ for (const width of [390, 1280]) {
     await page.goto("/");
     const picker = page.getByRole("radiogroup", { name: "What do you want to make?" });
     await expect(picker).toBeVisible();
-    await page.getByRole("button", { name: "B-roll", exact: true }).click();
+    await page.getByRole("button", { name: /^Settings:/ }).click();
+    await page.getByRole("tab", { name: /B-roll/ }).click();
+    await page.getByRole("switch", { name: "B-roll" }).click();
+    await page.keyboard.press("Escape");
     await page.getByLabel("YouTube, Twitch, or Kick URL", { exact: true }).fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
     const submitBox = await page.getByRole("button", { name: "Generate clips", exact: true }).boundingBox();
     const uploadBox = await page.getByRole("button", { name: "Upload a video file", exact: true }).boundingBox();
     // Highlights keeps the one-row desktop composer with the instructions chip added.
     if (width >= 1280) expect(Math.abs(submitBox!.y - uploadBox!.y)).toBeLessThanOrEqual(4);
     await page.getByRole("radio", { name: /Series/ }).click();
-    await page.getByRole("button", { name: /Parts: Auto/ }).click();
+    await page.getByRole("button", { name: /^Settings:/ }).click();
+    await page.getByRole("tab", { name: /Number of parts/ }).click();
     await page.getByRole("radio", { name: "4 parts", exact: true }).click();
-    await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Part length", exact: true }).click();
+    await page.getByRole("tab", { name: /Part length/ }).click();
     await page.getByRole("radio", { name: "Short (30–60s)", exact: true }).click();
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Instructions", exact: true }).click();

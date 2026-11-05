@@ -298,6 +298,20 @@ CREATE INDEX idx_session_userId ON session("userId");
 CREATE INDEX idx_account_userId ON account("userId");
 CREATE INDEX idx_verification_identifier ON verification(identifier);
 CREATE INDEX idx_app_settings_updated_by ON app_settings(updated_by);
+-- One row per account and feature tour (frontend/src/lib/feature-tours.ts).
+-- A row means the tour was shown, and how it ended says whether it helped.
+CREATE TABLE user_feature_tours (
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    tour_id VARCHAR(64) NOT NULL,
+    shown_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    dismissed_at TIMESTAMP WITH TIME ZONE,
+    -- The last step reached, counted from the first real step, or null until the tour ends.
+    last_step INTEGER,
+    PRIMARY KEY (user_id, tour_id)
+);
+CREATE INDEX ix_user_feature_tours_tour ON user_feature_tours (tour_id);
+
 CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
 CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
 

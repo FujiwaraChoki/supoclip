@@ -127,7 +127,8 @@ test("a video longer than the minutes left says how short they are", async ({ pa
 test("locked custom fonts open a font-specific prompt", async ({ page }) => {
   await mockApp(page, free);
   await page.goto("/");
-  await page.getByRole("button", { name: "Default" }).click();
+  await page.getByRole("button", { name: /^Settings:/ }).click();
+  await page.getByRole("tab", { name: /Captions/ }).click();
   await page.getByRole("button", { name: /Use your own fonts/ }).click();
   await expect(page.getByRole("dialog").getByText("Captions in your brand's own font")).toBeVisible();
   await page.waitForTimeout(2200);

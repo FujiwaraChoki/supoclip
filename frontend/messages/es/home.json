@@ -78,6 +78,7 @@
   "cleanup": "Limpieza",
   "composerSettings": {
     "chip": "Ajustes",
+    "tour": "Ver el recorrido",
     "limits": "Límites de subida y detalles",
     "reset": "Restablecer todos los ajustes",
     "on": "Activado",

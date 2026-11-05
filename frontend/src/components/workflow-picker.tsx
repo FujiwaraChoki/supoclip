@@ -58,13 +58,14 @@ export function WorkflowPicker({ value, onChange, disabled, available, labelId }
   };
 
   return (
-    <div role="radiogroup" aria-labelledby={labelId} aria-disabled={disabled || undefined} className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-5 sm:overflow-visible sm:px-0 sm:pb-0">
+    <div data-tour="workflow-picker" role="radiogroup" aria-labelledby={labelId} aria-disabled={disabled || undefined} className="-mx-4 flex rounded-2xl snap-x snap-mandatory scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-5 sm:overflow-visible sm:px-0 sm:pb-0">
       {WORKFLOWS.map((id) => {
         const selectable = available.has(id);
         const checked = value === id;
         return (
           <button
             key={id}
+            data-tour={`workflow-${id}`}
             ref={(node) => { if (node) refs.current.set(id, node); else refs.current.delete(id); }}
             type="button"
             role="radio"

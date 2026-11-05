@@ -78,6 +78,7 @@
   "cleanup": "清理",
   "composerSettings": {
     "chip": "设置",
+    "tour": "查看导览",
     "limits": "上传限制和详情",
     "reset": "重置所有设置",
     "on": "开启",

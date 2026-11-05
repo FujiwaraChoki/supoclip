@@ -247,6 +247,12 @@ table (one per user, `slug` cleared on decline).
   "App Store code added" and the creator page shows `appStoreRedeemUrl(code)`.
   The app's paywall opens Apple's redeem sheet ("Have a creator code?").
 
+## Feature tours
+
+When a change gives existing users something new to find, add a tour: an entry in
+`frontend/src/lib/feature-tours.ts`, `data-tour` on its target, and text in
+`frontend/messages/*/tours.json`. Explain the feature, don't just point at it. Rules and steps: `docs/feature-tours.md`.
+
 ## Environment Variables
 
 Required in `.env` (root) or `backend/.env`:

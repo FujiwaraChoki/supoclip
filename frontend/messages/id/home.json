@@ -78,6 +78,7 @@
   "cleanup": "Pembersihan",
   "composerSettings": {
     "chip": "Pengaturan",
+    "tour": "Ikuti tur",
     "limits": "Batas unggahan dan detail",
     "reset": "Atur ulang semua pengaturan",
     "on": "Aktif",

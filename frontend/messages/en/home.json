@@ -78,6 +78,7 @@
   "cleanup": "Cleanup",
   "composerSettings": {
     "chip": "Settings",
+    "tour": "Take the tour",
     "limits": "Upload limits and details",
     "reset": "Reset all settings",
     "on": "On",

@@ -78,6 +78,7 @@
   "cleanup": "Bereinigung",
   "composerSettings": {
     "chip": "Einstellungen",
+    "tour": "Tour starten",
     "limits": "Upload-Limits und Details",
     "reset": "Alle Einstellungen zurücksetzen",
     "on": "An",
