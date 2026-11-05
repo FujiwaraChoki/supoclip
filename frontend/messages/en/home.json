@@ -76,6 +76,13 @@
   "broll": "B-roll",
   "brollHint": "Adds stock footage from Pexels where the speaker names something you can show",
   "cleanup": "Cleanup",
+  "composerSettings": {
+    "chip": "Settings",
+    "limits": "Upload limits and details",
+    "reset": "Reset all settings",
+    "on": "On",
+    "off": "Off"
+  },
   "cleanupTitle": "Clip cleanup",
   "cleanupBody": "Tighten dead air and cut filler sounds while rendering.",
   "shortenPauses": "Shorten long pauses",

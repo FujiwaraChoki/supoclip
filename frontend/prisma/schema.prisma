@@ -75,6 +75,8 @@ model User {
   default_font_color  String?   @default("#FFFFFF") @db.VarChar(7)
   notify_on_completion Boolean  @default(true)
   default_clip_length  String   @default("auto") @db.VarChar(10)
+  // What the create screen remembers between videos (lib/create-settings.ts).
+  create_settings      Json     @default("{}") @db.JsonB
   product_updates_unsubscribed_at DateTime? @db.Timestamptz
 
   // Monetization and billing

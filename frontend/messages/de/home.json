@@ -76,6 +76,13 @@
   "broll": "B-Roll",
   "brollHint": "Fügt Stock-Footage von Pexels ein, wo der Sprecher etwas Zeigbares nennt",
   "cleanup": "Bereinigung",
+  "composerSettings": {
+    "chip": "Einstellungen",
+    "limits": "Upload-Limits und Details",
+    "reset": "Alle Einstellungen zurücksetzen",
+    "on": "An",
+    "off": "Aus"
+  },
   "cleanupTitle": "Clip-Bereinigung",
   "cleanupBody": "Kürzt Leerlauf und schneidet Fülllaute beim Rendern heraus.",
   "shortenPauses": "Lange Pausen kürzen",

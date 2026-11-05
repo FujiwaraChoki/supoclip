@@ -76,6 +76,13 @@
   "broll": "B-roll",
   "brollHint": "Añade metraje de archivo de Pexels cuando se menciona algo que se puede mostrar",
   "cleanup": "Limpieza",
+  "composerSettings": {
+    "chip": "Ajustes",
+    "limits": "Límites de subida y detalles",
+    "reset": "Restablecer todos los ajustes",
+    "on": "Activado",
+    "off": "Desactivado"
+  },
   "cleanupTitle": "Limpieza del clip",
   "cleanupBody": "Reduce los silencios y corta sonidos de relleno al renderizar.",
   "shortenPauses": "Acortar pausas largas",

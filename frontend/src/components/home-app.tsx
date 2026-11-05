@@ -6,9 +6,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   AlertCircle, ArrowRight, ArrowUp, Captions, CaptionsOff, Check, ChevronDown, Clapperboard, Crop, FileVideo, SlidersHorizontal,
-  ListOrdered, Loader2, MessageSquareText, Timer, Paperclip, Sparkles, Target, Upload, Link2, Wand2, X,
+  Info, ListOrdered, Loader2, MessageSquareText, Timer, Paperclip, Sparkles, Target, Upload, Link2, Wand2, X,
 } from "lucide-react";
 import { CaptionSizeControl } from "@/components/caption-size-control";
+import { ComposerSettings } from "@/components/composer-settings";
+import { OUTPUT_FORMATS, parseCreateSettings, type CreateSettings, type LengthWorkflow, type OutputFormat } from "@/lib/create-settings";
 import { VideoSourceIcon } from "@/components/video-source-icon";
 import { availableWorkflows, useWorkflowsInfo, WorkflowPicker } from "@/components/workflow-picker";
 import { changedSettings, invalidSetting, WorkflowAdvancedSettings, type AdvancedValues } from "@/components/workflow-advanced";
@@ -25,8 +27,8 @@ import { SubscriptionCancelBanner } from "@/components/subscription-cancel-banne
 import { UpgradeDialog, UpgradeNudge, getUpgradeState, upgradeReasonForError, useBillingPlanText, type UpgradeReason } from "@/components/billing/upgrade-prompt";
 import { getPublicBillingPlans } from "@/lib/billing-plans";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Kbd } from "@/components/ui/kbd";
 import { useSession } from "@/lib/auth-client";
@@ -35,7 +37,7 @@ import { billingPlanMessageKey } from "@/lib/billing-plans";
 import { hasPaidAccess } from "@/lib/subscription-status";
 import { track } from "@/lib/datafast";
 import { formatSupportMessage, parseApiError, type ApiErrorInfo } from "@/lib/api-error";
-import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE, savedCaptionDefaults } from "@/lib/font-options";
+import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE, savedCaptionDefaults, STOCK_FONT_DEFAULTS } from "@/lib/font-options";
 import { fetchGenerations, type GenerationSummary } from "@/lib/generations";
 import { CLIP_LENGTHS, isClipLength, type ClipLength } from "@/lib/clip-duration";
 import {
@@ -56,14 +58,13 @@ interface CaptionTemplate {
   font_color?: string;
 }
 
-type OutputFormat = "vertical" | "vertical_fit" | "vertical_pan" | "vertical_split" | "original";
 
-const FRAMING_IDS: OutputFormat[] = ["vertical", "vertical_fit", "vertical_pan", "vertical_split", "original"];
+const FRAMING_IDS = OUTPUT_FORMATS;
 
 const COLOR_SWATCHES = ["#FFFFFF", "#000000", "#FFD700", "#FF6B6B", "#4ECDC4", "#45B7D1"];
 
 type PartCount = "auto" | number;
-type LengthWorkflow = "series" | "recap" | "trailer";
+const SETTINGS_SAVE_DELAY_MS = 500;
 
 // Here the length chip sets each part's or the whole video's length, not the saved clip length.
 const WORKFLOW_LENGTHS: ReadonlySet<Workflow> = new Set<Workflow>(["series", "recap", "trailer"]);
@@ -179,10 +180,13 @@ export default function HomeApp() {
   const offeredWorkflows = useMemo(() => availableWorkflows(workflowsInfo), [workflowsInfo]);
   const workflowsEnabled = workflowsInfo?.enabled === true;
   const [workflow, setWorkflow] = useState<Workflow>(storedWorkflow);
+  const initialWorkflow = useRef(workflow);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [topic, setTopic] = useState("");
   const [showTopicIssue, setShowTopicIssue] = useState(false);
   const [partCount, setPartCount] = useState<PartCount>("auto");
-  const [workflowLength, setWorkflowLength] = useState<ClipLength>("auto");
+  // Per workflow, like Advanced: a long part and a long recap are different choices.
+  const [workflowLengths, setWorkflowLengths] = useState<Partial<Record<LengthWorkflow, ClipLength>>>({});
   const [instructions, setInstructions] = useState("");
   const [instructionsOpen, setInstructionsOpen] = useState(false);
   // Per workflow: settings mean different things in each, and switching back keeps them.
@@ -212,6 +216,8 @@ export default function HomeApp() {
   const advancedProblem = workflowsEnabled ? invalidSetting(advancedSchema, advancedValues) : null;
   const usesWorkflowLength = WORKFLOW_LENGTHS.has(activeWorkflow);
   const lengthWorkflow = activeWorkflow as LengthWorkflow;
+  const workflowLength: ClipLength = workflowLengths[lengthWorkflow] ?? "auto";
+  const setWorkflowLength = (length: ClipLength) => setWorkflowLengths((current) => ({ ...current, [lengthWorkflow]: length }));
 
   const requestedWorkflow = searchParams.get("workflow");
   useEffect(() => {
@@ -244,6 +250,7 @@ export default function HomeApp() {
     let cancelled = false;
     clipLengthEdited.current = false;
     setClipLength("auto");
+    setSettingsLoaded(false);
     if (session?.user?.id) {
       setIsClipLengthLoading(true);
       void fetch("/api/preferences")
@@ -258,6 +265,7 @@ export default function HomeApp() {
           setFontFamily((current) => current ?? captionDefaults.fontFamily);
           setFontSize((current) => current ?? captionDefaults.fontSize);
           setFontColor((current) => current ?? captionDefaults.fontColor);
+          if (preferences) applyCreateSettings(parseCreateSettings(preferences.createSettings));
         })
         .catch(() => {})
         .finally(() => { if (!cancelled) setIsClipLengthLoading(false); });
@@ -266,6 +274,42 @@ export default function HomeApp() {
     }
     return () => { cancelled = true; };
   }, [session?.user?.id]);
+
+  // Saved settings fill in whatever the user hasn't already changed while they loaded.
+  function applyCreateSettings(saved: CreateSettings) {
+    const unlessChanged = <T,>(setter: React.Dispatch<React.SetStateAction<T>>, untouched: T, value: T | undefined) => {
+      if (value !== undefined) setter((current) => (Object.is(current, untouched) ? value : current));
+    };
+    unlessChanged(setWorkflow, initialWorkflow.current, saved.workflow);
+    unlessChanged(setCaptionTemplate, "default", saved.captionTemplate);
+    unlessChanged(setAddSubtitles, true, saved.addSubtitles);
+    unlessChanged<OutputFormat>(setOutputFormat, "vertical", saved.outputFormat);
+    unlessChanged(setIncludeBroll, false, saved.includeBroll);
+    unlessChanged(setCutLongPauses, true, saved.cutLongPauses);
+    unlessChanged(setPauseThresholdMs, "1200", saved.pauseThresholdMs === undefined ? undefined : String(saved.pauseThresholdMs));
+    unlessChanged(setRemoveFillerWords, true, saved.removeFillerWords);
+    unlessChanged(setFilteredWords, "", saved.filteredWords);
+    if (saved.lengths) setWorkflowLengths((current) => ({ ...saved.lengths, ...current }));
+    if (saved.advanced) setAdvancedByWorkflow((current) => ({ ...saved.advanced, ...current }));
+    setSettingsLoaded(true);
+  }
+
+  function resetCreateSettings() {
+    chooseClipLength("auto");
+    setFontFamily(null);
+    setFontSize(null);
+    setFontColor(null);
+    setCaptionTemplate("default");
+    setAddSubtitles(true);
+    setOutputFormat("vertical");
+    setIncludeBroll(false);
+    setCutLongPauses(true);
+    setPauseThresholdMs("1200");
+    setRemoveFillerWords(true);
+    setFilteredWords("");
+    setWorkflowLengths({});
+    setAdvancedByWorkflow({});
+  }
 
   function chooseClipLength(value: ClipLength) {
     clipLengthEdited.current = true;
@@ -556,7 +600,7 @@ export default function HomeApp() {
   const minSourceSeconds = workflowInfo?.min_source_seconds ?? MIN_SOURCE_SECONDS[activeWorkflow];
   const sourceTooShort = activeWorkflow !== "highlights" && sourceType === "upload" && sourceSeconds !== null && sourceSeconds < minSourceSeconds;
   // An explicit part count needs room for every part at its shortest (backend: D ≥ N · min · 1.25).
-  const partRange = workflowsInfo?.workflows.find((entry) => entry.id === "series")?.lengths?.[workflowLength];
+  const partRange = workflowsInfo?.workflows.find((entry) => entry.id === "series")?.lengths?.[workflowLengths.series ?? "auto"];
   const maxPartsThatFit = activeWorkflow === "series" && sourceType === "upload" && sourceSeconds !== null && Array.isArray(partRange)
     ? Math.floor(sourceSeconds / (partRange[0] * 1.25))
     : null;
@@ -564,6 +608,77 @@ export default function HomeApp() {
     ? ["auto", ...[...PART_COUNT_OPTIONS.filter((value): value is Exclude<typeof value, "auto"> => value !== "auto"), partCount].sort((a, b) => a - b)]
     : [...PART_COUNT_OPTIONS];
   const partLabel = partCount === "auto" ? t("parts.auto") : String(partCount);
+  const captionSummary = addSubtitles ? selectedTemplate?.name || t("defaultTemplate") : t("noCaptions");
+  const settingsSummary = [
+    lengthText(selectedLength),
+    ...(activeWorkflow === "series" ? [t("parts.picker", { value: partLabel })] : []),
+    addSubtitles ? `${t("captions")}: ${captionSummary}` : captionSummary,
+    t(`framingOptions.${outputFormat}.label`),
+  ].join(" · ");
+  // Cleanup is on by default, so it isn't counted as a change here; its own section shows what's on.
+  const changedCount = advancedCount + (includeBroll ? 1 : 0);
+  const settingsChanged = changedCount > 0 || selectedLength !== "auto" || partCount !== "auto" || customized || !addSubtitles;
+
+  // Only what is valid is remembered, so a half-typed number never comes back to block the form.
+  const settingsToSave = JSON.stringify({
+    createSettings: {
+      workflow,
+      captionTemplate,
+      addSubtitles,
+      outputFormat,
+      includeBroll,
+      cutLongPauses,
+      removeFillerWords,
+      filteredWords,
+      lengths: workflowLengths,
+      advanced: Object.fromEntries(Object.entries(advancedByWorkflow).map(([id, values]) => {
+        const schema = workflowsInfo?.workflows.find((entry) => entry.id === id)?.settings;
+        return [id, schema?.length ? changedSettings(schema, values) : values];
+      })),
+      ...(Number.isInteger(Number(pauseThresholdMs)) && Number(pauseThresholdMs) >= 250 && Number(pauseThresholdMs) <= 3000 ? { pauseThresholdMs: Number(pauseThresholdMs) } : {}),
+    },
+    // Back to the template's own look is stored as the stock defaults, which read back as "not customized".
+    fontFamily: fontFamily ?? STOCK_FONT_DEFAULTS.fontFamily,
+    ...(fontSize === null || (fontSize >= 12 && fontSize <= 48) ? { fontSize: fontSize ?? STOCK_FONT_DEFAULTS.fontSize } : {}),
+    fontColor: /^#[0-9A-Fa-f]{6}$/.test(fontColor ?? "") ? fontColor : STOCK_FONT_DEFAULTS.fontColor,
+  });
+  // A setting's allowed range can change after it was saved: drop what no longer fits instead of blocking the form.
+  useEffect(() => {
+    if (!settingsLoaded || !workflowsInfo) return;
+    setAdvancedByWorkflow((current) => Object.fromEntries(Object.entries(current).map(([id, values]) => {
+      const schema = workflowsInfo.workflows.find((entry) => entry.id === id)?.settings;
+      return [id, schema?.length ? changedSettings(schema, values) : values];
+    })));
+  }, [settingsLoaded, workflowsInfo]);
+  const savedSettings = useRef<string | null>(null);
+  const pendingSettings = useRef<string | null>(null);
+  const saveSettings = useRef((body: string, keepalive = false) => {
+    savedSettings.current = body;
+    pendingSettings.current = null;
+    void fetch("/api/preferences", { method: "PATCH", headers: { "Content-Type": "application/json" }, body, keepalive }).catch(() => {});
+  });
+  useEffect(() => {
+    if (!settingsLoaded) {
+      savedSettings.current = null;
+      return;
+    }
+    // The first look after loading is what's already stored.
+    if (savedSettings.current === null) {
+      savedSettings.current = settingsToSave;
+      return;
+    }
+    if (savedSettings.current === settingsToSave) {
+      pendingSettings.current = null;
+      return;
+    }
+    pendingSettings.current = settingsToSave;
+    const timer = setTimeout(() => saveSettings.current(settingsToSave), SETTINGS_SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [settingsLoaded, settingsToSave]);
+  // Generating navigates away straight after a change: don't lose it.
+  useEffect(() => () => {
+    if (pendingSettings.current) saveSettings.current(pendingSettings.current, true);
+  }, []);
   const partsProblem = activeWorkflow === "series" && typeof partCount === "number" && maxPartsThatFit !== null && partCount > maxPartsThatFit
     ? maxPartsThatFit < 2 ? t("workflowErrors.SOURCE_TOO_SHORT_FOR_SERIES") : t("workflowErrors.TOO_MANY_PARTS", { max_parts: maxPartsThatFit })
     : null;
@@ -834,8 +949,9 @@ export default function HomeApp() {
             </div>
 
             {activeWorkflow === "topic" && (
-              <div className="flex items-start gap-3 px-3 pb-2 sm:px-4">
-                <span className="mt-0.5 flex size-11 shrink-0 items-center justify-center text-muted-foreground"><Target className="size-5" aria-hidden /></span>
+              <div className="relative flex items-start gap-2 pb-2 pl-[3.5rem] pr-3 sm:pl-[3.75rem] sm:pr-4">
+                <SourceBranch continues={instructionsOffered && instructionsOpen} />
+                <span className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><Target className="size-4" aria-hidden /></span>
                 <div className="min-w-0 flex-1">
                   <label htmlFor="workflow-topic" className="sr-only">{t("topic.label")}</label>
                   <input
@@ -863,8 +979,9 @@ export default function HomeApp() {
             )}
 
             {instructionsOffered && instructionsOpen && (
-              <div className="flex items-start gap-3 px-3 pb-2 sm:px-4">
-                <span className="mt-0.5 flex size-11 shrink-0 items-center justify-center text-muted-foreground"><MessageSquareText className="size-5" aria-hidden /></span>
+              <div className="relative flex items-start gap-2 pb-2 pl-[3.5rem] pr-3 sm:pl-[3.75rem] sm:pr-4">
+                <SourceBranch />
+                <span className="mt-1 flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"><MessageSquareText className="size-4" aria-hidden /></span>
                 <div className="min-w-0 flex-1">
                   <Textarea
                     id="workflow-instructions"
@@ -931,20 +1048,35 @@ export default function HomeApp() {
               </div>
             )}
 
-            <div className="flex flex-wrap items-center gap-1 px-3 pb-3 sm:px-4">
+            <div className="flex items-center gap-1 px-3 pb-3 sm:px-4">
               {!file && (
                 <Chip onClick={() => fileInputRef.current?.click()} disabled={controlsDisabled} aria-label={t("uploadFile")} aria-describedby="source-limits">
                   <Paperclip className="size-3.5" /><span className="hidden sm:inline">{t("upload")}</span>
                 </Chip>
               )}
 
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Chip disabled={controlsDisabled} active={selectedLength !== "auto"} aria-label={lengthText("picker")}>
-                    <Timer className="size-3.5" />{lengthText(selectedLength)}<ChevronDown className="size-3 opacity-60" />
-                  </Chip>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-72 rounded-2xl p-3">
+              {instructionsOffered && (
+                // Icon-only like B-roll, so the desktop composer stays on one row.
+                <Chip
+                  onClick={toggleInstructions}
+                  disabled={controlsDisabled}
+                  active={instructions.trim().length > 0 || instructionsOpen}
+                  aria-expanded={instructionsOpen}
+                  aria-controls={instructionsOpen ? "workflow-instructions" : undefined}
+                  aria-label={t("instructions.chip")}
+                  title={t("instructions.chip")}
+                  className="px-2"
+                >
+                  <MessageSquareText className="size-3.5" />
+                </Chip>
+              )}
+
+              <ComposerSettings
+                label={t("composerSettings.chip")}
+                footer={<button type="button" disabled={controlsDisabled} onClick={resetCreateSettings} className="w-full rounded-lg px-2.5 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50">{t("composerSettings.reset")}</button>}
+                sections={[
+                  { id: "length", label: lengthText("picker"), icon: <Timer />, value: lengthText(selectedLength), content: (
+                    <>
                   <p className="mb-2 text-sm font-medium">{lengthText("title")}</p>
                   <div role="radiogroup" aria-label={lengthText("title")} className="grid gap-1">
                     {CLIP_LENGTHS.map((length) => (
@@ -956,17 +1088,10 @@ export default function HomeApp() {
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">{lengthText("hint")}</p>
                   {!usesWorkflowLength && clipLengthSaveError && <p role="status" className="mt-2 text-xs text-destructive">{t("clipLength.saveError")}</p>}
-                </PopoverContent>
-              </Popover>
-
-              {activeWorkflow === "series" && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Chip disabled={controlsDisabled} active={partCount !== "auto"}>
-                      <ListOrdered className="size-3.5" />{t("parts.picker", { value: partLabel })}<ChevronDown className="size-3 opacity-60" />
-                    </Chip>
-                  </PopoverTrigger>
-                  <PopoverContent align="start" className="w-64 rounded-2xl p-3">
+                    </>
+                  ) },
+                  ...(activeWorkflow === "series" ? [{ id: "parts", label: t("parts.title"), icon: <ListOrdered />, value: partLabel, content: (
+                    <>
                     <p className="mb-2 text-sm font-medium">{t("parts.title")}</p>
                     <div role="radiogroup" aria-label={t("parts.title")} className="grid grid-cols-4 gap-1">
                       {partOptions.map((option) => {
@@ -993,36 +1118,11 @@ export default function HomeApp() {
                       })}
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">{t("parts.autoHint")}</p>
-                  </PopoverContent>
-                </Popover>
-              )}
-
-              {instructionsOffered && (
-                // Icon-only like B-roll, so the desktop composer stays on one row.
-                <Chip
-                  onClick={toggleInstructions}
-                  disabled={controlsDisabled}
-                  active={instructions.trim().length > 0 || instructionsOpen}
-                  aria-expanded={instructionsOpen}
-                  aria-controls={instructionsOpen ? "workflow-instructions" : undefined}
-                  aria-label={t("instructions.chip")}
-                  title={t("instructions.chip")}
-                  className="px-2"
-                >
-                  <MessageSquareText className="size-3.5" />
-                </Chip>
-              )}
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Chip disabled={controlsDisabled} active={customized || !addSubtitles}>
-                    {addSubtitles ? <Captions className="size-3.5" /> : <CaptionsOff className="size-3.5" />}
-                    {addSubtitles ? selectedTemplate?.name || t("defaultTemplate") : t("noCaptions")}<ChevronDown className="size-3 opacity-60" />
-                  </Chip>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-[min(92vw,560px)] rounded-2xl p-0">
-                  <div className="grid gap-0 sm:grid-cols-[minmax(0,1fr)_180px]">
-                    <div className="max-h-[420px] min-w-0 space-y-4 overflow-y-auto p-4">
+                    </>
+                  ) }] : []),
+                  { id: "captions", label: t("captions"), icon: addSubtitles ? <Captions /> : <CaptionsOff />, value: captionSummary, flush: true, content: (
+                  <div className="grid gap-0 sm:h-full sm:grid-cols-[minmax(0,1fr)_180px]">
+                    <div className="min-w-0 space-y-4 overflow-y-auto p-4">
                       <div className="flex items-center justify-between gap-4 border-b pb-4">
                         <label htmlFor="add-captions" className="text-sm font-medium">{t("captions")}</label>
                         <Switch id="add-captions" checked={addSubtitles} onCheckedChange={setAddSubtitles} disabled={controlsDisabled} />
@@ -1116,16 +1216,9 @@ export default function HomeApp() {
                       <p className="mt-3 text-center text-[11px] text-muted-foreground">{t("livePreview")}</p>
                     </div>
                   </div>
-                </PopoverContent>
-              </Popover>
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Chip disabled={controlsDisabled}>
-                    <Crop className="size-3.5" />{t(`framingOptions.${outputFormat}.label`)}<ChevronDown className="size-3 opacity-60" />
-                  </Chip>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-[min(92vw,420px)] rounded-2xl p-3">
+                  ) },
+                  { id: "framing", label: t("framing"), icon: <Crop />, value: t(`framingOptions.${outputFormat}.label`), content: (
+                    <>
                   <p className="mb-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">{t("framing")}</p>
                   <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t("framing")}>
                     {FRAMING_IDS.map((id) => (
@@ -1143,24 +1236,10 @@ export default function HomeApp() {
                       </button>
                     ))}
                   </div>
-                </PopoverContent>
-              </Popover>
-
-              {brollAvailable && (
-                // Icon-only so the desktop composer stays on one row.
-                <Chip onClick={() => setIncludeBroll((value) => !value)} disabled={controlsDisabled} aria-pressed={includeBroll} aria-label={t("broll")} active={includeBroll} title={`${t("broll")}: ${t("brollHint")}`} className="px-2">
-                  <Clapperboard className="size-3.5" />
-                </Chip>
-              )}
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Chip disabled={controlsDisabled} active={cleanupCount > 0}>
-                    <Wand2 className="size-3.5" />{t("cleanup")}{cleanupCount > 0 && <span className="rounded-full bg-foreground px-1.5 text-[10px] text-background">{cleanupCount}</span>}
-                    <ChevronDown className="size-3 opacity-60" />
-                  </Chip>
-                </PopoverTrigger>
-                <PopoverContent align="start" className="w-[min(92vw,340px)] space-y-4 rounded-2xl">
+                    </>
+                  ) },
+                  { id: "cleanup", label: t("cleanup"), icon: <Wand2 />, count: cleanupCount, content: (
+                    <div className="space-y-4">
                   <div>
                     <p className="text-sm font-medium">{t("cleanupTitle")}</p>
                     <p className="text-xs text-muted-foreground">{t("cleanupBody")}</p>
@@ -1187,33 +1266,60 @@ export default function HomeApp() {
                     <label htmlFor="filtered-words" className="text-xs font-medium text-muted-foreground">{t("extraWords")}</label>
                     <Input id="filtered-words" value={filteredWords} onChange={(e) => setFilteredWords(e.target.value)} placeholder={t("extraWordsPlaceholder")} className="h-8" />
                   </div>
-                </PopoverContent>
-              </Popover>
-
-              {workflowsEnabled && advancedSchema.length > 0 && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Chip disabled={controlsDisabled} active={advancedCount > 0}>
-                      <SlidersHorizontal className="size-3.5" />{t("advanced.chip")}{advancedCount > 0 && <span className="rounded-full bg-foreground px-1.5 text-[10px] text-background">{advancedCount}</span>}
-                      <ChevronDown className="size-3 opacity-60" />
-                    </Chip>
-                  </PopoverTrigger>
-                  <PopoverContent align="start" collisionPadding={12} className="max-h-[var(--radix-popover-content-available-height)] w-[min(92vw,340px)] overflow-y-auto rounded-2xl">
+                    </div>
+                  ) },
+                  ...(brollAvailable ? [{ id: "broll", label: t("broll"), icon: <Clapperboard />, value: includeBroll ? t("composerSettings.on") : t("composerSettings.off"), content: (
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <label htmlFor="include-broll" className="text-sm font-medium">{t("broll")}</label>
+                        <p className="text-xs text-muted-foreground">{t("brollHint")}</p>
+                      </div>
+                      <Switch id="include-broll" checked={includeBroll} onCheckedChange={setIncludeBroll} disabled={controlsDisabled} />
+                    </div>
+                  ) }] : []),
+                  ...(workflowsEnabled && advancedSchema.length > 0 ? [{ id: "advanced", label: t("advanced.chip"), icon: <SlidersHorizontal />, count: advancedCount, content: (
                     <WorkflowAdvancedSettings
                       schema={advancedSchema}
                       values={advancedValues}
                       onChange={(values) => setAdvancedByWorkflow((current) => ({ ...current, [activeWorkflow]: values }))}
                       disabled={controlsDisabled}
                     />
-                  </PopoverContent>
-                </Popover>
-              )}
+                  ) }] : []),
+                ]}
+                trigger={
+                  <Chip disabled={controlsDisabled} active={settingsChanged} className="min-w-0">
+                    <SlidersHorizontal className="size-3.5 shrink-0" />
+                    <span className="sr-only">{t("composerSettings.chip")}: </span>
+                    <span className="truncate">{settingsSummary}</span>
+                    {changedCount > 0 && <span className="shrink-0 rounded-full bg-foreground px-1.5 text-[10px] text-background">{changedCount}</span>}
+                    <ChevronDown className="size-3 shrink-0 opacity-60" />
+                  </Chip>
+                }
+              />
 
-              <div className="ml-auto flex items-center gap-2">
+              <div className="ml-auto flex shrink-0 items-center gap-2">
                 {/* The shortcut hint gives way to the workflow chips; empty, it takes no room. */}
                 <span className="hidden text-xs text-muted-foreground sm:inline-flex sm:items-center sm:gap-1 sm:empty:hidden">
                   {isLoading ? <span role="status">{statusMessage || t("status.working")}</span> : hasSource && !workflowsEnabled ? <><Kbd>⌘</Kbd><Kbd>↵</Kbd></> : null}
                 </span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button type="button" aria-label={t("composerSettings.limits")} title={t("composerSettings.limits")} className="flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <Info className="size-4" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" collisionPadding={12} className="w-[min(92vw,320px)] space-y-2 rounded-2xl text-xs text-muted-foreground">
+                    <p>{t("uploadLimits", { size: formatUploadLimit(uploadLimitBytes) })}</p>
+                    {limitNote && <p>{limitNote}</p>}
+                    <p>
+                      {t.rich("completionEmails", {
+                        settings: (chunks) => (
+                          <Link href="/settings" className="font-medium text-foreground underline-offset-2 hover:underline">{chunks}</Link>
+                        ),
+                      })}
+                    </p>
+                  </PopoverContent>
+                </Popover>
                 <Button
                   type="submit"
                   size="icon"
@@ -1236,14 +1342,8 @@ export default function HomeApp() {
             </Alert>
           )}
 
-          <p id="source-limits" className="mt-4 text-center text-xs text-muted-foreground">
-            {t("uploadLimits", { size: formatUploadLimit(uploadLimitBytes) })}{" "}
-            {limitNote ? `${limitNote} ` : ""}
-            {t.rich("completionEmails", {
-              settings: (chunks) => (
-                <Link href="/settings" className="font-medium text-foreground underline-offset-2 hover:underline">{chunks}</Link>
-              ),
-            })}
+          <p id="source-limits" className="sr-only">
+            {t("uploadLimits", { size: formatUploadLimit(uploadLimitBytes) })}{limitNote ? ` ${limitNote}` : ""}
           </p>
         </div>
 
@@ -1279,6 +1379,16 @@ export default function HomeApp() {
         source="home"
       />
     </AppShell>
+  );
+}
+
+/** Ties a detail row to the source above it, like a branch: down from the source icon, then across to this row's icon. */
+function SourceBranch({ continues = false }: { continues?: boolean }) {
+  return (
+    <span aria-hidden className="pointer-events-none absolute inset-y-0 left-[2.125rem] sm:left-[2.375rem]">
+      {continues && <span className="absolute inset-y-0 left-0 w-px bg-border" />}
+      <span className="absolute -top-3 left-0 h-[2.125rem] w-[1.375rem] rounded-bl-lg border-b border-l border-border" />
+    </span>
   );
 }
 

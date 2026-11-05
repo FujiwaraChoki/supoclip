@@ -20,7 +20,7 @@ export const FONT_SIZE_OPTIONS: Array<{ label: string; value: number | null }> =
 // Column defaults every user row starts with (see the users table). A saved
 // default equal to one of these was never changed in Settings, so it keeps
 // deferring to the caption template.
-const STOCK_FONT_DEFAULTS = { fontFamily: "TikTokSans-Regular", fontSize: 24, fontColor: "#FFFFFF" };
+export const STOCK_FONT_DEFAULTS = { fontFamily: "TikTokSans-Regular", fontSize: 24, fontColor: "#FFFFFF" };
 
 /**
  * Turns the caption defaults saved in Settings (GET /api/preferences) into

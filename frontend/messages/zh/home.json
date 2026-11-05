@@ -76,6 +76,13 @@
   "broll": "B-roll 素材",
   "brollHint": "在说话者提到可展示的事物时，自动插入 Pexels 素材视频",
   "cleanup": "清理",
+  "composerSettings": {
+    "chip": "设置",
+    "limits": "上传限制和详情",
+    "reset": "重置所有设置",
+    "on": "开启",
+    "off": "关闭"
+  },
   "cleanupTitle": "片段清理",
   "cleanupBody": "渲染时收紧空白，并切掉填充音。",
   "shortenPauses": "缩短长停顿",

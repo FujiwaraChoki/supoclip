@@ -12,6 +12,8 @@ Add a line here when a pull request changes something a user can see. Use **New*
 - **Under the hood:** Preview deployments use an upload timeout within the hosting platform's supported limit. ([#334](https://github.com/FujiwaraChoki/supoclip/pull/334))
 - **Fixed:** Clips stitched together after cutting pauses no longer risk a frozen picture while the audio keeps playing. ([#333](https://github.com/FujiwaraChoki/supoclip/pull/333))
 - **Under the hood:** Groundwork for new ways to turn a video into clips, not yet available to everyone. ([#333](https://github.com/FujiwaraChoki/supoclip/pull/333))
+- **Improved:** The create screen keeps length, captions, framing, cleanup, and B-roll in one Settings menu, so the composer stays on one line. ([#337](https://github.com/FujiwaraChoki/supoclip/pull/337))
+- **Improved:** The create screen remembers your captions, framing, cleanup, B-roll, length, and other settings on your account, and Settings has a one-click reset. Topics, instructions, and part counts still start fresh for each video. ([#337](https://github.com/FujiwaraChoki/supoclip/pull/337))
 - **Fixed:** Long Chinese, Japanese, and Korean titles stay inside the frame instead of running off both edges. ([#337](https://github.com/FujiwaraChoki/supoclip/pull/337))
 - **Fixed:** Clips no longer carry chapter markers or extra data tracks from an uploaded MKV file. ([#337](https://github.com/FujiwaraChoki/supoclip/pull/337))
 - **Fixed:** Failed generations no longer show file paths or technical processing errors. ([#337](https://github.com/FujiwaraChoki/supoclip/pull/337))

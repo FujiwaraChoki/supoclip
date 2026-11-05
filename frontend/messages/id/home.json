@@ -76,6 +76,13 @@
   "broll": "B-roll",
   "brollHint": "Menambahkan stok video dari Pexels saat pembicara menyebut sesuatu yang bisa ditampilkan",
   "cleanup": "Pembersihan",
+  "composerSettings": {
+    "chip": "Pengaturan",
+    "limits": "Batas unggahan dan detail",
+    "reset": "Atur ulang semua pengaturan",
+    "on": "Aktif",
+    "off": "Nonaktif"
+  },
   "cleanupTitle": "Pembersihan clip",
   "cleanupBody": "Rapatkan jeda kosong dan potong suara pengisi saat render.",
   "shortenPauses": "Perpendek jeda panjang",

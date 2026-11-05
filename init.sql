@@ -23,6 +23,7 @@ CREATE TABLE users (
     notify_on_completion BOOLEAN NOT NULL DEFAULT true,
     default_clip_length VARCHAR(10) NOT NULL DEFAULT 'auto'
         CONSTRAINT users_default_clip_length_check CHECK (default_clip_length IN ('auto', 'short', 'medium', 'long')),
+    create_settings JSONB NOT NULL DEFAULT '{}'::jsonb,
     product_updates_unsubscribed_at TIMESTAMP WITH TIME ZONE,
     -- Monetization and billing fields
     is_admin BOOLEAN NOT NULL DEFAULT false,

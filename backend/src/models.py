@@ -55,6 +55,9 @@ class User(Base):
     default_clip_length: Mapped[str] = mapped_column(
         String(10), nullable=False, server_default=sql_text("'auto'")
     )
+    create_settings: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=sql_text("'{}'::jsonb")
+    )
 
     # Billing fields
     notify_on_completion: Mapped[bool] = mapped_column(

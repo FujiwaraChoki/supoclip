@@ -177,7 +177,8 @@ for (const path of ["/", "/tasks/one"]) {
     await page.route(/\/api\/tasks\/?(\?.*)?$/, route => route.fulfill({ json: { tasks: [] } }));
     await page.goto(path);
     if (path === "/") {
-      await page.getByRole("button", { name: "Default", exact: true }).click();
+      await page.getByRole("button", { name: /^Settings:/ }).click();
+      await page.getByRole("tab", { name: /Captions/ }).click();
     } else {
       await page.getByRole("button", { name: "More actions", exact: true }).click();
       await page.getByRole("menuitem", { name: "Restyle", exact: true }).click();

@@ -76,6 +76,13 @@
   "broll": "B-roll",
   "brollHint": "Adiciona imagens de banco do Pexels quando quem fala cita algo que dá para mostrar",
   "cleanup": "Limpeza",
+  "composerSettings": {
+    "chip": "Configurações",
+    "limits": "Limites de envio e detalhes",
+    "reset": "Redefinir todas as configurações",
+    "on": "Ativado",
+    "off": "Desativado"
+  },
   "cleanupTitle": "Limpeza do clipe",
   "cleanupBody": "Encurta os silêncios e corta sons de preenchimento na renderização.",
   "shortenPauses": "Encurtar pausas longas",
