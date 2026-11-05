@@ -367,6 +367,11 @@
     "length": "Agora {duration} (antes {was})",
     "timeout": "A IA demorou demais. Tente de novo.",
     "failed": "Não foi possível falar com a IA. Tente de novo.",
-    "title": "Edição com IA"
+    "title": "Edição com IA",
+    "remaining": "Restam {remaining} de {limit} edições com IA neste mês.",
+    "resets": "Renova em {date}.",
+    "subscriptionRequired": "A edição com IA requer Pro ou Creator.",
+    "upgradeCreator": "Mudar para Creator",
+    "viewPlans": "Ver planos"
   }
 }

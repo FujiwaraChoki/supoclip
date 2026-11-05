@@ -199,6 +199,14 @@ subscribers who were subscribed before the change (`users.legacy_hd`), get
 `APIFY_YOUTUBE_DEFAULT_QUALITY`, never above it), with a separate processing
 cache entry so a 1080p request never reuses a 720p source. Scheduling posts requires Creator; publishing immediately works on Pro.
 
+AI editing has a separate monthly allowance: 10 requests on Pro and 100 on
+Creator, shared across all clips. It resets with the monthly video allowance,
+including on annual subscriptions. Requests reserve an edit when queued; failed
+jobs restore it, while completed requests count even if the draft is unchanged.
+The editor shows the remaining allowance and reset date. Usage is stored in
+Postgres and survives clip deletion and Redis restarts. Self-hosted editing is
+unmetered. The former `AI_EDIT_DAILY_LIMIT` setting is no longer used.
+
 ### Stripe settings
 
 Required when `SELF_HOST=false` and you want subscription management:

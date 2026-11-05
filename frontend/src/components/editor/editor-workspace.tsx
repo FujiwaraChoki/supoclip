@@ -564,6 +564,7 @@ export function EditorWorkspace({
                     <AIPrompt
                       endpoint={endpoint}
                       basis={asset.basis}
+                      initialUsage={asset.aiEditUsage}
                       doc={doc}
                       playhead={time}
                       update={editor.update}
