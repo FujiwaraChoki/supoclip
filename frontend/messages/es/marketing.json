@@ -167,6 +167,9 @@
       "title": "Compare SupoClip, Clips AI, and Auto-Editor",
       "label": "Open-source video clippers",
       "description": "Choose an app, Python library, or command-line tool for the editing job you need."
+    },
+    "faq": {
+      "label": "Preguntas frecuentes"
     }
   },
   "nav": {
@@ -182,7 +185,8 @@
     "getStarted": "Comenzar",
     "openHosted": "Abrir la app alojada",
     "toggleMenu": "Abrir o cerrar el menú",
-    "publishing": "Publicación"
+    "publishing": "Publicación",
+    "faq": "Preguntas frecuentes"
   },
   "hero": {
     "badge": "Código abierto y autoalojable. También en iPhone.",
@@ -445,8 +449,8 @@
         "answer": "No. SupoClip nunca añade marca de agua, ni en los planes alojados ni si lo alojas tú."
       },
       "languages": {
-        "question": "¿Funciona en otros idiomas?",
-        "answer": "Sí. El idioma hablado se detecta automáticamente, así que la transcripción, los subtítulos y la selección de clips siguen el idioma del video."
+        "question": "¿Qué idiomas admite SupoClip?",
+        "answer": "SupoClip admite más de 99 idiomas hablados mediante Universal-2, como inglés, español, portugués, alemán, francés, chino, japonés, hindi, árabe e indonesio. El idioma se detecta automáticamente y los clips y subtítulos siguen el idioma original. Consulta la lista completa y las limitaciones en las preguntas frecuentes."
       },
       "selfHost": {
         "question": "¿De verdad es gratis autoalojarlo?",
@@ -480,5 +484,62 @@
   "cta": {
     "title": "Tu próximo video ya es una semana de contenido.",
     "body": "Pega un enlace y mira lo que encuentra SupoClip. Usa la app alojada o aloja gratis la versión de código abierto."
+  },
+  "faqPage": {
+    "title": "Idiomas, subtítulos y clips",
+    "metaTitle": "Preguntas frecuentes: idiomas y procesamiento de vídeo",
+    "intro": "Encuentra el idioma de tu vídeo y resuelve tus dudas sobre transcripciones, subtítulos y cómo SupoClip procesa tus vídeos.",
+    "topics": "Temas de preguntas frecuentes",
+    "sections": {
+      "languages": "Idiomas compatibles",
+      "processing": "Subtítulos y procesamiento",
+      "general": "Primeros pasos y planes"
+    },
+    "languageBadge": "Más de 99 idiomas hablados",
+    "languageIntro": "La aplicación alojada utiliza AssemblyAI Universal-2 para transcribir los idiomas y variantes regionales que aparecen abajo. SupoClip utiliza la transcripción para encontrar clips y generar subtítulos en el idioma original.",
+    "searchLabel": "Busca tu idioma",
+    "searchPlaceholder": "Busca en tu idioma o en inglés…",
+    "resultCount": "{count} de {total} idiomas y variantes",
+    "listLabel": "Idiomas hablados y variantes regionales compatibles",
+    "noResults": "No hay coincidencias en esta lista. Prueba con el nombre en inglés. Si sigue sin aparecer, no figura como compatible con la transcripción alojada.",
+    "sourceNote": "Esta es la lista publicada de idiomas de Universal-2, incluidas las variantes regionales. La precisión y la detección de hablantes varían según el idioma y la grabación.",
+    "sourceLink": "Ver la documentación de idiomas de AssemblyAI",
+    "mandarin": "Chino (mandarín)",
+    "viewAll": "Ver todas las preguntas frecuentes",
+    "viewLanguages": "Ver todos los idiomas compatibles",
+    "items": {
+      "detection": {
+        "question": "¿Tengo que elegir un idioma antes de subir el vídeo?",
+        "answer": "No. La aplicación alojada detecta automáticamente el idioma hablado de cada vídeo. Cambiar el idioma de la interfaz no cambia la transcripción. Una voz clara con poco ruido de fondo facilita una detección correcta."
+      },
+      "translation": {
+        "question": "¿Puede SupoClip traducir o doblar mi vídeo?",
+        "answer": "SupoClip genera transcripciones y subtítulos en el idioma hablado del vídeo. La traducción automática de subtítulos y el doblaje no forman parte del flujo de creación de clips actual. Puedes corregir el texto de los subtítulos en el editor antes de exportar."
+      },
+      "mixed": {
+        "question": "¿Qué ocurre si un vídeo cambia de idioma?",
+        "answer": "El flujo alojado detecta el idioma principal. No se garantizan subtítulos precisos cuando los hablantes cambian de idioma dentro de un vídeo. Para obtener resultados más fiables, usa grabaciones con un idioma principal y revisa los subtítulos antes de publicar."
+      },
+      "accuracy": {
+        "question": "¿Todos los idiomas compatibles tienen la misma precisión?",
+        "answer": "No. La calidad depende del idioma, el acento, el ruido de fondo y las voces superpuestas. Que un idioma sea compatible no garantiza subtítulos perfectos ni una detección perfecta de hablantes. Revisa los clips, especialmente los nombres, los términos especializados, los dialectos y los idiomas menos hablados."
+      },
+      "interface": {
+        "question": "¿Los idiomas del vídeo son los mismos que los de la interfaz?",
+        "answer": "Son independientes. La interfaz está disponible en inglés, español, portugués, alemán, chino e indonesio. El vídeo puede estar en cualquiera de los idiomas hablados de la lista, independientemente del idioma de la interfaz."
+      },
+      "fonts": {
+        "question": "¿Por qué algunos caracteres de los subtítulos se ven mal o usan otra fuente?",
+        "answer": "Un idioma puede ser compatible con la transcripción aunque la fuente elegida no incluya sus caracteres. Consulta la información de idiomas junto a cada fuente en el selector y elige una que cubra tu sistema de escritura. Revisa el clip renderizado antes de exportar."
+      },
+      "cleanup": {
+        "question": "¿La eliminación de muletillas funciona en todos los idiomas?",
+        "answer": "La limpieza usa listas específicas de muletillas para inglés, alemán y francés. Los demás idiomas utilizan una pequeña lista común de sonidos de vacilación. Puedes ajustar las palabras filtradas o desactivar su eliminación. La eliminación de pausas largas se configura por separado."
+      },
+      "providers": {
+        "question": "¿El autoalojamiento admite los mismos idiomas?",
+        "answer": "La cobertura depende del proveedor de transcripción que configures. AssemblyAI con Universal-2 utiliza la lista anterior; Whisper local depende del modelo instalado. El proveedor de subtítulos de YouTube depende de los subtítulos disponibles para ese vídeo y requiere una fuente de YouTube. El proveedor de análisis con IA se configura por separado."
+      }
+    }
   }
 }

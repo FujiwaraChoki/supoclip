@@ -69,6 +69,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     })),
     {
+      url: `${siteUrl}/faq`,
+      lastModified: new Date("2026-11-05T00:00:00.000Z"),
+      changeFrequency: "monthly",
+      priority: 0.7,
+    },
+    {
       url: `${siteUrl}/changelog`,
       lastModified: changelogUpdated,
       changeFrequency: "weekly",
