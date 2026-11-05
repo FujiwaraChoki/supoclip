@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-05
+
+- **New:** A dedicated FAQ lists every supported spoken language and regional variant, with search and answers about language detection, captions, translation limits, and video processing. It is available in all six interface languages and linked from the homepage and footer. ([#334](https://github.com/FujiwaraChoki/supoclip/pull/334))
+
 ## 2026-11-03
 
 - **Fixed:** YouTube videos blocked in the downloader's region can retry from a supported region while keeping saved transcripts and other download options available. Generation and editing explain any remaining regional restriction and suggest uploading the file or choosing another source. ([#332](https://github.com/FujiwaraChoki/supoclip/pull/332))
