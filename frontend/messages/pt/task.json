@@ -270,5 +270,15 @@
     "highlightsInstead": "Criar destaques"
   },
   "clipLoadFailed": "Não foi possível carregar este clipe.",
-  "retryPlayback": "Tentar reproduzir de novo"
+  "retryPlayback": "Tentar reproduzir de novo",
+  "recovery": {
+    "heading": "Só mais um pouquinho",
+    "messages": {
+      "snags": "Encontramos alguns obstáculos, então está demorando um pouco mais que o normal.",
+      "hiccup": "Um pequeno imprevisto está atrasando as coisas. Pode levar um pouquinho mais de tempo.",
+      "scenicRoute": "Este vídeo escolheu o caminho panorâmico. Vai demorar um pouco mais que o normal.",
+      "bumps": "Alguns solavancos pelo caminho. Estamos resolvendo—só mais um pouquinho de tempo.",
+      "slower": "As coisas estão um pouco mais lentas que o normal. Seguimos trabalhando."
+    }
+  }
 }

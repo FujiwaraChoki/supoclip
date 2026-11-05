@@ -270,5 +270,15 @@
     "highlightsInstead": "Crear momentos destacados"
   },
   "clipLoadFailed": "No se pudo cargar este clip.",
-  "retryPlayback": "Reintentar reproducción"
+  "retryPlayback": "Reintentar reproducción",
+  "recovery": {
+    "heading": "Un poquito de paciencia",
+    "messages": {
+      "snags": "Nos hemos encontrado con algunos obstáculos, así que esto está tardando un poco más de lo habitual.",
+      "hiccup": "Un pequeño contratiempo nos está frenando. Puede que tardemos un poquito más.",
+      "scenicRoute": "Este video ha elegido la ruta panorámica. Tardará un poco más de lo habitual.",
+      "bumps": "Hay algunos baches en el camino. Los estamos superando—solo necesitamos un poco más de tiempo.",
+      "slower": "Las cosas van un poco más despacio de lo habitual. Seguimos en ello."
+    }
+  }
 }

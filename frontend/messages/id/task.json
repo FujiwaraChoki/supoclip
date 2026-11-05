@@ -270,5 +270,15 @@
     "highlightsInstead": "Buat highlight saja"
   },
   "clipLoadFailed": "Clip ini tidak bisa dimuat.",
-  "retryPlayback": "Coba putar lagi"
+  "retryPlayback": "Coba putar lagi",
+  "recovery": {
+    "heading": "Tunggu sebentar lagi",
+    "messages": {
+      "snags": "Ada beberapa kendala kecil, jadi prosesnya sedikit lebih lama dari biasanya.",
+      "hiccup": "Ada sedikit hambatan yang memperlambat proses. Mungkin perlu waktu sedikit lebih lama.",
+      "scenicRoute": "Video ini memilih jalan memutar yang indah. Prosesnya sedikit lebih lama dari biasanya.",
+      "bumps": "Ada beberapa rintangan di perjalanan. Sedang kami atasi—butuh sedikit waktu lagi.",
+      "slower": "Prosesnya sedikit lebih lambat dari biasanya. Kami masih mengerjakannya."
+    }
+  }
 }

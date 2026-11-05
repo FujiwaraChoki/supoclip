@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Optional
 
 from .config import get_config
+from .download_progress import DownloadRecovery, report_download_recovery
 from .youtube_proxy import (
     AudioDownloadForbidden,
     ByteBudget,
@@ -803,6 +804,7 @@ def download_analysis_source(
         failure = exc
 
     if try_sections:
+        report_download_recovery(DownloadRecovery.FULL_VIDEO)
         try:
             return _full_timeline_via_sections(
                 url, video_id, duration, task_id=task_id, budget=budget,
@@ -818,6 +820,7 @@ def download_analysis_source(
     )
     # Run the independent provider outside the failed attempt's exception
     # handler. Its own transport, local-file and programming errors stay intact.
+    report_download_recovery(DownloadRecovery.BACKUP)
     return preserve_geo_restriction(download_full(), failure), False
 
 
