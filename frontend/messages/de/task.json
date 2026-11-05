@@ -139,5 +139,14 @@
     "full": "Vollständiges Transkript",
     "forTitle": "Transkript für {title}",
     "complete": "Vollständiges Transkript für diesen Clip"
+  },
+  "recovery": {
+    "heading": "Dein Video wird wiederhergestellt",
+    "connection": "Der Download wurde unterbrochen. Eine andere Verbindung wird versucht…",
+    "audio": "Die Tonspur wird auf einem anderen Weg heruntergeladen…",
+    "fullVideo": "Das vollständige Video wird heruntergeladen, damit die Verarbeitung weitergehen kann…",
+    "backup": "Eine alternative Download-Methode wird verwendet…",
+    "anotherBackup": "Die vorherige Methode hat nicht funktioniert. Eine weitere Alternative wird versucht…",
+    "explanation": "Das kann ein paar zusätzliche Minuten dauern. Die Erstellung geht automatisch weiter, sobald das Video bereit ist."
   }
 }

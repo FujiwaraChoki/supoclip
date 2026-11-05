@@ -20,6 +20,7 @@ from urllib.parse import quote, urljoin, urlsplit
 import requests
 
 from .config import get_config
+from .download_progress import DownloadRecovery, report_download_recovery
 
 logger = logging.getLogger(__name__)
 ADAPTERS = {"kv_file", "url_objects", "signed_url", "kv_media", "private_s3"}
@@ -481,6 +482,8 @@ def download_budget_apify(video_id: str, temp_dir: Path, quality: str, token: st
         cap = min(providers[candidate]["max_charge_usd"], provider_cap, budget)
         if cap < .001:
             raise BudgetApifyError("YouTube download exhausted its spending allowance.")
+        if index:
+            report_download_recovery(DownloadRecovery.ANOTHER_BACKUP)
         try:
             return _run(candidate, video_id, temp_dir, quality, token, timeout, cap)
         except BudgetApifyError as exc:

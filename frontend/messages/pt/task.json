@@ -139,5 +139,14 @@
     "full": "Transcrição completa",
     "forTitle": "Transcrição de {title}",
     "complete": "Transcrição completa deste clipe"
+  },
+  "recovery": {
+    "heading": "Recuperando seu vídeo",
+    "connection": "O download foi interrompido. Tentando outra conexão…",
+    "audio": "Tentando outra forma de baixar o áudio do vídeo…",
+    "fullVideo": "Baixando o vídeo completo para continuar o processamento…",
+    "backup": "Usando uma opção alternativa de download…",
+    "anotherBackup": "A opção anterior não funcionou. Tentando outra opção de recuperação…",
+    "explanation": "Isso pode levar alguns minutos a mais. A geração continuará automaticamente quando o vídeo estiver pronto."
   }
 }

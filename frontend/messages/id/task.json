@@ -139,5 +139,14 @@
     "full": "Transkrip lengkap",
     "forTitle": "Transkrip untuk {title}",
     "complete": "Transkrip lengkap untuk clip ini"
+  },
+  "recovery": {
+    "heading": "Memulihkan videomu",
+    "connection": "Unduhan terputus. Mencoba koneksi lain…",
+    "audio": "Mencoba cara lain untuk mengunduh audio video…",
+    "fullVideo": "Mengunduh video lengkap agar pemrosesan dapat dilanjutkan…",
+    "backup": "Menggunakan opsi unduhan cadangan…",
+    "anotherBackup": "Opsi sebelumnya tidak berhasil. Mencoba opsi pemulihan lain…",
+    "explanation": "Proses ini mungkin membutuhkan beberapa menit tambahan. Pembuatan akan berlanjut otomatis setelah video siap."
   }
 }

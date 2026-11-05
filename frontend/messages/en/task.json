@@ -139,5 +139,14 @@
     "full": "Full transcript",
     "forTitle": "Transcript for {title}",
     "complete": "Complete transcript for this clip"
+  },
+  "recovery": {
+    "heading": "Recovering your video",
+    "connection": "The download was interrupted. Trying another connection…",
+    "audio": "Trying another way to download the video’s audio…",
+    "fullVideo": "Downloading the full video so processing can continue…",
+    "backup": "Using a backup download option…",
+    "anotherBackup": "The previous option did not work. Trying another recovery option…",
+    "explanation": "This may take a few extra minutes. Your generation will continue automatically once the video is ready."
   }
 }
