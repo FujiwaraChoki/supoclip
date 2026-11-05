@@ -63,3 +63,31 @@ it("reports delivery failures from the configured sender without exposing tokens
     token: "secret-token",
   })).rejects.toThrow("Verification email delivery failed (503)");
 });
+
+it("revokes existing sessions after a password reset and accepts only the new password", async () => {
+  const email = "password-reset@example.com";
+  const password = "original-password-123";
+  const newPassword = "replacement-password-456";
+  state.send.mockClear();
+  state.send.mockResolvedValue(new Response("{}", { status: 200 }));
+  await auth.api.signUpEmail({ body: { name: "Reset user", email, password } });
+  const { headers } = await auth.api.signInEmail({
+    body: { email, password },
+    returnHeaders: true,
+  });
+  const sessionHeaders = new Headers({
+    cookie: headers.getSetCookie().map((cookie) => cookie.split(";")[0]).join("; "),
+  });
+  expect((await auth.api.getSession({ headers: sessionHeaders }))?.user.email).toBe(email);
+
+  await auth.api.requestPasswordReset({ body: { email, redirectTo: "/sign-in" } });
+  const resetCall = state.send.mock.calls.find(([path]) => path === "/account/password-reset-email");
+  expect(resetCall).toBeDefined();
+  const { url } = JSON.parse(resetCall![1].body);
+  const token = new URL(url).pathname.split("/").at(-1)!;
+  await auth.api.resetPassword({ body: { token, newPassword } });
+
+  expect(await auth.api.getSession({ headers: sessionHeaders })).toBeNull();
+  await expect(auth.api.signInEmail({ body: { email, password } })).rejects.toThrow();
+  expect((await auth.api.signInEmail({ body: { email, password: newPassword } })).token).toBeTruthy();
+});
