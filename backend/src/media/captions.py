@@ -1,5 +1,6 @@
 """Captions helpers for the video pipeline."""
 
+import unicodedata
 from typing import Any
 from typing import Dict
 from typing import Iterable
@@ -304,6 +305,23 @@ def ensure_glyph_coverage(
     return GLYPH_FALLBACK_FONT, template
 
 
+def _title_width(text: str) -> int:
+    """Width in average Latin characters: a Han, kana or Hangul character is about two."""
+    return sum(2 if unicodedata.east_asian_width(character) in "WF" else 1 for character in text)
+
+
+def _title_lines(title: str, max_chars: int) -> List[str]:
+    """One or two lines. Text written without spaces breaks between characters."""
+    words = title.split()
+    if len(words) != 1 or _title_width(title) <= max_chars or _title_width(title) == len(title):
+        return _balance_title_lines(words, max_chars)
+    middle = min(
+        range(1, len(title)),
+        key=lambda i: max(_title_width(title[:i]), _title_width(title[i:])),
+    )
+    return [title[:middle], title[middle:]]
+
+
 def _balance_title_lines(words: List[str], max_chars: int) -> List[str]:
     """Split title words into one line, or two lines balanced around the middle."""
     text = " ".join(words)
@@ -369,8 +387,8 @@ def build_point_label_ass(
         if end - start < POINT_LABEL_MIN_SECONDS:
             continue
         max_chars = max(10, int(usable_width / (base_px * 0.52)))
-        lines = _balance_title_lines(text_value.split(), max_chars)
-        longest = max(len(line) for line in lines)
+        lines = _title_lines(text_value, max_chars)
+        longest = max(_title_width(line) for line in lines)
         size = f"\\fs{max(24, int(usable_width / (longest * 0.52)))}" if longest > max_chars else ""
         placement = f"\\an2\\pos({video_width // 2},{round(video_height * position_y)})" if position_y is not None else ""
         body = "\\N".join(escape_ass_text(line) for line in lines)
@@ -418,8 +436,8 @@ def build_hook_title_ass(
         base_px = int(editor_style["base_px"])
     usable_width = video_width - 2 * max(48, int(video_width * HOOK_TITLE_SIDE_MARGIN_FRAC))
     max_chars = max(10, int(usable_width / (base_px * 0.52)))
-    lines = _balance_title_lines(title_text.split(), max_chars)
-    longest = max(len(line) for line in lines)
+    lines = _title_lines(title_text, max_chars)
+    longest = max(_title_width(line) for line in lines)
     hook_px = base_px
     if longest > max_chars:
         fitted = int(usable_width / (longest * 0.52))
