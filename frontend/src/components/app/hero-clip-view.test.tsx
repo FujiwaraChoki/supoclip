@@ -123,3 +123,16 @@ describe("heroMoments", () => {
     expect(heroMoments("recap", shared)[0].sourceStart).toBeNull();
   });
 });
+
+describe("HeroClipView placeholder names", () => {
+  it("shows the planner's Intro and Takeaway once, in the viewer's language", () => {
+    const meta = { ranges: [[1, 2], [3, 4], [5, 6]] as [number, number][], points: [
+      { label: "Intro", kind: "opener" as const, range_index: 0, output_start: 0 },
+      { label: "Real point", kind: "point" as const, range_index: 1, output_start: 5 },
+      { label: "Takeaway", kind: "closer" as const, range_index: 2, output_start: 9 },
+    ] };
+    render(<HeroClipView workflow="recap" clip={clip({ workflow_meta: meta })} taskId="task-1" editable busy={false} onDownload={vi.fn()} />);
+    expect(screen.getAllByText("Intro")).toHaveLength(1);
+    expect(screen.getAllByText("Takeaway")).toHaveLength(1);
+  });
+});

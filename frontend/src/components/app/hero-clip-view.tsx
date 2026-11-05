@@ -63,6 +63,10 @@ export function heroMoments(workflow: "recap" | "trailer", clip: WallClip, plan?
   }));
 }
 
+function isFraming(moment: HeroMoment): moment is HeroMoment & { kind: "opener" | "closer" } {
+  return (moment.kind === "opener" && moment.label === "Intro") || (moment.kind === "closer" && moment.label === "Takeaway");
+}
+
 /** The moment playing at `time`: the last one that started at or before it. */
 function activeMoment(moments: HeroMoment[], time: number) {
   let active = -1;
@@ -103,6 +107,8 @@ export function HeroClipView({ workflow, clip, plan, taskId, editable, busy, onD
 
   const momentLabel = (moment: HeroMoment) => {
     if (moment.role) return t.has(`beatRoles.${moment.role}`) ? t(`beatRoles.${moment.role}`) : moment.role;
+    // The planner's untranslated placeholder names: the kind already says it, in the viewer's language.
+    if (isFraming(moment)) return t(`pointKinds.${moment.kind}`);
     return moment.label;
   };
 
@@ -161,7 +167,7 @@ export function HeroClipView({ workflow, clip, plan, taskId, editable, busy, onD
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-baseline gap-x-2">
                         <span className="text-sm font-medium leading-snug">{label}</span>
-                        {moment.kind && moment.kind !== "point" && (
+                        {moment.kind && moment.kind !== "point" && !isFraming(moment) && (
                           <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t(`pointKinds.${moment.kind}`)}</span>
                         )}
                       </span>
