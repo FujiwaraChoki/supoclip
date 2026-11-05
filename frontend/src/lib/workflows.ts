@@ -319,6 +319,8 @@ export type WorkflowInfo = {
   settings?: WorkflowSetting[];
   id: Workflow;
   available: boolean;
+  /** Takes instructions and advanced settings. Plain highlights can be available without this. */
+  customizable?: boolean;
   min_source_seconds: number;
   /** series */
   part_count?: { min: number; max: number };

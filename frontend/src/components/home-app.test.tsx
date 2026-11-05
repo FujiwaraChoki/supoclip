@@ -224,6 +224,46 @@ describe("when the server does not offer workflows", () => {
   }
 });
 
+describe("when only some workflows are open to everyone", () => {
+  const partial = () => Response.json({
+    ...workflowsInfo,
+    workflows: workflowsInfo.workflows.map((entry) => {
+      const open = entry.id === "trailer" || entry.id === "topic";
+      return {
+        ...entry,
+        available: open || entry.id === "highlights",
+        customizable: open,
+        settings: open ? [{ key: "spoilers", type: "enum", default: "strict", choices: ["strict", "relaxed"] }] : [],
+      };
+    }),
+  });
+
+  it("offers instructions and settings only on the open workflows", async () => {
+    workflowsResponse = partial;
+    await renderHome();
+
+    expect(screen.getByRole("radio", { name: /Series/ })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: /Recap/ })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Instructions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Advanced/ })).not.toBeInTheDocument();
+
+    // Words after a link stay put: plain highlights can't take instructions.
+    pasteIntoUrl(`${LINK} only the funny bits`);
+    expect(urlInput().value).toBe(`${LINK} only the funny bits`);
+    fireEvent.change(urlInput(), { target: { value: LINK } });
+    const body = await submit("Generate clips");
+    expect(Object.keys(body)).toEqual(LEGACY_KEYS);
+  });
+
+  it("shows them once an open workflow is chosen", async () => {
+    workflowsResponse = partial;
+    await renderHome();
+    fireEvent.click(screen.getByRole("radio", { name: /Trailer/ }));
+    expect(await screen.findByRole("button", { name: "Instructions" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Advanced/ })).toBeInTheDocument();
+  });
+});
+
 describe("when workflows are enabled", () => {
   it("sends today's request for plain highlights", async () => {
     await renderHome();

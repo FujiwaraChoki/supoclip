@@ -155,6 +155,7 @@ and the worker**; `docker-compose.yml` passes them to both. See
 |---|---|---|
 | `WORKFLOWS_ACCESS` | `admins` | `admins` (admins plus `WORKFLOWS_ALLOWED_EMAILS`), `all`, or `off`. Anyone outside the gate only sees Highlights; the API answers other workflows, and resumes of workflow tasks, with 403 `WORKFLOW_NOT_AVAILABLE`. Jobs already queued finish. Self-hosters usually want `all` |
 | `WORKFLOWS_ALLOWED_EMAILS` | empty | Comma-separated emails admitted when access is `admins`. Only accounts with a verified email match |
+| `WORKFLOWS_PUBLIC` | empty | Comma-separated workflows (for example `trailer,topic`) open to every user while `WORKFLOWS_ACCESS` is `admins`, with instructions and advanced settings. Ignored by `off` and `all`. |
 | `WORKFLOW_TOPIC_MAX_CLIPS` | `15` | Most clips one topic run returns |
 | `WORKFLOW_PLAN_TIMEOUT_SECONDS` | `1800` | Wall-clock limit for planning one workflow (capped at 6 hours); a plan that runs over fails with `plan_failed` and the minutes are refunded |
 | `WORKFLOW_FULL_CONTEXT_MAX_WORDS` | model default | Transcript size, in English-word equivalents, up to which the whole video is outlined in one model call; longer videos are outlined in windows and merged. Empty uses 40,000 for hosted models and a smaller limit for `ollama:` models |

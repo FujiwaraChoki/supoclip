@@ -14,6 +14,7 @@ from src.workflows.assembly import RecapDraftIn, RecapPointIn, coverage_slices, 
 from src.workflows.contracts import WORKFLOW_PLAN_VERSION, WorkflowOptions, WorkflowSpec, workflow_spec_from_task
 from src.workflows.durations import recap_budget, trailer_budget
 from src.workflows.errors import WorkflowError, WorkflowRequestError
+from src.workflows.contracts import WORKFLOWS
 from src.workflows.options import parse_workflow_request, workflows_info
 from src.workflows.partition import partition_series
 from src.workflows.planning import apply_output_settings
@@ -118,10 +119,10 @@ def test_the_worker_reads_leniently():
 
 
 def test_the_schema_is_published_only_with_access():
-    enabled = {entry["id"]: entry for entry in workflows_info(True)["workflows"]}
+    enabled = {entry["id"]: entry for entry in workflows_info(frozenset(WORKFLOWS))["workflows"]}
     assert {item["key"] for item in enabled["series"]["settings"]} >= {"cold_open", "part_labels", "endings", "coverage", "hook_title", "junction_style"}
     assert {"key": "max_clips", "type": "int", "default": None, "min": 1, "max": 10} in enabled["highlights"]["settings"]
-    assert all(entry["settings"] == [] for entry in workflows_info(False)["workflows"])
+    assert all(entry["settings"] == [] for entry in workflows_info(frozenset())["workflows"])
     json.dumps(settings_schema("recap"))
 
 

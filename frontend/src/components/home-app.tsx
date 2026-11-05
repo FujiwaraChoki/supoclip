@@ -200,6 +200,9 @@ export default function HomeApp() {
   const durationFile = useRef<File | null>(null);
   const activeWorkflow: Workflow = workflowsEnabled && offeredWorkflows.has(workflow) ? workflow : "highlights";
   const advancedSchema = workflowsInfo?.workflows.find((entry) => entry.id === activeWorkflow)?.settings ?? [];
+  // Some workflows can be open to everyone while customizing highlights stays limited.
+  const instructionsOffered = workflowsEnabled
+    && workflowsInfo?.workflows.find((entry) => entry.id === activeWorkflow)?.customizable !== false;
   const advancedValues = advancedByWorkflow[activeWorkflow] ?? {};
   const advancedChanges = workflowsEnabled ? changedSettings(advancedSchema, advancedValues) : {};
   const advancedCount = Object.keys(advancedChanges).length;
@@ -382,7 +385,7 @@ export default function HomeApp() {
     base: { instructions: string; open: boolean } = { instructions, open: instructionsOpen },
   ): { url: string; instructions: string } | null => {
     const unchanged = { url: value, instructions: base.instructions };
-    if (!workflowsEnabled || !value.trim() || value === keptAsTyped.current) return unchanged;
+    if (!instructionsOffered || !value.trim() || value === keptAsTyped.current) return unchanged;
     const { url: link, rest } = splitSourceAndInstructions(value);
     if (link && rest) {
       const nextInstructions = appendInstruction(base.instructions, rest);
@@ -544,7 +547,7 @@ export default function HomeApp() {
   const lengthText = (key: "picker" | "title" | "hint" | ClipLength) =>
     usesWorkflowLength ? t(`lengthByWorkflow.${lengthWorkflow}.${key === "title" ? "picker" : key}`) : t(`clipLength.${key}`);
   const topicProblem = activeWorkflow === "topic" ? topicIssue(topic) : null;
-  const instructionsUsed = workflowsEnabled ? instructions.trim().length : 0;
+  const instructionsUsed = instructionsOffered ? instructions.trim().length : 0;
   const instructionsTooLong = instructionsUsed > INSTRUCTIONS_MAX_CHARS;
   const workflowInfo = workflowsInfo?.workflows.find((entry) => entry.id === activeWorkflow);
   const minSourceSeconds = workflowInfo?.min_source_seconds ?? MIN_SOURCE_SECONDS[activeWorkflow];
@@ -580,7 +583,7 @@ export default function HomeApp() {
       topicInputRef.current?.focus();
       return;
     }
-    const sentInstructions = workflowsEnabled ? requestInstructions.trim() : "";
+    const sentInstructions = instructionsOffered ? requestInstructions.trim() : "";
     if (sentInstructions.length > INSTRUCTIONS_MAX_CHARS) {
       setInstructionsOpen(true);
       return;
@@ -856,7 +859,7 @@ export default function HomeApp() {
               </div>
             )}
 
-            {workflowsEnabled && instructionsOpen && (
+            {instructionsOffered && instructionsOpen && (
               <div className="flex items-start gap-3 px-3 pb-2 sm:px-4">
                 <span className="mt-0.5 flex size-11 shrink-0 items-center justify-center text-muted-foreground"><MessageSquareText className="size-5" aria-hidden /></span>
                 <div className="min-w-0 flex-1">
@@ -991,7 +994,7 @@ export default function HomeApp() {
                 </Popover>
               )}
 
-              {workflowsEnabled && (
+              {instructionsOffered && (
                 // Icon-only like B-roll, so the desktop composer stays on one row.
                 <Chip
                   onClick={toggleInstructions}

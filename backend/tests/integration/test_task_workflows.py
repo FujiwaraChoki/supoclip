@@ -656,3 +656,52 @@ async def test_clip_ready_payload_carries_part_numbers(db_session, tmp_path):
     clip = await ClipRepository.get_clip_by_id(db_session, clip_id)
     assert clip["task_id"] == task_id
     assert (clip["part_number"], clip["workflow_role"]) == (1, "part")
+
+
+@pytest.mark.asyncio
+async def test_public_workflows_open_alone_while_the_rest_stay_limited(
+    client, app, db_session, youtube_duration, monkeypatch
+):
+    user_id, admin = str(uuid4()), str(uuid4())
+    await create_user(db_session, user_id=user_id)
+    await create_user(db_session, user_id=admin, is_admin=True)
+    app.state.config.workflows_access = "admins"
+    app.state.config.workflows_allowed_emails = frozenset()
+    app.state.config.workflows_public = frozenset({"trailer", "topic", "not-a-workflow"})
+    monkeypatch.setattr("src.api.routes.tasks.JobQueue.enqueue_processing_job", AsyncMock(return_value="job"))
+
+    info = (await client.get("/tasks/workflows", headers=headers_for(user_id))).json()
+    assert info["enabled"] is True
+    entries = {item["id"]: item for item in info["workflows"]}
+    assert {name: item["available"] for name, item in entries.items()} == {
+        "highlights": True, "series": False, "topic": True, "recap": False, "trailer": True,
+    }
+    assert entries["highlights"]["customizable"] is False and entries["highlights"]["settings"] == []
+    assert entries["trailer"]["customizable"] is True and entries["trailer"]["settings"]
+
+    def create(**fields):
+        return client.post(
+            "/tasks/",
+            json={"source": {"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"}, **fields},
+            headers=headers_for(user_id),
+        )
+
+    allowed = await create(workflow="trailer", workflow_options={"advanced": {"spoilers": "relaxed"}})
+    assert allowed.status_code == 200, allowed.text
+    for refused in (
+        {"workflow": "series"},
+        {"workflow": "recap"},
+        {"instructions": "Only the funny parts"},
+        {"workflow_options": {"advanced": {"max_clips": 3}}},
+    ):
+        response = await create(**refused)
+        assert response.status_code == 403, (refused, response.text)
+        assert response.json()["detail"]["code"] == "WORKFLOW_NOT_AVAILABLE"
+
+    admin_view = (await client.get("/tasks/workflows", headers=headers_for(admin))).json()
+    assert all(item["available"] and item["customizable"] for item in admin_view["workflows"])
+
+    app.state.config.workflows_access = "off"
+    closed = (await client.get("/tasks/workflows", headers=headers_for(user_id))).json()
+    assert closed["enabled"] is False
+    assert (await create(workflow="trailer")).status_code == 403

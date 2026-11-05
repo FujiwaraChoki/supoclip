@@ -275,6 +275,13 @@ class Config:
             for email in os.getenv("WORKFLOWS_ALLOWED_EMAILS", "").split(",")
             if email.strip()
         )
+        # With access "admins", these workflows are open to every user too, so
+        # they can launch one at a time. Ignored by "off" and "all".
+        self.workflows_public = frozenset(
+            name.strip().lower()
+            for name in os.getenv("WORKFLOWS_PUBLIC", "").split(",")
+            if name.strip()
+        )
         self.workflow_topic_max_clips = max(1, self._get_int_env("WORKFLOW_TOPIC_MAX_CLIPS", 15))
         self.workflow_plan_timeout_seconds = self._get_positive_float_env(
             "WORKFLOW_PLAN_TIMEOUT_SECONDS", 1800.0, maximum=6 * 60 * 60

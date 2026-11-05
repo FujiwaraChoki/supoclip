@@ -22,6 +22,7 @@ recap or trailer, and per-clip length for highlights and topic clips.
 |---|---|---|
 | `WORKFLOWS_ACCESS` | `admins` | `off`: highlights without instructions only. `admins`: admins plus `WORKFLOWS_ALLOWED_EMAILS`. `all`: everyone. Unknown values fall back to `admins`. Self-hosters set `all`. Checked when a task is created and when it is resumed; a job already queued when the gate closes still finishes. |
 | `WORKFLOWS_ALLOWED_EMAILS` | empty | Comma-separated beta emails when access is `admins`. Only verified accounts match: sign-up does not verify addresses, so an unverified account holding a listed email gets nothing. |
+| `WORKFLOWS_PUBLIC` | empty | Comma-separated workflows (for example `trailer,topic`) open to every user while `WORKFLOWS_ACCESS` is `admins`, with instructions and advanced settings. Ignored by `off` and `all`. |
 | `WORKFLOW_TOPIC_MAX_CLIPS` | `15` | Most clips a topic run returns. |
 | `WORKFLOW_PLAN_TIMEOUT_SECONDS` | `1800` | Wall-clock bound on planning; past it the task fails with `plan_failed`. |
 | `WORKFLOW_FULL_CONTEXT_MAX_WORDS` | empty | Budget, in English-word equivalents, for reading a whole transcript in one outline call (non-Latin scripts count by estimated tokens). Empty or `0` uses 40,000, or 9,000 for `ollama:` models. |
