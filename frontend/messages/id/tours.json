@@ -4,13 +4,13 @@
   "next": "Berikutnya",
   "back": "Kembali",
   "done": "Selesai",
-  "start": "Tunjukkan",
+  "start": "Tunjukkan 👀",
   "notNow": "Nanti saja",
   "progress": "{current} dari {total}",
   "workflows": {
     "intro": {
-      "title": "Satu video, lima cara memakainya",
-      "body": "Selama ini kamu mendapat sorotan. Sekarang kamu pilih dulu mau membuat apa. Mau lihat sekilas? Hanya sekitar satu menit."
+      "title": "Memperkenalkan alur kerja",
+      "body": "Alur kerja memungkinkanmu memilih apa yang dibuat sebelum mulai. Selain sorotan, satu video kini bisa menjadi serial bernomor, semua klip tentang satu topik, rangkuman, atau trailer. Ini sekilas tentang masing-masing, cukup satu menit."
     },
     "highlights": {
       "title": "Sorotan",

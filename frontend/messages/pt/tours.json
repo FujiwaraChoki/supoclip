@@ -4,13 +4,13 @@
   "next": "Avançar",
   "back": "Voltar",
   "done": "Concluir",
-  "start": "Mostrar",
+  "start": "Mostrar 👀",
   "notNow": "Agora não",
   "progress": "{current} de {total}",
   "workflows": {
     "intro": {
-      "title": "Um vídeo, cinco formas de usar",
-      "body": "Até agora você recebia destaques. Agora você escolhe primeiro o que criar. Quer dar uma olhada? Leva cerca de um minuto."
+      "title": "Apresentando os fluxos",
+      "body": "Os fluxos permitem escolher o que criar antes de começar. Além dos destaques, um vídeo agora pode virar uma série numerada, todos os clipes sobre um tema, um resumo ou um trailer. Veja cada um em um minuto."
     },
     "highlights": {
       "title": "Destaques",

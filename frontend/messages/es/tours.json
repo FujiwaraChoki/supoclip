@@ -4,13 +4,13 @@
   "next": "Siguiente",
   "back": "Atrás",
   "done": "Listo",
-  "start": "Muéstrame",
+  "start": "Muéstrame 👀",
   "notNow": "Ahora no",
   "progress": "{current} de {total}",
   "workflows": {
     "intro": {
-      "title": "Un video, cinco formas de usarlo",
-      "body": "Hasta ahora obtenías momentos destacados. Ahora eliges primero qué crear. ¿Un vistazo rápido? Lleva cerca de un minuto."
+      "title": "Presentamos los flujos",
+      "body": "Los flujos te permiten elegir qué crear antes de empezar. Además de momentos destacados, un video ahora puede convertirse en una serie numerada, todos los clips sobre un tema, un resumen o un tráiler. Aquí tienes un vistazo de un minuto a cada uno."
     },
     "highlights": {
       "title": "Momentos destacados",

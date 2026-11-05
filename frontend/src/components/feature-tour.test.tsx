@@ -45,7 +45,7 @@ beforeEach(() => {
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-const firstTitle = "One video, five ways to use it";
+const firstTitle = "Introducing workflows";
 const wait = () => act(() => new Promise((resolve) => setTimeout(resolve, 1200)));
 
 describe("FeatureTourHost", () => {
@@ -59,7 +59,7 @@ describe("FeatureTourHost", () => {
     expect(onWorkflow).not.toHaveBeenCalled();
     expect(posted).toEqual(["workflows"]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Show me" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show me 👀" }));
     expect(screen.getByText("1 of 7")).toBeInTheDocument();
     expect(onWorkflow).toHaveBeenLastCalledWith("highlights");
     for (const [id, title] of [["series", "Series"], ["topic", "Topic"], ["recap", "Recap"], ["trailer", "Trailer"]]) {
@@ -112,7 +112,7 @@ describe("FeatureTourHost", () => {
   it("only talks about workflows this account can use", async () => {
     render(<Page closed={["series", "recap"]} />);
     await screen.findByText(firstTitle, undefined, { timeout: 2500 });
-    fireEvent.click(screen.getByRole("button", { name: "Show me" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show me 👀" }));
     expect(screen.getByText("1 of 5")).toBeInTheDocument();
   });
 

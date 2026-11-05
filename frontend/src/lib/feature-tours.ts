@@ -24,6 +24,8 @@ export type FeatureTour = {
    * newer never knew it any other way. Set it to the day a gated feature opens to them.
    */
   releasedAt: string;
+  /** Picture for the opening announcement, from `public/` (render it, don't screenshot it). */
+  image?: string;
   /** Other tours this one already explains, so nobody gets them again. */
   covers?: readonly string[];
   steps: readonly TourStep[];
@@ -40,6 +42,7 @@ export const FEATURE_TOURS: readonly FeatureTour[] = [
     id: "workflows",
     // Update to the day workflows open to everyone: accounts created until then should see this too.
     releasedAt: "2026-11-06T00:00:00Z",
+    image: "/tours/workflows.webp",
     covers: ["composer-settings"],
     steps: [
       { target: "workflow-picker", message: "intro", side: "bottom", intro: true },

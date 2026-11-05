@@ -4,13 +4,13 @@
   "next": "Next",
   "back": "Back",
   "done": "Done",
-  "start": "Show me",
+  "start": "Show me 👀",
   "notNow": "Not now",
   "progress": "{current} of {total}",
   "workflows": {
     "intro": {
-      "title": "One video, five ways to use it",
-      "body": "Until now you got highlights. Now you choose what to make first. Want a quick look? It takes about a minute."
+      "title": "Introducing workflows",
+      "body": "Workflows let you choose what to make before you start. Besides highlights, one video can now become a numbered series, every clip about a topic, a recap, or a trailer. Here’s a one-minute look at each."
     },
     "highlights": {
       "title": "Highlights",

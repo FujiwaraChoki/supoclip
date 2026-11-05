@@ -258,3 +258,9 @@
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
+
+/* Feature tour announcement: the render settles in as the dialog opens. */
+@keyframes tour-zoom {
+  from { transform: scale(1.06); opacity: 0.4; }
+  to { transform: scale(1); opacity: 1; }
+}

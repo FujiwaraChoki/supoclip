@@ -10,9 +10,8 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { track } from "@/lib/datafast";
 import { dueTours, FEATURE_TOURS, TOUR_COOLDOWN_MS, type FeatureTour, type TourStep } from "@/lib/feature-tours";
-import { WORKFLOWS, type Workflow } from "@/lib/workflows";
+import type { Workflow } from "@/lib/workflows";
 import { WorkflowGlyph } from "@/components/workflow-picker";
-import { cn } from "@/lib/utils";
 
 const LAST_SHOWN_KEY = "supoclip.featureTour.lastShown";
 const SEEN_KEY = "supoclip.featureTour.seen";
@@ -76,30 +75,12 @@ function Spotlight({ target }: { target: HTMLElement }) {
   );
 }
 
-/** The opening announcement's picture: every workflow, each taking a turn in the spotlight. */
-function WorkflowShowcase() {
-  const t = useTranslations("home");
-  const [active, setActive] = useState(0);
-  useEffect(() => {
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = setInterval(() => setActive((current) => (current + 1) % WORKFLOWS.length), 1400);
-    return () => clearInterval(timer);
-  }, []);
+/** The opening announcement's picture: rendered in Blender from assets/blender/workflows-announcement.py. */
+function AnnouncementImage({ src }: { src: string }) {
   return (
-    <div aria-hidden className="grid grid-cols-5 gap-1.5 bg-gradient-to-b from-muted/80 to-muted/30 px-4 pb-5 pt-7 sm:gap-2 sm:px-6">
-      {WORKFLOWS.map((id, index) => (
-        <div
-          key={id}
-          aria-checked={index === active}
-          className={cn(
-            "group/workflow flex flex-col items-center gap-1.5 rounded-xl border bg-background p-1.5 shadow-sm transition-all duration-500 ease-out motion-reduce:transition-none",
-            index === active ? "-translate-y-1.5 border-foreground/70 shadow-md" : "opacity-70",
-          )}
-        >
-          <WorkflowGlyph id={id} className="w-full px-1 py-2 [&_svg]:h-auto [&_svg]:max-w-none" />
-          <span className="truncate text-[10px] font-medium sm:text-[11px]">{t(`workflows.${id}.label`)}</span>
-        </div>
-      ))}
+    <div className="relative aspect-[1600/688] overflow-hidden bg-[#0b0a09]">
+      {/* eslint-disable-next-line @next/next/no-img-element -- a static, pre-sized render */}
+      <img src={src} alt="" width={1600} height={688} className="size-full object-cover motion-safe:animate-[tour-zoom_1.4s_ease-out_both]" />
     </div>
   );
 }
@@ -214,7 +195,7 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd }: {
           // Start on the answer most people want, not on the way out.
           onOpenAutoFocus={(event) => { event.preventDefault(); showMe.current?.focus(); }}
         >
-          <WorkflowShowcase />
+          {running.tour.image && <AnnouncementImage src={running.tour.image} />}
           <div className="px-6 pb-6 pt-5">
             <span className="inline-flex rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">{t("new")}</span>
             <DialogTitle className="mt-2 font-display text-xl tracking-tight">{t(`${keys}.title`)}</DialogTitle>
