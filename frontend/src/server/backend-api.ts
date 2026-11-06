@@ -30,20 +30,33 @@ export function buildBackendUrl(path: string) {
 
 const TRACE_ID_PATTERN = /^[A-Za-z0-9._-]{8,128}$/;
 
+/** Which app made the request. The backend evaluates feature flags per platform. */
+export const CLIENT_HEADER = "x-supoclip-client";
+
 /**
- * Forward the browser's `x-trace-id` (set per request in `lib/trace-fetch.ts`)
- * so backend logs and PostHog errors share an id. Outside a request, or when
- * the header is missing or malformed, a fresh id is used.
+ * Headers every backend call carries from the incoming request:
+ *
+ * - `x-trace-id` (set per request in `lib/trace-fetch.ts`) so backend logs and
+ *   PostHog errors share an id. Outside a request, or when the header is
+ *   missing or malformed, a fresh id is used.
+ * - `x-supoclip-client: ios` when the iOS app sent it, so feature flags are
+ *   evaluated for iOS. Anything else is web, and isn't forwarded.
  */
 export async function backendTraceHeaders(): Promise<Record<string, string>> {
-  let incoming: string | null = null;
+  let trace: string | null = null;
+  let client: string | null = null;
   try {
     const { headers } = await import("next/headers");
-    incoming = (await headers()).get("x-trace-id");
+    const incoming = await headers();
+    trace = incoming.get("x-trace-id");
+    client = incoming.get(CLIENT_HEADER);
   } catch {
     // Not inside a request scope (scripts, tests).
   }
-  return { "x-trace-id": incoming && TRACE_ID_PATTERN.test(incoming) ? incoming : randomUUID() };
+  return {
+    "x-trace-id": trace && TRACE_ID_PATTERN.test(trace) ? trace : randomUUID(),
+    ...(client?.trim().toLowerCase() === "ios" ? { [CLIENT_HEADER]: "ios" } : {}),
+  };
 }
 
 export async function fetchBackend(

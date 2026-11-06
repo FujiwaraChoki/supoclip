@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 from src.config import Config, set_config_override
 from src.database import configure_database, init_db, reset_database_state
 from src.main import create_app
+from src import feature_flags as feature_flags_module
 
 
 class _FakeRedisPool:
@@ -97,10 +98,12 @@ async def app(db_session):
     config.redis_port = int(os.getenv("REDIS_PORT", "6379"))
 
     test_app = create_app(config=config, queue_adapter=FakeQueueAdapter)
+    feature_flags_module.clear_cache()
     try:
         yield test_app
     finally:
         set_config_override(None)
+        feature_flags_module.clear_cache()
 
 
 @pytest.fixture()
@@ -126,3 +129,57 @@ def auth_headers():
         "x-supoclip-ts": timestamp,
         "x-supoclip-signature": signature,
     }
+
+
+_FLAG_COLUMNS = ("web_enabled", "ios_enabled", "admins_bypass")
+
+
+@pytest.fixture()
+async def feature_flag(db_session):
+    """``await feature_flag("workflows", web_enabled=True)`` sets a flag row for one
+    test (creating it if needed) and puts every touched row back afterwards."""
+    from sqlalchemy import text
+
+    saved: dict[str, dict | None] = {}
+
+    async def set_flag(key: str, **values: bool) -> None:
+        row = (
+            await db_session.execute(
+                text("SELECT web_enabled, ios_enabled, admins_bypass FROM feature_flags WHERE key = :key"),
+                {"key": key},
+            )
+        ).mappings().first()
+        if key not in saved:
+            saved[key] = dict(row) if row else None
+        current = {"web_enabled": False, "ios_enabled": False, "admins_bypass": True, **(dict(row) if row else {})}
+        current.update(values)
+        await db_session.execute(
+            text(
+                """
+                INSERT INTO feature_flags (key, web_enabled, ios_enabled, admins_bypass)
+                VALUES (:key, :web_enabled, :ios_enabled, :admins_bypass)
+                ON CONFLICT (key) DO UPDATE SET web_enabled = EXCLUDED.web_enabled,
+                    ios_enabled = EXCLUDED.ios_enabled, admins_bypass = EXCLUDED.admins_bypass
+                """
+            ),
+            {"key": key, **{column: current[column] for column in _FLAG_COLUMNS}},
+        )
+        await db_session.commit()
+        feature_flags_module.clear_cache()
+
+    yield set_flag
+
+    await db_session.rollback()
+    for key, row in saved.items():
+        if row is None:
+            await db_session.execute(text("DELETE FROM feature_flags WHERE key = :key"), {"key": key})
+        else:
+            await db_session.execute(
+                text(
+                    "UPDATE feature_flags SET web_enabled = :web_enabled, ios_enabled = :ios_enabled, "
+                    "admins_bypass = :admins_bypass WHERE key = :key"
+                ),
+                {"key": key, **row},
+            )
+    await db_session.commit()
+    feature_flags_module.clear_cache()

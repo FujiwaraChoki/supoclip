@@ -142,5 +142,19 @@
     "editAction": "Bearbeiten",
     "hide": "Ausblenden",
     "publish": "Veröffentlichen"
+  },
+  "flags": {
+    "title": "Feature-Flags",
+    "description": "Funktionen pro Plattform ohne Deployment einschalten. Änderungen erreichen die API in etwa 15 Sekunden.",
+    "flag": "Flag",
+    "web": "Web",
+    "ios": "iOS",
+    "adminsBypass": "Admins immer",
+    "adminsBypassHint": "Admins bekommen sie auf jeder Plattform, auch wenn sie aus ist",
+    "updated": "Geändert",
+    "updatedBy": "{date} von {email}",
+    "empty": "Noch keine Feature-Flags.",
+    "toggle": "{flag} auf {platform}",
+    "updateFailed": "Flag konnte nicht geändert werden"
   }
 }
