@@ -36,39 +36,63 @@ class TaskRepository:
         processing_mode: str = "fast",
         source_duration_seconds: Optional[int] = None,
         charge_minutes: bool = False,
+        workflow: str = "highlights",
+        workflow_options: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Create a new task and return its ID."""
         source_duration_seconds = charged_duration(source_duration_seconds)
         task_id = str(uuid4())
+        params = {
+            "task_id": task_id,
+            "user_id": user_id,
+            "source_id": source_id,
+            "status": status,
+            "font_family": font_family,
+            "font_size": font_size,
+            "font_color": font_color,
+            "caption_template": caption_template,
+            "include_broll": include_broll,
+            "processing_mode": processing_mode,
+            "source_duration_seconds": source_duration_seconds,
+        }
         try:
-            result = await db.execute(
-                text("""
-                    INSERT INTO tasks (
-                        id, user_id, source_id, status, font_family, font_size, font_color,
-                        caption_template, include_broll, processing_mode,
-                        source_duration_seconds, created_at, updated_at
-                    )
-                    VALUES (
-                        :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
-                        :caption_template, :include_broll, :processing_mode,
-                        :source_duration_seconds, NOW(), NOW()
-                    )
-                    RETURNING id
-                """),
-                {
-                    "task_id": task_id,
-                    "user_id": user_id,
-                    "source_id": source_id,
-                    "status": status,
-                    "font_family": font_family,
-                    "font_size": font_size,
-                    "font_color": font_color,
-                    "caption_template": caption_template,
-                    "include_broll": include_broll,
-                    "processing_mode": processing_mode,
-                    "source_duration_seconds": source_duration_seconds,
-                },
-            )
+            if workflow == "highlights" and not workflow_options:
+                # Plain highlights rely on the column defaults, so the insert is
+                # unchanged and still works before the workflows migration.
+                result = await db.execute(
+                    text("""
+                        INSERT INTO tasks (
+                            id, user_id, source_id, status, font_family, font_size, font_color,
+                            caption_template, include_broll, processing_mode,
+                            source_duration_seconds, created_at, updated_at
+                        )
+                        VALUES (
+                            :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
+                            :caption_template, :include_broll, :processing_mode,
+                            :source_duration_seconds, NOW(), NOW()
+                        )
+                        RETURNING id
+                    """),
+                    params,
+                )
+            else:
+                # No fallback without the columns: the task would run as highlights.
+                result = await db.execute(
+                    text("""
+                        INSERT INTO tasks (
+                            id, user_id, source_id, status, font_family, font_size, font_color,
+                            caption_template, include_broll, processing_mode,
+                            source_duration_seconds, workflow, workflow_options, created_at, updated_at
+                        )
+                        VALUES (
+                            :task_id, :user_id, :source_id, :status, :font_family, :font_size, :font_color,
+                            :caption_template, :include_broll, :processing_mode,
+                            :source_duration_seconds, :workflow, CAST(:workflow_options AS JSONB), NOW(), NOW()
+                        )
+                        RETURNING id
+                    """),
+                    {**params, "workflow": workflow, "workflow_options": json.dumps(workflow_options or {})},
+                )
             returned_id = result.scalar()
             if not returned_id:
                 raise RuntimeError("Failed to create task: no ID returned")
@@ -88,6 +112,41 @@ class TaskRepository:
             await db.execute(
                 text("UPDATE tasks SET source_metadata = source_metadata || CAST(:metadata AS JSONB) WHERE id = :task_id"),
                 {"task_id": task_id, "metadata": json.dumps(metadata)},
+            )
+            await commit_unless_editing(db)
+        except BaseException:
+            await db.rollback()
+            raise
+
+    @staticmethod
+    async def save_workflow_plan(
+        db: AsyncSession, task_id: str, plan: Optional[Dict[str, Any]]
+    ) -> None:
+        """Store the workflow plan, replacing any earlier one (never merged)."""
+        try:
+            await db.execute(
+                text("UPDATE tasks SET workflow_plan = CAST(:plan AS JSONB) WHERE id = :task_id"),
+                {"task_id": task_id, "plan": None if plan is None else json.dumps(plan)},
+            )
+            await commit_unless_editing(db)
+        except BaseException:
+            await db.rollback()
+            raise
+
+    @staticmethod
+    async def merge_workflow_plan_error(
+        db: AsyncSession, task_id: str, code: str, details: Optional[Dict[str, Any]]
+    ) -> None:
+        """Record a workflow failure as ``workflow_plan.error``, keeping the rest of the plan."""
+        try:
+            await db.execute(
+                text("""
+                    UPDATE tasks
+                    SET workflow_plan = COALESCE(workflow_plan, '{}'::jsonb)
+                        || jsonb_build_object('error', CAST(:err AS JSONB))
+                    WHERE id = :task_id
+                """),
+                {"task_id": task_id, "err": json.dumps({"code": code, "details": details or {}})},
             )
             await commit_unless_editing(db)
         except BaseException:
@@ -183,6 +242,11 @@ class TaskRepository:
                 row, "completion_notification_sent_at", None
             ),
             "source_url": getattr(row, "source_url", None),
+            "source_duration_seconds": getattr(row, "source_duration_seconds", None),
+            "share_enabled": getattr(row, "share_enabled", None),
+            "workflow": getattr(row, "workflow", None) or "highlights",
+            "workflow_options": getattr(row, "workflow_options", None) or {},
+            "workflow_plan": getattr(row, "workflow_plan", None),
             "created_at": row.created_at,
             "updated_at": row.updated_at,
         }
@@ -395,24 +459,52 @@ class TaskRepository:
         db: AsyncSession, user_id: str, limit: int = 50
     ) -> List[Dict[str, Any]]:
         """Get all tasks for a user."""
-        result = await db.execute(
-            text("""
-                SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url,
-                       (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count,
-                       (SELECT MAX(virality_score) FROM generated_clips WHERE task_id = t.id) as top_virality_score,
-                       (SELECT id FROM generated_clips WHERE task_id = t.id
-                        ORDER BY virality_score DESC NULLS LAST, clip_order ASC LIMIT 1) as cover_clip_id
-                FROM tasks t
-                LEFT JOIN sources s ON t.source_id = s.id
-                WHERE t.user_id = :user_id
-                ORDER BY t.created_at DESC
-                LIMIT :limit
-            """),
-            {"user_id": user_id, "limit": limit},
-        )
+        params = {"user_id": user_id, "limit": limit}
+        try:
+            async with db.begin_nested():
+                # Series, recap and trailer covers are the first output (Part 1),
+                # not the best-scored one: they have no scores.
+                result = await db.execute(
+                    text("""
+                        SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url,
+                               (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count,
+                               (SELECT MAX(virality_score) FROM generated_clips WHERE task_id = t.id) as top_virality_score,
+                               (SELECT id FROM generated_clips WHERE task_id = t.id
+                                ORDER BY CASE WHEN t.workflow IN ('series', 'recap', 'trailer') THEN clip_order END ASC NULLS LAST,
+                                         virality_score DESC NULLS LAST, clip_order ASC
+                                LIMIT 1) as cover_clip_id
+                        FROM tasks t
+                        LEFT JOIN sources s ON t.source_id = s.id
+                        WHERE t.user_id = :user_id
+                        ORDER BY t.created_at DESC
+                        LIMIT :limit
+                    """),
+                    params,
+                )
+        except DBAPIError as exc:
+            if getattr(exc.orig, "sqlstate", None) != "42703":
+                raise
+            result = await db.execute(
+                text("""
+                    SELECT t.*, s.title as source_title, s.type as source_type, s.url as source_url,
+                           (SELECT COUNT(*) FROM generated_clips WHERE task_id = t.id) as clips_count,
+                           (SELECT MAX(virality_score) FROM generated_clips WHERE task_id = t.id) as top_virality_score,
+                           (SELECT id FROM generated_clips WHERE task_id = t.id
+                            ORDER BY virality_score DESC NULLS LAST, clip_order ASC LIMIT 1) as cover_clip_id
+                    FROM tasks t
+                    LEFT JOIN sources s ON t.source_id = s.id
+                    WHERE t.user_id = :user_id
+                    ORDER BY t.created_at DESC
+                    LIMIT :limit
+                """),
+                params,
+            )
 
         tasks = []
         for row in result.fetchall():
+            plan = getattr(row, "workflow_plan", None)
+            plan = plan if isinstance(plan, dict) else {}
+            parts = plan.get("parts")
             tasks.append(
                 {
                     "id": row.id,
@@ -429,6 +521,9 @@ class TaskRepository:
                     "source_url": row.source_url,
                     "top_virality_score": row.top_virality_score,
                     "cover_clip_id": row.cover_clip_id,
+                    "workflow": getattr(row, "workflow", None) or "highlights",
+                    "workflow_title": plan.get("title"),
+                    "part_count": (len(parts) if isinstance(parts, list) else 0) or None,
                     "created_at": row.created_at,
                     "updated_at": row.updated_at,
                 }

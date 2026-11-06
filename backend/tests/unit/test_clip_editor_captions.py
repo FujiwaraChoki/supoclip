@@ -70,6 +70,47 @@ def test_overlay_custom_captions_uses_template_and_cached_word_timings(
     assert ",62," in captured["content"]
 
 
+
+def test_overlay_custom_captions_follows_planned_output_offsets(tmp_path, monkeypatch):
+    """A trailer's second beat plays earlier footage after a fade; captions follow the stored offsets."""
+    input_path = tmp_path / "clip.mp4"
+    input_path.write_bytes(b"clip")
+    source_path = tmp_path / "source.mp4"
+    source_path.with_suffix(".transcript_cache.json").write_text(
+        """
+        {
+          "version": 2,
+          "words": [
+            {"text": "early", "start": 5100, "end": 5500, "confidence": 0.99},
+            {"text": "late", "start": 40200, "end": 40600, "confidence": 0.99}
+          ],
+          "utterances": [],
+          "text": "early late"
+        }
+        """,
+        encoding="utf-8",
+    )
+    captured = {}
+    monkeypatch.setattr(clip_editor, "_ffprobe_size", lambda _path: (1080, 1920))
+    monkeypatch.setattr(clip_editor, "_ffprobe_duration", lambda _path: 3.8)
+    monkeypatch.setattr(clip_editor, "_run", lambda _command: None)
+    monkeypatch.setattr(
+        clip_editor, "build_assemblyai_ass_subtitles",
+        lambda *_args, **kwargs: captured.update(kwargs) or True,
+    )
+
+    clip_editor.overlay_custom_captions(
+        input_path, tmp_path / "output", "late early", "bottom", [],
+        transcript_video_path=source_path,
+        source_ranges=[(40.0, 42.0), (5.0, 7.0)],
+        output_offsets=[0.0, 1.8],
+    )
+
+    words = captured["caption_words"]
+    assert [word["text"] for word in words] == ["late", "early"]
+    assert [word["start"] for word in words] == pytest.approx([0.2, 1.9])
+    assert [word["end"] for word in words] == pytest.approx([0.6, 2.3])
+
 def test_export_preset_drops_frame_rates_above_60(tmp_path, monkeypatch):
     source = tmp_path / "clip.mp4"
     source.write_bytes(b"clip")

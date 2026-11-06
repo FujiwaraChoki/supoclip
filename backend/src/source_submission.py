@@ -16,6 +16,8 @@ from typing import Any
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
 from uuid import uuid4
 
+from .workflows.contracts import WORKFLOWS
+
 logger = logging.getLogger(__name__)
 
 _IOS_CLIENT = re.compile(r"supoclip-ios/(\d{1,8}(?:\.\d{1,8}){0,4})", re.IGNORECASE)
@@ -68,6 +70,14 @@ def sanitize_source_url(raw: str | None) -> SanitizedSource:
     return _sanitize_http(text, scheme)
 
 
+def workflow_label(raw: Any) -> str:
+    """The requested workflow id. Missing means highlights; anything unknown is
+    ``invalid``, so request text never reaches the logs."""
+    if raw is None:
+        return "highlights"
+    return raw if isinstance(raw, str) and raw in WORKFLOWS else "invalid"
+
+
 def record_fields(
     *,
     raw_url: str | None,
@@ -77,6 +87,7 @@ def record_fields(
     status_code: int,
     detail: Any = None,
     allow_empty_url: bool = False,
+    workflow: Any = None,
 ) -> dict[str, Any] | None:
     """Build the structured fields for one submission, or None when nothing was submitted."""
     url = raw_url.strip() if isinstance(raw_url, str) else ""
@@ -95,6 +106,7 @@ def record_fields(
         "outcome": outcome,
         "status_code": int(status_code),
         "reason": reason,
+        "workflow": workflow_label(workflow),
     }
 
 
@@ -109,6 +121,7 @@ def log_source_submission(fields: dict[str, Any]) -> None:
         "source_url": fields["sanitized_url"] or "-",
         "source_outcome": fields["outcome"],
         "source_status": fields["status_code"],
+        "source_workflow": fields.get("workflow") or "highlights",
     }
     if fields["outcome"] == "rejected" and fields.get("reason"):
         extra["source_reason"] = fields["reason"]
@@ -138,6 +151,7 @@ async def record_source_submission(
     detail: Any = None,
     persist: bool = False,
     allow_empty_url: bool = False,
+    workflow: Any = None,
 ) -> None:
     """Log one submission. Persist only rejected attempts, and only when asked."""
     try:
@@ -149,6 +163,7 @@ async def record_source_submission(
             status_code=status_code,
             detail=detail,
             allow_empty_url=allow_empty_url,
+            workflow=workflow,
         )
         if fields is None:
             return
@@ -191,6 +206,7 @@ class SourceAttempt:
         self.user_agent = _header(request, "user-agent")
         self.raw_url: str | None = None
         self.user_id: str | None = None
+        self.workflow: Any = None
         self._finished = False
 
     def note_url(self, raw_url: Any) -> None:
@@ -200,6 +216,10 @@ class SourceAttempt:
     def note_user(self, user_id: str | None) -> None:
         if isinstance(user_id, str) and user_id.strip():
             self.user_id = user_id.strip()
+
+    def note_workflow(self, workflow: Any) -> None:
+        """The raw requested workflow; only its known id (or ``invalid``) is logged."""
+        self.workflow = workflow
 
     async def accepted(self) -> None:
         await self._finish("accepted", 200, None)
@@ -219,6 +239,7 @@ class SourceAttempt:
             status_code=status_code,
             detail=detail,
             persist=outcome == "rejected" and self.db is not None,
+            workflow=self.workflow,
         )
 
 

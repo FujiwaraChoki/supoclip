@@ -15,6 +15,7 @@ from ..font_registry import get_font_advance_metrics
 from ..font_registry import get_font_codepoints
 from ..font_registry import get_font_family_name
 from ..caption_templates import get_template
+from ..clip_source_map import normalize_source_ranges
 from ..emoji_captions import normalize_token
 import cv2
 import numpy as np
@@ -37,6 +38,7 @@ from .transcription import (
     load_cached_transcript_data,
 )
 from .timeline import (
+    get_absolute_words_in_range,
     get_words_for_keep_ranges,
     get_words_in_range,
 )
@@ -423,6 +425,40 @@ def build_hook_title_ass(
     return style_line, events
 
 
+# A planned clip that jumps this far in the source (or backwards) starts a
+# new passage: a recap point, a trailer beat, the far side of a skipped tangent.
+PASSAGE_JUMP_SECONDS = 2.0
+
+
+def _passage_breaks(
+    transcript_data: Dict[str, Any], keep_ranges: List[Tuple[float, float]]
+) -> List[int]:
+    """Word indices (in get_words_for_keep_ranges order) that open a new passage."""
+    ranges = normalize_source_ranges(keep_ranges)
+    breaks: List[int] = []
+    count = 0
+    for index, (start, end) in enumerate(ranges):
+        if index and count:
+            previous_start, previous_end = ranges[index - 1]
+            if start < previous_start or start - previous_end > PASSAGE_JUMP_SECONDS:
+                breaks.append(count)
+        count += len(get_absolute_words_in_range(transcript_data, start, end))
+    return breaks
+
+
+def _chunk_bounds(word_count: int, chunk_size: int, breaks: List[int]):
+    """Caption lines of ``chunk_size`` words that never straddle a passage break.
+
+    A line showing the next beat's words before the cut would give the edit away.
+    """
+    start = 0
+    for limit in [*sorted(set(breaks)), word_count]:
+        while start < min(limit, word_count):
+            stop = min(limit, word_count, start + chunk_size)
+            yield start, stop
+            start = stop
+
+
 def build_assemblyai_ass_subtitles(
     video_path: Path,
     clip_start: float,
@@ -451,6 +487,7 @@ def build_assemblyai_ass_subtitles(
     caption_placements: Optional[List[Optional[Dict[str, Any]]]] = None,
     avoid_band: Optional[Tuple[float, float]] = None,
     caption_layout_report: Optional[Dict[str, Any]] = None,
+    output_offsets: Optional[List[float]] = None,
 ) -> bool:
     """Generate animated word-synced ASS subtitles from cached AssemblyAI words.
 
@@ -467,7 +504,9 @@ def build_assemblyai_ass_subtitles(
     clamp, ``emphasis_indices`` replaces automatic emphasis with exactly those
     words, and ``wrap_lines`` lets libass wrap lines wider than the frame.
     ``avoid_band`` is a (top, bottom) height fraction holding captions burned
-    into the source; the spoken captions move clear of it.
+    into the source; the spoken captions move clear of it. ``output_offsets``
+    are a workflow clip's explicit range starts on the clip timeline (planned
+    junction fades); without them the renderer's default crossfades apply.
     """
     transcript_data = load_cached_transcript_data(video_path)
 
@@ -478,6 +517,7 @@ def build_assemblyai_ass_subtitles(
     animation = template.get("animation", "karaoke")
 
     relevant_words: List[Dict[str, Any]] = list(caption_words or [])
+    passage_breaks: List[int] = []
     if (
         include_captions
         and not relevant_words
@@ -485,7 +525,9 @@ def build_assemblyai_ass_subtitles(
         and transcript_data.get("words")
     ):
         if keep_ranges:
-            relevant_words = get_words_for_keep_ranges(transcript_data, keep_ranges)
+            relevant_words = get_words_for_keep_ranges(transcript_data, keep_ranges, output_offsets)
+            if output_offsets is not None:
+                passage_breaks = _passage_breaks(transcript_data, keep_ranges)
         else:
             relevant_words = get_words_in_range(transcript_data, clip_start, clip_end)
     if not relevant_words and not hook_title:
@@ -562,7 +604,10 @@ def build_assemblyai_ass_subtitles(
     hook_style_block = ""
     hook_events: List[str] = []
     if hook_title:
-        if keep_ranges:
+        if keep_ranges and output_offsets:
+            last_start, last_end = normalize_source_ranges(keep_ranges)[-1]
+            output_duration = max(0.0, float(output_offsets[-1]) + last_end - last_start)
+        elif keep_ranges:
             output_duration = rendered_ranges_duration(keep_ranges)
         else:
             output_duration = max(0.0, clip_end - clip_start)
@@ -622,8 +667,7 @@ def build_assemblyai_ass_subtitles(
 
     word_widths = [display_width(index, word) for index, word in enumerate(relevant_words)]
     chunk_spans: List[Tuple[int, int, float]] = []
-    for chunk_start in range(0, len(relevant_words), chunk_size):
-        chunk_stop = min(len(relevant_words), chunk_start + chunk_size)
+    for chunk_start, chunk_stop in _chunk_bounds(len(relevant_words), chunk_size, passage_breaks):
         if wrap_lines:
             chunk_spans.append((chunk_start, chunk_stop, 1.0))
             continue

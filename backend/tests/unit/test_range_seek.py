@@ -48,5 +48,5 @@ def test_crossfade_render_seeks_before_reading(tmp_path):
     command = commands[0]
     assert command[command.index("-ss") + 1] == "30.000"
     graph = command[command.index("-filter_complex") + 1]
-    assert "trim=start=0.000:end=2.000" in graph
-    assert "trim=start=4.000:end=6.000" in graph
+    assert "trim=start_frame=0:end_frame=60" in graph
+    assert "trim=start_frame=120:end_frame=180" in graph

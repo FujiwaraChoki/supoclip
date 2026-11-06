@@ -50,3 +50,12 @@ class TaskCheckpointRepository:
         if result.scalar_one_or_none() is None:
             raise TaskCancelled()
         await commit_unless_editing(db)
+
+    @staticmethod
+    async def forget_completed_positions(db: AsyncSession, task_id: str) -> None:
+        await db.execute(text("""
+            UPDATE task_processing_checkpoints
+            SET payload = payload - 'completed_positions', updated_at = CURRENT_TIMESTAMP
+            WHERE task_id = :task_id
+        """), {"task_id": task_id})
+        await commit_unless_editing(db)

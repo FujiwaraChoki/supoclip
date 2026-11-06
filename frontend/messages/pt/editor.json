@@ -373,5 +373,7 @@
     "subscriptionRequired": "A edição com IA requer Pro ou Creator.",
     "upgradeCreator": "Mudar para Creator",
     "viewPlans": "Ver planos"
-  }
+  },
+  "partLabel": "Parte {n}",
+  "partClipLabel": "Parte {n} · {title}"
 }

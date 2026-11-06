@@ -126,5 +126,132 @@
     "long": "Longo (1–2 min)",
     "hint": "Duração desejada antes de remover pausas e vícios de linguagem. Sua escolha é salva como padrão.",
     "saveError": "Não foi possível salvar o padrão. Este vídeo usará sua escolha."
+  },
+  "whatToMake": "O que você quer criar?",
+  "workflows": {
+    "highlights": {
+      "label": "Destaques",
+      "hint": "Os melhores momentos, cada um por si"
+    },
+    "series": {
+      "label": "Série",
+      "hint": "Partes em sequência que contam a história inteira"
+    },
+    "topic": {
+      "label": "Tema",
+      "hint": "Todo momento forte sobre um assunto"
+    },
+    "recap": {
+      "label": "Resumo",
+      "hint": "Um vídeo curto com os pontos principais"
+    },
+    "trailer": {
+      "label": "Trailer",
+      "hint": "Uma prévia curta que dá vontade de ver o vídeo inteiro"
+    }
+  },
+  "subtitleByWorkflow": {
+    "highlights": "Solte um vídeo longo. Receba clipes legendados, prontos para publicar.",
+    "series": "Solte um vídeo longo. Receba uma série numerada que prende a atenção até o fim.",
+    "topic": "Solte um vídeo longo. Receba todos os momentos fortes sobre o seu tema.",
+    "recap": "Solte um vídeo longo. Receba um vídeo curto com os pontos principais.",
+    "trailer": "Solte um vídeo longo. Receba uma prévia curta que dá vontade de ver tudo."
+  },
+  "generateByWorkflow": {
+    "highlights": "Gerar clipes",
+    "series": "Gerar série",
+    "topic": "Encontrar momentos",
+    "recap": "Criar resumo",
+    "trailer": "Criar trailer"
+  },
+  "topic": {
+    "placeholder": "Qual tema? ex.: como montar um negócio",
+    "required": "Digite um tema para procurar.",
+    "label": "Tema"
+  },
+  "parts": {
+    "picker": "Partes: {value}",
+    "title": "Número de partes",
+    "auto": "Auto",
+    "autoHint": "Escolhemos quantas partes a história comporta",
+    "count": "{count, plural, one {# parte} other {# partes}}"
+  },
+  "lengthByWorkflow": {
+    "series": {
+      "picker": "Duração de cada parte",
+      "auto": "Auto (1–1,5 min)",
+      "short": "Curta (30–60 s)",
+      "medium": "Média (45–90 s)",
+      "long": "Longa (1,5–3 min)",
+      "hint": "Duração de cada parte antes de remover pausas e vícios de linguagem."
+    },
+    "recap": {
+      "picker": "Duração do resumo",
+      "auto": "Auto (conforme o vídeo)",
+      "short": "Curto (cerca de 45 s)",
+      "medium": "Médio (cerca de 75 s)",
+      "long": "Longo (cerca de 2 min)",
+      "hint": "Duração total do resumo."
+    },
+    "trailer": {
+      "picker": "Duração do trailer",
+      "auto": "Auto (cerca de 30 s)",
+      "short": "Curto (cerca de 20 s)",
+      "medium": "Médio (cerca de 40 s)",
+      "long": "Longo (cerca de 1 min)",
+      "hint": "Duração total do trailer."
+    }
+  },
+  "instructions": {
+    "chip": "Instruções",
+    "remove": "Remover instruções",
+    "counter": "{used}/{max}",
+    "placeholder": {
+      "highlights": "Algo específico? ex.: só os momentos engraçados, sem o trecho do patrocinador",
+      "series": "Algo específico? ex.: foque na história da primeira startup",
+      "topic": "Algo específico? ex.: só dicas práticas, sem histórias pessoais",
+      "recap": "Algo específico? ex.: foque nas dicas de dinheiro",
+      "trailer": "Algo específico? ex.: deixe no mistério, foque no conflito"
+    }
+  },
+  "urlRescue": {
+    "moved": "Movemos “{text}” para as instruções.",
+    "undo": "Desfazer",
+    "notALink": "Isso parece uma instrução, não um link. Cole o link do vídeo aqui e guardamos isso como instrução.",
+    "moveToInstructions": "Mover para instruções"
+  },
+  "suggestWorkflow": {
+    "series": "Que tal uma série?",
+    "seriesCount": "Que tal uma série em {count} partes?",
+    "topic": "Que tal encontrar todos os momentos sobre “{topic}”?",
+    "recap": "Que tal um resumo?",
+    "trailer": "Que tal um trailer?"
+  },
+  "tooShort": {
+    "series": "Este vídeo tem {duration}. Uma série precisa de pelo menos 2 minutos. Aqui, Destaques funciona muito bem.",
+    "recap": "Este vídeo tem {duration}. Resumos funcionam em vídeos com mais de 3 minutos.",
+    "trailer": "Este vídeo tem {duration}. Trailers funcionam em vídeos com mais de 3 minutos.",
+    "topic": "Este vídeo tem {duration}. A busca por tema precisa de pelo menos 1 minuto.",
+    "useHighlights": "Usar Destaques"
+  },
+  "workflowErrors": {
+    "INVALID_WORKFLOW": "Essa opção não está disponível.",
+    "INVALID_WORKFLOW_OPTIONS": "Essas configurações não estão disponíveis.",
+    "TOPIC_REQUIRED": "Digite um tema para procurar.",
+    "TOPIC_TOO_LONG": "O tema precisa ter menos de 120 caracteres.",
+    "INVALID_PART_COUNT": "Escolha Auto ou de 2 a 10 partes.",
+    "INSTRUCTIONS_TOO_LONG": "As instruções precisam ter menos de 500 caracteres.",
+    "SOURCE_TOO_SHORT_FOR_SERIES": "Este vídeo é curto demais para virar uma série. Experimente Destaques.",
+    "TOO_MANY_PARTS": "Este vídeo comporta no máximo {max_parts} partes. Escolha menos partes ou Auto.",
+    "SOURCE_TOO_SHORT_FOR_RECAP": "Este vídeo já é curto. Resumos funcionam em vídeos com mais de 3 minutos.",
+    "SOURCE_TOO_SHORT_FOR_TRAILER": "Trailers funcionam em vídeos com mais de 3 minutos.",
+    "SOURCE_TOO_SHORT_FOR_TOPIC": "Este vídeo é curto demais para buscar por tema. Experimente Destaques.",
+    "WORKFLOW_NOT_AVAILABLE": "Esta opção ainda não está disponível na sua conta."
+  },
+  "palette": {
+    "series": "Nova série",
+    "topic": "Nova busca por tema",
+    "recap": "Novo resumo",
+    "trailer": "Novo trailer"
   }
 }

@@ -14,6 +14,7 @@ async def create_user(
     is_admin: bool = False,
     plan: str = "free",
     subscription_status: str = "inactive",
+    email_verified: bool = False,
 ):
     user_id = user_id or str(uuid4())
     email = email or f"{user_id}@example.com"
@@ -29,7 +30,7 @@ async def create_user(
                 id, name, email, "emailVerified", "createdAt", "updatedAt",
                 is_admin, plan, subscription_status
             ) VALUES (
-                :id, :name, :email, false, :created_at, :updated_at,
+                :id, :name, :email, :email_verified, :created_at, :updated_at,
                 :is_admin, :plan, :subscription_status
             )
             """
@@ -38,6 +39,7 @@ async def create_user(
             "id": user_id,
             "name": name,
             "email": email,
+            "email_verified": email_verified,
             "created_at": now,
             "updated_at": now,
             "is_admin": is_admin,

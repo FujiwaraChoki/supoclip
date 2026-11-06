@@ -245,7 +245,14 @@ def overlay_custom_captions(
     transcript_video_path: Optional[Path] = None,
     source_ranges: Optional[List[tuple[float, float]]] = None,
     position_y: Optional[float] = None,
+    output_offsets: Optional[List[float]] = None,
 ) -> Path:
+    """Burn edited captions onto ``input_path``.
+
+    ``output_offsets`` are where each source range starts in the clip; planned
+    workflow clips pass the offsets they were rendered with (fades, beats out
+    of source order) so captions stay on the audio at every junction.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / _safe_name("caption")
     words = [word for word in caption_text.split() if word.strip()]
@@ -267,7 +274,7 @@ def overlay_custom_captions(
     timed_words: List[Dict[str, Any]] = []
     if transcript_data and transcript_data.get("words"):
         if source_ranges:
-            timed_words = get_words_for_keep_ranges(transcript_data, source_ranges)
+            timed_words = get_words_for_keep_ranges(transcript_data, source_ranges, output_offsets)
         else:
             timed_words = get_words_in_range(transcript_data, 0.0, duration)
 

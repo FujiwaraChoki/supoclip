@@ -373,5 +373,7 @@
     "subscriptionRequired": "AI editing requires Pro or Creator.",
     "upgradeCreator": "Upgrade to Creator",
     "viewPlans": "View plans"
-  }
+  },
+  "partLabel": "Part {n}",
+  "partClipLabel": "Part {n} · {title}"
 }

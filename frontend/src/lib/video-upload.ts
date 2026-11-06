@@ -28,6 +28,35 @@ export function uploadTooLargeMessage(limitBytes: number, fileBytes?: number): s
   return `This file is over the ${limit} upload limit. Try a shorter export or a smaller file.`;
 }
 
+/**
+ * Length of a local video file in seconds, read from its metadata without
+ * uploading it. Null when the browser cannot read the file in time; callers
+ * treat that as unknown and leave the check to the server.
+ */
+export function readVideoDuration(file: File, timeoutMs = 8000): Promise<number | null> {
+  if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+    let done = false;
+    const finish = (seconds: number | null) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      video.removeAttribute("src");
+      video.load();
+      URL.revokeObjectURL(objectUrl);
+      resolve(seconds !== null && Number.isFinite(seconds) && seconds > 0 ? seconds : null);
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    video.preload = "metadata";
+    video.muted = true;
+    video.onloadedmetadata = () => finish(video.duration);
+    video.onerror = () => finish(null);
+    video.src = objectUrl;
+  });
+}
+
 // Only surface the font search box once the list is long enough to need it.
 export const FONT_SEARCH_THRESHOLD = 8;
 

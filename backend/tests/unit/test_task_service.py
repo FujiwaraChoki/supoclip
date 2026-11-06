@@ -184,6 +184,7 @@ async def test_update_clip_captions_passes_stored_task_style(isolated_clip_edits
         "transcript_video_path": tmp_path / "source.mp4",
         "source_ranges": [(10.0, 12.0)],
         "position_y": None,
+        "output_offsets": None,
     }
     assert captured["args"][0].name == "clean.mp4"
     assert rendered[0][0][0] == tmp_path / "source.mp4"

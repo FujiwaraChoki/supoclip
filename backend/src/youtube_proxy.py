@@ -25,6 +25,7 @@ from urllib.parse import urljoin, urlsplit
 
 from .config import get_config
 from .download_progress import DownloadRecovery, report_download_recovery
+from .media.source_limits import contain_raw_aac
 
 logger = logging.getLogger(__name__)
 
@@ -1300,6 +1301,9 @@ def _download_audio_attempt(
                 _discard_output(dest_stem)
                 _fail("audio_hls", hls_exc, attempt_started)
                 raise AudioDownloadForbidden("HLS audio download failed") from hls_exc
+            # HLS audio is raw ADTS: without a container its length is a
+            # bitrate guess, which once cut the last minute off a series.
+            path = contain_raw_aac(path)
         nbytes = _account_file(path, counter, started if not hls_retry else attempt_started)
         log_youtube_attempt(
             provider=YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY,

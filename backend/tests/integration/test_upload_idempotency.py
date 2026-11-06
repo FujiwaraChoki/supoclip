@@ -212,6 +212,59 @@ async def test_task_retry_reuses_the_upload_until_options_change(
 
 
 @pytest.mark.asyncio
+async def test_task_retry_dedupe_includes_workflow_topic_and_instructions(
+    client, app, auth_headers, db_session, tmp_path, monkeypatch,
+):
+    await create_user(db_session, user_id="user-1")
+    app.state.config.temp_dir = str(tmp_path)
+    app.state.config.workflows_access = "all"
+
+    async def _duration(*_args):
+        return 600.0
+
+    monkeypatch.setattr("src.api.routes.tasks._preflight_upload_source", _duration)
+    uploaded = await _upload(client, auth_headers, b"workflow-source")
+    assert uploaded.status_code == 200, uploaded.text
+    source = {"url": uploaded.json()["video_path"]}
+    variants = [
+        {},
+        {"workflow": "series"},
+        {"workflow": "recap"},
+        {"workflow": "topic", "workflow_options": {"topic": "pricing"}},
+        {"workflow": "topic", "workflow_options": {"topic": "hiring"}},
+        {"instructions": "Skip the sponsor read"},
+        {"instructions": "Focus on the founders"},
+        {"workflow": "series", "workflow_options": {"part_count": 3}},
+    ]
+    task_ids = []
+    for variant in variants:
+        response = await client.post("/tasks/", headers=auth_headers, json={"source": source, **variant})
+        assert response.status_code == 200, response.text
+        assert response.json()["message"] == "Task created and queued for processing"
+        task_ids.append(response.json()["task_id"])
+    assert len(set(task_ids)) == len(variants)
+
+    # Retries still match, including spelling differences that normalize away.
+    retries = [
+        ({"workflow": "highlights"}, task_ids[0]),
+        ({"workflow": "topic", "workflow_options": {"topic": "  pricing "}}, task_ids[3]),
+        ({"instructions": "Skip the  sponsor read\n"}, task_ids[5]),
+        ({"workflow": "series", "workflow_options": {"part_count": "3"}}, task_ids[7]),
+        ({"workflow": "series", "workflow_options": {"part_count": "auto", "topic": "ignored"}}, task_ids[1]),
+    ]
+    for variant, task_id in retries:
+        response = await client.post("/tasks/", headers=auth_headers, json={"source": source, **variant})
+        assert response.status_code == 200, response.text
+        assert (response.json()["task_id"], response.json()["message"]) == (task_id, "Task already queued")
+
+    stored = (await db_session.execute(text(
+        "SELECT source_metadata->>'upload_request_key' FROM tasks WHERE id = ANY(:ids)"
+    ), {"ids": task_ids})).scalars().all()
+    # The key is a hash: topic and instructions never appear in it.
+    assert all(len(key) == 64 and "pricing" not in key for key in stored)
+
+
+@pytest.mark.asyncio
 async def test_another_account_cannot_use_a_stored_upload(
     client, app, auth_headers, db_session, tmp_path, monkeypatch,
 ):
