@@ -1,24 +1,39 @@
-# Stripe account migration preparation
+# Stripe account routing and migration rehearsal
 
-This branch adds a pure billing migration policy and tests. It is **not imported by production routes**, does not change Prisma or the backend, and has no Stripe write or email capability. Do not deploy it as a completed account migration.
+Account-aware runtime wiring is implemented locally behind `STRIPE_ACCOUNT_MIGRATION_ENABLED=true`. That flag has **not** been enabled in production. Nothing was pushed or deployed, and no live customer copy, billing or customer-email change was made.
 
-The source is `acct_1T70qFPB539K703a`; the approved destination is `acct_1TcXIA6djMaoJqpX`. Existing subscribers must keep their prices, paid-through dates, cancellation intent, free/affiliate/App Store access, and grandfathered HD status.
+## Runtime behavior
 
-`frontend/src/lib/billing-migration.ts` validates account-qualified bindings and transition proofs. It separates test/live events, routes portals to the current owner, holds resume/upgrade during transition, limits prepaid access to the original paid-through date, and requires destination-stop/source-resume proof for rollback. It does not execute the transition.
+Request-scoped SDKs verify their account identity before use. Authenticated checkout, portal, cancellation, resume and payment recovery select the user's stored account. New checkout stays on the configured source unless `STRIPE_CHECKOUT_ACCOUNT_ID` is deliberately changed later. Missing configuration/context fails closed. Matching email never merges customers in the shared US account.
 
-## Integration gate before cutover
+The database stores account ownership and a revisioned migration ledger. Entitlement updates check expected ownership transactionally. Activation requires a paid invoice, the original source paid-through time, and fresh proof that the source cannot renew. Current-account events use the existing billing policy. Old source events cannot overwrite a migrated subscription. Cancellation intent is durable across API outages; the replacement must be stopped and read back before a staging hold is released. Failed payment/SCA permits payment-method recovery without activating or creating another checkout. Refund/dispute events hold the operation and stop a staged replacement for review. Migration-owned events bypass ordinary notifications.
 
-1. Persist an authenticated migration ledger keyed by app user and operation. One already-ending source subscription does not match both IDs in the app's current billing record; let it end rather than recreating it or matching by email.
-2. Configure separate source/destination Stripe clients through the existing secrets mechanism. Keep source routing for legacy accounts; a global `STRIPE_SECRET_KEY` replacement is insufficient.
-3. Wire account-aware routing into checkout, portal, resume, subscription sync and past-due recovery. Block a second checkout while source renewal or a replacement schedule remains live. Keep RevenueCat and affiliate grants outside the migration.
-4. Verify each account's webhook with its own secret/API version and scope dedupe by account/mode. Before `upsertSubscriptionState`, `syncSubscriptionUpdate`, invoice handling or `handleSubscriptionDeleted`, validate the current account/customer/subscription owner. Use an expected-owner database update so concurrent events cannot clobber a replacement.
-5. Suppress migration-owned `sendCancellationScheduledEmail`/`unsubscribed` notifications. Carry a genuine user cancellation to the staged destination. Do not revive the 36 already-ending subscriptions or the two past-due subscriptions.
-6. Create separate destination price definitions for the three prices in use. The two $9.99 prices must not be collapsed: `price_1T70xUPB539K703aa7eVBiuG` carries grandfathered HD. Add its destination counterpart to `STRIPE_PRO_LEGACY_PRICE_IDS` and preserve `legacy_hd` during the transition. Keep public signup prices separate from import-only aliases.
-7. Preserve the temporary retention discount's actual end date; do not restart its three-month duration. Keep that subscriber on legacy billing until the remaining-duration import is verified or the discount expires.
-8. Rehearse integrated routes, signed webhooks and Prisma writes against a disposable app database, including first payment, failure/SCA, old cancellation, a real user cancellation mid-transfer, duplicate delivery, grandfathered HD, App Store/affiliate ownership, and rollback. This integrated app/database rehearsal has not yet been run.
+Source root webhook and explicit account endpoints use separate signing secrets, with account/mode checks before database writes. Event receipts include account + mode + event ID, a retryable lease and fenced completion. Existing successful live source receipts are recognized during rollout. Alternate entitlement grants and already-paid access are preserved. Account deletion selects the correct account and holds while a replacement could still bill.
 
-## Verification performed
+## Future release configuration
 
-Policy and existing subscription-sync/webhook tests run with Vitest; scoped TypeScript/ESLint cover the new files. The operator pack contains GET-only source inventory, a read-only SQL billing snapshot, mapping validation and real Stripe sandbox renewals. No production frontend/backend/worker was changed or restarted. No live billing or customer emails were changed.
+Keep `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` for the Swiss source. Configure `STRIPE_SOURCE_ACCOUNT_ID`, `STRIPE_DESTINATION_ACCOUNT_ID`, `STRIPE_DESTINATION_SECRET_KEY` and `STRIPE_DESTINATION_WEBHOOK_SECRET` through the secrets system. The approved destination is `acct_1TcXIA6djMaoJqpX`. Customers, catalog aliases, signing secrets and portal configurations remain app-specific even though the US account is shared. Do not globally replace the source key.
 
-The installed Stripe SDK defaults to API `2026-02-25.clover`; the exact source price/Billing-mode probes use this version. The US account inspector default is `2026-04-22.dahlia`, so future webhook versions require explicit configuration and testing.
+SupoClip source: `acct_1T70qFPB539K703a`. The SDK API version is `2026-02-25.clover`; future webhook delivery must explicitly use the reviewed version.
+
+The source price variables keep their names; destination equivalents use `STRIPE_DESTINATION_` with `PRO_PRICE_ID`, `PRO_ANNUAL_PRICE_ID`, `SCALE_PRICE_ID`, `SCALE_ANNUAL_PRICE_ID`, `PRO_LEGACY_PRICE_IDS` and `SCALE_LEGACY_PRICE_IDS`. Preserve the destination counterpart of legacy HD price `price_1T70xUPB539K703aa7eVBiuG`; do not collapse the two $9.99 contracts. Aliases must come from verified Stripe prices.
+
+US portals require `STRIPE_DESTINATION_CUSTOMER_PORTAL_CONFIGURATION_ID`, separate from Shiori. Creator checkout requires `STRIPE_DESTINATION_CREATOR_COUPON_ID` and JSON `STRIPE_DESTINATION_PROMOTION_CODE_MAP` mapping source promotion IDs to verified destination equivalents. Missing mappings hold checkout instead of dropping a discount. Existing affiliate administration remains on the source account.
+
+Root source webhook is `/api/billing/webhook`; the explicit endpoint is `/api/billing/webhook/[accountId]`. `/api/billing/cancel` allows authenticated cancellation during staging without also running the legacy cancellation. Settings exposes this action when a transfer holds the portal. Current-account paid upgrades keep the prior tier until payment succeeds. HD and App Store/affiliate grants remain intact; RevenueCat stays independent.
+
+## Verification
+
+Signed SDK webhooks run against a disposable application database: real Postgres transactions for SupoClip and real in-memory Convex transactions for Shiori. Stripe transport resources are synthetic and unexpected network requests fail. Tests cover activation, unsafe source renewal, failed payment/SCA, old events, wrong account/signature, duplicate delivery, stale revisions/leases, cancellation failure and retry, refund holds, and alternate grants. SDK tests cover credential identity and concurrent request isolation. Existing billing and account-deletion regressions also run. Production TypeScript and scoped ESLint pass. Evidence is in the private local migration review pack outside the repositories.
+
+Use pnpm in `frontend`. `vitest.billing-migration.config.ts` requires the dedicated localhost test database. The SQL upgrade was applied over the previous schema and `prisma migrate diff --exit-code` reports no difference. Existing checkout/portal/resume/webhook/subscription-sync, cancellation/settings, deletion and translation tests pass.
+
+## Still separate from engineering preparation
+
+Before live rollout, review destination prices/discounts/tax/wallet/portal settings, deploy the additive schema and gated code, configure exact-version webhook delivery, refresh source contracts, and inspect the actual returned customer/payment-method mappings after a separately authorized copy. Nothing here authorizes a live copy or cutover.
+
+Keep the account-aware integration enabled once account bindings or ledgers are in use. Turning its deployment flag off does not roll back Stripe or database ownership; rollback requires verified stop/resume proofs and a reviewed data transition.
+
+No automated bulk live cutover executor is introduced. Populate the ledger only from verified account-qualified records. Freeze billing changes while arming an operation; re-read the contract immediately before stopping renewal or staging a replacement. Verify source stop before a replacement may charge; retain the original paid-through time. Reconcile timeouts by read-back rather than creating another replacement. Operator proof flags cannot replace those reads.
+
+Keep ambiguous users, unsupported wallets, complimentary/retention contracts and already-ending subscriptions in their reviewed hold cohorts. Refund/dispute review and rollback require fresh Stripe read-back and explicit proofs. Preserve source invoice records: a destination portal does not merge historic invoices from another account.

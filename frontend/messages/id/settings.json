@@ -62,7 +62,10 @@
     "switchYearlyTitle": "Beralih ke tahunan dan dapatkan {count, plural, one {# bulan} other {# bulan}} gratis",
     "switchYearlyDescription": "${price}/thn, sekitar ${monthly}/bln. Paket yang sama, ditagih setahun sekali.",
     "switch": "Beralih",
-    "monthlyEquivalentYearly": "${price}/bln, ditagih tahunan"
+    "monthlyEquivalentYearly": "${price}/bln, ditagih tahunan",
+    "transferCancel": "Batalkan langganan",
+    "transferCancelConfirm": "Batalkan perpanjangan langganan berikutnya? Masa yang sudah dibayar tetap tersedia.",
+    "transferCancelSuccess": "Perpanjangan berikutnya dibatalkan."
   },
   "links": {
     "agentsTitle": "Agen & API",

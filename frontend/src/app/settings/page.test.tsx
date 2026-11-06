@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 
 import SettingsPage from "./page";
@@ -58,6 +58,26 @@ function mockFetches(summary: Record<string, unknown>) {
 }
 
 describe("settings plan section", () => {
+  it("keeps cancellation available when a transfer holds the billing portal", async () => {
+    const summary = billing({ plan: "pro", subscription_status: "active", subscription_provider: "stripe", billing_interval: "month" });
+    const request = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("billing-summary")) return Response.json(summary);
+      if (url.includes("/api/preferences")) return Response.json(preferences);
+      if (url.includes("/api/fonts")) return Response.json({ fonts: [] });
+      if (url === "/api/billing/portal") return Response.json({ code: "billing_transfer_pending", error: "Billing transfer is being verified." }, { status: 409 });
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", request);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    try {
+      render(<SettingsPage />);
+      fireEvent.click(await screen.findByRole("button", { name: "Manage Billing" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Cancel subscription" }));
+      await waitFor(() => expect(request).toHaveBeenCalledWith("/api/billing/cancel", { method: "POST" }));
+      expect(confirm).toHaveBeenCalledOnce();
+    } finally { confirm.mockRestore(); }
+  });
   beforeEach(() => {
     vi.stubGlobal("ResizeObserver", class {
       observe() {}

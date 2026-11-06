@@ -4,6 +4,7 @@ export type MigrationStage =
   | "source_stopped"
   | "destination_staged"
   | "destination_active"
+  | "cancelled"
   | "rollback_verified";
 
 export type BillingReference = {
@@ -12,11 +13,16 @@ export type BillingReference = {
   subscriptionId: string;
 };
 
+export type BillingDestination = Omit<BillingReference, "subscriptionId"> & {
+  subscriptionId?: string;
+  scheduleId?: string;
+};
+
 export type BillingMigration = {
   operationId: string;
   appUserId: string;
   source: BillingReference;
-  destination?: BillingReference;
+  destination?: BillingDestination;
   stage: MigrationStage;
   sourcePaidThrough: number;
   sourceStoppedVerified: boolean;
@@ -33,7 +39,7 @@ export type BillingRoute =
   | { kind: "hold"; reason: "transition" | "customer_cancellation" };
 
 const stages: readonly MigrationStage[] = [
-  "prepared", "source_stopped", "destination_staged", "destination_active", "rollback_verified",
+  "prepared", "source_stopped", "destination_staged", "destination_active", "rollback_verified", "cancelled",
 ];
 
 /** Reject missing records before reading persisted migration fields. */
@@ -62,6 +68,20 @@ function reference(value: unknown): BillingReference {
   return result;
 }
 
+/** Future schedules do not have a subscription ID until Stripe starts them. */
+function destinationReference(value: unknown): BillingDestination {
+  const row = record(value);
+  const accountId = text(row.accountId);
+  const customerId = text(row.customerId);
+  if (!/^acct_\w+$/.test(accountId) || !/^cus_\w+$/.test(customerId)) throw new TypeError("Malformed destination");
+  const subscriptionId = row.subscriptionId === undefined ? undefined : text(row.subscriptionId);
+  const scheduleId = row.scheduleId === undefined ? undefined : text(row.scheduleId);
+  if ((!subscriptionId && !scheduleId) || (subscriptionId && !/^sub_\w+$/.test(subscriptionId)) || (scheduleId && !/^sub_sched_\w+$/.test(scheduleId))) {
+    throw new TypeError("Destination needs a real subscription or schedule ID");
+  }
+  return { accountId, customerId, ...(subscriptionId ? { subscriptionId } : {}), ...(scheduleId ? { scheduleId } : {}) };
+}
+
 /** Proof flags must be explicit booleans, never truthy text. */
 function boolean(value: unknown): boolean {
   if (typeof value !== "boolean") throw new TypeError("Missing migration proof flag");
@@ -77,7 +97,7 @@ export function parseBillingMigration(value: unknown): BillingMigration {
   }
   const migration: BillingMigration = {
     operationId: text(row.operationId), appUserId: text(row.appUserId), source: reference(row.source),
-    ...(row.destination === undefined ? {} : { destination: reference(row.destination) }),
+    ...(row.destination === undefined ? {} : { destination: destinationReference(row.destination) }),
     stage: row.stage as MigrationStage, sourcePaidThrough: row.sourcePaidThrough,
     sourceStoppedVerified: boolean(row.sourceStoppedVerified),
     destinationPaidInvoiceVerified: boolean(row.destinationPaidInvoiceVerified),
@@ -87,7 +107,7 @@ export function parseBillingMigration(value: unknown): BillingMigration {
     complimentary: boolean(row.complimentary), livemode: boolean(row.livemode),
   };
   if (migration.destination?.accountId === migration.source.accountId) throw new TypeError("Source and destination must differ");
-  if (migration.stage === "destination_active" && (!migration.destination || !migration.sourceStoppedVerified || !migration.destinationPaidInvoiceVerified)) {
+  if (migration.stage === "destination_active" && (!migration.destination?.subscriptionId || !migration.sourceStoppedVerified || !migration.destinationPaidInvoiceVerified)) {
     throw new TypeError("Activation requires destination invoice and source-stop read-back proof");
   }
   if (migration.stage === "destination_staged" && (!migration.destination || !migration.sourceStoppedVerified)) {
@@ -99,18 +119,19 @@ export function parseBillingMigration(value: unknown): BillingMigration {
   if (migration.stage === "rollback_verified" && (!migration.sourceResumedVerified || !migration.destinationDisabledVerified)) {
     throw new TypeError("Rollback requires destination-stop and source-resume read-back proofs");
   }
+  if (migration.stage === "cancelled" && !migration.destinationDisabledVerified) throw new TypeError("Cancellation requires destination-stop proof");
   return migration;
 }
 
 /** Portal/upgrade/resume routing must never silently fall back to another account. */
 export function resolveMigrationBillingRoute(migration: BillingMigration): BillingRoute {
   migration = parseBillingMigration(migration);
-  if (migration.customerCancellationRequested) return { kind: "hold", reason: "customer_cancellation" };
-  if (migration.stage === "prepared" || migration.stage === "rollback_verified") {
+  if (migration.customerCancellationRequested && migration.stage !== "cancelled" && migration.stage !== "destination_active") return { kind: "hold", reason: "customer_cancellation" };
+  if (migration.stage === "prepared" || migration.stage === "rollback_verified" || migration.stage === "cancelled") {
     return { kind: "account", reference: migration.source };
   }
-  if (migration.stage === "destination_active" && migration.destination) {
-    return { kind: "account", reference: migration.destination };
+  if (migration.stage === "destination_active" && migration.destination?.subscriptionId) {
+    return { kind: "account", reference: { ...migration.destination, subscriptionId: migration.destination.subscriptionId } };
   }
   return { kind: "hold", reason: "transition" };
 }
@@ -150,7 +171,7 @@ export function parseMigrationEvent(value: unknown): MigrationEvent {
 }
 
 /** IDs can only identify a billing owner together with the account. */
-function matches(a: BillingReference, b: BillingReference): boolean {
+function matches(a: BillingReference | BillingDestination, b: BillingReference): boolean {
   return a.accountId === b.accountId && a.customerId === b.customerId && a.subscriptionId === b.subscriptionId;
 }
 
