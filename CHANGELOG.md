@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-06
+
+- **Under the hood:** New features can be switched on for the web and iPhone apps separately, without an update. ([#340](https://github.com/FujiwaraChoki/supoclip/pull/340))
+
 ## 2026-11-05
 
 - **Fixed:** The homepage shows TikTok publishing and scheduling as available alongside YouTube, with updated pricing details and FAQ answers. Instagram remains marked as coming soon. ([#339](https://github.com/FujiwaraChoki/supoclip/pull/339))
