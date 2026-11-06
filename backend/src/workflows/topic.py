@@ -38,6 +38,7 @@ from .prompts import (
     outline_block,
     topic_extract_system,
     topic_finish_system,
+    topic_block,
     topic_locate_system,
     topic_rerank_system,
     transcript_block,
@@ -785,9 +786,11 @@ def resolve_overlaps(
 
 
 async def _locate(pi: PlanInput, topic: str) -> TopicLocate:
-    system = topic_locate_system(pi.language_name, topic)
+    system = topic_locate_system(pi.language_name)
     prompt = with_instructions(
-        outline_block(pi.outline.outline, pi.index, include=("chapters", "points", "topics")),
+        topic_block(topic)
+        + "\n\n"
+        + outline_block(pi.outline.outline, pi.index, include=("chapters", "points", "topics")),
         pi.instructions,
     )
     agent = build_agent(TopicLocate, system, structural=True)
@@ -1062,6 +1065,9 @@ async def plan_topic(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, Any
     if locate.fit == "different":
         # The video only shares a word with the topic ("crime" in a sermon about sin).
         raise topic_not_found(topic, [], suggested_early)
+    if locate.fit == "broader" and pi.setting("match") == "strict":
+        # The creator asked for this topic or nothing: no clips about something near it.
+        raise topic_not_found(topic, [], suggested_early)
     if locate.fit == "broader":
         pi.note("TOPIC_BROADENED", {"topic": topic, "interpretation": " ".join(locate.interpretation.split())})
         canonical = topic.strip() or canonical
@@ -1114,11 +1120,14 @@ async def plan_topic(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, Any
         if candidate.retitle:
             candidate.hook_title = grounded_title(index, candidate)
     limit = max(1, int(get_config().workflow_topic_max_clips))
+    if pi.setting("max_clips") is not None:
+        limit = min(limit, int(pi.setting("max_clips")))
     main = [candidate for candidate in eligible if not candidate.reserve_only]
     selected = main[:limit]
     reserve = [candidate for candidate in eligible if candidate not in selected][:RESERVE_CLIPS]
     coverage = coverage_of(index, selected, pi.cleanup)
-    if coverage == "thin":
+    # Fewer clips because the creator asked for fewer isn't a thin topic.
+    if coverage == "thin" and len(main) <= limit:
         pi.note("TOPIC_THIN", {"count": len(selected), "found": len(selected)})
     if index.coarse:
         pi.note("COARSE_TRANSCRIPT")

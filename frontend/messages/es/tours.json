@@ -1,0 +1,50 @@
+{
+  "new": "Nuevo",
+  "next": "Siguiente",
+  "back": "Atrás",
+  "done": "Listo",
+  "start": "Muéstrame 👀",
+  "notNow": "Ahora no",
+  "progress": "{current} de {total}",
+  "workflows": {
+    "intro": {
+      "title": "Presentamos los flujos",
+      "body": "Los flujos te permiten elegir qué crear antes de empezar. Además de momentos destacados, un video ahora puede convertirse en una serie numerada, todos los clips sobre un tema, un resumen o un tráiler. Aquí tienes un vistazo de un minuto a cada uno."
+    },
+    "highlights": {
+      "title": "Momentos destacados",
+      "body": "Lo que ya conoces: los mejores momentos, cada uno funciona por sí solo. Sigue siendo la opción predeterminada."
+    },
+    "series": {
+      "title": "Serie",
+      "body": "Convierte un video largo en partes numeradas que se ven en orden, y cada una deja con ganas de la siguiente. Ideal para historias y tutoriales."
+    },
+    "topic": {
+      "title": "Tema",
+      "body": "Nombra un asunto y obtén cada momento potente sobre él, como «precios» en una entrevista larga. Lo escribes en la línea que aparece bajo tu enlace."
+    },
+    "recap": {
+      "title": "Resumen",
+      "body": "Un video corto con los puntos principales de todo el contenido, con esos puntos listados en pantalla."
+    },
+    "trailer": {
+      "title": "Tráiler",
+      "body": "Un adelanto corto pensado para que la gente vea el video completo, sin revelar el final."
+    },
+    "instructions": {
+      "title": "Añade tu propia dirección",
+      "body": "Elijas lo que elijas, añade una nota como «solo los momentos divertidos» y los clips la seguirán."
+    },
+    "settings": {
+      "title": "Todo lo demás está aquí",
+      "body": "Duración, subtítulos, encuadre, limpieza y B-roll ahora están en un solo menú. Recordamos tus elecciones, así que solo las configuras una vez."
+    }
+  },
+  "composer-settings": {
+    "settings": {
+      "title": "Todo lo demás está aquí",
+      "body": "Duración, subtítulos, encuadre, limpieza y B-roll ahora están en un solo menú. Recordamos tus elecciones, así que solo las configuras una vez."
+    }
+  },
+  "skip": "Omitir"
+}

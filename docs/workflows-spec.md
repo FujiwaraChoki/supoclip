@@ -29,7 +29,7 @@ Everything downstream is shared: captions, framing/reframing, B-roll, hook title
 3. **Draft → validate → repair → solve → critique → re-solve.** Each planner gets an LLM draft, deterministic validation, at most one LLM repair round, a deterministic solver that owns the hard constraints (lengths, contiguity, budgets, spoilers), one LLM critique of the *finished* text read as a viewer (fixes are applied as solver constraints), and a deterministic final solve. Hard constraints never depend on the model being careful.
 4. **Series parts are expressed as `end_unit` values only**, so gaps or overlaps between parts cannot be expressed. Dead weight inside the story (sponsor reads, tangents) is removed with *skips* (whole units), not by jumping between spans.
 5. **Planned segments are locked at render time.** Segments carry float `source_ranges` and `planned: True`. The renderer skips start snapping, end extension and the cold-open teaser. It uses a per-segment cap only as a safety net, and recomputes caption text from the ranges. Adjacent series parts therefore share one cut: no repeated word, no missing word.
-6. **Highlights without instructions is byte-identical**: same prompts, cache keys, post-processing, render path, enqueue args, `process_video_complete` kwargs. A golden test pins this (invariant I1). Highlights *with* instructions gets one extra user-prompt block and a derived cache key.
+6. **Highlights without instructions keeps its pipeline** (render differences listed in `docs/workflows.md`): same prompts, cache keys, post-processing, render path, enqueue args, `process_video_complete` kwargs. A golden test pins this (invariant I1). Highlights *with* instructions gets one extra user-prompt block and a derived cache key.
 7. **Storage in real columns**, read by the worker from the task row (same pattern as `include_broll`, `task_service.py:547-548`). The ARQ job signature and both enqueue sites stay unchanged, and resume works with no route change.
 8. **Rollout gate** `WORKFLOWS_ACCESS=off|admins|all` (default `admins`), mirroring `SOCIAL_PUBLISHING_ACCESS`. This also protects against an old worker draining a queued series task as highlights during deploy.
 9. **Fail loud, refund, suggest a next step.** No fallback segments for workflows. Workflow errors carry a code, a user-facing message and details (e.g. suggested topics). Before the status flips to `error`, the error path deletes any clips so the automatic minute refund fires.
@@ -312,6 +312,13 @@ Common keys for every planned clip: `{"planned": true, "ranges": [[s,e],...], "j
 
 `enabled` false means the caller may only use highlights without instructions.
 
+### 2.6a Advanced settings (added after the first release)
+
+`WorkflowOptions.advanced` holds only non-default values from the registry in
+`workflows/settings.py`; `WorkflowSpec.setting(key)` reads a value or its default,
+and `fingerprint()` includes `advanced` only when it is non-empty, so default plans
+keep their cache keys. `docs/workflows.md` lists every setting.
+
 ### 2.7 Frontend contract `frontend/src/lib/workflows.ts` (WP1)
 
 ```ts
@@ -323,7 +330,7 @@ export const SCORED: ReadonlySet<Workflow>;                 // highlights, topic
 export const PART_COUNT_OPTIONS = ["auto", 2, 3, 4, 5, 6, 8, 10] as const;
 export const TOPIC_MAX_CHARS = 120; export const INSTRUCTIONS_MAX_CHARS = 500;
 export const MIN_SOURCE_SECONDS: Record<Workflow, number>;  // mirrors §1.1
-export type WorkflowOptions = { topic?: string; part_count?: number };
+export type WorkflowOptions = { topic?: string; part_count?: number; advanced?: Record<string, WorkflowSettingValue> };
 export type WorkflowPlan = { /* §2.4 */ };
 export type WorkflowMeta = { /* §2.5 */ };
 export type WorkflowsInfo = { /* §2.6 */ };

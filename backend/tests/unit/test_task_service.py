@@ -831,3 +831,29 @@ async def test_geo_restriction_has_specific_task_error_and_actionable_message():
     assert service.task_repo.update_task_runtime_metadata.await_args.kwargs["error_code"] == "youtube_geo_restricted"
     assert service.task_repo.update_task_status.await_args.kwargs["progress_message"] == str(YouTubeGeoRestrictedError())
     assert progress.await_args.args == (0, str(YouTubeGeoRestrictedError()), "error")
+
+
+@pytest.mark.parametrize(
+    ("error", "shown"),
+    [
+        (RuntimeError("ffmpeg source-range render failed: /app/temp/x.mp4"), None),
+        (OSError(28, "No space left on device", "/app/temp/clips/x.mp4"), None),
+        (KeyError("start_time"), None),
+        (Exception(""), None),
+        (Exception("Failed to download video"), "Failed to download video"),
+        (ValueError("No clips could be rendered. Please try again."), "No clips could be rendered. Please try again."),
+    ],
+)
+def test_failure_text_never_shows_internals(error, shown):
+    from src.services.task_service import _GENERIC_ERROR, user_facing_error
+
+    assert user_facing_error(error) == (shown or _GENERIC_ERROR)
+
+
+def test_download_errors_keep_their_wording():
+    from src.services.task_service import user_facing_error
+    from src.stream_source import StreamSourceError
+    from src.youtube_proxy import YouTubeGeoRestrictedError
+
+    assert user_facing_error(StreamSourceError("This VOD is private")) == "This VOD is private"
+    assert user_facing_error(YouTubeGeoRestrictedError()) == str(YouTubeGeoRestrictedError())

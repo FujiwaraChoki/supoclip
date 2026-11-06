@@ -171,7 +171,10 @@ async def test_the_final_cut_plays_exactly_as_returned_and_titles_what_plays(mon
 
     # The verify round reads the new cut with the same eyes and ships it.
     answers = [final, _same_cut]
-    pi, model = _setup(monkeypatch, {"RecapDraft": [_draft()], "RecapFinalCut": lambda prompt: answers.pop(0)(prompt)})
+    pi, model = _setup(
+        monkeypatch, {"RecapDraft": [_draft()], "RecapFinalCut": lambda prompt: answers.pop(0)(prompt)},
+        advanced={"coverage": "best_moments"},
+    )
 
     segments, plan = await plan_recap(pi)
 
@@ -199,6 +202,22 @@ async def test_a_final_cut_outside_the_window_or_on_a_sponsor_read_is_asked_agai
     budget = recap_budget("auto", pi.ctx.source_seconds)
     assert budget.min <= plan["seconds"] <= budget.max  # the assembled cut stays
     assert pi.stats.critique_fixes == 0
+
+
+@pytest.mark.asyncio
+async def test_a_mid_recap_beat_labelled_intro_is_asked_for_its_own_name(monkeypatch):
+    def relabelled(prompt):
+        cut = _same_cut(prompt)
+        cut.beats[1].label = "Intro"
+        return cut
+
+    pi, model = _setup(monkeypatch, {"RecapDraft": [_draft()], "RecapFinalCut": relabelled})
+
+    _, plan = await plan_recap(pi)
+
+    assert "needs a label of its own" in model.calls[-1].prompt
+    # Never burned in as the name of a point.
+    assert not [point for point in plan["points"] if point["kind"] == "point" and point["label"] == "Intro"]
 
 
 @pytest.mark.asyncio
@@ -535,7 +554,10 @@ async def test_a_final_cut_with_too_many_joins_is_asked_again_and_markup_never_r
     tidy = _final([(10, 12, "Pricing changed"), (30, 32, "The bank called"), (90, 92, "The rescue")],
                   title="One call saved the company", why="Pricing, the bank, the rescue.}</br>")
     answers = [many, tidy, _final(verdict="ship")]
-    pi, model = _setup(monkeypatch, {"RecapDraft": [_draft()], "RecapFinalCut": lambda prompt: answers.pop(0)})
+    pi, model = _setup(
+        monkeypatch, {"RecapDraft": [_draft()], "RecapFinalCut": lambda prompt: answers.pop(0)},
+        advanced={"coverage": "best_moments"},
+    )
     segments, plan = await plan_recap(pi)
     assert "beats; it can play at most" in [call for call in model.calls if call.schema == "RecapFinalCut"][1].prompt
     assert len(plan["points"]) == 3

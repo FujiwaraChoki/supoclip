@@ -27,6 +27,7 @@ from .durations import (
     trailer_lengths,
 )
 from .errors import WorkflowError, WorkflowRequestError
+from .settings import parse_settings, settings_schema
 
 TOPIC_MIN_CHARS, TOPIC_MAX_CHARS = 2, 120
 INSTRUCTIONS_MAX_CHARS = 500
@@ -147,7 +148,12 @@ def parse_workflow_request(data: dict, clip_length: str) -> WorkflowSpec:
 
     return WorkflowSpec(
         workflow=workflow,
-        options=WorkflowOptions(topic=topic, part_count=part_count, instructions=instructions),
+        options=WorkflowOptions(
+            topic=topic,
+            part_count=part_count,
+            instructions=instructions,
+            advanced=parse_settings(workflow, raw_options.get("advanced")),
+        ),
         clip_length=clip_length,
     )
 
@@ -246,19 +252,46 @@ async def workflows_enabled_for(db, user_id: str) -> bool:
     return bool(row.is_admin) or (bool(row.email_verified) and email in config.workflows_allowed_emails)
 
 
-def workflows_info(enabled: bool) -> dict[str, Any]:
-    """``GET /tasks/workflows``. ``enabled`` false: highlights without instructions only."""
+def _public_workflows() -> frozenset[str]:
+    """Workflows open to every user while the rest stay limited to admins."""
+    config = get_config()
+    if config.workflows_access != "admins":
+        return frozenset()
+    return frozenset(WORKFLOWS) & config.workflows_public
+
+
+async def workflow_allowed_for(db, user_id: str, workflow: str) -> bool:
+    """May this user make ``workflow`` with options? Plain highlights never ask."""
+    return workflow in _public_workflows() or await workflows_enabled_for(db, user_id)
+
+
+async def allowed_workflows(db, user_id: str) -> frozenset[str]:
+    """Every workflow ``workflow_allowed_for`` admits, for ``workflows_info``."""
+    if await workflows_enabled_for(db, user_id):
+        return frozenset(WORKFLOWS)
+    return _public_workflows()
+
+
+def workflows_info(allowed: frozenset[str]) -> dict[str, Any]:
+    """``GET /tasks/workflows``. Nothing allowed: highlights without instructions only.
+
+    Plain highlights are always available; ``customizable`` says whether a
+    workflow also takes instructions and advanced settings.
+    """
 
     def entry(workflow: str, **extra: Any) -> dict[str, Any]:
         return {
             "id": workflow,
-            "available": enabled or workflow == "highlights",
+            "available": workflow in allowed or workflow == "highlights",
+            "customizable": workflow in allowed,
             "min_source_seconds": MIN_SOURCE_SECONDS[workflow],
+            # Settings are a workflows feature: nothing to render without access.
+            "settings": settings_schema(workflow) if workflow in allowed else [],
             **extra,
         }
 
     return {
-        "enabled": enabled,
+        "enabled": bool(allowed),
         "workflows": [
             entry("highlights"),
             entry(

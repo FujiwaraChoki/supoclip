@@ -247,6 +247,12 @@ table (one per user, `slug` cleared on decline).
   "App Store code added" and the creator page shows `appStoreRedeemUrl(code)`.
   The app's paywall opens Apple's redeem sheet ("Have a creator code?").
 
+## Feature tours
+
+When a change gives existing users something new to find, add a tour: an entry in
+`frontend/src/lib/feature-tours.ts`, `data-tour` on its target, and text in
+`frontend/messages/*/tours.json`. Explain the feature, don't just point at it. Rules and steps: `docs/feature-tours.md`.
+
 ## Environment Variables
 
 Required in `.env` (root) or `backend/.env`:
@@ -276,6 +282,7 @@ SOCIAL_PUBLISHING_ACCESS=off         # Rollout gate: off (default) | admins (adm
 SOCIAL_PUBLISHING_ALLOWED_EMAILS=    # Comma-separated beta emails when access=admins
 WORKFLOWS_ACCESS=admins              # Series/topic/recap/trailer + instructions: off | admins | all (self-host: all)
 WORKFLOWS_ALLOWED_EMAILS=            # Comma-separated beta emails when access=admins
+WORKFLOWS_PUBLIC=                    # Workflows open to everyone while access=admins, e.g. trailer,topic
 WORKFLOW_TOPIC_MAX_CLIPS=15          # Most clips a topic run returns
 WORKFLOW_PLAN_TIMEOUT_SECONDS=1800   # Planning wall clock; past it the task fails with plan_failed
 WORKFLOW_FULL_CONTEXT_MAX_WORDS=0    # Words read in one outline call; 0 = provider default

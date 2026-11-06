@@ -9,6 +9,7 @@ import subprocess
 import uuid
 from typing import get_args
 
+from ..media.render_ranges import burned_hook_title
 from ..editor_document import (
     CaptionStyle,
     EditDocument,
@@ -426,7 +427,7 @@ def upgrade_document(
     return {
         **document,
         "captions": captions,
-        "hookTitle": document.get("hookTitle", (clip.get("hook_title") or "")[:200]),
+        "hookTitle": document.get("hookTitle", (burned_hook_title(clip) or "")[:200]),
         # Drafts saved before the editor had B-roll pick up the generated clip's.
         "broll": document.get(
             "broll",
@@ -471,7 +472,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
         load_cached_transcript_data,
         get_words_for_keep_ranges,
     )
-    from ..clip_editor import _caption_words_with_timings
+    from ..clip_editor import _caption_words_with_timings, caption_tokens
     from ..clip_source_map import load_clip_caption_settings, load_clip_output_offsets, clip_source_map_path
     from ..youtube_source import local_ranges_for
 
@@ -600,7 +601,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
             transcript = load_cached_transcript_data(source)
             timed = get_words_for_keep_ranges(transcript, local_ranges, source_offsets) if transcript else []
             words = _caption_words_with_timings(
-                (clip.get("text") or "").split(), timed, metadata["duration"]
+                caption_tokens(clip.get("text") or "", timed), timed, metadata["duration"]
             )
             duration = metadata["duration"]
             emphasis = generated_emphasis(words, task)
@@ -623,7 +624,7 @@ async def prepare_editor(ctx, task_id: str, clip_id: str, filename: str):
                             clip_width,
                             clip_height,
                         ),
-                        "hookTitle": (clip.get("hook_title") or "")[:200],
+                        "hookTitle": (burned_hook_title(clip) or "")[:200],
                         "broll": editor_broll_from_placements(broll_placements, duration),
                         "words": [
                             {

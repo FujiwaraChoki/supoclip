@@ -76,6 +76,14 @@
   "broll": "B-roll",
   "brollHint": "Adds stock footage from Pexels where the speaker names something you can show",
   "cleanup": "Cleanup",
+  "composerSettings": {
+    "chip": "Settings",
+    "tour": "Take the tour",
+    "limits": "Upload limits and details",
+    "reset": "Reset all settings",
+    "on": "On",
+    "off": "Off"
+  },
   "cleanupTitle": "Clip cleanup",
   "cleanupBody": "Tighten dead air and cut filler sounds while rendering.",
   "shortenPauses": "Shorten long pauses",
@@ -246,12 +254,90 @@
     "SOURCE_TOO_SHORT_FOR_RECAP": "This video is already short. Recaps work on videos over 3 minutes.",
     "SOURCE_TOO_SHORT_FOR_TRAILER": "Trailers work on videos over 3 minutes.",
     "SOURCE_TOO_SHORT_FOR_TOPIC": "This video is too short to search by topic. Try Highlights instead.",
-    "WORKFLOW_NOT_AVAILABLE": "This option isn't available on your account yet."
+    "WORKFLOW_NOT_AVAILABLE": "This option isn't available on your account yet.",
+    "INVALID_WORKFLOW_SETTING": "That advanced setting isn't supported."
   },
   "palette": {
     "series": "New series",
     "topic": "New topic search",
     "recap": "New recap",
     "trailer": "New trailer"
+  },
+  "advanced": {
+    "chip": "Advanced",
+    "title": "Advanced",
+    "body": "The defaults work for most videos. Only change what you have a reason to.",
+    "auto": "Auto",
+    "reset": "Reset to defaults",
+    "outOfRange": "Enter a whole number from {min} to {max}.",
+    "settings": {
+      "hook_title": {
+        "label": "Title on the video",
+        "hint": "Burn the title in for the first few seconds."
+      },
+      "junction_style": {
+        "label": "Cuts between sections",
+        "hint": "How the pieces of a clip join."
+      },
+      "cold_open": {
+        "label": "Cold open",
+        "hint": "Part 1 starts on a line from later in the series, then goes back to the beginning."
+      },
+      "part_labels": {
+        "label": "Part numbers in titles",
+        "hint": "Start each title with “Part 2:”."
+      },
+      "endings": {
+        "label": "Part endings",
+        "hint": "Where each part stops."
+      },
+      "coverage": {
+        "label": "What to draw from",
+        "hint": "How much of the video the result covers."
+      },
+      "max_clips": {
+        "label": "Number of clips",
+        "hint": "The most clips to make."
+      },
+      "match": {
+        "label": "Topic match",
+        "hint": "What to do when the video only comes close to your topic."
+      },
+      "on_screen_points": {
+        "label": "Show each point on screen",
+        "hint": "Name each point in text as it starts."
+      },
+      "target_seconds": {
+        "label": "Length in seconds",
+        "hint": "Replaces the length you picked above."
+      },
+      "max_points": {
+        "label": "Most points",
+        "hint": "Fewer points leave each one more room, and the recap may run shorter."
+      },
+      "spoilers": {
+        "label": "Spoilers",
+        "hint": "Whether the trailer may use lines that give the ending away."
+      },
+      "ending": {
+        "label": "Last line",
+        "hint": "What the trailer ends on."
+      }
+    },
+    "choices": {
+      "auto": "Automatic",
+      "soft": "Soft fade",
+      "hard": "Hard cut",
+      "cliffhanger": "Leave people wanting the next part",
+      "natural": "Finish the thought",
+      "best_chapters": "The best chapters",
+      "start_to_finish": "In order, from the start",
+      "whole_video": "The whole video",
+      "best_moments": "Only the best moments",
+      "broad": "Allow a close match",
+      "strict": "Exact topic only",
+      "relaxed": "Allowed",
+      "question": "A question"
+    }
   }
 }

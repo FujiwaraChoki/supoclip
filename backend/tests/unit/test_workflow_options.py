@@ -556,7 +556,11 @@ def test_series_part_limits():
 
 
 def test_workflows_info_matches_the_contract():
-    assert workflows_info(True) == {
+    info = workflows_info(frozenset(WORKFLOWS))
+    for entry in info["workflows"]:
+        assert entry.pop("settings"), entry["id"]  # test_workflow_settings.py covers the schema
+        assert entry.pop("customizable") is True, entry["id"]
+    assert info == {
         "enabled": True,
         "workflows": [
             {"id": "highlights", "available": True, "min_source_seconds": 0},
@@ -584,11 +588,11 @@ def test_workflows_info_matches_the_contract():
         "topic_max_chars": 120,
         "instructions_max_chars": 500,
     }
-    json.dumps(workflows_info(True))
+    json.dumps(workflows_info(frozenset(WORKFLOWS)))
 
 
 def test_disabled_workflows_info_only_offers_highlights():
-    info = workflows_info(False)
+    info = workflows_info(frozenset())
     assert info["enabled"] is False
     assert {item["id"]: item["available"] for item in info["workflows"]} == {
         "highlights": True, "series": False, "topic": False, "recap": False, "trailer": False,

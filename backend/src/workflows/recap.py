@@ -26,7 +26,9 @@ from .assembly import (
     RecapPointIn,
     beat_seconds,
     beat_spans,
+    coverage_slices,
     fit_recap,
+    missing_slices,
     recap_beat_cap,
     recap_seconds,
 )
@@ -51,6 +53,7 @@ from .units import UnitIndex, format_clock
 logger = logging.getLogger(__name__)
 
 POINT_MIN_SECONDS = 6.0
+FRAMING_LABELS = frozenset({"Intro", "Takeaway"})
 CORE_MIN_SECONDS = 4.0
 # A setup is a short earlier sentence that names what the core leans on.
 SETUP_MAX_SECONDS = 8.0
@@ -209,6 +212,8 @@ class _DraftRules:
             (number, chapter, span)
             for number, (chapter, span) in enumerate(zip(outline.chapters, chapter_ranges(outline, pi.index)), start=1)
         ]
+        self.slices = _slices(pi, budget) if budget is not None else ()
+        self.max_points = pi.setting("max_points")
 
     def _valid(self, uid: int) -> bool:
         if not 1 <= uid <= len(self.index):
@@ -252,6 +257,8 @@ class _DraftRules:
                 issues.append(f"Points {previous} and {number} overlap; each unit belongs to one point.")
         if len(points) < self.min_points:
             issues.append(f"You gave {len(points)} points; give at least {self.min_points}.")
+        if self.max_points is not None and len(points) > self.max_points + FINAL_CUT_EXTRA_BEATS:
+            issues.append(f"You gave {len(points)} points; the creator wants at most {self.max_points}.")
         for name, span in (("opener", draft.opener), ("closer", draft.closer)):
             if span.first_unit < 1 and span.last_unit < 1:
                 continue
@@ -372,6 +379,11 @@ class _DraftRules:
                 times = f"{format_clock(index.unit(first).start)}-{format_clock(index.unit(last).end)}"
                 issues.append(f"Chapter C{number} (★5, {times}) has no point; add its clearest statement.")
         issues += self._format_coverage(covered)
+        if self.slices:
+            for low, high in missing_slices(self.slices, covered):
+                if self.shown is None or any(uid in self.shown for uid in range(low, high + 1)):
+                    times = f"{format_clock(index.unit(low).start)}-{format_clock(index.unit(high).end)}"
+                    issues.append(f"Your points leave out {times} (#{low}–#{high}); add its clearest statement.")
         total = sum(self._seconds(*full) for _, full, _ in spans)
         for span in (draft.opener, draft.closer):
             if span.first_unit >= 1 and self._valid(span.first_unit) and self._valid(span.last_unit) and span.first_unit <= span.last_unit:
@@ -420,6 +432,13 @@ class _DraftRules:
                         f"Your points leave out the {name} of the story (#{low}–#{high}); add a plot beat from it."
                     )
         return issues
+
+def _slices(pi: PlanInput, budget: Budget) -> tuple[tuple[int, int], ...]:
+    """The stretches of the video this recap has to touch; none when the creator wants best moments only."""
+    if pi.setting("coverage") != "whole_video":
+        return ()
+    return coverage_slices(pi.index, pi.outline.outline, framing_units(pi), budget)
+
 
 def _snap(index: UnitIndex, first: int, last: int, floor: int, ceiling: int) -> tuple[int, int]:
     """Edges moved onto the sentence they cut into, within a few units and ``floor..ceiling``.
@@ -662,6 +681,10 @@ class _FinalCutRules:
         self.cut = cut
         self.budget = budget
         self.framing = framing_units(pi)
+        played = [span for beat in cut.beats for span in beat_spans(beat)]
+        # A stretch the assembled cut reaches stays reached; one it couldn't reach isn't asked of the reader.
+        self.slices = [part for part in _slices(pi, budget) if not missing_slices([part], played)]
+        self.max_points = pi.setting("max_points")
 
     def beats(self, final: RecapFinalCut) -> list[Beat]:
         """The returned beats as a recap; a mid-sentence edge moves onto its sentence, or the beat stays broken."""
@@ -675,6 +698,10 @@ class _FinalCutRules:
             origin = self._origin(first, last)
             kind = "point"
             label = _label(entry.label) or (origin.label if origin is not None else "")
+            # "Intro" means the start of the recap. Anywhere else it would burn in
+            # as the name of a point, so the beat has to say what it is instead.
+            if label in FRAMING_LABELS:
+                label = ""
             importance = origin.importance if origin is not None else 2
             if origin is not None and origin.kind == "opener" and position == 0:
                 kind, label, importance = "opener", origin.label, 1
@@ -710,6 +737,8 @@ class _FinalCutRules:
                 issues.append(f"Beat {number} starts mid-sentence at #{beat.first}.")
             if index.boundary_strength(beat.last) < STRONG_BOUNDARY:
                 issues.append(f"Beat {number} ends mid-sentence at #{beat.last}.")
+            if beat.kind == "point" and not beat.label:
+                issues.append(f"Beat {number} needs a label of its own that says what the point is.")
             for other, previous in enumerate(beats[: number - 1], start=1):
                 if beat.first <= previous.last and previous.first <= beat.last:
                     issues.append(f"Beats {other} and {number} overlap.")
@@ -718,6 +747,12 @@ class _FinalCutRules:
         most = recap_beat_cap(self.budget) + FINAL_CUT_EXTRA_BEATS
         if len(beats) > most:
             issues.append(f"The cut has {len(beats)} beats; it can play at most {most}. Fewer complete beats follow better.")
+        points = sum(1 for beat in beats if beat.kind == "point")
+        if self.max_points is not None and points > self.max_points:
+            issues.append(f"The cut has {points} points; the creator wants at most {self.max_points}.")
+        for low, high in missing_slices(self.slices, [(beat.first, beat.last) for beat in beats]):
+            times = f"{format_clock(index.unit(low).start)}-{format_clock(index.unit(high).end)}"
+            issues.append(f"The cut plays nothing from {times} (#{low}–#{high}); the recap covers the whole video, so keep a beat from there.")
         seconds = recap_seconds(index, beats, self.pi.cleanup)
         floor = self.budget.min if self.cut.seconds >= self.budget.min else min(self.cut.seconds, self.budget.min)
         if not floor <= seconds <= self.budget.max:
@@ -838,12 +873,16 @@ def _recap_title(pi: PlanInput, draft: RecapDraft, cut: RecapCut, final_title: s
 
 async def plan_recap(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     index, spec = pi.index, pi.ctx.spec
-    budget = recap_budget(spec.clip_length, pi.ctx.source_seconds)
+    budget = recap_budget(spec.clip_length, pi.ctx.source_seconds, pi.setting("target_seconds"))
     await pi.ctx.progress(54, "Mapping the main points...")
     draft = await _draft(pi, budget)
     await pi.ctx.progress(58, "Choosing what to keep...")
     framing = framing_units(pi)
-    cut = fit_recap(index, _draft_in(index, draft, framing), budget, pi.outline.outline, pi.cleanup, framing)
+    cut = fit_recap(
+        index, _draft_in(index, draft, framing), budget, pi.outline.outline, pi.cleanup, framing,
+        whole_video=pi.setting("coverage") == "whole_video",
+        max_points=pi.setting("max_points"),
+    )
     await pi.ctx.progress(62, "Checking the edit...")
     cut, final_title, why = await _final_cut(pi, cut, budget)
 
@@ -902,7 +941,7 @@ def _segments(
         hook_title=compose_title(title),
         reasoning=reasoning or pi.outline.outline.one_line,
         workflow_role="recap",
-        meta={"points": meta_points},
+        meta={"points": meta_points, **({} if pi.setting("on_screen_points") else {"on_screen_points": False})},
     )
     plan = base_plan(pi, title=title)
     plan["points"] = plan_points

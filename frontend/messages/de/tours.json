@@ -1,0 +1,50 @@
+{
+  "new": "Neu",
+  "next": "Weiter",
+  "back": "Zurück",
+  "done": "Fertig",
+  "start": "Zeig mir 👀",
+  "notNow": "Nicht jetzt",
+  "progress": "{current} von {total}",
+  "workflows": {
+    "intro": {
+      "title": "Neu: Workflows",
+      "body": "Mit Workflows wählst du vor dem Start, was entstehen soll. Neben Highlights kann ein Video jetzt zu einer nummerierten Serie, allen Clips zu einem Thema, einer Zusammenfassung oder einem Trailer werden. Hier ist ein kurzer Blick auf jeden."
+    },
+    "highlights": {
+      "title": "Highlights",
+      "body": "Das kennst du schon: die besten Momente, jeder für sich verständlich. Das bleibt die Standardeinstellung."
+    },
+    "series": {
+      "title": "Serie",
+      "body": "Macht aus einem langen Video nummerierte Teile, die aufeinander aufbauen und Lust auf den nächsten machen. Ideal für Geschichten und Tutorials."
+    },
+    "topic": {
+      "title": "Thema",
+      "body": "Nenne ein Thema und erhalte jeden starken Moment dazu, etwa „Preise“ in einem langen Interview. Du tippst es in die Zeile unter deinem Link."
+    },
+    "recap": {
+      "title": "Zusammenfassung",
+      "body": "Ein kurzes Video mit den wichtigsten Punkten des gesamten Videos, die auch im Bild aufgelistet werden."
+    },
+    "trailer": {
+      "title": "Trailer",
+      "body": "Eine kurze Vorschau, die Lust auf das ganze Video macht, ohne das Ende zu verraten."
+    },
+    "instructions": {
+      "title": "Gib deine eigene Richtung vor",
+      "body": "Egal was du wählst: Füge einen Hinweis wie „nur die lustigen Momente“ hinzu, und die Clips richten sich danach."
+    },
+    "settings": {
+      "title": "Alles andere findest du hier",
+      "body": "Länge, Untertitel, Bildausschnitt, Bereinigung und B-Roll liegen jetzt in einem Menü. Wir merken uns deine Auswahl, du stellst sie also nur einmal ein."
+    }
+  },
+  "composer-settings": {
+    "settings": {
+      "title": "Alles andere findest du hier",
+      "body": "Länge, Untertitel, Bildausschnitt, Bereinigung und B-Roll liegen jetzt in einem Menü. Wir merken uns deine Auswahl, du stellst sie also nur einmal ein."
+    }
+  },
+  "skip": "Überspringen"
+}

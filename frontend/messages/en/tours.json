@@ -1,0 +1,50 @@
+{
+  "new": "New",
+  "next": "Next",
+  "back": "Back",
+  "done": "Done",
+  "start": "Show me 👀",
+  "notNow": "Not now",
+  "progress": "{current} of {total}",
+  "workflows": {
+    "intro": {
+      "title": "Introducing workflows",
+      "body": "Workflows let you choose what to make before you start. Besides highlights, one video can now become a numbered series, every clip about a topic, a recap, or a trailer. Here’s a one-minute look at each."
+    },
+    "highlights": {
+      "title": "Highlights",
+      "body": "What you already know: the best moments, each one working on its own. This is still the default."
+    },
+    "series": {
+      "title": "Series",
+      "body": "Turns a long video into numbered parts that play in order, each leaving people wanting the next. Great for stories and tutorials."
+    },
+    "topic": {
+      "title": "Topic",
+      "body": "Name a subject and get every strong moment about it, like “pricing” in a long interview. You type it in the line that appears under your link."
+    },
+    "recap": {
+      "title": "Recap",
+      "body": "One short video covering the main points of the whole thing, with the points listed on screen."
+    },
+    "trailer": {
+      "title": "Trailer",
+      "body": "One short preview made to get people to watch the full video, without giving away the ending."
+    },
+    "instructions": {
+      "title": "Add your own direction",
+      "body": "Whichever you pick, add a note like “only the funny moments” and the clips follow it."
+    },
+    "settings": {
+      "title": "Everything else lives here",
+      "body": "Length, captions, framing, cleanup, and B-roll are now in one menu. We remember your choices, so you only set them once."
+    }
+  },
+  "composer-settings": {
+    "settings": {
+      "title": "Everything else lives here",
+      "body": "Length, captions, framing, cleanup, and B-roll are now in one menu. We remember your choices, so you only set them once."
+    }
+  },
+  "skip": "Skip"
+}

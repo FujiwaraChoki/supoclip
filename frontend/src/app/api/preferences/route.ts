@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPrismaClient } from "@/server/prisma";
 import { isClipLength } from "@/lib/clip-duration";
+import { parseCreateSettings } from "@/lib/create-settings";
 import { getServerSession } from "@/server/session";
 
 // GET /api/preferences - Get user preferences
@@ -24,6 +25,7 @@ export async function GET() {
         default_font_color: true,
         notify_on_completion: true,
         default_clip_length: true,
+        create_settings: true,
       },
     });
 
@@ -40,6 +42,7 @@ export async function GET() {
       fontColor: user.default_font_color || "#FFFFFF",
       notifyOnCompletion: user.notify_on_completion ?? true,
       clipLength: user.default_clip_length || "auto",
+      createSettings: parseCreateSettings(user.create_settings),
     });
   } catch (error) {
     console.error("Error fetching preferences:", error);
@@ -66,7 +69,7 @@ export async function PATCH(request: NextRequest) {
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ error: "Expected a preferences object" }, { status: 400 });
     }
-    const { fontFamily, fontSize, fontColor, notifyOnCompletion, clipLength } = body;
+    const { fontFamily, fontSize, fontColor, notifyOnCompletion, clipLength, createSettings } = body;
 
     if (clipLength !== undefined && !isClipLength(clipLength)) {
       return NextResponse.json({ error: "Invalid clipLength" }, { status: 400 });
@@ -104,11 +107,16 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
+    if (createSettings !== undefined && (typeof createSettings !== "object" || createSettings === null || Array.isArray(createSettings))) {
+      return NextResponse.json({ error: "Invalid createSettings" }, { status: 400 });
+    }
+
     const prisma = getPrismaClient();
     const updatedUser = await prisma.user.update({
       where: { id: session.user.id },
       data: {
         ...(clipLength !== undefined && { default_clip_length: clipLength }),
+        ...(createSettings !== undefined && { create_settings: parseCreateSettings(createSettings) }),
         ...(fontFamily !== undefined && { default_font_family: fontFamily }),
         ...(fontSize !== undefined && { default_font_size: fontSize }),
         ...(fontColor !== undefined && { default_font_color: fontColor }),
@@ -122,6 +130,7 @@ export async function PATCH(request: NextRequest) {
         default_font_color: true,
         notify_on_completion: true,
         default_clip_length: true,
+        create_settings: true,
       },
     });
 
@@ -131,6 +140,7 @@ export async function PATCH(request: NextRequest) {
       fontColor: updatedUser.default_font_color,
       notifyOnCompletion: updatedUser.notify_on_completion,
       clipLength: updatedUser.default_clip_length || "auto",
+      createSettings: parseCreateSettings(updatedUser.create_settings),
     });
   } catch (error) {
     console.error("Error updating preferences:", error);

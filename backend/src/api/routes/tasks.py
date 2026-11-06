@@ -61,7 +61,8 @@ from ...workflows.options import (
     check_source_duration,
     parse_workflow_request,
     workflow_not_available,
-    workflows_enabled_for,
+    allowed_workflows,
+    workflow_allowed_for,
     workflows_info,
 )
 import redis.asyncio as redis
@@ -591,7 +592,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         workflow_spec = parse_workflow_request(data, clip_length)
     except WorkflowRequestError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.to_detail()) from None
-    if not workflow_spec.legacy and not await workflows_enabled_for(db, user_id):
+    if not workflow_spec.legacy and not await workflow_allowed_for(db, user_id, workflow_spec.workflow):
         error = workflow_not_available()
         raise HTTPException(status_code=error.status, detail=error.to_detail())
     workflow_options = workflow_spec.options.to_json()
@@ -790,7 +791,7 @@ async def get_billing_summary(request: Request, db: AsyncSession = Depends(get_d
 async def get_workflows(request: Request, db: AsyncSession = Depends(get_db)):
     """What the authenticated user can make, with each workflow's limits."""
     user_id = await _get_user_id_from_headers(request, db)
-    return workflows_info(await workflows_enabled_for(db, user_id))
+    return workflows_info(await allowed_workflows(db, user_id))
 
 
 @router.get("/shared/{share_token}")
@@ -1572,7 +1573,7 @@ async def resume_task(
             # The rollout gate holds for resumes too: switching it off (or
             # leaving the allowlist) stops a workflow task from running again.
             spec = workflow_spec_from_task(task, "auto")  # the length never decides the gate
-            if not spec.legacy and not await workflows_enabled_for(db, task["user_id"]):
+            if not spec.legacy and not await workflow_allowed_for(db, task["user_id"], spec.workflow):
                 error = workflow_not_available()
                 raise HTTPException(status_code=error.status, detail=error.to_detail())
 

@@ -202,7 +202,8 @@
     "TOPIC_BROADENED": "\"{topic}\" terlalu luas untuk video ini, jadi kami mengartikannya sebagai: {interpretation}",
     "TARGET_SHORTENED": "Videonya pendek, jadi rangkumannya juga lebih pendek.",
     "COARSE_TRANSCRIPT": "Transkrip ini tidak punya waktu per kata, jadi potongannya kurang presisi.",
-    "SPONSOR_SKIPPED": "Kami melewatkan bagian sponsor."
+    "SPONSOR_SKIPPED": "Kami melewatkan bagian sponsor.",
+    "COLD_OPEN_SKIPPED": "Tidak ada kalimat yang cukup kuat untuk cold open, jadi Bagian 1 dimulai dari awal."
   },
   "workflowErrors": {
     "topic_not_found": {

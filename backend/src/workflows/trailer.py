@@ -214,6 +214,7 @@ def button_candidates(
     setups: set[int],
     shown: Optional[Sequence[int]],
     limit: int = BUTTON_CANDIDATES,
+    questions_only: bool = False,
 ) -> list[tuple[int, int]]:
     """Short lines a trailer could end on: questions and hard stops, clear of spoilers.
 
@@ -241,6 +242,8 @@ def button_candidates(
             continue
         strength = clauses.boundary_strength(uid)
         if not (unit.ends_question or strength >= BUTTON_STRONG_END or (uid in setups and strength >= STRONG_BOUNDARY)):
+            continue
+        if questions_only and not unit.ends_question:
             continue
         if not (unit.speaker == speaker or uid in inside):
             continue
@@ -299,7 +302,11 @@ class _DraftRules:
         *,
         candidates: Sequence[tuple[int, int]] = (),
         story: bool = False,
+        relaxed: bool = False,
+        question_ending: bool = False,
     ):
+        self.relaxed = relaxed  # the creator accepts spoilers: the model's own reveals aren't off limits either
+        self.question_ending = question_ending
         self.clauses = clauses
         self.spoilers = spoilers
         self.shown = set(shown) if shown is not None else None
@@ -323,6 +330,8 @@ class _DraftRules:
 
     def blocked(self, draft: TrailerDraft) -> set[int]:
         blocked = self.spoilers - self.reclaimed(draft)
+        if self.relaxed:
+            return blocked
         for payoff in draft.payoffs:
             low, high = sorted((payoff.first_unit, payoff.last_unit))
             blocked.update(range(max(1, low), min(len(self.clauses), high) + 1))
@@ -335,6 +344,10 @@ class _DraftRules:
         beats = draft.beats
         if not MIN_BEATS <= len(beats) <= MAX_BEATS:
             issues.append(f"You made {len(beats)} beats; make {MIN_BEATS}-{MAX_BEATS}.")
+        if self.question_ending and self.candidates and beats:
+            last = beats[-1].last_unit
+            if not (1 <= last <= len(clauses) and clauses.unit(last).ends_question):
+                issues.append("The creator wants the trailer to end on a question; end on one of the button candidates.")
         spans: list[tuple[int, int, int]] = []
         lengths: list[float] = []
         total = 0.0
@@ -465,9 +478,11 @@ async def _draft(
     shown = _shown_clauses(pi, clauses, spoilers)
     outline = pi.outline.outline
     setups = _to_clause_ids(pi, clauses, setup_sentences(pi, spoiler_sentences(pi))) - spoilers
-    candidates = button_candidates(pi, clauses, spoilers, setups, shown)
+    question_ending = pi.setting("ending") == "question"
+    candidates = button_candidates(pi, clauses, spoilers, setups, shown, questions_only=question_ending)
     rules = _DraftRules(
-        clauses, spoilers, shown, budget, pi.cleanup, candidates=candidates, story=outline.format in _STORY_FORMATS
+        clauses, spoilers, shown, budget, pi.cleanup, candidates=candidates, story=outline.format in _STORY_FORMATS,
+        relaxed=pi.setting("spoilers") == "relaxed", question_ending=question_ending,
     )
     listing = clauses.listing(shown)
     if shown is None:
@@ -598,7 +613,11 @@ async def _judge(
     agent = build_agent(SpoilerVerdict, trailer_judge_system(pi.language_name), structural=True)
     try:
         prompt = judge_prompt(pi, clauses, cut, reveals, titles, thread)
-        return (await run(agent, prompt, stats=pi.stats, stage="trailer_judge")).output
+        verdict = (await run(agent, prompt, stats=pi.stats, stage="trailer_judge")).output
+        if pi.setting("spoilers") == "relaxed":
+            # The judge's other notes stand; giving the ending away is what the creator allowed.
+            return verdict.model_copy(update={"reveals_payoff": False, "offending_beat": -1})
+        return verdict
     except Exception as error:
         if is_cancellation(error):
             raise
@@ -730,10 +749,11 @@ def fallback_trailer(
 
 async def plan_trailer(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     spec = pi.ctx.spec
-    budget = trailer_budget(spec.clip_length)
+    budget = trailer_budget(spec.clip_length, pi.setting("target_seconds"))
     await pi.ctx.progress(54, "Mapping the story...")
     clauses = await clause_units(pi)
-    spoilers = _to_clause_ids(pi, clauses, spoiler_sentences(pi))
+    relaxed = pi.setting("spoilers") == "relaxed"
+    spoilers: set[int] = set() if relaxed else _to_clause_ids(pi, clauses, spoiler_sentences(pi))
     story = pi.outline.outline.format in _STORY_FORMATS
 
     await pi.ctx.progress(58, "Writing the trailer...")
@@ -762,6 +782,8 @@ async def plan_trailer(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, A
         pi.stats.fallbacks.append("TRAILER_OUTLINE_FALLBACK")
         cut, title = await _check_fallback(pi, clauses, drafter.current, blocked, budget, survivors)
     thread = _thread(drafter.current)
+    if pi.setting("ending") == "question":
+        cut = await _end_on_question(pi, clauses, cut, blocked, thread, budget, story)
     title = await _final_title(pi, clauses, cut, title, thread)
     # The central question is the curiosity the trailer sells: the title when
     # the draft has none, or nothing the beats say makes one.
@@ -777,6 +799,27 @@ async def plan_trailer(pi: PlanInput) -> tuple[list[dict[str, Any]], dict[str, A
     if thread:
         plan["summary"] = thread
     return segments, plan
+
+
+async def _end_on_question(
+    pi: PlanInput, clauses: UnitIndex, cut: TrailerCut, blocked: set[int], thread: str, budget: Budget, story: bool
+) -> TrailerCut:
+    """The cut, ending on a question when the video has one that fits; else as it is, recorded in the stats."""
+    if clauses.unit(cut.beats[-1].last).ends_question:
+        return cut
+    picked = await _pick_button(pi, clauses, cut, blocked, thread, questions_only=True)
+    if picked is not None:
+        beats = [
+            TrailerBeatIn(beat.role, beat.first, beat.last, beat.why)
+            for beat in cut.beats[:-1]
+            if not (beat.first <= picked[1] and picked[0] <= beat.last)
+        ]
+        beats.append(TrailerBeatIn("button", *picked, why="hanging line"))
+        refit = fit_trailer(clauses, beats, blocked, budget, pi.cleanup, source_order=story)
+        if refit.usable and clauses.unit(refit.beats[-1].last).ends_question:
+            return refit
+    pi.stats.fallbacks.append("TRAILER_NO_QUESTION_ENDING")
+    return cut
 
 
 def _thread(draft: Optional[TrailerDraft]) -> str:
@@ -864,7 +907,7 @@ def _verdict_beat(verdict_beat: int, cut: TrailerCut) -> int:
 
 
 async def _pick_button(
-    pi: PlanInput, clauses: UnitIndex, cut: TrailerCut, blocked: set[int], thread: str
+    pi: PlanInput, clauses: UnitIndex, cut: TrailerCut, blocked: set[int], thread: str, questions_only: bool = False
 ) -> Optional[tuple[int, int]]:
     """A better last line, chosen by the model from candidates across the video; None keeps the drafter's."""
     setups = _to_clause_ids(pi, clauses, setup_sentences(pi, spoiler_sentences(pi))) - blocked
@@ -872,7 +915,8 @@ async def _pick_button(
     candidates = [
         (low, high)
         for low, high in button_candidates(
-            pi, clauses, blocked, setups, _shown_clauses(pi, clauses, blocked), limit=BUTTON_PICK_CANDIDATES
+            pi, clauses, blocked, setups, _shown_clauses(pi, clauses, blocked), limit=BUTTON_PICK_CANDIDATES,
+            questions_only=questions_only or pi.setting("ending") == "question",
         )
         if not any(low <= span[1] and span[0] <= high for span in others)
     ]

@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Literal, Optional, Protocol
 
 from ..clip_duration import normalize_clip_length
 from .durations import SERIES_MAX_PARTS, SERIES_MIN_PARTS
+from .settings import SettingValue, default_of, read_settings
 
 WORKFLOWS: tuple[str, ...] = ("highlights", "series", "topic", "recap", "trailer")
 Workflow = Literal["highlights", "series", "topic", "recap", "trailer"]
@@ -38,10 +39,13 @@ class WorkflowOptions:
     topic: str = ""  # topic workflow only; already normalized
     part_count: Optional[int] = None  # series only; None = auto
     instructions: str = ""  # any workflow; already normalized
+    advanced: dict[str, SettingValue] = field(default_factory=dict)  # only non-default values (settings.py)
 
     def to_json(self) -> dict[str, Any]:
         """Canonical, sorted, no empty values. Stored in tasks.workflow_options."""
         out: dict[str, Any] = {}
+        if self.advanced:
+            out["advanced"] = dict(sorted(self.advanced.items()))
         if self.instructions:
             out["instructions"] = self.instructions
         if self.part_count is not None:
@@ -66,6 +70,7 @@ class WorkflowOptions:
             topic=topic.strip() if isinstance(topic, str) else "",
             part_count=_part_count(raw.get("part_count")),
             instructions=instructions.strip() if isinstance(instructions, str) else "",
+            advanced=read_settings(None, raw.get("advanced")),
         )
 
     def for_workflow(self, workflow: str) -> "WorkflowOptions":
@@ -74,6 +79,7 @@ class WorkflowOptions:
             topic=self.topic if workflow == "topic" else "",
             part_count=self.part_count if workflow == "series" else None,
             instructions=self.instructions,
+            advanced=read_settings(workflow, self.advanced),
         )
 
 
@@ -85,8 +91,14 @@ class WorkflowSpec:
 
     @property
     def legacy(self) -> bool:
-        """Highlights without instructions: the original pipeline, byte for byte."""
-        return self.workflow == "highlights" and not self.options.instructions
+        """Highlights without instructions or settings: the original pipeline."""
+        return self.workflow == "highlights" and not self.options.instructions and not self.options.advanced
+
+    def setting(self, key: str) -> Optional[SettingValue]:
+        """The creator's value for an advanced setting, else its default."""
+        if key in self.options.advanced:
+            return self.options.advanced[key]
+        return default_of(self.workflow, key)
 
     @property
     def uses_performance_context(self) -> bool:
@@ -99,20 +111,20 @@ class WorkflowSpec:
 
     def fingerprint(self) -> str:
         """sha256 of canonical JSON: workflow, WORKFLOW_PLAN_VERSION, clip_length,
-        topic_key, part_count, sha256(instructions)[:16]."""
+        topic_key, part_count, sha256(instructions)[:16], and any non-default settings."""
         instructions = self.options.instructions
-        return _sha256(
-            _canonical_json(
-                {
-                    "workflow": self.workflow,
-                    "version": WORKFLOW_PLAN_VERSION,
-                    "clip_length": self.clip_length,
-                    "topic": self.topic_key,
-                    "part_count": self.options.part_count,
-                    "instructions": _sha256(instructions)[:16] if instructions else "",
-                }
-            )
-        )
+        payload: dict[str, Any] = {
+            "workflow": self.workflow,
+            "version": WORKFLOW_PLAN_VERSION,
+            "clip_length": self.clip_length,
+            "topic": self.topic_key,
+            "part_count": self.options.part_count,
+            "instructions": _sha256(instructions)[:16] if instructions else "",
+        }
+        # Absent when nothing is set, so plans cached before settings existed stay valid.
+        if self.options.advanced:
+            payload["advanced"] = self.options.advanced
+        return _sha256(_canonical_json(payload))
 
 
 def highlights_spec(clip_length: str = "auto") -> WorkflowSpec:

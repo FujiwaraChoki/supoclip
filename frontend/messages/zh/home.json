@@ -76,6 +76,14 @@
   "broll": "B-roll 素材",
   "brollHint": "在说话者提到可展示的事物时，自动插入 Pexels 素材视频",
   "cleanup": "清理",
+  "composerSettings": {
+    "chip": "设置",
+    "tour": "查看导览",
+    "limits": "上传限制和详情",
+    "reset": "重置所有设置",
+    "on": "开启",
+    "off": "关闭"
+  },
   "cleanupTitle": "片段清理",
   "cleanupBody": "渲染时收紧空白，并切掉填充音。",
   "shortenPauses": "缩短长停顿",
@@ -246,12 +254,90 @@
     "SOURCE_TOO_SHORT_FOR_RECAP": "这个视频本来就很短。回顾适用于 3 分钟以上的视频。",
     "SOURCE_TOO_SHORT_FOR_TRAILER": "预告适用于 3 分钟以上的视频。",
     "SOURCE_TOO_SHORT_FOR_TOPIC": "这个视频太短，没法按话题查找。试试精彩片段吧。",
-    "WORKFLOW_NOT_AVAILABLE": "你的账户暂时还不能使用这个选项。"
+    "WORKFLOW_NOT_AVAILABLE": "你的账户暂时还不能使用这个选项。",
+    "INVALID_WORKFLOW_SETTING": "不支持该高级设置。"
   },
   "palette": {
     "series": "新建系列",
     "topic": "新建话题查找",
     "recap": "新建回顾",
     "trailer": "新建预告"
+  },
+  "advanced": {
+    "chip": "高级",
+    "title": "高级",
+    "body": "默认设置适合大多数视频。只有在确有需要时才更改。",
+    "auto": "自动",
+    "reset": "恢复默认设置",
+    "outOfRange": "请输入 {min} 到 {max} 之间的整数。",
+    "settings": {
+      "hook_title": {
+        "label": "视频上的标题",
+        "hint": "在开头几秒显示标题。"
+      },
+      "junction_style": {
+        "label": "片段之间的剪辑",
+        "hint": "片段的衔接方式。"
+      },
+      "cold_open": {
+        "label": "冷开场",
+        "hint": "第 1 集先播放系列后面的一句话，再回到开头。"
+      },
+      "part_labels": {
+        "label": "标题中的集数",
+        "hint": "每个标题以“第 2 集：”开头。"
+      },
+      "endings": {
+        "label": "每集的结尾",
+        "hint": "每集在哪里结束。"
+      },
+      "coverage": {
+        "label": "素材来源",
+        "hint": "成品覆盖视频的多少内容。"
+      },
+      "max_clips": {
+        "label": "片段数量",
+        "hint": "最多生成多少个片段。"
+      },
+      "match": {
+        "label": "主题匹配",
+        "hint": "视频只是接近你的主题时如何处理。"
+      },
+      "on_screen_points": {
+        "label": "在画面上显示每个要点",
+        "hint": "每个要点开始时用文字标出。"
+      },
+      "target_seconds": {
+        "label": "时长（秒）",
+        "hint": "替代上方选择的时长。"
+      },
+      "max_points": {
+        "label": "最多要点数",
+        "hint": "要点越少，每个要点的空间越大，回顾也可能更短。"
+      },
+      "spoilers": {
+        "label": "剧透",
+        "hint": "预告片是否可以使用透露结局的句子。"
+      },
+      "ending": {
+        "label": "最后一句",
+        "hint": "预告片以什么结尾。"
+      }
+    },
+    "choices": {
+      "auto": "自动",
+      "soft": "柔和过渡",
+      "hard": "硬切",
+      "cliffhanger": "让人想看下一集",
+      "natural": "把话说完",
+      "best_chapters": "最好的章节",
+      "start_to_finish": "从头按顺序",
+      "whole_video": "整个视频",
+      "best_moments": "只要最精彩的时刻",
+      "broad": "允许相近的匹配",
+      "strict": "只要完全相符的主题",
+      "relaxed": "允许",
+      "question": "一个问题"
+    }
   }
 }

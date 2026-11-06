@@ -116,6 +116,34 @@ describe("WorkflowFailure", () => {
   });
 });
 
+describe("WorkflowFailure for a user with only some workflows", () => {
+  it("offers highlights instead of a recap they can't make", () => {
+    const { onCreate } = renderFailure("trailer_unbuildable", { workflow: "trailer", offered: new Set(["highlights", "trailer"]) });
+    fireEvent.click(screen.getByRole("button", { name: "Make highlights instead" }));
+    expect(onCreate).toHaveBeenCalledWith("highlights");
+  });
+
+  it("keeps the recap when they can make it", () => {
+    const { onCreate } = renderFailure("trailer_unbuildable", { workflow: "trailer", offered: new Set(["recap", "highlights"]) });
+    expect(screen.queryByRole("button", { name: "Make highlights instead" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button")[0]);
+    expect(onCreate).toHaveBeenCalledWith("recap");
+  });
+
+  it("hides topic suggestions they can't make", () => {
+    renderFailure("topic_not_found", { plan: notFoundPlan, topic: "crypto", offered: new Set(["highlights", "trailer"]) });
+    expect(screen.queryByRole("button", { name: "pricing" })).not.toBeInTheDocument();
+  });
+
+  it("drops instructions and settings the next workflow can't take", () => {
+    const task = { source_url: "https://youtu.be/x", workflow: "topic" as const, workflow_options: { topic: "x", instructions: "Funny bits", advanced: { hook_title: false } } };
+    const body = buildRecreateBody(task, { workflow: "highlights" }, false);
+    expect(body).not.toHaveProperty("instructions");
+    expect(body).not.toHaveProperty("workflow_options");
+    expect(buildRecreateBody(task, { workflow: "series" }).instructions).toBe("Funny bits");
+  });
+});
+
 describe("failure helpers", () => {
   it("knows the worker codes", () => {
     expect(isWorkflowErrorCode("topic_not_found")).toBe(true);
@@ -172,6 +200,19 @@ describe("failure helpers", () => {
     expect(highlights).not.toHaveProperty("workflow_options");
     expect(highlights).not.toHaveProperty("instructions");
     expect(highlights.source.title).toBeNull();
+  });
+
+  it("keeps a task's advanced settings when they still mean the same thing", () => {
+    const task = {
+      source_url: "https://youtu.be/x", workflow: "series" as const,
+      workflow_options: { advanced: { cold_open: true, hook_title: false } },
+    };
+    expect(buildRecreateBody(task, { workflow: "series" }).workflow_options).toEqual({ advanced: { cold_open: true, hook_title: false } });
+    // Another workflow has no cold open, and highlights have no burned titles to turn off.
+    expect(buildRecreateBody(task, { workflow: "recap" }).workflow_options).toEqual({ advanced: { hook_title: false } });
+    expect(buildRecreateBody(task, { workflow: "highlights" })).not.toHaveProperty("workflow_options");
+    const topic = { ...task, workflow: "topic" as const, workflow_options: { topic: "a", advanced: { match: "strict" } } };
+    expect(buildRecreateBody(topic, { workflow: "topic", topic: "b" }).workflow_options).toEqual({ topic: "b", advanced: { match: "strict" } });
   });
 
   it("keeps the length only when it measures the same thing", () => {

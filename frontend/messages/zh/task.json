@@ -202,7 +202,8 @@
     "TOPIC_BROADENED": "“{topic}”对这个视频来说范围较广，所以我们理解为：{interpretation}",
     "TARGET_SHORTENED": "视频较短，所以回顾也更短。",
     "COARSE_TRANSCRIPT": "这份转录没有逐词时间戳，剪辑点会不够精确。",
-    "SPONSOR_SKIPPED": "我们省略了一段赞助内容。"
+    "SPONSOR_SKIPPED": "我们省略了一段赞助内容。",
+    "COLD_OPEN_SKIPPED": "没有足够有力的句子可作冷开场，因此第 1 集从开头开始。"
   },
   "workflowErrors": {
     "topic_not_found": {

@@ -22,7 +22,7 @@ from .language import language_name
 from .llm import PlanStats, is_cancellation
 from .options import workflow_runtime_minimum_error
 from .outline import get_outline
-from .planning import PlanInput, plan_language
+from .planning import PlanInput, apply_output_settings, plan_language
 from .recap import plan_recap
 from .series import plan_series
 from .topic import plan_topic
@@ -103,6 +103,7 @@ async def _plan(ctx: PlanContext, stats: PlanStats) -> WorkflowResult:
     if not segments:
         # Every planner raises its own error before this; an empty plan is a bug.
         raise WorkflowError("plan_failed", _PLAN_FAILED)
+    apply_output_settings(ctx.spec, segments)
     return WorkflowResult(
         segments=segments,
         plan=plan,

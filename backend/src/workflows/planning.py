@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional, Sequence
 
 from ..media.timeline import seconds_to_mmss
-from .contracts import WORKFLOW_PLAN_VERSION, PlanContext
+from .contracts import WORKFLOW_PLAN_VERSION, PlanContext, WorkflowSpec
 from .language import LANGUAGE_NAMES, language_name, normalize_language_code
 from .llm import PlanStats
 from .outline import OutlineResult
@@ -30,6 +30,14 @@ def plan_language(index: UnitIndex, transcript_data: Optional[dict], outline_lan
     return index.language
 
 
+# Settings the prompts must know about, said the way a creator would.
+_SETTING_WISHES = (
+    ("series", "endings", "natural", "End each part where a thought is complete. Don't chase cliffhangers or question endings."),
+    ("trailer", "ending", "question", "The trailer must end on a question."),
+    ("trailer", "spoilers", "relaxed", "You may use lines that give the ending away when they make the strongest trailer."),
+)
+
+
 @dataclass
 class PlanInput:
     """One planner's inputs: the task context, the sentence units and the outline."""
@@ -51,7 +59,16 @@ class PlanInput:
 
     @property
     def instructions(self) -> str:
-        return self.ctx.spec.options.instructions
+        """The creator's words, then what their advanced settings ask of the editor."""
+        parts = [self.ctx.spec.options.instructions]
+        spec = self.ctx.spec
+        for workflow, key, value, wish in _SETTING_WISHES:
+            if spec.workflow == workflow and spec.setting(key) == value:
+                parts.append(wish)
+        return "\n".join(part for part in parts if part)
+
+    def setting(self, key: str) -> Any:
+        return self.ctx.spec.setting(key)
 
     def note(self, code: str, params: Optional[dict[str, Any]] = None) -> None:
         if not any(existing.get("code") == code for existing in self.notes):
@@ -72,6 +89,33 @@ def base_plan(plan_input: PlanInput, *, title: str) -> dict[str, Any]:
         "key_topics": list(outline.key_topics),
         "notes": plan_input.notes,
     }
+
+
+# What ``junction_style`` means when it isn't auto.
+SOFT_JUNCTION_SECONDS = 0.12
+
+
+def apply_output_settings(spec: WorkflowSpec, segments: list[dict[str, Any]]) -> None:
+    """The settings every planned workflow shares, applied to its finished segments.
+
+    A hidden title stays the clip's name in the app; only the burn-in goes.
+    A cold open's junction stays a hard cut whatever the style: it is a jump in time.
+    """
+    if not spec.options.advanced:
+        return
+    style = spec.setting("junction_style")
+    for segment in segments:
+        meta = segment["workflow_meta"]
+        if not spec.setting("hook_title"):
+            meta["burn_hook_title"] = False
+        if style == "auto":
+            continue
+        fade = SOFT_JUNCTION_SECONDS if style == "soft" else 0.0
+        fades = [fade] * len(segment["junction_fades"])
+        if meta.get("cold_open"):
+            fades[int(meta["cold_open"]["range_count"]) - 1] = 0.0
+        segment["junction_fades"] = fades
+        meta["junction_fades"] = list(fades)
 
 
 def rounded_ranges(ranges: Sequence[Range]) -> list[list[float]]:

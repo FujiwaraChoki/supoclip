@@ -1,0 +1,50 @@
+{
+  "new": "Novo",
+  "next": "Avançar",
+  "back": "Voltar",
+  "done": "Concluir",
+  "start": "Mostrar 👀",
+  "notNow": "Agora não",
+  "progress": "{current} de {total}",
+  "workflows": {
+    "intro": {
+      "title": "Apresentando os fluxos",
+      "body": "Os fluxos permitem escolher o que criar antes de começar. Além dos destaques, um vídeo agora pode virar uma série numerada, todos os clipes sobre um tema, um resumo ou um trailer. Veja cada um em um minuto."
+    },
+    "highlights": {
+      "title": "Destaques",
+      "body": "O que você já conhece: os melhores momentos, cada um funcionando sozinho. Continua sendo o padrão."
+    },
+    "series": {
+      "title": "Série",
+      "body": "Transforma um vídeo longo em partes numeradas que seguem em ordem, cada uma deixando vontade de ver a próxima. Ótimo para histórias e tutoriais."
+    },
+    "topic": {
+      "title": "Tema",
+      "body": "Diga um assunto e receba cada momento forte sobre ele, como “preços” em uma entrevista longa. Você digita na linha que aparece abaixo do link."
+    },
+    "recap": {
+      "title": "Resumo",
+      "body": "Um vídeo curto com os pontos principais de todo o conteúdo, com esses pontos listados na tela."
+    },
+    "trailer": {
+      "title": "Trailer",
+      "body": "Uma prévia curta feita para levar as pessoas a assistir ao vídeo completo, sem revelar o final."
+    },
+    "instructions": {
+      "title": "Dê sua própria direção",
+      "body": "Seja qual for a escolha, adicione uma nota como “só os momentos engraçados” e os clipes vão segui-la."
+    },
+    "settings": {
+      "title": "Todo o resto fica aqui",
+      "body": "Duração, legendas, enquadramento, limpeza e B-roll agora ficam em um só menu. Lembramos suas escolhas, então você só configura uma vez."
+    }
+  },
+  "composer-settings": {
+    "settings": {
+      "title": "Todo o resto fica aqui",
+      "body": "Duração, legendas, enquadramento, limpeza e B-roll agora ficam em um só menu. Lembramos suas escolhas, então você só configura uma vez."
+    }
+  },
+  "skip": "Pular"
+}

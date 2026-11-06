@@ -44,7 +44,8 @@ describe("HeroClipView", () => {
     render(<HeroClipView workflow="recap" clip={clip()} taskId="task-1" editable busy={false} onDownload={vi.fn()} />);
 
     expect(screen.getByRole("heading", { name: "Three rules for pricing" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Covers 3 points" })).toBeInTheDocument();
+    // The intro and takeaway are listed, but they aren't points.
+    expect(screen.getByRole("heading", { name: "Covers 1 point" })).toBeInTheDocument();
     expect(screen.getByText("From 2:00 in the original")).toBeInTheDocument();
     expect(screen.getByText("From 1:02:05 in the original")).toBeInTheDocument();
     expect(screen.getByText("Intro")).toBeInTheDocument();
@@ -106,8 +107,32 @@ describe("heroMoments", () => {
     ]);
   });
 
+  it("shows a point with a setup once", () => {
+    const meta = { ranges: [[34, 39], [52, 72], [188, 216]] as [number, number][], points: [
+      { label: "Certainty", kind: "point" as const, range_index: 0, output_start: 0 },
+      { label: "Certainty", kind: "point" as const, range_index: 1, output_start: 5 },
+      { label: "Giving", kind: "point" as const, range_index: 2, output_start: 24 },
+    ] };
+    expect(heroMoments("recap", clip({ workflow_meta: meta })).map((moment) => [moment.label, moment.sourceStart])).toEqual([
+      ["Certainty", 34], ["Giving", 188],
+    ]);
+  });
+
   it("has no source times on shared pages, where ranges are private", () => {
     const shared = clip({ workflow_meta: { points: [{ label: "One", range_index: 0, output_start: 0 }] } });
     expect(heroMoments("recap", shared)[0].sourceStart).toBeNull();
+  });
+});
+
+describe("HeroClipView placeholder names", () => {
+  it("shows the planner's Intro and Takeaway once, in the viewer's language", () => {
+    const meta = { ranges: [[1, 2], [3, 4], [5, 6]] as [number, number][], points: [
+      { label: "Intro", kind: "opener" as const, range_index: 0, output_start: 0 },
+      { label: "Real point", kind: "point" as const, range_index: 1, output_start: 5 },
+      { label: "Takeaway", kind: "closer" as const, range_index: 2, output_start: 9 },
+    ] };
+    render(<HeroClipView workflow="recap" clip={clip({ workflow_meta: meta })} taskId="task-1" editable busy={false} onDownload={vi.fn()} />);
+    expect(screen.getAllByText("Intro")).toHaveLength(1);
+    expect(screen.getAllByText("Takeaway")).toHaveLength(1);
   });
 });
