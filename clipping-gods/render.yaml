@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: clipping-gods
+    runtime: docker
+    plan: 1c-2g
+    rootDir: clipping-gods
+    healthCheckPath: /api/health
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    disk:
+      name: clipping-gods-data
+      mountPath: /var/data
+      sizeGB: 10
+    envVars:
+      - key: DATA_DIR
+        value: /var/data
+      - key: APP_PASSWORD
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: GONKA_API_KEY
+        sync: false
+      - key: GONKA_BASE_URL
+        value: https://api.gonkarouter.io/v1
+      - key: GONKA_MODEL
+        value: zai-org/GLM-5.3-Flash
+      - key: ASSEMBLYAI_API_KEY
+        sync: false
