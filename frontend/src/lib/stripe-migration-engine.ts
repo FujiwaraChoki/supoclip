@@ -281,6 +281,8 @@ export async function handleMigrationEvent(
   event: Stripe.Event,
   dependencies: MigrationEngineDependencies,
 ): Promise<boolean> {
+  const { isBillingRiskEvent, resolveBillingRisk } = await import("./stripe-billing-safety");
+  const risk = isBillingRiskEvent(event) ? await resolveBillingRisk(event, await dependencies.client(accountId)) : null;
   const object = event.data.object as Stripe.Event.Data.Object & {
     customer?: unknown;
   };
@@ -289,23 +291,7 @@ export async function handleMigrationEvent(
     !event.type.startsWith("customer.subscription.")
       ? stripeObjectId(object)
       : stripeObjectId(object.customer);
-  if (
-    !customerId &&
-    (event.type.startsWith("charge.") ||
-      event.type.startsWith("refund.") ||
-      event.type.startsWith("radar."))
-  ) {
-    const chargeId =
-      "charge" in object ? stripeObjectId(object.charge) : undefined;
-    if (chargeId)
-      customerId = stripeObjectId(
-        (
-          await (
-            await dependencies.client(accountId)
-          ).charges.retrieve(chargeId)
-        ).customer,
-      );
-  }
+  if (risk) customerId = risk.customerId;
   if (!customerId) return false;
   const record = await dependencies.store.byCustomer(accountId, customerId);
   if (!record) return false;
@@ -327,11 +313,10 @@ export async function handleMigrationEvent(
     event.type === "checkout.session.completed"
   )
     return false;
-  if (
-    event.type.startsWith("charge.") ||
-    event.type.startsWith("refund.") ||
-    event.type.startsWith("radar.")
-  ) {
+  if (isBillingRiskEvent(event)) {
+    if (!risk || risk.charge.metadata.shiori_kind === "usage_topup") return false;
+    const affected = accountId === record.source.accountId ? record.source : record.destination;
+    if (!risk.subscriptionId || risk.subscriptionId !== affected?.subscriptionId) return true;
     await dependencies.store.commit(record, {
       kind: "review",
       reason: "Refund or dispute requires account-qualified review",
@@ -444,6 +429,9 @@ export async function handleMigrationEvent(
       throw new Error(
         "Prepaid source access has not expired; retry reconciliation at renewal",
       );
+    if (snapshot.periodStart !== record.sourcePaidThrough)
+      throw new Error("Recovery invoice does not preserve the original renewal");
+    await assertSourceStopped(record, dependencies);
     await dependencies.store.commit(record, {
       kind: "payment_failed",
       snapshot,

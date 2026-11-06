@@ -40,6 +40,7 @@ export async function withUserBillingAccount<T>(
       ? sourceStripeAccountId()
       : checkoutStripeAccountId());
   let recoveryOnly = false;
+  let recoverySubscriptionId: string | undefined;
   let customerId = user.stripe_customer_id || undefined;
   if (row) {
     const migration = migrationRecord(row);
@@ -66,6 +67,7 @@ export async function withUserBillingAccount<T>(
         accountId = row.destination_account;
         customerId = row.destination_customer;
         recoveryOnly = true;
+        recoverySubscriptionId = row.destination_subscription;
       } else {
         throw new BillingAccountHoldError();
       }
@@ -88,7 +90,7 @@ export async function withUserBillingAccount<T>(
   }
   const client = await clientFor(accountId);
   return runWithStripeAccount(
-    { accountId, client, recoveryOnly, customerId },
+    { accountId, client, recoveryOnly, recoverySubscriptionId, customerId },
     callback,
   );
 }

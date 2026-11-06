@@ -5,6 +5,8 @@ export type StripeAccountContext = {
   accountId: string;
   client: Stripe;
   recoveryOnly?: boolean;
+  recoverySubscriptionId?: string;
+  riskSubscriptionId?: string;
   customerId?: string;
 };
 const scope = new AsyncLocalStorage<StripeAccountContext>();

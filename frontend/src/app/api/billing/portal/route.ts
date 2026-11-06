@@ -1,4 +1,5 @@
-import { accountPortalConfiguration } from "@/lib/stripe-accounts";
+import { ownedInvoiceRecoveryUrl } from "@/lib/stripe-billing-safety";
+import { accountPortalConfiguration, BillingAccountHoldError } from "@/lib/stripe-accounts";
 import { billingAccountRoute } from "@/server/stripe-account-routing";
 import { stripeAccountContext, stripeAccountsEnabled, stripePriceEnvPrefix } from "@/lib/stripe-accounts";
 import { NextResponse } from "next/server";
@@ -43,12 +44,18 @@ async function createStripeCustomerForUser(user: {
 
 async function createPortalSession(customerId: string) {
   const stripe = getStripeClient();
+  const recovery = stripeAccountContext();
+  if (recovery?.recoveryOnly) {
+    if (!recovery.recoverySubscriptionId) throw new BillingAccountHoldError();
+    const url = await ownedInvoiceRecoveryUrl(recovery.recoverySubscriptionId);
+    if (!url) throw new BillingAccountHoldError();
+    return { url };
+  }
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3107";
   return stripe.billingPortal.sessions.create({
       ...accountPortalConfiguration(),
     customer: customerId,
     return_url: `${appUrl}/settings`,
-    ...(stripeAccountContext()?.recoveryOnly ? { flow_data: { type: "payment_method_update" as const } } : {}),
   });
 }
 
@@ -108,6 +115,7 @@ export async function POST() {
       const portalSession = await createPortalSession(customerId);
       return NextResponse.json({ url: portalSession.url });
     } catch (error) {
+      if (error instanceof BillingAccountHoldError) return NextResponse.json({ error: error.message, code: "billing_transfer_pending" }, { status: 409 });
       if (user && !stripeAccountsEnabled() && isMissingStripeCustomer(error)) {
         const newCustomerId = await createStripeCustomerForUser(user);
         const portalSession = await createPortalSession(newCustomerId);

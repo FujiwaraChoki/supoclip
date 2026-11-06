@@ -1,3 +1,4 @@
+import { destinationCheckoutTax } from "@/lib/stripe-billing-safety";
 import { accountPortalConfiguration } from "@/lib/stripe-accounts";
 import { stripeAccountsEnabled } from "@/lib/stripe-accounts";
 import { billingAccountRoute } from "@/server/stripe-account-routing";
@@ -99,6 +100,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ url: fallbackUrl });
     }
 
+    const checkoutTax = await destinationCheckoutTax();
     const stripe = getStripeClient();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3107";
 
@@ -121,7 +123,7 @@ export async function POST(request: Request) {
       const customer = await stripe.customers.create({
         email: session.user.email,
         name: session.user.name || undefined,
-        metadata: { userId: session.user.id },
+        metadata: { userId: session.user.id, app: "supoclip" },
       });
       customerId = customer.id;
 
@@ -194,9 +196,11 @@ export async function POST(request: Request) {
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "subscription",
+      ...checkoutTax,
       customer: customerId,
       metadata: {
         userId: session.user.id,
+        app: "supoclip",
         plan: billingPlan.id,
         interval,
         ...(offer ? { creator_code: offer.code } : {}),

@@ -1,3 +1,5 @@
+import { dispatchBillingEvent } from "../src/server/stripe-billing-webhook";
+import { getPrismaClient } from "../src/server/prisma";
 import { afterAll, beforeEach, describe, expect, test, vi } from "vitest";
 import Stripe from "stripe";
 import { PrismaClient } from "../src/generated/prisma";
@@ -76,6 +78,12 @@ function client(account: string): Stripe {
     value.cancel_at_period_end = true;
     return structuredClone(value) as Stripe.Response<Stripe.Subscription>;
   });
+  vi.spyOn(sdk.charges, "retrieve").mockImplementation(async (id) => ({
+    id, customer, refunded: true, metadata: {}, payment_intent: "pi_original",
+  }) as Stripe.Response<Stripe.Charge>);
+  vi.spyOn(sdk.invoicePayments, "list").mockResolvedValue({
+    data: [{ invoice: "in_source_original" }], has_more: false,
+  } as Stripe.Response<Stripe.ApiList<Stripe.InvoicePayment>>);
   clients.set(account, sdk);
   return sdk;
 }
@@ -157,6 +165,7 @@ async function seed(provider = "stripe") {
     customer,
     status: "not_started",
   } as Stripe.SubscriptionSchedule);
+  invoices.set(source + ":in_source_original", { id: "in_source_original", customer, parent: { subscription_details: { subscription: "sub_source" } } } as Stripe.Invoice);
   invoices.set(destination + ":in_paid", {
     id: "in_paid",
     customer,
@@ -242,6 +251,7 @@ beforeEach(async () => {
 });
 afterAll(async () => {
   await db.$disconnect();
+  await getPrismaClient().$disconnect();
 });
 
 describe("signed webhooks and real Postgres ownership transactions", () => {
@@ -618,4 +628,54 @@ describe("signed webhooks and real Postgres ownership transactions", () => {
       ).toBe("destination_active");
     },
   );
+});
+
+describe("ordinary new-US customer risk dispatch through the real database", () => {
+  async function seedNewCustomer(provider = "stripe") {
+    await db.user.create({ data: { id: "new_us", name: "Synthetic", email: "new-us@example.invalid", stripe_account_id: destination, stripe_customer_id: customer, stripe_subscription_id: "sub_new_us", subscription_provider: provider, subscription_status: "active", plan: "pro" } });
+    const sub = subscription(destination, "sub_new_us", "price_destination", paidThrough);
+    invoices.set(destination + ":in_source_original", { id: "in_source_original", customer, parent: { subscription_details: { subscription: "sub_new_us" } } } as Stripe.Invoice);
+    vi.spyOn(client(destination).subscriptions, "cancel").mockImplementation(async id => { const value = objects.get(destination+":"+id)!; value.status = "canceled"; return structuredClone(value) as Stripe.Response<Stripe.Subscription>; });
+    return sub;
+  }
+  const riskEvent = (type: string) => ({ id: "evt_risk", type, data: { object: type === "charge.refunded" ? { id: "ch_owned", customer, refunded: true } : { id: "dp_owned", charge: "ch_owned" } } }) as Stripe.Event;
+  test.each(["charge.refunded", "charge.dispute.created", "radar.early_fraud_warning.created"])("%s cancels only the owned invoice subscription", async type => {
+    await seedNewCustomer();
+    await runWithStripeAccount({ accountId: destination, client: client(destination) }, () => dispatchBillingEvent(riskEvent(type)));
+    expect(await db.user.findUniqueOrThrow({ where: { id: "new_us" } })).toMatchObject({ plan: "free", subscription_status: "canceled", stripe_account_id: destination });
+  });
+  test("a historical subscription's refund cannot cancel the current subscription", async () => {
+    const sub = await seedNewCustomer();
+    invoices.set(destination+":in_source_original", { customer, parent: { subscription_details: { subscription: "sub_old" } } } as Stripe.Invoice);
+    await runWithStripeAccount({ accountId: destination, client: client(destination) }, () => dispatchBillingEvent(riskEvent("charge.refunded")));
+    expect(sub.status).toBe("active");
+    expect((await db.user.findUniqueOrThrow({ where: { id: "new_us" } })).plan).toBe("pro");
+  });
+  test.each(["apple", "affiliate"])("risk does not cancel or replace an independent %s grant", async provider => {
+    const sub = await seedNewCustomer(provider);
+    await runWithStripeAccount({ accountId: destination, client: client(destination) }, () => dispatchBillingEvent(riskEvent("charge.dispute.created")));
+    expect(sub.status).toBe("active");
+    expect((await db.user.findUniqueOrThrow({ where: { id: "new_us" } })).subscription_provider).toBe(provider);
+  });
+  test("the same customer ID in the wrong account has no authority", async () => {
+    const sub = await seedNewCustomer();
+    invoices.set(source+":in_source_original", { customer, parent: { subscription_details: { subscription: "sub_new_us" } } } as Stripe.Invoice);
+    await runWithStripeAccount({ accountId: source, client: client(source) }, () => dispatchBillingEvent(riskEvent("charge.dispute.created")));
+    expect(sub.status).toBe("active");
+  });
+});
+
+test("payment recovery rejects an invoice starting outside the original renewal boundary", async () => {
+  await seed();
+  objects.get(destination+":sub_destination")!.items.data[0].current_period_start += 60;
+  const response = await deliver(destination, "evt_wrong_recovery_period", "invoice.payment_action_required", { id: "in_wrong_period", customer, parent: { subscription_details: { subscription: "sub_destination" } } });
+  expect(response.status).toBe(503);
+  expect((await createPrismaMigrationStore(db).byCustomer(source, customer))?.recoveryRequired).toBe(false);
+});
+test("payment recovery rechecks that source billing cannot still renew", async () => {
+  await seed();
+  objects.get(source+":sub_source")!.cancel_at_period_end = false;
+  const response = await deliver(destination, "evt_source_resumed_recovery", "invoice.payment_action_required", { id: "in_wrong_source", customer, parent: { subscription_details: { subscription: "sub_destination" } } });
+  expect(response.status).toBe(503);
+  expect((await createPrismaMigrationStore(db).byCustomer(source, customer))?.recoveryRequired).toBe(false);
 });

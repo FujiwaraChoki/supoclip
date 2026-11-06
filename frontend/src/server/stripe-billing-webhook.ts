@@ -1,3 +1,4 @@
+import { handleOwnedBillingRisk } from "./stripe-billing-risk";
 import {
   bindAccountCheckout,
   createPrismaMigrationStore,
@@ -338,7 +339,8 @@ export async function handleAccountBillingWebhook(
 /** Dispatch only after account ownership and inbox handling have succeeded. */
 export async function dispatchBillingEvent(event: Stripe.Event) {
   const stripe = getServerStripeClient();
-  if (event.type === "checkout.session.completed") {
+  await handleOwnedBillingRisk(event);
+  if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
     await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
   }
 
