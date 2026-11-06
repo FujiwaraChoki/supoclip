@@ -1,6 +1,5 @@
 {
   "new": "New",
-  "close": "Close",
   "next": "Next",
   "back": "Back",
   "done": "Done",
@@ -46,5 +45,6 @@
       "title": "Everything else lives here",
       "body": "Length, captions, framing, cleanup, and B-roll are now in one menu. We remember your choices, so you only set them once."
     }
-  }
+  },
+  "skip": "Skip"
 }

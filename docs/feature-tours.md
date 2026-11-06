@@ -8,7 +8,7 @@ Short cards that introduce a new feature to people who already use SupoClip.
 2. Put `data-tour="<target>"` on what each step points at.
 3. Add the title and body to `frontend/messages/<locale>/tours.json` in every language.
 4. Mount `<FeatureTourHost>` if the page doesn't have it yet. Only the create screen does today.
-5. For a big feature, give the opening announcement an `image`: render it in code (see `assets/blender/workflows-announcement.py`, `blender -b -P <script> -- out.png 1024`) and export a ~1600px WebP to `frontend/public/tours/`.
+5. For a big feature, give the opening announcement `media`: a seamless loop rendered in code with Blender (scripts and spare renders in `assets/blender/announcement/`, see its README), encoded to WebM, MP4 and a WebP poster at 1600×800 in `frontend/public/tours/`. To compare candidates, set `media.variants` to a `variants.json` beside them: previews then show a picker. Remove it once one is chosen.
 6. Check it with `?tour=<id>`, which replays it for anyone.
 
 ## Rules

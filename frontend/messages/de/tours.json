@@ -1,6 +1,5 @@
 {
   "new": "Neu",
-  "close": "Schließen",
   "next": "Weiter",
   "back": "Zurück",
   "done": "Fertig",
@@ -46,5 +45,6 @@
       "title": "Alles andere findest du hier",
       "body": "Länge, Untertitel, Bildausschnitt, Bereinigung und B-Roll liegen jetzt in einem Menü. Wir merken uns deine Auswahl, du stellst sie also nur einmal ein."
     }
-  }
+  },
+  "skip": "Überspringen"
 }

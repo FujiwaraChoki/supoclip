@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { celebrate } from "@/lib/confetti";
 import { track } from "@/lib/datafast";
 import { dueTours, FEATURE_TOURS, TOUR_COOLDOWN_MS, type FeatureTour, type TourStep } from "@/lib/feature-tours";
 import type { Workflow } from "@/lib/workflows";
@@ -75,12 +75,55 @@ function Spotlight({ target }: { target: HTMLElement }) {
   );
 }
 
-/** The opening announcement's picture: rendered in Blender from assets/blender/workflows-announcement.py. */
-function AnnouncementImage({ src }: { src: string }) {
+type Media = NonNullable<FeatureTour["media"]>;
+type Variant = { slug: string; name: string };
+
+/** The opening announcement's loop, rendered in Blender (assets/blender/announcement/). */
+function AnnouncementMedia({ media, variantsUrl }: { media: Media; /** Previews only: offer every candidate render to compare. */ variantsUrl?: string }) {
+  const [variants, setVariants] = useState<Variant[]>([]);
+  const [chosen, setChosen] = useState<string | null>(null);
+  useEffect(() => {
+    if (!variantsUrl) return;
+    let cancelled = false;
+    void fetch(variantsUrl)
+      .then((response) => (response.ok ? response.json() : []))
+      .then((data) => { if (!cancelled && Array.isArray(data)) setVariants(data.filter((entry) => typeof entry?.slug === "string")); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [variantsUrl]);
+  const base = variantsUrl?.replace(/[^/]*$/, "");
+  const shown: Media = chosen && base
+    ? { poster: `${base}${chosen}.webp`, videos: [{ src: `${base}${chosen}.webm`, type: "video/webm" }, { src: `${base}${chosen}.mp4`, type: "video/mp4" }] }
+    : media;
   return (
-    <div className="relative aspect-[1600/688] overflow-hidden bg-[#0b0a09]">
-      {/* eslint-disable-next-line @next/next/no-img-element -- a static, pre-sized render */}
-      <img src={src} alt="" width={1600} height={688} className="size-full object-cover motion-safe:animate-[tour-zoom_1.4s_ease-out_both]" />
+    <div className="relative aspect-[2/1] overflow-hidden bg-[#020202]">
+      <video
+        // A new render needs a new element: browsers don't reload changed <source> children.
+        key={shown.poster}
+        className="size-full object-cover"
+        poster={shown.poster}
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="auto"
+        aria-hidden
+        // Reduced motion: the poster stays still.
+        ref={(node) => { if (node && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) node.pause(); }}
+      >
+        {shown.videos.map((video) => <source key={video.src} src={video.src} type={video.type} />)}
+      </video>
+      {variants.length > 0 && (
+        <select
+          aria-label="Render"
+          value={chosen ?? ""}
+          onChange={(event) => setChosen(event.target.value || null)}
+          className="absolute right-3 top-3 h-8 max-w-[60%] rounded-full border border-white/20 bg-black/55 px-3 text-xs text-white backdrop-blur"
+        >
+          <option value="">Current</option>
+          {variants.map((variant, index) => <option key={variant.slug} value={variant.slug}>{index + 1}. {variant.name}</option>)}
+        </select>
+      )}
     </div>
   );
 }
@@ -172,11 +215,13 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd }: {
     target?.scrollIntoView?.({ block: "nearest", inline: "center", behavior: "smooth" });
   }, [target]);
 
-  const next = () => {
+  const next = (event?: { currentTarget: HTMLElement }) => {
     if (running && index < running.steps.length - 1) {
       setIndex(index + 1);
       return;
     }
+    const rect = event?.currentTarget.getBoundingClientRect();
+    celebrate(rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : undefined);
     end("completed");
   };
 
@@ -195,7 +240,7 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd }: {
           // Start on the answer most people want, not on the way out.
           onOpenAutoFocus={(event) => { event.preventDefault(); showMe.current?.focus(); }}
         >
-          {running.tour.image && <AnnouncementImage src={running.tour.image} />}
+          {running.tour.media && <AnnouncementMedia media={running.tour.media} variantsUrl={running.preview ? running.tour.media.variants : undefined} />}
           <div className="px-6 pb-6 pt-5">
             <span className="inline-flex rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-medium text-brand">{t("new")}</span>
             <DialogTitle className="mt-2 font-display text-xl tracking-tight">{t(`${keys}.title`)}</DialogTitle>
@@ -226,16 +271,13 @@ export function FeatureTourHost({ enabled, busy, onWorkflow, onEnd }: {
           onInteractOutside={(event) => event.preventDefault()}
         >
           {step.workflow && <WorkflowGlyph id={step.workflow} className="mb-3" />}
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-sm font-semibold">{t(`${keys}.title`)}</p>
-            <button type="button" aria-label={t("close")} onClick={() => end("dismissed")} className="-mr-1 -mt-1 rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-              <X className="size-3.5" />
-            </button>
-          </div>
+          <p className="text-sm font-semibold">{t(`${keys}.title`)}</p>
           <p className="mt-1 text-sm text-muted-foreground">{t(`${keys}.body`)}</p>
           <div className="mt-3 flex items-center justify-between gap-2">
-              <span className="text-xs tabular-nums text-muted-foreground">{counted.length > 1 ? t("progress", { current: position, total: counted.length }) : null}</span>
+              {/* Always a quiet way out, without competing with Next. */}
+              <button type="button" onClick={() => end("dismissed")} className="-ml-1 rounded-md px-1 py-1 text-xs text-muted-foreground/70 transition-colors hover:text-foreground">{t("skip")}</button>
               <span className="flex items-center gap-1">
+                {counted.length > 1 && <span className="mr-1 text-xs tabular-nums text-muted-foreground">{t("progress", { current: position, total: counted.length })}</span>}
                 {position > 1 && <Button type="button" variant="ghost" size="sm" className="h-8 rounded-full px-3 text-xs" onClick={() => setIndex(index - 1)}>{t("back")}</Button>}
                 <Button type="button" size="sm" className="h-8 rounded-full px-4 text-xs" onClick={next}>{index < running.steps.length - 1 ? t("next") : t("done")}</Button>
               </span>

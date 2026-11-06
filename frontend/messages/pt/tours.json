@@ -1,6 +1,5 @@
 {
   "new": "Novo",
-  "close": "Fechar",
   "next": "Avançar",
   "back": "Voltar",
   "done": "Concluir",
@@ -46,5 +45,6 @@
       "title": "Todo o resto fica aqui",
       "body": "Duração, legendas, enquadramento, limpeza e B-roll agora ficam em um só menu. Lembramos suas escolhas, então você só configura uma vez."
     }
-  }
+  },
+  "skip": "Pular"
 }

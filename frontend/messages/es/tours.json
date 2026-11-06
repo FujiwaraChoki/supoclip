@@ -1,6 +1,5 @@
 {
   "new": "Nuevo",
-  "close": "Cerrar",
   "next": "Siguiente",
   "back": "Atrás",
   "done": "Listo",
@@ -46,5 +45,6 @@
       "title": "Todo lo demás está aquí",
       "body": "Duración, subtítulos, encuadre, limpieza y B-roll ahora están en un solo menú. Recordamos tus elecciones, así que solo las configuras una vez."
     }
-  }
+  },
+  "skip": "Omitir"
 }

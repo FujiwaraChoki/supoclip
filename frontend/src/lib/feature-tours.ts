@@ -24,8 +24,13 @@ export type FeatureTour = {
    * newer never knew it any other way. Set it to the day a gated feature opens to them.
    */
   releasedAt: string;
-  /** Picture for the opening announcement, from `public/` (render it, don't screenshot it). */
-  image?: string;
+  /** Looping video for the opening announcement, from `public/`: render it, don't screenshot it. */
+  media?: {
+    poster: string;
+    videos: readonly { src: string; type: string }[];
+    /** While choosing: candidate renders to compare in a preview (`?tour=<id>`), a JSON list of `{ slug, name }` beside `<slug>.webm|mp4|webp`. Remove once one is picked. */
+    variants?: string;
+  };
   /** Other tours this one already explains, so nobody gets them again. */
   covers?: readonly string[];
   steps: readonly TourStep[];
@@ -42,7 +47,13 @@ export const FEATURE_TOURS: readonly FeatureTour[] = [
     id: "workflows",
     // Update to the day workflows open to everyone: accounts created until then should see this too.
     releasedAt: "2026-11-06T00:00:00Z",
-    image: "/tours/workflows.webp",
+    media: {
+      poster: "/tours/workflows.webp",
+      videos: [
+        { src: "/tours/workflows.webm", type: "video/webm" },
+        { src: "/tours/workflows.mp4", type: "video/mp4" },
+      ],
+    },
     covers: ["composer-settings"],
     steps: [
       { target: "workflow-picker", message: "intro", side: "bottom", intro: true },

@@ -2,6 +2,9 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FeatureTourHost } from "./feature-tour";
+import { celebrate } from "@/lib/confetti";
+
+vi.mock("@/lib/confetti", () => ({ celebrate: vi.fn() }));
 
 let account: { createdAt: string; seen: string[] };
 let posted: string[];
@@ -43,7 +46,7 @@ beforeEach(() => {
   }));
 });
 
-afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.mocked(celebrate).mockClear(); });
 
 const firstTitle = "Introducing workflows";
 const wait = () => act(() => new Promise((resolve) => setTimeout(resolve, 1200)));
@@ -79,6 +82,20 @@ describe("FeatureTourHost", () => {
     expect(onEnd).toHaveBeenCalledOnce();
     expect(posted).toEqual(["workflows"]);
     expect(endings).toEqual(["workflows:completed:7"]);
+    expect(celebrate).toHaveBeenCalledWith({ x: expect.any(Number), y: expect.any(Number) });
+  });
+
+  it("can be skipped from any step", async () => {
+    const onEnd = vi.fn();
+    render(<Page onEnd={onEnd} />);
+    await screen.findByText(firstTitle, undefined, { timeout: 2500 });
+    fireEvent.click(screen.getByRole("button", { name: "Show me 👀" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(screen.queryByText("2 of 7")).not.toBeInTheDocument();
+    expect(onEnd).toHaveBeenCalledOnce();
+    expect(endings).toEqual(["workflows:dismissed:2"]);
+    expect(celebrate).not.toHaveBeenCalled();
   });
 
   it("can be declined or left at any step", async () => {
@@ -89,6 +106,7 @@ describe("FeatureTourHost", () => {
     expect(screen.queryByText(firstTitle)).not.toBeInTheDocument();
     expect(onEnd).toHaveBeenCalledOnce();
     expect(endings).toEqual(["workflows:dismissed:0"]);
+    expect(celebrate).not.toHaveBeenCalled();
   });
 
   it("leaves new accounts alone", async () => {
