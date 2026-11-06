@@ -196,9 +196,16 @@ class SocialService:
             if not isinstance(allowed, list):
                 raise SocialValidationError("TikTok returned invalid publishing options. Try refreshing the account.")
             levels = [level for level in levels if PRIVACY_MAP.get(level) in allowed]
+            if not provider.audited:
+                levels = [level for level in levels if level == "private"]
             if not levels:
                 raise SocialValidationError("TikTok did not return any supported posting privacy options. Try refreshing or reconnecting the account.")
-        return {"privacy_levels": levels, "requires_privacy_selection": provider.name == "tiktok"}
+        return {
+            "privacy_levels": levels,
+            "requires_privacy_selection": provider.name == "tiktok",
+            # TikTok rejects unaudited apps' posts unless the account itself is private.
+            "requires_private_account": provider.name == "tiktok" and not provider.audited,
+        }
 
     async def start_connection(
         self, user_id: str, provider_name: str, *, client: Optional[str] = None

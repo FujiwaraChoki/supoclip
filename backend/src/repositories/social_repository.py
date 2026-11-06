@@ -19,6 +19,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..social.tiktok import UNAUDITED_PRIVATE_ACCOUNT_ERROR, UNAUDITED_PRIVATE_ACCOUNT_MESSAGE
+
 logger = logging.getLogger(__name__)
 
 POST_STATUSES = (
@@ -90,6 +92,9 @@ def present_post_error(provider: str, message: Optional[str]) -> Optional[str]:
     suffix = " (Unaudited TikTok apps can only post privately until TikTok approves the app.)"
     if provider == "tiktok" and message and message.startswith("TikTok does not allow '"):
         return message.removesuffix(suffix)
+    # Posts that failed before the readable message existed stored TikTok's raw code.
+    if provider == "tiktok" and message and UNAUDITED_PRIVATE_ACCOUNT_ERROR in message:
+        return UNAUDITED_PRIVATE_ACCOUNT_MESSAGE
     return message
 
 

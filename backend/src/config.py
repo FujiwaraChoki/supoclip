@@ -207,6 +207,9 @@ class Config:
         ) or self._get_optional_env("GOOGLE_OAUTH_CLIENT_SECRET")
         self.tiktok_client_key = self._get_optional_env("TIKTOK_CLIENT_KEY")
         self.tiktok_client_secret = self._get_optional_env("TIKTOK_CLIENT_SECRET")
+        # Until TikTok audits the app, Direct Post only accepts SELF_ONLY posts
+        # from accounts set to private. Set true only after the audit passes.
+        self.tiktok_app_audited = self._get_bool_env("TIKTOK_APP_AUDITED", False)
         self.instagram_app_id = self._get_optional_env(
             "INSTAGRAM_APP_ID"
         ) or self._get_optional_env("META_APP_ID")
