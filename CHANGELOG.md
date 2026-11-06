@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-06
+
+- **Fixed:** When YouTube audio comes through the backup download route, the video's length is read correctly, so clips from its last minutes are no longer dropped. ([#333](https://github.com/FujiwaraChoki/supoclip/pull/333))
+
 ## 2026-11-05
 
 - **Improved:** Generations show a short, varied notice when a video takes longer than usual. The notice survives a page refresh, replaces the time estimate during delays, and clears when processing continues. ([#336](https://github.com/FujiwaraChoki/supoclip/pull/336))
